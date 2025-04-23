@@ -17,7 +17,6 @@ extension MachOFile {
 
 extension MachOFile.Swift {
     public var protocols: [SwiftProtocol]? {
-//        guard machO.is64Bit else { return nil }
         let loadCommands = machO.loadCommands
 
         let __swift5_protos: any SectionProtocol
@@ -30,11 +29,57 @@ extension MachOFile.Swift {
         } else {
             return nil
         }
+        guard __swift5_protos.align * 2 == 4 else {
+            return nil
+        }
         return _readProtocols(from: __swift5_protos, in: machO)
+    }
+    
+    public var nominalTypes: [SwiftNominalType]? {
+        let loadCommands = machO.loadCommands
+
+        let __swift5_types: any SectionProtocol
+        if let text = loadCommands.text64,
+           let section = text.__swift5_types(in: machO) {
+            __swift5_types = section
+        } else if let text = loadCommands.text,
+                  let section = text.__swift5_types(in: machO) {
+            __swift5_types = section
+        } else {
+            return nil
+        }
+        guard __swift5_types.align * 2 == 4 else {
+            return nil
+        }
+        return _readNominalTypes(from: __swift5_types, in: machO)
     }
 }
 
 extension MachOFile.Swift {
+    
+    func _readNominalTypes<NominalType: SwiftNominalTypeProtocol>(from section: any SectionProtocol, in machO: MachOFile) -> [NominalType]? {
+        let data = machO.fileHandle.readData(
+            offset: numericCast(section.offset + machO.headerStartOffset),
+            size: section.size
+        )
+
+        typealias Pointer = NominalType.Layout.Pointer
+        let pointerSize: Int = MemoryLayout<Pointer>.size
+        let offsets: DataSequence<Pointer> = .init(
+            data: data,
+            numberOfElements: section.size / pointerSize
+        )
+
+        return offsets
+            .enumerated()
+            .map { (offsetIndex: Int, nominalLocalOffset: Pointer) in
+                let offset = Int(nominalLocalOffset) + (offsetIndex * 4) + section.offset
+                let layout: NominalType.Layout = machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
+                return .init(offset: numericCast(offset), layout: layout)
+            }
+    }
+    
+    
     func _readProtocols<Protocol: SwiftProtocolProtocol>(from section: any SectionProtocol, in machO: MachOFile) -> [Protocol]? {
         let data = machO.fileHandle.readData(
             offset: numericCast(section.offset + machO.headerStartOffset),
@@ -51,10 +96,12 @@ extension MachOFile.Swift {
         return offsets
             .enumerated()
             .map { (offsetIndex: Int, rawOffset: Pointer) in
-                let offset = Int(rawOffset) + (offsetIndex * 4) + section.offset + machO.headerStartOffset
-                let layout: Protocol.Layout = machO.fileHandle.read(offset: machO.fileOffset(of: numericCast(offset)))
+                let offset = Int(rawOffset) + (offsetIndex * 4) + section.offset
+                let layout: Protocol.Layout = machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
                 return .init(layout: layout, offset: numericCast(offset))
             }
     }
+    
+    
 }
 

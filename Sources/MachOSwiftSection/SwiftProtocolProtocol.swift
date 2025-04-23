@@ -20,7 +20,7 @@ public protocol SwiftProtocolProtocol: _FixupResolvable where LayoutField == Swi
 
 extension SwiftProtocolProtocol {
     public func name(in machO: MachOFile) -> String {
-        let address = Int(layout.name) + layoutOffset(of: .name) + offset
+        let address = Int(layout.name) + layoutOffset(of: .name) + offset + machO.headerStartOffset
         return machO.fileHandle.readString(offset: numericCast(address))!
     }
 }

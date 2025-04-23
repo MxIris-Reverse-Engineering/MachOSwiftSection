@@ -3,17 +3,14 @@ import Foundation
 @testable import MachOSwiftSection
 @testable import MachOKit
 
-@Test func example() async throws {
-    
-}
-
-
 @Suite
 struct MachOSwiftSectionTests {
     enum Error: Swift.Error {
         case notFound
     }
+
     let machOFile: MachOFile
+    
     init() throws {
         let path = "/System/Applications/Freeform.app/Contents/MacOS/Freeform"
         let url = URL(fileURLWithPath: path)
@@ -22,12 +19,12 @@ struct MachOSwiftSectionTests {
         }
         switch file {
         case let .fat(fatFile):
-            machOFile = try! fatFile.machOFiles().first(where: { $0.header.cpu.type == .x86_64 })!
+            self.machOFile = try! fatFile.machOFiles().first(where: { $0.header.cpu.type == .x86_64 })!
         case let .machO(machO):
-            machOFile = machO
+            self.machOFile = machO
         }
     }
-    
+
     @Test
     func protocolsInFile() async throws {
         guard let protocols = machOFile.swift.protocols else {
@@ -35,6 +32,21 @@ struct MachOSwiftSectionTests {
         }
         for proto in protocols {
             print(proto.name(in: machOFile))
+        }
+    }
+
+    @Test
+    func nominalTypesInFile() async throws {
+        guard let nominalTypes = machOFile.swift.nominalTypes else {
+            throw Error.notFound
+        }
+        for type in nominalTypes {
+            print(type.name(in: machOFile))
+            type.fieldDescriptor(in: machOFile).records(in: machOFile).forEach { record in
+                print(record)
+                
+            }
+//            print(type.fieldDescriptor(in: machOFile).numFields)
         }
     }
 }
