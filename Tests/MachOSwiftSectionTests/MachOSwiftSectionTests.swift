@@ -41,11 +41,12 @@ struct MachOSwiftSectionTests {
             throw Error.notFound
         }
         for type in nominalTypes {
-            print(type.name(in: machOFile))
-            type.fieldDescriptor(in: machOFile).records(in: machOFile).forEach { record in
-                print(record)
-                
-            }
+//            print(type.name(in: machOFile))
+            print(type.fieldDescriptor(in: machOFile).mangledTypeName(in: machOFile))
+//            type.fieldDescriptor(in: machOFile).records(in: machOFile).forEach { record in
+//                print(record.mangledTypeName(in: machOFile), record.fieldName(in: machOFile))
+//                print(record.fieldName(in: machOFile))
+//            }
 //            print(type.fieldDescriptor(in: machOFile).numFields)
         }
     }

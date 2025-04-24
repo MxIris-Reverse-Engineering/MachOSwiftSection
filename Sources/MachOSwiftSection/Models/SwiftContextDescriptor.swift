@@ -1,4 +1,3 @@
-
 // https://github.com/apple/swift/blob/main/include/swift/ABI/MetadataValues.h#L1183
 public enum SwiftContextDescriptorKind: UInt8, CustomStringConvertible {
     /// This context descriptor represents a module.
@@ -51,46 +50,52 @@ public enum SwiftContextDescriptorKind: UInt8, CustomStringConvertible {
 }
 
 // https://github.com/apple/swift/blob/main/include/swift/ABI/MetadataValues.h#L1849
-public struct SwiftContextDescriptorFlags {
-    public let value: UInt32
+public struct SwiftContextDescriptorFlags: OptionSet {
+    public let rawValue: UInt32
 
-    public init(_ value: UInt32) {
-        self.value = value
+    public init(rawValue: UInt32) {
+        self.rawValue = rawValue
     }
 
     /// The kind of context this descriptor describes.
     public var kind: SwiftContextDescriptorKind {
-        if let kind = SwiftContextDescriptorKind(rawValue: UInt8(value & 0x1F)) {
+        if let kind = SwiftContextDescriptorKind(rawValue: UInt8(rawValue & 0x1F)) {
             return kind
         }
         return SwiftContextDescriptorKind.unknown
     }
 
+    public static let hasInvertibleProtocols = SwiftContextDescriptorFlags(rawValue: 0x20)
+    
+    public static let isUnique = SwiftContextDescriptorFlags(rawValue: 0x40)
+    
+    public static let isGeneric = SwiftContextDescriptorFlags(rawValue: 0x80)
+    
     /// Whether the context being described is generic.
-    public var isGeneric: Bool {
-        return (value & 0x80) != 0
-    }
+//    public var isGeneric: Bool {
+//        return (rawValue & 0x80) != 0
+//    }
 
     /// Whether this is a unique record describing the referenced context.
-    public var isUnique: Bool {
-        return (value & 0x40) != 0
-    }
+//    public var isUnique: Bool {
+//        return (rawValue & 0x40) != 0
+//    }
 
     /// Whether the context has information about invertible protocols, which
     /// will show up as a trailing field in the context descriptor.
-    public var hasInvertibleProtocols: Bool {
-        return (value & 0x20) != 0
-    }
+//    public var hasInvertibleProtocols: Bool {
+//        return (rawValue & 0x20) != 0
+//    }
 
     /// The format version of the descriptor. Higher version numbers may have
     /// additional fields that aren't present in older versions.
     public var version: UInt8 {
-        return UInt8((value >> 8) & 0xFF)
+        return UInt8((rawValue >> 8) & 0xFF)
     }
 
     /// The most significant two bytes of the flags word, which can have
     /// kind-specific meaning.
     public var kindSpecificFlags: UInt16 {
-        return UInt16((value >> 16) & 0xFFFF)
+        return UInt16((rawValue >> 16) & 0xFFFF)
     }
 }

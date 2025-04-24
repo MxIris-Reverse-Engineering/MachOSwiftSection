@@ -1,0 +1,19 @@
+//
+//  SwiftFieldRecordFlags.swift
+//  MachOSwiftSection
+//
+//  Created by JH on 2025/4/24.
+//
+
+
+public struct SwiftFieldRecordFlags: OptionSet {
+    public let rawValue: UInt32
+    
+    public init(rawValue: UInt32) {
+        self.rawValue = rawValue
+    }
+
+    public static let isIndirectCase = SwiftFieldRecordFlags(rawValue: 1 << 0)
+    public static let isVariadic = SwiftFieldRecordFlags(rawValue: 1 << 1)
+    public static let isArtificial = SwiftFieldRecordFlags(rawValue: 1 << 2)
+}
