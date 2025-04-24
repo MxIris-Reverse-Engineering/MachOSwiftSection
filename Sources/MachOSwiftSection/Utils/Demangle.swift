@@ -1,6 +1,6 @@
 //
 //  File.swift
-//  
+//
 //
 //  Created by paradiseduo on 2021/12/23.
 //
@@ -17,7 +17,7 @@ public func _stdlib_demangleImpl(
     flags: UInt32
 ) -> UnsafeMutablePointer<CChar>?
 
-internal func _stdlib_demangleName(_ mangledName: String) -> String {
+func _stdlib_demangleName(_ mangledName: String) -> String {
     return mangledName.utf8CString.withUnsafeBufferPointer {
         mangledNameUTF8CStr in
 
@@ -38,7 +38,6 @@ internal func _stdlib_demangleName(_ mangledName: String) -> String {
     }
 }
 
-
 func swift_demangle(_ mangled: String) -> String? {
     let result = _stdlib_demangleName(mangled).replacingOccurrences(of: "$s", with: "").replacingOccurrences(of: "__C.", with: "")
     if result.contains("for "), let s = result.components(separatedBy: "for ").last {
@@ -47,12 +46,13 @@ func swift_demangle(_ mangled: String) -> String? {
     return fixOptionalTypeName(result)
 }
 
-
 @_silgen_name("swift_getTypeByMangledNameInContext")
-public func _getTypeByMangledNameInContext(_ name: UnsafePointer<UInt8>,
-                                           _ nameLength: Int,
-                                           genericContext: UnsafeRawPointer?,
-                                           genericArguments: UnsafeRawPointer?) -> Any.Type?
+public func _getTypeByMangledNameInContext(
+    _ name: UnsafePointer<UInt8>,
+    _ nameLength: Int,
+    genericContext: UnsafeRawPointer?,
+    genericArguments: UnsafeRawPointer?
+) -> Any.Type?
 
 func canDemangleFromRuntime(_ instr: String) -> Bool {
     return instr.hasPrefix("So") || instr.hasPrefix("$So") || instr.hasPrefix("_$So") || instr.hasPrefix("_T")
@@ -60,16 +60,16 @@ func canDemangleFromRuntime(_ instr: String) -> Bool {
 
 func runtimeGetDemangledName(_ instr: String) -> String {
     var str: String = instr
-    if (instr.hasPrefix("$s")) {
+    if instr.hasPrefix("$s") {
         str = instr
-    } else if (instr.hasPrefix("So")) {
+    } else if instr.hasPrefix("So") {
         str = "$s" + instr
-    } else if (instr.hasPrefix("_T")) {
+    } else if instr.hasPrefix("_T") {
         //
     } else {
         return instr
     }
-    
+
     if let s = swift_demangle(str) {
         return s
     }
@@ -80,30 +80,29 @@ func getTypeFromMangledName(_ str: String) -> String {
     if str.hasSuffix("0x") {
         return str
     }
-    if (canDemangleFromRuntime(str)) {
+    if canDemangleFromRuntime(str) {
         return runtimeGetDemangledName(str)
     }
-    //check is ascii string
-    if (!str.isAsciiString()) {
+    // check is ascii string
+    if !str.isAsciiString() {
         return str
     }
-    
+
     guard let ptr = str.toPointer() else {
         return str
     }
-    
-    var useCnt:Int = str.count
+
+    var useCnt: Int = str.count
     if str.contains("_pG") {
         useCnt = useCnt - str.components(separatedBy: "_pG").first!.count
     }
-        
+
     guard let typeRet: Any.Type = _getTypeByMangledNameInContext(ptr, useCnt, genericContext: nil, genericArguments: nil) else {
         return str
     }
-    
+
     return fixOptionalTypeName(String(describing: typeRet))
 }
-
 
 func fixOptionalTypeName(_ typeName: String) -> String {
     if typeName.contains("Optional") {
@@ -119,17 +118,17 @@ func fixOptionalTypeName(_ typeName: String) -> String {
     return typeName
 }
 
-//func fixMangledTypeName(_ dataStruct: DataStruct) -> String {
+// func fixMangledTypeName(_ dataStruct: DataStruct) -> String {
 //    if !dataStruct.value.contains("0x") {
 //        return dataStruct.value
 //    }
 //    let hexName: String = dataStruct.value.removingPrefix("0x")
 //    var data = hexName.hexData
 //    let startAddress = dataStruct.address.int16()
-//    
+//
 //    var mangledName: String = ""
 //    var i: Int = 0
-//    
+//
 //    while i < data.count {
 //        let val = data[i]
 //        if (val == 0x01) {
@@ -165,7 +164,7 @@ func fixOptionalTypeName(_ typeName: String) -> String {
 //            if (toIdx > data.count) {
 //                data.append(Data(repeating: 0, count: toIdx-data.count))
 //            }
-//            
+//
 //            let subData = data[fromIdx..<toIdx]
 //            let address = subData.rawValueBig().int16() + startAddress + fromIdx
 //            let newDataStruct = DataStruct.data(MachOData.shared.binary, offset: address, length: 4)
@@ -213,7 +212,7 @@ func fixOptionalTypeName(_ typeName: String) -> String {
 //        }
 //    }
 //    return result
-//}
+// }
 
 func makeDemangledTypeName(_ type: String, header: String) -> String {
     if type.hasPrefix("_$") {

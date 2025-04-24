@@ -19,7 +19,7 @@ extension SwiftNominalTypeProtocol {
     }
 
     public var flags: SwiftContextDescriptorFlags {
-        .init(layout.flags)
+        .init(rawValue: layout.flags)
     }
 
     public func fieldDescriptor(in machO: MachOFile) -> SwiftFieldDescriptor {

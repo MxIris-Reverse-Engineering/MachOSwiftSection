@@ -1,8 +1,6 @@
 import Foundation
 @_spi(Support) import MachOKit
 
-
-
 public struct SwiftFieldRecord: LayoutWrapper {
     public struct Layout {
         public let flags: UInt32

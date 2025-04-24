@@ -1,7 +1,15 @@
 import Foundation
 @_spi(Support) import MachOKit
 
-public struct SwiftFieldDescriptor: LayoutWrapper {
+public struct SwiftFieldDescriptor: LayoutWrapper, _FixupResolvable {
+    public enum LayoutField {
+        case mangledTypeName
+        case superclass
+        case kind
+        case fieldRecordSize
+        case numFields
+    }
+
     public struct Layout {
         public let mangledTypeName: Int32
         public let superclass: Int32
@@ -18,15 +26,29 @@ public struct SwiftFieldDescriptor: LayoutWrapper {
         self.offset = offset
         self.layout = layout
     }
+
+    public func layoutOffset(of field: LayoutField) -> Int {
+        switch field {
+        case .mangledTypeName:
+            return layoutOffset(of: \.mangledTypeName)
+        case .superclass:
+            return layoutOffset(of: \.superclass)
+        case .kind:
+            return layoutOffset(of: \.kind)
+        case .fieldRecordSize:
+            return layoutOffset(of: \.fieldRecordSize)
+        case .numFields:
+            return layoutOffset(of: \.numFields)
+        }
+    }
 }
 
 extension SwiftFieldDescriptor {
-    
     public func mangledTypeName(in machO: MachOFile) -> String? {
         let address = Int(layout.mangledTypeName) + offset + machO.headerStartOffset
         return machO.fileHandle.readString(offset: numericCast(address))
     }
-    
+
     public var kind: SwiftFieldDescriptorKind {
         return SwiftFieldDescriptorKind(rawValue: layout.kind) ?? .unknown
     }
