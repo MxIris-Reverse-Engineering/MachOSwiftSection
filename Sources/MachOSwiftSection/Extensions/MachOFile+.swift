@@ -83,3 +83,4 @@ extension MachOFile {
         resolveBind(at: numericCast(offset)) != nil
     }
 }
+

@@ -16,7 +16,7 @@ extension MachOFile {
 }
 
 extension MachOFile.Swift {
-    public var protocols: [SwiftProtocol]? {
+    public var protocols: [SwiftProtocolDescriptor]? {
         let loadCommands = machO.loadCommands
 
         let __swift5_protos: any SectionProtocol
@@ -35,7 +35,7 @@ extension MachOFile.Swift {
         return _readProtocols(from: __swift5_protos, in: machO)
     }
     
-    public var nominalTypes: [SwiftNominalType]? {
+    public var nominalTypes: [SwiftNominalTypeDescriptor]? {
         let loadCommands = machO.loadCommands
 
         let __swift5_types: any SectionProtocol
@@ -57,7 +57,7 @@ extension MachOFile.Swift {
 
 extension MachOFile.Swift {
     
-    func _readNominalTypes<NominalType: SwiftNominalTypeProtocol>(from section: any SectionProtocol, in machO: MachOFile) -> [NominalType]? {
+    func _readNominalTypes<NominalType: SwiftNominalTypeDescriptorProtocol>(from section: any SectionProtocol, in machO: MachOFile) -> [NominalType]? {
         let data = machO.fileHandle.readData(
             offset: numericCast(section.offset + machO.headerStartOffset),
             size: section.size
@@ -80,7 +80,7 @@ extension MachOFile.Swift {
     }
     
     
-    func _readProtocols<Protocol: SwiftProtocolProtocol>(from section: any SectionProtocol, in machO: MachOFile) -> [Protocol]? {
+    func _readProtocols<Protocol: SwiftProtocolDescriptorProtocol>(from section: any SectionProtocol, in machO: MachOFile) -> [Protocol]? {
         let data = machO.fileHandle.readData(
             offset: numericCast(section.offset + machO.headerStartOffset),
             size: section.size

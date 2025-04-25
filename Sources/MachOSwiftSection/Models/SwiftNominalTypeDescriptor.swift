@@ -1,7 +1,7 @@
 import Foundation
 @_spi(Support) import MachOKit
 
-public struct SwiftNominalType: LayoutWrapper, SwiftNominalTypeProtocol {
+public struct SwiftNominalTypeDescriptor: LayoutWrapperWithOffset, SwiftNominalTypeDescriptorProtocol {
     public struct Layout: _SwiftNominalTypeLayoutProtocol {
         public typealias Pointer = Int32
 
@@ -42,5 +42,22 @@ public struct SwiftNominalType: LayoutWrapper, SwiftNominalTypeProtocol {
         }
 
         return layoutOffset(of: keyPath)
+    }
+}
+
+extension SwiftNominalTypeDescriptor {
+    public func name(in machO: MachOFile) -> String? {
+        let offset = offset + layoutOffset(of: .name) + Int(layout.name)
+        return machO.fileHandle.readString(offset: numericCast(offset + machO.headerStartOffset))
+    }
+
+    public var flags: SwiftContextDescriptorFlags {
+        .init(rawValue: layout.flags)
+    }
+
+    public func fieldDescriptor(in machO: MachOFile) -> SwiftFieldDescriptor {
+        let offset = offset + layoutOffset(of: .fieldDescriptor) + Int(layout.fieldDescriptor)
+        let layout: SwiftFieldDescriptor.Layout = machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
+        return SwiftFieldDescriptor(offset: offset, layout: layout)
     }
 }

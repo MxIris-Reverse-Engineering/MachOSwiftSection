@@ -7,3 +7,13 @@ extension LayoutWrapper {
         return layoutOffset(of: pKeyPath)
     }
 }
+
+protocol LayoutWrapperWithOffset: LayoutWrapper {
+    var offset: Int { get }
+}
+
+extension LayoutWrapperWithOffset {
+    public func offset(of keyPath: KeyPath<Layout, Int>) -> Int {
+        return offset + layoutOffset(of: keyPath)
+    }
+}

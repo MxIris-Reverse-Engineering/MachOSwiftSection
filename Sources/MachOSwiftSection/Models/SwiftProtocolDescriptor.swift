@@ -8,7 +8,7 @@
 import Foundation
 @_spi(Support) import MachOKit
 
-public struct SwiftProtocol: LayoutWrapper, SwiftProtocolProtocol {
+public struct SwiftProtocolDescriptor: LayoutWrapperWithOffset, SwiftProtocolDescriptorProtocol {
     public typealias LayoutField = SwiftProtocolLayoutField
 
     public struct Layout: _SwiftProtocolLayoutProtocol {
@@ -55,5 +55,12 @@ public struct SwiftProtocol: LayoutWrapper, SwiftProtocolProtocol {
         }
 
         return layoutOffset(of: keyPath)
+    }
+}
+
+extension SwiftProtocolDescriptor {
+    public func name(in machO: MachOFile) -> String {
+        let address = Int(layout.name) + layoutOffset(of: .name) + offset + machO.headerStartOffset
+        return machO.fileHandle.readString(offset: numericCast(address))!
     }
 }

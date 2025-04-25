@@ -1,11 +1,3 @@
-//
-//  SwiftFieldRecordFlags.swift
-//  MachOSwiftSection
-//
-//  Created by JH on 2025/4/24.
-//
-
-
 public struct SwiftFieldRecordFlags: OptionSet {
     public let rawValue: UInt32
     

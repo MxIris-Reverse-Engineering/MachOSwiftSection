@@ -1,7 +1,7 @@
 import Foundation
 @_spi(Support) import MachOKit
 
-public struct SwiftFieldDescriptor: LayoutWrapper, _FixupResolvable {
+public struct SwiftFieldDescriptor: LayoutWrapperWithOffset, _FixupResolvable {
     public enum LayoutField {
         case mangledTypeName
         case superclass

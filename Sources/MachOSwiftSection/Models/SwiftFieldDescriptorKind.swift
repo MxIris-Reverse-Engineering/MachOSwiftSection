@@ -1,11 +1,3 @@
-//
-//  SwiftFieldDescriptorKind.swift
-//  MachOSwiftSection
-//
-//  Created by JH on 2025/4/24.
-//
-
-
 public enum SwiftFieldDescriptorKind: UInt16 {
     case `struct`
     case `class`
@@ -15,5 +7,5 @@ public enum SwiftFieldDescriptorKind: UInt16 {
     case classProtocol
     case objCProtocol
     case objCClass
-    case unknown
+    case unknown = 0xFFFF
 }
