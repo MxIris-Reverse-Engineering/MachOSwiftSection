@@ -3,6 +3,7 @@ import Foundation
 @_spi(Core) @testable import MachOSwiftSection
 @_spi(Support) import MachOKit
 import MachOObjCSection
+
 @Suite
 struct MachOSwiftSectionTests {
     enum Error: Swift.Error {
@@ -87,7 +88,7 @@ struct MachOSwiftSectionTests {
                     if mangledTypeName.starts(with: "0x") {
                         let hexName: String = mangledTypeName.removingPrefix("0x")
                         var dataArray: [UInt8] = hexName.hexBytes
-                        var i = 0
+                        var i = 0 // 0x0205C210
                         while i < dataArray.count {
                             let value = dataArray[i]
                             switch value {
@@ -95,16 +96,19 @@ struct MachOSwiftSectionTests {
                                 // find
                                 let fromIdx: Int = i + 1 // ignore 0x01
                                 let toIdx: Int = i + 5 // 4 bytes
+                                
                                 if toIdx > dataArray.count {
                                     dataArray.append(contentsOf: [UInt8](repeating: 0, count: toIdx - dataArray.count))
                                 }
                                 let offsetArray: [UInt8] = Array(dataArray[fromIdx ..< toIdx])
-                                let tmp = offsetArray.reversed().hex
+                                
                                 let ptr = record.offset + record.layoutOffset(of: \.mangledTypeName) + Int(record.layout.mangledTypeName) + fromIdx
-                                guard let address = Int(tmp, radix: 16) else {
-                                    continue nominalTypesForEach
+                                
+                                let offset = offsetArray.withUnsafeBytes { rawBufferPointer in
+                                    return rawBufferPointer.load(as: Int32.self)
                                 }
-                                let addrPtr: UInt64 = numericCast(Int(ptr) + address)
+                                
+                                let addrPtr: UInt64 = numericCast(Int(ptr) + Int(offset))
                                 if let name = machOFile.swift._readTypeContextDescriptor(from: addrPtr, in: machOFile)?.name(in: machOFile) {
                                     mangledName += name
                                     if i == 0, toIdx >= dataArray.count {
@@ -116,21 +120,20 @@ struct MachOSwiftSectionTests {
                                 i = i + 5
                             case 0x02: // Reference points indirectly to context descriptor
                                 let fromIndex: Int = i + 1 // ignore 0x02
-                                let toIndex: Int = i + 4
+                                let toIndex: Int = i + 5
+                                
                                 if toIndex > dataArray.count {
                                     dataArray.append(contentsOf: [UInt8](repeating: 0, count: toIndex - dataArray.count))
                                 }
 
                                 let offsetArray: [UInt8] = Array(dataArray[fromIndex ..< toIndex])
 
-                                let tmp = offsetArray.reversed().hex
-
                                 let ptr = record.offset + record.layoutOffset(of: \.mangledTypeName) + Int(record.layout.mangledTypeName) + fromIndex
 
-                                guard let address = Int(tmp, radix: 16) else {
-                                    continue nominalTypesForEach
+                                let offset = offsetArray.withUnsafeBytes { rawBufferPointer in
+                                    return rawBufferPointer.load(as: Int32.self)
                                 }
-                                let addrPtr: UInt64 = numericCast(Int(ptr) + address)
+                                let addrPtr: UInt64 = numericCast(Int(ptr) + Int(offset))
 
                                 if let bind = machOFile.resolveBind(at: machOFile.fileOffset(of: addrPtr)), let symbolName = machOFile.dyldChainedFixups?.symbolName(for: bind.0.info.nameOffset) {
                                     if i == 0, toIndex >= dataArray.count {
@@ -146,7 +149,7 @@ struct MachOSwiftSectionTests {
                                     }
                                 }
 
-                                i = toIndex + 1
+                                i = i + 5
                             case 0x0C:
                                 let fromIdx: Int = i + 1 // ignore 0x01
                                 let toIdx: Int = i + 5 // 4 bytes
@@ -154,23 +157,14 @@ struct MachOSwiftSectionTests {
                                     dataArray.append(contentsOf: [UInt8](repeating: 0, count: toIdx - dataArray.count))
                                 }
                                 let offsetArray: [UInt8] = Array(dataArray[fromIdx ..< toIdx])
-                                let tmp = offsetArray.reversed().hex.replacingOccurrences(of: "ff", with: "00")
                                 
                                 let ptr = record.offset + record.layoutOffset(of: \.mangledTypeName) + Int(record.layout.mangledTypeName) + fromIdx
-                                guard let address = Int(tmp, radix: 16) else {
-                                    continue nominalTypesForEach
+                                
+                                let offset = offsetArray.withUnsafeBytes { rawBufferPointer in
+                                    return rawBufferPointer.load(as: Int32.self)
                                 }
-                                let addrPtr: UInt64 = numericCast(Int(ptr) + address)
-                                print(addrPtr)
-//                                mangledName += machOFile.fileHandle.readString(offset: addrPtr) ?? ""
-//                                if let name = machOFile.swift._readTypeContextDescriptor(from: addrPtr, in: machOFile)?.name(in: machOFile) {
-//                                    mangledName += name
-//                                    if i == 0, toIdx >= dataArray.count {
-//                                        mangledName = mangledName + name
-//                                    } else {
-//                                        mangledName = mangledName + makeDemangledTypeName(name, header: mangledName)
-//                                    }
-//                                }
+                                let addrPtr: UInt64 = numericCast(Int(ptr) + Int(offset))
+/*                                print(machOFile.fileHandle.readString(offset: addrPtr + numericCast(machOFile.headerStartOffset)), machOFile.fileHandle.readString(offset: addrPtr + 4 + numericCast(machOFile.headerStartOffset)), machOFile.fileHandle.readString(offset: addrPtr + 8 + numericCast(machOFile.headerStartOffset)))*/
                                 i = i + 5
 //                                continue nominalTypesForEach
                             default:
@@ -182,10 +176,9 @@ struct MachOSwiftSectionTests {
                         mangledName = mangledTypeName
                     }
                 }
+                
                 print(record.mangledTypeName(in: machOFile), Optional(mangledName), record.fieldName(in: machOFile))
-//                if let demangledName = swift_demangle(mangledName) {
-//                    print(demangledName)
-//                }
+                
                 let result: String = getTypeFromMangledName(mangledName)
                 if result == mangledName {
                     if mangledName.contains("$s") {
@@ -205,7 +198,7 @@ struct MachOSwiftSectionTests {
     }
 
     @Test func rebase() async throws {
-        guard let rebase = machOFile.resolveRebase(at: 20380072) else { return }
+        guard let rebase = machOFile.resolveRebase(at: 20376972) else { return }
         print(rebase)
         let bind = machOFile.resolveBind(at: rebase)
 
@@ -216,7 +209,7 @@ struct MachOSwiftSectionTests {
 
     @Test func bind() async throws {
 //        print(machOFile.fileOffset(of: 0x143b71d08))
-        let bind = machOFile.resolveBind(at: 14653065)
+        let bind = machOFile.resolveBind(at: 20376972)
 
         guard let info = bind?.0.info else { return }
 
@@ -224,16 +217,27 @@ struct MachOSwiftSectionTests {
     }
 
     @Test func contextDescriptor() async throws {
-        let offset = 19566808 + machOFile.headerStartOffset
+        let offset = 20376972 + machOFile.headerStartOffset
         let contextDescriptorLayout: SwiftContextDescriptor.Layout = machOFile.fileHandle.read(offset: numericCast(offset))
         let contextDescriptor = SwiftContextDescriptor(offset: numericCast(offset), layout: contextDescriptorLayout)
         print(contextDescriptor.flags.kind.description)
     }
-    
+
     @Test func read() async throws {
         machOFile.objc.protocols64?.forEach { proto in
-            print(proto.offset)
+//            print(proto.mangledName(in: machOFile))
+            proto.protocolList(in: machOFile).map({ list in
+//                print(list.offset)
+                list.protocols(in: machOFile).map({ protos in
+                    print(proto.offset)
+                    print(proto.mangledName(in: machOFile))
+                })
+            })
         }
+//        print(machOFile.fileHandle.readString(offset: 17154576 + 16 + numericCast(machOFile.headerStartOffset)))
+//        machOFile.swift.protocols?.forEach {
+//            print($0.offset)
+//        }
     }
 }
 
