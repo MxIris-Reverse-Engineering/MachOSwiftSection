@@ -9,21 +9,27 @@ let package = Package(
     products: [
         .library(
             name: "MachOSwiftSection",
-            targets: ["MachOSwiftSection"]),
+            targets: ["MachOSwiftSection"]
+        ),
     ],
     dependencies: [
         .package(url: "https://github.com/p-x9/MachOKit.git", from: "0.30.0"),
+        .package(url: "https://github.com/p-x9/MachOObjCSection", branch: "main"),
     ],
     targets: [
         .target(
             name: "MachOSwiftSection",
             dependencies: [
                 .product(name: "MachOKit", package: "MachOKit"),
+                .product(name: "MachOObjCSection", package: "MachOObjCSection"),
             ]
         ),
         .testTarget(
             name: "MachOSwiftSectionTests",
-            dependencies: ["MachOSwiftSection"]
+            dependencies: [
+                "MachOSwiftSection",
+                .product(name: "MachOObjCSection", package: "MachOObjCSection"),
+            ]
         ),
     ]
 )

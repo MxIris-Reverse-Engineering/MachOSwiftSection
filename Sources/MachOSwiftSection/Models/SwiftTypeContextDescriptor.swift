@@ -18,3 +18,9 @@ public struct SwiftTypeContextDescriptor: LayoutWrapperWithOffset {
         self.layout = layout
     }
 }
+
+extension SwiftTypeContextDescriptor {
+    public func name(in machO: MachOFile) -> String? {
+        machO.fileHandle.readString(offset: numericCast(offset + layoutOffset(of: \.name) + Int(layout.name) + machO.headerStartOffset))
+    }
+}

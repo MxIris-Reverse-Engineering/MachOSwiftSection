@@ -34,7 +34,7 @@ extension MachOFile.Swift {
         }
         return _readProtocols(from: __swift5_protos, in: machO)
     }
-    
+
     public var nominalTypes: [SwiftNominalTypeDescriptor]? {
         let loadCommands = machO.loadCommands
 
@@ -56,7 +56,22 @@ extension MachOFile.Swift {
 }
 
 extension MachOFile.Swift {
-    
+    func _readTypeContextDescriptor(from offset: UInt64, in machOFile: MachOFile) -> SwiftTypeContextDescriptor? {
+        let contextDescriptorLayout: SwiftContextDescriptor.Layout = machOFile.fileHandle.read(offset: offset + numericCast(machOFile.headerStartOffset))
+        let contextDescriptor = SwiftContextDescriptor(offset: numericCast(offset), layout: contextDescriptorLayout)
+        switch contextDescriptor.flags.kind {
+        case .class,
+             .enum,
+             .protocol,
+             .struct:
+            let contextDescriptorLayout: SwiftTypeContextDescriptor.Layout = machOFile.fileHandle.read(offset: offset + numericCast(machOFile.headerStartOffset))
+            let typeContextDescriptor = SwiftTypeContextDescriptor(offset: numericCast(offset), layout: contextDescriptorLayout)
+            return typeContextDescriptor
+        default:
+            return nil
+        }
+    }
+
     func _readNominalTypes<NominalType: SwiftNominalTypeDescriptorProtocol>(from section: any SectionProtocol, in machO: MachOFile) -> [NominalType]? {
         let data = machO.fileHandle.readData(
             offset: numericCast(section.offset + machO.headerStartOffset),
@@ -78,8 +93,7 @@ extension MachOFile.Swift {
                 return .init(offset: numericCast(offset), layout: layout)
             }
     }
-    
-    
+
     func _readProtocols<Protocol: SwiftProtocolDescriptorProtocol>(from section: any SectionProtocol, in machO: MachOFile) -> [Protocol]? {
         let data = machO.fileHandle.readData(
             offset: numericCast(section.offset + machO.headerStartOffset),
@@ -101,7 +115,4 @@ extension MachOFile.Swift {
                 return .init(layout: layout, offset: numericCast(offset))
             }
     }
-    
-    
 }
-

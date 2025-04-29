@@ -1,5 +1,5 @@
 {
-  "originHash" : "87f6378aba08575314d10827fb6b03136d6a52aaf5ec276d8dd76c5d93286c64",
+  "originHash" : "568355eea2db110e84dafb65677ec7b37e13c03f968c49e3d81f030ef711f0a4",
   "pins" : [
     {
       "identity" : "machokit",
@@ -8,6 +8,24 @@
       "state" : {
         "revision" : "62d22e1ecef3dda702c039f03dd83f674ad59bfc",
         "version" : "0.30.0"
+      }
+    },
+    {
+      "identity" : "machoobjcsection",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/p-x9/MachOObjCSection",
+      "state" : {
+        "branch" : "main",
+        "revision" : "bf8db99ca70e89939544e64257a6bfaa2239831e"
+      }
+    },
+    {
+      "identity" : "swift-objc-dump",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/p-x9/swift-objc-dump.git",
+      "state" : {
+        "revision" : "1e91dfd4c332f7015f4c46f99df8a53fbb495e20",
+        "version" : "0.7.0"
       }
     }
   ],
