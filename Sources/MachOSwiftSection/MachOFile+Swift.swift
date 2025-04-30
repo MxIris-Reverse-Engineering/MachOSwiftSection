@@ -72,46 +72,44 @@ extension MachOFile.Swift {
         }
     }
 
-    func _readNominalTypes<NominalType: SwiftNominalTypeDescriptorProtocol>(from section: any SectionProtocol, in machO: MachOFile) -> [NominalType]? {
+    func _readNominalTypes(from section: any SectionProtocol, in machO: MachOFile) -> [SwiftNominalTypeDescriptor]? {
         let data = machO.fileHandle.readData(
             offset: numericCast(section.offset + machO.headerStartOffset),
             size: section.size
         )
 
-        typealias Pointer = NominalType.Layout.Pointer
-        let pointerSize: Int = MemoryLayout<Pointer>.size
-        let offsets: DataSequence<Pointer> = .init(
+        let pointerSize: Int = MemoryLayout<RelativeDirectPointer>.size
+        let offsets: DataSequence<RelativeDirectPointer> = .init(
             data: data,
             numberOfElements: section.size / pointerSize
         )
 
         return offsets
             .enumerated()
-            .map { (offsetIndex: Int, nominalLocalOffset: Pointer) in
+            .map { (offsetIndex: Int, nominalLocalOffset: RelativeDirectPointer) in
                 let offset = Int(nominalLocalOffset) + (offsetIndex * 4) + section.offset
-                let layout: NominalType.Layout = machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
+                let layout: SwiftNominalTypeDescriptor.Layout = machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
                 return .init(offset: numericCast(offset), layout: layout)
             }
     }
 
-    func _readProtocols<Protocol: SwiftProtocolDescriptorProtocol>(from section: any SectionProtocol, in machO: MachOFile) -> [Protocol]? {
+    func _readProtocols(from section: any SectionProtocol, in machO: MachOFile) -> [SwiftProtocolDescriptor]? {
         let data = machO.fileHandle.readData(
             offset: numericCast(section.offset + machO.headerStartOffset),
             size: section.size
         )
 
-        typealias Pointer = Protocol.Layout.Pointer
-        let pointerSize: Int = MemoryLayout<Pointer>.size
-        let offsets: DataSequence<Pointer> = .init(
+        let pointerSize: Int = MemoryLayout<RelativeDirectPointer>.size
+        let offsets: DataSequence<RelativeDirectPointer> = .init(
             data: data,
             numberOfElements: section.size / pointerSize
         )
 
         return offsets
             .enumerated()
-            .map { (offsetIndex: Int, rawOffset: Pointer) in
+            .map { (offsetIndex: Int, rawOffset: RelativeDirectPointer) in
                 let offset = Int(rawOffset) + (offsetIndex * 4) + section.offset
-                let layout: Protocol.Layout = machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
+                let layout: SwiftProtocolDescriptor.Layout = machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
                 return .init(layout: layout, offset: numericCast(offset))
             }
     }

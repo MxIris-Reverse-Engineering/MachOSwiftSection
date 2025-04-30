@@ -13,7 +13,7 @@ protocol LayoutWrapperWithOffset: LayoutWrapper {
 }
 
 extension LayoutWrapperWithOffset {
-    public func offset(of keyPath: KeyPath<Layout, Int>) -> Int {
+    public func offset<T>(of keyPath: KeyPath<Layout, T>) -> Int {
         return offset + layoutOffset(of: keyPath)
     }
 }

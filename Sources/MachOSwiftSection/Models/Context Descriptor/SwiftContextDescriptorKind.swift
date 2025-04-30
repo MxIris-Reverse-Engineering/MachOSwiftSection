@@ -1,3 +1,5 @@
+import Foundation
+
 // https://github.com/apple/swift/blob/main/include/swift/ABI/MetadataValues.h#L1183
 public enum SwiftContextDescriptorKind: UInt8, CustomStringConvertible {
     /// This context descriptor represents a module.
@@ -31,7 +33,8 @@ public enum SwiftContextDescriptorKind: UInt8, CustomStringConvertible {
     /// Last kind that represents a type of any sort.
     case typeLast = 31
 
-    case unknown = 0xFF // It's not in swift source, this value only used for dump
+    /// It's not in swift source, this value only used for dump
+    case unknown = 0xFF
 
     public var description: String {
         switch self {

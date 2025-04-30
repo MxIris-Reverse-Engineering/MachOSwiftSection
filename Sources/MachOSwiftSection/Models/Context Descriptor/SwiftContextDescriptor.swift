@@ -3,8 +3,8 @@ import Foundation
 
 public struct SwiftContextDescriptor: LayoutWrapperWithOffset {
     public struct Layout {
-        public let flags: UInt32
-        public let parent: Int32
+        public let flags: SwiftContextDescriptorFlags
+        public let parent: RelativeIndirectPointer
     }
 
     public let offset: Int
@@ -14,11 +14,5 @@ public struct SwiftContextDescriptor: LayoutWrapperWithOffset {
     public init(offset: Int, layout: Layout) {
         self.offset = offset
         self.layout = layout
-    }
-}
-
-extension SwiftContextDescriptor {
-    public var flags: SwiftContextDescriptorFlags {
-        return SwiftContextDescriptorFlags(rawValue: layout.flags)
     }
 }

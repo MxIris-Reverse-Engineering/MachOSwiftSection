@@ -8,25 +8,15 @@
 import Foundation
 @_spi(Support) import MachOKit
 
-public struct SwiftProtocolDescriptor: LayoutWrapperWithOffset, SwiftProtocolDescriptorProtocol {
-    public typealias LayoutField = SwiftProtocolLayoutField
-
-    public struct Layout: _SwiftProtocolLayoutProtocol {
-        public typealias Pointer = Int32
-
-        public var flags: UInt32
-
-        public var parent: Int32
-
-        public var name: Int32
-
+public struct SwiftProtocolDescriptor: LayoutWrapperWithOffset {
+    public struct Layout {
+        public let context: SwiftContextDescriptor.Layout
+        public var name: RelativeDirectPointer
         public var numRequirementsInSignature: UInt32
-
         public var numRequirements: UInt32
-
-        public var associatedTypes: Int32
+        public var associatedTypes: RelativeDirectPointer
     }
-
+    
     public var layout: Layout
     public var offset: Int
 
@@ -36,31 +26,11 @@ public struct SwiftProtocolDescriptor: LayoutWrapperWithOffset, SwiftProtocolDes
         self.offset = offset
     }
 
-    public func layoutOffset(of field: LayoutField) -> Int {
-        let keyPath: PartialKeyPath<Layout>
-
-        switch field {
-        case .flags:
-            keyPath = \.flags
-        case .parent:
-            keyPath = \.parent
-        case .name:
-            keyPath = \.name
-        case .numRequirementsInSignature:
-            keyPath = \.numRequirementsInSignature
-        case .numRequirements:
-            keyPath = \.numRequirements
-        case .associatedTypes:
-            keyPath = \.associatedTypes
-        }
-
-        return layoutOffset(of: keyPath)
-    }
 }
 
 extension SwiftProtocolDescriptor {
     public func name(in machO: MachOFile) -> String {
-        let address = Int(layout.name) + layoutOffset(of: .name) + offset + machO.headerStartOffset
+        let address = offset(of: \.name) + Int(layout.name) + machO.headerStartOffset
         return machO.fileHandle.readString(offset: numericCast(address))!
     }
 }

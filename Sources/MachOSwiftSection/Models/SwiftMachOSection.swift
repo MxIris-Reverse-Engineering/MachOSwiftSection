@@ -1,3 +1,5 @@
+import Foundation
+
 enum SwiftMachOSection: String {
     case __swift5_typeref
     case __swift5_reflstr

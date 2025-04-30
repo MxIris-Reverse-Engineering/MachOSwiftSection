@@ -1,3 +1,5 @@
+import Foundation
+
 // https://github.com/apple/swift/blob/main/include/swift/ABI/MetadataValues.h#L1849
 public struct SwiftContextDescriptorFlags: OptionSet {
     public let rawValue: UInt32
