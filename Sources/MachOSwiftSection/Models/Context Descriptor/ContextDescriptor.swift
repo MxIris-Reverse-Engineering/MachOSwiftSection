@@ -1,10 +1,10 @@
 import Foundation
 @_spi(Support) import MachOKit
 
-public struct SwiftContextDescriptor: LayoutWrapperWithOffset {
+public struct ContextDescriptor: LayoutWrapperWithOffset {
     public struct Layout {
-        public let flags: SwiftContextDescriptorFlags
-        public let parent: RelativeIndirectPointer
+        public let flags: ContextDescriptorFlags
+        public let parent: RelativeDirectPointer
     }
 
     public let offset: Int

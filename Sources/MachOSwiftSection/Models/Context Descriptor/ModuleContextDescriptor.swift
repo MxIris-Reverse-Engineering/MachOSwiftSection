@@ -1,12 +1,10 @@
 import Foundation
 @_spi(Support) import MachOKit
 
-public struct SwiftTypeContextDescriptor: LayoutWrapperWithOffset {
+public struct ModuleContextDescriptor: LayoutWrapperWithOffset {
     public struct Layout {
-        public let context: SwiftContextDescriptor.Layout
+        public let context: ContextDescriptor.Layout
         public let name: RelativeDirectPointer
-        public let accessFunctionPtr: Int32
-        public let fieldDescriptor: Int32
     }
 
     public let offset: Int
@@ -17,9 +15,13 @@ public struct SwiftTypeContextDescriptor: LayoutWrapperWithOffset {
         self.offset = offset
         self.layout = layout
     }
+
+    public func offset<T>(of keyPath: KeyPath<Layout, T>) -> Int {
+        return offset + layoutOffset(of: keyPath)
+    }
 }
 
-extension SwiftTypeContextDescriptor {
+extension ModuleContextDescriptor {
     public func name(in machO: MachOFile) -> String? {
         let offset = offset(of: \.name) + Int(layout.name)
         return machO.fileHandle.readString(offset: numericCast(offset + machO.headerStartOffset))

@@ -8,12 +8,13 @@ extension LayoutWrapper {
     }
 }
 
-protocol LayoutWrapperWithOffset: LayoutWrapper {
+public protocol LayoutWrapperWithOffset: LayoutWrapper {
     var offset: Int { get }
+    func offset<T>(of keyPath: KeyPath<Layout, T>) -> Int
 }
 
 extension LayoutWrapperWithOffset {
     public func offset<T>(of keyPath: KeyPath<Layout, T>) -> Int {
-        return offset + layoutOffset(of: keyPath)
+        return offset + MemoryLayout<Layout>.offset(of: keyPath)!
     }
 }

@@ -1,6 +1,6 @@
 import Foundation
 
-public enum SwiftSymbolicReference {
+public enum SymbolicReference {
     public enum Kind: UInt8 {
         /// A symbolic reference to a context descriptor, representing the
         /// (unapplied generic) context.

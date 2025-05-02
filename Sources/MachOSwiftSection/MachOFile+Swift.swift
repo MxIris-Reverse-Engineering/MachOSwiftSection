@@ -16,7 +16,7 @@ extension MachOFile {
 }
 
 extension MachOFile.Swift {
-    public var protocols: [SwiftProtocolDescriptor]? {
+    public var protocolDescriptors: [ProtocolDescriptor]? {
         let loadCommands = machO.loadCommands
 
         let __swift5_protos: any SectionProtocol
@@ -32,10 +32,10 @@ extension MachOFile.Swift {
         guard __swift5_protos.align * 2 == 4 else {
             return nil
         }
-        return _readProtocols(from: __swift5_protos, in: machO)
+        return _readProtocolDescriptors(from: __swift5_protos, in: machO)
     }
 
-    public var nominalTypes: [SwiftNominalTypeDescriptor]? {
+    public var typeContextDescriptors: [TypeContextDescriptor]? {
         let loadCommands = machO.loadCommands
 
         let __swift5_types: any SectionProtocol
@@ -51,28 +51,28 @@ extension MachOFile.Swift {
         guard __swift5_types.align * 2 == 4 else {
             return nil
         }
-        return _readNominalTypes(from: __swift5_types, in: machO)
+        return _readTypeContextDescriptors(from: __swift5_types, in: machO)
     }
 }
 
 extension MachOFile.Swift {
-    func _readTypeContextDescriptor(from offset: UInt64, in machOFile: MachOFile) -> SwiftTypeContextDescriptor? {
-        let contextDescriptorLayout: SwiftContextDescriptor.Layout = machOFile.fileHandle.read(offset: offset + numericCast(machOFile.headerStartOffset))
-        let contextDescriptor = SwiftContextDescriptor(offset: numericCast(offset), layout: contextDescriptorLayout)
+    func _readTypeContextDescriptor(from offset: UInt64, in machOFile: MachOFile) -> TypeContextDescriptor? {
+        let contextDescriptorLayout: ContextDescriptor.Layout = machOFile.fileHandle.read(offset: offset + numericCast(machOFile.headerStartOffset))
+        let contextDescriptor = ContextDescriptor(offset: numericCast(offset), layout: contextDescriptorLayout)
         switch contextDescriptor.flags.kind {
         case .class,
              .enum,
              .protocol,
-             .struct:
-            let contextDescriptorLayout: SwiftTypeContextDescriptor.Layout = machOFile.fileHandle.read(offset: offset + numericCast(machOFile.headerStartOffset))
-            let typeContextDescriptor = SwiftTypeContextDescriptor(offset: numericCast(offset), layout: contextDescriptorLayout)
-            return typeContextDescriptor
+             .struct,
+             .module:
+            let contextDescriptorLayout: TypeContextDescriptor.Layout = machOFile.fileHandle.read(offset: offset + numericCast(machOFile.headerStartOffset))
+            return TypeContextDescriptor(offset: numericCast(offset), layout: contextDescriptorLayout)
         default:
             return nil
         }
     }
 
-    func _readNominalTypes(from section: any SectionProtocol, in machO: MachOFile) -> [SwiftNominalTypeDescriptor]? {
+    func _readTypeContextDescriptors(from section: any SectionProtocol, in machO: MachOFile) -> [TypeContextDescriptor]? {
         let data = machO.fileHandle.readData(
             offset: numericCast(section.offset + machO.headerStartOffset),
             size: section.size
@@ -88,12 +88,12 @@ extension MachOFile.Swift {
             .enumerated()
             .map { (offsetIndex: Int, nominalLocalOffset: RelativeDirectPointer) in
                 let offset = Int(nominalLocalOffset) + (offsetIndex * 4) + section.offset
-                let layout: SwiftNominalTypeDescriptor.Layout = machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
+                let layout: TypeContextDescriptor.Layout = machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
                 return .init(offset: numericCast(offset), layout: layout)
             }
     }
 
-    func _readProtocols(from section: any SectionProtocol, in machO: MachOFile) -> [SwiftProtocolDescriptor]? {
+    func _readProtocolDescriptors(from section: any SectionProtocol, in machO: MachOFile) -> [ProtocolDescriptor]? {
         let data = machO.fileHandle.readData(
             offset: numericCast(section.offset + machO.headerStartOffset),
             size: section.size
@@ -109,7 +109,7 @@ extension MachOFile.Swift {
             .enumerated()
             .map { (offsetIndex: Int, rawOffset: RelativeDirectPointer) in
                 let offset = Int(rawOffset) + (offsetIndex * 4) + section.offset
-                let layout: SwiftProtocolDescriptor.Layout = machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
+                let layout: ProtocolDescriptor.Layout = machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
                 return .init(layout: layout, offset: numericCast(offset))
             }
     }

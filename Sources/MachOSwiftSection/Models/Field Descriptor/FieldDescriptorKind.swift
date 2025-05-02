@@ -1,4 +1,4 @@
-public enum SwiftFieldDescriptorKind: UInt16 {
+public enum FieldDescriptorKind: UInt16 {
     case `struct`
     case `class`
     case `enum`

@@ -1,8 +1,8 @@
 import Foundation
 
-public struct SwiftEnumDescriptor: LayoutWrapperWithOffset {
+public struct EnumDescriptor: LayoutWrapperWithOffset {
     public struct Layout {
-        public let typeContext: SwiftTypeContextDescriptor.Layout
+        public let context: TypeContextDescriptor.Layout
         public let numPayloadCasesAndPayloadSizeOffset: UInt32
         public let numEmptyCases: UInt32
     }
@@ -15,4 +15,6 @@ public struct SwiftEnumDescriptor: LayoutWrapperWithOffset {
         self.offset = offset
         self.layout = layout
     }
+    
+    
 }

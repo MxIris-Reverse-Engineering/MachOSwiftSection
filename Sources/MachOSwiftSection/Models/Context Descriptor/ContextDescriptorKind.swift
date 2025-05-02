@@ -1,7 +1,7 @@
 import Foundation
 
 // https://github.com/apple/swift/blob/main/include/swift/ABI/MetadataValues.h#L1183
-public enum SwiftContextDescriptorKind: UInt8, CustomStringConvertible {
+public enum ContextDescriptorKind: UInt8, CustomStringConvertible {
     /// This context descriptor represents a module.
     case module = 0
 

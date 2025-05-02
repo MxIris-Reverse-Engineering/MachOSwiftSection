@@ -1,6 +1,15 @@
 {
-  "originHash" : "568355eea2db110e84dafb65677ec7b37e13c03f968c49e3d81f030ef711f0a4",
+  "originHash" : "d8d726903b934f9c28d56b1e611d36ff3eeef37d2807fa63b480aede61a27d1f",
   "pins" : [
+    {
+      "identity" : "cwldemangle",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/mattgallagher/CwlDemangle",
+      "state" : {
+        "branch" : "master",
+        "revision" : "6bfc351bd08d7a1805234b9ba698f8381d2df08e"
+      }
+    },
     {
       "identity" : "machokit",
       "kind" : "remoteSourceControl",
@@ -26,6 +35,15 @@
       "state" : {
         "revision" : "1e91dfd4c332f7015f4c46f99df8a53fbb495e20",
         "version" : "0.7.0"
+      }
+    },
+    {
+      "identity" : "swiftdemangle",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/oozoofrog/SwiftDemangle",
+      "state" : {
+        "branch" : "main",
+        "revision" : "9beeda1a19ac77fd16f9d744326db09ae3f5d563"
       }
     }
   ],

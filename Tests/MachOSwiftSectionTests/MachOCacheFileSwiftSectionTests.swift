@@ -4,8 +4,6 @@ import Foundation
 @_spi(Support) import MachOKit
 import MachOObjCSection
 
-
-
 @Suite
 struct MachOCacheFileSwiftSectionTests {
     enum Error: Swift.Error {
@@ -15,19 +13,20 @@ struct MachOCacheFileSwiftSectionTests {
     let cache: DyldCache
 
     let machOFileInCache: MachOFile
-    
+
     init() throws {
         // Cache
         let arch = "arm64e"
         let cachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch)"
         let cacheUrl = URL(fileURLWithPath: cachePath)
-        cache = try! DyldCache(url: cacheUrl)
-        machOFileInCache = cache.machOFiles().first(where: {
+        self.cache = try! DyldCache(url: cacheUrl)
+        self.machOFileInCache = cache.machOFiles().first(where: {
             $0.imagePath.contains("/AppKit")
         })!
     }
+
     @Test func protocolsInFile() async throws {
-        guard let protocols = machOFileInCache.swift.protocols else {
+        guard let protocols = machOFileInCache.swift.protocolDescriptors else {
             throw Error.notFound
         }
         for proto in protocols {
