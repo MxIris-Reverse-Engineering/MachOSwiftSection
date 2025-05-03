@@ -2,8 +2,7 @@ import Foundation
 @_spi(Support) import MachOKit
 
 extension FileHandle {
-    @_spi(Support)
-    public func readString(
+    func readString(
         offset: UInt64
     ) -> String? {
         var data: [UInt8] = []

@@ -13,9 +13,9 @@ public struct GenericRequirementFlags: OptionSet {
         self.rawValue = rawValue
     }
 
-    public static let isPackRequirement = GenericRequirementFlags(rawValue: 1 << 5)
-    public static let hasKeyArgument = GenericRequirementFlags(rawValue: 1 << 7)
-    public static let isValueRequirement = GenericRequirementFlags(rawValue: 1 << 8)
+    public static let isPackRequirement = GenericRequirementFlags(rawValue: 0x20)
+    public static let hasKeyArgument = GenericRequirementFlags(rawValue: 0x80)
+    public static let isValueRequirement = GenericRequirementFlags(rawValue: 0x100)
 
     public var kind: GenericRequirementKind {
         .init(rawValue: UInt8(rawValue & 0x1F))!

@@ -55,18 +55,29 @@ extension MachOFile.Swift {
     }
 }
 
+enum TypeContextDescriptorWrapper {
+    case `enum`(EnumDescriptor)
+}
+
+public enum ContextDescriptorWrapper {
+    case `type`(TypeContextDescriptor)
+    case `protocol`(ProtocolDescriptor)
+}
+
 extension MachOFile.Swift {
-    func _readTypeContextDescriptor(from offset: UInt64, in machOFile: MachOFile) -> TypeContextDescriptor? {
+    func _readContextDescriptor(from offset: UInt64, in machOFile: MachOFile) -> ContextDescriptorWrapper? {
         let contextDescriptorLayout: ContextDescriptor.Layout = machOFile.fileHandle.read(offset: offset + numericCast(machOFile.headerStartOffset))
         let contextDescriptor = ContextDescriptor(offset: numericCast(offset), layout: contextDescriptorLayout)
         switch contextDescriptor.flags.kind {
         case .class,
              .enum,
-             .protocol,
              .struct,
              .module:
             let contextDescriptorLayout: TypeContextDescriptor.Layout = machOFile.fileHandle.read(offset: offset + numericCast(machOFile.headerStartOffset))
-            return TypeContextDescriptor(offset: numericCast(offset), layout: contextDescriptorLayout)
+            return .type(TypeContextDescriptor(offset: numericCast(offset), layout: contextDescriptorLayout))
+        case .protocol:
+            let contextDescriptorLayout: ProtocolDescriptor.Layout = machOFile.fileHandle.read(offset: offset + numericCast(machOFile.headerStartOffset))
+            return .protocol(ProtocolDescriptor(offset: numericCast(offset), layout: contextDescriptorLayout))
         default:
             return nil
         }
@@ -78,15 +89,15 @@ extension MachOFile.Swift {
             size: section.size
         )
 
-        let pointerSize: Int = MemoryLayout<RelativeDirectPointer>.size
-        let offsets: DataSequence<RelativeDirectPointer> = .init(
+        let pointerSize: Int = MemoryLayout<RelativeOffset>.size
+        let offsets: DataSequence<RelativeOffset> = .init(
             data: data,
             numberOfElements: section.size / pointerSize
         )
 
         return offsets
             .enumerated()
-            .map { (offsetIndex: Int, nominalLocalOffset: RelativeDirectPointer) in
+            .map { (offsetIndex: Int, nominalLocalOffset: RelativeOffset) in
                 let offset = Int(nominalLocalOffset) + (offsetIndex * 4) + section.offset
                 let layout: TypeContextDescriptor.Layout = machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
                 return .init(offset: numericCast(offset), layout: layout)
@@ -99,18 +110,18 @@ extension MachOFile.Swift {
             size: section.size
         )
 
-        let pointerSize: Int = MemoryLayout<RelativeDirectPointer>.size
-        let offsets: DataSequence<RelativeDirectPointer> = .init(
+        let pointerSize: Int = MemoryLayout<RelativeOffset>.size
+        let offsets: DataSequence<RelativeOffset> = .init(
             data: data,
             numberOfElements: section.size / pointerSize
         )
 
         return offsets
             .enumerated()
-            .map { (offsetIndex: Int, rawOffset: RelativeDirectPointer) in
+            .map { (offsetIndex: Int, rawOffset: RelativeOffset) in
                 let offset = Int(rawOffset) + (offsetIndex * 4) + section.offset
                 let layout: ProtocolDescriptor.Layout = machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
-                return .init(layout: layout, offset: numericCast(offset))
+                return .init(offset: numericCast(offset), layout: layout)
             }
     }
 }

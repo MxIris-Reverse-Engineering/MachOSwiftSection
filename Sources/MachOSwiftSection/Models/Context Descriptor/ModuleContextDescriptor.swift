@@ -3,8 +3,9 @@ import Foundation
 
 public struct ModuleContextDescriptor: LayoutWrapperWithOffset {
     public struct Layout {
-        public let context: ContextDescriptor.Layout
-        public let name: RelativeDirectPointer
+        public let flags: ContextDescriptorFlags
+        public let parent: RelativeOffset
+        public let name: RelativeOffset
     }
 
     public let offset: Int

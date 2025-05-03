@@ -123,24 +123,50 @@ extension MachOFile {
                     case .context:
                         switch directness {
                         case .direct:
-                            if let context = swift._readTypeContextDescriptor(from: lookup.address, in: self), var name = context.fieldDescriptor(in: self).mangledTypeName(in: self) {
+                            if let context = swift._readContextDescriptor(from: lookup.address, in: self) {
+                                
+                                let name = switch context {
+                                case .type(let typeContextDescriptor):
+                                    if typeContextDescriptor.fieldDescriptor(in: self).address(of: \.mangledTypeName) == address {
+                                        typeContextDescriptor.name(in: self)
+                                    } else {
+                                        typeContextDescriptor.fieldDescriptor(in: self).mangledTypeName(in: self)
+                                    }
+                                case .protocol(let protocolDescriptor):
+                                    protocolDescriptor.name(in: self)
+                                }
+                                
     //                            var parent = context
     //                            if let currnetParent = parent.parent(in: machOFile), let parentName = currnetParent.name(in: machOFile) {
     //                                name = parentName + "." + name
     //                                parent = currnetParent
     //                            }
-                                results.append(name)
+                                if let name {
+                                    results.append(name)
+                                }
                             }
                         case .indirect:
                             if let bind = resolveBind(at: fileOffset(of: lookup.address)), let symbolName = dyldChainedFixups?.symbolName(for: bind.0.info.nameOffset) {
                                 results.append(symbolName)
-                            } else if let rebase = resolveRebase(at: lookup.address), let context = swift._readTypeContextDescriptor(from: rebase, in: self), var name = context.fieldDescriptor(in: self).mangledTypeName(in: self) {
+                            } else if let rebase = resolveRebase(at: lookup.address), let context = swift._readContextDescriptor(from: rebase, in: self) {
+                                let name = switch context {
+                                case .type(let typeContextDescriptor):
+                                    if typeContextDescriptor.fieldDescriptor(in: self).address(of: \.mangledTypeName) == address {
+                                        typeContextDescriptor.name(in: self)
+                                    } else {
+                                        typeContextDescriptor.fieldDescriptor(in: self).mangledTypeName(in: self)
+                                    }
+                                case .protocol(let protocolDescriptor):
+                                    protocolDescriptor.name(in: self)
+                                }
     //                            var parent = context
     //                            if let currnetParent = parent.parent(in: machOFile), let parentName = currnetParent.name(in: machOFile) {
     //                                name = parentName + "." + name
     //                                parent = currnetParent
     //                            }
-                                results.append(name)
+                                if let name {
+                                    results.append(name)
+                                }
                             }
                         }
                     case .accessorFunctionReference:

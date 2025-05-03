@@ -8,8 +8,8 @@
 
 public struct TypeGenericContextDescriptorHeader: LayoutWrapperWithOffset {
     public struct Layout {
-        public let instantiationCache: RelativeDirectPointer
-        public let defaultInstantiationPattern: RelativeDirectPointer
+        public let instantiationCache: RelativeOffset
+        public let defaultInstantiationPattern: RelativeOffset
         public let base: GenericContextDescriptorHeader
     }
 

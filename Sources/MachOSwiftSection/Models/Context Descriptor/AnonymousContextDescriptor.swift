@@ -1,7 +1,7 @@
 import Foundation
-@_spi(Support) import MachOKit
+import MachOKit
 
-public struct ContextDescriptor: LayoutWrapperWithOffset {
+public struct AnonymousContextDescriptor: LayoutWrapperWithOffset {
     public struct Layout {
         public let flags: ContextDescriptorFlags
         public let parent: RelativeOffset

@@ -23,6 +23,10 @@ public struct TypeContextDescriptorFlags: FlagSet {
         static let classHasOverrideTable = 14
         static let classHasVTable = 15
     }
+
+    public var noMetadataInitialization: Bool {
+        field(firstBit: Bits.metadataInitialization, bitWidth: Bits.metadataInitializationWidth, fieldType: UInt8.self) == 0
+    }
     
     public var hasSingletonMetadataInitialization: Bool {
         field(firstBit: Bits.metadataInitialization, bitWidth: Bits.metadataInitializationWidth, fieldType: UInt8.self) == 1

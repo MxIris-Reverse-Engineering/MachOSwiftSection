@@ -9,8 +9,8 @@
 public struct GenericRequirementDescriptor: LayoutWrapperWithOffset {
     public struct Layout {
         public let flags: GenericRequirementFlags
-        public let paramOffset: RelativeDirectPointer
-        public let typeOrProtocolOrConformanceOrLayoutOffset: RelativeDirectPointer
+        public let param: RelativeDirectPointer<String>
+        public let typeOrProtocolOrConformanceOrLayoutOffset: RelativeOffset
     }
 
     public let offset: Int

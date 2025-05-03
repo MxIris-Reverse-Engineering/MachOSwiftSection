@@ -1,13 +1,5 @@
-//
-//  MachOFile+.swift
-//
-//
-//  Created by p-x9 on 2024/07/19
-//
-//
-
 import Foundation
-import MachOKit
+@_spi(Support) import MachOKit
 
 extension MachOFile {
     var fileHandle: FileHandle {
@@ -84,3 +76,18 @@ extension MachOFile {
     }
 }
 
+extension MachOFile {
+    func readElements<Element>(
+        offset: UInt64,
+        numberOfElements: Int,
+        swapHandler: ((inout Data) -> Void)? = nil
+    ) -> [Element] where Element: LayoutWrapperWithOffset {
+        var currentOffset = offset
+        let elements = fileHandle.readDataSequence(offset: offset + headerStartOffset.cast(), numberOfElements: numberOfElements, swapHandler: swapHandler).map { (layout: Element.Layout) -> Element in
+            let element =  Element(offset: currentOffset.cast(), layout: layout)
+            currentOffset += Element.layoutSize.cast()
+            return element
+        }
+        return elements
+    }
+}

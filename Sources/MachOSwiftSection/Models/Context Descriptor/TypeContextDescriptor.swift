@@ -2,11 +2,12 @@ import Foundation
 @_spi(Support) import MachOKit
 
 public struct TypeContextDescriptor: TypeContextDescriptorProtocol {
-    public struct Layout: TypeContextDescriptorLayoutProtocol {
-        public let context: ContextDescriptor.Layout
-        public let name: RelativeDirectPointer
-        public let accessFunctionPtr: RelativeDirectPointer
-        public let fieldDescriptor: RelativeDirectPointer
+    public struct Layout: TypeContextDescriptorLayout {
+        public let flags: ContextDescriptorFlags
+        public let parent: RelativeOffset
+        public let name: RelativeDirectPointer<String>
+        public let accessFunctionPtr: RelativeOffset
+        public let fieldDescriptor: RelativeDirectPointer<FieldDescriptor>
     }
 
     public let offset: Int
@@ -20,19 +21,9 @@ public struct TypeContextDescriptor: TypeContextDescriptorProtocol {
 }
 
 extension TypeContextDescriptor {
-    public func name(in machO: MachOFile) -> String? {
-        let offset = offset(of: \.name) + Int(layout.name)
-        return machO.fileHandle.readString(offset: numericCast(offset + machO.headerStartOffset))
-    }
-
-    public func parent(in machO: MachOFile) -> TypeContextDescriptor? {
-        guard layout.context.parent != 0 else { return nil }
-        return machO.swift._readTypeContextDescriptor(from: numericCast(offset(of: \.context.parent) + Int(layout.context.parent)), in: machO)
-    }
-
-    public func fieldDescriptor(in machO: MachOFile) -> FieldDescriptor {
-        let offset = offset(of: \.fieldDescriptor) + Int(layout.fieldDescriptor)
-        let layout: FieldDescriptor.Layout = machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
-        return FieldDescriptor(offset: offset, layout: layout)
+    public func enumDescriptor(in machO: MachOFile) -> EnumDescriptor? {
+        guard layout.flags.kind == .enum else { return nil }
+        let layout: EnumDescriptor.Layout = machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
+        return EnumDescriptor(offset: offset, layout: layout)
     }
 }

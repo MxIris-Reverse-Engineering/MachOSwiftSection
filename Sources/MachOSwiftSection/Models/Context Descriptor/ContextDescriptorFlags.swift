@@ -32,9 +32,25 @@ public struct ContextDescriptorFlags: OptionSet {
         return UInt8((rawValue >> 8) & 0xFF)
     }
 
+    public var kindSpecificFlagsRawValue: UInt16 {
+        return UInt16((rawValue >> 16) & 0xFFFF)
+    }
+
     /// The most significant two bytes of the flags word, which can have
     /// kind-specific meaning.
-    public var kindSpecificFlags: TypeContextDescriptorFlags {
-        return .init(rawValue: UInt16((rawValue >> 16) & 0xFFFF))
+    public var kindSpecificFlags: ContextDescriptorKindSpecificFlags? {
+        let rawValue = kindSpecificFlagsRawValue
+        switch kind {
+        case .anonymous:
+            return .anonymous(.init(rawValue: rawValue))
+        case .protocol:
+            return .protocol(.init(rawValue: rawValue))
+        case .class,
+             .struct,
+             .enum:
+            return .type(.init(rawValue: rawValue))
+        default:
+            return nil
+        }
     }
 }

@@ -3,22 +3,22 @@ import Foundation
 
 public struct ProtocolDescriptor: LayoutWrapperWithOffset {
     public struct Layout {
-        public let context: ContextDescriptor.Layout
-        public var name: RelativeDirectPointer
+        public let flags: ContextDescriptorFlags
+        public let parent: RelativeOffset
+        public var name: RelativeDirectPointer<String>
         public var numRequirementsInSignature: UInt32
         public var numRequirements: UInt32
-        public var associatedTypes: RelativeDirectPointer
+        public var associatedTypes: RelativeDirectPointer<String>
     }
     
-    public var layout: Layout
     public var offset: Int
+    public var layout: Layout
 
-    @_spi(Core)
-    public init(layout: Layout, offset: Int) {
-        self.layout = layout
+    
+    public init(offset: Int, layout: Layout) {
         self.offset = offset
+        self.layout = layout
     }
-
     
     public func offset<T>(of keyPath: KeyPath<Layout, T>) -> Int {
         return offset + layoutOffset(of: keyPath)
@@ -27,7 +27,6 @@ public struct ProtocolDescriptor: LayoutWrapperWithOffset {
 
 extension ProtocolDescriptor {
     public func name(in machO: MachOFile) -> String {
-        let address = offset(of: \.name) + Int(layout.name) + machO.headerStartOffset
-        return machO.fileHandle.readString(offset: numericCast(address))!
+        layout.name.resolve(from: offset(of: \.name).cast(), in: machO)
     }
 }

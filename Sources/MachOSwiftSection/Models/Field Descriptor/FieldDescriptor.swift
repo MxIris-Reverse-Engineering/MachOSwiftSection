@@ -3,8 +3,8 @@ import Foundation
 
 public struct FieldDescriptor: LayoutWrapperWithOffset {
     public struct Layout {
-        public let mangledTypeName: RelativeDirectPointer
-        public let superclass: RelativeDirectPointer
+        public let mangledTypeName: RelativeOffset
+        public let superclass: RelativeOffset
         public let kind: FieldDescriptorKind
         public let fieldRecordSize: UInt16
         public let numFields: UInt32
@@ -21,8 +21,9 @@ public struct FieldDescriptor: LayoutWrapperWithOffset {
 }
 
 extension FieldDescriptor {
+    
     public func mangledTypeName(in machO: MachOFile) -> String? {
-        return machO.makeSymbolicMangledNameStringRef(numericCast(offset(of: \.mangledTypeName) + Int(layout.mangledTypeName)))
+        return machO.makeSymbolicMangledNameStringRef(address(of: \.mangledTypeName))
     }
 
     public func records(in machO: MachOFile) -> [FieldRecord] {
