@@ -61,14 +61,7 @@ enum TypeContextDescriptorWrapper {
     case `class`(ClassDescriptor)
 }
 
-public enum ContextDescriptorWrapper {
-    case type(TypeContextDescriptor)
-    case `protocol`(ProtocolDescriptor)
-    case anonymous(AnonymousContextDescriptor)
-    case `extension`(ExtensionContextDescriptor)
-    case module(ModuleContextDescriptor)
-    case opaqueType(OpaqueTypeDescriptor)
-}
+
 
 extension MachOFile.Swift {
     func _readContextDescriptor(from offset: Int, in machOFile: MachOFile) throws -> ContextDescriptorWrapper? {

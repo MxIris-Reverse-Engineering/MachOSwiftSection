@@ -2,8 +2,8 @@ import MachOKit
 
 public protocol LayoutWrapperWithOffset: LayoutWrapper {
     var offset: Int { get }
-    func offset<T>(of keyPath: KeyPath<Layout, T>) -> Int
-    init(offset: Int, layout: Layout)
+    
+    init(layout: Layout, offset: Int)
 }
 
 extension LayoutWrapperWithOffset {
@@ -11,7 +11,7 @@ extension LayoutWrapperWithOffset {
         return offset + MemoryLayout<Layout>.offset(of: keyPath)!
     }
     
-    public func address(of keyPath: KeyPath<Layout, RelativeOffset>) -> UInt64 {
+    public func resolvedRelativeOffset(of keyPath: KeyPath<Layout, RelativeOffset>) -> Int {
         return numericCast(offset(of: keyPath) + layout[keyPath: keyPath].cast())
     }
 }

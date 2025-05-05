@@ -1,10 +1,10 @@
 import Foundation
 import MachOKit
 
-public struct ExtensionContextDescriptor: LayoutWrapperWithOffset {
-    public struct Layout {
+public struct ExtensionContextDescriptor: ExtensionContextDescriptorProtocol {
+    public struct Layout: ExtensionContextDescriptorLayout {
         public let flags: ContextDescriptorFlags
-        public let parent: RelativeOffset
+        public let parent: RelativeDirectPointer<ContextDescriptor>
         public let extendedContext: RelativeOffset
     }
 
@@ -12,8 +12,14 @@ public struct ExtensionContextDescriptor: LayoutWrapperWithOffset {
 
     public var layout: Layout
 
-    public init(offset: Int, layout: Layout) {
+    public init(layout: Layout, offset: Int) {
         self.offset = offset
         self.layout = layout
     }
 }
+
+
+
+
+
+

@@ -1,8 +1,8 @@
 import Foundation
 import MachOKit
 
-public struct ContextDescriptor: ContextDescriptorProtocol {
-    public struct Layout: ContextDescriptorLayout {
+public struct OpaqueTypeDescriptor: OpaqueTypeDescriptorProtocol {
+    public struct Layout: OpaqueTypeDescriptorLayout {
         public let flags: ContextDescriptorFlags
         public let parent: RelativeDirectPointer<ContextDescriptor>
     }

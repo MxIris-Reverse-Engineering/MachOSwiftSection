@@ -2,7 +2,6 @@ import Testing
 import Foundation
 @_spi(Core) @testable import MachOSwiftSection
 import MachOKit
-import MachOObjCSection
 
 @Suite
 struct MachOCacheFileSwiftSectionTests {

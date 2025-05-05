@@ -9,7 +9,7 @@ public struct ResilientWitnessesHeader: LayoutWrapperWithOffset {
     
     public var layout: Layout
     
-    public init(offset: Int, layout: Layout) {
+    public init(layout: Layout, offset: Int) {
         self.offset = offset
         self.layout = layout
     }

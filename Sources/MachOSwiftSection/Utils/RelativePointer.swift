@@ -88,7 +88,7 @@ extension RelativePointer where Pointee: LayoutWrapperWithOffset {
     public func resolve(from fileOffset: Int, in machO: MachOFile) throws -> Pointee {
         let offset = try resolveFileOffset(from: fileOffset, in: machO)
         let layout: Pointee.Layout = try machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
-        return .init(offset: offset, layout: layout)
+        return .init(layout: layout, offset: offset)
     }
 }
 
@@ -97,7 +97,7 @@ extension RelativePointer where Pointee: RelativePointerOptional, Pointee.Wrappe
         guard isValid else { return nil }
         let offset = try resolveFileOffset(from: fileOffset, in: machO)
         let layout: Pointee.Wrapped.Layout = try machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
-        return .makeOptional(from: .init(offset: offset, layout: layout))
+        return .makeOptional(from: .init(layout: layout, offset: offset))
     }
 }
 

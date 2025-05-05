@@ -3,7 +3,7 @@ import Foundation
 public struct EnumDescriptor: LayoutWrapperWithOffset, TypeContextDescriptorProtocol {
     public struct Layout: EnumDescriptorLayout {
         public let flags: ContextDescriptorFlags
-        public let parent: RelativeOffset
+        public let parent: RelativeDirectPointer<ContextDescriptor>
         public let name: RelativeDirectPointer<String>
         public let accessFunctionPtr: RelativeOffset
         public let fieldDescriptor: RelativeDirectPointer<FieldDescriptor>
@@ -15,7 +15,7 @@ public struct EnumDescriptor: LayoutWrapperWithOffset, TypeContextDescriptorProt
 
     public var layout: Layout
 
-    public init(offset: Int, layout: Layout) {
+    public init(layout: Layout, offset: Int) {
         self.offset = offset
         self.layout = layout
     }

@@ -12,7 +12,7 @@ public struct FieldRecord: LayoutWrapperWithOffset {
 
     public var layout: Layout
 
-    public init(offset: Int, layout: Layout) {
+    public init(layout: Layout, offset: Int) {
         self.offset = offset
         self.layout = layout
     }
@@ -29,7 +29,7 @@ extension FieldRecord {
 
     public func mangledTypeName(in machO: MachOFile) throws -> String {
         let offset = offset(of: \.mangledTypeName) + Int(layout.mangledTypeName)
-        return try machO.makeSymbolicMangledNameStringRef(numericCast(offset))
+        return try machO.readSymbolicMangledName(at: numericCast(offset))
     }
 
     public func fieldName(in machO: MachOFile) throws -> String? {

@@ -11,7 +11,7 @@ public struct ObjCProtocolDecl: LayoutWrapperWithOffset {
     
     public var layout: Layout
     
-    public init(offset: Int, layout: Layout) {
+    public init(layout: Layout, offset: Int) {
         self.offset = offset
         self.layout = layout
     }
@@ -20,6 +20,6 @@ public struct ObjCProtocolDecl: LayoutWrapperWithOffset {
 
 extension ObjCProtocolDecl {
     func mangledName(in machOFile: MachOFile) throws -> String {
-        return try machOFile.makeSymbolicMangledNameStringRef(try layout.mangledName.resolveFileOffset(from: offset(of: \.mangledName), in: machOFile).cast())
+        return try machOFile.readSymbolicMangledName(at: try layout.mangledName.resolveFileOffset(from: offset(of: \.mangledName), in: machOFile).cast())
     }
 }

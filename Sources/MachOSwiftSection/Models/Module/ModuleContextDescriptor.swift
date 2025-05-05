@@ -1,15 +1,11 @@
 import Foundation
 import MachOKit
 
-public struct StructDescriptor: LayoutWrapperWithOffset, TypeContextDescriptorProtocol {
-    public struct Layout: StructDescriptorLayout {
+public struct ModuleContextDescriptor: ModuleContextDescriptorProtocol {
+    public struct Layout: ModuleContextDescriptorLayout {
         public let flags: ContextDescriptorFlags
         public let parent: RelativeDirectPointer<ContextDescriptor>
         public let name: RelativeDirectPointer<String>
-        public let accessFunctionPtr: RelativeOffset
-        public let fieldDescriptor: RelativeDirectPointer<FieldDescriptor>
-        public let numFields: UInt32
-        public let fieldOffsetVector: UInt32
     }
 
     public let offset: Int
@@ -20,4 +16,17 @@ public struct StructDescriptor: LayoutWrapperWithOffset, TypeContextDescriptorPr
         self.offset = offset
         self.layout = layout
     }
+
+    public func offset<T>(of keyPath: KeyPath<Layout, T>) -> Int {
+        return offset + layoutOffset(of: keyPath)
+    }
 }
+
+
+
+
+
+
+
+
+

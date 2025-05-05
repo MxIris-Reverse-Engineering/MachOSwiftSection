@@ -1,5 +1,5 @@
 {
-  "originHash" : "d8d726903b934f9c28d56b1e611d36ff3eeef37d2807fa63b480aede61a27d1f",
+  "originHash" : "20184895d0d320864f47dc7c8ef128cd28f17dd95641732d01ff4bf7852c9ed0",
   "pins" : [
     {
       "identity" : "cwldemangle",
@@ -17,33 +17,6 @@
       "state" : {
         "revision" : "62d22e1ecef3dda702c039f03dd83f674ad59bfc",
         "version" : "0.30.0"
-      }
-    },
-    {
-      "identity" : "machoobjcsection",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/p-x9/MachOObjCSection",
-      "state" : {
-        "branch" : "main",
-        "revision" : "bf8db99ca70e89939544e64257a6bfaa2239831e"
-      }
-    },
-    {
-      "identity" : "swift-objc-dump",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/p-x9/swift-objc-dump.git",
-      "state" : {
-        "revision" : "1e91dfd4c332f7015f4c46f99df8a53fbb495e20",
-        "version" : "0.7.0"
-      }
-    },
-    {
-      "identity" : "swiftdemangle",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/oozoofrog/SwiftDemangle",
-      "state" : {
-        "branch" : "main",
-        "revision" : "9beeda1a19ac77fd16f9d744326db09ae3f5d563"
       }
     }
   ],
