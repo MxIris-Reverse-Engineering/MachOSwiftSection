@@ -41,15 +41,18 @@ struct MachOFileSwiftSectionTests {
         }
         for typeContextDescriptor in typeContextDescriptors {
             let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machOFile)
-            print(typeContextDescriptor.flags.kind, try typeContextDescriptor.name(in: machOFile))
+            print("----------------------------------------")
+            try print(typeContextDescriptor.flags.kind, typeContextDescriptor.name(in: machOFile))
             let records = try fieldDescriptor.records(in: machOFile)
             for record in records {
-                
-                print(try record.fieldName(in: machOFile) ?? "")
-                
-                var mangledTypeName = try record.mangledTypeName(in: machOFile)
 
-                try print(Optional(mangledTypeName) as Any, record.fieldName(in: machOFile) as Any)
+                let mangledTypeNames = try record.mangledTypeName(in: machOFile)
+
+                print("    ", mangledTypeNames.components(separatedBy: " ").map(\.demangled).joined(separator: " "))
+
+                try print("    ", mangledTypeNames, record.fieldName(in: machOFile) ?? "nil")
+                
+                print("\n")
 
 //                mangledTypeName = mangledTypeName /* .replacingOccurrences(of: "_$s", with: "") */ .replacingOccurrences(of: "Mn", with: "").replacingOccurrences(of: "Mp", with: "")
 
@@ -88,12 +91,12 @@ struct MachOFileSwiftSectionTests {
 //        print(try CwlDemangle.parseMangledSwiftSymbol("_$sSayCRLBoardLibraryViewModelItemNodeG_", isType: false).print())
 //        print("_$sSay12MemoryLayout1BVG_".typeDemangled)
 
-        print("_symbolic_______7SwiftUI9TupleViewV9MakeUnary33_DE681AB5F1A334FA14ECABDE70CB1955LLV".typeDemangled)
+        print("_symbolic_______7SwiftUI9TupleViewV9MakeUnary33_DE681AB5F1A334FA14ECABDE70CB1955LLV".demangled)
     }
 }
 
 extension String {
-    var typeDemangled: String? {
-        try? CwlDemangle.parseMangledSwiftSymbol(self, isType: true).print()
+    var demangled: String {
+        (try? CwlDemangle.parseMangledSwiftSymbol(self, isType: false).print()) ?? self
     }
 }

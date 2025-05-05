@@ -1,5 +1,5 @@
 {
-  "originHash" : "20184895d0d320864f47dc7c8ef128cd28f17dd95641732d01ff4bf7852c9ed0",
+  "originHash" : "2869c5ecb0cb0ae0d5a25fabeb9ddc6b6fa13f773fa028f92a0c2547609ee1a7",
   "pins" : [
     {
       "identity" : "cwldemangle",
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/MachOKit.git",
       "state" : {
-        "revision" : "62d22e1ecef3dda702c039f03dd83f674ad59bfc",
-        "version" : "0.30.0"
+        "revision" : "5458fc568b2d8542c3cac60bba519bf7db9c254b",
+        "version" : "0.31.0"
       }
     }
   ],
