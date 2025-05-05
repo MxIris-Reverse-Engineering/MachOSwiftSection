@@ -11,6 +11,7 @@ public struct GenericPackShapeDescriptor: LayoutWrapperWithOffset {
         public let kind: GenericPackKind
         public let index: UInt16
         public let shapeClass: UInt16
+        public let unused: UInt16
     }
     public let offset: Int
     public var layout: Layout

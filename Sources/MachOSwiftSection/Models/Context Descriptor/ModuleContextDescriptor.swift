@@ -1,5 +1,5 @@
 import Foundation
-@_spi(Support) import MachOKit
+import MachOKit
 
 public struct ModuleContextDescriptor: LayoutWrapperWithOffset {
     public struct Layout {

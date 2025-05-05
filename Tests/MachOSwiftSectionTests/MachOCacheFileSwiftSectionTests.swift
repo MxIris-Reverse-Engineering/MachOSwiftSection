@@ -1,7 +1,7 @@
 import Testing
 import Foundation
 @_spi(Core) @testable import MachOSwiftSection
-@_spi(Support) import MachOKit
+import MachOKit
 import MachOObjCSection
 
 @Suite
@@ -30,7 +30,7 @@ struct MachOCacheFileSwiftSectionTests {
             throw Error.notFound
         }
         for proto in protocols {
-            print(proto.name(in: machOFileInCache))
+            print(try proto.name(in: machOFileInCache))
         }
     }
 }

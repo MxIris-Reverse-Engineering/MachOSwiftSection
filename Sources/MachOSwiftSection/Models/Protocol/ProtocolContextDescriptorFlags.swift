@@ -28,12 +28,6 @@ public struct ProtocolContextDescriptorFlags: FlagSet {
     }
 }
 
-public enum ProtocolClassConstraint: UInt8 {
-    case `class`
-    case any
-}
 
-public enum SpecialProtocolKind: UInt8 {
-    case none
-    case error
-}
+
+

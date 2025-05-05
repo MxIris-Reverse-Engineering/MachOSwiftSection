@@ -1,5 +1,5 @@
 import Foundation
-@_spi(Support) import MachOKit
+import MachOKit
 
 public struct FieldDescriptor: LayoutWrapperWithOffset {
     public struct Layout {
@@ -22,16 +22,16 @@ public struct FieldDescriptor: LayoutWrapperWithOffset {
 
 extension FieldDescriptor {
     
-    public func mangledTypeName(in machO: MachOFile) -> String? {
-        return machO.makeSymbolicMangledNameStringRef(address(of: \.mangledTypeName))
+    public func mangledTypeName(in machO: MachOFile) throws -> String? {
+        return try machO.makeSymbolicMangledNameStringRef(address(of: \.mangledTypeName))
     }
 
-    public func records(in machO: MachOFile) -> [FieldRecord] {
+    public func records(in machO: MachOFile) throws -> [FieldRecord] {
         guard layout.fieldRecordSize != 0 else { return [] }
         let offset = offset + MemoryLayout<FieldDescriptor.Layout>.size
         let size = MemoryLayout<FieldRecord.Layout>.size
         let headerStartOffset = machO.headerStartOffset
-        let sequence: DataSequence<FieldRecord.Layout> = machO.fileHandle.readDataSequence(offset: numericCast(offset + headerStartOffset), numberOfElements: .init(layout.numFields))
+        let sequence: DataSequence<FieldRecord.Layout> = try machO.fileHandle.readDataSequence(offset: numericCast(offset + headerStartOffset), numberOfElements: .init(layout.numFields))
         return sequence.enumerated().map { .init(offset: offset + size * $0, layout: $1) }
     }
 }

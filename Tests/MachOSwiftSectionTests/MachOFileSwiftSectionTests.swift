@@ -1,10 +1,10 @@
 import Testing
 import Foundation
-@_spi(Core) @testable import MachOSwiftSection
-@_spi(Support) import MachOKit
-import MachOObjCSection
+@_spi(Core) @_spi(Support) @testable import MachOSwiftSection
+import MachOKit
+@_spi(Core) import MachOObjCSection
 import SwiftDemangle
-//import CwlDemangle
+import CwlDemangle
 
 @Suite
 struct MachOFileSwiftSectionTests {
@@ -33,7 +33,7 @@ struct MachOFileSwiftSectionTests {
             throw Error.notFound
         }
         for proto in protocols {
-            print(proto.name(in: machOFile))
+            try print(proto.name(in: machOFile))
         }
     }
 
@@ -42,31 +42,17 @@ struct MachOFileSwiftSectionTests {
             throw Error.notFound
         }
         for typeContextDescriptor in typeContextDescriptors {
-//            print(typeContextDescriptor.layout.context.parent)
-            
-            let fieldDescriptor = typeContextDescriptor.fieldDescriptor(in: machOFile)
-            let records = fieldDescriptor.records(in: machOFile)
+            let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machOFile)
+            let records = try fieldDescriptor.records(in: machOFile)
             for record in records {
-                guard let mangledTypeName = machOFile.makeSymbolicMangledNameStringRef(numericCast(record.offset(of: \.mangledTypeName) + Int(record.layout.mangledTypeName))) else { continue }
+                var mangledTypeName = try record.mangledTypeName(in: machOFile)
 
-                print(record.mangledTypeName(in: machOFile) as Any, Optional(mangledTypeName) as Any, record.fieldName(in: machOFile) as Any)
+                try print(Optional(mangledTypeName) as Any, record.fieldName(in: machOFile) as Any)
                 
-                print("Demangled: \(_stdlib_demangleName(mangledTypeName))")
+                mangledTypeName = mangledTypeName/*.replacingOccurrences(of: "_$s", with: "")*/.replacingOccurrences(of: "Mn", with: "").replacingOccurrences(of: "Mp", with: "")
                 
-//                let result: String = getTypeFromMangledName(mangledTypeName)
-//                if result == mangledTypeName {
-//                    if mangledTypeName.contains("$s") {
-//                        if let s = swift_demangle(mangledTypeName) {
-//                            print("Demangled: \(s)")
-//                        }
-//                    } else {
-//                        if let s = swift_demangle("$s" + mangledTypeName) {
-//                            print("Demangled: \(s)")
-//                        }
-//                    }
-//                } else {
-//                    print("Demangled: \(result)")
-//                }
+                print("Demangled: \(mangledTypeName.typeDemangled ?? mangledTypeName)")
+                
             }
         }
     }
@@ -92,7 +78,7 @@ struct MachOFileSwiftSectionTests {
 
     @Test func contextDescriptor() async throws {
         let offset = 22524756 + machOFile.headerStartOffset
-        let contextDescriptorLayout: ContextDescriptor.Layout = machOFile.fileHandle.read(offset: numericCast(offset))
+        let contextDescriptorLayout: ContextDescriptor.Layout = try machOFile.fileHandle.read(offset: numericCast(offset))
         let contextDescriptor = ContextDescriptor(offset: numericCast(offset), layout: contextDescriptorLayout)
         print(contextDescriptor.flags.kind.description)
     }
@@ -115,8 +101,38 @@ struct MachOFileSwiftSectionTests {
 //            print($0.offset)
 //        }
     }
-    
+
+    // offset: 19277610 + relative: 1059358 => 20336968
+    // result: 19506268
+    @Test func indirectPointer() async throws {
+//        let typeContextDescriptor: TypeContextDescriptor = try RelativeIndirectPointer(relativeOffset: 1059358).resolve(from: 19277610, in: machOFile)
+//        print(try typeContextDescriptor.name(in: machOFile))
+//        let objcProtocol: ObjCProtocol64 = try RelativeIndirectPointer(relativeOffset: -2124150).resolve(from: 19278726, in: machOFile)
+//        print(objcProtocol.mangledName(in: machOFile))
+//        print(try RelativeDirectPointer<ObjCProtocol64>(relativeOffset: -2124150).resolveAddress(from: 19278726, in: machOFile))
+        // 2124132
+//        print(try machOFile.fileHandle.read(offset: numericCast(19278726 - 2124150 + 4 + 2124132)) as Int32)
+        try print(machOFile.makeSymbolicMangledNameStringRef(numericCast(19278726 - 2124150 + 4 + 2124132)))
+//        print(try machOFile.fileHandle.readString(offset: numericCast(19278726 - 2124150 + 4 + 2124132)))
+    }
+
     @Test func demangled() async throws {
-        print("SDySi9Coherence10AnyCRValueVG".demangled)
+//        print(_stdlib_demangleName("_$sSay_$sCRLBoardLibraryViewModelItemNode"))
+//        print(try CwlDemangle.parseMangledSwiftSymbol("_$sSayCRLBoardLibraryViewModelItemNodeG_", isType: false).print())
+//        print("_$sSay12MemoryLayout1BVG_".typeDemangled)
+        
+        print("_symbolic_______7SwiftUI9TupleViewV9MakeUnary33_DE681AB5F1A334FA14ECABDE70CB1955LLV".typeDemangled)
+    }
+}
+
+extension ObjCProtocol64: LayoutWrapperWithOffset {
+    public init(offset: Int, layout: Layout) {
+        self.init(layout: layout, offset: offset)
+    }
+}
+
+extension String {
+    var typeDemangled: String? {
+        try? CwlDemangle.parseMangledSwiftSymbol(self, isType: true).print()
     }
 }

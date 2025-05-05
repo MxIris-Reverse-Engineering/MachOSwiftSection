@@ -1,5 +1,5 @@
 import Foundation
-@_spi(Support) import MachOKit
+import MachOKit
 
 extension LayoutWrapper {
     public func layoutOffset<T>(of keyPath: KeyPath<Layout, T>) -> Int {
@@ -8,18 +8,28 @@ extension LayoutWrapper {
     }
 }
 
-public protocol LayoutWrapperWithOffset: LayoutWrapper {
-    var offset: Int { get }
-    func offset<T>(of keyPath: KeyPath<Layout, T>) -> Int
-    init(offset: Int, layout: Layout)
+extension LayoutWrapper {
+    @_spi(Support)
+    public static var layoutSize: Int {
+        MemoryLayout<Layout>.size
+    }
+
+    @_spi(Support)
+    public var layoutSize: Int {
+        MemoryLayout<Layout>.size
+    }
 }
 
-extension LayoutWrapperWithOffset {
-    public func offset<T>(of keyPath: KeyPath<Layout, T>) -> Int {
-        return offset + MemoryLayout<Layout>.offset(of: keyPath)!
+extension LayoutWrapper {
+    @_spi(Support)
+    public static func layoutOffset(of key: PartialKeyPath<Layout>) -> Int {
+        MemoryLayout<Layout>.offset(of: key)! // swiftlint:disable:this force_unwrapping
     }
-    
-    public func address(of keyPath: KeyPath<Layout, RelativeOffset>) -> UInt64 {
-        return numericCast(offset(of: keyPath) + layout[keyPath: keyPath].cast())
+
+    @_spi(Support)
+    public func layoutOffset(of key: PartialKeyPath<Layout>) -> Int {
+        MemoryLayout<Layout>.offset(of: key)! // swiftlint:disable:this force_unwrapping
     }
 }
+
+

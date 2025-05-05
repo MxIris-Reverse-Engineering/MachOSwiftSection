@@ -7,7 +7,7 @@
 //
 
 import Foundation
-@_spi(Support) import MachOKit
+import MachOKit
 
 extension LoadCommandsProtocol {
     var text: SegmentCommand? {

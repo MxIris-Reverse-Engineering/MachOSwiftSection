@@ -1,12 +1,27 @@
 import Foundation
-@_spi(Support) import MachOKit
+import MachOKit
 
 extension MachOFile {
-    func makeSymbolicMangledNameStringRef(_ address: UInt64) -> String? {
+    func makeSymbolicMangledNameStringRef(_ address: UInt64) throws -> String {
         enum Element {
             struct Lookup {
-                let kind: UInt8
-                let address: UInt64
+                enum Reference {
+                    case relative(RelativeReference)
+                    case absolute(AbsoluteReference)
+                }
+
+                struct RelativeReference {
+                    let kind: SymbolicReference.Kind
+                    let directness: SymbolicReference.Directness
+                    let relativeOffset: RelativeOffset
+                }
+
+                struct AbsoluteReference {
+                    let reference: UInt64
+                }
+
+                let offset: Int
+                let reference: Reference
             }
 
             case string(String)
@@ -16,7 +31,7 @@ extension MachOFile {
         var currentOffset = address
         var currentString = ""
         while true {
-            let value: UInt8 = fileHandle.read(offset: currentOffset + headerStartOffset.cast())
+            let value: UInt8 = try fileHandle.read(offset: currentOffset + headerStartOffset.cast())
             if value == 0xFF {}
             else if value == 0 {
                 if currentString.count > 0 {
@@ -29,165 +44,111 @@ extension MachOFile {
                     elements.append(.string(currentString))
                     currentString = ""
                 }
-
-                let reference: Int32 = fileHandle.read(offset: currentOffset + 1 + headerStartOffset.cast())
-
-                elements.append(.lookup(.init(kind: value, address: numericCast(Int(address + (currentOffset - address)) + Int(1 + reference)))))
-                currentOffset += MemoryLayout<Int32>.size.cast()
+                if let (kind, directness) = SymbolicReference.symbolicReference(for: value) {
+                    let reference: Int32 = try fileHandle.read(offset: currentOffset + 1 + headerStartOffset.cast())
+                    let offset = Int(address + (currentOffset - address))
+                    elements.append(.lookup(.init(offset: offset, reference: .relative(.init(kind: kind, directness: directness, relativeOffset: reference + 1)))))
+                }
+                currentOffset.offset(of: Int32.self)
             } else if value >= 0x18, value <= 0x1F {
                 if currentString.count > 0 {
                     elements.append(.string(currentString))
                     currentString = ""
                 }
 
-                let reference: UInt64 = fileHandle.read(offset: currentOffset + 1 + headerStartOffset.cast())
-
-                elements.append(.lookup(.init(kind: value, address: reference)))
-                currentOffset += MemoryLayout<UInt64>.size.cast()
+                let reference: UInt64 = try fileHandle.read(offset: currentOffset + 1 + headerStartOffset.cast())
+                let offset = Int(address + (currentOffset - address))
+                elements.append(.lookup(.init(offset: offset, reference: .absolute(.init(reference: reference)))))
+                currentOffset.offset(of: UInt64.self)
             } else {
                 currentString.append(String(format: "%c", value))
             }
-            currentOffset += MemoryLayout<UInt8>.size.cast()
+            currentOffset.offset(of: UInt8.self)
         }
 
         var results: [String] = []
-        var isBoundGeneric = false
-        for (index, element) in elements.enumerated() {
+        for (_, element) in elements.enumerated() {
             switch element {
-            case var .string(string):
-    //            results.append(makeDemangledTypeName(string, header: results.joined(separator: "")))
+            case let .string(string):
                 results.append(string)
-    //            if elements.count > 1 {
-    //                if string.hasSuffix("y") {
-    //                    isBoundGeneric = true
-    //                    string = String(string.dropLast())
-    //                } else if string == "G", index == elements.count - 1 {
-    //                    continue
-    //                } else if string.hasPrefix("y"), string.hasSuffix("G") {
-    //                    string = String(string.dropFirst().dropLast())
-    //                } else if index == elements.count - 1 {
-    //                    string = string.hasSuffix("G") ? String(string.dropLast()) : string
-    //                    if string == "G" {
-    //                        continue
-    //                    }
-    //                    string = string.hasPrefix("_p") ? String(string.dropFirst(2)) : string
-    //                    if string == "Qz" || string == "Qy_" || string == "Qy0_", results.count == 2 {
-    //                        let tmp = results[0]
-    //                        results[0] = results[1] + "." + tmp
-    //                        results.removeSubrange(1 ..< results.count)
-    //                    }
-    //                }
-    //            }
-    //            if string.isEmpty {
-    //                continue
-    //            }
-    //
-    //
-    ////            if regex1.matches(in: string, range: NSRange(location: 0, length: string.count)).count > 0 {
-    ////                if string.contains("OS_dispatch_queue") {
-    ////                    results.append("DispatchQueue")
-    ////                } else {
-    ////                    results.append("_$s" + string)
-    ////                }
-    ////            } else if regex2.matches(in: string, range: NSRange(location: 0, length: string.count)).count > 0 {
-    ////                // remove leading numbers
-    ////                var index = string.startIndex
-    ////                while index < string.endIndex && string[index].isNumber {
-    ////                    index = string.index(after: index)
-    ////                }
-    ////                if index < string.endIndex {
-    ////                    results.append(String(string[index...]))
-    ////                }
-    ////            } else if string.hasPrefix("$s") {
-    ////                results.append("_" + string)
-    ////            } else {
-    ////                if let demangled = MangledType[string] {
-    ////                    results.append(demangled)
-    ////                } else if string.hasPrefix("s") {
-    ////                    if let demangled = MangledKnownTypeKind[String(string.dropFirst())] {
-    ////                        results.append(demangled)
-    ////                    }
-    ////                } else {
-    ////                    if isBoundGeneric {
-    //                        results.append(string)
-    ////                        results.append("->")
-    ////                        isBoundGeneric = false
-    ////                    } else {
-    ////                        results.append("_$s" + string)
-    ////                    }
-    ////                }
-    ////            }
             case let .lookup(lookup):
-                if let (kind, directness) = SymbolicReference.symbolicReference(for: lookup.kind) {
-                    switch kind {
+                switch lookup.reference {
+                case let .relative(relativeReference):
+                    switch relativeReference.kind {
                     case .context:
-                        switch directness {
+                        switch relativeReference.directness {
                         case .direct:
-                            if let context = swift._readContextDescriptor(from: lookup.address, in: self) {
-                                
-                                let name = switch context {
-                                case .type(let typeContextDescriptor):
-                                    if typeContextDescriptor.fieldDescriptor(in: self).address(of: \.mangledTypeName) == address {
-                                        typeContextDescriptor.name(in: self)
+                            if let context = try RelativeDirectPointer<ContextDescriptor>(relativeOffset: relativeReference.relativeOffset).resolveContextDescriptor(from: lookup.offset, in: self) {
+                                let name: String? = switch context {
+                                case let .type(typeContextDescriptor):
+                                    if try typeContextDescriptor.fieldDescriptor(in: self).address(of: \.mangledTypeName) == address {
+                                        try typeContextDescriptor.name(in: self)
                                     } else {
-                                        typeContextDescriptor.fieldDescriptor(in: self).mangledTypeName(in: self)
+                                        try typeContextDescriptor.fieldDescriptor(in: self).mangledTypeName(in: self)
                                     }
-                                case .protocol(let protocolDescriptor):
-                                    protocolDescriptor.name(in: self)
+                                case let .protocol(protocolDescriptor):
+                                    try protocolDescriptor.name(in: self)
+                                default:
+                                    nil
                                 }
-                                
-    //                            var parent = context
-    //                            if let currnetParent = parent.parent(in: machOFile), let parentName = currnetParent.name(in: machOFile) {
-    //                                name = parentName + "." + name
-    //                                parent = currnetParent
-    //                            }
+
+                                //                            var parent = context
+                                //                            if let currnetParent = parent.parent(in: machOFile), let parentName = currnetParent.name(in: machOFile) {
+                                //                                name = parentName + "." + name
+                                //                                parent = currnetParent
+                                //                            }
                                 if let name {
                                     results.append(name)
                                 }
                             }
                         case .indirect:
-                            if let bind = resolveBind(at: fileOffset(of: lookup.address)), let symbolName = dyldChainedFixups?.symbolName(for: bind.0.info.nameOffset) {
+                            let relativePointer = RelativeIndirectPointer<ContextDescriptor>(relativeOffset: relativeReference.relativeOffset)
+                            if let bind = try resolveBind(at: lookup.offset, for: relativePointer), let symbolName = dyldChainedFixups?.symbolName(for: bind.0.info.nameOffset) {
                                 results.append(symbolName)
-                            } else if let rebase = resolveRebase(at: lookup.address), let context = swift._readContextDescriptor(from: rebase, in: self) {
-                                let name = switch context {
-                                case .type(let typeContextDescriptor):
-                                    if typeContextDescriptor.fieldDescriptor(in: self).address(of: \.mangledTypeName) == address {
-                                        typeContextDescriptor.name(in: self)
+                            } else if let context = try relativePointer.resolveContextDescriptor(from: lookup.offset, in: self) {
+                                let name: String? = switch context {
+                                case let .type(typeContextDescriptor):
+                                    if try typeContextDescriptor.fieldDescriptor(in: self).address(of: \.mangledTypeName) == address {
+                                        try typeContextDescriptor.name(in: self)
                                     } else {
-                                        typeContextDescriptor.fieldDescriptor(in: self).mangledTypeName(in: self)
+                                        try typeContextDescriptor.fieldDescriptor(in: self).mangledTypeName(in: self)
                                     }
-                                case .protocol(let protocolDescriptor):
-                                    protocolDescriptor.name(in: self)
+                                case let .protocol(protocolDescriptor):
+                                    try protocolDescriptor.name(in: self)
+                                default:
+                                    nil
                                 }
-    //                            var parent = context
-    //                            if let currnetParent = parent.parent(in: machOFile), let parentName = currnetParent.name(in: machOFile) {
-    //                                name = parentName + "." + name
-    //                                parent = currnetParent
-    //                            }
+                                //                            var parent = context
+                                //                            if let currnetParent = parent.parent(in: machOFile), let parentName = currnetParent.name(in: machOFile) {
+                                //                                name = parentName + "." + name
+                                //                                parent = currnetParent
+                                //                            }
                                 if let name {
                                     results.append(name)
                                 }
                             }
                         }
                     case .accessorFunctionReference:
-                        fallthrough
+                        break
                     case .uniqueExtendedExistentialTypeShape:
-                        fallthrough
+                        break
                     case .nonUniqueExtendedExistentialTypeShape:
-                        fallthrough
+                        break
                     case .objectiveCProtocol:
-                        return nil
+                        let relativePointer = RelativeDirectPointer<ObjCProtocolDecl>(relativeOffset: relativeReference.relativeOffset)
+                        let objcProtocol = try relativePointer.resolve(from: lookup.offset, in: self)
+                        try results.append(objcProtocol.mangledName(in: self))
                     }
+                case .absolute:
+                    continue
                 }
             }
         }
         return results.joined(separator: "")
-
     }
 }
 
-
-//func makeSymbolicMangledNameStringRef(_ address: UInt64, in machOFile: MachOFile) -> String? {
+// func makeSymbolicMangledNameStringRef(_ address: UInt64, in machOFile: MachOFile) -> String? {
 //    var mangledTypeName = ""
 //    guard let mangledTypeNameOrStringRef = machOFile.fileHandle.readString(offset: address + numericCast(machOFile.headerStartOffset)) else { return nil }
 //    if mangledTypeNameOrStringRef.starts(with: "0x") {
@@ -293,4 +254,4 @@ extension MachOFile {
 //        return mangledTypeNameOrStringRef
 //    }
 //    return mangledTypeName
-//}
+// }

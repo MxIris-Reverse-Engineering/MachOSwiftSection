@@ -1,5 +1,5 @@
 import Foundation
-@_spi(Support) import MachOKit
+import MachOKit
 
 public protocol _FixupResolvable {
     associatedtype LayoutField

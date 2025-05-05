@@ -7,26 +7,3 @@ public struct TypeGenericContext {
     public let requirements: [GenericRequirementDescriptor]
     public let typePacks: [GenericPackShapeDescriptor]
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

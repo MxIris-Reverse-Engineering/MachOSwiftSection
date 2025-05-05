@@ -1,21 +1,17 @@
 import Foundation
 
-public struct ProtocolRequirement: LayoutWrapperWithOffset {
+public struct ResilientWitness: LayoutWrapperWithOffset {
     public struct Layout {
-        public let flags: ProtocolRequirementFlags
-        public let defaultImplementation: RelativeOffset
+        public let requirement: RelativeIndirectablePointer<ProtocolRequirement>
+        public let impl: RelativeDirectRawPointer
     }
-
+    
     public let offset: Int
-
+    
     public var layout: Layout
-
+    
     public init(offset: Int, layout: Layout) {
         self.offset = offset
         self.layout = layout
     }
 }
-
-
-
-

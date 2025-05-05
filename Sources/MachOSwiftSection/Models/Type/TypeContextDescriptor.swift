@@ -1,5 +1,5 @@
 import Foundation
-@_spi(Support) import MachOKit
+import MachOKit
 
 public struct TypeContextDescriptor: TypeContextDescriptorProtocol {
     public struct Layout: TypeContextDescriptorLayout {
@@ -21,9 +21,9 @@ public struct TypeContextDescriptor: TypeContextDescriptorProtocol {
 }
 
 extension TypeContextDescriptor {
-    public func enumDescriptor(in machO: MachOFile) -> EnumDescriptor? {
+    public func enumDescriptor(in machO: MachOFile) throws -> EnumDescriptor? {
         guard layout.flags.kind == .enum else { return nil }
-        let layout: EnumDescriptor.Layout = machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
+        let layout: EnumDescriptor.Layout = try machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
         return EnumDescriptor(offset: offset, layout: layout)
     }
 }

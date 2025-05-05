@@ -1,21 +1,13 @@
 import Foundation
 
-public struct ProtocolRequirement: LayoutWrapperWithOffset {
+public struct GenericValueDescriptor: LayoutWrapperWithOffset {
     public struct Layout {
-        public let flags: ProtocolRequirementFlags
-        public let defaultImplementation: RelativeOffset
+        public let type: GenericValueType
     }
-
     public let offset: Int
-
     public var layout: Layout
-
     public init(offset: Int, layout: Layout) {
         self.offset = offset
         self.layout = layout
     }
 }
-
-
-
-

@@ -1,5 +1,5 @@
 import Foundation
-@_spi(Support) import MachOKit
+import MachOKit
 
 public struct ProtocolDescriptor: LayoutWrapperWithOffset {
     public struct Layout {
@@ -26,7 +26,7 @@ public struct ProtocolDescriptor: LayoutWrapperWithOffset {
 }
 
 extension ProtocolDescriptor {
-    public func name(in machO: MachOFile) -> String {
-        layout.name.resolve(from: offset(of: \.name).cast(), in: machO)
+    public func name(in machO: MachOFile) throws -> String {
+        try layout.name.resolve(from: offset(of: \.name).cast(), in: machO)
     }
 }

@@ -1,5 +1,5 @@
 import Foundation
-@_spi(Support) import MachOKit
+import MachOKit
 
 //public struct Enum {
 //    public let descriptor: EnumDescriptor

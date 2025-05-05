@@ -1,16 +1,17 @@
 import Foundation
-@_spi(Support) import MachOKit
+import MachOKit
 
-public struct Protocol {
+public struct `Protocol` {
     public let descriptor: ProtocolDescriptor
     public let requirementInSignatures: [GenericRequirementDescriptor]
     public let requirements: [ProtocolRequirement]
+    
     public init(from descriptor: ProtocolDescriptor, in machO: MachOFile) throws {
         self.descriptor = descriptor
         var currentOffset = descriptor.offset + descriptor.layoutSize
         
         if descriptor.numRequirementsInSignature > 0 {
-            requirementInSignatures = machO.readElements(offset: currentOffset.cast(), numberOfElements: descriptor.numRequirementsInSignature.cast())
+            requirementInSignatures = try machO.readElements(offset: currentOffset.cast(), numberOfElements: descriptor.numRequirementsInSignature.cast())
         } else {
             requirementInSignatures = []
         }
@@ -18,7 +19,7 @@ public struct Protocol {
         currentOffset += descriptor.numRequirementsInSignature.cast() * MemoryLayout<GenericRequirementDescriptor>.size
         
         if descriptor.numRequirements > 0 {
-            requirements = machO.readElements(offset: currentOffset.cast(), numberOfElements: descriptor.numRequirements.cast())
+            requirements = try machO.readElements(offset: currentOffset.cast(), numberOfElements: descriptor.numRequirements.cast())
         } else {
             requirements = []
         }

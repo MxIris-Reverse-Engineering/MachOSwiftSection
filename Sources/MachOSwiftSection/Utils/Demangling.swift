@@ -1,6 +1,6 @@
 import Foundation
 import Darwin
-@_spi(Support) import MachOKit
+import MachOKit
 
 @_silgen_name("swift_demangle")
 public func _stdlib_demangleImpl(

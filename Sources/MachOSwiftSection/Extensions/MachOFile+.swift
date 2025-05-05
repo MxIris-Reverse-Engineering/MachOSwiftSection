@@ -1,5 +1,5 @@
 import Foundation
-@_spi(Support) import MachOKit
+import MachOKit
 
 extension MachOFile {
     var fileHandle: FileHandle {
@@ -74,18 +74,33 @@ extension MachOFile {
     ) -> Bool {
         resolveBind(at: numericCast(offset)) != nil
     }
+    
+    
+    func resolveBind<Pointer: RelativePointer>(at offset: Int, for pointer: Pointer) throws -> (DyldChainedImport, addend: UInt64)? {
+        try (resolveBind(at: numericCast(Int(pointer.relativeOffset) + offset)) ?? resolveBind(at: pointer.resolveFileOffset(from: offset, in: self).cast()))
+    }
+    
 }
 
 extension MachOFile {
+    
+    func readElement<Element>(
+        offset: Int,
+        swapHandler: ((inout Data) -> Void)? = nil
+    ) throws -> Element where Element: LayoutWrapperWithOffset {
+        let layout: Element.Layout = try fileHandle.read(offset: numericCast(offset + headerStartOffset), swapHandler: swapHandler)
+        return .init(offset: offset, layout: layout)
+    }
+    
     func readElements<Element>(
-        offset: UInt64,
+        offset: Int,
         numberOfElements: Int,
         swapHandler: ((inout Data) -> Void)? = nil
-    ) -> [Element] where Element: LayoutWrapperWithOffset {
+    ) throws -> [Element] where Element: LayoutWrapperWithOffset {
         var currentOffset = offset
-        let elements = fileHandle.readDataSequence(offset: offset + headerStartOffset.cast(), numberOfElements: numberOfElements, swapHandler: swapHandler).map { (layout: Element.Layout) -> Element in
-            let element =  Element(offset: currentOffset.cast(), layout: layout)
-            currentOffset += Element.layoutSize.cast()
+        let elements = try fileHandle.readDataSequence(offset: numericCast(offset + headerStartOffset), numberOfElements: numberOfElements, swapHandler: swapHandler).map { (layout: Element.Layout) -> Element in
+            let element =  Element(offset: currentOffset, layout: layout)
+            currentOffset += Element.layoutSize
             return element
         }
         return elements

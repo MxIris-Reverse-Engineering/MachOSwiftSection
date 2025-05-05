@@ -1,9 +1,8 @@
 import Foundation
 
-public struct ProtocolRequirement: LayoutWrapperWithOffset {
+public struct GenericValueHeader: LayoutWrapperWithOffset {
     public struct Layout {
-        public let flags: ProtocolRequirementFlags
-        public let defaultImplementation: RelativeOffset
+        public let numValues: UInt32
     }
 
     public let offset: Int
@@ -15,7 +14,3 @@ public struct ProtocolRequirement: LayoutWrapperWithOffset {
         self.layout = layout
     }
 }
-
-
-
-

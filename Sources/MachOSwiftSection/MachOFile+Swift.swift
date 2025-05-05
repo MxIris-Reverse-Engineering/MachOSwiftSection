@@ -1,5 +1,5 @@
 import Foundation
-@_spi(Support) import MachOKit
+import MachOKit
 
 extension MachOFile {
     public struct Swift {
@@ -32,7 +32,7 @@ extension MachOFile.Swift {
         guard __swift5_protos.align * 2 == 4 else {
             return nil
         }
-        return _readProtocolDescriptors(from: __swift5_protos, in: machO)
+        return try? _readProtocolDescriptors(from: __swift5_protos, in: machO)
     }
 
     public var typeContextDescriptors: [TypeContextDescriptor]? {
@@ -51,77 +51,61 @@ extension MachOFile.Swift {
         guard __swift5_types.align * 2 == 4 else {
             return nil
         }
-        return _readTypeContextDescriptors(from: __swift5_types, in: machO)
+        return try? _readTypeContextDescriptors(from: __swift5_types, in: machO)
     }
 }
 
 enum TypeContextDescriptorWrapper {
     case `enum`(EnumDescriptor)
+    case `struct`(StructDescriptor)
+    case `class`(ClassDescriptor)
 }
 
 public enum ContextDescriptorWrapper {
-    case `type`(TypeContextDescriptor)
+    case type(TypeContextDescriptor)
     case `protocol`(ProtocolDescriptor)
+    case anonymous(AnonymousContextDescriptor)
+    case `extension`(ExtensionContextDescriptor)
+    case module(ModuleContextDescriptor)
+    case opaqueType(OpaqueTypeDescriptor)
 }
 
 extension MachOFile.Swift {
-    func _readContextDescriptor(from offset: UInt64, in machOFile: MachOFile) -> ContextDescriptorWrapper? {
-        let contextDescriptorLayout: ContextDescriptor.Layout = machOFile.fileHandle.read(offset: offset + numericCast(machOFile.headerStartOffset))
-        let contextDescriptor = ContextDescriptor(offset: numericCast(offset), layout: contextDescriptorLayout)
+    func _readContextDescriptor(from offset: Int, in machOFile: MachOFile) throws -> ContextDescriptorWrapper? {
+        let contextDescriptor: ContextDescriptor = try machOFile.readElement(offset: offset)
         switch contextDescriptor.flags.kind {
         case .class,
              .enum,
-             .struct,
-             .module:
-            let contextDescriptorLayout: TypeContextDescriptor.Layout = machOFile.fileHandle.read(offset: offset + numericCast(machOFile.headerStartOffset))
-            return .type(TypeContextDescriptor(offset: numericCast(offset), layout: contextDescriptorLayout))
+             .struct:
+            return .type(try machOFile.readElement(offset: offset))
         case .protocol:
-            let contextDescriptorLayout: ProtocolDescriptor.Layout = machOFile.fileHandle.read(offset: offset + numericCast(machOFile.headerStartOffset))
-            return .protocol(ProtocolDescriptor(offset: numericCast(offset), layout: contextDescriptorLayout))
+            return .protocol(try machOFile.readElement(offset: offset))
+        case .anonymous:
+            return .anonymous(try machOFile.readElement(offset: offset))
+        case .extension:
+            return .extension(try machOFile.readElement(offset: offset))
+        case .module:
+            return .module(try machOFile.readElement(offset: offset))
+        case .opaqueType:
+            return .opaqueType(try machOFile.readElement(offset: offset))
         default:
             return nil
         }
     }
 
-    func _readTypeContextDescriptors(from section: any SectionProtocol, in machO: MachOFile) -> [TypeContextDescriptor]? {
-        let data = machO.fileHandle.readData(
-            offset: numericCast(section.offset + machO.headerStartOffset),
-            size: section.size
-        )
-
-        let pointerSize: Int = MemoryLayout<RelativeOffset>.size
-        let offsets: DataSequence<RelativeOffset> = .init(
-            data: data,
-            numberOfElements: section.size / pointerSize
-        )
-
-        return offsets
-            .enumerated()
-            .map { (offsetIndex: Int, nominalLocalOffset: RelativeOffset) in
-                let offset = Int(nominalLocalOffset) + (offsetIndex * 4) + section.offset
-                let layout: TypeContextDescriptor.Layout = machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
-                return .init(offset: numericCast(offset), layout: layout)
-            }
+    func _readTypeContextDescriptors(from section: any SectionProtocol, in machO: MachOFile) throws -> [TypeContextDescriptor] {
+        return try _readDescriptors(from: section, in: machO)
     }
 
-    func _readProtocolDescriptors(from section: any SectionProtocol, in machO: MachOFile) -> [ProtocolDescriptor]? {
-        let data = machO.fileHandle.readData(
-            offset: numericCast(section.offset + machO.headerStartOffset),
-            size: section.size
-        )
+    func _readProtocolDescriptors(from section: any SectionProtocol, in machO: MachOFile) throws -> [ProtocolDescriptor] {
+        return try _readDescriptors(from: section, in: machO)
+    }
 
-        let pointerSize: Int = MemoryLayout<RelativeOffset>.size
-        let offsets: DataSequence<RelativeOffset> = .init(
-            data: data,
-            numberOfElements: section.size / pointerSize
-        )
+    func _readDescriptors<Descriptor: LayoutWrapperWithOffset>(from section: any SectionProtocol, in machO: MachOFile) throws -> [Descriptor] {
+        let pointerSize: Int = MemoryLayout<RelativeDirectPointer<Descriptor>>.size
 
-        return offsets
-            .enumerated()
-            .map { (offsetIndex: Int, rawOffset: RelativeOffset) in
-                let offset = Int(rawOffset) + (offsetIndex * 4) + section.offset
-                let layout: ProtocolDescriptor.Layout = machO.fileHandle.read(offset: numericCast(offset + machO.headerStartOffset))
-                return .init(offset: numericCast(offset), layout: layout)
-            }
+        let data: [AnyLayoutWrapper<RelativeDirectPointer<Descriptor>>] = try machO.readElements(offset: section.offset.cast(), numberOfElements: section.size / pointerSize)
+
+        return try data.map { try $0.layout.resolve(from: $0.offset, in: machO) }
     }
 }
