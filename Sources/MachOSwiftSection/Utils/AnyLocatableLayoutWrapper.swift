@@ -1,6 +1,6 @@
 import Foundation
 
-public struct AnyLayoutWrapper<Layout>: LayoutWrapperWithOffset {
+public struct AnyLocatableLayoutWrapper<Layout>: LocatableLayoutWrapper {
     public let offset: Int
     public var layout: Layout
 

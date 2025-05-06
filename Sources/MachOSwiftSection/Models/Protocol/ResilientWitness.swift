@@ -1,8 +1,8 @@
 import Foundation
 
-public struct ResilientWitness: LayoutWrapperWithOffset {
+public struct ResilientWitness: LocatableLayoutWrapper {
     public struct Layout {
-        public let requirement: RelativeIndirectablePointer<ProtocolRequirement>
+        public let requirement: RelativeIndirectablePointer<ProtocolRequirement, Pointer<ProtocolRequirement>>
         public let impl: RelativeDirectRawPointer
     }
     

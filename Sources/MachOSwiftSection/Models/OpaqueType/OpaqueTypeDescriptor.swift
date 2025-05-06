@@ -4,7 +4,7 @@ import MachOKit
 public struct OpaqueTypeDescriptor: OpaqueTypeDescriptorProtocol {
     public struct Layout: OpaqueTypeDescriptorLayout {
         public let flags: ContextDescriptorFlags
-        public let parent: RelativeDirectPointer<ContextDescriptor>
+        public let parent: RelativeDirectPointer<ContextDescriptorWrapper?>
     }
 
     public let offset: Int

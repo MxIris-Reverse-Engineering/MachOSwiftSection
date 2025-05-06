@@ -6,7 +6,7 @@
 //
 
 
-public struct GenericContextDescriptorHeader: LayoutWrapperWithOffset {
+public struct GenericContextDescriptorHeader: LocatableLayoutWrapper {
     public struct Layout {
         public let numParams: UInt16
         public let numRequirements: UInt16

@@ -93,6 +93,11 @@ struct MachOFileSwiftSectionTests {
 
         print("_symbolic_______7SwiftUI9TupleViewV9MakeUnary33_DE681AB5F1A334FA14ECABDE70CB1955LLV".demangled)
     }
+    
+    
+    @Test func test() async throws {
+        try RelativeDirectPointer<String>(relativeOffset: 1111).resolve(from: 0, in: machOFile)
+    }
 }
 
 extension String {

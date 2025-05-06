@@ -6,7 +6,7 @@
 //
 
 
-public struct GenericPackShapeHeader: LayoutWrapperWithOffset {
+public struct GenericPackShapeHeader: LocatableLayoutWrapper {
     public struct Layout {
         public let numPacks: UInt16
         public let numShapeClasses: UInt16

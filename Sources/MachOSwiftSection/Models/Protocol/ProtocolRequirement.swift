@@ -1,6 +1,6 @@
 import Foundation
 
-public struct ProtocolRequirement: LayoutWrapperWithOffset {
+public struct ProtocolRequirement: LocatableLayoutWrapper {
     public struct Layout {
         public let flags: ProtocolRequirementFlags
         public let defaultImplementation: RelativeOffset

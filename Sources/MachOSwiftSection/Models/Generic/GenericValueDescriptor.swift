@@ -1,6 +1,6 @@
 import Foundation
 
-public struct GenericValueDescriptor: LayoutWrapperWithOffset {
+public struct GenericValueDescriptor: LocatableLayoutWrapper {
     public struct Layout {
         public let type: GenericValueType
     }

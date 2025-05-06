@@ -137,7 +137,7 @@ extension MachOFile {
                     case .context:
                         switch relativeReference.directness {
                         case .direct:
-                            if let context = try RelativeDirectPointer<ContextDescriptor>(relativeOffset: relativeReference.relativeOffset).resolveContextDescriptor(from: lookup.offset, in: self) {
+                            if let context = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeReference.relativeOffset).resolve(from: lookup.offset, in: self) {
                                 var name: String? = switch context {
                                 case let .type(typeContextDescriptor):
 //                                    if try typeContextDescriptor.fieldDescriptor(in: self).resolvedRelativeOffset(of: \.mangledTypeName) == fileOffset {
@@ -159,10 +159,10 @@ extension MachOFile {
                                 }
                             }
                         case .indirect:
-                            let relativePointer = RelativeIndirectPointer<ContextDescriptor>(relativeOffset: relativeReference.relativeOffset)
+                            let relativePointer = RelativeIndirectPointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>>(relativeOffset: relativeReference.relativeOffset)
                             if let bind = try resolveBind(at: lookup.offset, for: relativePointer), let symbolName = dyldChainedFixups?.symbolName(for: bind.0.info.nameOffset) {
                                 results.append(symbolName)
-                            } else if let context = try relativePointer.resolveContextDescriptor(from: lookup.offset, in: self) {
+                            } else if let context = try relativePointer.resolve(from: lookup.offset, in: self) {
                                 var name: String? = switch context {
                                 case let .type(typeContextDescriptor):
 //                                    if try typeContextDescriptor.fieldDescriptor(in: self).resolvedRelativeOffset(of: \.mangledTypeName) == fileOffset {
@@ -190,7 +190,7 @@ extension MachOFile {
                     case .nonUniqueExtendedExistentialTypeShape:
                         break
                     case .objectiveCProtocol:
-                        let relativePointer = RelativeDirectPointer<ObjCProtocolDecl>(relativeOffset: relativeReference.relativeOffset)
+                        let relativePointer = RelativeDirectPointer<ObjCProtocolPrefix>(relativeOffset: relativeReference.relativeOffset)
                         let objcProtocol = try relativePointer.resolve(from: lookup.offset, in: self)
                         let name = try objcProtocol.mangledName(in: self)
                         results.append(name)

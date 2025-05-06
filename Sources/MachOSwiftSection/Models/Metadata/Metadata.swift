@@ -1,6 +1,6 @@
 import Foundation
 
-public struct Metadata: LayoutWrapperWithOffset {
+public struct Metadata: LocatableLayoutWrapper {
     public struct Layout {
         public let kind: UInt32
         public let typeDescriptor: UInt64

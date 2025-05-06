@@ -1,6 +1,6 @@
 import Foundation
 
-public struct ForeignMetadataInitialization: LayoutWrapperWithOffset {
+public struct ForeignMetadataInitialization: LocatableLayoutWrapper {
     public struct Layout {
         public let completionFunction: RelativeOffset
     }

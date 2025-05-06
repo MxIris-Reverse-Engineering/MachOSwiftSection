@@ -6,7 +6,7 @@
 //
 
 
-public struct GenericPackShapeDescriptor: LayoutWrapperWithOffset {
+public struct GenericPackShapeDescriptor: LocatableLayoutWrapper {
     public struct Layout {
         public let kind: GenericPackKind
         public let index: UInt16

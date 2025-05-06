@@ -1,9 +1,9 @@
 import Foundation
 import MachOKit
 
-public struct ProtocolConformanceDescriptor: LayoutWrapperWithOffset {
+public struct ProtocolConformanceDescriptor: LocatableLayoutWrapper {
     public struct Layout {
-        public let protocolDescriptor: RelativeIndirectablePointer<ProtocolDescriptor?>
+        public let protocolDescriptor: RelativeIndirectablePointer<ProtocolDescriptor?, Pointer<ProtocolDescriptor?>>
         public let typeReference: TypeReference
         public let witnessTablePattern: RelativeDirectPointer<ProtocolWitnessTable>
         public let flags: ProtocolConformanceFlags

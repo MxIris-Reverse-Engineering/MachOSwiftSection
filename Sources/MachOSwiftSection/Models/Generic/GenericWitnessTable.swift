@@ -1,6 +1,6 @@
 import Foundation
 
-public struct GenericWitnessTable: LayoutWrapperWithOffset {
+public struct GenericWitnessTable: LocatableLayoutWrapper {
     public struct Layout {
         public let witnessTableSizeinWords: UInt16
         public let witnessTablePrivateSizeInWordsAndRequiresInstantiation: UInt16

@@ -76,7 +76,8 @@ extension MachOFile {
     }
 
     func resolveBind<Pointer: RelativePointer>(at offset: Int, for pointer: Pointer) throws -> (DyldChainedImport, addend: UInt64)? {
-        try (resolveBind(at: numericCast(Int(pointer.relativeOffset) + offset)) ?? resolveBind(at: pointer.resolveFileOffset(from: offset, in: self).cast()))
+//        try (resolveBind(at: pointer.resolveDirectFileOffset(from: offset).cast()) ?? resolveBind(at: pointer.resolveIndirectableFileOffset(from: offset, in: self).cast()))
+        resolveBind(at: pointer.resolveDirectFileOffset(from: offset).cast())
     }
 }
 
@@ -84,7 +85,7 @@ extension MachOFile {
     func readElement<Element>(
         offset: Int,
         swapHandler: ((inout Data) -> Void)? = nil
-    ) throws -> Element where Element: LayoutWrapperWithOffset {
+    ) throws -> Element where Element: LocatableLayoutWrapper {
         let layout: Element.Layout = try fileHandle.read(offset: numericCast(offset + headerStartOffset), swapHandler: swapHandler)
         return .init(layout: layout, offset: offset)
     }
@@ -93,7 +94,7 @@ extension MachOFile {
         offset: Int,
         numberOfElements: Int,
         swapHandler: ((inout Data) -> Void)? = nil
-    ) throws -> [Element] where Element: LayoutWrapperWithOffset {
+    ) throws -> [Element] where Element: LocatableLayoutWrapper {
         var currentOffset = offset
         let elements = try fileHandle.readDataSequence(offset: numericCast(offset + headerStartOffset), numberOfElements: numberOfElements, swapHandler: swapHandler).map { (layout: Element.Layout) -> Element in
             let element = Element(layout: layout, offset: currentOffset)

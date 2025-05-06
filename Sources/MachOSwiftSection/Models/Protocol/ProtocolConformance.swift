@@ -26,8 +26,8 @@ public struct ProtocolConformance {
         var currentOffset = descriptor.offset + descriptor.layoutSize
         
         if descriptor.flags.isRetroactive {
-            let retroactiveContextPointer: RelativeIndirectablePointer<ContextDescriptor> = try machO.fileHandle.read(offset: numericCast(currentOffset + machO.headerStartOffset))
-            currentOffset.offset(of: RelativeIndirectablePointer<ContextDescriptor>.self)
+            let retroactiveContextPointer: RelativeIndirectablePointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>> = try machO.fileHandle.read(offset: numericCast(currentOffset + machO.headerStartOffset))
+            currentOffset.offset(of: RelativeIndirectablePointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>>.self)
         }
         
         if descriptor.flags.numConditionalRequirements > 0 {

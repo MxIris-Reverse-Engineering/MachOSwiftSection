@@ -6,7 +6,7 @@
 //
 
 
-public struct TypeGenericContextDescriptorHeader: LayoutWrapperWithOffset {
+public struct TypeGenericContextDescriptorHeader: LocatableLayoutWrapper {
     public struct Layout {
         public let instantiationCache: RelativeOffset
         public let defaultInstantiationPattern: RelativeOffset

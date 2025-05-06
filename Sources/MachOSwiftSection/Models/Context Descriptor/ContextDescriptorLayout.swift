@@ -8,5 +8,5 @@
 
 public protocol ContextDescriptorLayout {
     var flags: ContextDescriptorFlags { get }
-    var parent: RelativeDirectPointer<ContextDescriptor> { get }
+    var parent: RelativeDirectPointer<ContextDescriptorWrapper?> { get }
 }

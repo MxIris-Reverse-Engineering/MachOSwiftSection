@@ -6,7 +6,7 @@
 //
 
 
-public struct GenericParamDescriptor: LayoutWrapperWithOffset {
+public struct GenericParamDescriptor: LocatableLayoutWrapper {
     public struct Layout {
         public let rawValue: UInt8
     }

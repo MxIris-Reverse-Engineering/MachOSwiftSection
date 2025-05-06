@@ -1,7 +1,7 @@
 import Foundation
 import MachOKit
 
-public struct FieldRecord: LayoutWrapperWithOffset {
+public struct FieldRecord: LocatableLayoutWrapper {
     public struct Layout {
         public let flags: UInt32
         public let mangledTypeName: Int32

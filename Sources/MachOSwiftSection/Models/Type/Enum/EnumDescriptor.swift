@@ -1,9 +1,9 @@
 import Foundation
 
-public struct EnumDescriptor: LayoutWrapperWithOffset, TypeContextDescriptorProtocol {
+public struct EnumDescriptor: LocatableLayoutWrapper, TypeContextDescriptorProtocol {
     public struct Layout: EnumDescriptorLayout {
         public let flags: ContextDescriptorFlags
-        public let parent: RelativeDirectPointer<ContextDescriptor>
+        public let parent: RelativeDirectPointer<ContextDescriptorWrapper?>
         public let name: RelativeDirectPointer<String>
         public let accessFunctionPtr: RelativeOffset
         public let fieldDescriptor: RelativeDirectPointer<FieldDescriptor>
