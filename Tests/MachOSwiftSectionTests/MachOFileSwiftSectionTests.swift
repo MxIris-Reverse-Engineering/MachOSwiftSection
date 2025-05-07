@@ -96,7 +96,7 @@ struct MachOFileSwiftSectionTests {
     
     
     @Test func test() async throws {
-        try RelativeDirectPointer<String>(relativeOffset: 1111).resolve(from: 0, in: machOFile)
+        try RelativeDirectPointer<String?>(relativeOffset: 1111).resolve(from: 0, in: machOFile)
     }
 }
 

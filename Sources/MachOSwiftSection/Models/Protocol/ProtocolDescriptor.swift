@@ -1,7 +1,7 @@
 import Foundation
 import MachOKit
 
-public struct ProtocolDescriptor: ProtocolDescriptorProtocol {
+public struct ProtocolDescriptor: ProtocolDescriptorProtocol, ResolvableElement {
     public struct Layout: ProtocolDescriptorLayout {
         public let flags: ContextDescriptorFlags
         public let parent: RelativeDirectPointer<ContextDescriptorWrapper?>

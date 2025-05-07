@@ -1,5 +1,5 @@
 import Foundation
 
-public struct ProtocolWitnessTable {
+public struct ProtocolWitnessTable: ResolvableElement {
     
 }

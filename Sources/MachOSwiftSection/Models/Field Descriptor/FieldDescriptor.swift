@@ -1,7 +1,7 @@
 import Foundation
 import MachOKit
 
-public struct FieldDescriptor: LocatableLayoutWrapper {
+public struct FieldDescriptor: LocatableLayoutWrapper, ResolvableElement {
     public struct Layout {
         public let mangledTypeName: RelativeOffset
         public let superclass: RelativeOffset
