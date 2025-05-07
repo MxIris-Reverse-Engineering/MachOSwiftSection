@@ -6,7 +6,7 @@
 //
 
 
-public struct TargetRelativeDirectPointer<Pointee: ResolvableElement, Offset: FixedWidthInteger>: RelativeDirectPointerProtocol {
+public struct TargetRelativeDirectPointer<Pointee: ResolvableElement, Offset: FixedWidthInteger & SignedInteger>: RelativeDirectPointerProtocol {
     public typealias Element = Pointee
     public let relativeOffset: Offset
 }

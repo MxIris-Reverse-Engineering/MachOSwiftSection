@@ -6,7 +6,7 @@
 //
 
 
-public struct TargetRelativeIndirectablePointer<Pointee: ResolvableElement, Offset: FixedWidthInteger, IndirectType: RelativeIndirectType>: RelativeIndirectablePointerProtocol where Pointee == IndirectType.Pointee {
+public struct TargetRelativeIndirectablePointer<Pointee: ResolvableElement, Offset: FixedWidthInteger & SignedInteger, IndirectType: RelativeIndirectType>: RelativeIndirectablePointerProtocol where Pointee == IndirectType.Pointee {
     public typealias Element = Pointee
     public let relativeOffsetPlusIndirect: Offset
     public var relativeOffset: Offset {
@@ -21,7 +21,7 @@ public struct TargetRelativeIndirectablePointer<Pointee: ResolvableElement, Offs
         return .init(relativeOffsetPlusIndirectAndInt: relativeOffsetPlusIndirect)
     }
 
-    public func withValuePointer<Value: RawRepresentable>(_ integer: Value.Type = Value.self) -> TargetRelativeIndirectablePointerWithValue<Pointee, Offset, Value, IndirectType> where Value.RawValue: FixedWidthInteger {
-        return .init(relativeOffsetPlusIndirectAndInt: relativeOffsetPlusIndirect)
-    }
+//    public func withValuePointer<Value: RawRepresentable>(_ integer: Value.Type = Value.self) -> TargetRelativeIndirectablePointerWithValue<Pointee, Offset, Value, IndirectType> where Value.RawValue: FixedWidthInteger {
+//        return .init(relativeOffsetPlusIndirectAndInt: relativeOffsetPlusIndirect)
+//    }
 }

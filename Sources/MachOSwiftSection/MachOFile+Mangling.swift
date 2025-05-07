@@ -6,7 +6,7 @@ private let regex1 = try! NSRegularExpression(pattern: "So[0-9]+")
 private let regex2 = try! NSRegularExpression(pattern: "^[0-9]+")
 
 extension MachOFile {
-    func readSymbolicMangledName(at fileOffset: Int) throws -> String {
+    func readSymbolicMangledName(at fileOffset: Int) throws -> MangledName {
         enum Element {
             struct Lookup {
                 enum Reference {
@@ -42,6 +42,7 @@ extension MachOFile {
                     elements.append(.string(currentString))
                     currentString = ""
                 }
+                currentOffset.offset(of: UInt8.self)
                 break
             } else if value >= 0x01, value <= 0x17 {
                 if currentString.count > 0 {
@@ -193,14 +194,14 @@ extension MachOFile {
                         let relativePointer = RelativeDirectPointer<ObjCProtocolPrefix>(relativeOffset: relativeReference.relativeOffset)
                         let objcProtocol = try relativePointer.resolve(from: lookup.offset, in: self)
                         let name = try objcProtocol.mangledName(in: self)
-                        results.append(name)
+                        results.append(name.stringValue())
                     }
                 case .absolute:
                     continue
                 }
             }
         }
-        return results.joined(separator: " ")
+        return .init(tokens: results, startOffset: fileOffset, endOffset: currentOffset)
     }
 }
 

@@ -6,13 +6,8 @@
 //
 
 
-public protocol RelativePointerOptional: ExpressibleByNilLiteral {
+protocol RelativePointerOptional: ExpressibleByNilLiteral {
     associatedtype Wrapped
-    static func makeOptional(from wrappedValue: Wrapped) -> Self
 }
 
-extension Optional: RelativePointerOptional {
-    public static func makeOptional(from wrappedValue: Wrapped) -> Self {
-        return .some(wrappedValue)
-    }
-}
+extension Optional: RelativePointerOptional {}

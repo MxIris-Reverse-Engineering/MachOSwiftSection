@@ -6,7 +6,7 @@
 //
 
 
-public struct TargetRelativeIndirectPointer<Pointee: ResolvableElement, Offset: FixedWidthInteger, IndirectType: RelativeIndirectType>: RelativeIndirectPointerProtocol where Pointee == IndirectType.Pointee {
+public struct TargetRelativeIndirectPointer<Pointee: ResolvableElement, Offset: FixedWidthInteger & SignedInteger, IndirectType: RelativeIndirectType>: RelativeIndirectPointerProtocol where Pointee == IndirectType.Pointee {
     public typealias Element = Pointee
     public let relativeOffset: Offset
 }

@@ -3,7 +3,7 @@ import MachOKit
 
 public protocol RelativePointer<Pointee> {
     associatedtype Pointee: ResolvableElement
-    associatedtype Offset: FixedWidthInteger
+    associatedtype Offset: FixedWidthInteger & SignedInteger
     var relativeOffset: Offset { get }
     func resolve(from fileOffset: Int, in machO: MachOFile) throws -> Pointee
     func resolve<T>(from fileOffset: Int, in machO: MachOFile) throws -> T

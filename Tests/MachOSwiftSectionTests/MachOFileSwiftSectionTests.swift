@@ -46,7 +46,7 @@ struct MachOFileSwiftSectionTests {
             let records = try fieldDescriptor.records(in: machOFile)
             for record in records {
 
-                let mangledTypeNames = try record.mangledTypeName(in: machOFile)
+                let mangledTypeNames = try record.mangledTypeName(in: machOFile).stringValue()
 
                 print("    ", mangledTypeNames.components(separatedBy: " ").map(\.demangled).joined(separator: " "))
 
@@ -90,10 +90,49 @@ struct MachOFileSwiftSectionTests {
 //        print(_stdlib_demangleName("_$sSay_$sCRLBoardLibraryViewModelItemNode"))
 //        print(try CwlDemangle.parseMangledSwiftSymbol("_$sSayCRLBoardLibraryViewModelItemNodeG_", isType: false).print())
 //        print("_$sSay12MemoryLayout1BVG_".typeDemangled)
-
-        print("_symbolic_______7SwiftUI9TupleViewV9MakeUnary33_DE681AB5F1A334FA14ECABDE70CB1955LLV".demangled)
+        var symbols: [SwiftSymbol] = []
+        
+        func enumerateSymbols(in symbol: SwiftSymbol, level: Int = 0) {
+            symbols.append(symbol)
+            print(symbol.kind, symbol.contents, level)
+            for child in symbol.children {
+                enumerateSymbols(in: child, level: level + 1)
+            }
+        }
+        // _$sSaySo14CKRecordZoneIDCG
+        // _$sSaySo10Foundation4UUIDVG
+        let swiftSymbol = try parseMangledSwiftSymbol("_$sSDySi8Freeform16CRLCRDTMapBucketCy10Foundation4UUIDV8Freeform\("CRLFreehandDrawingShapeItemBucketCRDT".count)CRLFreehandDrawingShapeItemBucketCRDTCGG")
+        enumerateSymbols(in: swiftSymbol)
+        print(swiftSymbol.print())
+//        for symbol in symbols {
+//            print(symbol.kind, symbol.contents)
+//        }
     }
-    
+ 
+    @Test func testSwiftTypeRefSection() async throws {
+        let loadCommands = machOFile.loadCommands
+
+        let __section: any SectionProtocol
+        if let text = loadCommands.text64,
+           let section = text.__swift5_typeref(in: machOFile) {
+            __section = section
+        } else if let text = loadCommands.text,
+                  let section = text.__swift5_typeref(in: machOFile) {
+            __section = section
+        } else {
+            return
+        }
+        
+        let startOffset = __section.offset
+        let endOffset = startOffset + __section.size
+        var currentOffset = startOffset
+        while currentOffset < endOffset {
+            let mangledName = try machOFile.readSymbolicMangledName(at: currentOffset)
+            print(mangledName.stringValue())
+            currentOffset += mangledName.endOffset - mangledName.startOffset
+        }
+        
+    }
     
     @Test func test() async throws {
         try RelativeDirectPointer<String?>(relativeOffset: 1111).resolve(from: 0, in: machOFile)
@@ -102,6 +141,12 @@ struct MachOFileSwiftSectionTests {
 
 extension String {
     var demangled: String {
-        (try? CwlDemangle.parseMangledSwiftSymbol(self, isType: false).print()) ?? self
+        (try? CwlDemangle.parseMangledSwiftSymbol(self, isType: false).print(using: .type)) ?? self
+    }
+}
+
+extension SymbolPrintOptions {
+    static var type: SymbolPrintOptions {
+        Self.default.subtracting([.displayObjCModule]).union([.printForTypeName])
     }
 }

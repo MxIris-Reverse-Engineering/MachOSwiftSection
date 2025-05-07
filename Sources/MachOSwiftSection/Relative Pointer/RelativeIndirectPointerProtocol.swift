@@ -39,9 +39,8 @@ extension RelativeIndirectPointerProtocol {
 }
 
 extension RelativeIndirectPointerProtocol where Pointee: RelativePointerOptional {
-    public func resolve(from fileOffset: Int, in machO: MachOFile) throws -> Pointee {
+    func resolve(from fileOffset: Int, in machO: MachOFile) throws -> Pointee {
         guard isValid else { return nil }
-        let result: Pointee.Wrapped = try resolve(from: fileOffset, in: machO)
-        return .makeOptional(from: result)
+        return try resolve(from: fileOffset, in: machO)
     }
 }

@@ -14,6 +14,14 @@ public typealias RelativeIndirectablePointer<Pointee: ResolvableElement, Indirec
 
 public typealias RelativeIndirectableRawPointer = TargetRelativeIndirectablePointer<AnyResolvableElement, RelativeOffset, Pointer<AnyResolvableElement>>
 
-public typealias RelativeIndirectablePointerIntPair<Pointee: ResolvableElement, Integer: FixedWidthInteger, IndirectType: RelativeIndirectType> = TargetRelativeIndirectablePointerIntPair<Pointee, RelativeOffset, Integer, IndirectType> where Pointee == IndirectType.Pointee
+public typealias RelativeIndirectablePointerIntPair<Pointee: ResolvableElement, Integer: RawRepresentable, IndirectType: RelativeIndirectType> = TargetRelativeIndirectablePointerIntPair<Pointee, RelativeOffset, Integer, IndirectType> where Pointee == IndirectType.Pointee, Integer.RawValue: FixedWidthInteger
 
-public typealias RelativeIndirectableRawPointerIntPair<Integer: FixedWidthInteger> = TargetRelativeIndirectablePointerIntPair<AnyResolvableElement, RelativeOffset, Integer, Pointer<AnyResolvableElement>>
+public typealias RelativeIndirectableRawPointerIntPair<Integer: RawRepresentable> = TargetRelativeIndirectablePointerIntPair<AnyResolvableElement, RelativeOffset, Integer, Pointer<AnyResolvableElement>> where Integer.RawValue: FixedWidthInteger
+
+public typealias RelativeContextPointer<Context: ContextDescriptorProtocol> = RelativeIndirectablePointer<Context, SignedPointer<Context>>
+public typealias RelativeContextPointerIntPair<Context: ContextDescriptorProtocol, Integer: RawRepresentable> = RelativeIndirectablePointerIntPair<Context, Integer, SignedPointer<Context>> where Integer.RawValue: FixedWidthInteger
+
+public enum RelativeProtocolDescriptorPointer {
+    case objcPointer(RelativeIndirectablePointerIntPair<ObjCProtocolPrefix, Bool, Pointer<ObjCProtocolPrefix>>)
+    case swiftPointer(RelativeContextPointerIntPair<ProtocolDescriptor, Bool>)
+}

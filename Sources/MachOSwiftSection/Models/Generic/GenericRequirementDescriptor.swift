@@ -11,7 +11,7 @@ import MachOKit
 public struct GenericRequirementDescriptor: LocatableLayoutWrapper {
     public struct Layout {
         public let flags: GenericRequirementFlags
-        public let param: RelativeDirectPointer<String>
+        public let param: RelativeDirectPointer<MangledName>
         public let typeOrProtocolOrConformanceOrLayoutOffset: RelativeOffset
     }
 
@@ -26,13 +26,27 @@ public struct GenericRequirementDescriptor: LocatableLayoutWrapper {
 }
 
 extension GenericRequirementDescriptor {
-    func paramManagedName(in machO: MachOFile) throws -> String {
-        return try machO.readSymbolicMangledName(at: layout.param.resolveDirectFileOffset(from: offset(of: \.param)))
+    func paramManagedName(in machO: MachOFile) throws -> MangledName {
+        return try layout.param.resolve(from: offset(of: \.param), in: machO)
+    }
+    
+    func type(in machO: MachOFile) throws -> MangledName {
+        return try RelativeDirectPointer<MangledName>(relativeOffset: layout.typeOrProtocolOrConformanceOrLayoutOffset).resolve(from: offset(of: \.typeOrProtocolOrConformanceOrLayoutOffset), in: machO)
     }
 }
 
-//public enum GenericRequirementKindWrapper {
-//    
-//    case type(RelativeIndirectablePointer<ProtocolConformanceDescriptor>)
-//    case `protocol`(Relative)
-//}
+public enum GenericRequirementTypeOrProtocolOrConformanceOrLayoutOrInvertedProtocols {
+    case type(RelativeDirectPointer<String>)
+    case `protocol`(RelativeProtocolDescriptorPointer)
+    case layout(GenericRequirementLayoutKind)
+    case conformance(RelativeIndirectablePointer<ProtocolConformanceDescriptor, Pointer<ProtocolConformanceDescriptor>>)
+    case invertedProtocols(InvertedProtocols)
+    public struct InvertedProtocols {
+        let genericParamIndex: UInt16
+        let protocols: InvertibleProtocolSet
+    }
+}
+
+
+
+

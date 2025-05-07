@@ -3,7 +3,7 @@ import MachOKit
 
 public struct FieldDescriptor: LocatableLayoutWrapper, ResolvableElement {
     public struct Layout {
-        public let mangledTypeName: RelativeOffset
+        public let mangledTypeName: RelativeDirectPointer<MangledName>
         public let superclass: RelativeOffset
         public let kind: FieldDescriptorKind
         public let fieldRecordSize: UInt16
@@ -21,8 +21,8 @@ public struct FieldDescriptor: LocatableLayoutWrapper, ResolvableElement {
 }
 
 extension FieldDescriptor {
-    public func mangledTypeName(in machO: MachOFile) throws -> String? {
-        return try machO.readSymbolicMangledName(at: resolvedRelativeOffset(of: \.mangledTypeName))
+    public func mangledTypeName(in machO: MachOFile) throws -> MangledName {
+        return try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machO)
     }
 
     public func records(in machO: MachOFile) throws -> [FieldRecord] {
