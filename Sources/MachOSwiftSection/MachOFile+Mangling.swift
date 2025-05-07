@@ -72,65 +72,91 @@ extension MachOFile {
         }
 
         var results: [String] = []
-        var isBoundGeneric = false
+//        var isBoundGeneric = false
+
         for (index, element) in elements.enumerated() {
-            switch element {
-            case var .string(string):
-                if elements.count > 1 {
-                    if string.hasSuffix("y") {
-                        isBoundGeneric = true
-                        string = String(string.dropLast())
-                    } else if string == "G", index == elements.count - 1 {
-                        continue
-                    } else if string.hasPrefix("y"), string.hasSuffix("G") {
-                        string = String(string.dropFirst().dropLast())
-                    } else if index == elements.count - 1 {
-                        string = string.hasSuffix("G") ? String(string.dropLast()) : string
-                        if string == "G" {
-                            continue
-                        }
-                        string = string.hasPrefix("_p") ? String(string.dropFirst(2)) : string
-                        if string == "Qz" || string == "Qy_" || string == "Qy0_", results.count == 2 {
-                            let tmp = results[0]
-                            results[0] = results[1] + "." + tmp
-                            results.removeSubrange(1 ..< results.count)
-                        }
-                    }
-                }
-                if string.isEmpty {
-                    continue
+            func handleContextDescriptor(_ context: ContextDescriptorWrapper) throws {
+                var name = ""
+                switch context {
+                case let .type(typeContextDescriptor):
+                    name = try typeContextDescriptor.name(in: self).countedString
+                case let .protocol(protocolDescriptor):
+                    name = try protocolDescriptor.name(in: self).countedString
+                default:
+                    break
                 }
 
-                if regex1.matches(in: string, range: NSRange(location: 0, length: string.count)).count > 0 {
-                    results.append("_$s" + string)
-                } else if regex2.matches(in: string, range: NSRange(location: 0, length: string.count)).count > 0 {
-                    // remove leading numbers
-                    var index = string.startIndex
-                    while index < string.endIndex && string[index].isNumber {
-                        index = string.index(after: index)
-                    }
-                    if index < string.endIndex {
-                        results.append(String(string[index...]))
-                    }
-                } else if string.hasPrefix("$s") {
-                    results.append("_" + string)
-                } else {
-                    if let demangled = MangledType[string] {
-                        results.append(demangled)
-                    } else if string.hasPrefix("s") {
-                        if let demangled = MangledKnownTypeKind[String(string.dropFirst())] {
-                            results.append(demangled)
-                        }
-                    } else {
-                        if isBoundGeneric {
-                            results.append(string)
-                            results.append("->")
-                            isBoundGeneric = false
-                        } else {
-                            results.append("_$s" + string)
-                        }
-                    }
+                if let currnetParent = try context.contextDescriptor.parent(in: self), let parentName = try currnetParent.name(in: self) {
+                    name = parentName.countedString + name
                 }
+
+                if index == 0 {
+                    name = name.insertTypeManglePrefix
+                }
+
+                results.append(name + context.contextDescriptor.layout.flags.kind.mangledType)
+            }
+            switch element {
+            case var .string(string):
+                if index == 0 {
+                    string = string.insertTypeManglePrefix
+                }
+                results.append(string)
+//                if elements.count > 1 {
+//                    if string.hasSuffix("y") {
+//                        isBoundGeneric = true
+            ////                        string = String(string.dropLast())
+//                    } else if string == "G", index == elements.count - 1 {
+//                        continue
+//                    } else if string.hasPrefix("y"), string.hasSuffix("G") {
+//                        string = String(string.dropFirst().dropLast())
+//                    } else if index == elements.count - 1 {
+//                        string = string.hasSuffix("G") ? String(string.dropLast()) : string
+//                        if string == "G" {
+//                            continue
+//                        }
+//                        string = string.hasPrefix("_p") ? String(string.dropFirst(2)) : string
+//                        if string == "Qz" || string == "Qy_" || string == "Qy0_", results.count == 2 {
+//                            let tmp = results[0]
+//                            results[0] = results[1] + "." + tmp
+//                            results.removeSubrange(1 ..< results.count)
+//                        }
+//                    }
+//                }
+//                if string.isEmpty {
+//                    continue
+//                }
+//
+//                if regex1.matches(in: string, range: NSRange(location: 0, length: string.count)).count > 0 {
+//                    results.append("_$s" + string)
+//                } else if regex2.matches(in: string, range: NSRange(location: 0, length: string.count)).count > 0 {
+//                    // remove leading numbers
+//                    var index = string.startIndex
+//                    while index < string.endIndex && string[index].isNumber {
+//                        index = string.index(after: index)
+//                    }
+//                    if index < string.endIndex {
+//                        results.append(String(string[index...]))
+//                    }
+//                } else if string.hasPrefix("$s") {
+//                    results.append("_" + string)
+//                } else {
+//                    if let demangled = MangledType[string] {
+//                        results.append(demangled)
+//                    } else if string.hasPrefix("s") {
+//                        if let demangled = MangledKnownTypeKind[String(string.dropFirst())] {
+//                            results.append(demangled)
+//                        }
+//                    } else {
+//                        if isBoundGeneric {
+//                            results.append(string)
+//                            results.append("->")
+//                            isBoundGeneric = false
+//                        } else {
+//                            results.append("_$s" + string)
+//                        }
+//                    }
+//                }
             case let .lookup(lookup):
                 switch lookup.reference {
                 case let .relative(relativeReference):
@@ -139,49 +165,15 @@ extension MachOFile {
                         switch relativeReference.directness {
                         case .direct:
                             if let context = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeReference.relativeOffset).resolve(from: lookup.offset, in: self) {
-                                var name: String? = switch context {
-                                case let .type(typeContextDescriptor):
-//                                    if try typeContextDescriptor.fieldDescriptor(in: self).resolvedRelativeOffset(of: \.mangledTypeName) == fileOffset {
-                                    try typeContextDescriptor.name(in: self)
-//                                    } else {
-//                                        try typeContextDescriptor.fieldDescriptor(in: self).mangledTypeName(in: self)
-//                                    }
-                                case let .protocol(protocolDescriptor):
-                                    try protocolDescriptor.name(in: self)
-                                default:
-                                    nil
-                                }
-
-                                if let currnetParent = try context.contextDescriptor.parent(in: self), let parentName = try currnetParent.name(in: self), let currentName = name {
-                                    name = parentName + "." + currentName
-                                }
-                                if let name {
-                                    results.append(name)
-                                }
+                                try handleContextDescriptor(context)
                             }
                         case .indirect:
                             let relativePointer = RelativeIndirectPointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>>(relativeOffset: relativeReference.relativeOffset)
-                            if let bind = try resolveBind(at: lookup.offset, for: relativePointer), let symbolName = dyldChainedFixups?.symbolName(for: bind.0.info.nameOffset) {
-                                results.append(symbolName)
+                            if let bind = try resolveBind(at: lookup.offset, for: relativePointer), var symbolName = dyldChainedFixups?.symbolName(for: bind.0.info.nameOffset) {
+                                symbolName = symbolName.stripProtocolDescriptorMangle.stripNominalTypeDescriptorMangle.stripDuplicateProtocolMangleType
+                                results.append(index != 0 ? symbolName.stripTypeManglePrefix : symbolName)
                             } else if let context = try relativePointer.resolve(from: lookup.offset, in: self) {
-                                var name: String? = switch context {
-                                case let .type(typeContextDescriptor):
-//                                    if try typeContextDescriptor.fieldDescriptor(in: self).resolvedRelativeOffset(of: \.mangledTypeName) == fileOffset {
-                                    try typeContextDescriptor.name(in: self)
-//                                    } else {
-//                                        try typeContextDescriptor.fieldDescriptor(in: self).mangledTypeName(in: self)
-//                                    }
-                                case let .protocol(protocolDescriptor):
-                                    try protocolDescriptor.name(in: self)
-                                default:
-                                    nil
-                                }
-                                if let currnetParent = try context.contextDescriptor.parent(in: self), let parentName = try currnetParent.name(in: self), let currentName = name {
-                                    name = parentName + "." + currentName
-                                }
-                                if let name {
-                                    results.append(name)
-                                }
+                                try handleContextDescriptor(context)
                             }
                         }
                     case .accessorFunctionReference:
@@ -193,8 +185,8 @@ extension MachOFile {
                     case .objectiveCProtocol:
                         let relativePointer = RelativeDirectPointer<ObjCProtocolPrefix>(relativeOffset: relativeReference.relativeOffset)
                         let objcProtocol = try relativePointer.resolve(from: lookup.offset, in: self)
-                        let name = try objcProtocol.mangledName(in: self)
-                        results.append(name.stringValue())
+                        let name = try objcProtocol.mangledName(in: self).stringValue().stripProtocolDescriptorMangle.stripNominalTypeDescriptorMangle.stripDuplicateProtocolMangleType
+                        results.append(index != 0 ? name.stripTypeManglePrefix : name)
                     }
                 case .absolute:
                     continue
@@ -204,114 +196,6 @@ extension MachOFile {
         return .init(tokens: results, startOffset: fileOffset, endOffset: currentOffset)
     }
 }
-
-// func makeSymbolicMangledNameStringRef(_ address: UInt64, in machOFile: MachOFile) -> String? {
-//    var mangledTypeName = ""
-//    guard let mangledTypeNameOrStringRef = machOFile.fileHandle.readString(offset: address + numericCast(machOFile.headerStartOffset)) else { return nil }
-//    if mangledTypeNameOrStringRef.starts(with: "0x") {
-//        let hexName: String = mangledTypeNameOrStringRef.removingPrefix("0x")
-//        var dataArray: [UInt8] = hexName.hexBytes
-//        var i = 0
-//        while i < dataArray.count {
-//            let value = dataArray[i]
-//            guard let (kind, directness) = SymbolicReference.symbolicReference(for: value) else {
-//                mangledTypeName = mangledTypeName + String(format: "%c", value)
-//                i = i + 1
-//                continue
-//            }
-//            switch kind {
-//            case .context:
-//                switch directness {
-//                case .direct:
-//                    // find
-//                    let fromIndex: Int = i + 1 // ignore 0x01
-//                    let toIndex: Int = i + 5 // 4 bytes
-//
-//                    if toIndex > dataArray.count {
-//                        dataArray.append(contentsOf: [UInt8](repeating: 0, count: toIndex - dataArray.count))
-//                    }
-//                    let offsetArray: [UInt8] = Array(dataArray[fromIndex ..< toIndex])
-//
-//                    let ptr = address + numericCast(fromIndex)
-//
-//                    let offset = offsetArray.withUnsafeBytes { rawBufferPointer in
-//                        return rawBufferPointer.load(as: Int32.self)
-//                    }
-//
-//                    let addrPtr: UInt64 = numericCast(Int(ptr) + Int(offset))
-//
-//                    if let name = machOFile.swift._readTypeContextDescriptor(from: addrPtr, in: machOFile)?.name(in: machOFile) {
-//                        mangledTypeName += name
-//                        if i == 0, toIndex >= dataArray.count {
-//                            mangledTypeName = mangledTypeName + name
-//                        } else {
-//                            mangledTypeName = mangledTypeName + makeDemangledTypeName(name, header: mangledTypeName)
-//                        }
-//                    }
-//                case .indirect:
-//                    let fromIndex: Int = i + 1 // ignore 0x02
-//                    let toIndex: Int = i + 5
-//
-//                    if toIndex > dataArray.count {
-//                        dataArray.append(contentsOf: [UInt8](repeating: 0, count: toIndex - dataArray.count))
-//                    }
-//
-//                    let offsetArray: [UInt8] = Array(dataArray[fromIndex ..< toIndex])
-//
-//                    let ptr = address + numericCast(fromIndex)
-//
-//                    let offset = offsetArray.withUnsafeBytes { rawBufferPointer in
-//                        return rawBufferPointer.load(as: Int32.self)
-//                    }
-//                    let addrPtr: UInt64 = numericCast(Int(ptr) + Int(offset))
-//
-//                    if let bind = machOFile.resolveBind(at: machOFile.fileOffset(of: addrPtr)), let symbolName = machOFile.dyldChainedFixups?.symbolName(for: bind.0.info.nameOffset) {
-//                        if i == 0, toIndex >= dataArray.count {
-//                            mangledTypeName = mangledTypeName + symbolName
-//                        } else {
-//                            mangledTypeName = mangledTypeName + makeDemangledTypeName(symbolName, header: mangledTypeName)
-//                        }
-//                    } else if let rebase = machOFile.resolveRebase(at: addrPtr), let name = machOFile.swift._readTypeContextDescriptor(from: rebase, in: machOFile)?.name(in: machOFile) {
-//                        if i == 0, toIndex >= dataArray.count {
-//                            mangledTypeName = mangledTypeName + name
-//                        } else {
-//                            mangledTypeName = mangledTypeName + makeDemangledTypeName(name, header: mangledTypeName)
-//                        }
-//                    }
-//
-//                }
-//            case .accessorFunctionReference:
-//                break
-//            case .uniqueExtendedExistentialTypeShape:
-//                break
-//            case .nonUniqueExtendedExistentialTypeShape:
-//                break
-//            case .objectiveCProtocol:
-//                let fromIdx: Int = i + 1 // ignore 0x01
-//                let toIdx: Int = i + 5 // 4 bytes
-//                if toIdx > dataArray.count {
-//                    dataArray.append(contentsOf: [UInt8](repeating: 0, count: toIdx - dataArray.count))
-//                }
-//                let offsetArray: [UInt8] = Array(dataArray[fromIdx ..< toIdx])
-//
-//                let ptr = address + numericCast(fromIdx)
-//
-//                let offset = offsetArray.withUnsafeBytes { rawBufferPointer in
-//                    return rawBufferPointer.load(as: Int32.self)
-//                }
-//                let addrPtr: UInt64 = numericCast(Int(ptr) + Int(offset))
-//                let offset2: Int32 = machOFile.fileHandle.read(offset: addrPtr + 4)
-//                print(offset2, Int(addrPtr + 4) + Int(offset2), Int(ptr) + Int(offset2))
-//                return nil
-//            }
-//
-//            i = i + 5
-//        }
-//    } else {
-//        return mangledTypeNameOrStringRef
-//    }
-//    return mangledTypeName
-// }
 
 var MangledKnownTypeKind: [String: String] = [
     "A": "Swift.AutoreleasingUnsafeMutablePointer",
@@ -441,3 +325,30 @@ var MangledType: [String: String] = [
     "Qy0_": "==",
     "SgXw": "?",
 ]
+
+extension String {
+    var countedString: String {
+        "\(count)\(self)"
+    }
+
+    var stripProtocolDescriptorMangle: String {
+        replacingOccurrences(of: "Mp", with: "")
+    }
+
+    var stripNominalTypeDescriptorMangle: String {
+        replacingOccurrences(of: "Mn", with: "")
+    }
+
+    var stripTypeManglePrefix: String {
+        guard hasPrefix("_$s") else { return self }
+        return replacingOccurrences(of: "_$s", with: "")
+    }
+
+    var insertTypeManglePrefix: String {
+        "_$s" + self
+    }
+
+    var stripDuplicateProtocolMangleType: String {
+        replacingOccurrences(of: "_p_p", with: "_p")
+    }
+}

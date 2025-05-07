@@ -31,30 +31,18 @@ extension TypeContextDescriptorProtocol {
         if layout.flags.contains(.isGeneric) {
             var currentOffset = offset + layoutSize
             let genericContextOffset = currentOffset
-            let headerLayout: TypeGenericContextDescriptorHeader.Layout = try machO.fileHandle.read(offset: numericCast(currentOffset + machO.headerStartOffset))
-            let header = TypeGenericContextDescriptorHeader(layout: headerLayout, offset: currentOffset)
-            currentOffset += MemoryLayout<TypeGenericContextDescriptorHeader.Layout>.size
-            let parameters: [GenericParamDescriptor] = try machO.fileHandle.readDataSequence(offset: numericCast(currentOffset + machO.headerStartOffset), numberOfElements: Int(header.base.numParams)).map {
-                let result = GenericParamDescriptor(layout: $0, offset: currentOffset)
-                currentOffset += MemoryLayout<GenericParamDescriptor>.size
-                return result
-            }
+            let header: TypeGenericContextDescriptorHeader = try machO.readElement(offset: currentOffset)
+            currentOffset.offset(of: TypeGenericContextDescriptorHeader.self)
+            let parameters: [GenericParamDescriptor] = try machO.readElements(offset: currentOffset, numberOfElements: Int(header.base.numParams))
+            currentOffset.offset(of: GenericParamDescriptor.self, numbersOfElements: Int(header.base.numParams))
             currentOffset = numericCast(align(address: numericCast(currentOffset), alignment: 4))
-            let requirements: [GenericRequirementDescriptor] = try machO.fileHandle.readDataSequence(offset: numericCast(currentOffset + machO.headerStartOffset), numberOfElements: Int(header.base.numRequirements)).map {
-                let result = GenericRequirementDescriptor(layout: $0, offset: currentOffset)
-                currentOffset += MemoryLayout<GenericRequirementDescriptor>.size
-                return result
-            }
+            let requirements: [GenericRequirementDescriptor] = try machO.readElements(offset: currentOffset, numberOfElements: Int(header.base.numRequirements))
+            currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: Int(header.base.numRequirements))
             var typePacks: [GenericPackShapeDescriptor] = []
             if header.base.flags.contains(.hasTypePacks) {
-                let typePackHeaderLayout: GenericPackShapeHeader.Layout = try machO.fileHandle.read(offset: numericCast(currentOffset + machO.headerStartOffset))
-                let typePackHeader = GenericPackShapeHeader(layout: typePackHeaderLayout, offset: currentOffset)
-                currentOffset += MemoryLayout<GenericPackShapeHeader.Layout>.size
-                typePacks = try machO.fileHandle.readDataSequence(offset: numericCast(currentOffset + machO.headerStartOffset), numberOfElements: Int(typePackHeader.numPacks)).map {
-                    let result = GenericPackShapeDescriptor(layout: $0, offset: currentOffset)
-                    currentOffset += MemoryLayout<GenericPackShapeDescriptor>.size
-                    return result
-                }
+                let typePackHeader: GenericPackShapeHeader = try machO.readElement(offset: currentOffset)
+                currentOffset.offset(of: GenericPackShapeHeader.self)
+                typePacks = try machO.readElements(offset: currentOffset, numberOfElements: Int(typePackHeader.numPacks))
             }
             genericContext = .init(offset: genericContextOffset, header: header, parameters: parameters, requirements: requirements, typePacks: typePacks)
         }

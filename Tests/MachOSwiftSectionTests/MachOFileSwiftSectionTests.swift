@@ -50,13 +50,9 @@ struct MachOFileSwiftSectionTests {
 
                 print("    ", mangledTypeNames.components(separatedBy: " ").map(\.demangled).joined(separator: " "))
 
-                try print("    ", mangledTypeNames, record.fieldName(in: machOFile) ?? "nil")
+                try print("    ", mangledTypeNames, record.fieldName(in: machOFile))
                 
                 print("\n")
-
-//                mangledTypeName = mangledTypeName /* .replacingOccurrences(of: "_$s", with: "") */ .replacingOccurrences(of: "Mn", with: "").replacingOccurrences(of: "Mp", with: "")
-
-//                print("Demangled: \(mangledTypeName.typeDemangled ?? mangledTypeName)")
             }
         }
     }
@@ -101,9 +97,17 @@ struct MachOFileSwiftSectionTests {
         }
         // _$sSaySo14CKRecordZoneIDCG
         // _$sSaySo10Foundation4UUIDVG
-        let swiftSymbol = try parseMangledSwiftSymbol("_$sSDySi8Freeform16CRLCRDTMapBucketCy10Foundation4UUIDV8Freeform\("CRLFreehandDrawingShapeItemBucketCRDT".count)CRLFreehandDrawingShapeItemBucketCRDTCGG")
-        enumerateSymbols(in: swiftSymbol)
-        print(swiftSymbol.print())
+        // _$ss6ResultOMnySo8CRLImageCs5ErrorMp_pG
+        // _$sSDySi8Freeform16CRLCRDTMapBucketCy10Foundation4UUIDV8Freeform\("CRLFreehandDrawingShapeItemBucketCRDT".count)CRLFreehandDrawingShapeItemBucketCRDTCGG
+        // _$s8Freeform028CRLFloatingBoardViewControlsD18ControllerDelegate_p_pSgXw
+        // _$s44CRLMacFloatingBoardControlsInternalSeparatorCSg
+        do {
+            let swiftSymbol = try parseMangledSwiftSymbol("_$s44CRLMacFloatingBoardControlsInternalSeparatorCSg")
+            enumerateSymbols(in: swiftSymbol)
+            print(swiftSymbol.print())
+        } catch {
+            print(error.localizedDescription)
+        }
 //        for symbol in symbols {
 //            print(symbol.kind, symbol.contents)
 //        }
@@ -135,7 +139,7 @@ struct MachOFileSwiftSectionTests {
     }
     
     @Test func test() async throws {
-        try RelativeDirectPointer<String?>(relativeOffset: 1111).resolve(from: 0, in: machOFile)
+        print(_stdlib_demangleName("_$ss6ResultOySo8CRLImageCs5Error_pG"))
     }
 }
 

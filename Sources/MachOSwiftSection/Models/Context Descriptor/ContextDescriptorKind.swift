@@ -50,4 +50,29 @@ public enum ContextDescriptorKind: UInt8, CustomStringConvertible {
         case .unknown: return "unknown"
         }
     }
+    
+    public var mangledType: String {
+        switch self {
+        case .module:
+            ""
+        case .extension:
+            ""
+        case .anonymous:
+            ""
+        case .protocol:
+            "P"
+        case .opaqueType:
+            ""
+        case .class:
+            "C"
+        case .struct:
+            "V"
+        case .enum:
+            "O"
+        case .typeLast:
+            ""
+        case .unknown:
+            "XY"
+        }
+    }
 }
