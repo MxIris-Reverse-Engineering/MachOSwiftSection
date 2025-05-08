@@ -42,18 +42,35 @@ struct MachOFileSwiftSectionTests {
         for typeContextDescriptor in typeContextDescriptors {
             let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machOFile)
             print("----------------------------------------")
-            try print(typeContextDescriptor.flags.kind, typeContextDescriptor.name(in: machOFile))
+            try print(typeContextDescriptor.flags.kind, typeContextDescriptor.name(in: machOFile), "{")
             let records = try fieldDescriptor.records(in: machOFile)
-            for record in records {
+            for (index, record) in records.enumerated() {
 
-                let mangledTypeNames = try record.mangledTypeName(in: machOFile).stringValue()
+                let mangledTypeName = try record.mangledTypeName(in: machOFile).stringValue()
+                var demangledTypeName = mangledTypeName.demangled
+                var fieldName = try record.fieldName(in: machOFile)
+                let isLazy = fieldName.hasPrefix("$__lazy_storage_$_")
+                let isWeak = demangledTypeName.hasPrefix("weak ")
+                fieldName = fieldName.replacingOccurrences(of: "$__lazy_storage_$_", with: "")
+                demangledTypeName = demangledTypeName.replacingOccurrences(of: "weak ", with: "")
+                if typeContextDescriptor.flags.kind == .enum {
+                    if record.flags.contains(.isIndirectCase) {
+                        print("    ", mangledTypeName)
+                        print("    ", "case", "\(fieldName)(\(demangledTypeName)")
+                    } else {
+                        print("    ", "case", fieldName)
+                    }
+                } else {
+                    print("    ", mangledTypeName)
 
-                print("    ", mangledTypeNames.components(separatedBy: " ").map(\.demangled).joined(separator: " "))
-
-                try print("    ", mangledTypeNames, record.fieldName(in: machOFile))
+                    print("    ", "\(record.flags.contains(.isVariadic) ? isLazy ? "lazy var" : isWeak ? "weak var" : "var" : "let")", "\(fieldName):", demangledTypeName)
+                }
                 
-                print("\n")
+                if index != records.count - 1 {
+                    print("")
+                }
             }
+            print("}")
         }
     }
 
@@ -102,11 +119,11 @@ struct MachOFileSwiftSectionTests {
         // _$s8Freeform028CRLFloatingBoardViewControlsD18ControllerDelegate_p_pSgXw
         // _$s44CRLMacFloatingBoardControlsInternalSeparatorCSg
         do {
-            let swiftSymbol = try parseMangledSwiftSymbol("_$s44CRLMacFloatingBoardControlsInternalSeparatorCSg")
+            let swiftSymbol = try parseMangledSwiftSymbol("_$sSDy10Foundation4UUIDV10Foundation3URLV12assetFileURL_So22AssetFileURLCacheFlagsV5flagstG")
             enumerateSymbols(in: swiftSymbol)
             print(swiftSymbol.print())
         } catch {
-            print(error.localizedDescription)
+            print(error)
         }
 //        for symbol in symbols {
 //            print(symbol.kind, symbol.contents)

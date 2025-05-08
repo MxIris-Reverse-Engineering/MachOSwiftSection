@@ -16,20 +16,7 @@ public enum ContextDescriptorWrapper: ResolvableElement {
     case opaqueType(OpaqueTypeDescriptor)
     
     func name(in machO: MachOFile) throws -> String? {
-        switch self {
-        case .type(let typeContextDescriptor):
-            return try typeContextDescriptor.name(in: machO)
-        case .protocol(let protocolDescriptor):
-            return try protocolDescriptor.name(in: machO)
-        case .anonymous(let anonymousContextDescriptor):
-            return nil
-        case .extension(let extensionContextDescriptor):
-            return nil
-        case .module(let moduleContextDescriptor):
-            return try moduleContextDescriptor.name(in: machO)
-        case .opaqueType(let opaqueTypeDescriptor):
-            return nil
-        }
+        try namedContextDescriptor?.name(in: machO)
     }
     
     var contextDescriptor: any ContextDescriptorProtocol {
@@ -46,6 +33,23 @@ public enum ContextDescriptorWrapper: ResolvableElement {
             return moduleContextDescriptor
         case .opaqueType(let opaqueTypeDescriptor):
             return opaqueTypeDescriptor
+        }
+    }
+    
+    var namedContextDescriptor: (any NamedContextDescriptorProtocol)? {
+        switch self {
+        case .type(let typeContextDescriptor):
+            return typeContextDescriptor
+        case .protocol(let protocolDescriptor):
+            return protocolDescriptor
+        case .anonymous(let anonymousContextDescriptor):
+            return nil
+        case .extension(let extensionContextDescriptor):
+            return nil
+        case .module(let moduleContextDescriptor):
+            return moduleContextDescriptor
+        case .opaqueType(let opaqueTypeDescriptor):
+            return nil
         }
     }
 }

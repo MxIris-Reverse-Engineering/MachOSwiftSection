@@ -20,6 +20,6 @@ public struct MangledName: ResolvableElement {
     }
 
     public func stringValue() -> String {
-        return tokens.joined(separator: "")
+        return tokens.joined(separator: "").stripDuplicateProtocolMangleType
     }
 }

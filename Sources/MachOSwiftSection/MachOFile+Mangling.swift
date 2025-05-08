@@ -1,10 +1,6 @@
 import Foundation
 import MachOKit
 
-private let regex1 = try! NSRegularExpression(pattern: "So[0-9]+")
-
-private let regex2 = try! NSRegularExpression(pattern: "^[0-9]+")
-
 extension MachOFile {
     func readSymbolicMangledName(at fileOffset: Int) throws -> MangledName {
         enum Element {
@@ -72,19 +68,10 @@ extension MachOFile {
         }
 
         var results: [String] = []
-//        var isBoundGeneric = false
 
         for (index, element) in elements.enumerated() {
             func handleContextDescriptor(_ context: ContextDescriptorWrapper) throws {
-                var name = ""
-                switch context {
-                case let .type(typeContextDescriptor):
-                    name = try typeContextDescriptor.name(in: self).countedString
-                case let .protocol(protocolDescriptor):
-                    name = try protocolDescriptor.name(in: self).countedString
-                default:
-                    break
-                }
+                guard var name = (try context.name(in: self))?.countedString else { return }
 
                 if let currnetParent = try context.contextDescriptor.parent(in: self), let parentName = try currnetParent.name(in: self) {
                     name = parentName.countedString + name
@@ -102,61 +89,6 @@ extension MachOFile {
                     string = string.insertTypeManglePrefix
                 }
                 results.append(string)
-//                if elements.count > 1 {
-//                    if string.hasSuffix("y") {
-//                        isBoundGeneric = true
-            ////                        string = String(string.dropLast())
-//                    } else if string == "G", index == elements.count - 1 {
-//                        continue
-//                    } else if string.hasPrefix("y"), string.hasSuffix("G") {
-//                        string = String(string.dropFirst().dropLast())
-//                    } else if index == elements.count - 1 {
-//                        string = string.hasSuffix("G") ? String(string.dropLast()) : string
-//                        if string == "G" {
-//                            continue
-//                        }
-//                        string = string.hasPrefix("_p") ? String(string.dropFirst(2)) : string
-//                        if string == "Qz" || string == "Qy_" || string == "Qy0_", results.count == 2 {
-//                            let tmp = results[0]
-//                            results[0] = results[1] + "." + tmp
-//                            results.removeSubrange(1 ..< results.count)
-//                        }
-//                    }
-//                }
-//                if string.isEmpty {
-//                    continue
-//                }
-//
-//                if regex1.matches(in: string, range: NSRange(location: 0, length: string.count)).count > 0 {
-//                    results.append("_$s" + string)
-//                } else if regex2.matches(in: string, range: NSRange(location: 0, length: string.count)).count > 0 {
-//                    // remove leading numbers
-//                    var index = string.startIndex
-//                    while index < string.endIndex && string[index].isNumber {
-//                        index = string.index(after: index)
-//                    }
-//                    if index < string.endIndex {
-//                        results.append(String(string[index...]))
-//                    }
-//                } else if string.hasPrefix("$s") {
-//                    results.append("_" + string)
-//                } else {
-//                    if let demangled = MangledType[string] {
-//                        results.append(demangled)
-//                    } else if string.hasPrefix("s") {
-//                        if let demangled = MangledKnownTypeKind[String(string.dropFirst())] {
-//                            results.append(demangled)
-//                        }
-//                    } else {
-//                        if isBoundGeneric {
-//                            results.append(string)
-//                            results.append("->")
-//                            isBoundGeneric = false
-//                        } else {
-//                            results.append("_$s" + string)
-//                        }
-//                    }
-//                }
             case let .lookup(lookup):
                 switch lookup.reference {
                 case let .relative(relativeReference):
@@ -170,7 +102,7 @@ extension MachOFile {
                         case .indirect:
                             let relativePointer = RelativeIndirectPointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>>(relativeOffset: relativeReference.relativeOffset)
                             if let bind = try resolveBind(at: lookup.offset, for: relativePointer), var symbolName = dyldChainedFixups?.symbolName(for: bind.0.info.nameOffset) {
-                                symbolName = symbolName.stripProtocolDescriptorMangle.stripNominalTypeDescriptorMangle.stripDuplicateProtocolMangleType
+                                symbolName = symbolName.stripProtocolDescriptorMangle.stripNominalTypeDescriptorMangle
                                 results.append(index != 0 ? symbolName.stripTypeManglePrefix : symbolName)
                             } else if let context = try relativePointer.resolve(from: lookup.offset, in: self) {
                                 try handleContextDescriptor(context)
@@ -185,7 +117,9 @@ extension MachOFile {
                     case .objectiveCProtocol:
                         let relativePointer = RelativeDirectPointer<ObjCProtocolPrefix>(relativeOffset: relativeReference.relativeOffset)
                         let objcProtocol = try relativePointer.resolve(from: lookup.offset, in: self)
-                        let name = try objcProtocol.mangledName(in: self).stringValue().stripProtocolDescriptorMangle.stripNominalTypeDescriptorMangle.stripDuplicateProtocolMangleType
+                        var name = try objcProtocol.mangledName(in: self).stringValue()
+
+                        name = name.stripProtocolDescriptorMangle.stripNominalTypeDescriptorMangle
                         results.append(index != 0 ? name.stripTypeManglePrefix : name)
                     }
                 case .absolute:
@@ -270,7 +204,7 @@ var MangledKnownTypeKind2: [String: String] = [
     "t": "Swift.UnsafeCurrentTask",
 ]
 
-// MangledType is a mangled type map
+/// MangledType is a mangled type map
 var MangledType: [String: String] = [
     "Bb": "Builtin.BridgeObject",
     "BB": "Builtin.UnsafeValueBuffer",
@@ -345,7 +279,12 @@ extension String {
     }
 
     var insertTypeManglePrefix: String {
-        "_$s" + self
+        guard !hasPrefix("_$s") else { return self }
+        return "_$s" + self
+    }
+
+    var stripProtocolMangleType: String {
+        replacingOccurrences(of: "_p", with: "")
     }
 
     var stripDuplicateProtocolMangleType: String {
