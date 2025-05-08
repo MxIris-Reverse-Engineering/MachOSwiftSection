@@ -71,17 +71,22 @@ extension MachOFile {
 
         for (index, element) in elements.enumerated() {
             func handleContextDescriptor(_ context: ContextDescriptorWrapper) throws {
-                guard var name = (try context.name(in: self))?.countedString else { return }
-
-                if let currnetParent = try context.contextDescriptor.parent(in: self), let parentName = try currnetParent.name(in: self) {
-                    name = parentName.countedString + name
+                guard var name = try context.name(in: self) else { return }
+                name = name.countedString
+                name += context.contextDescriptor.layout.flags.kind.mangledType
+                var parent = try context.contextDescriptor.parent(in: self)
+                while let currnetParent = parent {
+                    if let parentName = try currnetParent.name(in: self) {
+                        name = parentName.countedString + currnetParent.contextDescriptor.layout.flags.kind.mangledType + name
+                    }
+                    parent = try currnetParent.contextDescriptor.parent(in: self)
                 }
 
                 if index == 0 {
                     name = name.insertTypeManglePrefix
                 }
 
-                results.append(name + context.contextDescriptor.layout.flags.kind.mangledType)
+                results.append(name)
             }
             switch element {
             case var .string(string):

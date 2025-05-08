@@ -82,6 +82,15 @@ extension MachOFile {
 }
 
 extension MachOFile {
+    
+    func readElement<Element>(
+        offset: Int,
+        swapHandler: ((inout Data) -> Void)? = nil
+    ) throws -> Element {
+        try fileHandle.read(offset: numericCast(offset + headerStartOffset), swapHandler: swapHandler)
+    }
+    
+    
     func readElement<Element>(
         offset: Int,
         swapHandler: ((inout Data) -> Void)? = nil

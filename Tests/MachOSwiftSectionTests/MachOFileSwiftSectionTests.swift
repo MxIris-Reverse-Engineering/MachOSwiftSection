@@ -35,6 +35,25 @@ struct MachOFileSwiftSectionTests {
         }
     }
 
+    @Test func anonymousContextDescriptor() async throws {
+        guard let typeContextDescriptors = machOFile.swift.typeContextDescriptors else {
+            throw Error.notFound
+        }
+        for typeContextDescriptor in typeContextDescriptors {
+            if let parent = try typeContextDescriptor.parent(in: machOFile)/*, case let .anonymous(anonymousContextDescriptor) = parent */ {
+//                if case let .type(typeContextDescriptor) = parent.contextDescriptor.layout.flags.kindSpecificFlags {
+//                    print(try parent.contextDescriptor.parent(in: machOFile))
+//                }
+//                let kind = parent.contextDescriptor.layout.flags.kind
+//                if kind == .enum /*|| kind == .struct || kind == .class*/ {
+                    print(try parent.contextDescriptor.parent(in: machOFile)?.name(in: machOFile))
+//                }
+//                print(parent.contextDescriptor.layout.flags.kind)
+//                print(try anonymousContextDescriptor.mangledName(in: machOFile))
+            }
+        }
+    }
+
     @Test func typeContextDescriptorsInFile() async throws {
         guard let typeContextDescriptors = machOFile.swift.typeContextDescriptors else {
             throw Error.notFound
@@ -45,7 +64,6 @@ struct MachOFileSwiftSectionTests {
             try print(typeContextDescriptor.flags.kind, typeContextDescriptor.name(in: machOFile), "{")
             let records = try fieldDescriptor.records(in: machOFile)
             for (index, record) in records.enumerated() {
-
                 let mangledTypeName = try record.mangledTypeName(in: machOFile).stringValue()
                 var demangledTypeName = mangledTypeName.demangled
                 var fieldName = try record.fieldName(in: machOFile)
@@ -54,18 +72,15 @@ struct MachOFileSwiftSectionTests {
                 fieldName = fieldName.replacingOccurrences(of: "$__lazy_storage_$_", with: "")
                 demangledTypeName = demangledTypeName.replacingOccurrences(of: "weak ", with: "")
                 if typeContextDescriptor.flags.kind == .enum {
-                    if record.flags.contains(.isIndirectCase) {
-                        print("    ", mangledTypeName)
-                        print("    ", "case", "\(fieldName)(\(demangledTypeName)")
-                    } else {
-                        print("    ", "case", fieldName)
-                    }
+                    print("    ", mangledTypeName)
+                    
+                    print("    ", "\(record.flags.contains(.isIndirectCase) ? "indirect " : "")case", "\(fieldName)\(demangledTypeName)")
                 } else {
                     print("    ", mangledTypeName)
 
                     print("    ", "\(record.flags.contains(.isVariadic) ? isLazy ? "lazy var" : isWeak ? "weak var" : "var" : "let")", "\(fieldName):", demangledTypeName)
                 }
-                
+
                 if index != records.count - 1 {
                     print("")
                 }
@@ -104,7 +119,7 @@ struct MachOFileSwiftSectionTests {
 //        print(try CwlDemangle.parseMangledSwiftSymbol("_$sSayCRLBoardLibraryViewModelItemNodeG_", isType: false).print())
 //        print("_$sSay12MemoryLayout1BVG_".typeDemangled)
         var symbols: [SwiftSymbol] = []
-        
+
         func enumerateSymbols(in symbol: SwiftSymbol, level: Int = 0) {
             symbols.append(symbol)
             print(symbol.kind, symbol.contents, level)
@@ -118,8 +133,9 @@ struct MachOFileSwiftSectionTests {
         // _$sSDySi8Freeform16CRLCRDTMapBucketCy10Foundation4UUIDV8Freeform\("CRLFreehandDrawingShapeItemBucketCRDT".count)CRLFreehandDrawingShapeItemBucketCRDTCGG
         // _$s8Freeform028CRLFloatingBoardViewControlsD18ControllerDelegate_p_pSgXw
         // _$s44CRLMacFloatingBoardControlsInternalSeparatorCSg
+        // _$sSDy8Freeform18CRLBoardIdentifierV8Freeform15CRLBoardLibrary9BoardInfoCG
         do {
-            let swiftSymbol = try parseMangledSwiftSymbol("_$sSDy10Foundation4UUIDV10Foundation3URLV12assetFileURL_So22AssetFileURLCacheFlagsV5flagstG")
+            let swiftSymbol = try parseMangledSwiftSymbol("_$sSDy10Foundation4UUIDVAAG")
             enumerateSymbols(in: swiftSymbol)
             print(swiftSymbol.print())
         } catch {
@@ -129,7 +145,7 @@ struct MachOFileSwiftSectionTests {
 //            print(symbol.kind, symbol.contents)
 //        }
     }
- 
+
     @Test func testSwiftTypeRefSection() async throws {
         let loadCommands = machOFile.loadCommands
 
@@ -143,7 +159,7 @@ struct MachOFileSwiftSectionTests {
         } else {
             return
         }
-        
+
         let startOffset = __section.offset
         let endOffset = startOffset + __section.size
         var currentOffset = startOffset
@@ -152,11 +168,10 @@ struct MachOFileSwiftSectionTests {
             print(mangledName.stringValue())
             currentOffset += mangledName.endOffset - mangledName.startOffset
         }
-        
     }
-    
+
     @Test func test() async throws {
-        print(_stdlib_demangleName("_$ss6ResultOySo8CRLImageCs5Error_pG"))
+        print(_stdlib_demangleName("_$sSDy8Freeform24CRLBoardLibraryViewModel6FolderOSiGSg"))
     }
 }
 

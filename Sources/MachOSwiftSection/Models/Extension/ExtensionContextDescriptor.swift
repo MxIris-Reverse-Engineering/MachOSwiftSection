@@ -4,7 +4,7 @@ import MachOKit
 public struct ExtensionContextDescriptor: ExtensionContextDescriptorProtocol {
     public struct Layout: ExtensionContextDescriptorLayout {
         public let flags: ContextDescriptorFlags
-        public let parent: RelativeDirectPointer<ContextDescriptorWrapper?>
+        public let parent: RelativeIndirectablePointer<ContextDescriptorWrapper?, SignedPointer<ContextDescriptorWrapper?>>
         public let extendedContext: RelativeOffset
     }
 

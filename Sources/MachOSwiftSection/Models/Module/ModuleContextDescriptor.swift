@@ -4,7 +4,7 @@ import MachOKit
 public struct ModuleContextDescriptor: ModuleContextDescriptorProtocol {
     public struct Layout: ModuleContextDescriptorLayout {
         public let flags: ContextDescriptorFlags
-        public let parent: RelativeDirectPointer<ContextDescriptorWrapper?>
+        public let parent: RelativeIndirectablePointer<ContextDescriptorWrapper?, SignedPointer<ContextDescriptorWrapper?>>
         public let name: RelativeDirectPointer<String>
     }
 

@@ -3,7 +3,7 @@ import Foundation
 public struct EnumDescriptor: LocatableLayoutWrapper, TypeContextDescriptorProtocol {
     public struct Layout: EnumDescriptorLayout {
         public let flags: ContextDescriptorFlags
-        public let parent: RelativeDirectPointer<ContextDescriptorWrapper?>
+        public let parent: RelativeIndirectablePointer<ContextDescriptorWrapper?, SignedPointer<ContextDescriptorWrapper?>>
         public let name: RelativeDirectPointer<String>
         public let accessFunctionPtr: RelativeOffset
         public let fieldDescriptor: RelativeDirectPointer<FieldDescriptor>
