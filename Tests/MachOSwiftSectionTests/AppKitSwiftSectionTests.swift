@@ -4,7 +4,7 @@ import Foundation
 import MachOKit
 
 @Suite
-struct MachOCacheFileSwiftSectionTests {
+struct AppKitSwiftSectionTests {
     enum Error: Swift.Error {
         case notFound
     }
@@ -30,6 +30,14 @@ struct MachOCacheFileSwiftSectionTests {
         }
         for proto in protocols {
             print(try proto.name(in: machOFileInCache))
+        }
+    }
+    
+    @Test func typeContextDescriptorsInFile() async throws {
+        do {
+            try await Dump.dumpTypeContextDescriptors(in: machOFileInCache)
+        } catch {
+            print(error)
         }
     }
 }
