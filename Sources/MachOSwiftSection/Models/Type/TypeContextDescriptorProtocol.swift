@@ -27,26 +27,7 @@ extension TypeContextDescriptorProtocol {
     }
 
     public func typeGenericContext(in machO: MachOFile) throws -> TypeGenericContext? {
-        var genericContext: TypeGenericContext?
-        if layout.flags.contains(.isGeneric) {
-            var currentOffset = offset + layoutSize
-            let genericContextOffset = currentOffset
-            let header: TypeGenericContextDescriptorHeader = try machO.readElement(offset: currentOffset)
-            currentOffset.offset(of: TypeGenericContextDescriptorHeader.self)
-            let parameters: [GenericParamDescriptor] = try machO.readElements(offset: currentOffset, numberOfElements: Int(header.base.numParams))
-            currentOffset.offset(of: GenericParamDescriptor.self, numbersOfElements: Int(header.base.numParams))
-            currentOffset = numericCast(align(address: numericCast(currentOffset), alignment: 4))
-            let requirements: [GenericRequirementDescriptor] = try machO.readElements(offset: currentOffset, numberOfElements: Int(header.base.numRequirements))
-            currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: Int(header.base.numRequirements))
-            var typePacks: [GenericPackShapeDescriptor] = []
-            if header.base.flags.contains(.hasTypePacks) {
-                let typePackHeader: GenericPackShapeHeader = try machO.readElement(offset: currentOffset)
-                currentOffset.offset(of: GenericPackShapeHeader.self)
-                typePacks = try machO.readElements(offset: currentOffset, numberOfElements: Int(typePackHeader.numPacks))
-            }
-            genericContext = .init(offset: genericContextOffset, header: header, parameters: parameters, requirements: requirements, typePacks: typePacks)
-        }
-        return genericContext
+        return try .init(contextDescriptor: self, in: machO)
     }
 }
 

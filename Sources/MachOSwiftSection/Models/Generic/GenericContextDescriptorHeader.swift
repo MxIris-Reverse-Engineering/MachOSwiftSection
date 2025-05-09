@@ -6,8 +6,8 @@
 //
 
 
-public struct GenericContextDescriptorHeader: LocatableLayoutWrapper {
-    public struct Layout {
+public struct GenericContextDescriptorHeader: GenericContextDescriptorHeaderProtocol {
+    public struct Layout: GenericContextDescriptorHeaderLayout {
         public let numParams: UInt16
         public let numRequirements: UInt16
         public let numKeyArguments: UInt16

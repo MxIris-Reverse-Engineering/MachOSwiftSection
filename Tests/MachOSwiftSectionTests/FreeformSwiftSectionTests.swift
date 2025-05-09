@@ -10,8 +10,6 @@ enum Error: Swift.Error {
 
 @Suite
 struct FreeformSwiftSectionTests {
-    
-
     let machOFile: MachOFile
 
     init() throws {
@@ -82,6 +80,19 @@ struct FreeformSwiftSectionTests {
     @Test func stdlibDemangled() async throws {
         print(_stdlib_demangleName("_$sSDy8Freeform24CRLBoardLibraryViewModel6FolderOSiGSg"))
     }
+    
+    @Test func genericContext() async throws {
+        guard let typeContextDescriptors = machOFile.swift.typeContextDescriptors else {
+            throw Error.notFound
+        }
+        for typeContext in typeContextDescriptors {
+            if let typeGenericContext = try typeContext.typeGenericContext(in: machOFile) {
+                let name = try typeContext.name(in: machOFile)
+                print(name)
+                print(typeGenericContext)
+            }
+        }
+    }
 }
 
 extension String {
@@ -95,9 +106,3 @@ extension SymbolPrintOptions {
         Self.default.subtracting([.displayObjCModule]).union([.printForTypeName])
     }
 }
-
-
-
-
-
-

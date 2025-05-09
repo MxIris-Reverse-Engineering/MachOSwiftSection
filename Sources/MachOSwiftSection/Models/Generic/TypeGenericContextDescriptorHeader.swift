@@ -6,11 +6,17 @@
 //
 
 
-public struct TypeGenericContextDescriptorHeader: LocatableLayoutWrapper {
-    public struct Layout {
+public struct TypeGenericContextDescriptorHeader: GenericContextDescriptorHeaderProtocol {
+    public struct Layout: GenericContextDescriptorHeaderLayout {
         public let instantiationCache: RelativeOffset
         public let defaultInstantiationPattern: RelativeOffset
         public let base: GenericContextDescriptorHeader
+        
+        public var numParams: UInt16 { base.numParams }
+        public var numRequirements: UInt16 { base.numRequirements }
+        public var numKeyArguments: UInt16 { base.numKeyArguments }
+        public var flags: GenericContextDescriptorFlags { base.flags }
+        
     }
 
     public let offset: Int
