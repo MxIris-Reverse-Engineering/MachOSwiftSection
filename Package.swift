@@ -41,25 +41,31 @@ let package = Package(
             name: "MachOSwiftSection",
             targets: ["MachOSwiftSection"]
         ),
+        .library(
+            name: "Demangling",
+            targets: ["Demangling"]
+        ),
     ],
     dependencies: [
         .MachOKit,
-        .package(url: "https://github.com/mattgallagher/CwlDemangle", branch: "master"),
     ],
     targets: [
         .target(
             name: "MachOSwiftSection",
             dependencies: [
+                "Demangling",
                 .MachOKit,
-                .product(name: "CwlDemangle", package: "CwlDemangle"),
             ]
+        ),
+        .target(
+            name: "Demangling"
         ),
         .testTarget(
             name: "MachOSwiftSectionTests",
             dependencies: [
                 "MachOSwiftSection",
+                "Demangling",
                 .MachOKit,
-                .product(name: "CwlDemangle", package: "CwlDemangle"),
             ]
         ),
     ]

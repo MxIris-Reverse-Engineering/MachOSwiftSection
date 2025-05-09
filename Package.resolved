@@ -1,15 +1,6 @@
 {
-  "originHash" : "2869c5ecb0cb0ae0d5a25fabeb9ddc6b6fa13f773fa028f92a0c2547609ee1a7",
+  "originHash" : "4c3193b6c3226864f2e6f527a2e8cfa8301ceda0bdafc76bb44bb5318feb5e42",
   "pins" : [
-    {
-      "identity" : "cwldemangle",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/mattgallagher/CwlDemangle",
-      "state" : {
-        "branch" : "master",
-        "revision" : "6bfc351bd08d7a1805234b9ba698f8381d2df08e"
-      }
-    },
     {
       "identity" : "machokit",
       "kind" : "remoteSourceControl",

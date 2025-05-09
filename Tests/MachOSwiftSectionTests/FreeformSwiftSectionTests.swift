@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-import CwlDemangle
+import Demangling
 @_spi(Support) import MachOKit
 @testable import MachOSwiftSection
 
@@ -42,10 +42,10 @@ struct FreeformSwiftSectionTests {
     // offset: 19277610 + relative: 1059358 => 20336968
     // result: 19506268
     @Test func indirectPointer() async throws {
-        let typeContextDescriptor = try RelativeIndirectPointer<TypeContextDescriptor, Pointer<TypeContextDescriptor>>(relativeOffset: 1059358).resolve(from: 19277610, in: machOFile)
+        print(try RelativeIndirectPointer<TypeContextDescriptor, Pointer<TypeContextDescriptor>>(relativeOffset: 1059358).resolve(from: 19277610, in: machOFile))
     }
 
-    @Test func cwlDemangled() async throws {
+    @Test func demangled() async throws {
 //        print(_stdlib_demangleName("_$sSay_$sCRLBoardLibraryViewModelItemNode"))
 //        print(try CwlDemangle.parseMangledSwiftSymbol("_$sSayCRLBoardLibraryViewModelItemNodeG_", isType: false).print())
 //        print("_$sSay12MemoryLayout1BVG_".typeDemangled)
@@ -78,7 +78,7 @@ struct FreeformSwiftSectionTests {
     }
 
     @Test func stdlibDemangled() async throws {
-        print(_stdlib_demangleName("_$sSDy8Freeform24CRLBoardLibraryViewModel6FolderOSiGSg"))
+        print(_stdlib_demangleName("_$sSDy10Foundation4UUIDVAAVG"))
     }
     
     @Test func genericContext() async throws {
@@ -97,7 +97,7 @@ struct FreeformSwiftSectionTests {
 
 extension String {
     var demangled: String {
-        (try? CwlDemangle.parseMangledSwiftSymbol(self, isType: false).print(using: .type)) ?? self
+        (try? parseMangledSwiftSymbol(self, isType: false).print(using: .type)) ?? self
     }
 }
 
