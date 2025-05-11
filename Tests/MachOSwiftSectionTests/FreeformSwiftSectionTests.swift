@@ -1,6 +1,5 @@
 import Testing
 import Foundation
-import Demangling
 @_spi(Support) import MachOKit
 @testable import MachOSwiftSection
 
@@ -46,37 +45,37 @@ struct FreeformSwiftSectionTests {
         print(try RelativeIndirectPointer<TypeContextDescriptor, Pointer<TypeContextDescriptor>>(relativeOffset: 1059358).resolve(from: 19277610, in: machOFile))
     }
 
-    @Test func demangled() async throws {
-//        print(_stdlib_demangleName("_$sSay_$sCRLBoardLibraryViewModelItemNode"))
-//        print(try CwlDemangle.parseMangledSwiftSymbol("_$sSayCRLBoardLibraryViewModelItemNodeG_", isType: false).print())
-//        print("_$sSay12MemoryLayout1BVG_".typeDemangled)
-        var symbols: [SwiftSymbol] = []
-
-        func enumerateSymbols(in symbol: SwiftSymbol, level: Int = 0) {
-            symbols.append(symbol)
-            print(symbol.kind, symbol.contents, level)
-            for child in symbol.children {
-                enumerateSymbols(in: child, level: level + 1)
-            }
-        }
-        // _$sSaySo14CKRecordZoneIDCG
-        // _$sSaySo10Foundation4UUIDVG
-        // _$ss6ResultOMnySo8CRLImageCs5ErrorMp_pG
-        // _$sSDySi8Freeform16CRLCRDTMapBucketCy10Foundation4UUIDV8Freeform\("CRLFreehandDrawingShapeItemBucketCRDT".count)CRLFreehandDrawingShapeItemBucketCRDTCGG
-        // _$s8Freeform028CRLFloatingBoardViewControlsD18ControllerDelegate_p_pSgXw
-        // _$s44CRLMacFloatingBoardControlsInternalSeparatorCSg
-        // _$sSDy8Freeform18CRLBoardIdentifierV8Freeform15CRLBoardLibrary9BoardInfoCG
-        do {
-            let swiftSymbol = try parseMangledSwiftSymbol("_$sSay8Freeform18CRLBoardIdentifierVG")
-            enumerateSymbols(in: swiftSymbol)
-            print(swiftSymbol.print())
-        } catch {
-            print(error)
-        }
-//        for symbol in symbols {
-//            print(symbol.kind, symbol.contents)
+//    @Test func demangled() async throws {
+////        print(_stdlib_demangleName("_$sSay_$sCRLBoardLibraryViewModelItemNode"))
+////        print(try CwlDemangle.parseMangledSwiftSymbol("_$sSayCRLBoardLibraryViewModelItemNodeG_", isType: false).print())
+////        print("_$sSay12MemoryLayout1BVG_".typeDemangled)
+//        var symbols: [SwiftSymbol] = []
+//
+//        func enumerateSymbols(in symbol: SwiftSymbol, level: Int = 0) {
+//            symbols.append(symbol)
+//            print(symbol.kind, symbol.contents, level)
+//            for child in symbol.children {
+//                enumerateSymbols(in: child, level: level + 1)
+//            }
 //        }
-    }
+//        // _$sSaySo14CKRecordZoneIDCG
+//        // _$sSaySo10Foundation4UUIDVG
+//        // _$ss6ResultOMnySo8CRLImageCs5ErrorMp_pG
+//        // _$sSDySi8Freeform16CRLCRDTMapBucketCy10Foundation4UUIDV8Freeform\("CRLFreehandDrawingShapeItemBucketCRDT".count)CRLFreehandDrawingShapeItemBucketCRDTCGG
+//        // _$s8Freeform028CRLFloatingBoardViewControlsD18ControllerDelegate_p_pSgXw
+//        // _$s44CRLMacFloatingBoardControlsInternalSeparatorCSg
+//        // _$sSDy8Freeform18CRLBoardIdentifierV8Freeform15CRLBoardLibrary9BoardInfoCG
+//        do {
+//            let swiftSymbol = try parseMangledSwiftSymbol("_$sSay8Freeform18CRLBoardIdentifierVG")
+//            enumerateSymbols(in: swiftSymbol)
+//            print(swiftSymbol.print())
+//        } catch {
+//            print(error)
+//        }
+////        for symbol in symbols {
+////            print(symbol.kind, symbol.contents)
+////        }
+//    }
 
     @Test func stdlibDemangled() async throws {
         print(_stdlib_demangleName("_$sSDy10Foundation4UUIDVAAVG"))
@@ -96,14 +95,14 @@ struct FreeformSwiftSectionTests {
     }
 }
 
-extension String {
-    var demangled: String {
-        (try? parseMangledSwiftSymbol(self, isType: false).print(using: .type)) ?? self
-    }
-}
-
-extension SymbolPrintOptions {
-    static var type: SymbolPrintOptions {
-        Self.default.subtracting([.displayObjCModule]).union([.printForTypeName])
-    }
-}
+//extension String {
+//    var demangled: String {
+//        (try? parseMangledSwiftSymbol(self, isType: false).print(using: .type)) ?? self
+//    }
+//}
+//
+//extension SymbolPrintOptions {
+//    static var type: SymbolPrintOptions {
+//        Self.default.subtracting([.displayObjCModule]).union([.printForTypeName])
+//    }
+//}

@@ -21,9 +21,9 @@ enum Dump {
             for (index, record) in records.enumerated() {
                 do {
                     let mangledTypeName = try record.mangledTypeName(in: machOFile)
-                    print("    ", mangledTypeName)
+//                    print("    ", mangledTypeName)
                     var fieldName = try record.fieldName(in: machOFile)
-                    var demangledTypeName = try Demangler.demangle(for: mangledTypeName, in: machOFile)
+                    var demangledTypeName = (try? Demangler.demangle(for: mangledTypeName, in: machOFile)) ?? mangledTypeName.stringValue()
                     let isLazy = fieldName.hasPrefix("$__lazy_storage_$_")
                     let isWeak = demangledTypeName.hasPrefix("weak ")
                     fieldName = fieldName.replacingOccurrences(of: "$__lazy_storage_$_", with: "")

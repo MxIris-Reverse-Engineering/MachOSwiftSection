@@ -11,11 +11,11 @@ public struct Pointer<Pointee: ResolvableElement>: RelativeIndirectType {
     public let address: UInt64
 
     public func resolveOffset(in machO: MachOFile) -> Int {
-//        if machO.cache != nil, let offset = machO.cacheAndFileOffset(for: address) {
-//            numericCast(offset.1)
-//        } else {
+        if let cache = machO.cache, cache.cpu.type == .arm64 {
+            numericCast(address & 0x7FFFFFFF)
+        } else {
             numericCast(machO.fileOffset(of: address))
-//        }
+        }
     }
 }
 
@@ -23,11 +23,11 @@ public struct SignedPointer<Pointee: ResolvableElement>: RelativeIndirectType {
     public let address: UInt64
 
     public func resolveOffset(in machO: MachOFile) -> Int {
-//        if machO.cache != nil, let offset = machO.cacheAndFileOffset(for: address) {
-//            numericCast(offset.1)
-//        } else {
+        if let cache = machO.cache, cache.cpu.type == .arm64 {
+            numericCast(address & 0x7FFFFFFF)
+        } else {
             numericCast(machO.fileOffset(of: address))
-//        }
+        }
     }
 }
 

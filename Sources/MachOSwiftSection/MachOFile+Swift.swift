@@ -61,8 +61,6 @@ enum TypeContextDescriptorWrapper {
     case `class`(ClassDescriptor)
 }
 
-
-
 extension MachOFile.Swift {
     func _readContextDescriptor(from offset: Int, in machOFile: MachOFile) throws -> ContextDescriptorWrapper? {
         let contextDescriptor: ContextDescriptor = try machOFile.readElement(offset: offset)
@@ -70,17 +68,17 @@ extension MachOFile.Swift {
         case .class,
              .enum,
              .struct:
-            return .type(try machOFile.readElement(offset: offset))
+            return try .type(machOFile.readElement(offset: offset))
         case .protocol:
-            return .protocol(try machOFile.readElement(offset: offset))
+            return try .protocol(machOFile.readElement(offset: offset))
         case .anonymous:
-            return .anonymous(try machOFile.readElement(offset: offset))
+            return try .anonymous(machOFile.readElement(offset: offset))
         case .extension:
-            return .extension(try machOFile.readElement(offset: offset))
+            return try .extension(machOFile.readElement(offset: offset))
         case .module:
-            return .module(try machOFile.readElement(offset: offset))
+            return try .module(machOFile.readElement(offset: offset))
         case .opaqueType:
-            return .opaqueType(try machOFile.readElement(offset: offset))
+            return try .opaqueType(machOFile.readElement(offset: offset))
         default:
             return nil
         }

@@ -1,6 +1,6 @@
 import Foundation
-import Demangling
 import MachOKit
+private import Demangling
 
 public enum Demangler {
     public static func demangle(for mangledName: MangledName, in machO: MachOFile) throws -> String {
@@ -47,11 +47,11 @@ public enum Demangler {
                 case .uniqueExtendedExistentialTypeShape:
                     let extendedExistentialTypeShape = try RelativeDirectPointer<ExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: fileOffset, in: machO)
                     let existentialType = try extendedExistentialTypeShape.existentialType(in: machO).stringValue()
-                    result = .init(kind: .uniqueExtendedExistentialTypeShapeSymbolicReference, children: try parseMangledSwiftSymbol(existentialType.insertTypeManglePrefix).children)
+                    result = try .init(kind: .uniqueExtendedExistentialTypeShapeSymbolicReference, children: parseMangledSwiftSymbol(existentialType.insertTypeManglePrefix).children)
                 case .nonUniqueExtendedExistentialTypeShape:
                     let nonUniqueExtendedExistentialTypeShape = try RelativeDirectPointer<NonUniqueExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: fileOffset, in: machO)
                     let existentialType = try nonUniqueExtendedExistentialTypeShape.existentialType(in: machO).stringValue()
-                    result = .init(kind: .nonUniqueExtendedExistentialTypeShapeSymbolicReference, children: try parseMangledSwiftSymbol(existentialType.insertTypeManglePrefix).children)
+                    result = try .init(kind: .nonUniqueExtendedExistentialTypeShapeSymbolicReference, children: parseMangledSwiftSymbol(existentialType.insertTypeManglePrefix).children)
                 case .objectiveCProtocol:
                     let relativePointer = RelativeDirectPointer<ObjCProtocolPrefix>(relativeOffset: relativeOffset)
                     let objcProtocol = try relativePointer.resolve(from: fileOffset, in: machO)
@@ -68,7 +68,7 @@ public enum Demangler {
 }
 
 extension SwiftSymbol {
-    var typeSymbol: SwiftSymbol? {
+    fileprivate var typeSymbol: SwiftSymbol? {
         func enumerate(_ child: SwiftSymbol) -> SwiftSymbol? {
             if child.kind == .type {
                 return child

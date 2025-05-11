@@ -20,7 +20,7 @@ struct AppKitSwiftSectionTests {
         let cacheUrl = URL(fileURLWithPath: cachePath)
         self.cache = try! DyldCache(url: cacheUrl)
         self.machOFileInCache = cache.machOFiles().first(where: {
-            $0.imagePath.contains("/SwiftUICore")
+            $0.imagePath.contains("/SwiftUI")
         })!
     }
 

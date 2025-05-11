@@ -41,10 +41,6 @@ let package = Package(
             name: "MachOSwiftSection",
             targets: ["MachOSwiftSection"]
         ),
-        .library(
-            name: "Demangling",
-            targets: ["Demangling"]
-        ),
     ],
     dependencies: [
         .MachOKit,
@@ -64,7 +60,6 @@ let package = Package(
             name: "MachOSwiftSectionTests",
             dependencies: [
                 "MachOSwiftSection",
-                "Demangling",
                 .MachOKit,
             ]
         ),
