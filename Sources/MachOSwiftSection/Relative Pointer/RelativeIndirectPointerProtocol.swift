@@ -30,7 +30,7 @@ extension RelativeIndirectPointerProtocol {
     }
 
     func resolveIndirectType(from fileOffset: Int, in machO: MachOFile) throws -> IndirectType {
-        return try read(offset: resolveDirectFileOffset(from: fileOffset), in: machO)
+        return try machO.readElement(offset: resolveDirectFileOffset(from: fileOffset))
     }
 
     public func resolveIndirectFileOffset(from fileOffset: Int, in machO: MachOFile) throws -> Int {

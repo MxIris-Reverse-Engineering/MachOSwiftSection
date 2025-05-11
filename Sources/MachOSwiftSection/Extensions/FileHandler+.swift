@@ -1,8 +1,7 @@
 import Foundation
 @_spi(Support) import MachOKit
 
-@_spi(Support)
-public enum MachOFileHandleError: Error {
+enum MachOFileHandleError: Error {
     case invalidDataSize
     case invalidLayoutSize
 }
@@ -16,8 +15,7 @@ extension FileHandle {
 }
 
 extension FileHandle {
-    @_spi(Support)
-    public func readDataSequence<Element>(
+    func readDataSequence<Element>(
         offset: UInt64,
         numberOfElements: Int,
         swapHandler: ((inout Data) -> Void)? = nil
@@ -39,9 +37,8 @@ extension FileHandle {
         )
     }
 
-    @_spi(Support)
     @_disfavoredOverload
-    public func readDataSequence<Element>(
+    func readDataSequence<Element>(
         offset: UInt64,
         numberOfElements: Int,
         swapHandler: ((inout Data) -> Void)? = nil
@@ -60,8 +57,7 @@ extension FileHandle {
         )
     }
 
-    @_spi(Support)
-    public func readDataSequence<Element>(
+    func readDataSequence<Element>(
         offset: UInt64,
         entrySize: Int,
         numberOfElements: Int,
@@ -84,9 +80,8 @@ extension FileHandle {
         )
     }
 
-    @_spi(Support)
     @_disfavoredOverload
-    public func readDataSequence<Element>(
+    func readDataSequence<Element>(
         offset: UInt64,
         entrySize: Int,
         numberOfElements: Int,
@@ -109,8 +104,7 @@ extension FileHandle {
 }
 
 extension FileHandle {
-    @_spi(Support)
-    public func read<Element>(
+    func read<Element>(
         offset: UInt64,
         swapHandler: ((inout Data) -> Void)? = nil
     ) throws -> Optional<Element> where Element: LayoutWrapper {
@@ -128,8 +122,7 @@ extension FileHandle {
         }
     }
 
-    @_spi(Support)
-    public func read<Element>(
+    func read<Element>(
         offset: UInt64,
         swapHandler: ((inout Data) -> Void)? = nil
     ) throws -> Optional<Element> {
@@ -144,8 +137,7 @@ extension FileHandle {
         }
     }
 
-    @_spi(Support)
-    public func read<Element>(
+    func read<Element>(
         offset: UInt64,
         swapHandler: ((inout Data) -> Void)? = nil
     ) throws -> Element where Element: LayoutWrapper {
@@ -161,8 +153,7 @@ extension FileHandle {
         }
     }
 
-    @_spi(Support)
-    public func read<Element>(
+    func read<Element>(
         offset: UInt64,
         swapHandler: ((inout Data) -> Void)? = nil
     ) throws -> Element {
@@ -179,8 +170,7 @@ extension FileHandle {
 }
 
 extension FileHandle {
-    @_spi(Support)
-    public func readString(
+    func readString(
         offset: UInt64,
         size: Int
     ) -> String? {
@@ -191,8 +181,7 @@ extension FileHandle {
         return String(cString: data)
     }
 
-    @_spi(Support)
-    public func readString(
+    func readString(
         offset: UInt64,
         step: UInt64 = 10
     ) -> String? {
@@ -209,8 +198,7 @@ extension FileHandle {
         return String(cString: data)
     }
 
-    @_spi(Support)
-    public func readData(
+    func readData(
         offset: UInt64,
         size: Int
     ) -> Data {

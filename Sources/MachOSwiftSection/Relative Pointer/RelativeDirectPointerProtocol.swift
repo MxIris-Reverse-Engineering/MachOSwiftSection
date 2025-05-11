@@ -23,7 +23,7 @@ extension RelativeDirectPointerProtocol {
     }
 
     func resolveDirect<T>(from fileOffset: Int, in machO: MachOFile) throws -> T {
-        return try read(offset: resolveDirectFileOffset(from: fileOffset), in: machO)
+        return try machO.readElement(offset: resolveDirectFileOffset(from: fileOffset))
     }
 }
 

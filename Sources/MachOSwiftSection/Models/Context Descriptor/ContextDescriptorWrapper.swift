@@ -56,7 +56,7 @@ public enum ContextDescriptorWrapper: ResolvableElement {
 
 extension ContextDescriptorWrapper {
     public static func resolve(from fileOffset: Int, in machO: MachOFile) throws -> Self? {
-        guard let contextDescriptor = try machO.swift._readContextDescriptor(from: fileOffset, in: machO) else { return nil }
+        guard let contextDescriptor = try machO.swift._readContextDescriptor(from: fileOffset) else { return nil }
         return contextDescriptor
     }
 }

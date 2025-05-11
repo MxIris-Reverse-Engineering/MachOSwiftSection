@@ -20,7 +20,7 @@ struct AppKitSwiftSectionTests {
         let cacheUrl = URL(fileURLWithPath: cachePath)
         self.cache = try! DyldCache(url: cacheUrl)
         self.machOFileInCache = cache.machOFiles().first(where: {
-            $0.imagePath.contains("/SwiftUI")
+            $0.imagePath.contains("/SwiftUICore")
         })!
     }
 
@@ -42,7 +42,18 @@ struct AppKitSwiftSectionTests {
     }
     
     @Test func address() async throws {
-//        print(machOFileInCache.cache!.expectedCacheFileSize)
-//        print(machOFileInCache.cache!.fileOffset(of: 9232020900132183136))
+        let fileOffset: Int = 1733616806
+        let relativeOffset: Int32 = 149429722
+        let ptr = RelativeIndirectPointer<ContextDescriptorWrapper?, SignedPointer<ContextDescriptorWrapper?>>(relativeOffset: relativeOffset)
+        print(ptr.resolveDirectFileOffset(from: fileOffset))
+        print(try ptr.resolveIndirectFileOffset(from: fileOffset, in: machOFileInCache))
+        let ctx = try ptr.resolve(from: fileOffset, in: machOFileInCache)
+        print(ctx)
+        print(try ctx?.name(in: machOFileInCache))
+//        guard let ctx = try machOFileInCache.swift._readContextDescriptor(from: 3911727420, in: machOFileInCache) else { return }
+//        let ptr = RelativeDirectPointer<MangledName>(relativeOffset: ctx.namedContextDescriptor!.layout.name.relativeOffset)
+//        let mangledName = try ptr.resolve(from: ctx.contextDescriptor.offset + 8, in: machOFileInCache)
+//        print(try Demangler.demangle(for: mangledName, in: machOFileInCache))
+        
     }
 }

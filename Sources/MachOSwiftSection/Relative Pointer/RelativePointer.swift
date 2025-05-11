@@ -23,7 +23,3 @@ extension RelativePointer {
         return relativeOffset != 0
     }
 }
-
-func read<T>(offset fileOffset: Int, in machO: MachOFile) throws -> T {
-    return try machO.readElement(offset: fileOffset)
-}

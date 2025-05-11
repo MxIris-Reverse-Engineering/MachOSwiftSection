@@ -8,37 +8,57 @@
 import MachOKit
 import Foundation
 
-public struct MangledName: ResolvableElement {
+public struct MangledName: ResolvableElement, CustomStringConvertible {
     public enum Element {
-        public struct Lookup {
+        public struct Lookup: CustomStringConvertible {
             enum Reference {
                 case relative(RelativeReference)
                 case absolute(AbsoluteReference)
             }
 
-            struct RelativeReference {
+            struct RelativeReference: CustomStringConvertible {
                 let kind: UInt8
                 let relativeOffset: RelativeOffset
+                var description: String {
+                    """
+                    Kind: \(kind) RelativeOffset: \(relativeOffset)
+                    """
+                }
             }
 
-            struct AbsoluteReference {
+            struct AbsoluteReference: CustomStringConvertible {
                 let kind: UInt8
                 let reference: UInt64
+                var description: String {
+                    """
+                    Kind: \(kind) Address: \(reference)
+                    """
+                }
             }
 
             let offset: Int
             let reference: Reference
+            
+            public var description: String {
+                switch reference {
+                case .relative(let relative):
+                    "[Relative] FileOffset: \(offset) \(relative)"
+                case .absolute(let absolute):
+                    "[Absolute] FileOffset: \(offset) \(absolute)"
+                }
+            }
         }
 
         case string(String)
         case lookup(Lookup)
     }
+
     public let elements: [Element]
 
     public let startOffset: Int
-    
+
     public let endOffset: Int
-    
+
     public static func resolve(from fileOffset: Int, in machO: MachOFile) throws -> MangledName {
         try machO.readSymbolicMangledName(at: fileOffset)
     }
@@ -46,23 +66,40 @@ public struct MangledName: ResolvableElement {
     public var lookupElements: [Element.Lookup] {
         elements.compactMap { if case let .lookup(lookup) = $0 { lookup } else { nil } }
     }
-    
+
     public func stringValue() -> String {
         guard !elements.isEmpty else { return "" }
         var results: [String] = []
         for element in elements {
             switch element {
-            case .string(let string):
+            case let .string(string):
                 results.append(string)
-            case .lookup(let lookup):
+            case let .lookup(lookup):
                 switch lookup.reference {
-                case .relative(let reference):
+                case let .relative(reference):
                     results.append(String(UnicodeScalar(reference.kind)))
-                case .absolute(let reference):
+                case let .absolute(reference):
                     results.append(String(UnicodeScalar(reference.kind)))
                 }
             }
         }
         return results.joined(separator: "").insertTypeManglePrefix
+    }
+
+    public var description: String {
+        var lines: [String] = []
+        lines.append("******************************************")
+        for element in elements {
+            var innerLines: [String] = []
+            switch element {
+            case .string(let string):
+                innerLines.append("[String] \(string)")
+            case .lookup(let lookup):
+                innerLines.append(lookup.description)
+            }
+            lines.append(innerLines.joined(separator: "\n"))
+        }
+        lines.append("******************************************")
+        return lines.joined(separator: "\n")
     }
 }

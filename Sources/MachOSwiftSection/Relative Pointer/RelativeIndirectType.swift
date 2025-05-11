@@ -16,7 +16,7 @@ public protocol RelativeIndirectType {
 
 extension RelativeIndirectType {
     public func resolveAny<T>(in machO: MachOFile) throws -> T {
-        return try read(offset: resolveOffset(in: machO), in: machO)
+        return try machO.readElement(offset: resolveOffset(in: machO))
     }
 
     public func resolve(in machO: MachOFile) throws -> Pointee {

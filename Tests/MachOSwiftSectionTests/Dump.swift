@@ -16,12 +16,12 @@ enum Dump {
         for typeContextDescriptor in typeContextDescriptors {
             let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machOFile)
             print("----------------------------------------")
-            try print(typeContextDescriptor.flags.kind, typeContextDescriptor.name(in: machOFile), "{")
+            try print(typeContextDescriptor.flags.kind, typeContextDescriptor.fullname(in: machOFile), "{")
             let records = try fieldDescriptor.records(in: machOFile)
             for (index, record) in records.enumerated() {
                 do {
                     let mangledTypeName = try record.mangledTypeName(in: machOFile)
-//                    print("    ", mangledTypeName)
+                    print(mangledTypeName.description.components(separatedBy: "\n").map { "    " + $0 }.joined(separator: "\n"))
                     var fieldName = try record.fieldName(in: machOFile)
                     var demangledTypeName = (try? Demangler.demangle(for: mangledTypeName, in: machOFile)) ?? mangledTypeName.stringValue()
                     let isLazy = fieldName.hasPrefix("$__lazy_storage_$_")
