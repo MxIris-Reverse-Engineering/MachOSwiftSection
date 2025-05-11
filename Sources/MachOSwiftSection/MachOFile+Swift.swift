@@ -55,20 +55,55 @@ extension MachOFile.Swift {
     }
 }
 
-enum TypeContextDescriptorWrapper {
+public enum TypeContextDescriptorWrapper {
     case `enum`(EnumDescriptor)
     case `struct`(StructDescriptor)
     case `class`(ClassDescriptor)
+    
+    public var contextDescriptor: any ContextDescriptorProtocol {
+        switch self {
+        case .enum(let enumDescriptor):
+            return enumDescriptor
+        case .struct(let structDescriptor):
+            return structDescriptor
+        case .class(let classDescriptor):
+            return classDescriptor
+        }
+    }
+    
+    public var namedContextDescriptor: any NamedContextDescriptorProtocol {
+        switch self {
+        case .enum(let enumDescriptor):
+            return enumDescriptor
+        case .struct(let structDescriptor):
+            return structDescriptor
+        case .class(let classDescriptor):
+            return classDescriptor
+        }
+    }
+    
+    public var typeContextDescriptor: any TypeContextDescriptorProtocol {
+        switch self {
+        case .enum(let enumDescriptor):
+            return enumDescriptor
+        case .struct(let structDescriptor):
+            return structDescriptor
+        case .class(let classDescriptor):
+            return classDescriptor
+        }
+    }
 }
 
 extension MachOFile.Swift {
     func _readContextDescriptor(from offset: Int) throws -> ContextDescriptorWrapper? {
         let contextDescriptor: ContextDescriptor = try machO.readElement(offset: offset)
         switch contextDescriptor.flags.kind {
-        case .class,
-             .enum,
-             .struct:
-            return try .type(machO.readElement(offset: offset))
+        case .class:
+            return try .type(.class(machO.readElement(offset: offset)))
+        case .enum:
+            return try .type(.enum(machO.readElement(offset: offset)))
+        case .struct:
+            return try .type(.struct(machO.readElement(offset: offset)))
         case .protocol:
             return try .protocol(machO.readElement(offset: offset))
         case .anonymous:

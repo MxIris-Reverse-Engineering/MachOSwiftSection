@@ -8,7 +8,7 @@
 import MachOKit
 
 public enum ContextDescriptorWrapper: ResolvableElement {
-    case type(TypeContextDescriptor)
+    case type(TypeContextDescriptorWrapper)
     case `protocol`(ProtocolDescriptor)
     case anonymous(AnonymousContextDescriptor)
     case `extension`(ExtensionContextDescriptor)
@@ -22,7 +22,7 @@ public enum ContextDescriptorWrapper: ResolvableElement {
     var contextDescriptor: any ContextDescriptorProtocol {
         switch self {
         case .type(let typeContextDescriptor):
-            return typeContextDescriptor
+            return typeContextDescriptor.contextDescriptor
         case .protocol(let protocolDescriptor):
             return protocolDescriptor
         case .anonymous(let anonymousContextDescriptor):
@@ -39,16 +39,12 @@ public enum ContextDescriptorWrapper: ResolvableElement {
     var namedContextDescriptor: (any NamedContextDescriptorProtocol)? {
         switch self {
         case .type(let typeContextDescriptor):
-            return typeContextDescriptor
+            return typeContextDescriptor.namedContextDescriptor
         case .protocol(let protocolDescriptor):
             return protocolDescriptor
-        case .anonymous(let anonymousContextDescriptor):
-            return nil
-        case .extension(let extensionContextDescriptor):
-            return nil
         case .module(let moduleContextDescriptor):
             return moduleContextDescriptor
-        case .opaqueType(let opaqueTypeDescriptor):
+        case .anonymous, .extension, .opaqueType:
             return nil
         }
     }
