@@ -10,7 +10,7 @@ public struct TypeGenericContextDescriptorHeader: GenericContextDescriptorHeader
     public struct Layout: GenericContextDescriptorHeaderLayout {
         public let instantiationCache: RelativeOffset
         public let defaultInstantiationPattern: RelativeOffset
-        public let base: GenericContextDescriptorHeader
+        public let base: GenericContextDescriptorHeader.Layout
         
         public var numParams: UInt16 { base.numParams }
         public var numRequirements: UInt16 { base.numRequirements }

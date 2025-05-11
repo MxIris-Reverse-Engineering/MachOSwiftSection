@@ -6,6 +6,7 @@
 //
 
 import MachOKit
+import MachOSwiftSection
 
 enum Dump {
     static func dumpTypeContextDescriptors(in machOFile: MachOFile) async throws {
@@ -18,25 +19,26 @@ enum Dump {
             try print(typeContextDescriptor.flags.kind, typeContextDescriptor.name(in: machOFile), "{")
             let records = try fieldDescriptor.records(in: machOFile)
             for (index, record) in records.enumerated() {
-                let mangledTypeName = try record.mangledTypeName(in: machOFile).stringValue()
-                var demangledTypeName = mangledTypeName.demangled
-                var fieldName = try record.fieldName(in: machOFile)
-                let isLazy = fieldName.hasPrefix("$__lazy_storage_$_")
-                let isWeak = demangledTypeName.hasPrefix("weak ")
-                fieldName = fieldName.replacingOccurrences(of: "$__lazy_storage_$_", with: "")
-                demangledTypeName = demangledTypeName.replacingOccurrences(of: "weak ", with: "")
-                if typeContextDescriptor.flags.kind == .enum {
+                do {
+                    let mangledTypeName = try record.mangledTypeName(in: machOFile)
                     print("    ", mangledTypeName)
+                    var fieldName = try record.fieldName(in: machOFile)
+                    var demangledTypeName = try Demangler.demangle(for: mangledTypeName, in: machOFile)
+                    let isLazy = fieldName.hasPrefix("$__lazy_storage_$_")
+                    let isWeak = demangledTypeName.hasPrefix("weak ")
+                    fieldName = fieldName.replacingOccurrences(of: "$__lazy_storage_$_", with: "")
+                    demangledTypeName = demangledTypeName.replacingOccurrences(of: "weak ", with: "")
+                    if typeContextDescriptor.flags.kind == .enum {
+                        print("    ", "\(record.flags.contains(.isIndirectCase) ? "indirect " : "")case", "\(fieldName)\(demangledTypeName)")
+                    } else {
+                        print("    ", "\(record.flags.contains(.isVariadic) ? isLazy ? "lazy var" : isWeak ? "weak var" : "var" : "let")", "\(fieldName):", demangledTypeName)
+                    }
 
-                    print("    ", "\(record.flags.contains(.isIndirectCase) ? "indirect " : "")case", "\(fieldName)\(demangledTypeName)")
-                } else {
-                    print("    ", mangledTypeName)
-
-                    print("    ", "\(record.flags.contains(.isVariadic) ? isLazy ? "lazy var" : isWeak ? "weak var" : "var" : "let")", "\(fieldName):", demangledTypeName)
-                }
-
-                if index != records.count - 1 {
-                    print("")
+                    if index != records.count - 1 {
+                        print("")
+                    }
+                } catch {
+                    print(error)
                 }
             }
             print("}")

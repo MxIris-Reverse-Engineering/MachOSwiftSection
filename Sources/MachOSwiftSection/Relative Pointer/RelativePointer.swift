@@ -25,5 +25,5 @@ extension RelativePointer {
 }
 
 func read<T>(offset fileOffset: Int, in machO: MachOFile) throws -> T {
-    return try machO.fileHandle.read(offset: numericCast(fileOffset + machO.headerStartOffset))
+    return try machO.readElement(offset: fileOffset)
 }

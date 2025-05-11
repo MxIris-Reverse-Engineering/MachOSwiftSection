@@ -18,7 +18,7 @@ extension LocatableLayoutWrapper {
 
 extension ResolvableElement where Self: LocatableLayoutWrapper {
     public static func resolve(from fileOffset: Int, in machO: MachOFile) throws -> Self {
-        let layout: Layout = try machO.fileHandle.read(offset: numericCast(fileOffset + machO.headerStartOffset))
+        let layout: Layout = try machO.readElement(offset: fileOffset)
         return .init(layout: layout, offset: fileOffset)
     }
 }

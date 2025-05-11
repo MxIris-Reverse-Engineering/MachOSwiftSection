@@ -20,7 +20,7 @@ struct AppKitSwiftSectionTests {
         let cacheUrl = URL(fileURLWithPath: cachePath)
         self.cache = try! DyldCache(url: cacheUrl)
         self.machOFileInCache = cache.machOFiles().first(where: {
-            $0.imagePath.contains("/AppKit")
+            $0.imagePath.contains("/SwiftUICore")
         })!
     }
 
@@ -39,5 +39,10 @@ struct AppKitSwiftSectionTests {
         } catch {
             print(error)
         }
+    }
+    
+    @Test func address() async throws {
+//        print(machOFileInCache.cache!.expectedCacheFileSize)
+//        print(machOFileInCache.cache!.fileOffset(of: 9232020900132183136))
     }
 }

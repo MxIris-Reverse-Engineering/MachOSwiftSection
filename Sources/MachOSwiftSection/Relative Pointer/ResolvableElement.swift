@@ -14,7 +14,7 @@ public protocol ResolvableElement {
 
 extension ResolvableElement {
     public static func resolve(from fileOffset: Int, in machO: MachOFile) throws -> Self {
-        return try machO.fileHandle.read(offset: numericCast(fileOffset + machO.headerStartOffset))
+        return try machO.readElement(offset: fileOffset)
     }
 
     public static func resolve(from fileOffset: Int, in machO: MachOFile) throws -> Self? {
@@ -36,7 +36,7 @@ extension Optional: ResolvableElement where Wrapped: ResolvableElement {
 
 extension String: ResolvableElement {
     public static func resolve(from fileOffset: Int, in machO: MachOFile) throws -> Self {
-        return machO.fileHandle.readString(offset: numericCast(fileOffset + machO.headerStartOffset)) ?? ""
+        return try machO.readString(offset: fileOffset) ?? ""
     }
 }
 

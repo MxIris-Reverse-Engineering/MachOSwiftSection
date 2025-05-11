@@ -3,35 +3,11 @@ import MachOKit
 
 extension MachOFile {
     func readSymbolicMangledName(at fileOffset: Int) throws -> MangledName {
-        enum Element {
-            struct Lookup {
-                enum Reference {
-                    case relative(RelativeReference)
-                    case absolute(AbsoluteReference)
-                }
-
-                struct RelativeReference {
-                    let kind: SymbolicReference.Kind
-                    let directness: SymbolicReference.Directness
-                    let relativeOffset: RelativeOffset
-                }
-
-                struct AbsoluteReference {
-                    let reference: UInt64
-                }
-
-                let offset: Int
-                let reference: Reference
-            }
-
-            case string(String)
-            case lookup(Lookup)
-        }
-        var elements: [Element] = []
+        var elements: [MangledName.Element] = []
         var currentOffset = fileOffset
         var currentString = ""
         while true {
-            let value: UInt8 = try fileHandle.read(offset: numericCast(currentOffset + headerStartOffset))
+            let value: UInt8 = try readElement(offset: currentOffset)
             if value == 0xFF {}
             else if value == 0 {
                 if currentString.count > 0 {
@@ -45,11 +21,11 @@ extension MachOFile {
                     elements.append(.string(currentString))
                     currentString = ""
                 }
-                if let (kind, directness) = SymbolicReference.symbolicReference(for: value) {
-                    let reference: Int32 = try fileHandle.read(offset: numericCast(currentOffset + 1 + headerStartOffset))
-                    let offset = Int(fileOffset + (currentOffset - fileOffset))
-                    elements.append(.lookup(.init(offset: offset, reference: .relative(.init(kind: kind, directness: directness, relativeOffset: reference + 1)))))
-                }
+//                if let (kind, directness) = SymbolicReference.symbolicReference(for: value) {
+                let reference: Int32 = try readElement(offset: currentOffset + 1)
+                let offset = Int(fileOffset + (currentOffset - fileOffset))
+                elements.append(.lookup(.init(offset: offset, reference: .relative(.init(kind: value, relativeOffset: reference + 1)))))
+//                }
                 currentOffset.offset(of: Int32.self)
             } else if value >= 0x18, value <= 0x1F {
                 if currentString.count > 0 {
@@ -57,9 +33,9 @@ extension MachOFile {
                     currentString = ""
                 }
 
-                let reference: UInt64 = try fileHandle.read(offset: numericCast(currentOffset + 1 + headerStartOffset))
+                let reference: UInt64 = try readElement(offset: currentOffset + 1)
                 let offset = Int(fileOffset + (currentOffset - fileOffset))
-                elements.append(.lookup(.init(offset: offset, reference: .absolute(.init(reference: reference)))))
+                elements.append(.lookup(.init(offset: offset, reference: .absolute(.init(kind: value, reference: reference)))))
                 currentOffset.offset(of: UInt64.self)
             } else {
                 currentString.append(String(format: "%c", value))
@@ -67,72 +43,7 @@ extension MachOFile {
             currentOffset.offset(of: UInt8.self)
         }
 
-        var results: [String] = []
-
-        for (index, element) in elements.enumerated() {
-            func handleContextDescriptor(_ context: ContextDescriptorWrapper) throws {
-                guard var name = try context.name(in: self) else { return }
-                name = name.countedString
-                name += context.contextDescriptor.layout.flags.kind.mangledType
-                var parent = try context.contextDescriptor.parent(in: self)
-                while let currnetParent = parent {
-                    if let parentName = try currnetParent.name(in: self) {
-                        name = parentName.countedString + currnetParent.contextDescriptor.layout.flags.kind.mangledType + name
-                    }
-                    parent = try currnetParent.contextDescriptor.parent(in: self)
-                }
-
-                if index == 0 {
-                    name = name.insertTypeManglePrefix
-                }
-
-                results.append(name)
-            }
-            switch element {
-            case var .string(string):
-                if index == 0 {
-                    string = string.insertTypeManglePrefix
-                }
-                results.append(string)
-            case let .lookup(lookup):
-                switch lookup.reference {
-                case let .relative(relativeReference):
-                    switch relativeReference.kind {
-                    case .context:
-                        switch relativeReference.directness {
-                        case .direct:
-                            if let context = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeReference.relativeOffset).resolve(from: lookup.offset, in: self) {
-                                try handleContextDescriptor(context)
-                            }
-                        case .indirect:
-                            let relativePointer = RelativeIndirectPointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>>(relativeOffset: relativeReference.relativeOffset)
-                            if let bind = try resolveBind(at: lookup.offset, for: relativePointer), var symbolName = dyldChainedFixups?.symbolName(for: bind.0.info.nameOffset) {
-                                symbolName = symbolName.stripProtocolDescriptorMangle.stripNominalTypeDescriptorMangle
-                                results.append(index != 0 ? symbolName.stripTypeManglePrefix : symbolName)
-                            } else if let context = try relativePointer.resolve(from: lookup.offset, in: self) {
-                                try handleContextDescriptor(context)
-                            }
-                        }
-                    case .accessorFunctionReference:
-                        break
-                    case .uniqueExtendedExistentialTypeShape:
-                        break
-                    case .nonUniqueExtendedExistentialTypeShape:
-                        break
-                    case .objectiveCProtocol:
-                        let relativePointer = RelativeDirectPointer<ObjCProtocolPrefix>(relativeOffset: relativeReference.relativeOffset)
-                        let objcProtocol = try relativePointer.resolve(from: lookup.offset, in: self)
-                        var name = try objcProtocol.mangledName(in: self).stringValue()
-
-                        name = name.stripProtocolDescriptorMangle.stripNominalTypeDescriptorMangle
-                        results.append(index != 0 ? name.stripTypeManglePrefix : name)
-                    }
-                case .absolute:
-                    continue
-                }
-            }
-        }
-        return .init(tokens: results, startOffset: fileOffset, endOffset: currentOffset)
+        return .init(elements: elements, startOffset: fileOffset, endOffset: currentOffset)
     }
 }
 

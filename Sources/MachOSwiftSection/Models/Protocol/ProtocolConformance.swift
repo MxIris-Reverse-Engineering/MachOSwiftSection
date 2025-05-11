@@ -26,31 +26,31 @@ public struct ProtocolConformance {
         var currentOffset = descriptor.offset + descriptor.layoutSize
         
         if descriptor.flags.isRetroactive {
-            let retroactiveContextPointer: RelativeIndirectablePointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>> = try machO.fileHandle.read(offset: numericCast(currentOffset + machO.headerStartOffset))
+            let retroactiveContextPointer: RelativeIndirectablePointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>> = try machO.fileHandle.read(offset: numericCast(currentOffset + machO.effectiveHeaderStartOffset))
             currentOffset.offset(of: RelativeIndirectablePointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>>.self)
         }
         
         if descriptor.flags.numConditionalRequirements > 0 {
-            let conditionalRequirements: [GenericRequirementDescriptor] = try machO.readElements(offset: numericCast(currentOffset + machO.headerStartOffset), numberOfElements: descriptor.flags.numConditionalRequirements.cast())
+            let conditionalRequirements: [GenericRequirementDescriptor] = try machO.readElements(offset: numericCast(currentOffset + machO.effectiveHeaderStartOffset), numberOfElements: descriptor.flags.numConditionalRequirements.cast())
             currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: descriptor.flags.numConditionalRequirements.cast())
         }
         
         if descriptor.flags.numConditionalPackShapeDescriptors > 0 {
-            let header: GenericPackShapeHeader = try machO.fileHandle.read(offset: numericCast(currentOffset + machO.headerStartOffset))
+            let header: GenericPackShapeHeader = try machO.fileHandle.read(offset: numericCast(currentOffset + machO.effectiveHeaderStartOffset))
             currentOffset.offset(of: GenericPackShapeHeader.self)
-            let conditionalPackShapeDescriptors: [GenericPackShapeDescriptor] = try machO.readElements(offset: numericCast(currentOffset + machO.headerStartOffset), numberOfElements: descriptor.flags.numConditionalPackShapeDescriptors.cast())
+            let conditionalPackShapeDescriptors: [GenericPackShapeDescriptor] = try machO.readElements(offset: numericCast(currentOffset + machO.effectiveHeaderStartOffset), numberOfElements: descriptor.flags.numConditionalPackShapeDescriptors.cast())
             currentOffset.offset(of: GenericPackShapeDescriptor.self, numbersOfElements: descriptor.flags.numConditionalPackShapeDescriptors.cast())
         }
         
         if descriptor.flags.hasResilientWitnesses {
-            let header: ResilientWitnessesHeader = try machO.fileHandle.read(offset: numericCast(currentOffset + machO.headerStartOffset))
+            let header: ResilientWitnessesHeader = try machO.fileHandle.read(offset: numericCast(currentOffset + machO.effectiveHeaderStartOffset))
             currentOffset.offset(of: ResilientWitnessesHeader.self)
-            let resilientWitnesses: [ResilientWitness] = try machO.readElements(offset: numericCast(currentOffset + machO.headerStartOffset), numberOfElements: header.numWitnesses.cast())
+            let resilientWitnesses: [ResilientWitness] = try machO.readElements(offset: numericCast(currentOffset + machO.effectiveHeaderStartOffset), numberOfElements: header.numWitnesses.cast())
             currentOffset.offset(of: ResilientWitness.self, numbersOfElements: header.numWitnesses.cast())
         }
         
         if descriptor.flags.hasGenericWitnessTable {
-            let genericWitnessTable: GenericWitnessTable = try machO.fileHandle.read(offset: numericCast(currentOffset + machO.headerStartOffset))
+            let genericWitnessTable: GenericWitnessTable = try machO.fileHandle.read(offset: numericCast(currentOffset + machO.effectiveHeaderStartOffset))
             currentOffset.offset(of: GenericWitnessTable.self)
         }
         

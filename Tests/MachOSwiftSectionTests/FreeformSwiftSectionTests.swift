@@ -14,6 +14,7 @@ struct FreeformSwiftSectionTests {
 
     init() throws {
         let path = "/System/Applications/Freeform.app/Contents/MacOS/Freeform"
+//        let path = "/Applications/SourceEdit.app/Contents/Frameworks/SourceEditor.framework/Versions/A/SourceEditor"
         let url = URL(fileURLWithPath: path)
         guard let file = try? MachOKit.loadFromFile(url: url) else {
             throw Error.notFound
@@ -66,7 +67,7 @@ struct FreeformSwiftSectionTests {
         // _$s44CRLMacFloatingBoardControlsInternalSeparatorCSg
         // _$sSDy8Freeform18CRLBoardIdentifierV8Freeform15CRLBoardLibrary9BoardInfoCG
         do {
-            let swiftSymbol = try parseMangledSwiftSymbol("_$sSDy10Foundation4UUIDVAAG")
+            let swiftSymbol = try parseMangledSwiftSymbol("_$sSay8Freeform18CRLBoardIdentifierVG")
             enumerateSymbols(in: swiftSymbol)
             print(swiftSymbol.print())
         } catch {
