@@ -9,17 +9,23 @@ struct DyldCacheFileSwiftSectionTests {
         case notFound
     }
 
-    let cache: DyldCache
+    let mainCache: DyldCache
+
+    let subCache: DyldCache
 
     let machOFileInCache: MachOFile
 
     init() throws {
         // Cache
         let arch = "arm64e"
-        let cachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch)"
-        let cacheUrl = URL(fileURLWithPath: cachePath)
-        self.cache = try! DyldCache(url: cacheUrl)
-        self.machOFileInCache = cache.machOFiles().first(where: {
+//        let cachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch)"
+        let mainCachePath = "/Volumes/Resources/24F74__MacOS/dyld_shared_cache_\(arch)"
+        let subCachePath = "/Volumes/Resources/24F74__MacOS/dyld_shared_cache_\(arch).01"
+        let mainCacheURL = URL(fileURLWithPath: mainCachePath)
+        let subCacheURL = URL(fileURLWithPath: subCachePath)
+        self.mainCache = try! DyldCache(url: mainCacheURL)
+        self.subCache = try! DyldCache(subcacheUrl: subCacheURL, mainCacheHeader: mainCache.mainCacheHeader)
+        self.machOFileInCache = mainCache.machOFiles().first(where: {
             $0.imagePath.contains("/SwiftUICore")
         })!
     }
@@ -29,10 +35,10 @@ struct DyldCacheFileSwiftSectionTests {
             throw Error.notFound
         }
         for proto in protocols {
-            print(try proto.name(in: machOFileInCache))
+            try print(proto.name(in: machOFileInCache))
         }
     }
-    
+
     @Test func typeContextDescriptorsInFile() async throws {
         do {
             try await Dump.dumpTypeContextDescriptors(in: machOFileInCache)
@@ -40,7 +46,7 @@ struct DyldCacheFileSwiftSectionTests {
             print(error)
         }
     }
-    
+
     @Test func address() async throws {
 //        let fileOffset: Int = 1733616806
 //        let relativeOffset: Int32 = 149429722
@@ -54,8 +60,13 @@ struct DyldCacheFileSwiftSectionTests {
 //        let ptr = RelativeDirectPointer<MangledName>(relativeOffset: ctx.namedContextDescriptor!.layout.name.relativeOffset)
 //        let mangledName = try ptr.resolve(from: ctx.contextDescriptor.offset + 8, in: machOFileInCache)
 //        print(try Demangler.demangle(for: mangledName, in: machOFileInCache))
-        if case let .type(type) = try RelativeIndirectPointer<ContextDescriptorWrapper?, SignedPointer<ContextDescriptorWrapper?>>(relativeOffset: 278655386).resolve(from: 1733619446, in: machOFileInCache) {
-            print(try type.typeContextDescriptor.typeGenericContext(in: machOFileInCache))
-        }
+//        if case let .type(type) = try RelativeIndirectPointer<ContextDescriptorWrapper?, SignedPointer<ContextDescriptorWrapper?>>(relativeOffset: 278655386).resolve(from: 1733619446, in: machOFileInCache) {
+//            try print(type.typeContextDescriptor.typeGenericContext(in: machOFileInCache))
+//        }
+        
+//        let offset: Int = 1764186844
+        let context: ContextDescriptor = try mainCache.fileHandle.read(offset: 19328401408.cast())
+        print(context)
+        
     }
 }

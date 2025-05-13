@@ -38,12 +38,12 @@ public struct MangledName: ResolvableElement, CustomStringConvertible {
 
             let offset: Int
             let reference: Reference
-            
+
             public var description: String {
                 switch reference {
-                case .relative(let relative):
+                case let .relative(relative):
                     "[Relative] FileOffset: \(offset) \(relative)"
-                case .absolute(let absolute):
+                case let .absolute(absolute):
                     "[Absolute] FileOffset: \(offset) \(absolute)"
                 }
             }
@@ -67,7 +67,11 @@ public struct MangledName: ResolvableElement, CustomStringConvertible {
         elements.compactMap { if case let .lookup(lookup) = $0 { lookup } else { nil } }
     }
 
-    public func stringValue() -> String {
+    public func symbolStringValue() -> String {
+        typeStringValue().insertManglePrefix
+    }
+    
+    public func typeStringValue() -> String {
         guard !elements.isEmpty else { return "" }
         var results: [String] = []
         for element in elements {
@@ -83,7 +87,7 @@ public struct MangledName: ResolvableElement, CustomStringConvertible {
                 }
             }
         }
-        return results.joined(separator: "").insertManglePrefix
+        return results.joined(separator: "")
     }
 
     public var description: String {
@@ -92,9 +96,9 @@ public struct MangledName: ResolvableElement, CustomStringConvertible {
         for element in elements {
             var innerLines: [String] = []
             switch element {
-            case .string(let string):
+            case let .string(string):
                 innerLines.append("[String] \(string)")
-            case .lookup(let lookup):
+            case let .lookup(lookup):
                 innerLines.append(lookup.description)
             }
             lines.append(innerLines.joined(separator: "\n"))

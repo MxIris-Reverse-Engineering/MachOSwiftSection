@@ -33,10 +33,33 @@ extension GenericRequirementDescriptor {
     func type(in machO: MachOFile) throws -> MangledName {
         return try RelativeDirectPointer<MangledName>(relativeOffset: layout.typeOrProtocolOrConformanceOrLayoutOffset).resolve(from: offset(of: \.typeOrProtocolOrConformanceOrLayoutOffset), in: machO)
     }
+    
+    func typeOrProtocolOrConformanceOrLayoutOrInvertedProtocols(in machO: MachOFile) -> GenericRequirementTypeOrProtocolOrConformanceOrLayoutOrInvertedProtocols {
+        switch layout.flags.kind {
+        case .protocol:
+            let ptr = RelativeIndirectableRawPointerIntPair<Bool>(relativeOffsetPlusIndirectAndInt: layout.typeOrProtocolOrConformanceOrLayoutOffset)
+            if ptr.value {
+                return .protocol(.objcPointer(.init(relativeOffsetPlusIndirectAndInt: layout.typeOrProtocolOrConformanceOrLayoutOffset)))
+            } else {
+                return .protocol(.swiftPointer(.init(relativeOffsetPlusIndirectAndInt: layout.typeOrProtocolOrConformanceOrLayoutOffset)))
+            }
+        case .sameType, .baseClass, .sameShape:
+            return .type(.init(relativeOffset: layout.typeOrProtocolOrConformanceOrLayoutOffset))
+        case .sameConformance:
+            return .conformance(.init(relativeOffsetPlusIndirect: layout.typeOrProtocolOrConformanceOrLayoutOffset))
+        case .invertedProtocols:
+            var value = layout.typeOrProtocolOrConformanceOrLayoutOffset
+            return .invertedProtocols(withUnsafeBytes(of: &value, {
+                $0.baseAddress!.load(as: GenericRequirementTypeOrProtocolOrConformanceOrLayoutOrInvertedProtocols.InvertedProtocols.self)
+            }))
+        case .layout:
+            return .layout(.init(rawValue: layout.typeOrProtocolOrConformanceOrLayoutOffset.cast())!)
+        }
+    }
 }
 
 public enum GenericRequirementTypeOrProtocolOrConformanceOrLayoutOrInvertedProtocols {
-    case type(RelativeDirectPointer<String>)
+    case type(RelativeDirectPointer<MangledName>)
     case `protocol`(RelativeProtocolDescriptorPointer)
     case layout(GenericRequirementLayoutKind)
     case conformance(RelativeIndirectablePointer<ProtocolConformanceDescriptor, Pointer<ProtocolConformanceDescriptor>>)

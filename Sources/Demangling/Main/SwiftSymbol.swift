@@ -7,6 +7,21 @@ package struct SwiftSymbol {
         case none
         case index(UInt64)
         case name(String)
+        
+        package var hasName: Bool {
+            name != nil
+        }
+        
+        package var name: String? {
+            switch self {
+            case .none:
+                return nil
+            case .index:
+                return nil
+            case .name(let string):
+                return string
+            }
+        }
     }
 
     package init(kind: Kind, children: [SwiftSymbol] = [], contents: Contents = .none) {
@@ -82,6 +97,10 @@ package struct SwiftSymbol {
         } else {
             return SwiftSymbol(kind: newKind, children: children + additionalChildren, contents: .none)
         }
+    }
+    
+    package func addChild(_ child: SwiftSymbol) {
+        
     }
 }
 

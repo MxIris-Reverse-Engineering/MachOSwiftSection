@@ -16,32 +16,36 @@ enum Dump {
         for typeContextDescriptor in typeContextDescriptors {
             let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machOFile)
             print("----------------------------------------")
-            try print(typeContextDescriptor.flags.kind, typeContextDescriptor.fullname(in: machOFile), "{")
-            let records = try fieldDescriptor.records(in: machOFile)
-            for (index, record) in records.enumerated() {
-                do {
-                    let mangledTypeName = try record.mangledTypeName(in: machOFile)
-                    print(mangledTypeName.description.components(separatedBy: "\n").map { "    " + $0 }.joined(separator: "\n"))
-                    var fieldName = try record.fieldName(in: machOFile)
-                    var demangledTypeName = (try? MetadataReader.demangle(for: mangledTypeName, isType: true, in: machOFile)) ?? mangledTypeName.stringValue(isType: true)
-                    let isLazy = fieldName.hasPrefix("$__lazy_storage_$_")
-                    let isWeak = demangledTypeName.hasPrefix("weak ")
-                    fieldName = fieldName.replacingOccurrences(of: "$__lazy_storage_$_", with: "")
-                    demangledTypeName = demangledTypeName.replacingOccurrences(of: "weak ", with: "")
-                    if typeContextDescriptor.flags.kind == .enum {
-                        print("    ", "\(record.flags.contains(.isIndirectCase) ? "indirect " : "")case", "\(fieldName)\(demangledTypeName)")
-                    } else {
-                        print("    ", "\(record.flags.contains(.isVariadic) ? isLazy ? "lazy var" : isWeak ? "weak var" : "var" : "let")", "\(fieldName):", demangledTypeName)
-                    }
+            do {
+                try print(typeContextDescriptor.flags.kind, typeContextDescriptor.fullname(in: machOFile), "{")
+                let records = try fieldDescriptor.records(in: machOFile)
+                for (index, record) in records.enumerated() {
+                    do {
+                        let mangledTypeName = try record.mangledTypeName(in: machOFile)
+                        print(mangledTypeName.description.components(separatedBy: "\n").map { "    " + $0 }.joined(separator: "\n"))
+                        var fieldName = try record.fieldName(in: machOFile)
+                        var demangledTypeName = (try? MetadataReader.demangle(for: mangledTypeName, in: machOFile)) ?? mangledTypeName.symbolStringValue()
+                        let isLazy = fieldName.hasPrefix("$__lazy_storage_$_")
+                        let isWeak = demangledTypeName.hasPrefix("weak ")
+                        fieldName = fieldName.replacingOccurrences(of: "$__lazy_storage_$_", with: "")
+                        demangledTypeName = demangledTypeName.replacingOccurrences(of: "weak ", with: "")
+                        if typeContextDescriptor.flags.kind == .enum {
+                            print("    ", "\(record.flags.contains(.isIndirectCase) ? "indirect " : "")case", "\(fieldName)\(demangledTypeName)")
+                        } else {
+                            print("    ", "\(record.flags.contains(.isVariadic) ? isLazy ? "lazy var" : isWeak ? "weak var" : "var" : "let")", "\(fieldName):", demangledTypeName)
+                        }
 
-                    if index != records.count - 1 {
-                        print("")
+                        if index != records.count - 1 {
+                            print("")
+                        }
+                    } catch {
+                        print(error)
                     }
-                } catch {
-                    print(error)
                 }
+                print("}")
+            } catch {
+                print(error)
             }
-            print("}")
         }
     }
 }

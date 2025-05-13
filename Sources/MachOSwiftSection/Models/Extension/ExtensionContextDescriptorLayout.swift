@@ -7,5 +7,5 @@
 
 
 public protocol ExtensionContextDescriptorLayout: ContextDescriptorLayout {
-    var extendedContext: RelativeOffset { get }
+    var extendedContext: RelativeDirectPointer<MangledName?> { get }
 }

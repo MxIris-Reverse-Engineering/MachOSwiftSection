@@ -16,7 +16,11 @@ public enum ContextDescriptorWrapper: ResolvableElement {
     case opaqueType(OpaqueTypeDescriptor)
     
     func name(in machO: MachOFile) throws -> String? {
-        try namedContextDescriptor?.name(in: machO)
+        if case let .extension(extensionContextDescriptor) = self {
+            return try extensionContextDescriptor.extendedContext(in: machO).map { try MetadataReader.demangle(for: $0, in: machO) }
+        } else {
+            return try namedContextDescriptor?.name(in: machO)
+        }
     }
     
     var contextDescriptor: any ContextDescriptorProtocol {
