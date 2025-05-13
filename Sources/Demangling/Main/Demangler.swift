@@ -121,7 +121,9 @@ extension Demangler {
             throw SwiftSymbolParseError.unimplementedFeature
         }
         symbolicReferenceIndex += 1
-        substitutions.append(symbol)
+        if (kind == .context || kind == .objectiveCProtocol) && (symbol.kind != .opaqueTypeDescriptorSymbolicReference && symbol.kind != .opaqueReturnTypeOf) {
+            substitutions.append(symbol)
+        }
         return symbol
     }
 
@@ -683,7 +685,7 @@ extension Demangler {
             let nd: SwiftSymbol
             if secondLevel {
                 switch try scanner.readScalar() {
-                case "A": nd = SwiftSymbol(swiftStdlibTypeKind: .structure, name: "Actor")
+                case "A": nd = SwiftSymbol(swiftStdlibTypeKind: .protocol, name: "Actor")
                 case "C": nd = SwiftSymbol(swiftStdlibTypeKind: .structure, name: "CheckedContinuation")
                 case "c": nd = SwiftSymbol(swiftStdlibTypeKind: .structure, name: "UnsafeContinuation")
                 case "E": nd = SwiftSymbol(swiftStdlibTypeKind: .structure, name: "CancellationError")

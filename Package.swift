@@ -63,5 +63,11 @@ let package = Package(
                 .MachOKit,
             ]
         ),
+        .testTarget(
+            name: "DemanglingTests",
+            dependencies: [
+                "Demangling",
+            ]
+        ),
     ]
 )

@@ -18,9 +18,10 @@ struct DyldCacheFileSwiftSectionTests {
     init() throws {
         // Cache
         let arch = "arm64e"
-//        let cachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch)"
-        let mainCachePath = "/Volumes/Resources/24F74__MacOS/dyld_shared_cache_\(arch)"
-        let subCachePath = "/Volumes/Resources/24F74__MacOS/dyld_shared_cache_\(arch).01"
+        let mainCachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch)"
+        let subCachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch).01"
+//        let mainCachePath = "/Volumes/Resources/24F74__MacOS/dyld_shared_cache_\(arch)"
+//        let subCachePath = "/Volumes/Resources/24F74__MacOS/dyld_shared_cache_\(arch).01"
         let mainCacheURL = URL(fileURLWithPath: mainCachePath)
         let subCacheURL = URL(fileURLWithPath: subCachePath)
         self.mainCache = try! DyldCache(url: mainCacheURL)

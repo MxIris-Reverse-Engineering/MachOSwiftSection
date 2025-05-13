@@ -11,7 +11,8 @@ public protocol ContextDescriptorProtocol: LocatableLayoutWrapper where Layout: 
 
 extension ContextDescriptorProtocol {
     public func parent(in machO: MachOFile) throws -> ContextDescriptorWrapper? {
-        try layout.parent.resolve(from: offset + 4, in: machO)
+        guard layout.flags.kind != .module else { return nil }
+        return try layout.parent.resolve(from: offset + 4, in: machO)
     }
 
     public func genericContext(in machO: MachOFile) throws -> GenericContext? {

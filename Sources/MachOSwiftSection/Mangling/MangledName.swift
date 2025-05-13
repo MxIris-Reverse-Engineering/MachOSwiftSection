@@ -68,7 +68,8 @@ public struct MangledName: ResolvableElement, CustomStringConvertible {
     }
 
     public func symbolStringValue() -> String {
-        typeStringValue().insertManglePrefix
+        guard !elements.isEmpty else { return "" }
+        return typeStringValue().insertManglePrefix
     }
     
     public func typeStringValue() -> String {

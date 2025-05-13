@@ -37,12 +37,13 @@ public final class MetadataReader {
             mangledNode = mangledNode.children[0]
         }
         guard mangledNode.children.count >= 2 else { return nil }
+        
         let nameChild = mangledNode.children[1]
-        if (nameChild.kind == .privateDeclName && nameChild.kind == .localDeclName) || nameChild.children.count < 2 {
-            return nil
-        }
+        
+        guard (nameChild.kind == .privateDeclName || nameChild.kind == .localDeclName) && nameChild.children.count >= 2 else { return nil }
         
         let identifierNode = nameChild.children[1]
+        
         guard identifierNode.kind == .identifier, identifierNode.contents.hasName else { return nil }
         
         guard let namedContext = context as? (any NamedContextDescriptorProtocol) else { return nil }
@@ -76,6 +77,8 @@ public final class MetadataReader {
         let top: SwiftSymbol
         if context is (any TypeContextDescriptorProtocol) || context is (any ProtocolDescriptorProtocol) {
             top = .init(kind: .type, children: [demangling])
+        } else if context is (any ProtocolDescriptorProtocol) {
+            top = .init(kind: .type, children: [.init(kind: .typeSymbolicReference, children: [demangling])])
         } else {
             top = demangling
         }
@@ -157,10 +160,11 @@ public final class MetadataReader {
             guard try setContextName() else { return nil }
             kind = .protocol
         case .extension:
+//            return parentDemangling
             guard let parentDemangling else { return nil }
             let extensionContext = context as! (any ExtensionContextDescriptorProtocol)
             guard let extendedContext = try extensionContext.extendedContext(in: machOFile) else { return nil }
-            let demangledExtendedContext = try demangle(for: extendedContext, kind: .type)
+            guard let demangledExtendedContext = try demangle(for: extendedContext, kind: .type).nominalSymbol else { return nil }
             var demangling = SwiftSymbol(kind: .extension, children: [parentDemangling, demangledExtendedContext])
             if let requirements = try extensionContext.genericContext(in: machOFile)?.requirements {
                 var signatureNode = SwiftSymbol(kind: .dependentGenericSignature)
@@ -220,12 +224,13 @@ public final class MetadataReader {
         case .anonymous:
 //            return nil
 //            break
-            var anonNode = SwiftSymbol(kind: .anonymousContext)
-            anonNode.children.append(.init(kind: .identifier, contents: .name(context.offset.description)))
-            if let parentDemangling {
-                anonNode.children.append(parentDemangling)
-            }
-            return anonNode
+            return parentDemangling
+//            var anonNode = SwiftSymbol(kind: .anonymousContext)
+//            anonNode.children.append(.init(kind: .identifier, contents: .name(context.offset.description)))
+//            if let parentDemangling {
+//                anonNode.children.append(parentDemangling)
+//            }
+//            return anonNode
         case .module:
             if parentDemangling != nil {
                 return nil
@@ -346,8 +351,9 @@ public final class MetadataReader {
     
     
     public static func demangle(for mangledName: MangledName, in machO: MachOFile) throws -> String {
-        return try MetadataReader(machOFile: machO).demangle(for: mangledName, kind: .type).print()
-//        let mangledNameString = mangledName.stringValue()
+        let reader = MetadataReader(machOFile: machO)
+        return try reader.demangle(for: mangledName, kind: .type).print()
+//        let mangledNameString = mangledName.symbolStringValue()
 //        guard !mangledNameString.isEmpty else { return "" }
 //        return try parseMangledSwiftSymbol(mangledNameString.unicodeScalars) { kind, directness, index -> SwiftSymbol? in
 //            do {
@@ -389,16 +395,16 @@ public final class MetadataReader {
 //                    break
 //                case .uniqueExtendedExistentialTypeShape:
 //                    let extendedExistentialTypeShape = try RelativeDirectPointer<ExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: fileOffset, in: machO)
-//                    let existentialType = try extendedExistentialTypeShape.existentialType(in: machO).stringValue()
+//                    let existentialType = try extendedExistentialTypeShape.existentialType(in: machO).symbolStringValue()
 //                    result = try .init(kind: .uniqueExtendedExistentialTypeShapeSymbolicReference, children: parseMangledSwiftSymbol(existentialType.insertManglePrefix).children)
 //                case .nonUniqueExtendedExistentialTypeShape:
 //                    let nonUniqueExtendedExistentialTypeShape = try RelativeDirectPointer<NonUniqueExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: fileOffset, in: machO)
-//                    let existentialType = try nonUniqueExtendedExistentialTypeShape.existentialType(in: machO).stringValue()
+//                    let existentialType = try nonUniqueExtendedExistentialTypeShape.existentialType(in: machO).symbolStringValue()
 //                    result = try .init(kind: .nonUniqueExtendedExistentialTypeShapeSymbolicReference, children: parseMangledSwiftSymbol(existentialType.insertManglePrefix).children)
 //                case .objectiveCProtocol:
 //                    let relativePointer = RelativeDirectPointer<RelativeObjCProtocolPrefix>(relativeOffset: relativeOffset)
 //                    let objcProtocol = try relativePointer.resolve(from: fileOffset, in: machO)
-//                    let name = try objcProtocol.mangledName(in: machO).stringValue()
+//                    let name = try objcProtocol.mangledName(in: machO).symbolStringValue()
 //                    result = try parseMangledSwiftSymbol(name).typeSymbol
 //                }
 //                return result
@@ -411,6 +417,7 @@ public final class MetadataReader {
 }
 
 extension SwiftSymbol {
+    
     fileprivate var typeSymbol: SwiftSymbol? {
         func enumerate(_ child: SwiftSymbol) -> SwiftSymbol? {
             if child.kind == .type {
@@ -419,6 +426,29 @@ extension SwiftSymbol {
 
             if child.kind == .enum || child.kind == .structure || child.kind == .class || child.kind == .protocol {
                 return .init(kind: .type, children: [child], contents: .none)
+                return child
+            }
+
+            for child in child.children {
+                if let result = enumerate(child) {
+                    return result
+                }
+            }
+            return nil
+        }
+        return enumerate(self)
+    }
+    
+    
+    fileprivate var nominalSymbol: SwiftSymbol? {
+        func enumerate(_ child: SwiftSymbol) -> SwiftSymbol? {
+//            if child.kind == .type {
+//                return child
+//            }
+
+            if child.kind == .enum || child.kind == .structure || child.kind == .class || child.kind == .protocol {
+//                return .init(kind: .type, children: [child], contents: .none)
+                return child
             }
 
             for child in child.children {

@@ -3,6 +3,15 @@ package struct SwiftSymbol {
     package var children: [SwiftSymbol]
     package let contents: Contents
 
+    private enum PayloadKind {
+        case none
+        case oneChild
+        case twoChild
+        case manyChildren
+        case text
+        case index
+    }
+    
     package enum Contents {
         case none
         case index(UInt64)
@@ -21,6 +30,26 @@ package struct SwiftSymbol {
             case .name(let string):
                 return string
             }
+        }
+    }
+    
+    private var payloadKind: PayloadKind {
+        switch contents {
+        case .none:
+            switch children.count {
+            case 0:
+                return .none
+            case 1:
+                return .oneChild
+            case 2:
+                return .twoChild
+            default:
+                return .manyChildren
+            }
+        case .index:
+            return .index
+        case .name:
+            return .text
         }
     }
 
