@@ -66,7 +66,7 @@ extension String {
         return replacingOccurrences(of: "_$s", with: "")
     }
 
-    var insertTypeManglePrefix: String {
+    var insertManglePrefix: String {
         guard !hasPrefix("_$s") else { return self }
         return "_$s" + self
     }

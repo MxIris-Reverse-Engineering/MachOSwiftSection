@@ -83,7 +83,7 @@ public struct MangledName: ResolvableElement, CustomStringConvertible {
                 }
             }
         }
-        return results.joined(separator: "").insertTypeManglePrefix
+        return results.joined(separator: "").insertManglePrefix
     }
 
     public var description: String {
@@ -102,4 +102,9 @@ public struct MangledName: ResolvableElement, CustomStringConvertible {
         lines.append("******************************************")
         return lines.joined(separator: "\n")
     }
+}
+
+public enum MangledNameKind {
+    case type
+    case symbol
 }

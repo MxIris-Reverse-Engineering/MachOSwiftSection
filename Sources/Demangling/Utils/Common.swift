@@ -85,7 +85,7 @@ func decodeSwiftPunycode(_ value: String) throws -> String {
     return String(output.map { Character($0) })
 }
 
-func getManglingPrefixLength<C: Collection>(_ scalars: C) -> Int where C.Iterator.Element == UnicodeScalar {
+package func getManglingPrefixLength<C: Collection>(_ scalars: C) -> Int where C.Iterator.Element == UnicodeScalar {
     var scanner = ScalarScanner(scalars: scalars)
     if scanner.conditional(string: "_T0") || scanner.conditional(string: "_$S") || scanner.conditional(string: "_$s") || scanner.conditional(string: "_$e") {
         return 3

@@ -1,15 +1,15 @@
-public struct SwiftSymbol {
-    public let kind: Kind
-    public var children: [SwiftSymbol]
-    public let contents: Contents
+package struct SwiftSymbol {
+    package let kind: Kind
+    package var children: [SwiftSymbol]
+    package let contents: Contents
 
-    public enum Contents {
+    package enum Contents {
         case none
         case index(UInt64)
         case name(String)
     }
 
-    public init(kind: Kind, children: [SwiftSymbol] = [], contents: Contents = .none) {
+    package init(kind: Kind, children: [SwiftSymbol] = [], contents: Contents = .none) {
         self.kind = kind
         self.children = children
         self.contents = contents
@@ -88,7 +88,7 @@ public struct SwiftSymbol {
 // MARK: DemangleNodes.def
 
 extension SwiftSymbol {
-    public enum Kind {
+    package enum Kind {
         case allocator
         case accessibleFunctionRecord
         case accessorFunctionReference
@@ -704,7 +704,7 @@ extension SwiftSymbol {
 
 extension SwiftSymbol: CustomStringConvertible {
     /// Overridden method to allow simple printing with default options
-    public var description: String {
+    package var description: String {
         var printer = SymbolPrinter()
         _ = printer.printName(self)
         return printer.target
@@ -714,7 +714,7 @@ extension SwiftSymbol: CustomStringConvertible {
     ///
     /// - Parameter options: an option set containing the different `DemangleOptions` from the Swift project.
     /// - Returns: `self` printed to a string according to the specified options.
-    public func print(using options: SymbolPrintOptions = .default) -> String {
+    package func print(using options: SymbolPrintOptions = .default) -> String {
         var printer = SymbolPrinter(options: options)
         _ = printer.printName(self)
         return printer.target

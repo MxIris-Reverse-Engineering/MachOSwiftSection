@@ -1,14 +1,16 @@
-struct Demangler<C> where C: Collection, C.Iterator.Element == UnicodeScalar {
-    var scanner: ScalarScanner<C>
-    var nameStack: [SwiftSymbol] = []
-    var substitutions: [SwiftSymbol] = []
-    var words: [String] = []
-    var symbolicReferences: [Int32] = []
-    var isOldFunctionTypeMangling: Bool = false
-    var symbolicReferenceResolver: SymbolicReferenceResolver? = nil
-    var flavor: ManglingFlavor = .default
-    var symbolicReferenceIndex: Int = 0
-    init(scalars: C) {
+package struct Demangler<C> where C: Collection, C.Iterator.Element == UnicodeScalar {
+    private var scanner: ScalarScanner<C>
+    private var nameStack: [SwiftSymbol] = []
+    private var substitutions: [SwiftSymbol] = []
+    private var words: [String] = []
+    private var symbolicReferences: [Int32] = []
+    private var isOldFunctionTypeMangling: Bool = false
+    private var flavor: ManglingFlavor = .default
+    private var symbolicReferenceIndex: Int = 0
+    
+    package var symbolicReferenceResolver: SymbolicReferenceResolver? = nil
+    
+    package init(scalars: C) {
         self.scanner = ScalarScanner(scalars: scalars)
     }
 }
@@ -71,7 +73,7 @@ extension Demangler {
         }
     }
 
-    mutating func demangleSymbol() throws -> SwiftSymbol {
+    package mutating func demangleSymbol() throws -> SwiftSymbol {
         reset()
 
         if scanner.conditional(string: "_Tt") {
@@ -94,7 +96,7 @@ extension Demangler {
         return topLevel
     }
 
-    mutating func demangleType() throws -> SwiftSymbol {
+    package mutating func demangleType() throws -> SwiftSymbol {
         reset()
 
         try parseAndPushNames()

@@ -5,7 +5,7 @@
 ///   - isType: if true, no prefix is parsed and, on completion, the first item on the parse stack is returned.
 /// - Returns: the successfully parsed result
 /// - Throws: a SwiftSymbolParseError error that contains parse position when the error occurred.
-public func parseMangledSwiftSymbol(_ mangled: String, isType: Bool = false) throws -> SwiftSymbol {
+package func parseMangledSwiftSymbol(_ mangled: String, isType: Bool = false) throws -> SwiftSymbol {
     return try parseMangledSwiftSymbol(mangled.unicodeScalars, isType: isType)
 }
 
@@ -16,7 +16,7 @@ public func parseMangledSwiftSymbol(_ mangled: String, isType: Bool = false) thr
 ///   - isType: if true, no prefix is parsed and, on completion, the first item on the parse stack is returned.
 /// - Returns: the successfully parsed result
 /// - Throws: a SwiftSymbolParseError error that contains parse position when the error occurred.
-public func parseMangledSwiftSymbol<C: Collection>(_ mangled: C, isType: Bool = false, symbolicReferenceResolver: SymbolicReferenceResolver? = nil) throws -> SwiftSymbol where C.Iterator.Element == UnicodeScalar {
+package func parseMangledSwiftSymbol<C: Collection>(_ mangled: C, isType: Bool = false, symbolicReferenceResolver: SymbolicReferenceResolver? = nil) throws -> SwiftSymbol where C.Iterator.Element == UnicodeScalar {
     var demangler = Demangler(scalars: mangled)
     demangler.symbolicReferenceResolver = symbolicReferenceResolver
     if isType {
@@ -28,4 +28,4 @@ public func parseMangledSwiftSymbol<C: Collection>(_ mangled: C, isType: Bool = 
     }
 }
 
-public typealias SymbolicReferenceResolver = (SymbolicReferenceKind, Directness, Int) -> SwiftSymbol?
+package typealias SymbolicReferenceResolver = (SymbolicReferenceKind, Directness, Int) -> SwiftSymbol?
