@@ -19,44 +19,67 @@ import MachOKit
 /// type's conformance to a protocol.
 public struct ProtocolConformance {
     public let descriptor: ProtocolConformanceDescriptor
-
+    
+    public private(set) var `protocol`: `Protocol`?
+    
+    public private(set) var typeReference: ResolvedTypeReference?
+    
+    public private(set) var retroactiveContextDescriptor: ContextDescriptorWrapper?
+    
+    public private(set) var conditionalRequirements: [GenericRequirementDescriptor] = []
+    
+    public private(set) var conditionalPackShapeHeader: GenericPackShapeHeader?
+    
+    public private(set) var conditionalPackShapeDescriptors: [GenericPackShapeDescriptor] = []
+    
+    public private(set) var resilientWitnessesHeader: ResilientWitnessesHeader?
+    
+    public private(set) var resilientWitnesses: [ResilientWitness] = []
+    
+    public private(set) var genericWitnessTable: GenericWitnessTable?
+    
+    
     public init(descriptor: ProtocolConformanceDescriptor, in machO: MachOFile) throws {
         self.descriptor = descriptor
         
         var currentOffset = descriptor.offset + descriptor.layoutSize
         
         if descriptor.flags.isRetroactive {
-            let retroactiveContextPointer: RelativeIndirectablePointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>> = try machO.readElement(offset: numericCast(currentOffset))
+            let retroactiveContextPointer: RelativeIndirectablePointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>> = try machO.readElement(offset: currentOffset)
+            retroactiveContextDescriptor = try retroactiveContextPointer.resolve(from: currentOffset, in: machO)
             currentOffset.offset(of: RelativeIndirectablePointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>>.self)
         }
         
         if descriptor.flags.numConditionalRequirements > 0 {
-            let conditionalRequirements: [GenericRequirementDescriptor] = try machO.readElements(offset: numericCast(currentOffset + machO.effectiveHeaderStartOffset), numberOfElements: descriptor.flags.numConditionalRequirements.cast())
+            conditionalRequirements = try machO.readElements(offset: currentOffset, numberOfElements: descriptor.flags.numConditionalRequirements.cast())
             currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: descriptor.flags.numConditionalRequirements.cast())
         }
         
         if descriptor.flags.numConditionalPackShapeDescriptors > 0 {
-            let header: GenericPackShapeHeader = try machO.readElement(offset: numericCast(currentOffset))
+            conditionalPackShapeHeader = try machO.readElement(offset: currentOffset)
             currentOffset.offset(of: GenericPackShapeHeader.self)
-            let conditionalPackShapeDescriptors: [GenericPackShapeDescriptor] = try machO.readElements(offset: numericCast(currentOffset + machO.effectiveHeaderStartOffset), numberOfElements: descriptor.flags.numConditionalPackShapeDescriptors.cast())
+            conditionalPackShapeDescriptors = try machO.readElements(offset: currentOffset, numberOfElements: descriptor.flags.numConditionalPackShapeDescriptors.cast())
             currentOffset.offset(of: GenericPackShapeDescriptor.self, numbersOfElements: descriptor.flags.numConditionalPackShapeDescriptors.cast())
         }
         
         if descriptor.flags.hasResilientWitnesses {
-            let header: ResilientWitnessesHeader = try machO.readElement(offset: numericCast(currentOffset))
+            let header: ResilientWitnessesHeader = try machO.readElement(offset: currentOffset)
+            resilientWitnessesHeader = header
             currentOffset.offset(of: ResilientWitnessesHeader.self)
-            let resilientWitnesses: [ResilientWitness] = try machO.readElements(offset: numericCast(currentOffset + machO.effectiveHeaderStartOffset), numberOfElements: header.numWitnesses.cast())
+            resilientWitnesses = try machO.readElements(offset: currentOffset, numberOfElements: header.numWitnesses.cast())
             currentOffset.offset(of: ResilientWitness.self, numbersOfElements: header.numWitnesses.cast())
         }
         
         if descriptor.flags.hasGenericWitnessTable {
-            let genericWitnessTable: GenericWitnessTable = try machO.readElement(offset: numericCast(currentOffset))
+            let genericWitnessTable: GenericWitnessTable = try machO.readElement(offset: currentOffset)
+            self.genericWitnessTable = genericWitnessTable
             currentOffset.offset(of: GenericWitnessTable.self)
         }
         
         if let protocolDescriptor = try descriptor.protocolDescriptor(in: machO) {
-            
+            self.protocol = try Protocol(from: protocolDescriptor, in: machO)
         }
+        
     }
 }
 

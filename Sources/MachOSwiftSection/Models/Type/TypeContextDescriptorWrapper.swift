@@ -1,11 +1,3 @@
-//
-//  TypeContextDescriptorWrapper.swift
-//  MachOSwiftSection
-//
-//  Created by JH on 2025/5/14.
-//
-
-
 public enum TypeContextDescriptorWrapper {
     case `enum`(EnumDescriptor)
     case `struct`(StructDescriptor)

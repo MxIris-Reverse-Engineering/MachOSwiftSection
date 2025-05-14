@@ -1,40 +1,40 @@
 import Foundation
 import MachOKit
 
-public protocol _FixupResolvable {
-    associatedtype LayoutField
-
-    var offset: Int { get }
-
-    func layoutOffset(of field: LayoutField) -> Int
-}
-
-extension _FixupResolvable {
-    
-    func resolveRebase(
-        _ field: LayoutField,
-        in machO: MachOFile
-    ) -> UInt64? {
-        let offset = self.offset + layoutOffset(of: field)
-        return resolveRebase(fileOffset: offset, in: machO)
-    }
-    
-    func resolveBind(
-        _ field: LayoutField,
-        in machO: MachOFile
-    ) -> String? {
-        let offset = self.offset + layoutOffset(of: field)
-        return resolveBind(fileOffset: offset, in: machO)
-    }
-
-    func isBind(
-        _ field: LayoutField,
-        in machO: MachOFile
-    ) -> Bool {
-        let offset = self.offset + layoutOffset(of: field)
-        return isBind(fileOffset: offset, in: machO)
-    }
-}
+//public protocol _FixupResolvable {
+//    associatedtype LayoutField
+//
+//    var offset: Int { get }
+//
+//    func layoutOffset(of field: LayoutField) -> Int
+//}
+//
+//extension _FixupResolvable {
+//    
+//    func resolveRebase(
+//        _ field: LayoutField,
+//        in machO: MachOFile
+//    ) -> UInt64? {
+//        let offset = self.offset + layoutOffset(of: field)
+//        return resolveRebase(fileOffset: offset, in: machO)
+//    }
+//    
+//    func resolveBind(
+//        _ field: LayoutField,
+//        in machO: MachOFile
+//    ) -> String? {
+//        let offset = self.offset + layoutOffset(of: field)
+//        return resolveBind(fileOffset: offset, in: machO)
+//    }
+//
+//    func isBind(
+//        _ field: LayoutField,
+//        in machO: MachOFile
+//    ) -> Bool {
+//        let offset = self.offset + layoutOffset(of: field)
+//        return isBind(fileOffset: offset, in: machO)
+//    }
+//}
 
 #if false
 extension _FixupResolvable where Self: LayoutWrapper {
@@ -67,7 +67,7 @@ extension _FixupResolvable where Self: LayoutWrapper {
 }
 #endif
 
-extension _FixupResolvable {
+extension MachOFile {
     /// Resolves the rebase operation at the specified file offset within the given MachO file.
     ///
     /// This function determines if the rebase operation can be resolved from the provided file offset
@@ -79,21 +79,18 @@ extension _FixupResolvable {
     ///   - machO: The `MachOFile` object representing the MachO file to resolve rebases from.
     /// - Returns: The resolved rebase value as a `UInt64`, or `nil` if the rebase cannot be resolved.
     
-    func resolveRebase(
-        fileOffset: Int,
-        in machO: MachOFile
-    ) -> UInt64? {
+    func resolveRebase(fileOffset: Int) -> UInt64? {
         let offset: UInt64 = numericCast(fileOffset)
-        if let (cache, _offset) = resolveCacheStartOffsetIfNeeded(offset: offset, in: machO),
+        if let (cache, _offset) = resolveCacheStartOffsetIfNeeded(offset: offset),
            let resolved = cache.resolveOptionalRebase(at: _offset) {
             return resolved - cache.mainCacheHeader.sharedRegionStart
         }
 
-        if machO.cache != nil {
+        if cache != nil {
             return nil
         }
 
-        if let resolved = machO.resolveOptionalRebase(at: offset) {
+        if let resolved = resolveOptionalRebase(at: offset) {
             return resolved
         }
         return nil
@@ -116,16 +113,13 @@ extension _FixupResolvable {
     ///   - machO: The `MachOFile` object representing the MachO file to analyze.
     /// - Returns: The resolved symbol name as a `String`, or `nil` if the bind operation cannot be resolved.
 
-    func resolveBind(
-        fileOffset: Int,
-        in machO: MachOFile
-    ) -> String? {
-        guard !machO.isLoadedFromDyldCache else { return nil }
-        guard let fixup = machO.dyldChainedFixups else { return nil }
+    func resolveBind(fileOffset: Int) -> String? {
+        guard !isLoadedFromDyldCache else { return nil }
+        guard let fixup = dyldChainedFixups else { return nil }
 
         let offset: UInt64 = numericCast(fileOffset)
 
-        if let resolved = machO.resolveBind(at: offset) {
+        if let resolved = resolveBind(at: offset) {
             return fixup.symbolName(for: resolved.0.info.nameOffset)
         }
         return nil
@@ -147,22 +141,17 @@ extension _FixupResolvable {
     ///   - machO: The `MachOFile` instance representing the file being analyzed.
     /// - Returns: A `Bool` indicating whether the specified offset represents a bind operation.
     
-    func isBind(
-        fileOffset: Int,
-        in machO: MachOFile
-    ) -> Bool {
-        guard !machO.isLoadedFromDyldCache else { return false }
+    func isBind(fileOffset: Int) -> Bool {
+        guard !isLoadedFromDyldCache else { return false }
         let offset: UInt64 = numericCast(fileOffset)
-        return machO.isBind(numericCast(offset))
+        return isBind(numericCast(offset))
     }
 }
 
-extension _FixupResolvable {
+extension MachOFile {
     func resolveCacheStartOffsetIfNeeded(
-        offset: UInt64,
-        in machO: MachOFile
-    ) -> (DyldCache, UInt64)? {
-        if let (cache, _offset) = machO.cacheAndFileOffset(
+        offset: UInt64) -> (DyldCache, UInt64)? {
+        if let (cache, _offset) = cacheAndFileOffset(
             fromStart: offset
         ) {
             return (cache, _offset)

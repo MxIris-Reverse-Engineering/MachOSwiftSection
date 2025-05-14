@@ -22,8 +22,10 @@ struct DyldCacheFileSwiftSectionTests {
         let arch = "arm64e"
 //        let mainCachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch)"
 //        let subCachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch).01"
-        let mainCachePath = "/Volumes/Resources/24F74__MacOS/dyld_shared_cache_\(arch)"
-        let subCachePath = "/Volumes/Resources/24F74__MacOS/dyld_shared_cache_\(arch).01"
+//        let mainCachePath = "/Volumes/Resources/24F74__MacOS/dyld_shared_cache_\(arch)"
+//        let subCachePath = "/Volumes/Resources/24F74__MacOS/dyld_shared_cache_\(arch).01"
+        let mainCachePath = "/Volumes/RE/Dyld-Shared-Cache/macOS/15.5/dyld_shared_cache_\(arch)"
+        let subCachePath = "/Volumes/RE/Dyld-Shared-Cache/macOS/15.5/dyld_shared_cache_\(arch).01"
         let mainCacheURL = URL(fileURLWithPath: mainCachePath)
         let subCacheURL = URL(fileURLWithPath: subCachePath)
         self.mainCache = try! DyldCache(url: mainCacheURL)
@@ -85,10 +87,13 @@ struct DyldCacheFileSwiftSectionTests {
 //        print(try mainCacheMachOFileInCache.swift._readContextDescriptor(from: 1576349376))
         let offset: UInt64 = 149347956 + 4 + 1427001416
         print(offset)
+        print(subCacheMachOFileInCache.resolveRebase(fileOffset: offset.cast())! & 0x7FFFFFFF)
+        print(try Pointer<ContextDescriptorWrapper?>(address: subCacheMachOFileInCache.resolveRebase(fileOffset: offset.cast())!).resolve(in: subCacheMachOFileInCache))
         let address = try subCache.fileHandle.machO.read(offset: subCacheMachOFileInCache.cacheAndFileOffset(for: offset + subCache.header.sharedRegionStart)!.1.cast()) as UInt64
         print(address)
-        let newOffset: Int = subCacheMachOFileInCache.cacheAndFileOffset(for: numericCast(address & 0x7FFFFFFF) + subCache.header.sharedRegionStart)!.1.cast()
+        var newOffset: Int = subCacheMachOFileInCache.cacheAndFileOffset(for: numericCast(address & 0x7FFFFFFF) + subCache.header.sharedRegionStart)!.1.cast()
         print(newOffset)
+        newOffset = (subCacheMachOFileInCache.resolveRebase(fileOffset: newOffset.cast())! & 0x7FFFFFFF).cast()
         let layout = (try subCache.fileHandle.machO.read(offset: newOffset.cast()) as ContextDescriptor.Layout)
         print(ContextDescriptor(layout: layout, offset: newOffset))
     }
