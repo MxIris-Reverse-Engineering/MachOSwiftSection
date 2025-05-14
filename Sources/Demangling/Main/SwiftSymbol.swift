@@ -3,53 +3,24 @@ package struct SwiftSymbol {
     package var children: [SwiftSymbol]
     package let contents: Contents
 
-    private enum PayloadKind {
-        case none
-        case oneChild
-        case twoChild
-        case manyChildren
-        case text
-        case index
-    }
-    
     package enum Contents {
         case none
         case index(UInt64)
         case name(String)
-        
+
         package var hasName: Bool {
             name != nil
         }
-        
+
         package var name: String? {
             switch self {
             case .none:
                 return nil
             case .index:
                 return nil
-            case .name(let string):
+            case let .name(string):
                 return string
             }
-        }
-    }
-    
-    private var payloadKind: PayloadKind {
-        switch contents {
-        case .none:
-            switch children.count {
-            case 0:
-                return .none
-            case 1:
-                return .oneChild
-            case 2:
-                return .twoChild
-            default:
-                return .manyChildren
-            }
-        case .index:
-            return .index
-        case .name:
-            return .text
         }
     }
 
@@ -59,44 +30,44 @@ package struct SwiftSymbol {
         self.contents = contents
     }
 
-    init(kind: Kind, child: SwiftSymbol) {
+    package init(kind: Kind, child: SwiftSymbol) {
         self.init(kind: kind, children: [child], contents: .none)
     }
 
-    init(typeWithChildKind: Kind, childChild: SwiftSymbol) {
+    package init(typeWithChildKind: Kind, childChild: SwiftSymbol) {
         self.init(kind: .type, children: [SwiftSymbol(kind: typeWithChildKind, children: [childChild])], contents: .none)
     }
 
-    init(typeWithChildKind: Kind, childChildren: [SwiftSymbol]) {
+    package init(typeWithChildKind: Kind, childChildren: [SwiftSymbol]) {
         self.init(kind: .type, children: [SwiftSymbol(kind: typeWithChildKind, children: childChildren)], contents: .none)
     }
 
-    init(swiftStdlibTypeKind: Kind, name: String) {
+    package init(swiftStdlibTypeKind: Kind, name: String) {
         self.init(kind: .type, children: [SwiftSymbol(kind: swiftStdlibTypeKind, children: [
             SwiftSymbol(kind: .module, contents: .name(stdlibName)),
             SwiftSymbol(kind: .identifier, contents: .name(name)),
         ])], contents: .none)
     }
 
-    init(swiftBuiltinType: Kind, name: String) {
+    package init(swiftBuiltinType: Kind, name: String) {
         self.init(kind: .type, children: [SwiftSymbol(kind: swiftBuiltinType, contents: .name(name))])
     }
 
-    var text: String? {
+    package var text: String? {
         switch contents {
         case let .name(s): return s
         default: return nil
         }
     }
 
-    var index: UInt64? {
+    package var index: UInt64? {
         switch contents {
         case let .index(i): return i
         default: return nil
         }
     }
 
-    var isProtocol: Bool {
+    package var isProtocol: Bool {
         switch kind {
         case .type: return children.first?.isProtocol ?? false
         case .protocol,
@@ -106,7 +77,7 @@ package struct SwiftSymbol {
         }
     }
 
-    func changeChild(_ newChild: SwiftSymbol?, atIndex: Int) -> SwiftSymbol {
+    package func changeChild(_ newChild: SwiftSymbol?, atIndex: Int) -> SwiftSymbol {
         guard children.indices.contains(atIndex) else { return self }
 
         var modifiedChildren = children
@@ -118,7 +89,7 @@ package struct SwiftSymbol {
         return SwiftSymbol(kind: kind, children: modifiedChildren, contents: contents)
     }
 
-    func changeKind(_ newKind: Kind, additionalChildren: [SwiftSymbol] = []) -> SwiftSymbol {
+    package func changeKind(_ newKind: Kind, additionalChildren: [SwiftSymbol] = []) -> SwiftSymbol {
         if case let .name(text) = contents {
             return SwiftSymbol(kind: newKind, children: children + additionalChildren, contents: .name(text))
         } else if case let .index(i) = contents {
@@ -126,10 +97,6 @@ package struct SwiftSymbol {
         } else {
             return SwiftSymbol(kind: newKind, children: children + additionalChildren, contents: .none)
         }
-    }
-    
-    package func addChild(_ child: SwiftSymbol) {
-        
     }
 }
 
@@ -503,7 +470,7 @@ extension SwiftSymbol {
 }
 
 extension SwiftSymbol.Kind {
-    var isDeclName: Bool {
+    package var isDeclName: Bool {
         switch self {
         case .identifier,
              .localDeclName,
@@ -519,7 +486,7 @@ extension SwiftSymbol.Kind {
         }
     }
 
-    var isContext: Bool {
+    package var isContext: Bool {
         switch self {
         case .allocator,
              .anonymousContext,
@@ -576,7 +543,7 @@ extension SwiftSymbol.Kind {
         }
     }
 
-    var isAnyGeneric: Bool {
+    package var isAnyGeneric: Bool {
         switch self {
         case .structure,
              .class,
@@ -591,11 +558,11 @@ extension SwiftSymbol.Kind {
         }
     }
 
-    var isEntity: Bool {
+    package var isEntity: Bool {
         return self == .type || isContext
     }
 
-    var isRequirement: Bool {
+    package var isRequirement: Bool {
         switch self {
         case .dependentGenericParamPackMarker,
              .dependentGenericParamValueMarker,
@@ -608,7 +575,7 @@ extension SwiftSymbol.Kind {
         }
     }
 
-    var isFunctionAttr: Bool {
+    package var isFunctionAttr: Bool {
         switch self {
         case .functionSignatureSpecialization,
              .genericSpecialization,
@@ -647,7 +614,7 @@ extension SwiftSymbol.Kind {
 }
 
 extension SwiftSymbol.Kind {
-    var isMacroExpansion: Bool {
+    package var isMacroExpansion: Bool {
         switch self {
         case .accessorAttachedMacroExpansion: return true
         case .memberAttributeAttachedMacroExpansion: return true
@@ -663,7 +630,7 @@ extension SwiftSymbol.Kind {
 }
 
 extension SwiftSymbol.Kind {
-    var isExistentialType: Bool {
+    package var isExistentialType: Bool {
         switch self {
         case .existentialMetatype,
              .protocolList,
@@ -675,7 +642,7 @@ extension SwiftSymbol.Kind {
 }
 
 extension SwiftSymbol {
-    var isSimpleType: Bool {
+    package var isSimpleType: Bool {
         switch kind {
         case .associatedType: fallthrough
         case .associatedTypeRef: fallthrough
@@ -730,7 +697,7 @@ extension SwiftSymbol {
         }
     }
 
-    var needSpaceBeforeType: Bool {
+    package var needSpaceBeforeType: Bool {
         switch kind {
         case .type: return children.first?.needSpaceBeforeType ?? false
         case .functionType,
@@ -741,11 +708,11 @@ extension SwiftSymbol {
         }
     }
 
-    func isIdentifier(desired: String) -> Bool {
+    package func isIdentifier(desired: String) -> Bool {
         return kind == .identifier && text == desired
     }
 
-    var isSwiftModule: Bool {
+    package var isSwiftModule: Bool {
         return kind == .module && text == stdlibName
     }
 }

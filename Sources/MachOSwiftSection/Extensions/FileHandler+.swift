@@ -1,12 +1,36 @@
 import Foundation
-@_spi(Support) import MachOKit
+import MachOKit
 
 enum MachOFileHandleError: Error {
     case invalidDataSize
     case invalidLayoutSize
 }
 
-extension FileHandle {
+struct MachOFileHandleWrapper<Base> {
+    let base: Base
+    
+    init(_ base: Base) {
+        self.base = base
+    }
+}
+
+protocol MachOFileHandle {}
+
+extension MachOFileHandle {
+    var machO: MachOFileHandleWrapper<Self> {
+        set {}
+        get { MachOFileHandleWrapper(self) }
+    }
+
+    static var machO: MachOFileHandleWrapper<Self>.Type {
+        set {}
+        get { MachOFileHandleWrapper.self }
+    }
+}
+
+extension FileHandle: MachOFileHandle {}
+
+extension MachOFileHandleWrapper where Base: FileHandle {
     func throwIfInvalid(_ isValid: Bool, error: MachOFileHandleError) throws {
         if !isValid {
             throw error
@@ -14,22 +38,22 @@ extension FileHandle {
     }
 }
 
-extension FileHandle {
+extension MachOFileHandleWrapper where Base: FileHandle {
     func readDataSequence<Element>(
         offset: UInt64,
         numberOfElements: Int,
         swapHandler: ((inout Data) -> Void)? = nil
     ) throws -> DataSequence<Element> where Element: LayoutWrapper {
-        seek(toFileOffset: offset)
+        base.seek(toFileOffset: offset)
         let size = Element.layoutSize * numberOfElements
-        var data = readData(
+        var data = base.readData(
             ofLength: size
         )
-        
+
         try throwIfInvalid(Element.layoutSize == MemoryLayout<Element>.size, error: .invalidLayoutSize)
-        
+
         try throwIfInvalid(data.count >= size, error: .invalidDataSize)
-        
+
         if let swapHandler { swapHandler(&data) }
         return .init(
             data: data,
@@ -43,12 +67,12 @@ extension FileHandle {
         numberOfElements: Int,
         swapHandler: ((inout Data) -> Void)? = nil
     ) throws -> DataSequence<Element> {
-        seek(toFileOffset: offset)
+        base.seek(toFileOffset: offset)
         let size = MemoryLayout<Element>.size * numberOfElements
-        var data = readData(
+        var data = base.readData(
             ofLength: size
         )
-        
+
         try throwIfInvalid(data.count >= size, error: .invalidDataSize)
         if let swapHandler { swapHandler(&data) }
         return .init(
@@ -63,16 +87,16 @@ extension FileHandle {
         numberOfElements: Int,
         swapHandler: ((inout Data) -> Void)? = nil
     ) throws -> DataSequence<Element> where Element: LayoutWrapper {
-        seek(toFileOffset: offset)
+        base.seek(toFileOffset: offset)
         let size = entrySize * numberOfElements
-        var data = readData(
+        var data = base.readData(
             ofLength: size
         )
-        
+
         try throwIfInvalid(Element.layoutSize == MemoryLayout<Element>.size, error: .invalidLayoutSize)
-        
+
         try throwIfInvalid(data.count >= size, error: .invalidDataSize)
-        
+
         if let swapHandler { swapHandler(&data) }
         return .init(
             data: data,
@@ -87,14 +111,14 @@ extension FileHandle {
         numberOfElements: Int,
         swapHandler: ((inout Data) -> Void)? = nil
     ) throws -> DataSequence<Element> {
-        seek(toFileOffset: offset)
+        base.seek(toFileOffset: offset)
         let size = entrySize * numberOfElements
-        var data = readData(
+        var data = base.readData(
             ofLength: size
         )
-        
+
         try throwIfInvalid(data.count >= size, error: .invalidDataSize)
-        
+
         if let swapHandler { swapHandler(&data) }
         return .init(
             data: data,
@@ -103,19 +127,19 @@ extension FileHandle {
     }
 }
 
-extension FileHandle {
+extension MachOFileHandleWrapper where Base: FileHandle {
     func read<Element>(
         offset: UInt64,
         swapHandler: ((inout Data) -> Void)? = nil
-    ) throws -> Optional<Element> where Element: LayoutWrapper {
-        seek(toFileOffset: offset)
-        var data = readData(
+    ) throws -> Element? where Element: LayoutWrapper {
+        base.seek(toFileOffset: offset)
+        var data = base.readData(
             ofLength: Element.layoutSize
         )
-        
+
         try throwIfInvalid(Element.layoutSize == MemoryLayout<Element>.size, error: .invalidLayoutSize)
         try throwIfInvalid(data.count >= Element.layoutSize, error: .invalidDataSize)
-        
+
         if let swapHandler { swapHandler(&data) }
         return data.withUnsafeBytes {
             $0.load(as: Element.self)
@@ -125,9 +149,9 @@ extension FileHandle {
     func read<Element>(
         offset: UInt64,
         swapHandler: ((inout Data) -> Void)? = nil
-    ) throws -> Optional<Element> {
-        seek(toFileOffset: offset)
-        var data = readData(
+    ) throws -> Element? {
+        base.seek(toFileOffset: offset)
+        var data = base.readData(
             ofLength: MemoryLayout<Element>.size
         )
         try throwIfInvalid(data.count >= MemoryLayout<Element>.size, error: .invalidDataSize)
@@ -141,8 +165,8 @@ extension FileHandle {
         offset: UInt64,
         swapHandler: ((inout Data) -> Void)? = nil
     ) throws -> Element where Element: LayoutWrapper {
-        seek(toFileOffset: offset)
-        var data = readData(
+        base.seek(toFileOffset: offset)
+        var data = base.readData(
             ofLength: Element.layoutSize
         )
         try throwIfInvalid(Element.layoutSize == MemoryLayout<Element>.size, error: .invalidLayoutSize)
@@ -157,8 +181,8 @@ extension FileHandle {
         offset: UInt64,
         swapHandler: ((inout Data) -> Void)? = nil
     ) throws -> Element {
-        seek(toFileOffset: offset)
-        var data = readData(
+        base.seek(toFileOffset: offset)
+        var data = base.readData(
             ofLength: MemoryLayout<Element>.size
         )
         try throwIfInvalid(data.count >= MemoryLayout<Element>.size, error: .invalidDataSize)
@@ -169,7 +193,7 @@ extension FileHandle {
     }
 }
 
-extension FileHandle {
+extension MachOFileHandleWrapper where Base: FileHandle {
     func readString(
         offset: UInt64,
         size: Int
@@ -202,8 +226,8 @@ extension FileHandle {
         offset: UInt64,
         size: Int
     ) -> Data {
-        seek(toFileOffset: offset)
-        return readData(
+        base.seek(toFileOffset: offset)
+        return base.readData(
             ofLength: size
         )
     }

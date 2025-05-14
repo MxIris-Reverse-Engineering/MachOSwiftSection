@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@_spi(Core) @testable import MachOSwiftSection
+@testable import MachOSwiftSection
 import MachOKit
 
 @Suite
@@ -18,16 +18,19 @@ struct DyldCacheFileSwiftSectionTests {
     init() throws {
         // Cache
         let arch = "arm64e"
-        let mainCachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch)"
-        let subCachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch).01"
-//        let mainCachePath = "/Volumes/Resources/24F74__MacOS/dyld_shared_cache_\(arch)"
-//        let subCachePath = "/Volumes/Resources/24F74__MacOS/dyld_shared_cache_\(arch).01"
+//        let mainCachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch)"
+//        let subCachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch).01"
+        let mainCachePath = "/Volumes/Resources/24F74__MacOS/dyld_shared_cache_\(arch)"
+        let subCachePath = "/Volumes/Resources/24F74__MacOS/dyld_shared_cache_\(arch).01"
         let mainCacheURL = URL(fileURLWithPath: mainCachePath)
         let subCacheURL = URL(fileURLWithPath: subCachePath)
         self.mainCache = try! DyldCache(url: mainCacheURL)
         self.subCache = try! DyldCache(subcacheUrl: subCacheURL, mainCacheHeader: mainCache.mainCacheHeader)
-        self.machOFileInCache = mainCache.machOFiles().first(where: {
-            $0.imagePath.contains("/SwiftUICore")
+//        self.machOFileInCache = mainCache.machOFiles().first(where: {
+//            $0.imagePath.contains("/SwiftUICore")
+//        })!
+        self.machOFileInCache = subCache.machOFiles().first(where: {
+            $0.imagePath.contains("/CodableSwiftUI")
         })!
     }
 
@@ -66,7 +69,7 @@ struct DyldCacheFileSwiftSectionTests {
 //        }
         
 //        let offset: Int = 1764186844
-        let context: ContextDescriptor = try mainCache.fileHandle.read(offset: 19328401408.cast())
+        let context: ContextDescriptor = try mainCache.fileHandle.machO.read(offset: 19328401408.cast())
         print(context)
         
     }

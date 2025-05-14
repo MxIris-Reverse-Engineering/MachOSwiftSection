@@ -1,11 +1,3 @@
-//
-//  LoadCommandsProtocol+.swift
-//
-//
-//  Created by p-x9 on 2024/08/01
-//  
-//
-
 import Foundation
 import MachOKit
 

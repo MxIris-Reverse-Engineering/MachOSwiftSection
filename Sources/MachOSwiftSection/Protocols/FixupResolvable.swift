@@ -10,17 +10,16 @@ public protocol _FixupResolvable {
 }
 
 extension _FixupResolvable {
-    @_spi(Core)
-    public func resolveRebase(
+    
+    func resolveRebase(
         _ field: LayoutField,
         in machO: MachOFile
     ) -> UInt64? {
         let offset = self.offset + layoutOffset(of: field)
         return resolveRebase(fileOffset: offset, in: machO)
     }
-
-    @_spi(Core)
-    public func resolveBind(
+    
+    func resolveBind(
         _ field: LayoutField,
         in machO: MachOFile
     ) -> String? {
@@ -28,8 +27,7 @@ extension _FixupResolvable {
         return resolveBind(fileOffset: offset, in: machO)
     }
 
-    @_spi(Core)
-    public func isBind(
+    func isBind(
         _ field: LayoutField,
         in machO: MachOFile
     ) -> Bool {
@@ -80,8 +78,8 @@ extension _FixupResolvable {
     ///   - fileOffset: The offset in the file where the rebase operation occurs.
     ///   - machO: The `MachOFile` object representing the MachO file to resolve rebases from.
     /// - Returns: The resolved rebase value as a `UInt64`, or `nil` if the rebase cannot be resolved.
-    @_spi(Core)
-    public func resolveRebase(
+    
+    func resolveRebase(
         fileOffset: Int,
         in machO: MachOFile
     ) -> UInt64? {
@@ -117,8 +115,8 @@ extension _FixupResolvable {
     ///   - fileOffset: An `Int` value representing the offset in the file where the bind operation occurs.
     ///   - machO: The `MachOFile` object representing the MachO file to analyze.
     /// - Returns: The resolved symbol name as a `String`, or `nil` if the bind operation cannot be resolved.
-    @_spi(Core)
-    public func resolveBind(
+
+    func resolveBind(
         fileOffset: Int,
         in machO: MachOFile
     ) -> String? {
@@ -148,8 +146,8 @@ extension _FixupResolvable {
     ///   - fileOffset: The offset in the MachO file to check for a bind operation.
     ///   - machO: The `MachOFile` instance representing the file being analyzed.
     /// - Returns: A `Bool` indicating whether the specified offset represents a bind operation.
-    @_spi(Core)
-    public func isBind(
+    
+    func isBind(
         fileOffset: Int,
         in machO: MachOFile
     ) -> Bool {

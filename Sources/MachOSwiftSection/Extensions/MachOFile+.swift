@@ -92,7 +92,7 @@ extension MachOFile {
             offset = cacheAndFileOffset.1.cast()
 //            fileHandle = cacheAndFileOffset.0.fileHandle
         }
-        return try fileHandle.read(offset: numericCast(offset + effectiveHeaderStartOffset), swapHandler: swapHandler)
+        return try fileHandle.machO.read(offset: numericCast(offset + effectiveHeaderStartOffset), swapHandler: swapHandler)
     }
 
     func readElement<Element>(
@@ -111,7 +111,7 @@ extension MachOFile {
             offset = cacheAndFileOffset.1.cast()
 //            fileHandle = cacheAndFileOffset.0.fileHandle
         }
-        let layout: Element.Layout = try fileHandle.read(offset: numericCast(offset + effectiveHeaderStartOffset), swapHandler: swapHandler)
+        let layout: Element.Layout = try fileHandle.machO.read(offset: numericCast(offset + effectiveHeaderStartOffset), swapHandler: swapHandler)
         return .init(layout: layout, offset: offset)
     }
 
@@ -127,7 +127,7 @@ extension MachOFile {
 //            fileHandle = cacheAndFileOffset.0.fileHandle
         }
         var currentOffset = offset
-        let elements = try fileHandle.readDataSequence(offset: numericCast(offset + effectiveHeaderStartOffset), numberOfElements: numberOfElements, swapHandler: swapHandler).map { (layout: Element.Layout) -> Element in
+        let elements = try fileHandle.machO.readDataSequence(offset: numericCast(offset + effectiveHeaderStartOffset), numberOfElements: numberOfElements, swapHandler: swapHandler).map { (layout: Element.Layout) -> Element in
             let element = Element(layout: layout, offset: currentOffset)
             currentOffset += Element.layoutSize
             return element
@@ -142,7 +142,7 @@ extension MachOFile {
             offset = cacheAndFileOffset.1.cast()
 //            fileHandle = cacheAndFileOffset.0.fileHandle
         }
-        return fileHandle.readString(offset: numericCast(offset + effectiveHeaderStartOffset))
+        return fileHandle.machO.readString(offset: numericCast(offset + effectiveHeaderStartOffset))
     }
 
     var effectiveHeaderStartOffset: Int {

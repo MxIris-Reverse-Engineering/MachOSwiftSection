@@ -8,9 +8,9 @@
 import MachOKit
 import Foundation
 
-public struct MangledName: ResolvableElement, CustomStringConvertible {
-    public enum Element {
-        public struct Lookup: CustomStringConvertible {
+public struct MangledName {
+    enum Element {
+        struct Lookup: CustomStringConvertible {
             enum Reference {
                 case relative(RelativeReference)
                 case absolute(AbsoluteReference)
@@ -39,7 +39,7 @@ public struct MangledName: ResolvableElement, CustomStringConvertible {
             let offset: Int
             let reference: Reference
 
-            public var description: String {
+            var description: String {
                 switch reference {
                 case let .relative(relative):
                     "[Relative] FileOffset: \(offset) \(relative)"
@@ -53,17 +53,13 @@ public struct MangledName: ResolvableElement, CustomStringConvertible {
         case lookup(Lookup)
     }
 
-    public let elements: [Element]
+    let elements: [Element]
 
-    public let startOffset: Int
+    let startOffset: Int
 
-    public let endOffset: Int
+    let endOffset: Int
 
-    public static func resolve(from fileOffset: Int, in machO: MachOFile) throws -> MangledName {
-        try machO.readSymbolicMangledName(at: fileOffset)
-    }
-
-    public var lookupElements: [Element.Lookup] {
+    var lookupElements: [Element.Lookup] {
         elements.compactMap { if case let .lookup(lookup) = $0 { lookup } else { nil } }
     }
 
@@ -71,7 +67,7 @@ public struct MangledName: ResolvableElement, CustomStringConvertible {
         guard !elements.isEmpty else { return "" }
         return typeStringValue().insertManglePrefix
     }
-    
+
     public func typeStringValue() -> String {
         guard !elements.isEmpty else { return "" }
         var results: [String] = []
@@ -91,6 +87,18 @@ public struct MangledName: ResolvableElement, CustomStringConvertible {
         return results.joined(separator: "")
     }
 
+    public var isEmpty: Bool {
+        return elements.isEmpty
+    }
+}
+
+extension MangledName: ResolvableElement {
+    public static func resolve(from fileOffset: Int, in machO: MachOFile) throws -> MangledName {
+        try machO.readSymbolicMangledName(at: fileOffset)
+    }
+}
+
+extension MangledName: CustomStringConvertible {
     public var description: String {
         var lines: [String] = []
         lines.append("******************************************")

@@ -24,12 +24,18 @@ enum Dump {
                         let mangledTypeName = try record.mangledTypeName(in: machOFile)
                         print(mangledTypeName.description.components(separatedBy: "\n").map { "    " + $0 }.joined(separator: "\n"))
                         var fieldName = try record.fieldName(in: machOFile)
-                        var demangledTypeName = (try? MetadataReader.demangle(for: mangledTypeName, in: machOFile)) ?? mangledTypeName.symbolStringValue()
+                        var demangledTypeName = ""
+                        if !mangledTypeName.isEmpty {
+                            demangledTypeName = (try? MetadataReader.demangle(for: mangledTypeName, in: machOFile)) ?? mangledTypeName.symbolStringValue()
+                        }
                         let isLazy = fieldName.hasPrefix("$__lazy_storage_$_")
                         let isWeak = demangledTypeName.hasPrefix("weak ")
                         fieldName = fieldName.replacingOccurrences(of: "$__lazy_storage_$_", with: "")
                         demangledTypeName = demangledTypeName.replacingOccurrences(of: "weak ", with: "")
                         if typeContextDescriptor.flags.kind == .enum {
+                            if !demangledTypeName.isEmpty, !demangledTypeName.starts(with: "(") {
+                                demangledTypeName = "(" + demangledTypeName + ")"
+                            }
                             print("    ", "\(record.flags.contains(.isIndirectCase) ? "indirect " : "")case", "\(fieldName)\(demangledTypeName)")
                         } else {
                             print("    ", "\(record.flags.contains(.isVariadic) ? isLazy ? "lazy var" : isWeak ? "weak var" : "var" : "let")", "\(fieldName):", demangledTypeName)

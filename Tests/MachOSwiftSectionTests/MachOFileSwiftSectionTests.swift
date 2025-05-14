@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-@_spi(Support) import MachOKit
+import MachOKit
 @testable import MachOSwiftSection
 
 enum Error: Swift.Error {
