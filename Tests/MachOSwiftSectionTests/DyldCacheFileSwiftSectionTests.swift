@@ -11,9 +11,11 @@ struct DyldCacheFileSwiftSectionTests {
 
     let mainCache: DyldCache
 
+    let mainCacheMachOFileInCache: MachOFile
+    
     let subCache: DyldCache
 
-    let machOFileInCache: MachOFile
+    let subCacheMachOFileInCache: MachOFile
 
     init() throws {
         // Cache
@@ -26,28 +28,34 @@ struct DyldCacheFileSwiftSectionTests {
         let subCacheURL = URL(fileURLWithPath: subCachePath)
         self.mainCache = try! DyldCache(url: mainCacheURL)
         self.subCache = try! DyldCache(subcacheUrl: subCacheURL, mainCacheHeader: mainCache.mainCacheHeader)
-//        self.machOFileInCache = mainCache.machOFiles().first(where: {
-//            $0.imagePath.contains("/SwiftUICore")
-//        })!
-        self.machOFileInCache = subCache.machOFiles().first(where: {
+        self.mainCacheMachOFileInCache = mainCache.machOFiles().first(where: {
+            $0.imagePath.contains("/AppKit")
+        })!
+        self.subCacheMachOFileInCache = subCache.machOFiles().first(where: {
             $0.imagePath.contains("/CodableSwiftUI")
         })!
     }
 
     @Test func protocolsInFile() async throws {
-        guard let protocols = machOFileInCache.swift.protocolDescriptors else {
+        guard let protocols = subCacheMachOFileInCache.swift.protocolDescriptors else {
             throw Error.notFound
         }
         for proto in protocols {
-            try print(proto.name(in: machOFileInCache))
+            try print(proto.name(in: subCacheMachOFileInCache))
         }
     }
 
     @Test func typeContextDescriptorsInFile() async throws {
         do {
-            try await Dump.dumpTypeContextDescriptors(in: machOFileInCache)
+            try await Dump.dumpTypeContextDescriptors(in: mainCacheMachOFileInCache)
         } catch {
             print(error)
+        }
+    }
+    
+    @Test func cacheFileOffsets() async throws {
+        for machOFile in mainCache.machOFiles() {
+            print(machOFile.imagePath, machOFile.headerStartOffsetInCache)
         }
     }
 
@@ -69,8 +77,19 @@ struct DyldCacheFileSwiftSectionTests {
 //        }
         
 //        let offset: Int = 1764186844
-        let context: ContextDescriptor = try mainCache.fileHandle.machO.read(offset: 19328401408.cast())
-        print(context)
-        
+//        let context: ContextDescriptor = try mainCache.fileHandle.machO.read(offset: 19328401408.cast())
+//        print(context)
+//        print(try mainCache.fileHandle.machO.read(offset: 1576349376) as UInt64)
+//        print(7161005382531642213 & 0x7FFFFFFF)
+//        print(mainCacheMachOFileInCache.cacheAndFileOffset(fromStart: 1576349376))
+//        print(try mainCacheMachOFileInCache.swift._readContextDescriptor(from: 1576349376))
+        let offset: UInt64 = 149347956 + 4 + 1427001416
+        print(offset)
+        let address = try subCache.fileHandle.machO.read(offset: subCacheMachOFileInCache.cacheAndFileOffset(for: offset + subCache.header.sharedRegionStart)!.1.cast()) as UInt64
+        print(address)
+        let newOffset: Int = subCacheMachOFileInCache.cacheAndFileOffset(for: numericCast(address & 0x7FFFFFFF) + subCache.header.sharedRegionStart)!.1.cast()
+        print(newOffset)
+        let layout = (try subCache.fileHandle.machO.read(offset: newOffset.cast()) as ContextDescriptor.Layout)
+        print(ContextDescriptor(layout: layout, offset: newOffset))
     }
 }
