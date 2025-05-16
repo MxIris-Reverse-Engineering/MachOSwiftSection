@@ -8,11 +8,11 @@ public struct GenericRequirement {
     
     public var paramManagledName: MangledName
     
-//    public var content: ResolvedGenericRequirementContent
+    public var content: ResolvedGenericRequirementContent
     
     public init(descriptor: GenericRequirementDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
         self.paramManagledName = try descriptor.paramManagedName(in: machOFile)
-//        self.content = try descriptor.resolvedContent(in: machOFile)
+        self.content = try descriptor.resolvedContent(in: machOFile)
     }
 }

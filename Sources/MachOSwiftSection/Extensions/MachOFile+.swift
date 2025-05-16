@@ -75,7 +75,7 @@ extension MachOFile {
         resolveBind(at: numericCast(offset)) != nil
     }
 
-    func resolveBind<Pointer: RelativePointer>(at offset: Int, for pointer: Pointer) throws -> (DyldChainedImport, addend: UInt64)? {
+    func resolveBind<Pointer: RelativePointerProtocol>(at offset: Int, for pointer: Pointer) throws -> (DyldChainedImport, addend: UInt64)? {
 //        try (resolveBind(at: pointer.resolveDirectFileOffset(from: offset).cast()) ?? resolveBind(at: pointer.resolveIndirectableFileOffset(from: offset, in: self).cast()))
         resolveBind(at: pointer.resolveDirectFileOffset(from: offset).cast())
     }

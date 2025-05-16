@@ -1,13 +1,6 @@
-//
-//  RelativeDirectPointerProtocol.swift
-//  MachOSwiftSection
-//
-//  Created by JH on 2025/5/7.
-//
-
 import MachOKit
 
-public protocol RelativeDirectPointerProtocol<Pointee>: RelativePointer {}
+public protocol RelativeDirectPointerProtocol<Pointee>: RelativePointerProtocol {}
 
 extension RelativeDirectPointerProtocol {
     public func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Pointee {

@@ -21,7 +21,7 @@ public enum GenericRequirementContent {
 
 public enum ResolvedGenericRequirementContent {
     case type(MangledName)
-    case `protocol`(RelativeProtocolDescriptorPointer)
+    case `protocol`(ProtocolDescriptorWithObjCInterop)
     case layout(GenericRequirementLayoutKind)
     case conformance(ProtocolConformanceDescriptor)
     case invertedProtocols(GenericRequirementContent.InvertedProtocols)

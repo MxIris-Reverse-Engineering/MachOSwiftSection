@@ -1,0 +1,36 @@
+import Foundation
+import MachOKit
+
+public protocol RelativeIndirectablePointerIntPairProtocol: RelativeIndirectablePointerProtocol {
+    typealias Integer = Value.RawValue
+    associatedtype Value: RawRepresentable where Value.RawValue: FixedWidthInteger
+    var relativeOffsetPlusIndirectAndInt: Offset { get }
+    var isIndirect: Bool { get }
+    func resolveIndirectableFileOffset(from fileOffset: Int, in machOFile: MachOFile) throws -> Int
+}
+
+extension RelativeIndirectablePointerIntPairProtocol {
+    public var relativeOffsetPlusIndirect: Offset {
+        relativeOffsetPlusIndirectAndInt & ~mask
+    }
+
+    public var relativeOffset: Offset {
+        (relativeOffsetPlusIndirectAndInt & ~mask) & ~1
+    }
+
+    public var mask: Offset {
+        Offset(MemoryLayout<Offset>.alignment - 1) & ~1
+    }
+
+    public var intValue: Integer {
+        numericCast(relativeOffsetPlusIndirectAndInt & mask >> 1)
+    }
+
+    public var isIndirect: Bool {
+        return relativeOffsetPlusIndirectAndInt & 1 == 1
+    }
+
+    public var value: Value {
+        return Value(rawValue: intValue)!
+    }
+}

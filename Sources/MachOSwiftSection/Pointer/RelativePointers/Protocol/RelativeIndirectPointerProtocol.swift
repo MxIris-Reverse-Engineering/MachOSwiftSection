@@ -1,13 +1,6 @@
-//
-//  RelativeIndirectPointerProtocol.swift
-//  MachOSwiftSection
-//
-//  Created by JH on 2025/5/7.
-//
-
 import MachOKit
 
-public protocol RelativeIndirectPointerProtocol: RelativePointer {
+public protocol RelativeIndirectPointerProtocol: RelativePointerProtocol {
     associatedtype IndirectType: RelativeIndirectType where IndirectType.Pointee == Pointee
     func resolveIndirectFileOffset(from fileOffset: Int, in machOFile: MachOFile) throws -> Int
 }

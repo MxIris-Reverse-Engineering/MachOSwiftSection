@@ -1,7 +1,7 @@
 import Foundation
 import MachOKit
 
-public protocol RelativePointer<Pointee> {
+public protocol RelativePointerProtocol<Pointee> {
     associatedtype Pointee: ResolvableElement
     associatedtype Offset: FixedWidthInteger & SignedInteger
     var relativeOffset: Offset { get }
@@ -10,7 +10,7 @@ public protocol RelativePointer<Pointee> {
     func resolveDirectFileOffset(from fileOffset: Int) -> Int
 }
 
-extension RelativePointer {
+extension RelativePointerProtocol {
     public func resolveDirectFileOffset(from fileOffset: Int) -> Int {
         return Int(fileOffset) + Int(relativeOffset)
     }

@@ -38,4 +38,13 @@ public enum RelativeProtocolDescriptorPointer {
             return .forSwift(storedPointer)
         }
     }
+    
+    public func resolve(from offset: Int, in machOFile: MachOFile) throws -> ProtocolDescriptorWithObjCInterop {
+        switch self {
+        case .objcPointer(let relativeIndirectablePointerIntPair):
+            return .objc(try relativeIndirectablePointerIntPair.resolve(from: offset, in: machOFile))
+        case .swiftPointer(let relativeContextPointerIntPair):
+            return .swift(try relativeContextPointerIntPair.resolve(from: offset, in: machOFile))
+        }
+    }
 }

@@ -28,7 +28,7 @@ public struct ProtocolConformance {
 
     public private(set) var retroactiveContextDescriptor: ContextDescriptorWrapper?
 
-    public private(set) var conditionalRequirements: [GenericRequirementDescriptor] = []
+    public private(set) var conditionalRequirements: [GenericRequirement] = []
 
     public private(set) var conditionalPackShapeHeader: GenericPackShapeHeader?
 
@@ -42,7 +42,13 @@ public struct ProtocolConformance {
 
     public init(descriptor: ProtocolConformanceDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
+        
+        self.protocol = try descriptor.protocolDescriptor(in: machOFile).map { try Protocol(from: $0, in: machOFile) }
 
+        self.typeReference = try descriptor.resolvedTypeReference(in: machOFile)
+
+        self.witnessTablePattern = try descriptor.witnessTablePattern(in: machOFile)
+        
         var currentOffset = descriptor.offset + descriptor.layoutSize
 
         if descriptor.flags.isRetroactive {
@@ -52,7 +58,7 @@ public struct ProtocolConformance {
         }
 
         if descriptor.flags.numConditionalRequirements > 0 {
-            self.conditionalRequirements = try machOFile.readElements(offset: currentOffset, numberOfElements: descriptor.flags.numConditionalRequirements.cast())
+            self.conditionalRequirements = try machOFile.readElements(offset: currentOffset, numberOfElements: descriptor.flags.numConditionalRequirements.cast()).map { try .init(descriptor: $0, in: machOFile) }
             currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: descriptor.flags.numConditionalRequirements.cast())
         }
 
@@ -76,12 +82,5 @@ public struct ProtocolConformance {
             self.genericWitnessTable = genericWitnessTable
             currentOffset.offset(of: GenericWitnessTable.self)
         }
-
-        self.protocol = try descriptor.protocolDescriptor(in: machOFile).map { try Protocol(from: $0, in: machOFile) }
-
-        self.typeReference = try descriptor.resolvedTypeReference(in: machOFile)
-
-        self.witnessTablePattern = try descriptor.witnessTablePattern(in: machOFile)
     }
 }
-

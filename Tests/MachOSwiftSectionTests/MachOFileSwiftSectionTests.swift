@@ -26,11 +26,27 @@ struct MachOFileSwiftSectionTests {
         }
     }
 
-    @Test func protocolsInFile() async throws {
-        guard let protocols = machOFile.swift.protocolDescriptors else {
+    @Test func protocols() async throws {
+        guard let protocolDescriptors = machOFile.swift.protocolDescriptors else {
             throw Error.notFound
         }
-        for proto in protocols {
+        let protocols = try protocolDescriptors.map { try Protocol(from: $0, in: machOFile) }
+        print(protocols)
+    }
+    
+    @Test func protocolConformances() async throws {
+        guard let protocolConformanceDescriptors = machOFile.swift.protocolConformanceDescriptors else {
+            throw Error.notFound
+        }
+        let protocolConformances = try protocolConformanceDescriptors.map { try ProtocolConformance(descriptor: $0, in: machOFile) }
+        print(protocolConformances)
+    }
+    
+    @Test func protocolsInFile() async throws {
+        guard let protocolDescriptors = machOFile.swift.protocolDescriptors else {
+            throw Error.notFound
+        }
+        for proto in protocolDescriptors {
             try print(proto.name(in: machOFile))
         }
     }

@@ -1,18 +1,20 @@
-//
-//  RelativeIndirectablePointerProtocol.swift
-//  MachOSwiftSection
-//
-//  Created by JH on 2025/5/7.
-//
-
 import MachOKit
 
 public protocol RelativeIndirectablePointerProtocol: RelativeDirectPointerProtocol, RelativeIndirectPointerProtocol {
+    var relativeOffsetPlusIndirect: Offset { get }
     var isIndirect: Bool { get }
     func resolveIndirectableFileOffset(from fileOffset: Int, in machOFile: MachOFile) throws -> Int
 }
 
 extension RelativeIndirectablePointerProtocol {
+    public var relativeOffset: Offset {
+        relativeOffsetPlusIndirect & ~1
+    }
+
+    public var isIndirect: Bool {
+        return relativeOffsetPlusIndirect & 1 == 1
+    }
+    
     public func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Pointee {
         return try resolveIndirectable(from: fileOffset, in: machOFile)
     }

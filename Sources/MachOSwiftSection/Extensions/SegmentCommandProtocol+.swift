@@ -6,7 +6,7 @@ extension SegmentCommandProtocol {
         _section(for: "__swift5_typeref", in: machOFile)
     }
 
-    func __swift5_reflstr(in machOFile: MachOImage) -> SectionType? {
+    func __swift5_reflstr(in machOFile: MachOFile) -> SectionType? {
         _section(for: "__swift5_reflstr", in: machOFile)
     }
 
@@ -14,7 +14,7 @@ extension SegmentCommandProtocol {
         _section(for: "__swift5_fieldmd", in: machOFile)
     }
 
-    func __swift5_capture(in machOFile: MachOImage) -> SectionType? {
+    func __swift5_capture(in machOFile: MachOFile) -> SectionType? {
         _section(for: "__swift5_capture", in: machOFile)
     }
 
@@ -22,7 +22,7 @@ extension SegmentCommandProtocol {
         _section(for: "__swift5_assocty", in: machOFile)
     }
 
-    func __swift5_proto(in machOFile: MachOImage) -> SectionType? {
+    func __swift5_proto(in machOFile: MachOFile) -> SectionType? {
         _section(for: "__swift5_proto", in: machOFile)
     }
 
@@ -30,7 +30,7 @@ extension SegmentCommandProtocol {
         _section(for: "__swift5_types", in: machOFile)
     }
 
-    func __swift5_builtin(in machOFile: MachOImage) -> SectionType? {
+    func __swift5_builtin(in machOFile: MachOFile) -> SectionType? {
         _section(for: "__swift5_builtin", in: machOFile)
     }
 
