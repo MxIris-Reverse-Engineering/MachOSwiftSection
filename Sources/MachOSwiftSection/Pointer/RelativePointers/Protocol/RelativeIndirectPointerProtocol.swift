@@ -1,7 +1,7 @@
 import MachOKit
 
 public protocol RelativeIndirectPointerProtocol: RelativePointerProtocol {
-    associatedtype IndirectType: RelativeIndirectType where IndirectType.Pointee == Pointee
+    associatedtype IndirectType: RelativeIndirectType where IndirectType.Resolved == Pointee
     func resolveIndirectFileOffset(from fileOffset: Int, in machOFile: MachOFile) throws -> Int
 }
 
@@ -23,7 +23,7 @@ extension RelativeIndirectPointerProtocol {
     }
 
     func resolveIndirectType(from fileOffset: Int, in machOFile: MachOFile) throws -> IndirectType {
-        return try machOFile.readElement(offset: resolveDirectFileOffset(from: fileOffset))
+        return try .resolve(from: resolveDirectFileOffset(from: fileOffset), in: machOFile)
     }
 
     public func resolveIndirectFileOffset(from fileOffset: Int, in machOFile: MachOFile) throws -> Int {
@@ -31,7 +31,7 @@ extension RelativeIndirectPointerProtocol {
     }
 }
 
-extension RelativeIndirectPointerProtocol where Pointee: RelativePointerOptional {
+extension RelativeIndirectPointerProtocol where Pointee: OptionalProtocol {
     func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Pointee {
         guard isValid else { return nil }
         return try resolve(from: fileOffset, in: machOFile)

@@ -85,16 +85,16 @@ struct DyldCacheFileSwiftSectionTests {
 //        print(7161005382531642213 & 0x7FFFFFFF)
 //        print(mainCacheMachOFileInCache.cacheAndFileOffset(fromStart: 1576349376))
 //        print(try mainCacheMachOFileInCache.swift._readContextDescriptor(from: 1576349376))
-        let offset: UInt64 = 149347956 + 4 + 1427001416
-        print(offset)
-        print(subCacheMachOFileInCache.resolveRebase(fileOffset: offset.cast())! & 0x7FFFFFFF)
-        print(try Pointer<ContextDescriptorWrapper?>(address: subCacheMachOFileInCache.resolveRebase(fileOffset: offset.cast())!).resolve(in: subCacheMachOFileInCache))
-        let address = try subCache.fileHandle.machO.read(offset: subCacheMachOFileInCache.cacheAndFileOffset(for: offset + subCache.header.sharedRegionStart)!.1.cast()) as UInt64
-        print(address)
-        var newOffset: Int = subCacheMachOFileInCache.cacheAndFileOffset(for: numericCast(address & 0x7FFFFFFF) + subCache.header.sharedRegionStart)!.1.cast()
-        print(newOffset)
-        newOffset = (subCacheMachOFileInCache.resolveRebase(fileOffset: newOffset.cast())! & 0x7FFFFFFF).cast()
-        let layout = (try subCache.fileHandle.machO.read(offset: newOffset.cast()) as ContextDescriptor.Layout)
-        print(ContextDescriptor(layout: layout, offset: newOffset))
+//        let offset: UInt64 = 149347956 + 4 + 1427001416
+//        print(offset)
+//        print(subCacheMachOFileInCache.resolveRebase(fileOffset: offset.cast())! & 0x7FFFFFFF)
+//        print(try Pointer<ContextDescriptorWrapper?>(address: subCacheMachOFileInCache.resolveRebase(fileOffset: offset.cast())!).resolve(in: subCacheMachOFileInCache))
+//        let address = try subCache.fileHandle.machO.read(offset: subCacheMachOFileInCache.cacheAndFileOffset(for: offset + subCache.header.sharedRegionStart)!.1.cast()) as UInt64
+//        print(address)
+//        var newOffset: Int = subCacheMachOFileInCache.cacheAndFileOffset(for: numericCast(address & 0x7FFFFFFF) + subCache.header.sharedRegionStart)!.1.cast()
+//        print(newOffset)
+//        newOffset = (subCacheMachOFileInCache.resolveRebase(fileOffset: newOffset.cast())! & 0x7FFFFFFF).cast()
+//        let layout = (try subCache.fileHandle.machO.read(offset: newOffset.cast()) as ContextDescriptor.Layout)
+//        print(ContextDescriptor(layout: layout, offset: newOffset))
     }
 }

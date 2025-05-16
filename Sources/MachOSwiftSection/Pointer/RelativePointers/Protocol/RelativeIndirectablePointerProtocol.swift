@@ -50,7 +50,7 @@ extension RelativeIndirectablePointerProtocol {
     }
 }
 
-extension RelativeIndirectablePointerProtocol where Pointee: RelativePointerOptional {
+extension RelativeIndirectablePointerProtocol where Pointee: OptionalProtocol {
     func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Pointee {
         guard isValid else { return nil }
         return try resolve(from: fileOffset, in: machOFile)

@@ -14,7 +14,7 @@ extension Package.Dependency {
         }
     }()
 
-    static let MachOKitMain = Package.Dependency.package(url: "https://github.com/p-x9/MachOKit.git", from: "0.31.0")
+    static let MachOKitMain = Package.Dependency.package(url: "https://github.com/p-x9/MachOKit.git", from: "0.32.0")
     static let MachOKitSPM = Package.Dependency.package(url: "https://github.com/p-x9/MachOKit-SPM", branch: "main")
 }
 
@@ -33,9 +33,7 @@ extension Target.Dependency {
 
 let package = Package(
     name: "MachOSwiftSection",
-    platforms: [
-        .macOS(.v10_15),
-    ],
+    platforms: [.macOS(.v10_15),],
     products: [
         .library(
             name: "MachOSwiftSection",

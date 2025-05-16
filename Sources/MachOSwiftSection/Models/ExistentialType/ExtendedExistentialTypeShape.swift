@@ -1,7 +1,7 @@
 import Foundation
 import MachOKit
 
-public struct ExtendedExistentialTypeShape: LocatableLayoutWrapper, ResolvableElement {
+public struct ExtendedExistentialTypeShape: LocatableLayoutWrapper, Resolvable {
     public struct Layout {
         public let flags: ExtendedExistentialTypeShapeFlags
         public let existentialType: RelativeDirectPointer<MangledName>

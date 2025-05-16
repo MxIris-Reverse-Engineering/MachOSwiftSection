@@ -23,6 +23,8 @@ struct MachOFileSwiftSectionTests {
             self.machOFile = try! fatFile.machOFiles().first(where: { $0.header.cpu.type == .x86_64 })!
         case let .machO(machO):
             self.machOFile = machO
+        @unknown default:
+            fatalError()
         }
     }
 
@@ -38,8 +40,10 @@ struct MachOFileSwiftSectionTests {
         guard let protocolConformanceDescriptors = machOFile.swift.protocolConformanceDescriptors else {
             throw Error.notFound
         }
-        let protocolConformances = try protocolConformanceDescriptors.map { try ProtocolConformance(descriptor: $0, in: machOFile) }
-        print(protocolConformances)
+        for (index, protocolConformanceDescriptor) in protocolConformanceDescriptors.enumerated() {
+            print(index)
+            print(try ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machOFile))
+        }
     }
     
     @Test func protocolsInFile() async throws {

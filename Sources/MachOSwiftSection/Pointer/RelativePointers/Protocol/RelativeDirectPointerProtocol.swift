@@ -20,7 +20,7 @@ extension RelativeDirectPointerProtocol {
     }
 }
 
-extension RelativeDirectPointerProtocol where Pointee: RelativePointerOptional {
+extension RelativeDirectPointerProtocol where Pointee: OptionalProtocol {
     func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Pointee {
         guard isValid else { return nil }
         return try resolve(from: fileOffset, in: machOFile)

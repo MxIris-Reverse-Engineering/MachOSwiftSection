@@ -2,20 +2,10 @@ import Foundation
 import MachOKit
 private import Demangling
 
-public final class MetadataReader {
-    private enum ResolvableContextDescriptor {
-        case symbol(String)
-        case context(any ContextDescriptorProtocol)
 
-        var isResolved: Bool {
-            switch self {
-            case .symbol:
-                return false
-            case .context:
-                return true
-            }
-        }
-    }
+
+public final class MetadataReader {
+    
 
     private let machOFile: MachOFile
 
@@ -23,37 +13,36 @@ public final class MetadataReader {
         self.machOFile = machOFile
     }
 
-    private func buildContextMangling(context: ResolvableContextDescriptor) throws -> SwiftSymbol? {
+    private func buildContextMangling(context: ResolvableElement<ContextDescriptorWrapper>) throws -> SwiftSymbol? {
         switch context {
         case let .symbol(symbol):
             return try buildContextManglingForSymbol(symbol: symbol)
-        case let .context(contextDescriptorProtocol):
+        case let .element(contextDescriptorProtocol):
             return try buildContextMangling(context: contextDescriptorProtocol)
         }
     }
 
-    private func buildContextMangling(context: any ContextDescriptorProtocol) throws -> SwiftSymbol? {
+    private func buildContextMangling(context: ContextDescriptorWrapper) throws -> SwiftSymbol? {
         guard let demangling = try buildContextDescriptorMangling(context: context, recursionLimit: 50) else {
             return nil
         }
         let top: SwiftSymbol
-        if context is (any TypeContextDescriptorProtocol) || context is (any ProtocolDescriptorProtocol) {
+        
+        switch context {
+        case .type, .protocol:
             top = .init(kind: .type, children: [demangling])
-        } else if context is (any ProtocolDescriptorProtocol) {
-            top = .init(kind: .type, children: [.init(kind: .typeSymbolicReference, children: [demangling])])
-        } else {
+        default:
             top = demangling
         }
+        
         return top
     }
 
-    private func adoptAnonymousContextName(context: any ContextDescriptorProtocol, parentContext parentContextRef: inout (any ContextDescriptorProtocol)?, outSymbol: inout SwiftSymbol?) throws -> SwiftSymbol? {
+    private func adoptAnonymousContextName(context: ContextDescriptorWrapper, parentContext parentContextRef: inout ContextDescriptorWrapper?, outSymbol: inout SwiftSymbol?) throws -> SwiftSymbol? {
         outSymbol = nil
         guard let parentContext = parentContextRef else { return nil }
-        let typeContext = context as? (any TypeContextDescriptorProtocol)
-        let protoContext = context as? (any ProtocolDescriptorProtocol)
-        guard typeContext != nil || protoContext != nil else { return nil }
-        guard let anonymousParent = parentContext as? (any AnonymousContextDescriptorProtocol) else { return nil }
+        guard context.isType || context.isProtocol else { return nil }
+        guard case let .anonymous(anonymousParent) = parentContext else { return nil }
         guard var mangledNode = try demangleAnonymousContextName(context: anonymousParent) else { return nil }
         if mangledNode.kind == .global {
             mangledNode = mangledNode.children[0]
@@ -68,17 +57,17 @@ public final class MetadataReader {
 
         guard identifierNode.kind == .identifier, identifierNode.contents.hasName else { return nil }
 
-        guard let namedContext = context as? (any NamedContextDescriptorProtocol) else { return nil }
+        guard let namedContext = context.namedContextDescriptor else { return nil }
         guard try namedContext.name(in: machOFile) == identifierNode.contents.name else { return nil }
 
-        parentContextRef = try parentContext.parent(in: machOFile)?.contextDescriptor
+        parentContextRef = try parentContext.parent(in: machOFile)
 
         outSymbol = mangledNode.children[0]
 
         return nameChild
     }
 
-    private func demangleAnonymousContextName(context: any AnonymousContextDescriptorProtocol) throws -> SwiftSymbol? {
+    private func demangleAnonymousContextName(context: AnonymousContextDescriptor) throws -> SwiftSymbol? {
         guard let mangledName = try context.mangledName(in: machOFile) else { return nil }
         return try demangle(for: mangledName, kind: .symbol)
     }
@@ -107,13 +96,19 @@ public final class MetadataReader {
                 return SwiftSymbol(kind: .protocol, children: [.init(kind: .module, contents: .name(objcModule)), .init(kind: .identifier, contents: .name(name))])
             }
         case let .swiftPointer(swiftPointer):
-            return try buildContextMangling(context: swiftPointer.resolve(from: offset, in: machOFile))
+            let resolvableProtocolDescriptor = try swiftPointer.resolve(from: offset, in: machOFile)
+            switch resolvableProtocolDescriptor {
+            case .symbol(let symbol):
+                return try buildContextManglingForSymbol(symbol: symbol)
+            case .element(let context):
+                return try buildContextMangling(context: .protocol(context))
+            }
         }
     }
 
-    private func buildContextDescriptorMangling(context: any ContextDescriptorProtocol, recursionLimit: Int) throws -> SwiftSymbol? {
+    private func buildContextDescriptorMangling(context: ContextDescriptorWrapper, recursionLimit: Int) throws -> SwiftSymbol? {
         guard recursionLimit > 0 else { return nil }
-        var parentDescriptorResult = try context.parent(in: machOFile)?.contextDescriptor
+        var parentDescriptorResult = try context.parent(in: machOFile)
         var demangledParentNode: SwiftSymbol?
         var nameNode = try adoptAnonymousContextName(context: context, parentContext: &parentDescriptorResult, outSymbol: &demangledParentNode)
 //        guard let parentDescriptorResult else { return nil }
@@ -134,7 +129,7 @@ public final class MetadataReader {
         func getContextName() throws -> Bool {
             if nameNode != nil {
                 return true
-            } else if let namedContext = context as? (any NamedContextDescriptorProtocol) {
+            } else if let namedContext = context.namedContextDescriptor {
                 nameNode = try .init(kind: .identifier, contents: .name(namedContext.name(in: machOFile)))
                 return true
             } else {
@@ -142,7 +137,7 @@ public final class MetadataReader {
             }
         }
 
-        switch context.layout.flags.kind {
+        switch context.contextDescriptor.layout.flags.kind {
         case .class:
             guard try getContextName() else { return nil }
             kind = .class
@@ -158,7 +153,7 @@ public final class MetadataReader {
         case .extension:
 //            return parentDemangling
             guard let parentDemangling else { return nil }
-            let extensionContext = context as! (any ExtensionContextDescriptorProtocol)
+            guard let extensionContext = context.extensionContextDescriptor else { return nil }
             guard let extendedContext = try extensionContext.extendedContext(in: machOFile) else { return nil }
             guard let demangledExtendedContext = try demangle(for: extendedContext, kind: .type).nominalSymbol else { return nil }
             var demangling = SwiftSymbol(kind: .extension, children: [parentDemangling, demangledExtendedContext])
@@ -227,12 +222,12 @@ public final class MetadataReader {
             if parentDemangling != nil {
                 return nil
             }
-            let moduleContext = context as! (any ModuleContextDescriptorProtocol)
+            guard let moduleContext = context.moduleContextDescriptor else { return nil }
             return try .init(kind: .module, contents: .name(moduleContext.name(in: machOFile)))
         case .opaqueType:
             guard let parentDescriptorResult else { return nil }
             if parentDemangling?.kind == .anonymousContext {
-                guard var mangledNode = try demangleAnonymousContextName(context: parentDescriptorResult as! (any AnonymousContextDescriptorProtocol)) else {
+                guard var mangledNode = try demangleAnonymousContextName(context: parentDescriptorResult.anonymousContextDescriptor!) else {
                     return nil
                 }
                 if mangledNode.kind == .global {
@@ -260,8 +255,8 @@ public final class MetadataReader {
         return demangling
     }
 
-    private func buildContextManglingForSymbol(symbol: String) throws -> SwiftSymbol? {
-        var demangler = Demangler(scalars: symbol.unicodeScalars)
+    private func buildContextManglingForSymbol(symbol: UnsolvedSymbol) throws -> SwiftSymbol? {
+        var demangler = Demangler(scalars: symbol.stringValue.unicodeScalars)
         var demangledSymbol = try demangler.demangleSymbol()
         if demangledSymbol.kind == .global {
             demangledSymbol = demangledSymbol.children[0]
@@ -299,14 +294,14 @@ public final class MetadataReader {
                     switch directness {
                     case .direct:
                         if let context = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset).resolve(from: fileOffset, in: machOFile) {
-                            result = try buildContextMangling(context: .context(context.contextDescriptor))
+                            result = try buildContextMangling(context: .element(context))
                         }
                     case .indirect:
                         let relativePointer = RelativeIndirectPointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>>(relativeOffset: relativeOffset)
                         if let bind = try machOFile.resolveBind(at: fileOffset, for: relativePointer), let symbolName = machOFile.dyldChainedFixups?.symbolName(for: bind.0.info.nameOffset) {
-                            result = try buildContextMangling(context: .symbol(symbolName))
+                            result = try buildContextMangling(context: .symbol(.init(offset: fileOffset, stringValue: symbolName)))
                         } else if let context = try relativePointer.resolve(from: fileOffset, in: machOFile) {
-                            result = try buildContextMangling(context: .context(context.contextDescriptor))
+                            result = try buildContextMangling(context: .element(context))
                         }
                     }
                 case .accessorFunctionReference:

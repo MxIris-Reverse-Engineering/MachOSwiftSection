@@ -18,7 +18,7 @@ import MachOKit
 public struct ProtocolConformance {
     public let descriptor: ProtocolConformanceDescriptor
 
-    public private(set) var `protocol`: Protocol?
+    public private(set) var `protocol`: ResolvableElement<Protocol>?
 
     public private(set) var typeReference: ResolvedTypeReference
 
@@ -26,7 +26,7 @@ public struct ProtocolConformance {
 
     public var flags: ProtocolConformanceFlags { descriptor.flags }
 
-    public private(set) var retroactiveContextDescriptor: ContextDescriptorWrapper?
+    public private(set) var retroactiveContextDescriptor: ResolvableElement<ContextDescriptorWrapper>?
 
     public private(set) var conditionalRequirements: [GenericRequirement] = []
 
@@ -43,7 +43,12 @@ public struct ProtocolConformance {
     public init(descriptor: ProtocolConformanceDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
         
-        self.protocol = try descriptor.protocolDescriptor(in: machOFile).map { try Protocol(from: $0, in: machOFile) }
+        self.protocol = try descriptor.protocolDescriptor(in: machOFile).map {
+            switch $0 {
+            case .symbol(let symbol): return .symbol(symbol)
+            case .element(let element): return .element(try Protocol(from: element, in: machOFile))
+            }
+        }
 
         self.typeReference = try descriptor.resolvedTypeReference(in: machOFile)
 
@@ -53,7 +58,7 @@ public struct ProtocolConformance {
 
         if descriptor.flags.isRetroactive {
             let retroactiveContextPointer: RelativeContextPointer<ContextDescriptorWrapper?> = try machOFile.readElement(offset: currentOffset)
-            self.retroactiveContextDescriptor = try retroactiveContextPointer.resolve(from: currentOffset, in: machOFile)
+            self.retroactiveContextDescriptor = try retroactiveContextPointer.resolve(from: currentOffset, in: machOFile).asOptional
             currentOffset.offset(of: RelativeIndirectablePointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>>.self)
         }
 

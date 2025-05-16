@@ -7,10 +7,9 @@
 
 import MachOKit
 
-public struct Pointer<Pointee: ResolvableElement>: RelativeIndirectType, PointerProtocol {
+public struct Pointer<Pointee: Resolvable>: RelativeIndirectType, PointerProtocol {
+    public typealias Resolved = Pointee
     public let address: UInt64
 }
-
-extension Pointer: ResolvableElement where Pointee: ResolvableElement {}
 
 public typealias RawPointer = Pointer<AnyResolvableElement>

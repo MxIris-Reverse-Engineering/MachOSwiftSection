@@ -1,6 +1,6 @@
 import MachOKit
 
-public protocol LocatableLayoutWrapper: LayoutWrapper, ResolvableElement {
+public protocol LocatableLayoutWrapper: LayoutWrapper, Resolvable {
     var offset: Int { get }
 
     init(layout: Layout, offset: Int)

@@ -17,7 +17,7 @@ import MachOKit
 /// Only Swift protocols are defined by a protocol descriptor, whereas
 /// Objective-C (including protocols defined in Swift as @objc) use the
 /// Objective-C protocol layout.
-public struct `Protocol` {
+public struct `Protocol`: Resolvable {
     public let descriptor: ProtocolDescriptor
     public let requirementInSignatures: [GenericRequirement]
     public let requirements: [ProtocolRequirement]

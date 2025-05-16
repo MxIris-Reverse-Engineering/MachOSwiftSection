@@ -2,7 +2,7 @@ import Foundation
 import MachOKit
 
 public protocol PointerProtocol {
-    associatedtype Pointee: ResolvableElement
+    associatedtype Pointee: Resolvable
     var address: UInt64 { get }
 
     func resolve(in machOFile: MachOFile) throws -> Pointee

@@ -2,7 +2,7 @@ import Foundation
 import MachOKit
 
 public protocol RelativePointerProtocol<Pointee> {
-    associatedtype Pointee: ResolvableElement
+    associatedtype Pointee: Resolvable
     associatedtype Offset: FixedWidthInteger & SignedInteger
     var relativeOffset: Offset { get }
     func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Pointee

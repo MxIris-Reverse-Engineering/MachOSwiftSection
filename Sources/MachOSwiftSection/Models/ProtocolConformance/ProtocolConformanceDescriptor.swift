@@ -20,8 +20,8 @@ public struct ProtocolConformanceDescriptor: LocatableLayoutWrapper {
 }
 
 extension ProtocolConformanceDescriptor {
-    public func protocolDescriptor(in machOFile: MachOFile) throws -> ProtocolDescriptor? {
-        try layout.protocolDescriptor.resolve(from: fileOffset(of: \.protocolDescriptor), in: machOFile)
+    public func protocolDescriptor(in machOFile: MachOFile) throws -> ResolvableElement<ProtocolDescriptor>? {
+        try layout.protocolDescriptor.resolve(from: fileOffset(of: \.protocolDescriptor), in: machOFile).asOptional
     }
     
     public var typeReference: TypeReference {

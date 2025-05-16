@@ -7,12 +7,12 @@
 
 import MachOKit
 
-public protocol ResolvableElement {
+public protocol Resolvable {
     static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self
     static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self?
 }
 
-extension ResolvableElement {
+extension Resolvable {
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self {
         return try machOFile.readElement(offset: fileOffset)
     }
@@ -23,7 +23,7 @@ extension ResolvableElement {
     }
 }
 
-extension Optional: ResolvableElement where Wrapped: ResolvableElement {
+extension Optional: Resolvable where Wrapped: Resolvable {
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self {
         let result: Wrapped? = try Wrapped.resolve(from: fileOffset, in: machOFile)
         if let result {
@@ -34,20 +34,20 @@ extension Optional: ResolvableElement where Wrapped: ResolvableElement {
     }
 }
 
-extension String: ResolvableElement {
+extension String: Resolvable {
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self {
         return try machOFile.readString(offset: fileOffset) ?? ""
     }
 }
 
-extension ResolvableElement where Self: LocatableLayoutWrapper {
+extension Resolvable where Self: LocatableLayoutWrapper {
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self {
         let layout: Layout = try machOFile.readElement(offset: fileOffset)
         return .init(layout: layout, offset: fileOffset)
     }
 }
 
-extension ContextDescriptorWrapper: ResolvableElement {
+extension ContextDescriptorWrapper: Resolvable {
     public static func resolve(from fileOffset: Int, in machO: MachOFile) throws -> Self? {
         guard let contextDescriptor = try machO.swift._readContextDescriptor(from: fileOffset) else { return nil }
         return contextDescriptor

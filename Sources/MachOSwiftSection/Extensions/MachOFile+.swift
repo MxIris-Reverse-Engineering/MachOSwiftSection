@@ -1,9 +1,17 @@
 import Foundation
 import MachOKit
+import FileIO
 
 extension MachOFile {
     var fileHandle: FileHandle {
         try! .init(forReadingFrom: url)
+    }
+    
+    var fileIO: MemoryMappedFile {
+        try! File.open(
+            url: url,
+            isWritable: false
+        )
     }
 }
 
@@ -87,7 +95,7 @@ extension MachOFile {
         swapHandler: ((inout Data) -> Void)? = nil
     ) throws -> Element {
         var offset = offset
-        var fileHandle = fileHandle
+        var fileHandle = fileIO
         if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
             offset = cacheAndFileOffset.1.cast()
 //            fileHandle = cacheAndFileOffset.0.fileHandle
@@ -106,7 +114,7 @@ extension MachOFile {
 //            fileHandle = cacheAndFileOffset.0.fileHandle
 //        }
         var offset = offset
-        var fileHandle = fileHandle
+        var fileHandle = fileIO
         if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
             offset = cacheAndFileOffset.1.cast()
 //            fileHandle = cacheAndFileOffset.0.fileHandle
@@ -121,7 +129,7 @@ extension MachOFile {
         swapHandler: ((inout Data) -> Void)? = nil
     ) throws -> [Element] where Element: LocatableLayoutWrapper {
         var offset = offset
-        var fileHandle = fileHandle
+        var fileHandle = fileIO
         if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
             offset = cacheAndFileOffset.1.cast()
 //            fileHandle = cacheAndFileOffset.0.fileHandle
@@ -137,7 +145,7 @@ extension MachOFile {
 
     func readString(offset: Int) throws -> String? {
         var offset = offset
-        var fileHandle = fileHandle
+        var fileHandle = fileIO
         if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
             offset = cacheAndFileOffset.1.cast()
 //            fileHandle = cacheAndFileOffset.0.fileHandle
@@ -152,5 +160,99 @@ extension MachOFile {
 
     var sharedCacheRegionStart: Int {
         cache.map { .init($0.mainCacheHeader.sharedRegionStart) } ?? 0
+    }
+}
+
+
+extension MachOFile {
+    /// Resolves the rebase operation at the specified file offset within the given MachO file.
+    ///
+    /// This function determines if the rebase operation can be resolved from the provided file offset
+    /// in the MachO file. If the MachO file is loaded from a Dyld shared cache, the rebase is resolved
+    /// using the cache information. Otherwise, it directly resolves the rebase using the MachO file.
+    ///
+    /// - Parameters:
+    ///   - fileOffset: The offset in the file where the rebase operation occurs.
+    ///   - machO: The `MachOFile` object representing the MachO file to resolve rebases from.
+    /// - Returns: The resolved rebase value as a `UInt64`, or `nil` if the rebase cannot be resolved.
+    
+    func resolveRebase(fileOffset: Int) -> UInt64? {
+        let offset: UInt64 = numericCast(fileOffset)
+        if let (cache, _offset) = resolveCacheStartOffsetIfNeeded(offset: offset),
+           let resolved = cache.resolveOptionalRebase(at: _offset) {
+            return resolved - cache.mainCacheHeader.sharedRegionStart
+        }
+
+        if cache != nil {
+            return nil
+        }
+
+        if let resolved = resolveOptionalRebase(at: offset) {
+            return resolved
+        }
+        return nil
+    }
+
+    /// Resolves the bind operation at the specified file offset within the given MachO file.
+    ///
+    /// This function determines if the bind operation can be resolved from the provided file offset
+    /// in the MachO file. Bind operations are used to dynamically link symbols at runtime.
+    ///
+    /// The function checks the following conditions:
+    /// 1. The MachO file must not be loaded from the Dyld shared cache. If it is, the method returns `nil`.
+    /// 2. The MachO file must contain `dyldChainedFixups` data. If not available, the method returns `nil`.
+    ///
+    /// If these conditions are satisfied, the method attempts to resolve the bind operation at the given offset
+    /// and retrieves the associated symbol name.
+    ///
+    /// - Parameters:
+    ///   - fileOffset: An `Int` value representing the offset in the file where the bind operation occurs.
+    ///   - machO: The `MachOFile` object representing the MachO file to analyze.
+    /// - Returns: The resolved symbol name as a `String`, or `nil` if the bind operation cannot be resolved.
+
+    func resolveBind(fileOffset: Int) -> String? {
+        guard !isLoadedFromDyldCache else { return nil }
+        guard let fixup = dyldChainedFixups else { return nil }
+
+        let offset: UInt64 = numericCast(fileOffset)
+
+        if let resolved = resolveBind(at: offset) {
+            return fixup.symbolName(for: resolved.0.info.nameOffset)
+        }
+        return nil
+    }
+
+    /// Determines whether the specified file offset within the MachO file represents a bind operation.
+    ///
+    /// This function evaluates if the file offset corresponds to a bind operation. Bind operations
+    /// are used in MachO files to dynamically link symbols at runtime.
+    ///
+    /// The function operates as follows:
+    /// 1. Checks if the MachO file is loaded from the Dyld shared cache. If so, returns `false` as
+    ///    bind operations cannot be evaluated in this context.
+    /// 2. Converts the file offset to a `UInt64` value to ensure compatibility with MachOKit APIs.
+    /// 3. Invokes `machO.isBind(_:)` to determine if the specified offset corresponds to a bind operation.
+    ///
+    /// - Parameters:
+    ///   - fileOffset: The offset in the MachO file to check for a bind operation.
+    ///   - machO: The `MachOFile` instance representing the file being analyzed.
+    /// - Returns: A `Bool` indicating whether the specified offset represents a bind operation.
+    
+    func isBind(fileOffset: Int) -> Bool {
+        guard !isLoadedFromDyldCache else { return false }
+        let offset: UInt64 = numericCast(fileOffset)
+        return isBind(numericCast(offset))
+    }
+}
+
+extension MachOFile {
+    func resolveCacheStartOffsetIfNeeded(
+        offset: UInt64) -> (DyldCache, UInt64)? {
+        if let (cache, _offset) = cacheAndFileOffset(
+            fromStart: offset
+        ) {
+            return (cache, _offset)
+        }
+        return nil
     }
 }
