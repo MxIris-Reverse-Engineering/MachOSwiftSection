@@ -16,3 +16,10 @@ extension LocatableLayoutWrapper {
     }
 }
 
+
+extension Resolvable where Self: LocatableLayoutWrapper {
+    public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self {
+        let layout: Layout = try machOFile.readElement(offset: fileOffset)
+        return .init(layout: layout, offset: fileOffset)
+    }
+}

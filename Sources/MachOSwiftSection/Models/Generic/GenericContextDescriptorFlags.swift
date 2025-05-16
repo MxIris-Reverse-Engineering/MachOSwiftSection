@@ -1,11 +1,3 @@
-//
-//  GenericContextDescriptorFlags.swift
-//  MachOSwiftSection
-//
-//  Created by JH on 2025/5/2.
-//
-
-
 public struct GenericContextDescriptorFlags: OptionSet {
     public let rawValue: UInt16
 

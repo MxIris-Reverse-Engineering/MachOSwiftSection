@@ -50,7 +50,7 @@ public enum ContextDescriptorKind: UInt8, CustomStringConvertible {
         case .unknown: return "unknown"
         }
     }
-    
+
     public var mangledType: String {
         switch self {
         case .module:

@@ -1,11 +1,3 @@
-//
-//  GenericRequirementContent.swift
-//  MachOSwiftSection
-//
-//  Created by JH on 2025/5/15.
-//
-
-
 public enum GenericRequirementContent {
     public struct InvertedProtocols {
         let genericParamIndex: UInt16
@@ -21,7 +13,7 @@ public enum GenericRequirementContent {
 
 public enum ResolvedGenericRequirementContent {
     case type(MangledName)
-    case `protocol`(ProtocolDescriptorWithObjCInterop)
+    case `protocol`(ResolvableElement<ProtocolDescriptorWithObjCInterop>)
     case layout(GenericRequirementLayoutKind)
     case conformance(ProtocolConformanceDescriptor)
     case invertedProtocols(GenericRequirementContent.InvertedProtocols)

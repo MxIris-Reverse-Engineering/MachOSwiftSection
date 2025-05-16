@@ -1,10 +1,3 @@
-//
-//  ResolvableElement.swift
-//  MachOSwiftSection
-//
-//  Created by JH on 2025/5/7.
-//
-
 import MachOKit
 
 public protocol Resolvable {
@@ -37,19 +30,5 @@ extension Optional: Resolvable where Wrapped: Resolvable {
 extension String: Resolvable {
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self {
         return try machOFile.readString(offset: fileOffset) ?? ""
-    }
-}
-
-extension Resolvable where Self: LocatableLayoutWrapper {
-    public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self {
-        let layout: Layout = try machOFile.readElement(offset: fileOffset)
-        return .init(layout: layout, offset: fileOffset)
-    }
-}
-
-extension ContextDescriptorWrapper: Resolvable {
-    public static func resolve(from fileOffset: Int, in machO: MachOFile) throws -> Self? {
-        guard let contextDescriptor = try machO.swift._readContextDescriptor(from: fileOffset) else { return nil }
-        return contextDescriptor
     }
 }

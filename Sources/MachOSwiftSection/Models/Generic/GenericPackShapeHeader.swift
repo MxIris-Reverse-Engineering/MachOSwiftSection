@@ -1,11 +1,3 @@
-//
-//  GenericPackShapeHeader.swift
-//  MachOSwiftSection
-//
-//  Created by JH on 2025/5/2.
-//
-
-
 public struct GenericPackShapeHeader: LocatableLayoutWrapper {
     public struct Layout {
         public let numPacks: UInt16

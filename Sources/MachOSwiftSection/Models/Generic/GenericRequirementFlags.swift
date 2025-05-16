@@ -1,11 +1,3 @@
-//
-//  GenericRequirementFlags.swift
-//  MachOSwiftSection
-//
-//  Created by JH on 2025/5/2.
-//
-
-
 public struct GenericRequirementFlags: OptionSet {
     public let rawValue: UInt32
 

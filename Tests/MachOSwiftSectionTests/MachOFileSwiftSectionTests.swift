@@ -15,12 +15,10 @@ struct MachOFileSwiftSectionTests {
         let path = "/System/Applications/Freeform.app/Contents/MacOS/Freeform"
 //        let path = "/Applications/SourceEdit.app/Contents/Frameworks/SourceEditor.framework/Versions/A/SourceEditor"
         let url = URL(fileURLWithPath: path)
-        guard let file = try? MachOKit.loadFromFile(url: url) else {
-            throw Error.notFound
-        }
+        let file = try MachOKit.loadFromFile(url: url)
         switch file {
         case let .fat(fatFile):
-            self.machOFile = try! fatFile.machOFiles().first(where: { $0.header.cpu.type == .x86_64 })!
+            self.machOFile = try fatFile.machOFiles().first(where: { $0.header.cpu.type == .x86_64 })!
         case let .machO(machO):
             self.machOFile = machO
         @unknown default:
@@ -32,21 +30,21 @@ struct MachOFileSwiftSectionTests {
         guard let protocolDescriptors = machOFile.swift.protocolDescriptors else {
             throw Error.notFound
         }
-        let protocols = try protocolDescriptors.map { try Protocol(from: $0, in: machOFile) }
+        let protocols = try protocolDescriptors.map { try Protocol(descriptor: $0, in: machOFile) }
         print(protocols)
     }
-    
+
     @Test func protocolConformances() async throws {
         guard let protocolConformanceDescriptors = machOFile.swift.protocolConformanceDescriptors else {
             throw Error.notFound
         }
         for (index, protocolConformanceDescriptor) in protocolConformanceDescriptors.enumerated() {
             print(index)
-            print(try ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machOFile))
+            try print(ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machOFile))
         }
     }
-    
-    @Test func protocolsInFile() async throws {
+
+    @Test func protocolDescriptors() async throws {
         guard let protocolDescriptors = machOFile.swift.protocolDescriptors else {
             throw Error.notFound
         }
@@ -55,7 +53,7 @@ struct MachOFileSwiftSectionTests {
         }
     }
 
-    @Test func typeContextDescriptorsInFile() async throws {
+    @Test func typeContextDescriptors() async throws {
         try await Dump.dumpTypeContextDescriptors(in: machOFile)
     }
 }

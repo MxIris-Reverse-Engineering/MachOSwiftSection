@@ -34,7 +34,7 @@ extension MachOFile.Swift {
         }
         return try? _readDescriptors(from: __swift5_protos, in: machOFile)
     }
-    
+
     public var protocolConformanceDescriptors: [ProtocolConformanceDescriptor]? {
         let loadCommands = machOFile.loadCommands
 
@@ -75,31 +75,7 @@ extension MachOFile.Swift {
 }
 
 extension MachOFile.Swift {
-    func _readContextDescriptor(from offset: Int) throws -> ContextDescriptorWrapper? {
-        let contextDescriptor: ContextDescriptor = try machOFile.readElement(offset: offset)
-        switch contextDescriptor.flags.kind {
-        case .class:
-            return try .type(.class(machOFile.readElement(offset: offset)))
-        case .enum:
-            return try .type(.enum(machOFile.readElement(offset: offset)))
-        case .struct:
-            return try .type(.struct(machOFile.readElement(offset: offset)))
-        case .protocol:
-            return try .protocol(machOFile.readElement(offset: offset))
-        case .anonymous:
-            return try .anonymous(machOFile.readElement(offset: offset))
-        case .extension:
-            return try .extension(machOFile.readElement(offset: offset))
-        case .module:
-            return try .module(machOFile.readElement(offset: offset))
-        case .opaqueType:
-            return try .opaqueType(machOFile.readElement(offset: offset))
-        default:
-            return nil
-        }
-    }
-
-    func _readDescriptors<Descriptor: LocatableLayoutWrapper>(from section: any SectionProtocol, in machO: MachOFile) throws -> [Descriptor] {
+    private func _readDescriptors<Descriptor: LocatableLayoutWrapper>(from section: any SectionProtocol, in machO: MachOFile) throws -> [Descriptor] {
         let pointerSize: Int = MemoryLayout<RelativeDirectPointer<Descriptor>>.size
 
         let data: [AnyLocatableLayoutWrapper<RelativeDirectPointer<Descriptor>>] = try machO.readElements(offset: section.offset.cast(), numberOfElements: section.size / pointerSize)

@@ -1,10 +1,3 @@
-//
-//  GenericRequirementDescriptor.swift
-//  MachOSwiftSection
-//
-//  Created by JH on 2025/5/2.
-//
-
 import Foundation
 import MachOKit
 
@@ -58,22 +51,20 @@ extension GenericRequirementDescriptor {
             return .layout(.init(rawValue: layout.content.cast())!)
         }
     }
-    
+
     func resolvedContent(in machOFile: MachOFile) throws -> ResolvedGenericRequirementContent {
         let fileOffset = fileOffset(of: \.content)
         switch content {
         case .type(let relativeDirectPointer):
-            return .type(try relativeDirectPointer.resolve(from: fileOffset, in: machOFile))
+            return try .type(relativeDirectPointer.resolve(from: fileOffset, in: machOFile))
         case .protocol(let relativeProtocolDescriptorPointer):
-            return .protocol(try relativeProtocolDescriptorPointer.resolve(from: fileOffset, in: machOFile))
+            return try .protocol(relativeProtocolDescriptorPointer.resolve(from: fileOffset, in: machOFile))
         case .layout(let genericRequirementLayoutKind):
             return .layout(genericRequirementLayoutKind)
         case .conformance(let relativeIndirectablePointer):
-            return .conformance(try relativeIndirectablePointer.resolve(from: fileOffset, in: machOFile))
+            return try .conformance(relativeIndirectablePointer.resolve(from: fileOffset, in: machOFile))
         case .invertedProtocols(let invertedProtocols):
             return .invertedProtocols(invertedProtocols)
         }
     }
 }
-
-

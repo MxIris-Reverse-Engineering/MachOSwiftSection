@@ -1,11 +1,3 @@
-//
-//  ClassDescriptorLayout.swift
-//  MachOSwiftSection
-//
-//  Created by JH on 2025/5/3.
-//
-
-
 public protocol ClassDescriptorLayout: TypeContextDescriptorLayout {
     var superclassType: RelativeOffset { get }
     var metadataNegativeSizeInWordsOrResilientMetadataBounds: UInt32 { get }

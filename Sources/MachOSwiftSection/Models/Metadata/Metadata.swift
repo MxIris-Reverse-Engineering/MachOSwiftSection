@@ -2,7 +2,9 @@ import Foundation
 
 public struct Metadata: LocatableLayoutWrapper {
     public struct Layout {
-        public let kind: MetadataKind
+        /// The kind. Only valid for non-class metadata; getKind() must be used to get
+        /// the kind value.
+        public let kind: StoredPointer
     }
 
     public let offset: Int
@@ -11,5 +13,11 @@ public struct Metadata: LocatableLayoutWrapper {
     public init(layout: Layout, offset: Int) {
         self.offset = offset
         self.layout = layout
+    }
+}
+
+extension Metadata {
+    var kind: MetadataKind {
+        .enumeratedMetadataKind(layout.kind)
     }
 }

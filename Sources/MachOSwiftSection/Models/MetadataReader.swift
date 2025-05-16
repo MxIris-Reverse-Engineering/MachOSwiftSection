@@ -2,11 +2,7 @@ import Foundation
 import MachOKit
 private import Demangling
 
-
-
-public final class MetadataReader {
-    
-
+public struct MetadataReader {
     private let machOFile: MachOFile
 
     private init(machOFile: MachOFile) {
@@ -15,9 +11,9 @@ public final class MetadataReader {
 
     private func buildContextMangling(context: ResolvableElement<ContextDescriptorWrapper>) throws -> SwiftSymbol? {
         switch context {
-        case let .symbol(symbol):
+        case .symbol(let symbol):
             return try buildContextManglingForSymbol(symbol: symbol)
-        case let .element(contextDescriptorProtocol):
+        case .element(let contextDescriptorProtocol):
             return try buildContextMangling(context: contextDescriptorProtocol)
         }
     }
@@ -27,14 +23,15 @@ public final class MetadataReader {
             return nil
         }
         let top: SwiftSymbol
-        
+
         switch context {
-        case .type, .protocol:
+        case .type,
+             .protocol:
             top = .init(kind: .type, children: [demangling])
         default:
             top = demangling
         }
-        
+
         return top
     }
 
@@ -42,7 +39,7 @@ public final class MetadataReader {
         outSymbol = nil
         guard let parentContext = parentContextRef else { return nil }
         guard context.isType || context.isProtocol else { return nil }
-        guard case let .anonymous(anonymousParent) = parentContext else { return nil }
+        guard case .anonymous(let anonymousParent) = parentContext else { return nil }
         guard var mangledNode = try demangleAnonymousContextName(context: anonymousParent) else { return nil }
         if mangledNode.kind == .global {
             mangledNode = mangledNode.children[0]
@@ -74,28 +71,33 @@ public final class MetadataReader {
 
     private func readProtocol(offset: Int, pointer: RelativeProtocolDescriptorPointer) throws -> SwiftSymbol? {
         switch pointer {
-        case let .objcPointer(objcPointer):
-            let objcPrefix = try objcPointer.resolve(from: offset, in: machOFile)
-            let mangledName = try objcPrefix.mangledName(in: machOFile)
-            let name = mangledName.symbolStringValue()
-            if name.starts(with: "_TtP") {
-                var demangled = try demangle(for: mangledName, kind: .symbol)
-                while demangled.kind == .global ||
-                    demangled.kind == .typeMangling ||
-                    demangled.kind == .type ||
-                    demangled.kind == .protocolList ||
-                    demangled.kind == .typeList ||
-                    demangled.kind == .type {
-                    if demangled.children.count != 1 {
-                        return nil
+        case .objcPointer(let objcPointer):
+            let objcPrefixElement = try objcPointer.resolve(from: offset, in: machOFile)
+            switch objcPrefixElement {
+            case .symbol(let symbol):
+                return try buildContextManglingForSymbol(symbol: symbol)
+            case .element(let objcPrefix):
+                let mangledName = try objcPrefix.mangledName(in: machOFile)
+                let name = mangledName.symbolStringValue()
+                if name.starts(with: "_TtP") {
+                    var demangled = try demangle(for: mangledName, kind: .symbol)
+                    while demangled.kind == .global ||
+                        demangled.kind == .typeMangling ||
+                        demangled.kind == .type ||
+                        demangled.kind == .protocolList ||
+                        demangled.kind == .typeList ||
+                        demangled.kind == .type {
+                        if demangled.children.count != 1 {
+                            return nil
+                        }
+                        demangled = demangled.children.first!
                     }
-                    demangled = demangled.children.first!
+                    return demangled
+                } else {
+                    return SwiftSymbol(kind: .protocol, children: [.init(kind: .module, contents: .name(objcModule)), .init(kind: .identifier, contents: .name(name))])
                 }
-                return demangled
-            } else {
-                return SwiftSymbol(kind: .protocol, children: [.init(kind: .module, contents: .name(objcModule)), .init(kind: .identifier, contents: .name(name))])
             }
-        case let .swiftPointer(swiftPointer):
+        case .swiftPointer(let swiftPointer):
             let resolvableProtocolDescriptor = try swiftPointer.resolve(from: offset, in: machOFile)
             switch resolvableProtocolDescriptor {
             case .symbol(let symbol):
@@ -167,14 +169,14 @@ public final class MetadataReader {
                     let subject = try demangle(for: requirement.paramManagedName(in: machOFile), kind: .type)
                     let offset = requirement.fileOffset(of: \.content)
                     switch requirement.content {
-                    case let .protocol(relativeProtocolDescriptorPointer):
+                    case .protocol(let relativeProtocolDescriptorPointer):
                         guard let proto = try? readProtocol(offset: offset, pointer: relativeProtocolDescriptorPointer) else {
                             failed = true
                             break
                         }
                         let requirementNode = SwiftSymbol(kind: .dependentGenericConformanceRequirement, children: [subject, proto])
                         signatureNode.children.append(requirementNode)
-                    case let .type(relativeDirectPointer):
+                    case .type(let relativeDirectPointer):
                         let mangledName = try relativeDirectPointer.resolve(from: offset, in: machOFile)
                         guard let type = try? demangle(for: mangledName, kind: .type) else {
                             failed = true
@@ -190,7 +192,7 @@ public final class MetadataReader {
 
                         let requirementNode = SwiftSymbol(kind: nodeKind, children: [subject, type])
                         signatureNode.children.append(requirementNode)
-                    case let .layout(genericRequirementLayoutKind):
+                    case .layout(let genericRequirementLayoutKind):
                         if genericRequirementLayoutKind == .class {
                             let requirementNode = SwiftSymbol(kind: .dependentGenericLayoutRequirement, children: [subject, .init(kind: .identifier, contents: .name("C"))])
                             signatureNode.children.append(requirementNode)
@@ -281,13 +283,12 @@ public final class MetadataReader {
             mangledName.symbolStringValue()
         }
         var demangler = Demangler(scalars: stringValue.unicodeScalars)
-        demangler.symbolicReferenceResolver = { [weak self] kind, directness, index -> SwiftSymbol? in
-            guard let self else { return nil }
+        demangler.symbolicReferenceResolver = { kind, directness, index -> SwiftSymbol? in
             do {
                 var result: SwiftSymbol?
                 let lookup = mangledName.lookupElements[index]
                 let fileOffset = lookup.offset
-                guard case let .relative(relativeReference) = lookup.reference else { return nil }
+                guard case .relative(let relativeReference) = lookup.reference else { return nil }
                 let relativeOffset = relativeReference.relativeOffset
                 switch kind {
                 case .context:
@@ -362,7 +363,7 @@ public final class MetadataReader {
                 var result: SwiftSymbol?
                 let lookup = mangledName.lookupElements[index]
                 let fileOffset = lookup.offset
-                guard case let .relative(relativeReference) = lookup.reference else { return nil }
+                guard case .relative(let relativeReference) = lookup.reference else { return nil }
                 let relativeOffset = relativeReference.relativeOffset
                 switch kind {
                 case .context:

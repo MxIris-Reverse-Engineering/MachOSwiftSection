@@ -1,10 +1,3 @@
-//
-//  MangledName.swift
-//  MachOSwiftSection
-//
-//  Created by JH on 2025/5/7.
-//
-
 import MachOKit
 import Foundation
 
@@ -41,9 +34,9 @@ public struct MangledName {
 
             var description: String {
                 switch reference {
-                case let .relative(relative):
+                case .relative(let relative):
                     "[Relative] FileOffset: \(offset) \(relative)"
-                case let .absolute(absolute):
+                case .absolute(let absolute):
                     "[Absolute] FileOffset: \(offset) \(absolute)"
                 }
             }
@@ -57,20 +50,20 @@ public struct MangledName {
 
     let startOffset: Int
 
-    let endOffset: Int
+    let endOffset: Int?
 
-    init(elements: [Element], startOffset: Int, endOffset: Int) {
+    init(elements: [Element], startOffset: Int, endOffset: Int?) {
         self.elements = elements
         self.startOffset = startOffset
         self.endOffset = endOffset
     }
-    
-//    init(stringValue: String) {
-//        self.init(elements: <#T##[Element]#>, startOffset: <#T##Int#>, endOffset: <#T##Int#>)
-//    }
-    
+
+    init(unsolvedSymbol: UnsolvedSymbol) {
+        self.init(elements: [.string(unsolvedSymbol.stringValue)], startOffset: unsolvedSymbol.offset, endOffset: nil)
+    }
+
     var lookupElements: [Element.Lookup] {
-        elements.compactMap { if case let .lookup(lookup) = $0 { lookup } else { nil } }
+        elements.compactMap { if case .lookup(let lookup) = $0 { lookup } else { nil } }
     }
 
     public func symbolStringValue() -> String {
@@ -83,13 +76,13 @@ public struct MangledName {
         var results: [String] = []
         for element in elements {
             switch element {
-            case let .string(string):
+            case .string(let string):
                 results.append(string)
-            case let .lookup(lookup):
+            case .lookup(let lookup):
                 switch lookup.reference {
-                case let .relative(reference):
+                case .relative(let reference):
                     results.append(String(UnicodeScalar(reference.kind)))
-                case let .absolute(reference):
+                case .absolute(let reference):
                     results.append(String(UnicodeScalar(reference.kind)))
                 }
             }
@@ -152,9 +145,9 @@ extension MangledName: CustomStringConvertible {
         for element in elements {
             var innerLines: [String] = []
             switch element {
-            case let .string(string):
+            case .string(let string):
                 innerLines.append("[String] \(string)")
-            case let .lookup(lookup):
+            case .lookup(let lookup):
                 innerLines.append(lookup.description)
             }
             lines.append(innerLines.joined(separator: "\n"))

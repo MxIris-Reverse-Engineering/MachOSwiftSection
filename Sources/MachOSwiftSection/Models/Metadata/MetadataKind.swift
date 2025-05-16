@@ -1,9 +1,8 @@
-public enum MetadataKind: StoredPointer {
-    
-    static let isNonType: StoredPointer = 0x400
-    static let isNonHeap: StoredPointer = 0x200
-    static let isRuntimePrivate: StoredPointer = 0x100
-    
+public enum MetadataKind: UInt32 {
+    static let isNonType: UInt32 = 0x400
+    static let isNonHeap: UInt32 = 0x200
+    static let isRuntimePrivate: UInt32 = 0x100
+
     case `class` = 0
     /// 0 | Self.isNonHeap
     case `struct` = 0x200
@@ -41,4 +40,34 @@ public enum MetadataKind: StoredPointer {
     case task = 0x502
     /// 3 | Self.isNonType | Self.isRuntimePrivate
     case job = 0x503
+
+    /// The largest possible non-isa-pointer metadata kind value.
+    ///
+    /// This is included in the enumeration to prevent against attempts to
+    /// exhaustively match metadata kinds. Future Swift runtimes or compilers
+    /// may introduce new metadata kinds, so for forward compatibility, the
+    /// runtime must tolerate metadata with unknown kinds.
+    /// This specific value is not mapped to a valid metadata kind at this time,
+    /// however.
+    case lastEnumerated = 0x7FF
+
+    var isHeap: Bool {
+        rawValue & Self.isNonHeap == 0
+    }
+
+    var isType: Bool {
+        rawValue & Self.isNonType == 0
+    }
+
+    var isRuntimePrivate: Bool {
+        rawValue & Self.isRuntimePrivate != 0
+    }
+
+    static func enumeratedMetadataKind(_ kind: UInt64) -> Self {
+        if kind.cast() > lastEnumerated.rawValue {
+            return .class
+        } else {
+            return .init(rawValue: kind.cast()) ?? .lastEnumerated
+        }
+    }
 }

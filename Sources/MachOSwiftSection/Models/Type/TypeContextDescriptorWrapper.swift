@@ -2,7 +2,7 @@ public enum TypeContextDescriptorWrapper {
     case `enum`(EnumDescriptor)
     case `struct`(StructDescriptor)
     case `class`(ClassDescriptor)
-    
+
     public var contextDescriptor: any ContextDescriptorProtocol {
         switch self {
         case .enum(let enumDescriptor):
@@ -13,7 +13,7 @@ public enum TypeContextDescriptorWrapper {
             return classDescriptor
         }
     }
-    
+
     public var namedContextDescriptor: any NamedContextDescriptorProtocol {
         switch self {
         case .enum(let enumDescriptor):
@@ -24,7 +24,7 @@ public enum TypeContextDescriptorWrapper {
             return classDescriptor
         }
     }
-    
+
     public var typeContextDescriptor: any TypeContextDescriptorProtocol {
         switch self {
         case .enum(let enumDescriptor):

@@ -1,11 +1,3 @@
-//
-//  GenericContextDescriptorHeader.swift
-//  MachOSwiftSection
-//
-//  Created by JH on 2025/5/2.
-//
-
-
 public struct GenericContextDescriptorHeader: GenericContextDescriptorHeaderProtocol {
     public struct Layout: GenericContextDescriptorHeaderLayout {
         public let numParams: UInt16
@@ -13,7 +5,7 @@ public struct GenericContextDescriptorHeader: GenericContextDescriptorHeaderProt
         public let numKeyArguments: UInt16
         public let flags: GenericContextDescriptorFlags
     }
-    
+
     public let offset: Int
     public var layout: Layout
     public init(layout: Layout, offset: Int) {

@@ -1,6 +1,15 @@
 import Foundation
 import MachOKit
 
+/// A protocol descriptor.
+///
+/// Protocol descriptors contain information about the contents of a protocol:
+/// it's name, requirements, requirement signature, context, and so on. They
+/// are used both to identify a protocol and to reason about its contents.
+///
+/// Only Swift protocols are defined by a protocol descriptor, whereas
+/// Objective-C (including protocols defined in Swift as @objc) use the
+/// Objective-C protocol layout.
 public struct ProtocolDescriptor: ProtocolDescriptorProtocol, Resolvable {
     public struct Layout: ProtocolDescriptorLayout {
         public let flags: ContextDescriptorFlags

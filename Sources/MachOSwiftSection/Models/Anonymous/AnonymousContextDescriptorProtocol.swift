@@ -1,18 +1,10 @@
-//
-//  AnonymousContextDescriptorProtocol.swift
-//  MachOSwiftSection
-//
-//  Created by JH on 2025/5/5.
-//
-
 import MachOKit
 
 public protocol AnonymousContextDescriptorProtocol: ContextDescriptorProtocol where Layout: AnonymousContextDescriptorLayout {}
 
 extension AnonymousContextDescriptorProtocol {
-    
     public func mangledName(in machOFile: MachOFile) throws -> MangledName? {
-        guard let kindSpecificFlags = layout.flags.kindSpecificFlags, case let .anonymous(anonymousContextDescriptorFlags) = kindSpecificFlags, anonymousContextDescriptorFlags.hasMangledName else {
+        guard let kindSpecificFlags = layout.flags.kindSpecificFlags, case .anonymous(let anonymousContextDescriptorFlags) = kindSpecificFlags, anonymousContextDescriptorFlags.hasMangledName else {
             return nil
         }
         var currentOffset = offset + layoutSize

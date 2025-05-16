@@ -1,6 +1,6 @@
 import Foundation
 
-public enum ProtocolDescriptorWithObjCInterop {
+public enum ProtocolDescriptorWithObjCInterop: Resolvable {
     case objc(ObjCProtocolPrefix)
-    case swift(ResolvableElement<ProtocolDescriptor>)
+    case swift(ProtocolDescriptor)
 }

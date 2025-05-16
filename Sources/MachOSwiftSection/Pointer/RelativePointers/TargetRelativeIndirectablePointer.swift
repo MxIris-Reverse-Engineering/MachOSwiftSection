@@ -1,10 +1,3 @@
-//
-//  TargetRelativeIndirectablePointer.swift
-//  MachOSwiftSection
-//
-//  Created by JH on 2025/5/7.
-//
-
 public struct TargetRelativeIndirectablePointer<Pointee: Resolvable, Offset: FixedWidthInteger & SignedInteger, IndirectType: RelativeIndirectType>: RelativeIndirectablePointerProtocol where Pointee == IndirectType.Resolved {
     public let relativeOffsetPlusIndirect: Offset
 

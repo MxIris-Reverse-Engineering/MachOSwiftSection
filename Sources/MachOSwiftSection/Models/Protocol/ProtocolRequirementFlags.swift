@@ -1,11 +1,3 @@
-//
-//  ProtocolRequirementFlags.swift
-//  MachOSwiftSection
-//
-//  Created by JH on 2025/5/4.
-//
-
-
 public struct ProtocolRequirementFlags: OptionSet {
     public let rawValue: UInt32
 
@@ -15,20 +7,27 @@ public struct ProtocolRequirementFlags: OptionSet {
 
     public static let isInstance = ProtocolRequirementFlags(rawValue: 0x10)
     public static let maybeAsync = ProtocolRequirementFlags(rawValue: 0x20)
-    
+
     public var kind: ProtocolRequirementKind {
         return ProtocolRequirementKind(rawValue: UInt8(rawValue & 0x0F))!
     }
-    
+
     public var isCoroutine: Bool {
         switch kind {
-        case .baseProtocol, .method, .`init`, .getter, .setter, .associatedTypeAccessFunction, .associatedConformanceAccessFunction:
+        case .baseProtocol,
+             .method,
+             .`init`,
+             .getter,
+             .setter,
+             .associatedTypeAccessFunction,
+             .associatedConformanceAccessFunction:
             return false
-        case .readCoroutine, .modifyCoroutine:
+        case .readCoroutine,
+             .modifyCoroutine:
             return true
         }
     }
-    
+
     public var isAsync: Bool {
         return !isCoroutine && contains(.maybeAsync)
     }
