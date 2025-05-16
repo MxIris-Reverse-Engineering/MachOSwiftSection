@@ -6,12 +6,12 @@ public struct `Protocol` {
     public let requirementInSignatures: [GenericRequirementDescriptor]
     public let requirements: [ProtocolRequirement]
     
-    public init(from descriptor: ProtocolDescriptor, in machO: MachOFile) throws {
+    public init(from descriptor: ProtocolDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
         var currentOffset = descriptor.offset + descriptor.layoutSize
         
         if descriptor.numRequirementsInSignature > 0 {
-            requirementInSignatures = try machO.readElements(offset: currentOffset.cast(), numberOfElements: descriptor.numRequirementsInSignature.cast())
+            requirementInSignatures = try machOFile.readElements(offset: currentOffset.cast(), numberOfElements: descriptor.numRequirementsInSignature.cast())
         } else {
             requirementInSignatures = []
         }
@@ -19,7 +19,7 @@ public struct `Protocol` {
         currentOffset += descriptor.numRequirementsInSignature.cast() * MemoryLayout<GenericRequirementDescriptor>.size
         
         if descriptor.numRequirements > 0 {
-            requirements = try machO.readElements(offset: currentOffset.cast(), numberOfElements: descriptor.numRequirements.cast())
+            requirements = try machOFile.readElements(offset: currentOffset.cast(), numberOfElements: descriptor.numRequirements.cast())
         } else {
             requirements = []
         }

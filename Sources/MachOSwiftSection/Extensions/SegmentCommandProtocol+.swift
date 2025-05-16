@@ -2,54 +2,54 @@ import Foundation
 import MachOKit
 
 extension SegmentCommandProtocol {
-    func __swift5_typeref(in machO: MachOFile) -> SectionType? {
-        _section(for: "__swift5_typeref", in: machO)
+    func __swift5_typeref(in machOFile: MachOFile) -> SectionType? {
+        _section(for: "__swift5_typeref", in: machOFile)
     }
 
-    func __swift5_reflstr(in machO: MachOImage) -> SectionType? {
-        _section(for: "__swift5_reflstr", in: machO)
+    func __swift5_reflstr(in machOFile: MachOImage) -> SectionType? {
+        _section(for: "__swift5_reflstr", in: machOFile)
     }
 
-    func __swift5_fieldmd(in machO: MachOFile) -> SectionType? {
-        _section(for: "__swift5_fieldmd", in: machO)
+    func __swift5_fieldmd(in machOFile: MachOFile) -> SectionType? {
+        _section(for: "__swift5_fieldmd", in: machOFile)
     }
 
-    func __swift5_capture(in machO: MachOImage) -> SectionType? {
-        _section(for: "__swift5_capture", in: machO)
+    func __swift5_capture(in machOFile: MachOImage) -> SectionType? {
+        _section(for: "__swift5_capture", in: machOFile)
     }
 
-    func __swift5_assocty(in machO: MachOFile) -> SectionType? {
-        _section(for: "__swift5_assocty", in: machO)
+    func __swift5_assocty(in machOFile: MachOFile) -> SectionType? {
+        _section(for: "__swift5_assocty", in: machOFile)
     }
 
-    func __swift5_proto(in machO: MachOImage) -> SectionType? {
-        _section(for: "__swift5_proto", in: machO)
+    func __swift5_proto(in machOFile: MachOImage) -> SectionType? {
+        _section(for: "__swift5_proto", in: machOFile)
     }
 
-    func __swift5_types(in machO: MachOFile) -> SectionType? {
-        _section(for: "__swift5_types", in: machO)
+    func __swift5_types(in machOFile: MachOFile) -> SectionType? {
+        _section(for: "__swift5_types", in: machOFile)
     }
 
-    func __swift5_builtin(in machO: MachOImage) -> SectionType? {
-        _section(for: "__swift5_builtin", in: machO)
+    func __swift5_builtin(in machOFile: MachOImage) -> SectionType? {
+        _section(for: "__swift5_builtin", in: machOFile)
     }
 
-    func __swift5_protos(in machO: MachOFile) -> SectionType? {
-        _section(for: "__swift5_protos", in: machO)
+    func __swift5_protos(in machOFile: MachOFile) -> SectionType? {
+        _section(for: "__swift5_protos", in: machOFile)
     }
 }
 
 extension SegmentCommandProtocol {
-    func _section(for name: String, in machO: MachOFile) -> SectionType? {
-        sections(in: machO).first(
+    func _section(for name: String, in machOFile: MachOFile) -> SectionType? {
+        sections(in: machOFile).first(
             where: {
                 $0.sectionName == name
             }
         )
     }
 
-    func _section(for name: String, in machO: MachOImage) -> SectionType? {
-        sections(cmdsStart: machO.cmdsStartPtr).first(
+    func _section(for name: String, in machOFile: MachOImage) -> SectionType? {
+        sections(cmdsStart: machOFile.cmdsStartPtr).first(
             where: {
                 $0.sectionName == name
             }

@@ -19,8 +19,8 @@ public struct ExtendedExistentialTypeShape: LocatableLayoutWrapper, ResolvableEl
 }
 
 extension ExtendedExistentialTypeShape {
-    public func existentialType(in machO: MachOFile) throws -> MangledName {
-        try layout.existentialType.resolve(from: offset(of: \.existentialType), in: machO)
+    public func existentialType(in machOFile: MachOFile) throws -> MangledName {
+        try layout.existentialType.resolve(from: fileOffset(of: \.existentialType), in: machOFile)
     }
 }
 

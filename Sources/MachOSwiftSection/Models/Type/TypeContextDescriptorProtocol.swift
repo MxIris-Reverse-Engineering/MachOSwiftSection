@@ -22,16 +22,16 @@ extension TypeContextDescriptorProtocol {
         return offset + memberOffset
     }
 
-    public func fieldDescriptor(in machO: MachOFile) throws -> FieldDescriptor {
-        try layout.fieldDescriptor.resolve(from: _offset(of: \.fieldDescriptor).cast(), in: machO)
+    public func fieldDescriptor(in machOFile: MachOFile) throws -> FieldDescriptor {
+        try layout.fieldDescriptor.resolve(from: _offset(of: \.fieldDescriptor).cast(), in: machOFile)
     }
 
 //    public func genericContext(in machO: MachOFile) throws -> GenericContext? {
 //        return try typeGenericContext(in: machO)
 //    }
     
-    public func typeGenericContext(in machO: MachOFile) throws -> TypeGenericContext? {
-        return try .init(contextDescriptor: self, in: machO)
+    public func typeGenericContext(in machOFile: MachOFile) throws -> TypeGenericContext? {
+        return try .init(contextDescriptor: self, in: machOFile)
     }
 }
 

@@ -59,6 +59,16 @@ public struct MangledName {
 
     let endOffset: Int
 
+    init(elements: [Element], startOffset: Int, endOffset: Int) {
+        self.elements = elements
+        self.startOffset = startOffset
+        self.endOffset = endOffset
+    }
+    
+//    init(stringValue: String) {
+//        self.init(elements: <#T##[Element]#>, startOffset: <#T##Int#>, endOffset: <#T##Int#>)
+//    }
+    
     var lookupElements: [Element.Lookup] {
         elements.compactMap { if case let .lookup(lookup) = $0 { lookup } else { nil } }
     }
@@ -93,8 +103,8 @@ public struct MangledName {
 }
 
 extension MangledName: ResolvableElement {
-    public static func resolve(from fileOffset: Int, in machO: MachOFile) throws -> MangledName {
-        try machO.readSymbolicMangledName(at: fileOffset)
+    public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> MangledName {
+        try machOFile.readSymbolicMangledName(at: fileOffset)
     }
 }
 

@@ -18,7 +18,7 @@ public struct NonUniqueExtendedExistentialTypeShape: LocatableLayoutWrapper {
 }
 
 extension NonUniqueExtendedExistentialTypeShape {
-    public func existentialType(in machO: MachOFile) throws -> MangledName {
-        try layout.localCopy.existentialType.resolve(from: offset(of: \.localCopy.existentialType), in: machO)
+    public func existentialType(in machOFile: MachOFile) throws -> MangledName {
+        try layout.localCopy.existentialType.resolve(from: fileOffset(of: \.localCopy.existentialType), in: machOFile)
     }
 }

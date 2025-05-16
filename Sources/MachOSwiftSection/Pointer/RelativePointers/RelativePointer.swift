@@ -5,8 +5,8 @@ public protocol RelativePointer<Pointee> {
     associatedtype Pointee: ResolvableElement
     associatedtype Offset: FixedWidthInteger & SignedInteger
     var relativeOffset: Offset { get }
-    func resolve(from fileOffset: Int, in machO: MachOFile) throws -> Pointee
-    func resolve<T>(from fileOffset: Int, in machO: MachOFile) throws -> T
+    func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Pointee
+    func resolveAny<T>(from fileOffset: Int, in machOFile: MachOFile) throws -> T
     func resolveDirectFileOffset(from fileOffset: Int) -> Int
 }
 

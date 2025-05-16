@@ -21,13 +21,13 @@ public struct FieldDescriptor: LocatableLayoutWrapper, ResolvableElement {
 }
 
 extension FieldDescriptor {
-    public func mangledTypeName(in machO: MachOFile) throws -> MangledName {
-        return try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machO)
+    public func mangledTypeName(in machOFile: MachOFile) throws -> MangledName {
+        return try layout.mangledTypeName.resolve(from: fileOffset(of: \.mangledTypeName), in: machOFile)
     }
 
-    public func records(in machO: MachOFile) throws -> [FieldRecord] {
+    public func records(in machOFile: MachOFile) throws -> [FieldRecord] {
         guard layout.fieldRecordSize != 0 else { return [] }
         let offset = offset + MemoryLayout<FieldDescriptor.Layout>.size
-        return try machO.readElements(offset: offset, numberOfElements: layout.numFields.cast())
+        return try machOFile.readElements(offset: offset, numberOfElements: layout.numFields.cast())
     }
 }

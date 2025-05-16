@@ -19,8 +19,8 @@ public struct ExtensionContextDescriptor: ExtensionContextDescriptorProtocol {
 }
 
 extension ExtensionContextDescriptorProtocol {
-    public func extendedContext(in machO: MachOFile) throws -> MangledName? {
-        try layout.extendedContext.resolve(from: offset + 8, in: machO)
+    public func extendedContext(in machOFile: MachOFile) throws -> MangledName? {
+        try layout.extendedContext.resolve(from: offset + 8, in: machOFile)
     }
 }
 

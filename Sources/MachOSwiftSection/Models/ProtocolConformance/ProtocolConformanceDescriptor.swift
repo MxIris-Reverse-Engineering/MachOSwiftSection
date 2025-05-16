@@ -3,7 +3,7 @@ import MachOKit
 
 public struct ProtocolConformanceDescriptor: LocatableLayoutWrapper {
     public struct Layout {
-        public let protocolDescriptor: RelativeIndirectablePointer<ProtocolDescriptor?, Pointer<ProtocolDescriptor?>>
+        public let protocolDescriptor: RelativeContextPointer<ProtocolDescriptor?>
         public let typeReference: RelativeOffset
         public let witnessTablePattern: RelativeDirectPointer<ProtocolWitnessTable>
         public let flags: ProtocolConformanceFlags
@@ -20,8 +20,8 @@ public struct ProtocolConformanceDescriptor: LocatableLayoutWrapper {
 }
 
 extension ProtocolConformanceDescriptor {
-    public func protocolDescriptor(in machO: MachOFile) throws -> ProtocolDescriptor? {
-        try layout.protocolDescriptor.resolve(from: offset(of: \.protocolDescriptor).cast(), in: machO)
+    public func protocolDescriptor(in machOFile: MachOFile) throws -> ProtocolDescriptor? {
+        try layout.protocolDescriptor.resolve(from: fileOffset(of: \.protocolDescriptor), in: machOFile)
     }
     
     public var typeReference: TypeReference {
@@ -38,18 +38,23 @@ extension ProtocolConformanceDescriptor {
         }
     }
     
-    public func resolvedTypeReference(in machO: MachOFile) throws -> ResolvedTypeReference {
+    public func resolvedTypeReference(in machOFile: MachOFile) throws -> ResolvedTypeReference {
+        let fileOffset = fileOffset(of: \.typeReference)
         switch typeReference {
         case .directTypeDescriptor(let relativeDirectPointer):
-            return .directTypeDescriptor(try relativeDirectPointer.resolve(from: offset(of: \.typeReference), in: machO))
+            return .directTypeDescriptor(try relativeDirectPointer.resolve(from: fileOffset, in: machOFile))
         case .indirectTypeDescriptor(let relativeIndirectPointer):
-            return .indirectTypeDescriptor(try relativeIndirectPointer.resolve(from: offset(of: \.typeReference), in: machO))
+            return .indirectTypeDescriptor(try relativeIndirectPointer.resolve(from: fileOffset, in: machOFile))
         case .directObjCClassName(let relativeDirectPointer):
-            return .directObjCClassName(try relativeDirectPointer.resolve(from: offset(of: \.typeReference), in: machO))
+            return .directObjCClassName(try relativeDirectPointer.resolve(from: fileOffset, in: machOFile))
         case .indirectObjCClass(let relativeIndirectRawPointer):
             // TODO
             return .indirectObjCClass(nil)
         }
+    }
+    
+    public func witnessTablePattern(in machOFile: MachOFile) throws -> ProtocolWitnessTable? {
+        try layout.witnessTablePattern.resolve(from: fileOffset(of: \.witnessTablePattern), in: machOFile)
     }
 }
     

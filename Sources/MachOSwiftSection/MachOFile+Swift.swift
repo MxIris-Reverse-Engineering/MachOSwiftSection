@@ -3,28 +3,28 @@ import MachOKit
 
 extension MachOFile {
     public struct Swift {
-        private let machO: MachOFile
+        private let machOFile: MachOFile
 
-        init(machO: MachOFile) {
-            self.machO = machO
+        init(machOFile: MachOFile) {
+            self.machOFile = machOFile
         }
     }
 
     public var swift: Swift {
-        .init(machO: self)
+        .init(machOFile: self)
     }
 }
 
 extension MachOFile.Swift {
     public var protocolDescriptors: [ProtocolDescriptor]? {
-        let loadCommands = machO.loadCommands
+        let loadCommands = machOFile.loadCommands
 
         let __swift5_protos: any SectionProtocol
         if let text = loadCommands.text64,
-           let section = text.__swift5_protos(in: machO) {
+           let section = text.__swift5_protos(in: machOFile) {
             __swift5_protos = section
         } else if let text = loadCommands.text,
-                  let section = text.__swift5_protos(in: machO) {
+                  let section = text.__swift5_protos(in: machOFile) {
             __swift5_protos = section
         } else {
             return nil
@@ -32,18 +32,18 @@ extension MachOFile.Swift {
         guard __swift5_protos.align * 2 == 4 else {
             return nil
         }
-        return try? _readProtocolDescriptors(from: __swift5_protos, in: machO)
+        return try? _readProtocolDescriptors(from: __swift5_protos, in: machOFile)
     }
 
     public var typeContextDescriptors: [TypeContextDescriptor]? {
-        let loadCommands = machO.loadCommands
+        let loadCommands = machOFile.loadCommands
 
         let __swift5_types: any SectionProtocol
         if let text = loadCommands.text64,
-           let section = text.__swift5_types(in: machO) {
+           let section = text.__swift5_types(in: machOFile) {
             __swift5_types = section
         } else if let text = loadCommands.text,
-                  let section = text.__swift5_types(in: machO) {
+                  let section = text.__swift5_types(in: machOFile) {
             __swift5_types = section
         } else {
             return nil
@@ -51,30 +51,30 @@ extension MachOFile.Swift {
         guard __swift5_types.align * 2 == 4 else {
             return nil
         }
-        return try? _readTypeContextDescriptors(from: __swift5_types, in: machO)
+        return try? _readTypeContextDescriptors(from: __swift5_types, in: machOFile)
     }
 }
 
 extension MachOFile.Swift {
     func _readContextDescriptor(from offset: Int) throws -> ContextDescriptorWrapper? {
-        let contextDescriptor: ContextDescriptor = try machO.readElement(offset: offset)
+        let contextDescriptor: ContextDescriptor = try machOFile.readElement(offset: offset)
         switch contextDescriptor.flags.kind {
         case .class:
-            return try .type(.class(machO.readElement(offset: offset)))
+            return try .type(.class(machOFile.readElement(offset: offset)))
         case .enum:
-            return try .type(.enum(machO.readElement(offset: offset)))
+            return try .type(.enum(machOFile.readElement(offset: offset)))
         case .struct:
-            return try .type(.struct(machO.readElement(offset: offset)))
+            return try .type(.struct(machOFile.readElement(offset: offset)))
         case .protocol:
-            return try .protocol(machO.readElement(offset: offset))
+            return try .protocol(machOFile.readElement(offset: offset))
         case .anonymous:
-            return try .anonymous(machO.readElement(offset: offset))
+            return try .anonymous(machOFile.readElement(offset: offset))
         case .extension:
-            return try .extension(machO.readElement(offset: offset))
+            return try .extension(machOFile.readElement(offset: offset))
         case .module:
-            return try .module(machO.readElement(offset: offset))
+            return try .module(machOFile.readElement(offset: offset))
         case .opaqueType:
-            return try .opaqueType(machO.readElement(offset: offset))
+            return try .opaqueType(machOFile.readElement(offset: offset))
         default:
             return nil
         }

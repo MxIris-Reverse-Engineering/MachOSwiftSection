@@ -3,7 +3,7 @@ import MachOKit
 
 public struct RelativeObjCProtocolPrefix: LocatableLayoutWrapper {
     public struct Layout {
-        public let isa: RelativeOffset
+        public let isa: RelativeDirectRawPointer
         public let mangledName: RelativeDirectPointer<MangledName>
     }
 
@@ -19,8 +19,7 @@ public struct RelativeObjCProtocolPrefix: LocatableLayoutWrapper {
 
 extension RelativeObjCProtocolPrefix {
     func mangledName(in machOFile: MachOFile) throws -> MangledName {
-//        return try machOFile.readSymbolicMangledName(at: layout.mangledName.resolveDirectFileOffset(from: offset(of: \.mangledName)).cast())
-        return try layout.mangledName.resolve(from: offset(of: \.mangledName), in: machOFile)
+        return try layout.mangledName.resolve(from: fileOffset(of: \.mangledName), in: machOFile)
     }
 }
 

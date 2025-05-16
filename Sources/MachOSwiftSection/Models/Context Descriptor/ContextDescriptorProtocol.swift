@@ -10,9 +10,9 @@ import MachOKit
 public protocol ContextDescriptorProtocol: LocatableLayoutWrapper where Layout: ContextDescriptorLayout {}
 
 extension ContextDescriptorProtocol {
-    public func parent(in machO: MachOFile) throws -> ContextDescriptorWrapper? {
+    public func parent(in machOFile: MachOFile) throws -> ContextDescriptorWrapper? {
         guard layout.flags.kind != .module else { return nil }
-        return try layout.parent.resolve(from: offset + 4, in: machO)
+        return try layout.parent.resolve(from: offset + 4, in: machOFile)
     }
 
     public func genericContext(in machO: MachOFile) throws -> GenericContext? {

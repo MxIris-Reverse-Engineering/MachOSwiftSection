@@ -3,8 +3,8 @@ import MachOKit
 
 public struct ObjCProtocolPrefix: LocatableLayoutWrapper {
     public struct Layout {
-        public let isa: UInt64
-        public let name: Pointer<MangledName>
+        public let isa: RawPointer
+        public let name: Pointer<String>
     }
 
     public let offset: Int
@@ -18,7 +18,11 @@ public struct ObjCProtocolPrefix: LocatableLayoutWrapper {
 }
 
 extension ObjCProtocolPrefix {
-    public func name(in machOFile: MachOFile) throws -> MangledName {
+    public func name(in machOFile: MachOFile) throws -> String {
         try layout.name.resolve(in: machOFile)
+    }
+    
+    public func mangledName(in machOFile: MachOFile) throws -> MangledName {
+        try layout.name.resolveAny(in: machOFile)
     }
 }

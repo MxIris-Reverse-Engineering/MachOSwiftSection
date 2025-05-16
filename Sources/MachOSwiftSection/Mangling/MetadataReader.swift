@@ -87,7 +87,7 @@ public final class MetadataReader {
         switch pointer {
         case let .objcPointer(objcPointer):
             let objcPrefix = try objcPointer.resolve(from: offset, in: machOFile)
-            let mangledName = try objcPrefix.name(in: machOFile)
+            let mangledName = try objcPrefix.mangledName(in: machOFile)
             let name = mangledName.symbolStringValue()
             if name.starts(with: "_TtP") {
                 var demangled = try demangle(for: mangledName, kind: .symbol)
@@ -170,8 +170,8 @@ public final class MetadataReader {
                         break
                     }
                     let subject = try demangle(for: requirement.paramManagedName(in: machOFile), kind: .type)
-                    let offset = requirement.offset(of: \.typeOrProtocolOrConformanceOrLayoutOffset)
-                    switch requirement.typeOrProtocolOrConformanceOrLayoutOrInvertedProtocols(in: machOFile) {
+                    let offset = requirement.fileOffset(of: \.content)
+                    switch requirement.content {
                     case let .protocol(relativeProtocolDescriptorPointer):
                         guard let proto = try? readProtocol(offset: offset, pointer: relativeProtocolDescriptorPointer) else {
                             failed = true
@@ -340,26 +340,26 @@ public final class MetadataReader {
         return result
     }
 
-    public static func demangle(for mangledName: MangledName, in machO: MachOFile) throws -> String {
-        let reader = MetadataReader(machOFile: machO)
+    public static func demangle(for mangledName: MangledName, in machOFile: MachOFile) throws -> String {
+        let reader = MetadataReader(machOFile: machOFile)
         return try reader.demangle(for: mangledName, kind: .type).print()
     }
 
-    public static func oldDemangle(for mangledName: MangledName, in machO: MachOFile) throws -> String {
+    public static func oldDemangle(for mangledName: MangledName, in machOFile: MachOFile) throws -> String {
         let mangledNameString = mangledName.symbolStringValue()
         guard !mangledNameString.isEmpty else { return "" }
         return try parseMangledSwiftSymbol(mangledNameString.unicodeScalars) { kind, directness, index -> SwiftSymbol? in
             do {
                 func handleContextDescriptor(_ context: ContextDescriptorWrapper) throws -> SwiftSymbol? {
-                    guard var name = try context.name(in: machO) else { return nil }
+                    guard var name = try context.name(in: machOFile) else { return nil }
                     name = name.countedString
                     name += context.contextDescriptor.layout.flags.kind.mangledType
-                    var parent = try context.contextDescriptor.parent(in: machO)
+                    var parent = try context.contextDescriptor.parent(in: machOFile)
                     while let currnetParent = parent {
-                        if let parentName = try currnetParent.name(in: machO) {
+                        if let parentName = try currnetParent.name(in: machOFile) {
                             name = parentName.countedString + currnetParent.contextDescriptor.layout.flags.kind.mangledType + name
                         }
-                        parent = try currnetParent.contextDescriptor.parent(in: machO)
+                        parent = try currnetParent.contextDescriptor.parent(in: machOFile)
                     }
 
                     return try parseMangledSwiftSymbol(name.insertManglePrefix).typeSymbol
@@ -373,31 +373,31 @@ public final class MetadataReader {
                 case .context:
                     switch directness {
                     case .direct:
-                        if let context = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset).resolve(from: fileOffset, in: machO) {
+                        if let context = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset).resolve(from: fileOffset, in: machOFile) {
                             result = try handleContextDescriptor(context)
                         }
                     case .indirect:
                         let relativePointer = RelativeIndirectPointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>>(relativeOffset: relativeOffset)
-                        if let bind = try machO.resolveBind(at: fileOffset, for: relativePointer), let symbolName = machO.dyldChainedFixups?.symbolName(for: bind.0.info.nameOffset) {
+                        if let bind = try machOFile.resolveBind(at: fileOffset, for: relativePointer), let symbolName = machOFile.dyldChainedFixups?.symbolName(for: bind.0.info.nameOffset) {
                             result = try parseMangledSwiftSymbol(symbolName).typeSymbol
-                        } else if let context = try relativePointer.resolve(from: fileOffset, in: machO) {
+                        } else if let context = try relativePointer.resolve(from: fileOffset, in: machOFile) {
                             result = try handleContextDescriptor(context)
                         }
                     }
                 case .accessorFunctionReference:
                     break
                 case .uniqueExtendedExistentialTypeShape:
-                    let extendedExistentialTypeShape = try RelativeDirectPointer<ExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: fileOffset, in: machO)
-                    let existentialType = try extendedExistentialTypeShape.existentialType(in: machO).symbolStringValue()
+                    let extendedExistentialTypeShape = try RelativeDirectPointer<ExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: fileOffset, in: machOFile)
+                    let existentialType = try extendedExistentialTypeShape.existentialType(in: machOFile).symbolStringValue()
                     result = try .init(kind: .uniqueExtendedExistentialTypeShapeSymbolicReference, children: parseMangledSwiftSymbol(existentialType.insertManglePrefix).children)
                 case .nonUniqueExtendedExistentialTypeShape:
-                    let nonUniqueExtendedExistentialTypeShape = try RelativeDirectPointer<NonUniqueExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: fileOffset, in: machO)
-                    let existentialType = try nonUniqueExtendedExistentialTypeShape.existentialType(in: machO).symbolStringValue()
+                    let nonUniqueExtendedExistentialTypeShape = try RelativeDirectPointer<NonUniqueExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: fileOffset, in: machOFile)
+                    let existentialType = try nonUniqueExtendedExistentialTypeShape.existentialType(in: machOFile).symbolStringValue()
                     result = try .init(kind: .nonUniqueExtendedExistentialTypeShapeSymbolicReference, children: parseMangledSwiftSymbol(existentialType.insertManglePrefix).children)
                 case .objectiveCProtocol:
                     let relativePointer = RelativeDirectPointer<RelativeObjCProtocolPrefix>(relativeOffset: relativeOffset)
-                    let objcProtocol = try relativePointer.resolve(from: fileOffset, in: machO)
-                    let name = try objcProtocol.mangledName(in: machO).symbolStringValue()
+                    let objcProtocol = try relativePointer.resolve(from: fileOffset, in: machOFile)
+                    let name = try objcProtocol.mangledName(in: machOFile).symbolStringValue()
                     result = try parseMangledSwiftSymbol(name).typeSymbol
                 }
                 return result

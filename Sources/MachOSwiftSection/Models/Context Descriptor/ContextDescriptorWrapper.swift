@@ -7,7 +7,7 @@
 
 import MachOKit
 
-public enum ContextDescriptorWrapper: ResolvableElement {
+public enum ContextDescriptorWrapper {
     case type(TypeContextDescriptorWrapper)
     case `protocol`(ProtocolDescriptor)
     case anonymous(AnonymousContextDescriptor)
@@ -15,11 +15,11 @@ public enum ContextDescriptorWrapper: ResolvableElement {
     case module(ModuleContextDescriptor)
     case opaqueType(OpaqueTypeDescriptor)
     
-    func name(in machO: MachOFile) throws -> String? {
+    func name(in machOFile: MachOFile) throws -> String? {
         if case let .extension(extensionContextDescriptor) = self {
-            return try extensionContextDescriptor.extendedContext(in: machO).map { try MetadataReader.demangle(for: $0, in: machO) }
+            return try extensionContextDescriptor.extendedContext(in: machOFile).map { try MetadataReader.demangle(for: $0, in: machOFile) }
         } else {
-            return try namedContextDescriptor?.name(in: machO)
+            return try namedContextDescriptor?.name(in: machOFile)
         }
     }
     
@@ -54,9 +54,4 @@ public enum ContextDescriptorWrapper: ResolvableElement {
     }
 }
 
-extension ContextDescriptorWrapper {
-    public static func resolve(from fileOffset: Int, in machO: MachOFile) throws -> Self? {
-        guard let contextDescriptor = try machO.swift._readContextDescriptor(from: fileOffset) else { return nil }
-        return contextDescriptor
-    }
-}
+

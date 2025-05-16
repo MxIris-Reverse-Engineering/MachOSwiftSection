@@ -23,11 +23,11 @@ public struct FieldRecord: LocatableLayoutWrapper {
 }
 
 extension FieldRecord {
-    public func mangledTypeName(in machO: MachOFile) throws -> MangledName {
-        return try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machO)
+    public func mangledTypeName(in machOFile: MachOFile) throws -> MangledName {
+        return try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machOFile)
     }
 
-    public func fieldName(in machO: MachOFile) throws -> String {
-        return try layout.fieldName.resolve(from: offset(of: \.fieldName), in: machO)
+    public func fieldName(in machOFile: MachOFile) throws -> String {
+        return try layout.fieldName.resolve(from: offset(of: \.fieldName), in: machOFile)
     }
 }
