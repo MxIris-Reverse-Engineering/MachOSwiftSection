@@ -7,14 +7,14 @@ import MachOKit
 //      TargetGenericRequirementDescriptor<Runtime>,
 //      TargetProtocolRequirement<Runtime>>;
 
-public struct `Protocol`: Resolvable {
+public struct `Protocol` {
     public enum Error: Swift.Error {
         case invalidProtocolDescriptor
     }
 
     public let descriptor: ProtocolDescriptor
 
-    public let requirementInSignatures: [GenericRequirement]
+    public let requirementInSignatures: [GenericRequirementDescriptor]
 
     public let requirements: [ProtocolRequirement]
 
@@ -40,7 +40,7 @@ public struct `Protocol`: Resolvable {
         var currentOffset = descriptor.offset + descriptor.layoutSize
 
         if descriptor.numRequirementsInSignature > 0 {
-            self.requirementInSignatures = try machOFile.readElements(offset: currentOffset, numberOfElements: descriptor.numRequirementsInSignature.cast()).map { try .init(descriptor: $0, in: machOFile) }
+            self.requirementInSignatures = try machOFile.readElements(offset: currentOffset, numberOfElements: descriptor.numRequirementsInSignature.cast())
         } else {
             self.requirementInSignatures = []
         }

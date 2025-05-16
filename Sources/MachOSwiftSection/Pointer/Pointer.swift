@@ -5,4 +5,4 @@ public struct Pointer<Pointee: Resolvable>: RelativeIndirectType, PointerProtoco
     public let address: UInt64
 }
 
-public typealias RawPointer = Pointer<AnyResolvableElement>
+public typealias RawPointer = Pointer<AnyResolvable>

@@ -42,10 +42,7 @@ public enum SignedContextPointer<Context: Resolvable>: RelativeIndirectType {
     }
 
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self? {
-        if let symbol = machOFile.resolveBind(fileOffset: fileOffset) {
-            return .symbol(.init(offset: fileOffset, stringValue: symbol))
-        } else {
-            return try .context(machOFile.readElement(offset: fileOffset))
-        }
+        let resolved: Self = try resolve(from: fileOffset, in: machOFile)
+        return resolved
     }
 }

@@ -18,7 +18,7 @@ import MachOKit
 public struct ProtocolConformance {
     public let descriptor: ProtocolConformanceDescriptor
 
-    public let `protocol`: ResolvableElement<Protocol>?
+    public let `protocol`: ResolvableElement<ProtocolDescriptor>?
 
     public let typeReference: ResolvedTypeReference
 
@@ -28,7 +28,7 @@ public struct ProtocolConformance {
 
     public let retroactiveContextDescriptor: ResolvableElement<ContextDescriptorWrapper>?
 
-    public let conditionalRequirements: [GenericRequirement]
+    public let conditionalRequirements: [GenericRequirementDescriptor]
 
     public let conditionalPackShapeHeader: GenericPackShapeHeader?
 
@@ -43,12 +43,7 @@ public struct ProtocolConformance {
     public init(descriptor: ProtocolConformanceDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
         
-        self.protocol = try descriptor.protocolDescriptor(in: machOFile).map {
-            switch $0 {
-            case .symbol(let symbol): return .symbol(symbol)
-            case .element(let element): return .element(try Protocol(descriptor: element, in: machOFile))
-            }
-        }
+        self.protocol = try descriptor.protocolDescriptor(in: machOFile)
 
         self.typeReference = try descriptor.resolvedTypeReference(in: machOFile)
 
@@ -65,7 +60,7 @@ public struct ProtocolConformance {
         }
 
         if descriptor.flags.numConditionalRequirements > 0 {
-            self.conditionalRequirements = try machOFile.readElements(offset: currentOffset, numberOfElements: descriptor.flags.numConditionalRequirements.cast()).map { try .init(descriptor: $0, in: machOFile) }
+            self.conditionalRequirements = try machOFile.readElements(offset: currentOffset, numberOfElements: descriptor.flags.numConditionalRequirements.cast())
             currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: descriptor.flags.numConditionalRequirements.cast())
         } else {
             self.conditionalRequirements = []
