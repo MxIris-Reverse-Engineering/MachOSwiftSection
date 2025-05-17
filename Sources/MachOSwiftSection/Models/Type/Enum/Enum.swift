@@ -1,51 +1,140 @@
 import Foundation
 import MachOKit
 
-//public struct Enum {
-//    public let descriptor: EnumDescriptor
-//    public let genericContext: TypeGenericContext?
-//    public let foreignMetadataInitialization: ForeignMetadataInitialization?
-//    public let singletonMetadataInitialization: SingletonMetadataInitialization?
-//    public let canonicalSpecializedMetadatas: [Metadata]?
-//    
-//    public static func parse(from descriptor: EnumDescriptor, in machO: MachOFile) throws -> Enum {
-//        let originOffset = try machO.fileHandle.offset()
-//        var genericContext: TypeGenericContext? = nil
-//        if descriptor.context.context.flags.contains(.isGeneric) {
-//            var currentOffset = descriptor.offset + MemoryLayout<EnumDescriptor.Layout>.size
-//            let genericContextOffset = currentOffset
-//            let headerLayout: TypeGenericContextDescriptorHeader.Layout = machO.fileHandle.read(offset: numericCast(currentOffset + machO.headerStartOffset))
-//            let header = TypeGenericContextDescriptorHeader(offset: currentOffset, layout: headerLayout)
-//            currentOffset += MemoryLayout<TypeGenericContextDescriptorHeader.Layout>.size
-//            let parameters: [GenericParamDescriptor] = machO.fileHandle.readDataSequence(offset: numericCast(currentOffset + machO.headerStartOffset), numberOfElements: Int(header.base.numParams)).map {
-//                let result = GenericParamDescriptor(offset: currentOffset, layout: $0)
-//                currentOffset += MemoryLayout<GenericParamDescriptor>.size
-//                return result
-//            }
-//            let requirements: [GenericRequirementDescriptor] = machO.fileHandle.readDataSequence(offset: numericCast(currentOffset + machO.headerStartOffset), numberOfElements: Int(header.base.numRequirements)).map {
-//                let result = GenericRequirementDescriptor(offset: currentOffset, layout: $0)
-//                currentOffset += MemoryLayout<GenericRequirementDescriptor>.size
-//                return result
-//            }
-//            var typePacks: [GenericPackShapeDescriptor] = []
-//            if header.base.flags.contains(.hasTypePacks) {
-//                let typePackHeaderLayout: GenericPackShapeHeader.Layout = machO.fileHandle.read(offset: numericCast(currentOffset + machO.headerStartOffset))
-//                let typePackHeader = GenericPackShapeHeader(offset: currentOffset, layout: typePackHeaderLayout)
-//                currentOffset += MemoryLayout<GenericPackShapeHeader.Layout>.size
-//                typePacks = machO.fileHandle.readDataSequence(offset: numericCast(currentOffset + machO.headerStartOffset), numberOfElements: Int(typePackHeader.numPacks)).map {
-//                    let result = GenericPackShapeDescriptor(offset: currentOffset, layout: $0)
-//                    currentOffset += MemoryLayout<GenericPackShapeDescriptor>.size
-//                    return result
-//                }
-//            }
-//            genericContext = .init(offset: genericContextOffset, header: header, parameters: parameters, requirements: requirements, typePacks: typePacks)
-//        }
-//        
-//        if descriptor.context.context.flags.kindSpecificFlags.hasForeignMetadataInitialization {
-//            
-//        }
-//        
-//        try machO.fileHandle.seek(toOffset: numericCast(originOffset))
-//        return .init(descriptor: descriptor, genericContext: genericContext)
-//    }
-//}
+// template <typename Runtime>
+// class swift_ptrauth_struct_context_descriptor(EnumDescriptor)
+//    TargetEnumDescriptor final
+//    : public TargetValueTypeDescriptor<Runtime>,
+//      public TrailingGenericContextObjects<TargetEnumDescriptor<Runtime>,
+//                            TargetTypeGenericContextDescriptorHeader,
+//                            additional trailing objects
+//                            TargetForeignMetadataInitialization<Runtime>,
+//                            TargetSingletonMetadataInitialization<Runtime>,
+//                            TargetCanonicalSpecializedMetadatasListCount<Runtime>,
+//                            TargetCanonicalSpecializedMetadatasListEntry<Runtime>,
+//                            TargetCanonicalSpecializedMetadatasCachingOnceToken<Runtime>,
+//                            InvertibleProtocolSet,
+//                            TargetSingletonMetadataPointer<Runtime>>
+
+public typealias SwiftOnceToken = intptr_t
+
+public struct Enum {
+    public let descriptor: EnumDescriptor
+    public let genericContext: TypeGenericContext?
+    public let foreignMetadataInitialization: ForeignMetadataInitialization?
+    public let singletonMetadataInitialization: SingletonMetadataInitialization?
+    public let canonicalSpecializedMetadatas: [CanonicalSpecializedMetadatasListEntry]
+    public let canonicalSpecializedMetadatasListCount: CanonicalSpecializedMetadatasListCount?
+    public let canonicalSpecializedMetadatasCachingOnceToken: CanonicalSpecializedMetadatasCachingOnceToken?
+    public let invertibleProtocolSet: InvertibleProtocolSet?
+    public let singletonMetadataPointer: SingletonMetadataPointer?
+
+    public init(descriptor: EnumDescriptor, in machOFile: MachOFile) throws {
+        self.descriptor = descriptor
+        
+        var currentOffset = descriptor.offset + descriptor.layoutSize
+        
+        let genericContext = try descriptor.typeGenericContext(in: machOFile)
+        
+        if let genericContext {
+            currentOffset += genericContext.size
+        }
+        
+        self.genericContext = genericContext
+        
+        guard case .type(let typeFlags) = descriptor.flags.kindSpecificFlags else {
+            self.foreignMetadataInitialization = nil
+            self.singletonMetadataInitialization = nil
+            self.canonicalSpecializedMetadatas = []
+            self.canonicalSpecializedMetadatasListCount = nil
+            self.canonicalSpecializedMetadatasCachingOnceToken = nil
+            self.invertibleProtocolSet = nil
+            self.singletonMetadataPointer = nil
+            return
+        }
+        
+        if typeFlags.hasForeignMetadataInitialization {
+            self.foreignMetadataInitialization = try machOFile.readElement(offset: currentOffset)
+            currentOffset.offset(of: ForeignMetadataInitialization.self)
+        } else {
+            self.foreignMetadataInitialization = nil
+        }
+
+        if typeFlags.hasSingletonMetadataInitialization {
+            self.singletonMetadataInitialization = try machOFile.readElement(offset: currentOffset)
+            currentOffset.offset(of: SingletonMetadataInitialization.self)
+        } else {
+            self.singletonMetadataInitialization = nil
+        }
+
+        let hasCanonicalMetadataPrespecializations = descriptor.flags.contains(.isGeneric) && typeFlags.hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer
+        let hasSingletonMetadataPointer = !descriptor.flags.contains(.isGeneric) && typeFlags.hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer
+        
+        if hasCanonicalMetadataPrespecializations {
+            let count: CanonicalSpecializedMetadatasListCount = try machOFile.readElement(offset: currentOffset)
+            currentOffset.offset(of: CanonicalSpecializedMetadatasListCount.self)
+            let countValue = count.rawValue
+            let canonicalMetadataPrespecializations: [CanonicalSpecializedMetadatasListEntry] = try machOFile.readElements(offset: currentOffset, numberOfElements: countValue.cast())
+            currentOffset.offset(of: CanonicalSpecializedMetadatasListEntry.self, numbersOfElements: countValue.cast())
+            self.canonicalSpecializedMetadatas = canonicalMetadataPrespecializations
+            self.canonicalSpecializedMetadatasListCount = count
+            self.canonicalSpecializedMetadatasCachingOnceToken = try machOFile.readElement(offset: currentOffset)
+            currentOffset.offset(of: CanonicalSpecializedMetadatasCachingOnceToken.self)
+        } else {
+            self.canonicalSpecializedMetadatas = []
+            self.canonicalSpecializedMetadatasListCount = nil
+            self.canonicalSpecializedMetadatasCachingOnceToken = nil
+        }
+        
+        if descriptor.flags.contains(.hasInvertibleProtocols) {
+            self.invertibleProtocolSet = try machOFile.readElement(offset: currentOffset)
+            currentOffset.offset(of: InvertibleProtocolSet.self)
+        } else {
+            self.invertibleProtocolSet = nil
+        }
+        
+        if hasSingletonMetadataPointer {
+            self.singletonMetadataPointer = try machOFile.readElement(offset: currentOffset)
+            currentOffset.offset(of: SingletonMetadataPointer.self)
+        } else {
+            self.singletonMetadataPointer = nil
+        }
+    }
+}
+
+public struct CanonicalSpecializedMetadatasListCount: RawRepresentable {
+    public let rawValue: UInt32
+    public init(rawValue: UInt32) {
+        self.rawValue = rawValue
+    }
+}
+
+public struct CanonicalSpecializedMetadatasCachingOnceToken: LocatableLayoutWrapper {
+    public struct Layout {
+        let token: RelativeDirectPointer<SwiftOnceToken>
+    }
+
+    public var layout: Layout
+
+    public let offset: Int
+
+    public init(layout: Layout, offset: Int) {
+        self.layout = layout
+        self.offset = offset
+    }
+}
+
+public struct SingletonMetadataPointer: LocatableLayoutWrapper {
+    public struct Layout {
+        let metadata: RelativeDirectPointer<Metadata>
+    }
+
+    public var layout: Layout
+
+    public let offset: Int
+
+    public init(layout: Layout, offset: Int) {
+        self.layout = layout
+        self.offset = offset
+    }
+}

@@ -6,23 +6,70 @@ public typealias GenericContext = TargetGenericContext<GenericContextDescriptorH
 public typealias TypeGenericContext = TargetGenericContext<TypeGenericContextDescriptorHeader>
 
 public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtocol> {
-    public var offset: Int
-    public var size: Int
-    public var header: Header
-    public var parameters: [GenericParamDescriptor] = []
-    public var requirements: [GenericRequirementDescriptor] = []
-    public var typePackHeader: GenericPackShapeHeader?
-    public var typePacks: [GenericPackShapeDescriptor] = []
-    public var conditionalInvertibleProtocolSet: InvertibleProtocolSet?
-    public var conditionalInvertibleProtocolsRequirementsCount: InvertibleProtocolsRequirementCount?
-    public var conditionalInvertibleProtocolsRequirements: [GenericRequirementDescriptor] = []
-    public var valueHeader: GenericValueHeader?
-    public var values: [GenericValueDescriptor] = []
+    public let offset: Int
+    public let size: Int
+    public let header: Header
+    public let parameters: [GenericParamDescriptor]
+    public let requirements: [GenericRequirementDescriptor]
+    public let typePackHeader: GenericPackShapeHeader?
+    public let typePacks: [GenericPackShapeDescriptor]
+    public let conditionalInvertibleProtocolSet: InvertibleProtocolSet?
+    public let conditionalInvertibleProtocolsRequirementsCount: InvertibleProtocolsRequirementCount?
+    public let conditionalInvertibleProtocolsRequirements: [GenericRequirementDescriptor]
+    public let valueHeader: GenericValueHeader?
+    public let values: [GenericValueDescriptor]
 
-    private init(offset: Int, size: Int, header: Header) {
+    private init(
+        offset: Int,
+        size: Int,
+        header: Header,
+        parameters: [GenericParamDescriptor],
+        requirements: [GenericRequirementDescriptor],
+        typePackHeader: GenericPackShapeHeader?,
+        typePacks: [GenericPackShapeDescriptor],
+        conditionalInvertibleProtocolSet: InvertibleProtocolSet?,
+        conditionalInvertibleProtocolsRequirementsCount: InvertibleProtocolsRequirementCount?,
+        conditionalInvertibleProtocolsRequirements: [GenericRequirementDescriptor],
+        valueHeader: GenericValueHeader?,
+        values: [GenericValueDescriptor]
+    ) {
         self.offset = offset
         self.size = size
         self.header = header
+        self.parameters = parameters
+        self.requirements = requirements
+        self.typePackHeader = typePackHeader
+        self.typePacks = typePacks
+        self.conditionalInvertibleProtocolSet = conditionalInvertibleProtocolSet
+        self.conditionalInvertibleProtocolsRequirementsCount = conditionalInvertibleProtocolsRequirementsCount
+        self.conditionalInvertibleProtocolsRequirements = conditionalInvertibleProtocolsRequirements
+        self.valueHeader = valueHeader
+        self.values = values
+    }
+
+    public func asGenericContext() -> GenericContext {
+        .init(
+            offset: offset,
+            size: size,
+            header: .init(
+                layout: .init(
+                    numParams: header.numParams,
+                    numRequirements: header.numRequirements,
+                    numKeyArguments: header.numKeyArguments,
+                    flags: header.flags
+                ),
+                offset: header.offset
+            ),
+            parameters: parameters,
+            requirements: requirements,
+            typePackHeader: typePackHeader,
+            typePacks: typePacks,
+            conditionalInvertibleProtocolSet: conditionalInvertibleProtocolSet,
+            conditionalInvertibleProtocolsRequirementsCount: conditionalInvertibleProtocolsRequirementsCount,
+            conditionalInvertibleProtocolsRequirements: conditionalInvertibleProtocolsRequirements,
+            valueHeader: valueHeader,
+            values: values
+        )
     }
 
     public init?(contextDescriptor: any ContextDescriptorProtocol, in machOFile: MachOFile) throws {
@@ -32,17 +79,26 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
 
         let header: Header = try machOFile.readElement(offset: currentOffset)
         currentOffset.offset(of: Header.self)
+        self.offset = genericContextOffset
+        self.header = header
+//        self.init(offset: genericContextOffset, size: currentOffset - genericContextOffset, header: header)
 
-        self.init(offset: genericContextOffset, size: currentOffset - genericContextOffset, header: header)
+        if header.numParams > 0 {
+            let parameters: [GenericParamDescriptor] = try machOFile.readElements(offset: currentOffset, numberOfElements: Int(header.numParams))
+            currentOffset.offset(of: GenericParamDescriptor.self, numbersOfElements: Int(header.numParams))
+            currentOffset = numericCast(align(address: numericCast(currentOffset), alignment: 4))
+            self.parameters = parameters
+        } else {
+            self.parameters = []
+        }
 
-        let parameters: [GenericParamDescriptor] = try machOFile.readElements(offset: currentOffset, numberOfElements: Int(header.numParams))
-        currentOffset.offset(of: GenericParamDescriptor.self, numbersOfElements: Int(header.numParams))
-        currentOffset = numericCast(align(address: numericCast(currentOffset), alignment: 4))
-        self.parameters = parameters
-
-        let requirements: [GenericRequirementDescriptor] = try machOFile.readElements(offset: currentOffset, numberOfElements: Int(header.numRequirements))
-        currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: Int(header.numRequirements))
-        self.requirements = requirements
+        if header.numRequirements > 0 {
+            let requirements: [GenericRequirementDescriptor] = try machOFile.readElements(offset: currentOffset, numberOfElements: Int(header.numRequirements))
+            currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: Int(header.numRequirements))
+            self.requirements = requirements
+        } else {
+            self.requirements = []
+        }
 
         if header.flags.contains(.hasTypePacks) {
             let typePackHeader: GenericPackShapeHeader = try machOFile.readElement(offset: currentOffset)
@@ -52,6 +108,9 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
             let typePacks: [GenericPackShapeDescriptor] = try machOFile.readElements(offset: currentOffset, numberOfElements: Int(typePackHeader.numPacks))
             currentOffset.offset(of: GenericPackShapeDescriptor.self, numbersOfElements: Int(typePackHeader.numPacks))
             self.typePacks = typePacks
+        } else {
+            self.typePackHeader = nil
+            self.typePacks = []
         }
 
         if header.flags.contains(.hasConditionalInvertedProtocols) {
@@ -66,6 +125,10 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
             let conditionalInvertibleProtocolsRequirements: [GenericRequirementDescriptor] = try machOFile.readElements(offset: currentOffset, numberOfElements: Int(conditionalInvertibleProtocolsRequirementsCount.rawValue))
             currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: Int(conditionalInvertibleProtocolsRequirementsCount.rawValue))
             self.conditionalInvertibleProtocolsRequirements = conditionalInvertibleProtocolsRequirements
+        } else {
+            self.conditionalInvertibleProtocolSet = nil
+            self.conditionalInvertibleProtocolsRequirementsCount = nil
+            self.conditionalInvertibleProtocolsRequirements = []
         }
 
         if header.flags.contains(.hasValues) {
@@ -76,6 +139,9 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
             let values: [GenericValueDescriptor] = try machOFile.readElements(offset: currentOffset, numberOfElements: Int(valueHeader.numValues))
             currentOffset.offset(of: GenericValueDescriptor.self, numbersOfElements: Int(valueHeader.numValues))
             self.values = values
+        } else {
+            self.valueHeader = nil
+            self.values = []
         }
         self.size = currentOffset - genericContextOffset
     }

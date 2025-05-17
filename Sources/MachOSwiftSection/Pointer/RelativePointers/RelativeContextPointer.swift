@@ -1,17 +1,5 @@
 import Foundation
 
-public struct RelativeContextPointer<Context: Resolvable>: RelativeIndirectablePointerProtocol {
-    public typealias Offset = RelativeOffset
-    public typealias Pointee = ResolvableElement<Context>
-    public typealias IndirectType = SignedContextPointer<Context>
-    
-    public let relativeOffsetPlusIndirect: Offset
-}
+public typealias RelativeContextPointer<Context: Resolvable> = RelativeResolvableElementPointer<Context>
 
-public struct RelativeContextPointerIntPair<Context: Resolvable, Value: RawRepresentable>: RelativeIndirectablePointerIntPairProtocol where Value.RawValue: FixedWidthInteger {
-    public typealias Offset = RelativeOffset
-    public typealias Pointee = ResolvableElement<Context>
-    public typealias IndirectType = SignedContextPointer<Context>
-    
-    public let relativeOffsetPlusIndirectAndInt: Offset
-}
+public typealias RelativeContextPointerIntPair<Context: Resolvable, Value: RawRepresentable> = RelativeResolvableElementPointerIntPair<Context, Value> where Value.RawValue: FixedWidthInteger

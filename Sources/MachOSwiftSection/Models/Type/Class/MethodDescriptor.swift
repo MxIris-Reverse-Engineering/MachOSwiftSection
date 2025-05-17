@@ -1,9 +1,9 @@
 import Foundation
 
-public struct ClassMetadata: LocatableLayoutWrapper {
+public struct MethodDescriptor: LocatableLayoutWrapper {
     public struct Layout {
-        public let kind: StoredPointer
-        public let superclass: StoredPointer
+        public let flags: MethodDescriptorFlags
+        public let implementation: RelativeDirectRawPointer
     }
     
     public var layout: Layout
@@ -15,3 +15,4 @@ public struct ClassMetadata: LocatableLayoutWrapper {
         self.offset = offset
     }
 }
+

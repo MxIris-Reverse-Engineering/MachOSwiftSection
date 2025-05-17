@@ -97,8 +97,8 @@ public struct ProtocolConformance {
     }
 }
 
-//extension ProtocolConformance: CustomStringConvertible {
-//    public var description: String {
+extension ProtocolConformance: CustomStringConvertible {
+    public var description: String {
 //        switch typeReference {
 //        case .directTypeDescriptor(let descriptor):
 //            break
@@ -109,5 +109,7 @@ public struct ProtocolConformance {
 //        case .indirectObjCClass(let objcClass):
 //            break
 //        }
-//    }
-//}
+        
+        "\(typeReference)"
+    }
+}

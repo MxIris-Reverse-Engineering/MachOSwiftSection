@@ -1,3 +1,3 @@
 public struct AnyResolvable: Resolvable {
-    public let wrappedValue: any Resolvable
+    public let wrappedValue: UInt8
 }

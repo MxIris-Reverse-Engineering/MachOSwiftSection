@@ -13,7 +13,7 @@ import MachOKit
 public struct ProtocolDescriptor: ProtocolDescriptorProtocol, Resolvable {
     public struct Layout: ProtocolDescriptorLayout {
         public let flags: ContextDescriptorFlags
-        public let parent: RelativeIndirectablePointer<ContextDescriptorWrapper?, SignedPointer<ContextDescriptorWrapper?>>
+        public let parent: RelativeContextPointer<ContextDescriptorWrapper?>
         public var name: RelativeDirectPointer<String>
         public var numRequirementsInSignature: UInt32
         public var numRequirements: UInt32

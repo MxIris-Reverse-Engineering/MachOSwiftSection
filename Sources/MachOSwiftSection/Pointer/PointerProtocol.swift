@@ -27,3 +27,10 @@ extension PointerProtocol {
         return try Pointee.resolve(from: resolveOffset(in: machOFile), in: machOFile)
     }
 }
+
+extension PointerProtocol where Pointee: OptionalProtocol {
+    func resolve(in machOFile: MachOFile) throws -> Pointee {
+        guard address != 0 else { return nil }
+        return try Pointee.resolve(from: resolveOffset(in: machOFile), in: machOFile)
+    }
+}

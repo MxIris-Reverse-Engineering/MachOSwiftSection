@@ -13,6 +13,15 @@ public enum ResolvableElement<Element: Resolvable>: Resolvable {
             return true
         }
     }
+    
+    public var resolved: Element? {
+        switch self {
+        case .symbol:
+            return nil
+        case .element(let element):
+            return element
+        }
+    }
 
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> ResolvableElement<Element> {
         if let symbol = machOFile.resolveBind(fileOffset: fileOffset) {
@@ -41,12 +50,12 @@ public enum ResolvableElement<Element: Resolvable>: Resolvable {
 }
 
 extension ResolvableElement where Element: OptionalProtocol, Element.Wrapped: Resolvable {
-    var asOptional: ResolvableElement<Element.Wrapped>? {
+    public var asOptional: ResolvableElement<Element.Wrapped>? {
         switch self {
         case .symbol(let unsolvedSymbol):
             return .symbol(unsolvedSymbol)
         case .element(let optionalContext):
-            if let context = optionalContext.asOptional() {
+            if let context = optionalContext.flatMap({ $0 }) {
                 return .element(context)
             } else {
                 return nil

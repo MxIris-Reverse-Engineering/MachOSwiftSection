@@ -26,9 +26,9 @@ extension TypeContextDescriptorProtocol {
         try layout.fieldDescriptor.resolve(from: _offset(of: \.fieldDescriptor).cast(), in: machOFile)
     }
 
-//    public func genericContext(in machO: MachOFile) throws -> GenericContext? {
-//        return try typeGenericContext(in: machO)
-//    }
+    public func genericContext(in machO: MachOFile) throws -> GenericContext? {
+        return try typeGenericContext(in: machO)?.asGenericContext()
+    }
     
     public func typeGenericContext(in machOFile: MachOFile) throws -> TypeGenericContext? {
         return try .init(contextDescriptor: self, in: machOFile)

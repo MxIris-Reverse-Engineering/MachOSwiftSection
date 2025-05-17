@@ -1,9 +1,9 @@
 import Foundation
 
-public struct AnyClassMetadata: LocatableLayoutWrapper {
+public struct VTableDescriptorHeader: LocatableLayoutWrapper {
     public struct Layout {
-        public let kind: StoredPointer
-        public let superclass: StoredPointer
+        public let vTableOffset: UInt32
+        public let vTableSize: UInt32
     }
     
     public var layout: Layout
@@ -15,4 +15,3 @@ public struct AnyClassMetadata: LocatableLayoutWrapper {
         self.offset = offset
     }
 }
-

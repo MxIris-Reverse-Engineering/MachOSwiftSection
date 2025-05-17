@@ -2,7 +2,7 @@ import Foundation
 
 public struct ForeignMetadataInitialization: LocatableLayoutWrapper {
     public struct Layout {
-        public let completionFunction: RelativeOffset
+        public let completionFunction: RelativeDirectRawPointer
     }
 
     public let offset: Int

@@ -67,7 +67,7 @@ public enum ContextDescriptorWrapper {
         }
     }
 
-    func parent(in machOFile: MachOFile) throws -> ContextDescriptorWrapper? {
+    func parent(in machOFile: MachOFile) throws -> ResolvableElement<ContextDescriptorWrapper>? {
         return try contextDescriptor.parent(in: machOFile)
     }
 
@@ -117,7 +117,12 @@ public enum ContextDescriptorWrapper {
 }
 
 extension ContextDescriptorWrapper: Resolvable {
-    public static func resolve(from offset: Int, in machOFile: MachOFile) throws -> Self? {
+    
+    public enum ResolutionError: Error {
+        case invalidContextDescriptor
+    }
+    
+    public static func resolve(from offset: Int, in machOFile: MachOFile) throws -> Self {
         let contextDescriptor: ContextDescriptor = try machOFile.readElement(offset: offset)
         switch contextDescriptor.flags.kind {
         case .class:
@@ -137,6 +142,15 @@ extension ContextDescriptorWrapper: Resolvable {
         case .opaqueType:
             return try .opaqueType(machOFile.readElement(offset: offset))
         default:
+            throw ResolutionError.invalidContextDescriptor
+        }
+    }
+    
+    public static func resolve(from offset: Int, in machOFile: MachOFile) throws -> Self? {
+        do {
+            return try resolve(from: offset, in: machOFile) as Self
+        } catch {
+            print("Error resolving ContextDescriptorWrapper: \(error)")
             return nil
         }
     }

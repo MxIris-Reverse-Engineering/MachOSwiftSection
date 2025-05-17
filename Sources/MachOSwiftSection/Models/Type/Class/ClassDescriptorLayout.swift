@@ -1,8 +1,8 @@
 public protocol ClassDescriptorLayout: TypeContextDescriptorLayout {
-    var superclassType: RelativeOffset { get }
+    var superclassType: RelativeDirectPointer<MangledName> { get }
     var metadataNegativeSizeInWordsOrResilientMetadataBounds: UInt32 { get }
     var metadataPositiveSizeInWordsOrExtraClassFlags: UInt32 { get }
     var numImmediateMembers: UInt32 { get }
     var numFields: UInt32 { get }
-    var fieldOffsetVector: UInt32 { get }
+    var fieldOffsetVectorOffset: UInt32 { get }
 }

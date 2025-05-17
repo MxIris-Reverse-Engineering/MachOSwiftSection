@@ -11,10 +11,17 @@ extension NamedContextDescriptorProtocol {
         var name = try name(in: machOFile)
         var parent = try parent(in: machOFile)
         while let currnetParent = parent {
-            if let parentName = try currnetParent.name(in: machOFile) {
-                name = parentName + "." + name
+            switch currnetParent {
+            case .symbol(let unsolvedSymbol):
+                name = unsolvedSymbol.stringValue + "." + name
+                break
+            case .element(let element):
+                if let parentName = try element.name(in: machOFile) {
+                    name = parentName + "." + name
+                }
+                parent = try element.contextDescriptor.parent(in: machOFile)
             }
-            parent = try currnetParent.contextDescriptor.parent(in: machOFile)
+
         }
         return name
     }

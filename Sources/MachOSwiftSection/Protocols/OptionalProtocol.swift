@@ -1,19 +1,10 @@
-protocol OptionalProtocol: ExpressibleByNilLiteral {
+public protocol OptionalProtocol: ExpressibleByNilLiteral {
     associatedtype Wrapped
-    func asOptional() -> Optional<Wrapped>
-    static func makeOptional(_ wrappedValue: Wrapped?) -> Self
+    static var none: Self { get }
+    static func some(_ wrappedValue: Wrapped) -> Self
+    func map<E, U>(_ transform: (Wrapped) throws(E) -> U) throws(E) -> U? where E: Error, U: ~Copyable
+    func flatMap<E, U>(_ transform: (Wrapped) throws(E) -> U?) throws(E) -> U? where E: Error, U: ~Copyable
+    var unsafelyUnwrapped: Wrapped { get }
 }
 
-extension Optional: OptionalProtocol {
-    func asOptional() -> Optional<Wrapped> {
-        self
-    }
-    
-    static func makeOptional(_ wrappedValue: Wrapped?) -> Optional<Wrapped> {
-        if let wrappedValue {
-            return .some(wrappedValue)
-        } else {
-            return .none
-        }
-    }
-}
+extension Optional: OptionalProtocol {}
