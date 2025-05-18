@@ -18,6 +18,7 @@ import MachOKit
 
 public typealias SwiftOnceToken = intptr_t
 
+@dynamicMemberLookup
 public struct Enum {
     public let descriptor: EnumDescriptor
     public let genericContext: TypeGenericContext?
@@ -100,41 +101,13 @@ public struct Enum {
             self.singletonMetadataPointer = nil
         }
     }
-}
-
-public struct CanonicalSpecializedMetadatasListCount: RawRepresentable {
-    public let rawValue: UInt32
-    public init(rawValue: UInt32) {
-        self.rawValue = rawValue
+    
+    public subscript<T>(dynamicMember member: KeyPath<EnumDescriptor, T>) -> T {
+        return descriptor[keyPath: member]
     }
 }
 
-public struct CanonicalSpecializedMetadatasCachingOnceToken: LocatableLayoutWrapper {
-    public struct Layout {
-        let token: RelativeDirectPointer<SwiftOnceToken>
-    }
 
-    public var layout: Layout
 
-    public let offset: Int
 
-    public init(layout: Layout, offset: Int) {
-        self.layout = layout
-        self.offset = offset
-    }
-}
 
-public struct SingletonMetadataPointer: LocatableLayoutWrapper {
-    public struct Layout {
-        let metadata: RelativeDirectPointer<Metadata>
-    }
-
-    public var layout: Layout
-
-    public let offset: Int
-
-    public init(layout: Layout, offset: Int) {
-        self.layout = layout
-        self.offset = offset
-    }
-}

@@ -4,7 +4,7 @@ public protocol AnonymousContextDescriptorProtocol: ContextDescriptorProtocol wh
 
 extension AnonymousContextDescriptorProtocol {
     public func mangledName(in machOFile: MachOFile) throws -> MangledName? {
-        guard let kindSpecificFlags = layout.flags.kindSpecificFlags, case .anonymous(let anonymousContextDescriptorFlags) = kindSpecificFlags, anonymousContextDescriptorFlags.hasMangledName else {
+        guard hasMangledName else {
             return nil
         }
         var currentOffset = offset + layoutSize
@@ -13,5 +13,12 @@ extension AnonymousContextDescriptorProtocol {
         }
         let mangledNamePointer: RelativeDirectPointer<MangledName> = try machOFile.readElement(offset: currentOffset)
         return try mangledNamePointer.resolve(from: currentOffset, in: machOFile)
+    }
+    
+    public var hasMangledName: Bool {
+        guard let kindSpecificFlags = layout.flags.kindSpecificFlags, case .anonymous(let anonymousContextDescriptorFlags) = kindSpecificFlags else {
+            return false
+        }
+        return anonymousContextDescriptorFlags.hasMangledName
     }
 }

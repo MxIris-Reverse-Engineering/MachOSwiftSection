@@ -1,3 +1,7 @@
+import Foundation
+import MachOSwiftSectionMacro
+
+@Layout
 public protocol ClassDescriptorLayout: TypeContextDescriptorLayout {
     var superclassType: RelativeDirectPointer<MangledName> { get }
     var metadataNegativeSizeInWordsOrResilientMetadataBounds: UInt32 { get }

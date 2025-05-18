@@ -127,6 +127,25 @@ extension MachOFile {
         offset: Int,
         numberOfElements: Int,
         swapHandler: ((inout Data) -> Void)? = nil
+    ) throws -> [Element] {
+        var offset = offset
+        var fileHandle = fileIO
+        if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
+            offset = cacheAndFileOffset.1.cast()
+//            fileHandle = cacheAndFileOffset.0.fileHandle
+        }
+        var currentOffset = offset
+        let elements = try fileHandle.machO.readDataSequence(offset: numericCast(offset + effectiveHeaderStartOffset), numberOfElements: numberOfElements, swapHandler: swapHandler).map { (element: Element) -> Element in
+            currentOffset += MemoryLayout<Element>.size
+            return element
+        }
+        return elements
+    }
+    
+    func readElements<Element>(
+        offset: Int,
+        numberOfElements: Int,
+        swapHandler: ((inout Data) -> Void)? = nil
     ) throws -> [Element] where Element: LocatableLayoutWrapper {
         var offset = offset
         var fileHandle = fileIO

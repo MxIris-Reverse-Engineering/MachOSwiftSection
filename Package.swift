@@ -2,6 +2,7 @@
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
+import CompilerPluginSupport
 
 let useSPMPrebuildVersion = false
 
@@ -14,8 +15,14 @@ extension Package.Dependency {
         }
     }()
 
-    static let MachOKitMain = Package.Dependency.package(url: "https://github.com/p-x9/MachOKit.git", from: "0.32.0")
-    static let MachOKitSPM = Package.Dependency.package(url: "https://github.com/p-x9/MachOKit-SPM", branch: "main")
+    static let MachOKitMain = Package.Dependency.package(
+        url: "https://github.com/p-x9/MachOKit.git",
+        from: "0.32.0"
+    )
+    static let MachOKitSPM = Package.Dependency.package(
+        url: "https://github.com/p-x9/MachOKit-SPM",
+        branch: "main"
+    )
 }
 
 extension Target.Dependency {
@@ -27,8 +34,34 @@ extension Target.Dependency {
         }
     }()
 
-    static let MachOKitMain = Target.Dependency.product(name: "MachOKit", package: "MachOKit")
-    static let MachOKitSPM = Target.Dependency.product(name: "MachOKit", package: "MachOKit-SPM")
+    static let MachOKitMain = Target.Dependency.product(
+        name: "MachOKit",
+        package: "MachOKit"
+    )
+    static let MachOKitSPM = Target.Dependency.product(
+        name: "MachOKit",
+        package: "MachOKit-SPM"
+    )
+    static let SwiftSyntax = Target.Dependency.product(
+        name: "SwiftSyntax",
+        package: "swift-syntax"
+    )
+    static let SwiftSyntaxMacros = Target.Dependency.product(
+        name: "SwiftSyntaxMacros",
+        package: "swift-syntax"
+    )
+    static let SwiftCompilerPlugin = Target.Dependency.product(
+        name: "SwiftCompilerPlugin",
+        package: "swift-syntax"
+    )
+    static let SwiftSyntaxMacrosTestSupport = Target.Dependency.product(
+        name: "SwiftSyntaxMacrosTestSupport",
+        package: "swift-syntax"
+    )
+    static let SwiftSyntaxBuilder = Target.Dependency.product(
+        name: "SwiftSyntaxBuilder",
+        package: "swift-syntax"
+    )
 }
 
 let package = Package(
@@ -42,13 +75,30 @@ let package = Package(
     ],
     dependencies: [
         .MachOKit,
+        .package(url: "https://github.com/swiftlang/swift-syntax", from: "601.0.1"),
     ],
     targets: [
         .target(
             name: "MachOSwiftSection",
             dependencies: [
                 "Demangling",
+                "MachOSwiftSectionMacro",
                 .MachOKit,
+            ]
+        ),
+        .target(
+            name: "MachOSwiftSectionMacro",
+            dependencies: [
+                "MachOSwiftSectionMacroPlugin",
+            ]
+        ),
+        .macro(
+            name: "MachOSwiftSectionMacroPlugin",
+            dependencies: [
+                .SwiftSyntax,
+                .SwiftSyntaxMacros,
+                .SwiftCompilerPlugin,
+                .SwiftSyntaxBuilder,
             ]
         ),
         .target(

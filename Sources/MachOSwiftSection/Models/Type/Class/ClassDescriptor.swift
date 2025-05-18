@@ -25,3 +25,57 @@ public struct ClassDescriptor: LocatableLayoutWrapper, TypeContextDescriptorProt
         self.layout = layout
     }
 }
+
+extension ClassDescriptor {
+    public var resilientSuperclassReferenceKind: TypeReferenceKind {
+        guard let resilientSuperclassReferenceKind = layout.flags.kindSpecificFlags?.typeFlags?.classResilientSuperclassReferenceKind else {
+            fatalError("Failed to get class resilient superclass reference kind")
+        }
+        return resilientSuperclassReferenceKind
+    }
+    
+    public var hasFieldOffsetVector: Bool {
+        return layout.fieldOffsetVectorOffset != 0
+    }
+    
+    public var hasDefaultOverrideTable: Bool {
+        return layout.flags.kindSpecificFlags?.typeFlags?.classHasDefaultOverrideTable ?? false
+    }
+    
+    public var isActor: Bool {
+        return layout.flags.kindSpecificFlags?.typeFlags?.classIsActor ?? false
+    }
+    
+    public var isDefaultActor: Bool {
+        return layout.flags.kindSpecificFlags?.typeFlags?.classIsDefaultActor ?? false
+    }
+    
+    public var hasVTable: Bool {
+        return layout.flags.kindSpecificFlags?.typeFlags?.classHasVTable ?? false
+    }
+    
+    public var hasOverrideTable: Bool {
+        return layout.flags.kindSpecificFlags?.typeFlags?.classHasOverrideTable ?? false
+    }
+    
+    public var hasResilientSuperclass: Bool {
+        return layout.flags.kindSpecificFlags?.typeFlags?.classHasResilientSuperclass ?? false
+    }
+    
+    public var areImmediateMembersNegative: Bool {
+        return layout.flags.kindSpecificFlags?.typeFlags?.classAreImmdiateMembersNegative ?? false
+    }
+    
+    public var immediateMemberSize: StoredSize {
+        return StoredSize(layout.numImmediateMembers) * MemoryLayout<StoredPointer>.size.cast()
+    }
+    
+    public var nonResilientImmediateMembersOffset: Int32 {
+        areImmediateMembersNegative ? -Int32(layout.metadataNegativeSizeInWordsOrResilientMetadataBounds) : Int32(layout.metadataPositiveSizeInWordsOrExtraClassFlags) - Int32(layout.numImmediateMembers)
+    }
+    
+    public var hasObjCResilientClassStub: Bool {
+        guard hasResilientSuperclass else { return false }
+        return ExtraClassDescriptorFlags(rawValue: layout.metadataPositiveSizeInWordsOrExtraClassFlags).hasObjCResilientClassStub
+    }
+}

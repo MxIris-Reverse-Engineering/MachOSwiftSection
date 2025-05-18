@@ -4,26 +4,9 @@ import MachOKit
 public protocol TypeContextDescriptorProtocol: NamedContextDescriptorProtocol where Layout: TypeContextDescriptorLayout {}
 
 extension TypeContextDescriptorProtocol {
-    func _offset<T>(of keyPath: KeyPath<Layout, T>) -> Int {
-        let memberOffset = switch keyPath {
-        case \.flags:
-            0
-        case \.parent:
-            4
-        case \.name:
-            8
-        case \.accessFunctionPtr:
-            12
-        case \.fieldDescriptor:
-            16
-        default:
-            fatalError("KeyPath: \(keyPath) not supported")
-        }
-        return offset + memberOffset
-    }
 
     public func fieldDescriptor(in machOFile: MachOFile) throws -> FieldDescriptor {
-        try layout.fieldDescriptor.resolve(from: _offset(of: \.fieldDescriptor).cast(), in: machOFile)
+        try layout.fieldDescriptor.resolve(from: offset + layout.offset(of: .fieldDescriptor), in: machOFile)
     }
 
     public func genericContext(in machO: MachOFile) throws -> GenericContext? {
@@ -32,6 +15,34 @@ extension TypeContextDescriptorProtocol {
     
     public func typeGenericContext(in machOFile: MachOFile) throws -> TypeGenericContext? {
         return try .init(contextDescriptor: self, in: machOFile)
+    }
+    
+    public var hasSingletonMetadataInitialization: Bool {
+        return layout.flags.kindSpecificFlags?.typeFlags?.hasSingletonMetadataInitialization ?? false
+    }
+    
+    public var hasForeignMetadataInitialization: Bool {
+        return layout.flags.kindSpecificFlags?.typeFlags?.hasForeignMetadataInitialization ?? false
+    }
+    
+    public var hasImportInfo: Bool {
+        return layout.flags.kindSpecificFlags?.typeFlags?.hasImportInfo ?? false
+    }
+    
+    public var hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer: Bool {
+        return layout.flags.kindSpecificFlags?.typeFlags?.hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer ?? false
+    }
+    
+    public var hasLayoutString: Bool {
+        return layout.flags.kindSpecificFlags?.typeFlags?.hasLayoutString ?? false
+    }
+    
+    public var hasCanonicalMetadataPrespecializations: Bool {
+        return layout.flags.contains(.isGeneric) && hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer
+    }
+    
+    public var hasSingletonMetadataPointer: Bool {
+        return !layout.flags.contains(.isGeneric) && hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer
     }
 }
 

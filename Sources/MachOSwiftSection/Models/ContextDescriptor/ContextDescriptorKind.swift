@@ -42,7 +42,7 @@ public enum ContextDescriptorKind: UInt8, CustomStringConvertible {
         case .extension: return "extension"
         case .anonymous: return "anonymous"
         case .protocol: return "protocol"
-        case .opaqueType: return "OpaqueType"
+        case .opaqueType: return "opaque type"
         case .class: return "class"
         case .struct: return "struct"
         case .enum: return "enum"

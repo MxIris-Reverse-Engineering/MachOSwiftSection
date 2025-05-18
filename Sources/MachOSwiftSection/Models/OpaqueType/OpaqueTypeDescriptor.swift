@@ -16,5 +16,3 @@ public struct OpaqueTypeDescriptor: OpaqueTypeDescriptorProtocol {
         self.layout = layout
     }
 }
-
-

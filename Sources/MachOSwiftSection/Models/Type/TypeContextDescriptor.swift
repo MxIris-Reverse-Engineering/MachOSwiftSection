@@ -23,7 +23,16 @@ public struct TypeContextDescriptor: TypeContextDescriptorProtocol {
 extension TypeContextDescriptor {
     public func enumDescriptor(in machOFile: MachOFile) throws -> EnumDescriptor? {
         guard layout.flags.kind == .enum else { return nil }
-        let layout: EnumDescriptor.Layout = try machOFile.readElement(offset: offset)
-        return EnumDescriptor(layout: layout, offset: offset)
+        return try machOFile.readElement(offset: offset)
+    }
+
+    public func structDescriptor(in machOFile: MachOFile) throws -> StructDescriptor? {
+        guard layout.flags.kind == .struct else { return nil }
+        return try machOFile.readElement(offset: offset)
+    }
+
+    public func classDescriptor(in machOFile: MachOFile) throws -> ClassDescriptor? {
+        guard layout.flags.kind == .class else { return nil }
+        return try machOFile.readElement(offset: offset)
     }
 }
