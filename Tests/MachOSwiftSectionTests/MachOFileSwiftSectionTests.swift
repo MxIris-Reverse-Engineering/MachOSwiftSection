@@ -31,8 +31,9 @@ struct MachOFileSwiftSectionTests {
         guard let protocolDescriptors = machOFile.swift.protocolDescriptors else {
             throw Error.notFound
         }
-        let protocols = try protocolDescriptors.map { try Protocol(descriptor: $0, in: machOFile) }
-        print(protocols)
+        for protocolDescriptor in protocolDescriptors {
+            print(try Protocol(descriptor: protocolDescriptor, in: machOFile))
+        }
     }
 
     @Test func protocolConformances() async throws {

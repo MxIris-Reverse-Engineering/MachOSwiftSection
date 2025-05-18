@@ -2,7 +2,7 @@ import MachOKit
 import Foundation
 
 public enum RelativeProtocolDescriptorPointer {
-    case objcPointer(RelativeContextPointerIntPair<ObjCProtocolPrefix, Bool>)
+    case objcPointer(RelativeResolvableElementPointerIntPair<ObjCProtocolPrefix, Bool>)
     case swiftPointer(RelativeContextPointerIntPair<ProtocolDescriptor, Bool>)
 
     public var isObjC: Bool {

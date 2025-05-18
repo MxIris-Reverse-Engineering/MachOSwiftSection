@@ -5,13 +5,13 @@ public enum SignedResolvableElementPointer<Context: Resolvable>: RelativeIndirec
     public typealias Resolved = ResolvableElement<Context>
 
     case symbol(UnsolvedSymbol)
-    case context(UInt64)
+    case address(UInt64)
 
     public func resolveOffset(in machOFile: MachOFile) -> Int {
         switch self {
         case .symbol(let unsolvedSymbol):
             return unsolvedSymbol.offset
-        case .context(let address):
+        case .address(let address):
             if let cache = machOFile.cache, cache.cpu.type == .arm64 {
                 return numericCast(address & 0x7FFFFFFF)
             } else {
@@ -24,7 +24,7 @@ public enum SignedResolvableElementPointer<Context: Resolvable>: RelativeIndirec
         switch self {
         case .symbol(let unsolvedSymbol):
             return .symbol(unsolvedSymbol)
-        case .context:
+        case .address:
             return try .element(Context.resolve(from: resolveOffset(in: machOFile), in: machOFile))
         }
     }
@@ -37,7 +37,7 @@ public enum SignedResolvableElementPointer<Context: Resolvable>: RelativeIndirec
         if let symbol = machOFile.resolveBind(fileOffset: fileOffset) {
             return .symbol(.init(offset: fileOffset, stringValue: symbol))
         } else {
-            return try .context(machOFile.readElement(offset: fileOffset))
+            return try .address(machOFile.readElement(offset: fileOffset))
         }
     }
 

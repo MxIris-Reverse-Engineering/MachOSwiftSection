@@ -31,7 +31,7 @@ public struct `Protocol` {
     }
 
     public init(descriptor: ProtocolDescriptor, in machOFile: MachOFile) throws {
-        guard case .protocol(let protocolFlags) = descriptor.flags.kindSpecificFlags else {
+        guard let protocolFlags = descriptor.flags.kindSpecificFlags?.protocolFlags else {
             throw Error.invalidProtocolDescriptor
         }
         self.descriptor = descriptor
@@ -41,14 +41,15 @@ public struct `Protocol` {
 
         if descriptor.numRequirementsInSignature > 0 {
             self.requirementInSignatures = try machOFile.readElements(offset: currentOffset, numberOfElements: descriptor.numRequirementsInSignature.cast())
+            currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: descriptor.numRequirementsInSignature.cast())
+            currentOffset = align(address: currentOffset.cast(), alignment: 4).cast()
         } else {
             self.requirementInSignatures = []
         }
-
-        currentOffset += descriptor.numRequirementsInSignature.cast() * MemoryLayout<GenericRequirementDescriptor>.size
-
+        
         if descriptor.numRequirements > 0 {
             self.requirements = try machOFile.readElements(offset: currentOffset, numberOfElements: descriptor.numRequirements.cast())
+            currentOffset.offset(of: ProtocolRequirement.self, numbersOfElements: descriptor.numRequirements.cast())
         } else {
             self.requirements = []
         }
