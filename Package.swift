@@ -4,7 +4,7 @@
 import PackageDescription
 import CompilerPluginSupport
 
-let useSPMPrebuildVersion = false
+let useSPMPrebuildVersion = true
 
 extension Package.Dependency {
     static let MachOKit: Package.Dependency = {

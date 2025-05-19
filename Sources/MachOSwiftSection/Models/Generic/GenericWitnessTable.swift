@@ -2,10 +2,10 @@ import Foundation
 
 public struct GenericWitnessTable: LocatableLayoutWrapper {
     public struct Layout {
-        public let witnessTableSizeinWords: UInt16
+        public let witnessTableSizeInWords: UInt16
         public let witnessTablePrivateSizeInWordsAndRequiresInstantiation: UInt16
-        public let instantiator: Int32
-        public let privateData: Int32
+        public let instantiator: RelativeDirectRawPointer
+        public let privateData: RelativeDirectRawPointer
     }
 
     public let offset: Int

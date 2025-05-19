@@ -45,7 +45,7 @@ extension GenericRequirementDescriptor {
         case .invertedProtocols:
             var value = layout.content
             return .invertedProtocols(withUnsafeBytes(of: &value) {
-                $0.baseAddress!.load(as: GenericRequirementContent.InvertedProtocols.self)
+                $0.load(as: GenericRequirementContent.InvertedProtocols.self)
             })
         case .layout:
             return .layout(.init(rawValue: layout.content.cast())!)

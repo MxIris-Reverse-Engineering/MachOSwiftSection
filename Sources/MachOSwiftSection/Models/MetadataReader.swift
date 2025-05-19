@@ -345,7 +345,16 @@ public struct MetadataReader {
         let reader = MetadataReader(machOFile: machOFile)
         return try reader.demangle(for: mangledName, kind: .type).print()
     }
-
+    
+    public static func demangleType(for unsolvedSymbol: UnsolvedSymbol, in machOFile: MachOFile) throws -> String {
+        let reader = MetadataReader(machOFile: machOFile)
+        return try reader.buildContextManglingForSymbol(symbol: unsolvedSymbol)?.print() ?? ""
+    }
+    
+    public static func demangleSymbol(for unsolvedSymbol: UnsolvedSymbol, in machOFile: MachOFile) throws -> String {
+        let reader = MetadataReader(machOFile: machOFile)
+        return try reader.demangle(for: .init(unsolvedSymbol: unsolvedSymbol), kind: .symbol).print()
+    }
 }
 
 extension SwiftSymbol {

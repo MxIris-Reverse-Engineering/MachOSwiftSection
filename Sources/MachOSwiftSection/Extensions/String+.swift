@@ -29,21 +29,31 @@ extension String {
         replacingOccurrences(of: "Mn", with: "")
     }
 
-    var stripTypeManglePrefix: String {
-        guard hasPrefix("_$s") else { return self }
+    var stripManglePrefix: String {
+        guard isStartWithManglePrefix else { return self }
         return replacingOccurrences(of: "_$s", with: "")
     }
 
     var insertManglePrefix: String {
-        guard !hasPrefix("_$s") else { return self }
+        guard !isStartWithManglePrefix else { return self }
         return "_$s" + self
     }
 
+    var isStartWithManglePrefix: Bool {
+        hasPrefix("_$s")
+    }
+    
     var stripProtocolMangleType: String {
         replacingOccurrences(of: "_p", with: "")
     }
 
     var stripDuplicateProtocolMangleType: String {
         replacingOccurrences(of: "_p_p", with: "_p")
+    }
+}
+
+extension String? {
+    var valueOrEmpty: String {
+        self ?? ""
     }
 }

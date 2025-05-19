@@ -1,13 +1,13 @@
 {
-  "originHash" : "8b41be37b4fd0b0a28afe411d457ae4b06131b89c9cd7be8837a3c4ac27a4333",
+  "originHash" : "f2650c6d28e7cfe30a32ce57543d160ac298dfe3b5f7c0c1696d69beb8edb804",
   "pins" : [
     {
-      "identity" : "machokit",
+      "identity" : "machokit-spm",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/p-x9/MachOKit.git",
+      "location" : "https://github.com/p-x9/MachOKit-SPM",
       "state" : {
-        "revision" : "b4b752d9d2cf3975ee05620c66284a3414fcf56e",
-        "version" : "0.32.0"
+        "branch" : "main",
+        "revision" : "388ee9af3b0bcd87fbb8b436952aeae093c8e6e8"
       }
     },
     {

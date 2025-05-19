@@ -1,3 +1,0 @@
-import Foundation
-
-public typealias RelativeMethodDescriptorPointer = RelativeResolvableElementPointer<MethodDescriptor?>

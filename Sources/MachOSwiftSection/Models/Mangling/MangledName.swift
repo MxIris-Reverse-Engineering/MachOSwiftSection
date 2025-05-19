@@ -68,10 +68,25 @@ public struct MangledName {
 
     public func symbolStringValue() -> String {
         guard !elements.isEmpty else { return "" }
-        return typeStringValue().insertManglePrefix
+        let rawStringValue = rawStringValue()
+        if rawStringValue.isStartWithManglePrefix {
+            return rawStringValue
+        } else {
+            return rawStringValue.insertManglePrefix
+        }
     }
 
     public func typeStringValue() -> String {
+        guard !elements.isEmpty else { return "" }
+        let rawStringValue = rawStringValue()
+        if rawStringValue.isStartWithManglePrefix {
+            return rawStringValue.stripManglePrefix
+        } else {
+            return rawStringValue
+        }
+    }
+    
+    public func rawStringValue() -> String {
         guard !elements.isEmpty else { return "" }
         var results: [String] = []
         for element in elements {

@@ -16,6 +16,8 @@ import MachOKit
 /// This contains enough static information to recover the witness table for a
 /// type's conformance to a protocol.
 public struct ProtocolConformance {
+    private let machOFile: MachOFile
+
     public let descriptor: ProtocolConformanceDescriptor
 
     public let `protocol`: ResolvableElement<ProtocolDescriptor>?
@@ -41,14 +43,16 @@ public struct ProtocolConformance {
     public let genericWitnessTable: GenericWitnessTable?
 
     public init(descriptor: ProtocolConformanceDescriptor, in machOFile: MachOFile) throws {
+        self.machOFile = machOFile
+
         self.descriptor = descriptor
-        
+
         self.protocol = try descriptor.protocolDescriptor(in: machOFile)
 
         self.typeReference = try descriptor.resolvedTypeReference(in: machOFile)
 
         self.witnessTablePattern = try descriptor.witnessTablePattern(in: machOFile)
-        
+
         var currentOffset = descriptor.offset + descriptor.layoutSize
 
         if descriptor.flags.isRetroactive {
@@ -99,17 +103,100 @@ public struct ProtocolConformance {
 
 extension ProtocolConformance: CustomStringConvertible {
     public var description: String {
-//        switch typeReference {
-//        case .directTypeDescriptor(let descriptor):
-//            break
-//        case .indirectTypeDescriptor(let descriptor):
-//            break
-//        case .directObjCClassName(let objcClassName):
-//            break
-//        case .indirectObjCClass(let objcClass):
-//            break
-//        }
+        do {
+            return try buildDescription()
+        } catch {
+            return "\(error)"
+        }
+    }
+
+    @StringBuilder
+    private func buildDescription() throws -> String {
+        switch typeReference {
+        case .directTypeDescriptor(let descriptor):
+            try descriptor.flatMap { try $0.namedContextDescriptor?.fullname(in: machOFile) }.valueOrEmpty
+        case .indirectTypeDescriptor(let descriptor):
+            switch descriptor {
+            case .symbol(let unsolvedSymbol):
+                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile)
+            case .element(let element):
+                try element.namedContextDescriptor.map { try $0.fullname(in: machOFile) }.valueOrEmpty
+            case nil:
+                ""
+            }
+        case .directObjCClassName(let objcClassName):
+            objcClassName.valueOrEmpty
+        case .indirectObjCClass(let objcClass):
+            try objcClass.map { try $0.description.resolve(in: machOFile).fullname(in: machOFile) }.valueOrEmpty
+        }
+        ": "
+        switch `protocol` {
+        case .symbol(let unsolvedSymbol):
+            try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile)
+        case .element(let element):
+            try element.fullname(in: machOFile)
+        case .none:
+            ""
+        }
+
+        if !conditionalRequirements.isEmpty {
+            " where "
+        }
+
+        for conditionalRequirement in conditionalRequirements {
+            try MetadataReader.demangle(for: try conditionalRequirement.paramManagedName(in: machOFile), in: machOFile)
+            if conditionalRequirement.flags.kind == .sameType {
+                " == "
+            } else {
+                ": "
+            }
+            switch try conditionalRequirement.resolvedContent(in: machOFile) {
+            case .type(let mangledName):
+                try MetadataReader.demangle(for: mangledName, in: machOFile)
+            case .protocol(let resolvableElement):
+                switch resolvableElement {
+                case .symbol(let unsolvedSymbol):
+                    try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile)
+                case .element(let element):
+                    switch element {
+                    case .objc(let objc):
+                        try objc.name(in: machOFile)
+                    case .swift(let protocolDescriptor):
+                        try protocolDescriptor.fullname(in: machOFile)
+                    }
+                }
+            case .layout(let genericRequirementLayoutKind):
+                switch genericRequirementLayoutKind {
+                case .class:
+                    "AnyObject"
+                }
+            case .conformance/*(let protocolConformanceDescriptor)*/:
+                ""
+            case .invertedProtocols/*(let invertedProtocols)*/:
+                ""
+            }
+        }
         
-        "\(typeReference)"
+        if resilientWitnesses.isEmpty {
+            " {}"
+        } else {
+            " {"
+            
+            for resilientWitness in self.resilientWitnesses {
+                "\n"
+                "    "
+                switch try resilientWitness.requirement(in: machOFile) {
+                case .symbol(let unsolvedSymbol):
+                    try MetadataReader.demangleSymbol(for: unsolvedSymbol, in: machOFile)
+                case .element/*(let element)*/:
+                    ""
+                case .none:
+                    ""
+                }
+            }
+            
+            "\n"
+            "}"
+        }
     }
 }

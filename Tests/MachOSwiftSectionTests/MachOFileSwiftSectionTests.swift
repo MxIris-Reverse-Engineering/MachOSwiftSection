@@ -12,8 +12,8 @@ struct MachOFileSwiftSectionTests {
     let machOFile: MachOFile
 
     init() throws {
-        let path = "/Library/Developer/CoreSimulator/Volumes/iOS_22E238/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 18.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUICore.framework/SwiftUICore"
-//        let path = "/System/Applications/Freeform.app/Contents/MacOS/Freeform"
+//        let path = "/Library/Developer/CoreSimulator/Volumes/iOS_22E238/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 18.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUICore.framework/SwiftUICore"
+        let path = "/System/Applications/Freeform.app/Contents/MacOS/Freeform"
 //        let path = "/Applications/SourceEdit.app/Contents/Frameworks/SourceEditor.framework/Versions/A/SourceEditor"
         let url = URL(fileURLWithPath: path)
         let file = try MachOKit.loadFromFile(url: url)

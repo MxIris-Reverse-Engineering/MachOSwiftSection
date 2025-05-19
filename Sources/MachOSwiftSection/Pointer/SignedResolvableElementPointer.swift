@@ -1,6 +1,16 @@
 import MachOKit
 import Foundation
 
+//public protocol ResolvableElementPointerProtocol: PointerProtocol, RelativeIndirectType where Resolved == ResolvableElement<ResolvedElement>, Resolved == Pointee {
+//    associatedtype ResolvedElement: Resolvable
+//    static func symbol(_ symbol: UnsolvedSymbol) -> Self
+//    static func address(_ address: UInt64) -> Self
+//}
+//
+//extension ResolvableElementPointerProtocol {
+//    
+//}
+
 public enum SignedResolvableElementPointer<Context: Resolvable>: RelativeIndirectType {
     public typealias Resolved = ResolvableElement<Context>
 
