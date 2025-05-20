@@ -16,8 +16,6 @@ import MachOKit
 /// This contains enough static information to recover the witness table for a
 /// type's conformance to a protocol.
 public struct ProtocolConformance {
-    private let machOFile: MachOFile
-
     public let descriptor: ProtocolConformanceDescriptor
 
     public let `protocol`: ResolvableElement<ProtocolDescriptor>?
@@ -42,9 +40,10 @@ public struct ProtocolConformance {
 
     public let genericWitnessTable: GenericWitnessTable?
 
+    private var _cacheDescription: String = ""
+    
+    
     public init(descriptor: ProtocolConformanceDescriptor, in machOFile: MachOFile) throws {
-        self.machOFile = machOFile
-
         self.descriptor = descriptor
 
         self.protocol = try descriptor.protocolDescriptor(in: machOFile)
@@ -98,20 +97,22 @@ public struct ProtocolConformance {
         } else {
             self.genericWitnessTable = nil
         }
+        
+        do {
+            _cacheDescription = try buildDescription(in: machOFile)
+        } catch {
+            _cacheDescription = "Error: \(error)"
+        }
     }
 }
 
 extension ProtocolConformance: CustomStringConvertible {
     public var description: String {
-        do {
-            return try buildDescription()
-        } catch {
-            return "\(error)"
-        }
+        _cacheDescription
     }
 
     @StringBuilder
-    private func buildDescription() throws -> String {
+    private func buildDescription(in machOFile: MachOFile) throws -> String {
         switch typeReference {
         case .directTypeDescriptor(let descriptor):
             try descriptor.flatMap { try $0.namedContextDescriptor?.fullname(in: machOFile) }.valueOrEmpty
