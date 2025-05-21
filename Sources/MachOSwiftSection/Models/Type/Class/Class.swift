@@ -46,6 +46,7 @@ public struct Class {
     public let methodDefaultOverrideTableHeader: MethodDefaultOverrideTableHeader?
     public let methodDefaultOverrideDescriptors: [MethodDefaultOverrideDescriptor]
 
+    private var _cacheDescription: String = ""
     public init(descriptor: ClassDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
         let genericContext = try descriptor.typeGenericContext(in: machOFile)
@@ -135,7 +136,7 @@ public struct Class {
         } else {
             self.singletonMetadataPointer = nil
         }
-        
+
         if descriptor.hasDefaultOverrideTable {
             let methodDefaultOverrideTableHeader: MethodDefaultOverrideTableHeader = try machOFile.readElement(offset: currentOffset)
             self.methodDefaultOverrideTableHeader = methodDefaultOverrideTableHeader
@@ -146,9 +147,56 @@ public struct Class {
             self.methodDefaultOverrideTableHeader = nil
             self.methodDefaultOverrideDescriptors = []
         }
+        do {
+            self._cacheDescription = try buildDescription(in: machOFile)
+        } catch {
+            self._cacheDescription = "Error: \(error)"
+        }
     }
 
     public subscript<T>(dynamicMember member: KeyPath<ClassDescriptor, T>) -> T {
         return descriptor[keyPath: member]
+    }
+
+    @StringBuilder
+    private func buildDescription(in machOFile: MachOFile) throws -> String {
+        try "class \(descriptor.fullname(in: machOFile)) {"
+
+        for (offset, fieldRecord) in try descriptor.fieldDescriptor(in: machOFile).records(in: machOFile).offsetEnumerated() {
+            
+            BreakLine()
+            
+            Indent(level: 1)
+            
+            let demangledTypeName = try MetadataReader.demangle(for: fieldRecord.mangledTypeName(in: machOFile), in: machOFile)
+            
+            let fieldName = try fieldRecord.fieldName(in: machOFile)
+            
+            if fieldRecord.flags.contains(.isVariadic) {
+                if demangledTypeName.hasWeakPrefix {
+                    "weak var "
+                } else if fieldName.hasLazyPrefix {
+                    "lazy var "
+                } else {
+                    "var "
+                }
+            } else {
+                "let "
+            }
+
+            "\(fieldName.stripLazyPrefix): \(demangledTypeName.stripWeakPrefix)"
+            
+            if offset.isEnd {
+                BreakLine()
+            }
+        }
+
+        "}"
+    }
+}
+
+extension Class: CustomStringConvertible {
+    public var description: String {
+        return _cacheDescription
     }
 }

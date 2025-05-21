@@ -16,7 +16,6 @@ import MachOKit
 //                            InvertibleProtocolSet,
 //                            TargetSingletonMetadataPointer<Runtime>>
 
-public typealias SwiftOnceToken = intptr_t
 
 @dynamicMemberLookup
 public struct Enum {
@@ -30,30 +29,23 @@ public struct Enum {
     public let invertibleProtocolSet: InvertibleProtocolSet?
     public let singletonMetadataPointer: SingletonMetadataPointer?
 
+    private var _cacheDescription: String = ""
+
     public init(descriptor: EnumDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
-        
+
         var currentOffset = descriptor.offset + descriptor.layoutSize
-        
+
         let genericContext = try descriptor.typeGenericContext(in: machOFile)
-        
+
         if let genericContext {
             currentOffset += genericContext.size
         }
-        
+
         self.genericContext = genericContext
-        
-        guard case .type(let typeFlags) = descriptor.flags.kindSpecificFlags else {
-            self.foreignMetadataInitialization = nil
-            self.singletonMetadataInitialization = nil
-            self.canonicalSpecializedMetadatas = []
-            self.canonicalSpecializedMetadatasListCount = nil
-            self.canonicalSpecializedMetadatasCachingOnceToken = nil
-            self.invertibleProtocolSet = nil
-            self.singletonMetadataPointer = nil
-            return
-        }
-        
+
+        let typeFlags = try required(descriptor.flags.kindSpecificFlags?.typeFlags)
+
         if typeFlags.hasForeignMetadataInitialization {
             self.foreignMetadataInitialization = try machOFile.readElement(offset: currentOffset)
             currentOffset.offset(of: ForeignMetadataInitialization.self)
@@ -68,10 +60,7 @@ public struct Enum {
             self.singletonMetadataInitialization = nil
         }
 
-        let hasCanonicalMetadataPrespecializations = descriptor.flags.contains(.isGeneric) && typeFlags.hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer
-        let hasSingletonMetadataPointer = !descriptor.flags.contains(.isGeneric) && typeFlags.hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer
-        
-        if hasCanonicalMetadataPrespecializations {
+        if descriptor.hasCanonicalMetadataPrespecializations {
             let count: CanonicalSpecializedMetadatasListCount = try machOFile.readElement(offset: currentOffset)
             currentOffset.offset(of: CanonicalSpecializedMetadatasListCount.self)
             let countValue = count.rawValue
@@ -86,28 +75,79 @@ public struct Enum {
             self.canonicalSpecializedMetadatasListCount = nil
             self.canonicalSpecializedMetadatasCachingOnceToken = nil
         }
-        
-        if descriptor.flags.contains(.hasInvertibleProtocols) {
+
+        if descriptor.flags.hasInvertibleProtocols {
             self.invertibleProtocolSet = try machOFile.readElement(offset: currentOffset)
             currentOffset.offset(of: InvertibleProtocolSet.self)
         } else {
             self.invertibleProtocolSet = nil
         }
-        
-        if hasSingletonMetadataPointer {
+
+        if descriptor.hasSingletonMetadataPointer {
             self.singletonMetadataPointer = try machOFile.readElement(offset: currentOffset)
             currentOffset.offset(of: SingletonMetadataPointer.self)
         } else {
             self.singletonMetadataPointer = nil
         }
+        
+        do {
+            _cacheDescription = try buildDescription(in: machOFile)
+        } catch {
+            _cacheDescription = "Error: \(error)"
+        }
     }
-    
+
     public subscript<T>(dynamicMember member: KeyPath<EnumDescriptor, T>) -> T {
         return descriptor[keyPath: member]
     }
+
+    @StringBuilder
+    private func buildDescription(in machOFile: MachOFile) throws -> String {
+        try "enum \(descriptor.fullname(in: machOFile)) {"
+
+        for (offset, fieldRecord) in try descriptor.fieldDescriptor(in: machOFile).records(in: machOFile).offsetEnumerated() {
+            
+            BreakLine()
+            
+            
+            Indent(level: 1)
+
+            if fieldRecord.flags.contains(.isIndirectCase) {
+                "indirect case "
+            } else {
+                "case "
+            }
+
+            try "\(fieldRecord.fieldName(in: machOFile))"
+
+            
+            let mangledName = try fieldRecord.mangledTypeName(in: machOFile)
+            
+            if !mangledName.isEmpty {
+                try MetadataReader.demangle(for: mangledName, in: machOFile).insertBracketIfNeeded
+            }
+            
+            if offset.isEnd {
+                BreakLine()
+            }
+        }
+
+        "}"
+    }
 }
 
+extension Enum: CustomStringConvertible {
+    public var description: String {
+        return _cacheDescription
+    }
+}
 
-
-
-
+extension String {
+    fileprivate var insertBracketIfNeeded: String {
+        if hasPrefix("("), hasSuffix(")") {
+            return self
+        } else {
+            return "(\(self))"
+        }
+    }
+}

@@ -53,4 +53,16 @@ public struct ContextDescriptorFlags: OptionSet {
             return nil
         }
     }
+    
+    public var hasInvertibleProtocols: Bool {
+        contains(.hasInvertibleProtocols)
+    }
+    
+    public var isUnique: Bool {
+        contains(.isUnique)
+    }
+    
+    public var isGeneric: Bool {
+        contains(.isGeneric)
+    }
 }

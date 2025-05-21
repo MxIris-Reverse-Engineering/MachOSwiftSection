@@ -81,7 +81,6 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         currentOffset.offset(of: Header.self)
         self.offset = genericContextOffset
         self.header = header
-//        self.init(offset: genericContextOffset, size: currentOffset - genericContextOffset, header: header)
 
         if header.numParams > 0 {
             let parameters: [GenericParamDescriptor] = try machOFile.readElements(offset: currentOffset, numberOfElements: Int(header.numParams))

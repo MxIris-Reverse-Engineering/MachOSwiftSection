@@ -50,6 +50,22 @@ extension String {
     var stripDuplicateProtocolMangleType: String {
         replacingOccurrences(of: "_p_p", with: "_p")
     }
+    
+    var hasLazyPrefix: Bool {
+        hasPrefix("$__lazy_storage_$_")
+    }
+    
+    var stripLazyPrefix: String {
+        replacingOccurrences(of: "$__lazy_storage_$_", with: "")
+    }
+    
+    var hasWeakPrefix: Bool {
+        hasPrefix("weak ")
+    }
+    
+    var stripWeakPrefix: String {
+        replacingOccurrences(of: "weak ", with: "")
+    }
 }
 
 extension String? {
