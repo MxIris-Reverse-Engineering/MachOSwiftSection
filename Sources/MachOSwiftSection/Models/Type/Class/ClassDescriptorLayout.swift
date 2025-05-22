@@ -3,7 +3,7 @@ import MachOSwiftSectionMacro
 
 @Layout
 public protocol ClassDescriptorLayout: TypeContextDescriptorLayout {
-    var superclassType: RelativeDirectPointer<MangledName> { get }
+    var superclassType: RelativeDirectPointer<MangledName?> { get }
     var metadataNegativeSizeInWordsOrResilientMetadataBounds: UInt32 { get }
     var metadataPositiveSizeInWordsOrExtraClassFlags: UInt32 { get }
     var numImmediateMembers: UInt32 { get }

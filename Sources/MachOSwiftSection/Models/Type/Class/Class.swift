@@ -47,6 +47,7 @@ public struct Class {
     public let methodDefaultOverrideDescriptors: [MethodDefaultOverrideDescriptor]
 
     private var _cacheDescription: String = ""
+
     public init(descriptor: ClassDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
         let genericContext = try descriptor.typeGenericContext(in: machOFile)
@@ -160,18 +161,23 @@ public struct Class {
 
     @StringBuilder
     private func buildDescription(in machOFile: MachOFile) throws -> String {
-        try "class \(descriptor.fullname(in: machOFile)) {"
+        try "class \(descriptor.fullname(in: machOFile))"
+
+        if let superclassMangledName = try descriptor.superclassTypeMangledName(in: machOFile) {
+            try ": \(MetadataReader.demangle(for: superclassMangledName, in: machOFile)) {"
+        } else {
+            " {"
+        }
 
         for (offset, fieldRecord) in try descriptor.fieldDescriptor(in: machOFile).records(in: machOFile).offsetEnumerated() {
-            
             BreakLine()
-            
+
             Indent(level: 1)
-            
+
             let demangledTypeName = try MetadataReader.demangle(for: fieldRecord.mangledTypeName(in: machOFile), in: machOFile)
-            
+
             let fieldName = try fieldRecord.fieldName(in: machOFile)
-            
+
             if fieldRecord.flags.contains(.isVariadic) {
                 if demangledTypeName.hasWeakPrefix {
                     "weak var "
@@ -185,7 +191,16 @@ public struct Class {
             }
 
             "\(fieldName.stripLazyPrefix): \(demangledTypeName.stripWeakPrefix)"
-            
+
+            if offset.isEnd {
+                BreakLine()
+            }
+        }
+
+        for (offset, methodDescriptor) in methodDescriptors.offsetEnumerated() {
+            BreakLine()
+            Indent(level: 1)
+            "\(methodDescriptor.implementation.relativeOffset) \(methodDescriptor.flags.kind)"
             if offset.isEnd {
                 BreakLine()
             }

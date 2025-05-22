@@ -8,7 +8,7 @@ public struct ClassDescriptor: LocatableLayoutWrapper, TypeContextDescriptorProt
         public let name: RelativeDirectPointer<String>
         public let accessFunctionPtr: RelativeOffset
         public let fieldDescriptor: RelativeDirectPointer<FieldDescriptor>
-        public let superclassType: RelativeDirectPointer<MangledName>
+        public let superclassType: RelativeDirectPointer<MangledName?>
         public let metadataNegativeSizeInWordsOrResilientMetadataBounds: UInt32
         public let metadataPositiveSizeInWordsOrExtraClassFlags: UInt32
         public let numImmediateMembers: UInt32
@@ -77,5 +77,9 @@ extension ClassDescriptor {
     public var hasObjCResilientClassStub: Bool {
         guard hasResilientSuperclass else { return false }
         return ExtraClassDescriptorFlags(rawValue: layout.metadataPositiveSizeInWordsOrExtraClassFlags).hasObjCResilientClassStub
+    }
+    
+    public func superclassTypeMangledName(in machOFile: MachOFile) throws -> MangledName? {
+        try layout.superclassType.resolve(from: fileOffset(of: \.superclassType), in: machOFile)
     }
 }

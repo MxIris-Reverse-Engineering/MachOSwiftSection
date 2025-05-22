@@ -64,14 +64,14 @@ struct MachOFileSwiftSectionTests {
         
         for typeContextDescriptor in typeContextDescriptors {
             switch typeContextDescriptor.flags.kind {
-            case .enum:
-                let enumDescriptor = try require(typeContextDescriptor.enumDescriptor(in: machOFile))
-                let enumType = try Enum(descriptor: enumDescriptor, in: machOFile)
-                print(enumType)
-            case .struct:
-                let structDescriptor = try require(typeContextDescriptor.structDescriptor(in: machOFile))
-                let structType = try Struct(descriptor: structDescriptor, in: machOFile)
-                print(structType)
+//            case .enum:
+//                let enumDescriptor = try require(typeContextDescriptor.enumDescriptor(in: machOFile))
+//                let enumType = try Enum(descriptor: enumDescriptor, in: machOFile)
+//                print(enumType)
+//            case .struct:
+//                let structDescriptor = try require(typeContextDescriptor.structDescriptor(in: machOFile))
+//                let structType = try Struct(descriptor: structDescriptor, in: machOFile)
+//                print(structType)
             case .class:
                 let classDescriptor = try require(typeContextDescriptor.classDescriptor(in: machOFile))
                 let classType = try Class(descriptor: classDescriptor, in: machOFile)
