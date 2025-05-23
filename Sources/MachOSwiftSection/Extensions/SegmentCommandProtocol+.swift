@@ -37,6 +37,11 @@ extension SegmentCommandProtocol {
     func __swift5_protos(in machOFile: MachOFile) -> SectionType? {
         _section(for: "__swift5_protos", in: machOFile)
     }
+    
+    func _section(for swiftSection: SwiftMachOSection, in machOFile: MachOFile) -> SectionType? {
+        _section(for: swiftSection.rawValue, in: machOFile)
+    }
+    
 }
 
 extension SegmentCommandProtocol {
