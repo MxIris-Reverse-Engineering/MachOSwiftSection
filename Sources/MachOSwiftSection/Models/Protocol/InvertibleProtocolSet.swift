@@ -7,6 +7,15 @@ public struct InvertibleProtocolSet: OptionSet {
         self.rawValue = rawValue
     }
     
-    public static let hasCopyable = InvertibleProtocolSet(rawValue: 1 << InvertibleProtocolKind.copyable.rawValue)
-    public static let hasEscapable = InvertibleProtocolSet(rawValue: 1 << InvertibleProtocolKind.escapable.rawValue)
+    public static let copyable = InvertibleProtocolSet(rawValue: 1 << InvertibleProtocolKind.copyable.rawValue)
+    
+    public static let escapable = InvertibleProtocolSet(rawValue: 1 << InvertibleProtocolKind.escapable.rawValue)
+    
+    public var hasCopyable: Bool {
+        contains(.copyable)
+    }
+    
+    public var hasEscapable: Bool {
+        contains(.escapable)
+    }
 }

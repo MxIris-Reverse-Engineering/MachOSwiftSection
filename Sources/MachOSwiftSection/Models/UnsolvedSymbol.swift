@@ -16,7 +16,7 @@ public struct UnsolvedSymbol: Resolvable {
     }
 
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> UnsolvedSymbol {
-        guard let symbol = machOFile.findSymbol(offset: fileOffset) else { throw ResolvableError.symbolNotFound }
+        guard let symbol = try resolve(from: fileOffset, in: machOFile) else { throw ResolvableError.symbolNotFound }
         return symbol
     }
 

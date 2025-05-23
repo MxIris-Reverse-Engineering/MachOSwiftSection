@@ -113,6 +113,7 @@ extension ProtocolConformance: CustomStringConvertible {
 
     @StringBuilder
     private func buildDescription(in machOFile: MachOFile) throws -> String {
+        "extension "
         switch typeReference {
         case .directTypeDescriptor(let descriptor):
             try descriptor.flatMap { try $0.namedContextDescriptor?.fullname(in: machOFile) }.valueOrEmpty
@@ -181,8 +182,23 @@ extension ProtocolConformance: CustomStringConvertible {
                 }
             case .conformance/*(let protocolConformanceDescriptor)*/:
                 ""
-            case .invertedProtocols/*(let invertedProtocols)*/:
-                ""
+            case .invertedProtocols(let invertedProtocols):
+                if invertedProtocols.protocols.hasCopyable, invertedProtocols.protocols.hasEscapable {
+                    "Copyable, Escapable"
+                } else if invertedProtocols.protocols.hasCopyable || invertedProtocols.protocols.hasEscapable {
+                    if invertedProtocols.protocols.hasCopyable {
+                        "Copyable"
+                    } else {
+                        "~Copyable"
+                    }
+                    if invertedProtocols.protocols.hasEscapable {
+                        "Escapable"
+                    } else {
+                        "~Escapable"
+                    }
+                } else {
+                    "~Copyable, ~Escapable"
+                }
             }
         }
         
