@@ -128,7 +128,15 @@ extension ProtocolConformance: CustomStringConvertible {
         case .directObjCClassName(let objcClassName):
             objcClassName.valueOrEmpty
         case .indirectObjCClass(let objcClass):
-            try objcClass.map { try $0.description.resolve(in: machOFile).fullname(in: machOFile) }.valueOrEmpty
+            switch objcClass {
+            case .symbol(let unsolvedSymbol):
+                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile)
+            case .element(let element):
+                try element.description.resolve(in: machOFile).fullname(in: machOFile)
+            case nil:
+                ""
+            }
+            
         }
         ": "
         switch `protocol` {

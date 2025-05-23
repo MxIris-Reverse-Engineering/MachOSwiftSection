@@ -165,6 +165,8 @@ public struct Class {
 
         if let superclassMangledName = try descriptor.superclassTypeMangledName(in: machOFile) {
             try ": \(MetadataReader.demangle(for: superclassMangledName, in: machOFile)) {"
+        } else if let resilientSuperclass, let kind = descriptor.resilientSuperclassReferenceKind, let superclass = try resilientSuperclass.superclass(for: kind, in: machOFile) {
+            superclass
         } else {
             " {"
         }
@@ -197,10 +199,79 @@ public struct Class {
             }
         }
 
-        for (offset, methodDescriptor) in methodDescriptors.offsetEnumerated() {
+        for (offset, descriptor) in methodDescriptors.offsetEnumerated() {
             BreakLine()
+            
             Indent(level: 1)
-            "\(methodDescriptor.implementation.relativeOffset) \(methodDescriptor.flags.kind)"
+            
+            "[\(descriptor.flags.kind)] "
+            
+            if !descriptor.flags.isInstance, descriptor.flags.kind != .`init` {
+                "static "
+            }
+            
+            if descriptor.flags.isDynamic {
+                "dynamic "
+            }
+            
+            if descriptor.flags.kind == .method {
+                "func "
+            }
+            
+            if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
+                (try? MetadataReader.demangleSymbol(for: symbol, in: machOFile)) ?? "Error"
+            } else {
+                "Symbol not found"
+            }
+            
+            if offset.isEnd {
+                BreakLine()
+            }
+        }
+        
+        for (offset, descriptor) in methodOverrideDescriptors.offsetEnumerated() {
+            BreakLine()
+            
+            Indent(level: 1)
+            
+            "override "
+            
+//            if !descriptor.method.res, descriptor.flags.kind != .`init` {
+//                "class "
+//            }
+//            
+//            if descriptor.flags.isDynamic {
+//                "dynamic "
+//            }
+//            
+//            if descriptor.flags.kind == .method {
+//                "func "
+//            }
+            
+            if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
+                (try? MetadataReader.demangleSymbol(for: symbol, in: machOFile)) ?? "Error"
+            } else {
+                "Symbol not found"
+            }
+            
+            if offset.isEnd {
+                BreakLine()
+            }
+        }
+        
+        for (offset, descriptor) in methodDefaultOverrideDescriptors.offsetEnumerated() {
+            BreakLine()
+            
+            Indent(level: 1)
+            
+            "default override "
+            
+            if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
+                (try? MetadataReader.demangleSymbol(for: symbol, in: machOFile)) ?? "Error"
+            } else {
+                "Symbol not found"
+            }
+            
             if offset.isEnd {
                 BreakLine()
             }

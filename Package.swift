@@ -76,6 +76,7 @@ let package = Package(
     dependencies: [
         .MachOKit,
         .package(url: "https://github.com/swiftlang/swift-syntax", from: "601.0.1"),
+        .package(url: "https://github.com/MxIris-Library-Forks/AssociatedObject", branch: "main"),
     ],
     targets: [
         .target(
@@ -84,6 +85,7 @@ let package = Package(
                 "Demangling",
                 "MachOSwiftSectionMacro",
                 .MachOKit,
+                .product(name: "AssociatedObject", package: "AssociatedObject"),
             ]
         ),
         .target(

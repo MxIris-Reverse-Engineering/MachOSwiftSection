@@ -25,32 +25,12 @@ extension ProtocolConformanceDescriptor {
     }
 
     public var typeReference: TypeReference {
-        let relativeOffset = layout.typeReference
-        switch layout.flags.typeReferenceKind {
-        case .directTypeDescriptor:
-            return .directTypeDescriptor(.init(relativeOffset: relativeOffset))
-        case .indirectTypeDescriptor:
-            return .indirectTypeDescriptor(.init(relativeOffset: relativeOffset))
-        case .directObjCClassName:
-            return .directObjCClassName(.init(relativeOffset: relativeOffset))
-        case .indirectObjCClass:
-            return .indirectObjCClass(.init(relativeOffset: relativeOffset))
-        }
+        return .forKind(layout.flags.typeReferenceKind, at: layout.typeReference)
     }
 
     public func resolvedTypeReference(in machOFile: MachOFile) throws -> ResolvedTypeReference {
         let fileOffset = fileOffset(of: \.typeReference)
-        switch typeReference {
-        case .directTypeDescriptor(let relativeDirectPointer):
-            return try .directTypeDescriptor(relativeDirectPointer.resolve(from: fileOffset, in: machOFile))
-        case .indirectTypeDescriptor(let relativeIndirectPointer):
-            return try .indirectTypeDescriptor(relativeIndirectPointer.resolve(from: fileOffset, in: machOFile).resolve(in: machOFile).asOptional)
-        case .directObjCClassName(let relativeDirectPointer):
-            return try .directObjCClassName(relativeDirectPointer.resolve(from: fileOffset, in: machOFile))
-        case .indirectObjCClass(let relativeIndirectRawPointer):
-            // TODO
-            return .indirectObjCClass(nil)
-        }
+        return try typeReference.resolve(at: fileOffset, in: machOFile)
     }
 
     public func witnessTablePattern(in machOFile: MachOFile) throws -> ProtocolWitnessTable? {

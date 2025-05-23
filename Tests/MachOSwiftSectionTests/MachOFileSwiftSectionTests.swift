@@ -82,19 +82,6 @@ struct MachOFileSwiftSectionTests {
         }
     }
     
-    
-    @Test func stringBuilder() async throws {
-            
-        @StringBuilder
-        func build() -> String {
-            "1"
-            Indent(level: 1)
-            "2"
-        }
-        
-        print(build())
-    }
-    
     private func require<T>(_ optional: T?) throws -> T {
         guard let optional else { throw Error.notFound }
         return optional

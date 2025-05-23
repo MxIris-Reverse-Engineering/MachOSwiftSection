@@ -1,4 +1,5 @@
 import Foundation
+import MachOKit
 
 public struct ResilientSuperclass: LocatableLayoutWrapper {
     public struct Layout {
@@ -12,5 +13,36 @@ public struct ResilientSuperclass: LocatableLayoutWrapper {
     public init(layout: Layout, offset: Int) {
         self.layout = layout
         self.offset = offset
+    }
+}
+
+extension ResilientSuperclass {
+    public func superclass(for kind: TypeReferenceKind, in machOFile: MachOFile) throws -> String? {
+        let typeReference = TypeReference.forKind(kind, at: layout.superclass.relativeOffset)
+        let resolvedTypeReference = try typeReference.resolve(at: fileOffset(of: \.superclass), in: machOFile)
+        switch resolvedTypeReference {
+        case .directTypeDescriptor(let contextDescriptorWrapper):
+            return try contextDescriptorWrapper?.namedContextDescriptor?.fullname(in: machOFile)
+        case .indirectTypeDescriptor(let resolvableElement):
+            switch resolvableElement {
+            case .symbol(let unsolvedSymbol):
+                return try MetadataReader.demangleSymbol(for: unsolvedSymbol, in: machOFile)
+            case .element(let element):
+                return try element.namedContextDescriptor?.fullname(in: machOFile)
+            case nil:
+                return nil
+            }
+        case .directObjCClassName(let string):
+            return string
+        case .indirectObjCClass(let resolvableElement):
+            switch resolvableElement {
+            case .symbol(let unsolvedSymbol):
+                return try MetadataReader.demangleSymbol(for: unsolvedSymbol, in: machOFile)
+            case .element(let element):
+                return try element.description.resolve(in: machOFile).fullname(in: machOFile)
+            case nil:
+                return nil
+            }
+        }
     }
 }

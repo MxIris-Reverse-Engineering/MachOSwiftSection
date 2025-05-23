@@ -27,9 +27,9 @@ public struct ClassDescriptor: LocatableLayoutWrapper, TypeContextDescriptorProt
 }
 
 extension ClassDescriptor {
-    public var resilientSuperclassReferenceKind: TypeReferenceKind {
+    public var resilientSuperclassReferenceKind: TypeReferenceKind? {
         guard let resilientSuperclassReferenceKind = layout.flags.kindSpecificFlags?.typeFlags?.classResilientSuperclassReferenceKind else {
-            fatalError("Failed to get class resilient superclass reference kind")
+            return nil
         }
         return resilientSuperclassReferenceKind
     }

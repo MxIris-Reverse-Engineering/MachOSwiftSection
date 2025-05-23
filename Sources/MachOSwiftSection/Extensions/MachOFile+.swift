@@ -275,3 +275,33 @@ extension MachOFile {
         return nil
     }
 }
+
+import AssociatedObject
+
+extension MachOFile {
+    
+    @AssociatedObject(.retain(.nonatomic))
+    private var symbolByOffset: [Int: UnsolvedSymbol] = [:]
+    
+    
+    private func buildSymbolByOffsetIfNeeded() {
+        guard symbolByOffset.isEmpty else { return }
+        guard let symbols64 else { return }
+        var symbolByOffset: [Int: UnsolvedSymbol] = [:]
+        for symbol in symbols64 where !symbol.name.isEmpty {
+            symbolByOffset[symbol.offset] = .init(offset: symbol.offset, stringValue: symbol.name)
+        }
+        
+        for exportedSymbol in exportedSymbols {
+            if let offset = exportedSymbol.offset {
+                symbolByOffset[offset] = .init(offset: offset, stringValue: exportedSymbol.name)
+            }
+        }
+        self.symbolByOffset = symbolByOffset
+    }
+    
+    func findSymbol(offset: Int) -> UnsolvedSymbol? {
+        buildSymbolByOffsetIfNeeded()
+        return symbolByOffset[offset]
+    }
+}
