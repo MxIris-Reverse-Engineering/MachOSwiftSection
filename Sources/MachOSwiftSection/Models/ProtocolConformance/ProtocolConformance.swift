@@ -154,7 +154,7 @@ extension ProtocolConformance: CustomStringConvertible {
         }
 
         for conditionalRequirement in conditionalRequirements {
-            try MetadataReader.demangle(for: try conditionalRequirement.paramManagedName(in: machOFile), in: machOFile)
+            try MetadataReader.demangleType(for: try conditionalRequirement.paramManagedName(in: machOFile), in: machOFile)
             if conditionalRequirement.flags.kind == .sameType {
                 " == "
             } else {
@@ -162,7 +162,7 @@ extension ProtocolConformance: CustomStringConvertible {
             }
             switch try conditionalRequirement.resolvedContent(in: machOFile) {
             case .type(let mangledName):
-                try MetadataReader.demangle(for: mangledName, in: machOFile)
+                try MetadataReader.demangleType(for: mangledName, in: machOFile)
             case .protocol(let resolvableElement):
                 switch resolvableElement {
                 case .symbol(let unsolvedSymbol):
@@ -170,7 +170,7 @@ extension ProtocolConformance: CustomStringConvertible {
                 case .element(let element):
                     switch element {
                     case .objc(let objc):
-                        try objc.name(in: machOFile)
+                        try objc.mangledName(in: machOFile)
                     case .swift(let protocolDescriptor):
                         try protocolDescriptor.fullname(in: machOFile)
                     }

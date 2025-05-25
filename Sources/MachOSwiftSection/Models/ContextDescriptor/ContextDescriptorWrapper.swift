@@ -73,7 +73,7 @@ public enum ContextDescriptorWrapper {
 
     func name(in machOFile: MachOFile) throws -> String? {
         if case .extension(let extensionContextDescriptor) = self {
-            return try extensionContextDescriptor.extendedContext(in: machOFile).map { try MetadataReader.demangle(for: $0, in: machOFile) }
+            return try extensionContextDescriptor.extendedContext(in: machOFile).map { try MetadataReader.demangleType(for: $0, in: machOFile) }
         } else {
             return try namedContextDescriptor?.name(in: machOFile)
         }

@@ -10,11 +10,11 @@ extension NamedContextDescriptorProtocol {
     public func fullname(in machOFile: MachOFile) throws -> String {
         var name = try name(in: machOFile)
         var parent = try parent(in: machOFile)
-        while let currnetParent = parent {
+        findParent: while let currnetParent = parent {
             switch currnetParent {
             case .symbol(let unsolvedSymbol):
                 name = unsolvedSymbol.stringValue + "." + name
-                break
+                break findParent
             case .element(let element):
                 if let parentName = try element.name(in: machOFile) {
                     name = parentName + "." + name

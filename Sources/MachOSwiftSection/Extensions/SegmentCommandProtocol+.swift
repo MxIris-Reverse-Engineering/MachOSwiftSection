@@ -42,6 +42,10 @@ extension SegmentCommandProtocol {
         _section(for: swiftSection.rawValue, in: machOFile)
     }
     
+    func _section(for swiftSection: SwiftMachOSection, in machOFile: MachOImage) -> SectionType? {
+        _section(for: swiftSection.rawValue, in: machOFile)
+    }
+    
 }
 
 extension SegmentCommandProtocol {

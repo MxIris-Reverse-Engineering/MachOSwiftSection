@@ -164,7 +164,7 @@ public struct Class {
         try "class \(descriptor.fullname(in: machOFile))"
 
         if let superclassMangledName = try descriptor.superclassTypeMangledName(in: machOFile) {
-            try ": \(MetadataReader.demangle(for: superclassMangledName, in: machOFile)) {"
+            try ": \(MetadataReader.demangleType(for: superclassMangledName, in: machOFile)) {"
         } else if let resilientSuperclass, let kind = descriptor.resilientSuperclassReferenceKind, let superclass = try resilientSuperclass.superclass(for: kind, in: machOFile) {
             superclass
         } else {
@@ -176,7 +176,7 @@ public struct Class {
 
             Indent(level: 1)
 
-            let demangledTypeName = try MetadataReader.demangle(for: fieldRecord.mangledTypeName(in: machOFile), in: machOFile)
+            let demangledTypeName = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machOFile), in: machOFile)
 
             let fieldName = try fieldRecord.fieldName(in: machOFile)
 
@@ -219,7 +219,9 @@ public struct Class {
             }
             
             if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
-                (try? MetadataReader.demangleSymbol(for: symbol, in: machOFile)) ?? "Error"
+                (try? MetadataReader.demangleSymbol(for: symbol, in: machOFile)) ?? "Demangle Error"
+            } else if !descriptor.implementation.isNull {
+                "\(descriptor.implementation.resolveDirectOffset(from: descriptor.fileOffset(of: \.implementation)))"
             } else {
                 "Symbol not found"
             }

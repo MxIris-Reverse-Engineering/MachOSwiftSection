@@ -199,18 +199,18 @@ extension MachOFileHandle where Base: FileHandle {
     func readString(
         offset: UInt64,
         size: Int
-    ) -> String? {
+    ) -> String {
         let data = readData(
             offset: offset,
             size: size
         )
-        return String(cString: data)
+        return String(cString: data) ?? ""
     }
 
     func readString(
         offset: UInt64,
         step: UInt64 = 10
-    ) -> String? {
+    ) -> String {
         var data = Data()
         var offset = offset
         while true {
@@ -221,7 +221,7 @@ extension MachOFileHandle where Base: FileHandle {
             offset += UInt64(new.count)
         }
 
-        return String(cString: data)
+        return String(cString: data) ?? ""
     }
 
     func readData(
@@ -431,7 +431,7 @@ extension MachOFileHandle where Base == MemoryMappedFile {
     @inlinable @inline(__always)
     func readString(
         offset: UInt64
-    ) -> String? {
+    ) -> String {
         String(
             cString: base.ptr
                 .advanced(by: numericCast(offset))
@@ -443,7 +443,7 @@ extension MachOFileHandle where Base == MemoryMappedFile {
     func readString(
         offset: UInt64,
         size: Int // ignored
-    ) -> String? {
+    ) -> String {
         readString(offset: offset)
     }
 
@@ -451,7 +451,7 @@ extension MachOFileHandle where Base == MemoryMappedFile {
     func readString(
         offset: UInt64,
         step: Int = 10 // ignored
-    ) -> String? {
+    ) -> String {
         readString(offset: offset)
     }
 }

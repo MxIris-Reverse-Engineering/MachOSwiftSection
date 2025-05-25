@@ -341,11 +341,16 @@ public struct MetadataReader {
         return result
     }
 
-    public static func demangle(for mangledName: MangledName, in machOFile: MachOFile) throws -> String {
+    public static func demangleType(for mangledName: MangledName, in machOFile: MachOFile) throws -> String {
         let reader = MetadataReader(machOFile: machOFile)
         return try reader.demangle(for: mangledName, kind: .type).print()
     }
-    
+
+    public static func demangleSymbol(for mangledName: MangledName, in machOFile: MachOFile) throws -> String {
+        let reader = MetadataReader(machOFile: machOFile)
+        return try reader.demangle(for: mangledName, kind: .symbol).print()
+    }
+        
     public static func demangleType(for unsolvedSymbol: UnsolvedSymbol, in machOFile: MachOFile) throws -> String {
         let reader = MetadataReader(machOFile: machOFile)
         return try reader.buildContextManglingForSymbol(symbol: unsolvedSymbol)?.print() ?? ""

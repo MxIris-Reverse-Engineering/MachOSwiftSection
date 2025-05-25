@@ -23,6 +23,6 @@ extension ObjCProtocolPrefix {
     }
     
     public func mangledName(in machOFile: MachOFile) throws -> MangledName {
-        try layout.name.resolveAny(in: machOFile)
+        try Pointer<MangledName>(address: layout.name.address).resolve(in: machOFile)
     }
 }

@@ -8,4 +8,5 @@ public struct Pointer<Pointee: Resolvable>: RelativeIndirectType, PointerProtoco
 public typealias RawPointer = Pointer<AnyResolvable>
 
 public typealias MetadataPointer<Pointee: Resolvable> = Pointer<Pointee>
+
 public typealias ConstMetadataPointer<Pointee: Resolvable> = MetadataPointer<Pointee>

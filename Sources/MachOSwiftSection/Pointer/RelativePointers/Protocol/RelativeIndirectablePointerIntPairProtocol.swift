@@ -6,7 +6,6 @@ public protocol RelativeIndirectablePointerIntPairProtocol: RelativeIndirectable
     associatedtype Value: RawRepresentable where Value.RawValue: FixedWidthInteger
     var relativeOffsetPlusIndirectAndInt: Offset { get }
     var isIndirect: Bool { get }
-    func resolveIndirectableFileOffset(from fileOffset: Int, in machOFile: MachOFile) throws -> Int
 }
 
 extension RelativeIndirectablePointerIntPairProtocol {
@@ -23,7 +22,7 @@ extension RelativeIndirectablePointerIntPairProtocol {
     }
 
     public var intValue: Integer {
-        numericCast(relativeOffsetPlusIndirectAndInt & mask >> 1)
+        numericCast((relativeOffsetPlusIndirectAndInt & mask) >> 1)
     }
 
     public var isIndirect: Bool {
@@ -37,6 +36,13 @@ extension RelativeIndirectablePointerIntPairProtocol {
 
 extension RelativeIndirectablePointerIntPairProtocol where Pointee: OptionalProtocol {
     public func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Pointee {
+        guard isValid else { return nil }
+        return try resolve(from: fileOffset, in: machOFile)
+    }
+}
+
+extension RelativeIndirectablePointerIntPairProtocol where Pointee: OptionalProtocol {
+    public func resolve(from fileOffset: Int, in machOFile: MachOImage) throws -> Pointee {
         guard isValid else { return nil }
         return try resolve(from: fileOffset, in: machOFile)
     }

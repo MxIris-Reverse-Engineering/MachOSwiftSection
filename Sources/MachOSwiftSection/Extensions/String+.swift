@@ -40,7 +40,7 @@ extension String {
     }
 
     var isStartWithManglePrefix: Bool {
-        hasPrefix("_$s")
+        hasPrefix("_$s") || hasPrefix("$s")
     }
     
     var stripProtocolMangleType: String {

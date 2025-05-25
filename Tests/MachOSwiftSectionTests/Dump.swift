@@ -26,7 +26,7 @@ enum Dump {
                         var fieldName = try record.fieldName(in: machOFile)
                         var demangledTypeName = ""
                         if !mangledTypeName.isEmpty {
-                            demangledTypeName = (try? MetadataReader.demangle(for: mangledTypeName, in: machOFile)) ?? mangledTypeName.symbolStringValue()
+                            demangledTypeName = (try? MetadataReader.demangleType(for: mangledTypeName, in: machOFile)) ?? mangledTypeName.symbolStringValue()
                         }
                         let isLazy = fieldName.hasPrefix("$__lazy_storage_$_")
                         let isWeak = demangledTypeName.hasPrefix("weak ")

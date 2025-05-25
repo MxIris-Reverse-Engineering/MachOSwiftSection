@@ -1,5 +1,5 @@
 import Foundation
-import MachOKit
+@_spi(Support) import MachOKit
 
 extension MachOImage {
     func findSwiftSection64(for section: SwiftMachOSection) -> Section64? {
@@ -41,5 +41,59 @@ extension MachOImage {
             }
         }
         return nil
+    }
+}
+
+extension MachOImage {
+    func assumingElement<Element>(
+        offset: Int
+    ) throws -> Element {
+        let pointer = ptr + offset
+        return pointer.assumingMemoryBound(to: Element.self).pointee
+    }
+
+    func assumingElement<Element>(
+        offset: Int
+    ) throws -> Element where Element: LocatableLayoutWrapper {
+        let pointer = ptr + offset
+        let layout: Element.Layout = pointer.assumingMemoryBound(to: Element.Layout.self).pointee
+        return .init(layout: layout, offset: offset)
+    }
+
+    func assumingElements<Element>(
+        offset: Int,
+        numberOfElements: Int
+    ) throws -> [Element] {
+        let pointer = ptr + offset
+        return MemorySequence<Element>(basePointer: pointer.assumingMemoryBound(to: Element.self), numberOfElements: numberOfElements).map { $0 }
+    }
+    
+    func assumingElements<Element>(
+        offset: Int,
+        numberOfElements: Int
+    ) throws -> [Element] where Element: LocatableLayoutWrapper {
+        let pointer = ptr + offset
+        var currentOffset = offset
+        let elements = MemorySequence<Element.Layout>(basePointer: pointer.assumingMemoryBound(to: Element.Layout.self), numberOfElements: numberOfElements).map { (layout: Element.Layout) -> Element in
+            let element = Element(layout: layout, offset: currentOffset)
+            currentOffset += Element.layoutSize
+            return element
+        }
+        return elements
+    }
+
+    func assumingString(offset: Int) throws -> String {
+        let pointer = ptr + offset
+        return .init(cString: pointer.assumingMemoryBound(to: CChar.self))
+    }
+}
+
+extension UnsafeRawPointer {
+    var uint: UInt {
+        UInt(bitPattern: self)
+    }
+    
+    var int: Int {
+        Int(bitPattern: self)
     }
 }

@@ -32,4 +32,8 @@ extension AssociatedTypeDescriptor {
     public func associatedTypeRecords(in machOFile: MachOFile) throws -> [AssociatedTypeRecord] {
         return try machOFile.readElements(offset: offset + layoutSize, numberOfElements: layout.numAssociatedTypes.cast())
     }
+    
+    public var size: Int {
+        layoutSize + (layout.numAssociatedTypes * layout.associatedTypeRecordSize).cast()
+    }
 }

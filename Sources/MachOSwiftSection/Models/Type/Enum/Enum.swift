@@ -124,7 +124,7 @@ public struct Enum {
             let mangledName = try fieldRecord.mangledTypeName(in: machOFile)
             
             if !mangledName.isEmpty {
-                try MetadataReader.demangle(for: mangledName, in: machOFile).insertBracketIfNeeded
+                try MetadataReader.demangleType(for: mangledName, in: machOFile).insertBracketIfNeeded
             }
             
             if offset.isEnd {

@@ -95,7 +95,7 @@ public struct Struct {
             
             Indent(level: 1)
 
-            let demangledTypeName = try MetadataReader.demangle(for: fieldRecord.mangledTypeName(in: machOFile), in: machOFile)
+            let demangledTypeName = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machOFile), in: machOFile)
             
             let fieldName = try fieldRecord.fieldName(in: machOFile)
             

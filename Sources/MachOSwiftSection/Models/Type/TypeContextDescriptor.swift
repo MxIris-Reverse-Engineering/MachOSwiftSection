@@ -36,3 +36,20 @@ extension TypeContextDescriptor {
         return try machOFile.readElement(offset: offset) as ClassDescriptor
     }
 }
+
+extension TypeContextDescriptor {
+    public func enumDescriptor(in machOImage: MachOImage) throws -> EnumDescriptor? {
+        guard layout.flags.kind == .enum else { return nil }
+        return try machOImage.assumingElement(offset: offset) as EnumDescriptor
+    }
+
+    public func structDescriptor(in machOImage: MachOImage) throws -> StructDescriptor? {
+        guard layout.flags.kind == .struct else { return nil }
+        return try machOImage.assumingElement(offset: offset) as StructDescriptor
+    }
+
+    public func classDescriptor(in machOImage: MachOImage) throws -> ClassDescriptor? {
+        guard layout.flags.kind == .class else { return nil }
+        return try machOImage.assumingElement(offset: offset) as ClassDescriptor
+    }
+}

@@ -85,14 +85,13 @@ extension MachOFile {
 
     func resolveBind<Pointer: RelativePointerProtocol>(at offset: Int, for pointer: Pointer) throws -> (DyldChainedImport, addend: UInt64)? {
 //        try (resolveBind(at: pointer.resolveDirectFileOffset(from: offset).cast()) ?? resolveBind(at: pointer.resolveIndirectableFileOffset(from: offset, in: self).cast()))
-        resolveBind(at: pointer.resolveDirectFileOffset(from: offset).cast())
+        resolveBind(at: pointer.resolveDirectOffset(from: offset).cast())
     }
 }
 
 extension MachOFile {
     func readElement<Element>(
-        offset: Int,
-        swapHandler: ((inout Data) -> Void)? = nil
+        offset: Int
     ) throws -> Element {
         var offset = offset
         var fileHandle = fileIO
@@ -100,12 +99,11 @@ extension MachOFile {
             offset = cacheAndFileOffset.1.cast()
 //            fileHandle = cacheAndFileOffset.0.fileHandle
         }
-        return try fileHandle.machO.read(offset: numericCast(offset + effectiveHeaderStartOffset), swapHandler: swapHandler)
+        return try fileHandle.machO.read(offset: numericCast(offset + effectiveHeaderStartOffset))
     }
 
     func readElement<Element>(
-        offset: Int,
-        swapHandler: ((inout Data) -> Void)? = nil
+        offset: Int
     ) throws -> Element where Element: LocatableLayoutWrapper {
 //        var offset = offset
 //        var fileHandle = fileHandle
@@ -119,14 +117,13 @@ extension MachOFile {
             offset = cacheAndFileOffset.1.cast()
 //            fileHandle = cacheAndFileOffset.0.fileHandle
         }
-        let layout: Element.Layout = try fileHandle.machO.read(offset: numericCast(offset + effectiveHeaderStartOffset), swapHandler: swapHandler)
+        let layout: Element.Layout = try fileHandle.machO.read(offset: numericCast(offset + effectiveHeaderStartOffset))
         return .init(layout: layout, offset: offset)
     }
 
     func readElements<Element>(
         offset: Int,
-        numberOfElements: Int,
-        swapHandler: ((inout Data) -> Void)? = nil
+        numberOfElements: Int
     ) throws -> [Element] {
         var offset = offset
         var fileHandle = fileIO
@@ -135,7 +132,7 @@ extension MachOFile {
 //            fileHandle = cacheAndFileOffset.0.fileHandle
         }
         var currentOffset = offset
-        let elements = try fileHandle.machO.readDataSequence(offset: numericCast(offset + effectiveHeaderStartOffset), numberOfElements: numberOfElements, swapHandler: swapHandler).map { (element: Element) -> Element in
+        let elements = try fileHandle.machO.readDataSequence(offset: numericCast(offset + effectiveHeaderStartOffset), numberOfElements: numberOfElements).map { (element: Element) -> Element in
             currentOffset += MemoryLayout<Element>.size
             return element
         }
@@ -144,8 +141,7 @@ extension MachOFile {
     
     func readElements<Element>(
         offset: Int,
-        numberOfElements: Int,
-        swapHandler: ((inout Data) -> Void)? = nil
+        numberOfElements: Int
     ) throws -> [Element] where Element: LocatableLayoutWrapper {
         var offset = offset
         var fileHandle = fileIO
@@ -154,7 +150,7 @@ extension MachOFile {
 //            fileHandle = cacheAndFileOffset.0.fileHandle
         }
         var currentOffset = offset
-        let elements = try fileHandle.machO.readDataSequence(offset: numericCast(offset + effectiveHeaderStartOffset), numberOfElements: numberOfElements, swapHandler: swapHandler).map { (layout: Element.Layout) -> Element in
+        let elements = try fileHandle.machO.readDataSequence(offset: numericCast(offset + effectiveHeaderStartOffset), numberOfElements: numberOfElements).map { (layout: Element.Layout) -> Element in
             let element = Element(layout: layout, offset: currentOffset)
             currentOffset += Element.layoutSize
             return element
@@ -162,7 +158,7 @@ extension MachOFile {
         return elements
     }
 
-    func readString(offset: Int) throws -> String? {
+    func readString(offset: Int) throws -> String {
         var offset = offset
         var fileHandle = fileIO
         if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
