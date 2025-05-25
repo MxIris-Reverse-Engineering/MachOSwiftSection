@@ -12,11 +12,11 @@ public enum SignedResolvableElementPointer<Context: Resolvable>: RelativeIndirec
         case .symbol(let unsolvedSymbol):
             return unsolvedSymbol.offset
         case .address(let address):
-            if let cache = machOFile.cache, cache.cpu.type == .arm64 {
-                return numericCast(address & 0x7FFFFFFF)
-            } else {
+//            if let cache = machOFile.cache, cache.cpu.type == .arm64 {
+//                return numericCast(address & 0x7FFFFFFF)
+//            } else {
                 return numericCast(machOFile.fileOffset(of: address))
-            }
+//            }
         }
     }
 
@@ -60,10 +60,11 @@ public enum SignedResolvableElementPointer<Context: Resolvable>: RelativeIndirec
             return .symbol(.init(offset: fileOffset, stringValue: symbol))
         } else {
             let resolvedFileOffset = fileOffset
-//            if let newOffset = machOFile.resolveRebase(fileOffset: resolvedFileOffset) {
-//                resolvedFileOffset = (newOffset & 0x7FFFFFFF).cast()
-//            }
-            return try .address(machOFile.readElement(offset: resolvedFileOffset))
+            if let rebase = machOFile.resolveRebase(fileOffset: resolvedFileOffset) {
+                return .address(rebase)
+            } else {
+                return try .address(machOFile.readElement(offset: resolvedFileOffset))
+            }
         }
     }
 

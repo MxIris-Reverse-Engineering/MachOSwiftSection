@@ -123,24 +123,24 @@ extension ContextDescriptorWrapper: Resolvable {
     }
     
     public static func resolve(from offset: Int, in machOFile: MachOFile) throws -> Self {
-        let contextDescriptor: ContextDescriptor = try machOFile.readElement(offset: offset)
+        let contextDescriptor: ContextDescriptor = try machOFile.readCacheElement(offset: offset)
         switch contextDescriptor.flags.kind {
         case .class:
-            return try .type(.class(machOFile.readElement(offset: offset)))
+            return try .type(.class(machOFile.readCacheElement(offset: offset)))
         case .enum:
-            return try .type(.enum(machOFile.readElement(offset: offset)))
+            return try .type(.enum(machOFile.readCacheElement(offset: offset)))
         case .struct:
-            return try .type(.struct(machOFile.readElement(offset: offset)))
+            return try .type(.struct(machOFile.readCacheElement(offset: offset)))
         case .protocol:
-            return try .protocol(machOFile.readElement(offset: offset))
+            return try .protocol(machOFile.readCacheElement(offset: offset))
         case .anonymous:
-            return try .anonymous(machOFile.readElement(offset: offset))
+            return try .anonymous(machOFile.readCacheElement(offset: offset))
         case .extension:
-            return try .extension(machOFile.readElement(offset: offset))
+            return try .extension(machOFile.readCacheElement(offset: offset))
         case .module:
-            return try .module(machOFile.readElement(offset: offset))
+            return try .module(machOFile.readCacheElement(offset: offset))
         case .opaqueType:
-            return try .opaqueType(machOFile.readElement(offset: offset))
+            return try .opaqueType(machOFile.readCacheElement(offset: offset))
         default:
             throw ResolutionError.invalidContextDescriptor
         }

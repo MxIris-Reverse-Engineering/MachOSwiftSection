@@ -72,7 +72,7 @@ extension MachOFile.Swift {
     private func _readDescriptors<Descriptor: LocatableLayoutWrapper>(from section: any SectionProtocol, in machO: MachOFile) throws -> [Descriptor] {
         let pointerSize: Int = MemoryLayout<RelativeDirectPointer<Descriptor>>.size
 
-        let data: [AnyLocatableLayoutWrapper<RelativeDirectPointer<Descriptor>>] = try machO.readElements(offset: section.offset.cast(), numberOfElements: section.size / pointerSize)
+        let data: [AnyLocatableLayoutWrapper<RelativeDirectPointer<Descriptor>>] = try machO.readElements(offset: section.offset, numberOfElements: section.size / pointerSize)
 
         return try data.map { try $0.layout.resolve(from: $0.offset, in: machO) }
     }

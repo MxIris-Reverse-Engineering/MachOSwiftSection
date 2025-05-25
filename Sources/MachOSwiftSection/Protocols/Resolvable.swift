@@ -52,7 +52,7 @@ extension Optional: Resolvable where Wrapped: Resolvable {
 
 extension String: Resolvable {
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self {
-        return try machOFile.readString(offset: fileOffset) ?? ""
+        return try machOFile.readCacheString(offset: fileOffset) ?? ""
     }
 
     public static func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> Self {
