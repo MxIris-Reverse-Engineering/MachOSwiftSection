@@ -20,8 +20,8 @@ public struct ProtocolConformanceDescriptor: LocatableLayoutWrapper {
     }
 }
 
+@MachOImageAllMembersGenerator
 extension ProtocolConformanceDescriptor {
-    //@MachOImageGenerator
     public func protocolDescriptor(in machOFile: MachOFile) throws -> ResolvableElement<ProtocolDescriptor>? {
         try layout.protocolDescriptor.resolve(from: offset(of: \.protocolDescriptor), in: machOFile).asOptional
     }
@@ -30,13 +30,11 @@ extension ProtocolConformanceDescriptor {
         return .forKind(layout.flags.typeReferenceKind, at: layout.typeReference)
     }
 
-    //@MachOImageGenerator
     public func resolvedTypeReference(in machOFile: MachOFile) throws -> ResolvedTypeReference {
-        let fileOffset = offset(of: \.typeReference)
-        return try typeReference.resolve(at: fileOffset, in: machOFile)
+        let offset = offset(of: \.typeReference)
+        return try typeReference.resolve(at: offset, in: machOFile)
     }
 
-    //@MachOImageGenerator
     public func witnessTablePattern(in machOFile: MachOFile) throws -> ProtocolWitnessTable? {
         try layout.witnessTablePattern.resolve(from: offset(of: \.witnessTablePattern), in: machOFile)
     }

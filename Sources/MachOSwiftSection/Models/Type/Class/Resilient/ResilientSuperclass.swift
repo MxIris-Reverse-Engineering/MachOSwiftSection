@@ -17,6 +17,7 @@ public struct ResilientSuperclass: LocatableLayoutWrapper {
     }
 }
 
+@MachOImageAllMembersGenerator
 extension ResilientSuperclass {
     //@MachOImageGenerator
     public func superclass(for kind: TypeReferenceKind, in machOFile: MachOFile) throws -> String? {

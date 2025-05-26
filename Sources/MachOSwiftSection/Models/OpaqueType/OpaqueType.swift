@@ -11,7 +11,7 @@ public struct OpaqueType {
 
     public let invertedProtocols: InvertibleProtocolSet?
 
-    //@MachOImageGenerator
+    @MachOImageGenerator
     public init(descriptor: OpaqueTypeDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
         var currentOffset = descriptor.offset + descriptor.layoutSize

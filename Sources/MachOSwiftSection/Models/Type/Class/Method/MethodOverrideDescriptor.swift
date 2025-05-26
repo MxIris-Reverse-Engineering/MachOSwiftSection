@@ -19,6 +19,7 @@ public struct MethodOverrideDescriptor: LocatableLayoutWrapper {
     }
 }
 
+@MachOImageAllMembersGenerator
 extension MethodOverrideDescriptor {
     //@MachOImageGenerator
     public func implementationSymbol(in machOFile: MachOFile) throws -> UnsolvedSymbol? {

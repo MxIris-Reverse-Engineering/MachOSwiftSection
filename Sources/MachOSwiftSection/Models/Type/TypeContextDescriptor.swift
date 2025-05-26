@@ -21,6 +21,8 @@ public struct TypeContextDescriptor: TypeContextDescriptorProtocol {
     }
 }
 
+
+@MachOImageAllMembersGenerator
 extension TypeContextDescriptor {
     //@MachOImageGenerator
     public func enumDescriptor(in machOFile: MachOFile) throws -> EnumDescriptor? {

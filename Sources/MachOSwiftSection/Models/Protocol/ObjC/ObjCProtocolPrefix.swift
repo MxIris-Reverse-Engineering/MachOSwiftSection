@@ -18,6 +18,7 @@ public struct ObjCProtocolPrefix: LocatableLayoutWrapper {
     }
 }
 
+@MachOImageAllMembersGenerator
 extension ObjCProtocolPrefix {
     //@MachOImageGenerator
     public func name(in machOFile: MachOFile) throws -> String {

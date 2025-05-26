@@ -32,7 +32,7 @@ public struct Enum {
 
     private var _cacheDescription: String = ""
 
-    //@MachOImageGenerator
+    @MachOImageGenerator
     public init(descriptor: EnumDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
 
@@ -103,7 +103,7 @@ public struct Enum {
         return descriptor[keyPath: member]
     }
 
-    //@MachOImageGenerator
+    @MachOImageGenerator
     @StringBuilder
     private func buildDescription(in machOFile: MachOFile) throws -> String {
         try "enum \(descriptor.fullname(in: machOFile)) {"

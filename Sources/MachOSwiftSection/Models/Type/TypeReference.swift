@@ -22,7 +22,7 @@ public enum TypeReference {
     }
 
     
-    //@MachOImageGenerator
+    @MachOImageGenerator
     func resolve(at fileOffset: Int, in machOFile: MachOFile) throws -> ResolvedTypeReference {
         switch self {
         case let .directTypeDescriptor(relativeDirectPointer):

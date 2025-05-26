@@ -20,7 +20,7 @@ public struct ExtendedExistentialTypeShape: LocatableLayoutWrapper, Resolvable {
 }
 
 extension ExtendedExistentialTypeShape {
-    //@MachOImageGenerator
+    @MachOImageGenerator
     public func existentialType(in machOFile: MachOFile) throws -> MangledName {
         try layout.existentialType.resolve(from: offset(of: \.existentialType), in: machOFile)
     }

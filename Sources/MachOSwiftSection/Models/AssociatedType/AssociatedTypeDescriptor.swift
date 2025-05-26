@@ -20,8 +20,9 @@ public struct AssociatedTypeDescriptor: LocatableLayoutWrapper {
 }
 
 
+@MachOImageAllMembersGenerator
 extension AssociatedTypeDescriptor {
-    //@MachOImageGenerator
+    
     public func conformingTypeName(in machOFile: MachOFile) throws -> MangledName {
         return try layout.conformingTypeName.resolve(from: offset(of: \.conformingTypeName), in: machOFile)
     }

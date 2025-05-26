@@ -9,7 +9,7 @@ public struct ExtensionContext {
 
     public let extendedContextMangledName: MangledName?
 
-    //@MachOImageGenerator
+    @MachOImageGenerator
     public init(descriptor: ExtensionContextDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
         self.extendedContextMangledName = try descriptor.extendedContext(in: machOFile)

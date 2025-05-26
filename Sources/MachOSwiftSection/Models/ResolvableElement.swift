@@ -39,6 +39,14 @@ public enum ResolvableElement<Element: Resolvable>: Resolvable {
         }
     }
     
+    public static func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> ResolvableElement<Element> {
+        return try .element(.resolve(from: imageOffset, in: machOImage))
+    }
+    
+    public static func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> ResolvableElement<Element>? {
+        return try Element.resolve(from: imageOffset, in: machOImage).map { .element($0) }
+    }
+    
     public func map<T>(_ transform: (Element) throws -> T) rethrows -> ResolvableElement<T> {
         switch self {
         case .symbol(let unsolvedSymbol):

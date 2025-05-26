@@ -43,7 +43,7 @@ public struct ProtocolConformance {
 
     private var _cacheDescription: String = ""
     
-    //@MachOImageGenerator
+    @MachOImageGenerator
     public init(descriptor: ProtocolConformanceDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
 
@@ -112,7 +112,7 @@ extension ProtocolConformance: CustomStringConvertible {
         _cacheDescription
     }
 
-    //@MachOImageGenerator
+    @MachOImageGenerator
     @StringBuilder
     private func buildDescription(in machOFile: MachOFile) throws -> String {
         "extension "

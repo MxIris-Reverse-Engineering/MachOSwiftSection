@@ -31,7 +31,7 @@ public struct `Protocol` {
         descriptor.numRequirementsInSignature.cast()
     }
 
-    //@MachOImageGenerator
+    @MachOImageGenerator
     public init(descriptor: ProtocolDescriptor, in machOFile: MachOFile) throws {
         guard let protocolFlags = descriptor.flags.kindSpecificFlags?.protocolFlags else {
             throw Error.invalidProtocolDescriptor

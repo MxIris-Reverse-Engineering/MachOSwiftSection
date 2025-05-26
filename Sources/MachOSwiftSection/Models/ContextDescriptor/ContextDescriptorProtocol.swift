@@ -11,6 +11,7 @@ extension ContextDescriptorProtocol {
     }
 
     public func genericContext(in machOFile: MachOFile) throws -> GenericContext? {
+        guard layout.flags.isGeneric else { return nil }
         return try GenericContext(contextDescriptor: self, in: machOFile)
     }
 }

@@ -3,6 +3,8 @@ import MachOKit
 import Demangling
 import MachOSwiftSectionMacro
 
+
+@MachOImageAllMembersGenerator
 public struct MetadataReader {
     //@MachOImageGenerator
     private static func buildContextMangling(context: ResolvableElement<ContextDescriptorWrapper>, in machOFile: MachOFile) throws -> SwiftSymbol? {
@@ -290,35 +292,35 @@ public struct MetadataReader {
             do {
                 var result: SwiftSymbol?
                 let lookup = mangledName.lookupElements[index]
-                let fileOffset = lookup.offset
+                let offset = lookup.offset
                 guard case .relative(let relativeReference) = lookup.reference else { return nil }
                 let relativeOffset = relativeReference.relativeOffset
                 switch kind {
                 case .context:
                     switch directness {
                     case .direct:
-                        if let context = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset).resolve(from: fileOffset, in: machOFile) {
+                        if let context = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset).resolve(from: offset, in: machOFile) {
                             result = try buildContextMangling(context: .element(context), in: machOFile)
                         }
                     case .indirect:
                         let relativePointer = RelativeIndirectResolvableElementPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset)
-                        if let resolvableElement = try relativePointer.resolve(from: fileOffset, in: machOFile).asOptional {
+                        if let resolvableElement = try relativePointer.resolve(from: offset, in: machOFile).asOptional {
                             result = try buildContextMangling(context: resolvableElement, in: machOFile)
                         }
                     }
                 case .accessorFunctionReference:
                     break
                 case .uniqueExtendedExistentialTypeShape:
-                    let extendedExistentialTypeShape = try RelativeDirectPointer<ExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: fileOffset, in: machOFile)
+                    let extendedExistentialTypeShape = try RelativeDirectPointer<ExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: offset, in: machOFile)
                     let existentialType = try extendedExistentialTypeShape.existentialType(in: machOFile).symbolStringValue()
                     result = try .init(kind: .uniqueExtendedExistentialTypeShapeSymbolicReference, children: parseMangledSwiftSymbol(existentialType.insertManglePrefix).children)
                 case .nonUniqueExtendedExistentialTypeShape:
-                    let nonUniqueExtendedExistentialTypeShape = try RelativeDirectPointer<NonUniqueExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: fileOffset, in: machOFile)
+                    let nonUniqueExtendedExistentialTypeShape = try RelativeDirectPointer<NonUniqueExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: offset, in: machOFile)
                     let existentialType = try nonUniqueExtendedExistentialTypeShape.existentialType(in: machOFile).symbolStringValue()
                     result = try .init(kind: .nonUniqueExtendedExistentialTypeShapeSymbolicReference, children: parseMangledSwiftSymbol(existentialType.insertManglePrefix).children)
                 case .objectiveCProtocol:
                     let relativePointer = RelativeDirectPointer<RelativeObjCProtocolPrefix>(relativeOffset: relativeOffset)
-                    let objcProtocol = try relativePointer.resolve(from: fileOffset, in: machOFile)
+                    let objcProtocol = try relativePointer.resolve(from: offset, in: machOFile)
                     let name = try objcProtocol.mangledName(in: machOFile).symbolStringValue()
                     result = try parseMangledSwiftSymbol(name).typeSymbol
                 }

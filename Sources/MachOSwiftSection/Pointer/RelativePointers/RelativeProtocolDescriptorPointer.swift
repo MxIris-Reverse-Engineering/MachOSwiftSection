@@ -23,7 +23,7 @@ public enum RelativeProtocolDescriptorPointer {
             return .init(relativeOffsetPlusIndirectAndInt: relativeContextPointerIntPair.relativeOffsetPlusIndirectAndInt)
         }
     }
-    //@MachOImageGenerator
+    @MachOImageGenerator
     public func protocolDescriptorRef(from offset: Int, in machOFile: MachOFile) throws -> ProtocolDescriptorRef {
         let storedPointer = try rawPointer.resolveIndirectType(from: offset, in: machOFile).address
         if isObjC {
@@ -32,7 +32,7 @@ public enum RelativeProtocolDescriptorPointer {
             return .forSwift(storedPointer)
         }
     }
-    //@MachOImageGenerator
+    @MachOImageGenerator
     public func resolve(from offset: Int, in machOFile: MachOFile) throws -> ResolvableElement<ProtocolDescriptorWithObjCInterop> {
         switch self {
         case .objcPointer(let relativeIndirectablePointerIntPair):

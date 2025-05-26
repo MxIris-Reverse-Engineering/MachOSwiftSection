@@ -21,6 +21,7 @@ public struct FieldDescriptor: LocatableLayoutWrapper, Resolvable {
     }
 }
 
+@MachOImageAllMembersGenerator
 extension FieldDescriptor {
     //@MachOImageGenerator
     public func mangledTypeName(in machOFile: MachOFile) throws -> MangledName {

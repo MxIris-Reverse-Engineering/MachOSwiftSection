@@ -13,7 +13,7 @@ public struct AssociatedType {
 
     private var _cacheDescription: String = ""
     
-//    @MachOImageGenerator
+    @MachOImageGenerator
     public init(descriptor: AssociatedTypeDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
         self.conformingTypeName = try descriptor.conformingTypeName(in: machOFile)

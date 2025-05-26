@@ -19,8 +19,8 @@ public struct ExtensionContextDescriptor: ExtensionContextDescriptorProtocol {
     }
 }
 
+@MachOImageAllMembersGenerator
 extension ExtensionContextDescriptorProtocol {
-    //@MachOImageGenerator
     public func extendedContext(in machOFile: MachOFile) throws -> MangledName? {
         try layout.extendedContext.resolve(from: offset + 8, in: machOFile)
     }

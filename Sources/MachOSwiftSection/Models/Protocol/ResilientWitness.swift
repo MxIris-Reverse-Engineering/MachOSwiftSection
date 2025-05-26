@@ -20,7 +20,7 @@ public struct ResilientWitness: LocatableLayoutWrapper {
 
 
 extension ResilientWitness {
-    //@MachOImageGenerator
+    @MachOImageGenerator
     public func requirement(in machOFile: MachOFile) throws -> ResolvableElement<ProtocolRequirement>? {
         return try layout.requirement.resolve(from: offset(of: \.requirement), in: machOFile).asOptional
     }

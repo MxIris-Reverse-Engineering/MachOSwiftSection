@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 // template <typename Runtime>
 // class swift_ptrauth_struct_context_descriptor(ClassDescriptor)
@@ -48,6 +49,7 @@ public struct Class {
 
     private var _cacheDescription: String = ""
 
+    @MachOImageGenerator
     public init(descriptor: ClassDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
         let genericContext = try descriptor.typeGenericContext(in: machOFile)
@@ -159,6 +161,7 @@ public struct Class {
         return descriptor[keyPath: member]
     }
 
+    @MachOImageGenerator
     @StringBuilder
     private func buildDescription(in machOFile: MachOFile) throws -> String {
         try "class \(descriptor.fullname(in: machOFile))"

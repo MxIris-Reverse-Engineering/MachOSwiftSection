@@ -23,6 +23,7 @@ public struct FieldRecord: LocatableLayoutWrapper {
     }
 }
 
+@MachOImageAllMembersGenerator
 extension FieldRecord {
     //@MachOImageGenerator
     public func mangledTypeName(in machOFile: MachOFile) throws -> MangledName {

@@ -80,7 +80,7 @@ extension ClassDescriptor {
         return ExtraClassDescriptorFlags(rawValue: layout.metadataPositiveSizeInWordsOrExtraClassFlags).hasObjCResilientClassStub
     }
     
-    //@MachOImageGenerator
+    @MachOImageGenerator
     public func superclassTypeMangledName(in machOFile: MachOFile) throws -> MangledName? {
         try layout.superclassType.resolve(from: offset(of: \.superclassType), in: machOFile)
     }

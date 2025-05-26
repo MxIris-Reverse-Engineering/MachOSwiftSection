@@ -271,39 +271,39 @@ extension MachOFile {
     }
 }
 
-import AssociatedObject
-
-extension MachOFile {
-    
-    @AssociatedObject(.retain(.nonatomic))
-    private var symbolByOffset: [Int: UnsolvedSymbol] = [:]
-    
-    
-    private func buildSymbolByOffsetIfNeeded() {
-        guard symbolByOffset.isEmpty else { return }
-        guard let symbols64 else { return }
-        var symbolByOffset: [Int: UnsolvedSymbol] = [:]
-        for symbol in symbols64 where !symbol.name.isEmpty {
-            var offset = symbol.offset
-//            if let cache {
-//                offset -= cache.mainCacheHeader.sharedRegionStart.cast()
+//import AssociatedObject
+//
+//extension MachORepresentable {
+//    
+//    @AssociatedObject(.retain(.nonatomic))
+//    private var symbolByOffset: [Int: UnsolvedSymbol] = [:]
+//    
+//    
+//    private mutating func buildSymbolByOffsetIfNeeded() {
+//        guard symbolByOffset.isEmpty else { return }
+//        guard let symbols64 else { return }
+//        var symbolByOffset: [Int: UnsolvedSymbol] = [:]
+//        for symbol in symbols64 where !symbol.name.isEmpty {
+//            var offset = symbol.offset
+////            if let cache {
+////                offset -= cache.mainCacheHeader.sharedRegionStart.cast()
+////            }
+//            symbolByOffset[offset] = .init(offset: offset, stringValue: symbol.name)
+//        }
+//        
+//        for exportedSymbol in exportedSymbols {
+//            if var offset = exportedSymbol.offset {
+////                if let cache {
+////                    offset -= cache.mainCacheHeader.sharedRegionStart.cast()
+////                }
+//                symbolByOffset[offset] = .init(offset: offset, stringValue: exportedSymbol.name)
 //            }
-            symbolByOffset[offset] = .init(offset: offset, stringValue: symbol.name)
-        }
-        
-        for exportedSymbol in exportedSymbols {
-            if var offset = exportedSymbol.offset {
-//                if let cache {
-//                    offset -= cache.mainCacheHeader.sharedRegionStart.cast()
-//                }
-                symbolByOffset[offset] = .init(offset: offset, stringValue: exportedSymbol.name)
-            }
-        }
-        self.symbolByOffset = symbolByOffset
-    }
-    
-    func findSymbol(offset: Int) -> UnsolvedSymbol? {
-        buildSymbolByOffsetIfNeeded()
-        return symbolByOffset[offset]
-    }
-}
+//        }
+//        self.symbolByOffset = symbolByOffset
+//    }
+//    
+//    mutating func findSymbol(offset: Int) -> UnsolvedSymbol? {
+//        buildSymbolByOffsetIfNeeded()
+//        return symbolByOffset[offset]
+//    }
+//}

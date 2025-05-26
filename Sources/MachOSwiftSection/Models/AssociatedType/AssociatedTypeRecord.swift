@@ -18,6 +18,7 @@ public struct AssociatedTypeRecord: LocatableLayoutWrapper {
     }
 }
 
+@MachOImageAllMembersGenerator
 extension AssociatedTypeRecord {
     //@MachOImageGenerator
     public func name(in machOFile: MachOFile) throws -> String {

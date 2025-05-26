@@ -19,6 +19,7 @@ public struct GenericRequirementDescriptor: LocatableLayoutWrapper {
     }
 }
 
+@MachOImageAllMembersGenerator
 extension GenericRequirementDescriptor {
     //@MachOImageGenerator
     func paramManagedName(in machOFile: MachOFile) throws -> MangledName {

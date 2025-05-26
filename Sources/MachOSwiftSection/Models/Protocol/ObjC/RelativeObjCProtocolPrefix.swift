@@ -18,6 +18,7 @@ public struct RelativeObjCProtocolPrefix: LocatableLayoutWrapper {
     }
 }
 
+@MachOImageAllMembersGenerator
 extension RelativeObjCProtocolPrefix {
     //@MachOImageGenerator
     func mangledName(in machOFile: MachOFile) throws -> MangledName {

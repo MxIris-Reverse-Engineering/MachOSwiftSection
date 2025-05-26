@@ -3,6 +3,7 @@ import MachOSwiftSectionMacro
 
 public protocol NamedContextDescriptorProtocol: ContextDescriptorProtocol where Layout: NamedContextDescriptorLayout {}
 
+@MachOImageAllMembersGenerator
 extension NamedContextDescriptorProtocol {
     //@MachOImageGenerator
     public func name(in machOFile: MachOFile) throws -> String {

@@ -112,7 +112,7 @@ public struct MangledName {
 }
 
 extension MangledName: Resolvable {
-    //@MachOImageGenerator
+    @MachOImageGenerator
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> MangledName {
         var elements: [MangledName.Element] = []
         var currentOffset = fileOffset

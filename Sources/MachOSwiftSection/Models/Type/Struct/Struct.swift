@@ -16,7 +16,7 @@ public struct Struct {
 
     private var _cacheDescription: String = ""
 
-    //@MachOImageGenerator
+    @MachOImageGenerator
     public init(descriptor: StructDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
 
@@ -87,7 +87,7 @@ public struct Struct {
         return descriptor[keyPath: member]
     }
 
-    //@MachOImageGenerator
+    @MachOImageGenerator
     @StringBuilder
     private func buildDescription(in machOFile: MachOFile) throws -> String {
         try "struct \(descriptor.fullname(in: machOFile)) {"
