@@ -20,10 +20,10 @@ struct DyldCacheFileTests {
     init() throws {
         // Cache
         let arch = "arm64e"
-        let mainCachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch)"
-        let subCachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch).01"
-//        let mainCachePath = "/Volumes/Resources/24F74__MacOS/dyld_shared_cache_\(arch)"
-//        let subCachePath = "/Volumes/Resources/24F74__MacOS/dyld_shared_cache_\(arch).01"
+//        let mainCachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch)"
+//        let subCachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch).01"
+        let mainCachePath = "/Volumes/Resources/24F74__MacOS/dyld_shared_cache_\(arch)"
+        let subCachePath = "/Volumes/Resources/24F74__MacOS/dyld_shared_cache_\(arch).01"
 //        let mainCachePath = "/Volumes/RE/Dyld-Shared-Cache/macOS/15.5/dyld_shared_cache_\(arch)"
 //        let subCachePath = "/Volumes/RE/Dyld-Shared-Cache/macOS/15.5/dyld_shared_cache_\(arch).01"
         let mainCacheURL = URL(fileURLWithPath: mainCachePath)
@@ -34,7 +34,7 @@ struct DyldCacheFileTests {
             $0.imagePath.contains("/AppKit")
         })!
         self.subCacheMachOFileInCache = subCache.machOFiles().first(where: {
-            $0.imagePath.contains("/SwiftUI")
+            $0.imagePath.contains("/CodableSwiftUI")
         })!
     }
 

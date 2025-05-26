@@ -93,29 +93,17 @@ extension MachOFile {
     func readElement<Element>(
         offset: Int
     ) throws -> Element {
-//        var offset = offset
-//        var fileHandle = fileIO
-//        if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
-//            offset = cacheAndFileOffset.1.cast()
-//            fileHandle = cacheAndFileOffset.0.fileIO
-//        }
+        let originalOffset = offset
+        var offset = originalOffset
+        var fileIO = fileIO
+        if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
+            offset = cacheAndFileOffset.1.cast()
+            fileIO = cacheAndFileOffset.0.fileIO
+        }
         return try fileIO.machO.read(offset: numericCast(offset + effectiveHeaderStartOffset))
     }
 
     func readElement<Element>(
-        offset: Int
-    ) throws -> Element where Element: LocatableLayoutWrapper {
-//        var offset = offset
-//        var fileHandle = fileIO
-//        if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
-//            offset = cacheAndFileOffset.1.cast()
-//            fileHandle = cacheAndFileOffset.0.fileIO
-//        }
-        let layout: Element.Layout = try fileIO.machO.read(offset: numericCast(offset + effectiveHeaderStartOffset))
-        return .init(layout: layout, offset: offset)
-    }
-    
-    func readCacheElement<Element>(
         offset: Int
     ) throws -> Element where Element: LocatableLayoutWrapper {
         let originalOffset = offset
@@ -133,12 +121,13 @@ extension MachOFile {
         offset: Int,
         numberOfElements: Int
     ) throws -> [Element] {
-//        var offset = offset
-//        var fileHandle = fileIO
-//        if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
-//            offset = cacheAndFileOffset.1.cast()
-//            fileHandle = cacheAndFileOffset.0.fileIO
-//        }
+        let originalOffset = offset
+        var offset = originalOffset
+        var fileIO = fileIO
+        if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
+            offset = cacheAndFileOffset.1.cast()
+            fileIO = cacheAndFileOffset.0.fileIO
+        }
         var currentOffset = offset
         let elements = try fileIO.machO.readDataSequence(offset: numericCast(offset + effectiveHeaderStartOffset), numberOfElements: numberOfElements).map { (element: Element) -> Element in
             currentOffset += MemoryLayout<Element>.size
@@ -151,13 +140,14 @@ extension MachOFile {
         offset: Int,
         numberOfElements: Int
     ) throws -> [Element] where Element: LocatableLayoutWrapper {
-//        var offset = offset
-//        var fileHandle = fileIO
-//        if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
-//            offset = cacheAndFileOffset.1.cast()
-//            fileHandle = cacheAndFileOffset.0.fileIO
-//        }
-        var currentOffset = offset
+        let originalOffset = offset
+        var offset = originalOffset
+        var fileIO = fileIO
+        if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
+            offset = cacheAndFileOffset.1.cast()
+            fileIO = cacheAndFileOffset.0.fileIO
+        }
+        var currentOffset = originalOffset
         let elements = try fileIO.machO.readDataSequence(offset: numericCast(offset + effectiveHeaderStartOffset), numberOfElements: numberOfElements).map { (layout: Element.Layout) -> Element in
             let element = Element(layout: layout, offset: currentOffset)
             currentOffset += Element.layoutSize
@@ -167,16 +157,6 @@ extension MachOFile {
     }
 
     func readString(offset: Int) throws -> String {
-//        var offset = offset
-//        var fileHandle = fileIO
-//        if let cacheAndFileOffset = cacheAndFileOffset(fromStart: offset.cast()) {
-//            offset = cacheAndFileOffset.1.cast()
-//            fileHandle = cacheAndFileOffset.0.fileIO
-//        }
-        return fileIO.machO.readString(offset: numericCast(offset + effectiveHeaderStartOffset))
-    }
-    
-    func readCacheString(offset: Int) throws -> String {
         let originalOffset = offset
         var offset = originalOffset
         var fileIO = fileIO
