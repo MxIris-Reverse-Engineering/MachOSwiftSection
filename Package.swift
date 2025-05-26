@@ -4,7 +4,7 @@
 import PackageDescription
 import CompilerPluginSupport
 
-let useSPMPrebuildVersion = false
+let useSPMPrebuildVersion = true
 
 extension Package.Dependency {
     static let MachOKit: Package.Dependency = {
@@ -19,14 +19,13 @@ extension Package.Dependency {
         url: "https://github.com/p-x9/MachOKit.git",
         branch: "main"
     )
-//    static let MachOKitSPM = Package.Dependency.package(
-//        url: "https://github.com/p-x9/MachOKit-SPM",
-//        branch: "main"
-//    )
     static let MachOKitSPM = Package.Dependency.package(
-        path: "/Volumes/Repositories/Private/Fork/Library/MachOKit-SPM"
+        url: "https://github.com/p-x9/MachOKit-SPM",
+        branch: "main"
     )
-    
+//    static let MachOKitSPM = Package.Dependency.package(
+//        path: "/Volumes/Repositories/Private/Fork/Library/MachOKit-SPM"
+//    )
 }
 
 extension Target.Dependency {
@@ -70,7 +69,7 @@ extension Target.Dependency {
 
 let package = Package(
     name: "MachOSwiftSection",
-    platforms: [.macOS(.v10_15),],
+    platforms: [.macOS(.v10_15)],
     products: [
         .library(
             name: "MachOSwiftSection",

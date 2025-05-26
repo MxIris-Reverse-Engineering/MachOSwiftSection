@@ -339,24 +339,20 @@ public struct MetadataReader {
         return result
     }
 
-    //@MachOImageGenerator
-    public static func demangleType(for mangledName: MangledName, in machOFile: MachOFile) throws -> String {
-        return try MetadataReader.demangle(for: mangledName, kind: .type, in: machOFile).print()
+    public static func demangleType(for mangledName: MangledName, in machOFile: MachOFile, using options: SymbolPrintOptions = .simplified) throws -> String {
+        return try MetadataReader.demangle(for: mangledName, kind: .type, in: machOFile).print(using: options)
     }
 
-    //@MachOImageGenerator
-    public static func demangleSymbol(for mangledName: MangledName, in machOFile: MachOFile) throws -> String {
-        return try MetadataReader.demangle(for: mangledName, kind: .symbol, in: machOFile).print()
+    public static func demangleSymbol(for mangledName: MangledName, in machOFile: MachOFile, using options: SymbolPrintOptions = .simplified) throws -> String {
+        return try MetadataReader.demangle(for: mangledName, kind: .symbol, in: machOFile).print(using: options)
     }
     
-    //@MachOImageGenerator
-    public static func demangleType(for unsolvedSymbol: UnsolvedSymbol, in machOFile: MachOFile) throws -> String {
-        return try MetadataReader.buildContextManglingForSymbol(symbol: unsolvedSymbol, in: machOFile)?.print() ?? ""
+    public static func demangleType(for unsolvedSymbol: UnsolvedSymbol, in machOFile: MachOFile, using options: SymbolPrintOptions = .simplified) throws -> String {
+        return try MetadataReader.buildContextManglingForSymbol(symbol: unsolvedSymbol, in: machOFile)?.print(using: options) ?? ""
     }
     
-    //@MachOImageGenerator
-    public static func demangleSymbol(for unsolvedSymbol: UnsolvedSymbol, in machOFile: MachOFile) throws -> String {
-        return try MetadataReader.demangle(for: .init(unsolvedSymbol: unsolvedSymbol), kind: .symbol, in: machOFile).print()
+    public static func demangleSymbol(for unsolvedSymbol: UnsolvedSymbol, in machOFile: MachOFile, using options: SymbolPrintOptions = .simplified) throws -> String {
+        return try MetadataReader.demangle(for: .init(unsolvedSymbol: unsolvedSymbol), kind: .symbol, in: machOFile).print(using: options)
     }
 }
 

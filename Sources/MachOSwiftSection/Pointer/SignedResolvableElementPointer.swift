@@ -12,11 +12,7 @@ public enum SignedResolvableElementPointer<Context: Resolvable>: RelativeIndirec
         case .symbol(let unsolvedSymbol):
             return unsolvedSymbol.offset
         case .address(let address):
-//            if let cache = machOFile.cache, cache.cpu.type == .arm64 {
-//                return numericCast(address & 0x7FFFFFFF)
-//            } else {
-                return numericCast(machOFile.fileOffset(of: address))
-//            }
+            return numericCast(machOFile.fileOffset(of: address))
         }
     }
 

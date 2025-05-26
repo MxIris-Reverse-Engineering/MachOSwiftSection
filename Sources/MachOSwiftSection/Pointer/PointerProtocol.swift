@@ -3,13 +3,13 @@ import MachOKit
 
 public protocol PointerProtocol: Resolvable {
     associatedtype Pointee: Resolvable
-    
+
     var address: UInt64 { get }
 
     func resolve(in machOFile: MachOFile) throws -> Pointee
     func resolveAny<T>(in machOFile: MachOFile) throws -> T
     func resolveOffset(in machOFile: MachOFile) -> Int
-    
+
     func resolve(in machOImage: MachOImage) throws -> Pointee
     func resolveAny<T>(in machOImage: MachOImage) throws -> T
     func resolveOffset(in machOImage: MachOImage) -> Int
@@ -17,11 +17,7 @@ public protocol PointerProtocol: Resolvable {
 
 extension PointerProtocol {
     public func resolveOffset(in machOFile: MachOFile) -> Int {
-//        if let cache = machOFile.cache, cache.cpu.type == .arm64 {
-//            numericCast(address & 0x7FFFFFFF)
-//        } else {
-            numericCast(machOFile.fileOffset(of: address))
-//        }
+        numericCast(machOFile.fileOffset(of: address))
     }
 
     public func resolveAny<T>(in machOFile: MachOFile) throws -> T {

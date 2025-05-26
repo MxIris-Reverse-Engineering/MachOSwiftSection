@@ -22,9 +22,13 @@ public struct UnsolvedSymbol: Resolvable {
         return symbol
     }
 
-    @MachOImageGenerator
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> UnsolvedSymbol? {
-        guard let symbol = machOFile.symbol(for: fileOffset) else { return nil }
+        guard let symbol = machOFile.findSymbol(offset: fileOffset) else { return nil }
+        return symbol
+    }
+    
+    public static func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> UnsolvedSymbol? {
+        guard let symbol = machOImage.symbol(for: imageOffset) else { return nil }
         return .init(offset: symbol.offset, stringValue: symbol.name)
     }
 }

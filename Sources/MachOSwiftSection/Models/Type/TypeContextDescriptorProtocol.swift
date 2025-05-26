@@ -6,18 +6,15 @@ public protocol TypeContextDescriptorProtocol: NamedContextDescriptorProtocol wh
 
 @MachOImageAllMembersGenerator
 extension TypeContextDescriptorProtocol {
-    //@MachOImageGenerator
     public func fieldDescriptor(in machOFile: MachOFile) throws -> FieldDescriptor {
         try layout.fieldDescriptor.resolve(from: offset + layout.offset(of: .fieldDescriptor), in: machOFile)
     }
 
-    //@MachOImageGenerator
     public func genericContext(in machO: MachOFile) throws -> GenericContext? {
         guard layout.flags.isGeneric else { return nil }
         return try typeGenericContext(in: machO)?.asGenericContext()
     }
     
-    //@MachOImageGenerator
     public func typeGenericContext(in machOFile: MachOFile) throws -> TypeGenericContext? {
         guard layout.flags.isGeneric else { return nil }
         return try .init(contextDescriptor: self, in: machOFile)

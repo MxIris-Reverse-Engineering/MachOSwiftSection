@@ -1,4 +1,5 @@
 import MachOKit
+import MachOSwiftSectionMacro
 
 public protocol Resolvable {
     static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self
@@ -8,6 +9,7 @@ public protocol Resolvable {
     static func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> Self?
 }
 
+@MachOImageAllMembersGenerator
 extension Resolvable {
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self {
         return try machOFile.readElement(offset: fileOffset)
@@ -19,17 +21,7 @@ extension Resolvable {
     }
 }
 
-extension Resolvable {
-    public static func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> Self {
-        return try machOImage.assumingElement(offset: imageOffset)
-    }
-
-    public static func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> Self? {
-        let result: Self = try resolve(from: imageOffset, in: machOImage)
-        return .some(result)
-    }
-}
-
+@MachOImageAllMembersGenerator
 extension Optional: Resolvable where Wrapped: Resolvable {
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self {
         let result: Wrapped? = try Wrapped.resolve(from: fileOffset, in: machOFile)
@@ -39,24 +31,12 @@ extension Optional: Resolvable where Wrapped: Resolvable {
             return .none
         }
     }
-
-    public static func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> Self {
-        let result: Wrapped? = try Wrapped.resolve(from: imageOffset, in: machOImage)
-        if let result {
-            return .some(result)
-        } else {
-            return .none
-        }
-    }
 }
 
+@MachOImageAllMembersGenerator
 extension String: Resolvable {
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self {
         return try machOFile.readString(offset: fileOffset)
-    }
-
-    public static func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> Self {
-        return try machOImage.assumingString(offset: imageOffset)
     }
 }
 

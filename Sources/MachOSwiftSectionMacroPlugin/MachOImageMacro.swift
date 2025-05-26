@@ -10,14 +10,15 @@ private func buildFuncDecl(of node: AttributeSyntax, funcDecl: FunctionDeclSynta
 
     let preservedAttributes = AttributeListSyntax(
         originalAttributes.compactMap { element -> AttributeListSyntax.Element? in
-            // 如果当前属性元素不是触发宏的那个属性，则保留它
-            if case let .attribute(attr) = element, attr.trimmedDescription == node.trimmedDescription {
-                return nil // 移除 @MachOFileImageGenerator
+            if case .attribute(let attr) = element, attr.trimmedDescription == node.trimmedDescription {
+                return nil
             }
             return element
         }
     )
+
     let finalAttributes = preservedAttributes.with(\.trailingTrivia, .spaces(1))
+
     let newParameters = funcDecl.signature.parameterClause.parameters.map { param -> FunctionParameterSyntax in
         var newParam = param
 
@@ -38,7 +39,7 @@ private func buildFuncDecl(of node: AttributeSyntax, funcDecl: FunctionDeclSynta
         if param.firstName.text == "fileOffset" {
             newParam = param.with(\.firstName, .identifier("imageOffset"))
         }
-        // 检查内部参数名 (如果存在)
+
         if let secondName = param.secondName, secondName.text == "fileOffset" {
             newParam = param.with(\.secondName, .identifier("imageOffset"))
         }
@@ -67,13 +68,10 @@ private func buildFuncDecl(of node: AttributeSyntax, funcDecl: FunctionDeclSynta
     return newFunc
 }
 
-
 public struct MachOImageAllMembersGeneratorMacro: MemberMacro {
-    
-
     public static func expansion(
-        of node: AttributeSyntax, // 这个是 @GenerateImageVersionMembers 自身
-        providingMembersOf declaration: some DeclGroupSyntax, // 通常是 ExtensionDeclSyntax
+        of node: AttributeSyntax,
+        providingMembersOf declaration: some DeclGroupSyntax,
         conformingTo protocols: [TypeSyntax],
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
@@ -99,22 +97,18 @@ public struct MachOImageGeneratorMacro: PeerMacro {
         if let funcDecl = declaration.as(FunctionDeclSyntax.self) {
             return [DeclSyntax(buildFuncDecl(of: node, funcDecl: funcDecl))]
         } else if let initDecl = declaration.as(InitializerDeclSyntax.self) {
-            var originalAttributes = AttributeListSyntax([])
-            if let declWithAttrs = declaration as? any WithAttributesSyntax { // FunctionDeclSyntax 和 InitializerDeclSyntax 都符合
-                originalAttributes = declWithAttrs.attributes
-            }
+            let originalAttributes = initDecl.attributes
 
             let preservedAttributes = AttributeListSyntax(
                 originalAttributes.compactMap { element -> AttributeListSyntax.Element? in
-                    // 如果当前属性元素不是触发宏的那个属性，则保留它
-                    if case let .attribute(attr) = element, attr.trimmedDescription == node.trimmedDescription {
-                        return nil // 移除 @MachOFileImageGenerator
+                    if case .attribute(let attr) = element, attr.trimmedDescription == node.trimmedDescription {
+                        return nil
                     }
                     return element
                 }
             )
             let finalAttributes = preservedAttributes.with(\.trailingTrivia, .spaces(1))
-            print(originalAttributes, finalAttributes)
+
             let newParameters = initDecl.signature.parameterClause.parameters.map { param -> FunctionParameterSyntax in
                 var newParam = param
 
@@ -135,7 +129,7 @@ public struct MachOImageGeneratorMacro: PeerMacro {
                 if param.firstName.text == "fileOffset" {
                     newParam = param.with(\.firstName, .identifier("imageOffset"))
                 }
-                // 检查内部参数名 (如果存在)
+                
                 if let secondName = param.secondName, secondName.text == "fileOffset" {
                     newParam = param.with(\.secondName, .identifier("imageOffset"))
                 }
@@ -169,20 +163,20 @@ public struct MachOImageGeneratorMacro: PeerMacro {
 }
 
 class MachOBodyRewriter: SyntaxRewriter {
-    override func visit(_ node: IdentifierExprSyntax) -> ExprSyntax {
+    override func visit(_ node: DeclReferenceExprSyntax) -> ExprSyntax {
         var newNode = node
-        if node.identifier.text == "machOFile" {
-            newNode = node.with(\.identifier, .identifier("machOImage"))
-        } else if node.identifier.text == "fileOffset" {
-            newNode = node.with(\.identifier, .identifier("imageOffset"))
+        if node.baseName.text == "machOFile" {
+            newNode = node.with(\.baseName, .identifier("machOImage"))
+        } else if node.baseName.text == "fileOffset" {
+            newNode = node.with(\.baseName, .identifier("imageOffset"))
         }
         return ExprSyntax(newNode)
     }
 
     override func visit(_ node: MemberAccessExprSyntax) -> ExprSyntax {
         let newBase = node.base.map { self.rewrite($0).as(ExprSyntax.self)! } ?? nil
-        if let baseIdentifier = newBase?.as(IdentifierExprSyntax.self),
-           baseIdentifier.identifier.text == "machOImage" {
+        if let baseIdentifier = newBase?.as(DeclReferenceExprSyntax.self),
+           baseIdentifier.baseName.text == "machOImage" {
             let memberName = node.declName.baseName.text
             var newMemberNameToken: TokenSyntax?
 

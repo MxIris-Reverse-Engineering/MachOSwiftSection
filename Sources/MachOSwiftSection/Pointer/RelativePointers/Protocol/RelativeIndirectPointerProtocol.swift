@@ -1,4 +1,5 @@
 import MachOKit
+import MachOSwiftSectionMacro
 
 public protocol RelativeIndirectPointerProtocol: RelativePointerProtocol {
     associatedtype IndirectType: RelativeIndirectType where IndirectType.Resolved == Pointee
@@ -8,6 +9,7 @@ public protocol RelativeIndirectPointerProtocol: RelativePointerProtocol {
     func resolveIndirectOffset(from imageOffset: Int, in machOImage: MachOImage) throws -> Int
 }
 
+@MachOImageAllMembersGenerator
 extension RelativeIndirectPointerProtocol {
     public func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Pointee {
         return try resolveIndirect(from: fileOffset, in: machOFile)
@@ -34,31 +36,31 @@ extension RelativeIndirectPointerProtocol {
     }
 }
 
-extension RelativeIndirectPointerProtocol {
-    public func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> Pointee {
-        return try resolveIndirect(from: imageOffset, in: machOImage)
-    }
-
-    func resolveIndirect(from imageOffset: Int, in machOImage: MachOImage) throws -> Pointee {
-        return try resolveIndirectType(from: imageOffset, in: machOImage).resolve(in: machOImage)
-    }
-
-    public func resolveAny<T>(from imageOffset: Int, in machOImage: MachOImage) throws -> T {
-        return try resolveIndirect(from: imageOffset, in: machOImage)
-    }
-
-    func resolveIndirect<T>(from imageOffset: Int, in machOImage: MachOImage) throws -> T {
-        return try resolveIndirectType(from: imageOffset, in: machOImage).resolveAny(in: machOImage)
-    }
-
-    func resolveIndirectType(from imageOffset: Int, in machOImage: MachOImage) throws -> IndirectType {
-        return try .resolve(from: resolveDirectOffset(from: imageOffset), in: machOImage)
-    }
-
-    public func resolveIndirectOffset(from imageOffset: Int, in machOImage: MachOImage) throws -> Int {
-        return try resolveIndirectType(from: imageOffset, in: machOImage).resolveOffset(in: machOImage)
-    }
-}
+//extension RelativeIndirectPointerProtocol {
+//    public func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> Pointee {
+//        return try resolveIndirect(from: imageOffset, in: machOImage)
+//    }
+//
+//    func resolveIndirect(from imageOffset: Int, in machOImage: MachOImage) throws -> Pointee {
+//        return try resolveIndirectType(from: imageOffset, in: machOImage).resolve(in: machOImage)
+//    }
+//
+//    public func resolveAny<T>(from imageOffset: Int, in machOImage: MachOImage) throws -> T {
+//        return try resolveIndirect(from: imageOffset, in: machOImage)
+//    }
+//
+//    func resolveIndirect<T>(from imageOffset: Int, in machOImage: MachOImage) throws -> T {
+//        return try resolveIndirectType(from: imageOffset, in: machOImage).resolveAny(in: machOImage)
+//    }
+//
+//    func resolveIndirectType(from imageOffset: Int, in machOImage: MachOImage) throws -> IndirectType {
+//        return try .resolve(from: resolveDirectOffset(from: imageOffset), in: machOImage)
+//    }
+//
+//    public func resolveIndirectOffset(from imageOffset: Int, in machOImage: MachOImage) throws -> Int {
+//        return try resolveIndirectType(from: imageOffset, in: machOImage).resolveOffset(in: machOImage)
+//    }
+//}
 
 extension RelativeIndirectPointerProtocol where Pointee: OptionalProtocol {
     public func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Pointee {

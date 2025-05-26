@@ -6,7 +6,7 @@ extension MachOFile {
     var fileHandle: FileHandle {
         try! .init(forReadingFrom: url)
     }
-    
+
     var fileIO: MemoryMappedFile {
         try! File.open(
             url: url,
@@ -135,7 +135,7 @@ extension MachOFile {
         }
         return elements
     }
-    
+
     func readElements<Element>(
         offset: Int,
         numberOfElements: Int
@@ -177,7 +177,6 @@ extension MachOFile {
     }
 }
 
-
 extension MachOFile {
     /// Resolves the rebase operation at the specified file offset within the given MachO file.
     ///
@@ -189,7 +188,7 @@ extension MachOFile {
     ///   - fileOffset: The offset in the file where the rebase operation occurs.
     ///   - machO: The `MachOFile` object representing the MachO file to resolve rebases from.
     /// - Returns: The resolved rebase value as a `UInt64`, or `nil` if the rebase cannot be resolved.
-    
+
     func resolveRebase(fileOffset: Int) -> UInt64? {
         let offset: UInt64 = numericCast(fileOffset)
         if let (cache, _offset) = resolveCacheStartOffsetIfNeeded(offset: offset),
@@ -251,7 +250,7 @@ extension MachOFile {
     ///   - fileOffset: The offset in the MachO file to check for a bind operation.
     ///   - machO: The `MachOFile` instance representing the file being analyzed.
     /// - Returns: A `Bool` indicating whether the specified offset represents a bind operation.
-    
+
     func isBind(fileOffset: Int) -> Bool {
         guard !isLoadedFromDyldCache else { return false }
         let offset: UInt64 = numericCast(fileOffset)
@@ -271,39 +270,41 @@ extension MachOFile {
     }
 }
 
-//import AssociatedObject
-//
-//extension MachORepresentable {
-//    
-//    @AssociatedObject(.retain(.nonatomic))
-//    private var symbolByOffset: [Int: UnsolvedSymbol] = [:]
-//    
-//    
-//    private mutating func buildSymbolByOffsetIfNeeded() {
-//        guard symbolByOffset.isEmpty else { return }
-//        guard let symbols64 else { return }
-//        var symbolByOffset: [Int: UnsolvedSymbol] = [:]
-//        for symbol in symbols64 where !symbol.name.isEmpty {
-//            var offset = symbol.offset
-////            if let cache {
-////                offset -= cache.mainCacheHeader.sharedRegionStart.cast()
-////            }
-//            symbolByOffset[offset] = .init(offset: offset, stringValue: symbol.name)
-//        }
-//        
-//        for exportedSymbol in exportedSymbols {
-//            if var offset = exportedSymbol.offset {
-////                if let cache {
-////                    offset -= cache.mainCacheHeader.sharedRegionStart.cast()
-////                }
-//                symbolByOffset[offset] = .init(offset: offset, stringValue: exportedSymbol.name)
+import AssociatedObject
+
+private class SymbolCache {
+    var symbolByOffset: [Int: UnsolvedSymbol] = [:]
+}
+
+extension MachOFile {
+    @AssociatedObject(.retain(.nonatomic))
+    private var symbolCache: SymbolCache = .init()
+
+    private func buildSymbolByOffsetIfNeeded() {
+        guard symbolCache.symbolByOffset.isEmpty else { return }
+        guard let symbols64 else { return }
+        var symbolByOffset: [Int: UnsolvedSymbol] = [:]
+        for symbol in symbols64 where !symbol.name.isEmpty {
+            var offset = symbol.offset
+//            if let cache {
+//                offset -= cache.mainCacheHeader.sharedRegionStart.cast()
 //            }
-//        }
-//        self.symbolByOffset = symbolByOffset
-//    }
-//    
-//    mutating func findSymbol(offset: Int) -> UnsolvedSymbol? {
-//        buildSymbolByOffsetIfNeeded()
-//        return symbolByOffset[offset]
-//    }
-//}
+            symbolByOffset[offset] = .init(offset: offset, stringValue: symbol.name)
+        }
+
+        for exportedSymbol in exportedSymbols {
+            if var offset = exportedSymbol.offset {
+//                if let cache {
+//                    offset -= cache.mainCacheHeader.sharedRegionStart.cast()
+//                }
+                symbolByOffset[offset] = .init(offset: offset, stringValue: exportedSymbol.name)
+            }
+        }
+        symbolCache.symbolByOffset = symbolByOffset
+    }
+
+    func findSymbol(offset: Int) -> UnsolvedSymbol? {
+        buildSymbolByOffsetIfNeeded()
+        return symbolCache.symbolByOffset[offset]
+    }
+}

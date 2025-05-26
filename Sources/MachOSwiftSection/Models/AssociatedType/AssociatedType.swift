@@ -12,18 +12,18 @@ public struct AssociatedType {
     public let records: [AssociatedTypeRecord]
 
     private var _cacheDescription: String = ""
-    
+
     @MachOImageGenerator
     public init(descriptor: AssociatedTypeDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
         self.conformingTypeName = try descriptor.conformingTypeName(in: machOFile)
         self.protocolTypeName = try descriptor.protocolTypeName(in: machOFile)
         self.records = try descriptor.associatedTypeRecords(in: machOFile)
-        
+
         do {
-            _cacheDescription = try buildDescription(in: machOFile)
-        } catch  {
-            _cacheDescription = "Error \(error)"
+            self._cacheDescription = try buildDescription(in: machOFile)
+        } catch {
+            self._cacheDescription = "Error \(error)"
         }
     }
 
