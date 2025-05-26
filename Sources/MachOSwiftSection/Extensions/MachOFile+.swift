@@ -284,11 +284,18 @@ extension MachOFile {
         guard let symbols64 else { return }
         var symbolByOffset: [Int: UnsolvedSymbol] = [:]
         for symbol in symbols64 where !symbol.name.isEmpty {
-            symbolByOffset[symbol.offset] = .init(offset: symbol.offset, stringValue: symbol.name)
+            var offset = symbol.offset
+//            if let cache {
+//                offset -= cache.mainCacheHeader.sharedRegionStart.cast()
+//            }
+            symbolByOffset[offset] = .init(offset: offset, stringValue: symbol.name)
         }
         
         for exportedSymbol in exportedSymbols {
-            if let offset = exportedSymbol.offset {
+            if var offset = exportedSymbol.offset {
+//                if let cache {
+//                    offset -= cache.mainCacheHeader.sharedRegionStart.cast()
+//                }
                 symbolByOffset[offset] = .init(offset: offset, stringValue: exportedSymbol.name)
             }
         }

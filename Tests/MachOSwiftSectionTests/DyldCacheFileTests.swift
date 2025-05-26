@@ -17,6 +17,8 @@ struct DyldCacheFileTests {
 
     let subCacheMachOFileInCache: MachOFile
 
+    let machOFileInCache: MachOFile
+    
     init() throws {
         // Cache
         let arch = "arm64e"
@@ -30,12 +32,19 @@ struct DyldCacheFileTests {
         let subCacheURL = URL(fileURLWithPath: subCachePath)
         self.mainCache = try! DyldCache(url: mainCacheURL)
         self.subCache = try! DyldCache(subcacheUrl: subCacheURL, mainCacheHeader: mainCache.mainCacheHeader)
+        
         self.mainCacheMachOFileInCache = mainCache.machOFiles().first(where: {
-            $0.imagePath.contains("/AppKit")
+            $0.imagePath.contains("AppKit")
         })!
+        
         self.subCacheMachOFileInCache = subCache.machOFiles().first(where: {
-            $0.imagePath.contains("/CodableSwiftUI")
+            $0.imagePath.contains("CodableSwiftUI")
         })!
+        
+        self.machOFileInCache = (mainCache.machOFiles().map { $0 } + subCache.machOFiles().map { $0 }).first {
+            $0.imagePath.contains("TipsUI")
+        }!
+            
     }
 
     @Test func protocolsInFile() async throws {
@@ -47,9 +56,29 @@ struct DyldCacheFileTests {
         }
     }
 
+    @Test func symbolTable() async throws {
+        
+    }
+    
     @MainActor
     @Test func types() async throws {
-        let machOFile = mainCacheMachOFileInCache
+        try await dumpTypes(for: machOFileInCache)
+    }
+    
+    @MainActor
+    @Test func mainCacheTypes() async throws {
+        try await dumpTypes(for: mainCacheMachOFileInCache)
+    }
+    
+    @MainActor
+    @Test func subCacheTypes() async throws {
+        try await dumpTypes(for: subCacheMachOFileInCache)
+    }
+    
+    private func dumpTypes(for machOFile: MachOFile) async throws {
+        for section in machOFile.sections {
+            print(section.sectionName)
+        }
         let typeContextDescriptors = try required(machOFile.swift.typeContextDescriptors)
 
         for typeContextDescriptor in typeContextDescriptors {
@@ -78,8 +107,13 @@ struct DyldCacheFileTests {
     }
     
     @Test func cacheFileOffsets() async throws {
+        print("Main Cache MachO Files:")
         for machOFile in mainCache.machOFiles() {
-            print(machOFile.imagePath, machOFile.headerStartOffsetInCache)
+            print(machOFile.imagePath)
+        }
+        print("Sub Cache MachO Files:")
+        for machOFile in subCache.machOFiles() {
+            print(machOFile.imagePath)
         }
     }
 }

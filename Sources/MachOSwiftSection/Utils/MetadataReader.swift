@@ -303,11 +303,9 @@ public struct MetadataReader {
                             result = try buildContextMangling(context: .element(context))
                         }
                     case .indirect:
-                        let relativePointer = RelativeIndirectPointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>>(relativeOffset: relativeOffset)
-                        if let bind = try machOFile.resolveBind(at: fileOffset, for: relativePointer), let symbolName = machOFile.dyldChainedFixups?.symbolName(for: bind.0.info.nameOffset) {
-                            result = try buildContextMangling(context: .symbol(.init(offset: fileOffset, stringValue: symbolName)))
-                        } else if let context = try relativePointer.resolve(from: fileOffset, in: machOFile) {
-                            result = try buildContextMangling(context: .element(context))
+                        let relativePointer = RelativeIndirectResolvableElementPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset)
+                        if let resolvableElement = try relativePointer.resolve(from: fileOffset, in: machOFile).asOptional {
+                            result = try buildContextMangling(context: resolvableElement)
                         }
                     }
                 case .accessorFunctionReference:
