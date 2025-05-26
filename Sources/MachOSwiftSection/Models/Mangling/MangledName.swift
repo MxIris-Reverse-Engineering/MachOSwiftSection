@@ -1,5 +1,6 @@
 import MachOKit
 import Foundation
+import MachOSwiftSectionMacro
 
 public struct MangledName {
     enum Element {
@@ -111,6 +112,7 @@ public struct MangledName {
 }
 
 extension MangledName: Resolvable {
+    //@MachOImageGenerator
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> MangledName {
         var elements: [MangledName.Element] = []
         var currentOffset = fileOffset

@@ -1,11 +1,13 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 public struct AnonymousContext {
     public let descriptor: AnonymousContextDescriptor
     public let genericContext: GenericContext?
     public let mangledName: MangledName?
     
+    @MachOImageGenerator
     public init(descriptor: AnonymousContextDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
         var currentOffset = descriptor.offset + descriptor.layoutSize

@@ -1,7 +1,9 @@
 import MachOKit
+import MachOSwiftSectionMacro
 
 public protocol AnonymousContextDescriptorProtocol: ContextDescriptorProtocol where Layout: AnonymousContextDescriptorLayout {}
 
+@MachOImageAllMembersGenerator
 extension AnonymousContextDescriptorProtocol {
     public func mangledName(in machOFile: MachOFile) throws -> MangledName? {
         guard hasMangledName else {

@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 public struct ExtensionContextDescriptor: ExtensionContextDescriptorProtocol {
     public struct Layout: ExtensionContextDescriptorLayout {
@@ -19,6 +20,7 @@ public struct ExtensionContextDescriptor: ExtensionContextDescriptorProtocol {
 }
 
 extension ExtensionContextDescriptorProtocol {
+    //@MachOImageGenerator
     public func extendedContext(in machOFile: MachOFile) throws -> MangledName? {
         try layout.extendedContext.resolve(from: offset + 8, in: machOFile)
     }

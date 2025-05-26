@@ -6,5 +6,7 @@ import SwiftSyntaxMacros
 struct LayoutPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
         LayoutMacro.self,
+        MachOImageGeneratorMacro.self,
+        MachOImageAllMembersGeneratorMacro.self,
     ]
 }

@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 public struct GenericRequirement {
     public let descriptor: GenericRequirementDescriptor
@@ -10,6 +11,7 @@ public struct GenericRequirement {
 
     public var content: ResolvedGenericRequirementContent
 
+    //@MachOImageGenerator
     public init(descriptor: GenericRequirementDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
         self.paramManagledName = try descriptor.paramManagedName(in: machOFile)

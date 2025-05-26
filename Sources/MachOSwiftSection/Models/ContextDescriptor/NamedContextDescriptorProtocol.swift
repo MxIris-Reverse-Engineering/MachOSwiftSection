@@ -1,12 +1,16 @@
 import MachOKit
+import MachOSwiftSectionMacro
 
 public protocol NamedContextDescriptorProtocol: ContextDescriptorProtocol where Layout: NamedContextDescriptorLayout {}
 
 extension NamedContextDescriptorProtocol {
+    //@MachOImageGenerator
     public func name(in machOFile: MachOFile) throws -> String {
         try layout.name.resolve(from: offset + layout.offset(of: .name), in: machOFile)
     }
-
+    
+    
+    //@MachOImageGenerator
     public func fullname(in machOFile: MachOFile) throws -> String {
         var name = try name(in: machOFile)
         var parent = try parent(in: machOFile)

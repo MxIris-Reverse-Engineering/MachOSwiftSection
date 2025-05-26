@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 public struct ResilientWitness: LocatableLayoutWrapper {
     public struct Layout {
@@ -19,7 +20,8 @@ public struct ResilientWitness: LocatableLayoutWrapper {
 
 
 extension ResilientWitness {
+    //@MachOImageGenerator
     public func requirement(in machOFile: MachOFile) throws -> ResolvableElement<ProtocolRequirement>? {
-        return try layout.requirement.resolve(from: fileOffset(of: \.requirement), in: machOFile).asOptional
+        return try layout.requirement.resolve(from: offset(of: \.requirement), in: machOFile).asOptional
     }
 }

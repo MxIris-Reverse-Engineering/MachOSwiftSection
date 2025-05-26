@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 public struct FieldDescriptor: LocatableLayoutWrapper, Resolvable {
     public struct Layout {
@@ -21,10 +22,12 @@ public struct FieldDescriptor: LocatableLayoutWrapper, Resolvable {
 }
 
 extension FieldDescriptor {
+    //@MachOImageGenerator
     public func mangledTypeName(in machOFile: MachOFile) throws -> MangledName {
-        return try layout.mangledTypeName.resolve(from: fileOffset(of: \.mangledTypeName), in: machOFile)
+        return try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machOFile)
     }
 
+    //@MachOImageGenerator
     public func records(in machOFile: MachOFile) throws -> [FieldRecord] {
         guard layout.fieldRecordSize != 0 else { return [] }
         let offset = offset + MemoryLayout<FieldDescriptor.Layout>.size

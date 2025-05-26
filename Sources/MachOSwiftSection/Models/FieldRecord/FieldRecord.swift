@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 public struct FieldRecord: LocatableLayoutWrapper {
     public struct Layout {
@@ -23,10 +24,12 @@ public struct FieldRecord: LocatableLayoutWrapper {
 }
 
 extension FieldRecord {
+    //@MachOImageGenerator
     public func mangledTypeName(in machOFile: MachOFile) throws -> MangledName {
         return try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machOFile)
     }
 
+    //@MachOImageGenerator
     public func fieldName(in machOFile: MachOFile) throws -> String {
         return try layout.fieldName.resolve(from: offset(of: \.fieldName), in: machOFile)
     }

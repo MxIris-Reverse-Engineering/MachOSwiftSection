@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 public struct ProtocolDescriptorRef {
     public let storage: StoredPointer
@@ -16,10 +17,12 @@ public struct ProtocolDescriptorRef {
         }
     }
 
+    //@MachOImageGenerator
     public func swiftProtocol(in machOFile: MachOFile) throws -> ProtocolDescriptor {
         try Pointer<ProtocolDescriptor>(address: storage).resolve(in: machOFile)
     }
 
+    //@MachOImageGenerator
     public func objcProtocol(in machOFile: MachOFile) throws -> ObjCProtocolPrefix {
         try Pointer<ObjCProtocolPrefix>(address: storage & ~Bits.isObjC).resolve(in: machOFile)
     }
@@ -28,6 +31,7 @@ public struct ProtocolDescriptorRef {
         storage & Bits.isObjC != 0
     }
 
+    //@MachOImageGenerator
     public func name(in machOFile: MachOFile) throws -> String {
         if isObjC {
             return try objcProtocol(in: machOFile).name(in: machOFile)

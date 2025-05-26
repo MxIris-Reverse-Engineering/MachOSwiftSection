@@ -7,12 +7,12 @@ public protocol LocatableLayoutWrapper: LayoutWrapper, Resolvable {
 }
 
 extension LocatableLayoutWrapper {
-    public func fileOffset<T>(of keyPath: KeyPath<Layout, T>) -> Int {
+    public func offset<T>(of keyPath: KeyPath<Layout, T>) -> Int {
         return offset + MemoryLayout<Layout>.offset(of: keyPath)!
     }
 
     public func resolvedRelativeOffset(of keyPath: KeyPath<Layout, RelativeOffset>) -> Int {
-        return numericCast(fileOffset(of: keyPath) + layout[keyPath: keyPath].cast())
+        return numericCast(offset(of: keyPath) + layout[keyPath: keyPath].cast())
     }
 }
 

@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 public struct ClassDescriptor: LocatableLayoutWrapper, TypeContextDescriptorProtocol {
     public struct Layout: ClassDescriptorLayout {
@@ -79,7 +80,8 @@ extension ClassDescriptor {
         return ExtraClassDescriptorFlags(rawValue: layout.metadataPositiveSizeInWordsOrExtraClassFlags).hasObjCResilientClassStub
     }
     
+    //@MachOImageGenerator
     public func superclassTypeMangledName(in machOFile: MachOFile) throws -> MangledName? {
-        try layout.superclassType.resolve(from: fileOffset(of: \.superclassType), in: machOFile)
+        try layout.superclassType.resolve(from: offset(of: \.superclassType), in: machOFile)
     }
 }

@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 public struct AssociatedType {
     public let descriptor: AssociatedTypeDescriptor
@@ -12,6 +13,7 @@ public struct AssociatedType {
 
     private var _cacheDescription: String = ""
     
+//    @MachOImageGenerator
     public init(descriptor: AssociatedTypeDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
         self.conformingTypeName = try descriptor.conformingTypeName(in: machOFile)
@@ -25,6 +27,7 @@ public struct AssociatedType {
         }
     }
 
+    @MachOImageGenerator
     @StringBuilder
     private func buildDescription(in machOFile: MachOFile) throws -> String {
         try "extension \(MetadataReader.demangleSymbol(for: conformingTypeName, in: machOFile)): \(MetadataReader.demangleSymbol(for: protocolTypeName, in: machOFile)) {"

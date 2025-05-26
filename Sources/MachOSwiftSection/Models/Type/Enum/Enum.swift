@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 // template <typename Runtime>
 // class swift_ptrauth_struct_context_descriptor(EnumDescriptor)
@@ -31,6 +32,7 @@ public struct Enum {
 
     private var _cacheDescription: String = ""
 
+    //@MachOImageGenerator
     public init(descriptor: EnumDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
 
@@ -101,6 +103,7 @@ public struct Enum {
         return descriptor[keyPath: member]
     }
 
+    //@MachOImageGenerator
     @StringBuilder
     private func buildDescription(in machOFile: MachOFile) throws -> String {
         try "enum \(descriptor.fullname(in: machOFile)) {"

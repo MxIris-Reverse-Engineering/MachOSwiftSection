@@ -221,7 +221,7 @@ public struct Class {
             if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
                 (try? MetadataReader.demangleSymbol(for: symbol, in: machOFile)) ?? "Demangle Error"
             } else if !descriptor.implementation.isNull {
-                "\(descriptor.implementation.resolveDirectOffset(from: descriptor.fileOffset(of: \.implementation)))"
+                "\(descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)))"
             } else {
                 "Symbol not found"
             }

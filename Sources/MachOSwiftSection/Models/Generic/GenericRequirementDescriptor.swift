@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 public struct GenericRequirementDescriptor: LocatableLayoutWrapper {
     public struct Layout {
@@ -19,12 +20,14 @@ public struct GenericRequirementDescriptor: LocatableLayoutWrapper {
 }
 
 extension GenericRequirementDescriptor {
+    //@MachOImageGenerator
     func paramManagedName(in machOFile: MachOFile) throws -> MangledName {
-        return try layout.param.resolve(from: fileOffset(of: \.param), in: machOFile)
+        return try layout.param.resolve(from: offset(of: \.param), in: machOFile)
     }
 
+    //@MachOImageGenerator
     func type(in machOFile: MachOFile) throws -> MangledName {
-        return try RelativeDirectPointer<MangledName>(relativeOffset: layout.content).resolve(from: fileOffset(of: \.content), in: machOFile)
+        return try RelativeDirectPointer<MangledName>(relativeOffset: layout.content).resolve(from: offset(of: \.content), in: machOFile)
     }
 
     var content: GenericRequirementContent {
@@ -52,17 +55,18 @@ extension GenericRequirementDescriptor {
         }
     }
 
+    //@MachOImageGenerator
     func resolvedContent(in machOFile: MachOFile) throws -> ResolvedGenericRequirementContent {
-        let fileOffset = fileOffset(of: \.content)
+        let offset = offset(of: \.content)
         switch content {
         case .type(let relativeDirectPointer):
-            return try .type(relativeDirectPointer.resolve(from: fileOffset, in: machOFile))
+            return try .type(relativeDirectPointer.resolve(from: offset, in: machOFile))
         case .protocol(let relativeProtocolDescriptorPointer):
-            return try .protocol(relativeProtocolDescriptorPointer.resolve(from: fileOffset, in: machOFile))
+            return try .protocol(relativeProtocolDescriptorPointer.resolve(from: offset, in: machOFile))
         case .layout(let genericRequirementLayoutKind):
             return .layout(genericRequirementLayoutKind)
         case .conformance(let relativeIndirectablePointer):
-            return try .conformance(relativeIndirectablePointer.resolve(from: fileOffset, in: machOFile))
+            return try .conformance(relativeIndirectablePointer.resolve(from: offset, in: machOFile))
         case .invertedProtocols(let invertedProtocols):
             return .invertedProtocols(invertedProtocols)
         }

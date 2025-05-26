@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 public struct OpaqueType {
     public let descriptor: OpaqueTypeDescriptor
@@ -10,6 +11,7 @@ public struct OpaqueType {
 
     public let invertedProtocols: InvertibleProtocolSet?
 
+    //@MachOImageGenerator
     public init(descriptor: OpaqueTypeDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
         var currentOffset = descriptor.offset + descriptor.layoutSize

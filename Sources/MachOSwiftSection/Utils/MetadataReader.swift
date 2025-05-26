@@ -1,25 +1,21 @@
 import Foundation
 import MachOKit
-private import Demangling
+import Demangling
+import MachOSwiftSectionMacro
 
 public struct MetadataReader {
-    private let machOFile: MachOFile
-
-    private init(machOFile: MachOFile) {
-        self.machOFile = machOFile
-    }
-
-    private func buildContextMangling(context: ResolvableElement<ContextDescriptorWrapper>) throws -> SwiftSymbol? {
+    //@MachOImageGenerator
+    private static func buildContextMangling(context: ResolvableElement<ContextDescriptorWrapper>, in machOFile: MachOFile) throws -> SwiftSymbol? {
         switch context {
         case .symbol(let symbol):
-            return try buildContextManglingForSymbol(symbol: symbol)
+            return try buildContextManglingForSymbol(symbol: symbol, in: machOFile)
         case .element(let contextDescriptorProtocol):
-            return try buildContextMangling(context: contextDescriptorProtocol)
+            return try buildContextMangling(context: contextDescriptorProtocol, in: machOFile)
         }
     }
-
-    private func buildContextMangling(context: ContextDescriptorWrapper) throws -> SwiftSymbol? {
-        guard let demangling = try buildContextDescriptorMangling(context: context, recursionLimit: 50) else {
+    //@MachOImageGenerator
+    private static func buildContextMangling(context: ContextDescriptorWrapper, in machOFile: MachOFile) throws -> SwiftSymbol? {
+        guard let demangling = try buildContextDescriptorMangling(context: context, recursionLimit: 50, in: machOFile) else {
             return nil
         }
         let top: SwiftSymbol
@@ -34,13 +30,13 @@ public struct MetadataReader {
 
         return top
     }
-
-    private func adoptAnonymousContextName(context: ContextDescriptorWrapper, parentContextRef: inout ContextDescriptorWrapper?, outSymbol: inout SwiftSymbol?) throws -> SwiftSymbol? {
+    //@MachOImageGenerator
+    private static func adoptAnonymousContextName(context: ContextDescriptorWrapper, parentContextRef: inout ContextDescriptorWrapper?, outSymbol: inout SwiftSymbol?, in machOFile: MachOFile) throws -> SwiftSymbol? {
         outSymbol = nil
         guard let parentContext = parentContextRef else { return nil }
         guard context.isType || context.isProtocol else { return nil }
         guard case .anonymous(let anonymousParent) = parentContext else { return nil }
-        guard var mangledNode = try demangleAnonymousContextName(context: anonymousParent) else { return nil }
+        guard var mangledNode = try demangleAnonymousContextName(context: anonymousParent, in: machOFile) else { return nil }
         if mangledNode.kind == .global {
             mangledNode = mangledNode.children[0]
         }
@@ -63,29 +59,29 @@ public struct MetadataReader {
 
         return nameChild
     }
-
-    private func demangleAnonymousContextName(context: AnonymousContextDescriptor) throws -> SwiftSymbol? {
+    //@MachOImageGenerator
+    private static func demangleAnonymousContextName(context: AnonymousContextDescriptor, in machOFile: MachOFile) throws -> SwiftSymbol? {
 //        switch context {
 //        case .symbol(let unsolvedSymbol):
 //            return try buildContextManglingForSymbol(symbol: unsolvedSymbol)
 //        case .element(let context):
             guard let mangledName = try context.mangledName(in: machOFile) else { return nil }
-            return try demangle(for: mangledName, kind: .symbol)
+            return try demangle(for: mangledName, kind: .symbol, in: machOFile)
 //        }
     }
-
-    private func readProtocol(offset: Int, pointer: RelativeProtocolDescriptorPointer) throws -> SwiftSymbol? {
+    //@MachOImageGenerator
+    private static func readProtocol(offset: Int, pointer: RelativeProtocolDescriptorPointer, in machOFile: MachOFile) throws -> SwiftSymbol? {
         switch pointer {
         case .objcPointer(let objcPointer):
             let objcPrefixElement = try objcPointer.resolve(from: offset, in: machOFile)
             switch objcPrefixElement {
             case .symbol(let symbol):
-                return try buildContextManglingForSymbol(symbol: symbol)
+                return try buildContextManglingForSymbol(symbol: symbol, in: machOFile)
             case .element(let objcPrefix):
                 let mangledName = try objcPrefix.mangledName(in: machOFile)
                 let name = mangledName.symbolStringValue()
                 if name.starts(with: "_TtP") {
-                    var demangled = try demangle(for: mangledName, kind: .symbol)
+                    var demangled = try demangle(for: mangledName, kind: .symbol, in: machOFile)
                     while demangled.kind == .global ||
                         demangled.kind == .typeMangling ||
                         demangled.kind == .type ||
@@ -106,23 +102,23 @@ public struct MetadataReader {
             let resolvableProtocolDescriptor = try swiftPointer.resolve(from: offset, in: machOFile)
             switch resolvableProtocolDescriptor {
             case .symbol(let symbol):
-                return try buildContextManglingForSymbol(symbol: symbol)
+                return try buildContextManglingForSymbol(symbol: symbol, in: machOFile)
             case .element(let context):
-                return try buildContextMangling(context: .protocol(context))
+                return try buildContextMangling(context: .protocol(context), in: machOFile)
             }
         }
     }
-
-    private func buildContextDescriptorMangling(context: ContextDescriptorWrapper, recursionLimit: Int) throws -> SwiftSymbol? {
+    //@MachOImageGenerator
+    private static func buildContextDescriptorMangling(context: ContextDescriptorWrapper, recursionLimit: Int, in machOFile: MachOFile) throws -> SwiftSymbol? {
         guard recursionLimit > 0 else { return nil }
         var parentDescriptorResult = try context.parent(in: machOFile)?.resolved
         var demangledParentNode: SwiftSymbol?
-        var nameNode = try adoptAnonymousContextName(context: context, parentContextRef: &parentDescriptorResult, outSymbol: &demangledParentNode)
+        var nameNode = try adoptAnonymousContextName(context: context, parentContextRef: &parentDescriptorResult, outSymbol: &demangledParentNode, in: machOFile)
 //        guard let parentDescriptorResult else { return nil }
         var parentDemangling: SwiftSymbol?
 
         if let parentDescriptor = parentDescriptorResult {
-            parentDemangling = try buildContextDescriptorMangling(context: parentDescriptor, recursionLimit: recursionLimit - 1)
+            parentDemangling = try buildContextDescriptorMangling(context: parentDescriptor, recursionLimit: recursionLimit - 1, in: machOFile)
             if parentDemangling == nil, demangledParentNode == nil {
                 return nil
             }
@@ -162,7 +158,7 @@ public struct MetadataReader {
             guard let parentDemangling else { return nil }
             guard let extensionContext = context.extensionContextDescriptor else { return nil }
             guard let extendedContext = try extensionContext.extendedContext(in: machOFile) else { return nil }
-            guard let demangledExtendedContext = try demangle(for: extendedContext, kind: .type).nominalSymbol else { return nil }
+            guard let demangledExtendedContext = try demangle(for: extendedContext, kind: .type, in: machOFile).nominalSymbol else { return nil }
             var demangling = SwiftSymbol(kind: .extension, children: [parentDemangling, demangledExtendedContext])
             if let requirements = try extensionContext.genericContext(in: machOFile)?.requirements {
                 var signatureNode = SwiftSymbol(kind: .dependentGenericSignature)
@@ -171,11 +167,11 @@ public struct MetadataReader {
                     if failed {
                         break
                     }
-                    let subject = try demangle(for: requirement.paramManagedName(in: machOFile), kind: .type)
-                    let offset = requirement.fileOffset(of: \.content)
+                    let subject = try demangle(for: requirement.paramManagedName(in: machOFile), kind: .type, in: machOFile)
+                    let offset = requirement.offset(of: \.content)
                     switch requirement.content {
                     case .protocol(let relativeProtocolDescriptorPointer):
-                        guard let proto = try? readProtocol(offset: offset, pointer: relativeProtocolDescriptorPointer) else {
+                        guard let proto = try? readProtocol(offset: offset, pointer: relativeProtocolDescriptorPointer, in: machOFile) else {
                             failed = true
                             break
                         }
@@ -183,7 +179,7 @@ public struct MetadataReader {
                         signatureNode.children.append(requirementNode)
                     case .type(let relativeDirectPointer):
                         let mangledName = try relativeDirectPointer.resolve(from: offset, in: machOFile)
-                        guard let type = try? demangle(for: mangledName, kind: .type) else {
+                        guard let type = try? demangle(for: mangledName, kind: .type, in: machOFile) else {
                             failed = true
                             break
                         }
@@ -234,7 +230,7 @@ public struct MetadataReader {
         case .opaqueType:
             guard let parentDescriptorResult else { return nil }
             if parentDemangling?.kind == .anonymousContext {
-                guard var mangledNode = try demangleAnonymousContextName(context: parentDescriptorResult.anonymousContextDescriptor!) else {
+                guard var mangledNode = try demangleAnonymousContextName(context: parentDescriptorResult.anonymousContextDescriptor!, in: machOFile) else {
                     return nil
                 }
                 if mangledNode.kind == .global {
@@ -262,7 +258,8 @@ public struct MetadataReader {
         return demangling
     }
 
-    private func buildContextManglingForSymbol(symbol: UnsolvedSymbol) throws -> SwiftSymbol? {
+    //@MachOImageGenerator
+    private static func buildContextManglingForSymbol(symbol: UnsolvedSymbol, in machOFile: MachOFile) throws -> SwiftSymbol? {
         var demangler = Demangler(scalars: symbol.stringValue.unicodeScalars)
         var demangledSymbol = try demangler.demangleSymbol()
         if demangledSymbol.kind == .global {
@@ -280,7 +277,8 @@ public struct MetadataReader {
         return demangledSymbol
     }
 
-    private func demangle(for mangledName: MangledName, kind: MangledNameKind, useOpaqueTypeSymbolicReferences: Bool = false) throws -> SwiftSymbol {
+    //@MachOImageGenerator
+    private static func demangle(for mangledName: MangledName, kind: MangledNameKind, useOpaqueTypeSymbolicReferences: Bool = false, in machOFile: MachOFile) throws -> SwiftSymbol {
         let stringValue = switch kind {
         case .type:
             mangledName.typeStringValue()
@@ -300,12 +298,12 @@ public struct MetadataReader {
                     switch directness {
                     case .direct:
                         if let context = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset).resolve(from: fileOffset, in: machOFile) {
-                            result = try buildContextMangling(context: .element(context))
+                            result = try buildContextMangling(context: .element(context), in: machOFile)
                         }
                     case .indirect:
                         let relativePointer = RelativeIndirectResolvableElementPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset)
                         if let resolvableElement = try relativePointer.resolve(from: fileOffset, in: machOFile).asOptional {
-                            result = try buildContextMangling(context: resolvableElement)
+                            result = try buildContextMangling(context: resolvableElement, in: machOFile)
                         }
                     }
                 case .accessorFunctionReference:
@@ -339,24 +337,24 @@ public struct MetadataReader {
         return result
     }
 
+    //@MachOImageGenerator
     public static func demangleType(for mangledName: MangledName, in machOFile: MachOFile) throws -> String {
-        let reader = MetadataReader(machOFile: machOFile)
-        return try reader.demangle(for: mangledName, kind: .type).print()
+        return try MetadataReader.demangle(for: mangledName, kind: .type, in: machOFile).print()
     }
 
+    //@MachOImageGenerator
     public static func demangleSymbol(for mangledName: MangledName, in machOFile: MachOFile) throws -> String {
-        let reader = MetadataReader(machOFile: machOFile)
-        return try reader.demangle(for: mangledName, kind: .symbol).print()
-    }
-        
-    public static func demangleType(for unsolvedSymbol: UnsolvedSymbol, in machOFile: MachOFile) throws -> String {
-        let reader = MetadataReader(machOFile: machOFile)
-        return try reader.buildContextManglingForSymbol(symbol: unsolvedSymbol)?.print() ?? ""
+        return try MetadataReader.demangle(for: mangledName, kind: .symbol, in: machOFile).print()
     }
     
+    //@MachOImageGenerator
+    public static func demangleType(for unsolvedSymbol: UnsolvedSymbol, in machOFile: MachOFile) throws -> String {
+        return try MetadataReader.buildContextManglingForSymbol(symbol: unsolvedSymbol, in: machOFile)?.print() ?? ""
+    }
+    
+    //@MachOImageGenerator
     public static func demangleSymbol(for unsolvedSymbol: UnsolvedSymbol, in machOFile: MachOFile) throws -> String {
-        let reader = MetadataReader(machOFile: machOFile)
-        return try reader.demangle(for: .init(unsolvedSymbol: unsolvedSymbol), kind: .symbol).print()
+        return try MetadataReader.demangle(for: .init(unsolvedSymbol: unsolvedSymbol), kind: .symbol, in: machOFile).print()
     }
 }
 

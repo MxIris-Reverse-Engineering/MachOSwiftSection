@@ -1,5 +1,6 @@
 import MachOKit
 import Foundation
+import MachOSwiftSectionMacro
 
 public enum TypeReference {
     case directTypeDescriptor(RelativeDirectPointer<ContextDescriptorWrapper?>)
@@ -20,6 +21,8 @@ public enum TypeReference {
         }
     }
 
+    
+    //@MachOImageGenerator
     func resolve(at fileOffset: Int, in machOFile: MachOFile) throws -> ResolvedTypeReference {
         switch self {
         case let .directTypeDescriptor(relativeDirectPointer):

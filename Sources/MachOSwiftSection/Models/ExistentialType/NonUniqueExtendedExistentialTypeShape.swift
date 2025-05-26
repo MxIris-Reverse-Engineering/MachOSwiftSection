@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 public struct NonUniqueExtendedExistentialTypeShape: LocatableLayoutWrapper {
     public struct Layout {
@@ -18,7 +19,8 @@ public struct NonUniqueExtendedExistentialTypeShape: LocatableLayoutWrapper {
 }
 
 extension NonUniqueExtendedExistentialTypeShape {
+    //@MachOImageGenerator
     public func existentialType(in machOFile: MachOFile) throws -> MangledName {
-        try layout.localCopy.existentialType.resolve(from: fileOffset(of: \.localCopy.existentialType), in: machOFile)
+        try layout.localCopy.existentialType.resolve(from: offset(of: \.localCopy.existentialType), in: machOFile)
     }
 }

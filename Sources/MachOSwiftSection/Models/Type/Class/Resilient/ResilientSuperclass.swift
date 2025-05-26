@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 public struct ResilientSuperclass: LocatableLayoutWrapper {
     public struct Layout {
@@ -17,9 +18,10 @@ public struct ResilientSuperclass: LocatableLayoutWrapper {
 }
 
 extension ResilientSuperclass {
+    //@MachOImageGenerator
     public func superclass(for kind: TypeReferenceKind, in machOFile: MachOFile) throws -> String? {
         let typeReference = TypeReference.forKind(kind, at: layout.superclass.relativeOffset)
-        let resolvedTypeReference = try typeReference.resolve(at: fileOffset(of: \.superclass), in: machOFile)
+        let resolvedTypeReference = try typeReference.resolve(at: offset(of: \.superclass), in: machOFile)
         switch resolvedTypeReference {
         case .directTypeDescriptor(let contextDescriptorWrapper):
             return try contextDescriptorWrapper?.namedContextDescriptor?.fullname(in: machOFile)

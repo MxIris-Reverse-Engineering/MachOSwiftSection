@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 // using TrailingObjects
 //  = swift::ABI::TrailingObjects<
@@ -30,6 +31,7 @@ public struct `Protocol` {
         descriptor.numRequirementsInSignature.cast()
     }
 
+    //@MachOImageGenerator
     public init(descriptor: ProtocolDescriptor, in machOFile: MachOFile) throws {
         guard let protocolFlags = descriptor.flags.kindSpecificFlags?.protocolFlags else {
             throw Error.invalidProtocolDescriptor

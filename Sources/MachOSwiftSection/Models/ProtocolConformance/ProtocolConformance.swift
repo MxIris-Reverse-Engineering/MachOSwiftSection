@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 // using TrailingObjects = swift::ABI::TrailingObjects<
 //                           TargetProtocolConformanceDescriptor<Runtime>,
@@ -42,7 +43,7 @@ public struct ProtocolConformance {
 
     private var _cacheDescription: String = ""
     
-    
+    //@MachOImageGenerator
     public init(descriptor: ProtocolConformanceDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
 
@@ -111,6 +112,7 @@ extension ProtocolConformance: CustomStringConvertible {
         _cacheDescription
     }
 
+    //@MachOImageGenerator
     @StringBuilder
     private func buildDescription(in machOFile: MachOFile) throws -> String {
         "extension "

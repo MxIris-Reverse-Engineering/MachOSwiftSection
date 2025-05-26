@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 public struct RelativeObjCProtocolPrefix: LocatableLayoutWrapper {
     public struct Layout {
@@ -18,8 +19,9 @@ public struct RelativeObjCProtocolPrefix: LocatableLayoutWrapper {
 }
 
 extension RelativeObjCProtocolPrefix {
+    //@MachOImageGenerator
     func mangledName(in machOFile: MachOFile) throws -> MangledName {
-        return try layout.mangledName.resolve(from: fileOffset(of: \.mangledName), in: machOFile)
+        return try layout.mangledName.resolve(from: offset(of: \.mangledName), in: machOFile)
     }
 }
 

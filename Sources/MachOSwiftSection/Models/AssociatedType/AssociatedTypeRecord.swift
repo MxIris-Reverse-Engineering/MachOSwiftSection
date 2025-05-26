@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 public struct AssociatedTypeRecord: LocatableLayoutWrapper {
     public struct Layout {
@@ -18,11 +19,13 @@ public struct AssociatedTypeRecord: LocatableLayoutWrapper {
 }
 
 extension AssociatedTypeRecord {
+    //@MachOImageGenerator
     public func name(in machOFile: MachOFile) throws -> String {
-        return try layout.name.resolve(from: fileOffset(of: \.name), in: machOFile)
+        return try layout.name.resolve(from: offset(of: \.name), in: machOFile)
     }
     
+    //@MachOImageGenerator
     public func substitutedTypeName(in machOFile: MachOFile) throws -> MangledName {
-        return try layout.substitutedTypeName.resolve(from: fileOffset(of: \.substitutedTypeName), in: machOFile)
+        return try layout.substitutedTypeName.resolve(from: offset(of: \.substitutedTypeName), in: machOFile)
     }
 }

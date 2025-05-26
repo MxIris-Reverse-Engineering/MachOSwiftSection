@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 public typealias GenericContext = TargetGenericContext<GenericContextDescriptorHeader>
 
@@ -72,8 +73,8 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         )
     }
 
-    public init?(contextDescriptor: any ContextDescriptorProtocol, in machOFile: MachOFile) throws {
-        guard contextDescriptor.layout.flags.contains(.isGeneric) else { return nil }
+    @MachOImageGenerator
+    public init(contextDescriptor: any ContextDescriptorProtocol, in machOFile: MachOFile) throws {
         var currentOffset = contextDescriptor.offset + contextDescriptor.layoutSize
         let genericContextOffset = currentOffset
 

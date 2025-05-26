@@ -1,4 +1,5 @@
 import MachOKit
+import MachOSwiftSectionMacro
 
 @dynamicMemberLookup
 public enum ContextDescriptorWrapper {
@@ -67,10 +68,12 @@ public enum ContextDescriptorWrapper {
         }
     }
 
+    //@MachOImageGenerator
     func parent(in machOFile: MachOFile) throws -> ResolvableElement<ContextDescriptorWrapper>? {
         return try contextDescriptor.parent(in: machOFile)
     }
 
+    //@MachOImageGenerator
     func name(in machOFile: MachOFile) throws -> String? {
         if case .extension(let extensionContextDescriptor) = self {
             return try extensionContextDescriptor.extendedContext(in: machOFile).map { try MetadataReader.demangleType(for: $0, in: machOFile) }
@@ -122,6 +125,7 @@ extension ContextDescriptorWrapper: Resolvable {
         case invalidContextDescriptor
     }
     
+    //@MachOImageGenerator
     public static func resolve(from offset: Int, in machOFile: MachOFile) throws -> Self {
         let contextDescriptor: ContextDescriptor = try machOFile.readElement(offset: offset)
         switch contextDescriptor.flags.kind {
@@ -146,6 +150,7 @@ extension ContextDescriptorWrapper: Resolvable {
         }
     }
     
+    //@MachOImageGenerator
     public static func resolve(from offset: Int, in machOFile: MachOFile) throws -> Self? {
         do {
             return try resolve(from: offset, in: machOFile) as Self

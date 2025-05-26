@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 public struct AssociatedTypeDescriptor: LocatableLayoutWrapper {
     public struct Layout {
@@ -20,15 +21,17 @@ public struct AssociatedTypeDescriptor: LocatableLayoutWrapper {
 
 
 extension AssociatedTypeDescriptor {
-    
+    //@MachOImageGenerator
     public func conformingTypeName(in machOFile: MachOFile) throws -> MangledName {
-        return try layout.conformingTypeName.resolve(from: fileOffset(of: \.conformingTypeName), in: machOFile)
+        return try layout.conformingTypeName.resolve(from: offset(of: \.conformingTypeName), in: machOFile)
     }
     
+    //@MachOImageGenerator
     public func protocolTypeName(in machOFile: MachOFile) throws -> MangledName {
-        return try layout.protocolTypeName.resolve(from: fileOffset(of: \.protocolTypeName), in: machOFile)
+        return try layout.protocolTypeName.resolve(from: offset(of: \.protocolTypeName), in: machOFile)
     }
     
+    //@MachOImageGenerator
     public func associatedTypeRecords(in machOFile: MachOFile) throws -> [AssociatedTypeRecord] {
         return try machOFile.readElements(offset: offset + layoutSize, numberOfElements: layout.numAssociatedTypes.cast())
     }
