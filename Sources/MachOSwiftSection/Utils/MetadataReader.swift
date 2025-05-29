@@ -339,19 +339,19 @@ public struct MetadataReader {
         return result
     }
 
-    public static func demangleType(for mangledName: MangledName, in machOFile: MachOFile, using options: SymbolPrintOptions = .simplified) throws -> String {
+    public static func demangleType(for mangledName: MangledName, in machOFile: MachOFile, using options: SymbolPrintOptions = .default) throws -> String {
         return try MetadataReader.demangle(for: mangledName, kind: .type, in: machOFile).print(using: options)
     }
 
-    public static func demangleSymbol(for mangledName: MangledName, in machOFile: MachOFile, using options: SymbolPrintOptions = .simplified) throws -> String {
+    public static func demangleSymbol(for mangledName: MangledName, in machOFile: MachOFile, using options: SymbolPrintOptions = .default) throws -> String {
         return try MetadataReader.demangle(for: mangledName, kind: .symbol, in: machOFile).print(using: options)
     }
     
-    public static func demangleType(for unsolvedSymbol: UnsolvedSymbol, in machOFile: MachOFile, using options: SymbolPrintOptions = .simplified) throws -> String {
+    public static func demangleType(for unsolvedSymbol: UnsolvedSymbol, in machOFile: MachOFile, using options: SymbolPrintOptions = .default) throws -> String {
         return try MetadataReader.buildContextManglingForSymbol(symbol: unsolvedSymbol, in: machOFile)?.print(using: options) ?? ""
     }
     
-    public static func demangleSymbol(for unsolvedSymbol: UnsolvedSymbol, in machOFile: MachOFile, using options: SymbolPrintOptions = .simplified) throws -> String {
+    public static func demangleSymbol(for unsolvedSymbol: UnsolvedSymbol, in machOFile: MachOFile, using options: SymbolPrintOptions = .default) throws -> String {
         return try MetadataReader.demangle(for: .init(unsolvedSymbol: unsolvedSymbol), kind: .symbol, in: machOFile).print(using: options)
     }
 }

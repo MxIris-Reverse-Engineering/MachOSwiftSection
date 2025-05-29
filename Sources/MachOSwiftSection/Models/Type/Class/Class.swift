@@ -47,8 +47,6 @@ public struct Class {
     public let methodDefaultOverrideTableHeader: MethodDefaultOverrideTableHeader?
     public let methodDefaultOverrideDescriptors: [MethodDefaultOverrideDescriptor]
 
-    private var _cacheDescription: String = ""
-
     @MachOImageGenerator
     public init(descriptor: ClassDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
@@ -150,24 +148,21 @@ public struct Class {
             self.methodDefaultOverrideTableHeader = nil
             self.methodDefaultOverrideDescriptors = []
         }
-        do {
-            self._cacheDescription = try buildDescription(in: machOFile)
-        } catch {
-            self._cacheDescription = "Error: \(error)"
-        }
     }
 
     public subscript<T>(dynamicMember member: KeyPath<ClassDescriptor, T>) -> T {
         return descriptor[keyPath: member]
     }
+}
 
+extension Class: Dumpable {
     @MachOImageGenerator
     @StringBuilder
-    private func buildDescription(in machOFile: MachOFile) throws -> String {
+    public func dump(using options: SymbolPrintOptions, in machOFile: MachOFile) throws -> String {
         try "class \(descriptor.fullname(in: machOFile))"
 
         if let superclassMangledName = try descriptor.superclassTypeMangledName(in: machOFile) {
-            try ": \(MetadataReader.demangleType(for: superclassMangledName, in: machOFile)) {"
+            try ": \(MetadataReader.demangleType(for: superclassMangledName, in: machOFile, using: options)) {"
         } else if let resilientSuperclass, let kind = descriptor.resilientSuperclassReferenceKind, let superclass = try resilientSuperclass.superclass(for: kind, in: machOFile) {
             superclass
         } else {
@@ -179,7 +174,7 @@ public struct Class {
 
             Indent(level: 1)
 
-            let demangledTypeName = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machOFile), in: machOFile)
+            let demangledTypeName = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machOFile), in: machOFile, using: options)
 
             let fieldName = try fieldRecord.fieldName(in: machOFile)
 
@@ -204,90 +199,84 @@ public struct Class {
 
         for (offset, descriptor) in methodDescriptors.offsetEnumerated() {
             BreakLine()
-            
+
             Indent(level: 1)
-            
+
             "[\(descriptor.flags.kind)] "
-            
+
             if !descriptor.flags.isInstance, descriptor.flags.kind != .`init` {
                 "static "
             }
-            
+
             if descriptor.flags.isDynamic {
                 "dynamic "
             }
-            
+
             if descriptor.flags.kind == .method {
                 "func "
             }
-            
+
             if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
-                (try? MetadataReader.demangleSymbol(for: symbol, in: machOFile)) ?? "Demangle Error"
+                (try? MetadataReader.demangleSymbol(for: symbol, in: machOFile, using: options)) ?? "Demangle Error"
             } else if !descriptor.implementation.isNull {
                 "\(descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)))"
             } else {
                 "Symbol not found"
             }
-            
+
             if offset.isEnd {
                 BreakLine()
             }
         }
-        
+
         for (offset, descriptor) in methodOverrideDescriptors.offsetEnumerated() {
             BreakLine()
-            
+
             Indent(level: 1)
-            
+
             "override "
-            
+
 //            if !descriptor.method.res, descriptor.flags.kind != .`init` {
 //                "class "
 //            }
-//            
+//
 //            if descriptor.flags.isDynamic {
 //                "dynamic "
 //            }
-//            
+//
 //            if descriptor.flags.kind == .method {
 //                "func "
 //            }
-            
+
             if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
-                (try? MetadataReader.demangleSymbol(for: symbol, in: machOFile)) ?? "Error"
+                (try? MetadataReader.demangleSymbol(for: symbol, in: machOFile, using: options)) ?? "Error"
             } else {
                 "Symbol not found"
             }
-            
+
             if offset.isEnd {
                 BreakLine()
             }
         }
-        
+
         for (offset, descriptor) in methodDefaultOverrideDescriptors.offsetEnumerated() {
             BreakLine()
-            
+
             Indent(level: 1)
-            
+
             "default override "
-            
+
             if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
-                (try? MetadataReader.demangleSymbol(for: symbol, in: machOFile)) ?? "Error"
+                (try? MetadataReader.demangleSymbol(for: symbol, in: machOFile, using: options)) ?? "Error"
             } else {
                 "Symbol not found"
             }
-            
+
             if offset.isEnd {
                 BreakLine()
             }
         }
 
         "}"
-    }
-}
-
-extension Class: CustomStringConvertible {
-    public var description: String {
-        return _cacheDescription
     }
 }

@@ -13,9 +13,7 @@ public struct Struct {
     public let canonicalSpecializedMetadatasCachingOnceToken: CanonicalSpecializedMetadatasCachingOnceToken?
     public let invertibleProtocolSet: InvertibleProtocolSet?
     public let singletonMetadataPointer: SingletonMetadataPointer?
-
-    private var _cacheDescription: String = ""
-
+    
     @MachOImageGenerator
     public init(descriptor: StructDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
@@ -75,21 +73,18 @@ public struct Struct {
         } else {
             self.singletonMetadataPointer = nil
         }
-        
-        do {
-            _cacheDescription = try buildDescription(in: machOFile)
-        } catch {
-            _cacheDescription = "Error: \(error)"
-        }
     }
 
     public subscript<T>(dynamicMember member: KeyPath<StructDescriptor, T>) -> T {
         return descriptor[keyPath: member]
     }
+}
 
+extension Struct: Dumpable {
+    
     @MachOImageGenerator
     @StringBuilder
-    private func buildDescription(in machOFile: MachOFile) throws -> String {
+    public func dump(using options: SymbolPrintOptions, in machOFile: MachOFile) throws -> String {
         try "struct \(descriptor.fullname(in: machOFile)) {"
 
         for (offset, fieldRecord) in try descriptor.fieldDescriptor(in: machOFile).records(in: machOFile).offsetEnumerated() {
@@ -98,7 +93,7 @@ public struct Struct {
             
             Indent(level: 1)
 
-            let demangledTypeName = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machOFile), in: machOFile)
+            let demangledTypeName = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machOFile), in: machOFile, using: options)
             
             let fieldName = try fieldRecord.fieldName(in: machOFile)
             
@@ -122,11 +117,5 @@ public struct Struct {
         }
 
         "}"
-    }
-}
-
-extension Struct: CustomStringConvertible {
-    public var description: String {
-        return _cacheDescription
     }
 }

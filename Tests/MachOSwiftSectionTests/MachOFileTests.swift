@@ -13,8 +13,8 @@ struct MachOFileTests {
 
     init() throws {
 //        let path = "/Library/Developer/CoreSimulator/Volumes/iOS_22E238/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 18.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUICore.framework/SwiftUICore"
-//        let path = "/System/Applications/Freeform.app/Contents/MacOS/Freeform"
-        let path = "/Applications/SourceEdit.app/Contents/Frameworks/SourceEditor.framework/Versions/A/SourceEditor"
+        let path = "/System/Applications/iPhone Mirroring.app/Contents/Frameworks/ScreenContinuityUI.framework/Versions/A/ScreenContinuityUI"
+//        let path = "/Applications/SourceEdit.app/Contents/Frameworks/SourceEditor.framework/Versions/A/SourceEditor"
         let url = URL(fileURLWithPath: path)
         let file = try MachOKit.loadFromFile(url: url)
         switch file {
@@ -44,22 +44,22 @@ struct MachOFileTests {
     }
 
     @Test func types() async throws {
-        let typeContextDescriptors = try require(machOFile.swift.typeContextDescriptors)
+        let typeContextDescriptors = try required(machOFile.swift.typeContextDescriptors)
 
         for typeContextDescriptor in typeContextDescriptors {
             switch typeContextDescriptor.flags.kind {
             case .enum:
-                let enumDescriptor = try require(typeContextDescriptor.enumDescriptor(in: machOFile))
+                let enumDescriptor = try required(typeContextDescriptor.enumDescriptor(in: machOFile))
                 let enumType = try Enum(descriptor: enumDescriptor, in: machOFile)
-                print(enumType)
+                try print(enumType.dump(using: .default, in: machOFile))
             case .struct:
-                let structDescriptor = try require(typeContextDescriptor.structDescriptor(in: machOFile))
+                let structDescriptor = try required(typeContextDescriptor.structDescriptor(in: machOFile))
                 let structType = try Struct(descriptor: structDescriptor, in: machOFile)
-                print(structType)
+                try print(structType.dump(using: .default, in: machOFile))
             case .class:
-                let classDescriptor = try require(typeContextDescriptor.classDescriptor(in: machOFile))
+                let classDescriptor = try required(typeContextDescriptor.classDescriptor(in: machOFile))
                 let classType = try Class(descriptor: classDescriptor, in: machOFile)
-                print(classType)
+                try print(classType.dump(using: .default, in: machOFile))
             default:
                 break
             }

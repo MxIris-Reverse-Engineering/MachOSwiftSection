@@ -11,32 +11,26 @@ public struct AssociatedType {
 
     public let records: [AssociatedTypeRecord]
 
-    private var _cacheDescription: String = ""
-
     @MachOImageGenerator
     public init(descriptor: AssociatedTypeDescriptor, in machOFile: MachOFile) throws {
         self.descriptor = descriptor
         self.conformingTypeName = try descriptor.conformingTypeName(in: machOFile)
         self.protocolTypeName = try descriptor.protocolTypeName(in: machOFile)
         self.records = try descriptor.associatedTypeRecords(in: machOFile)
-
-        do {
-            self._cacheDescription = try buildDescription(in: machOFile)
-        } catch {
-            self._cacheDescription = "Error \(error)"
-        }
     }
+}
 
+extension AssociatedType: Dumpable {
     @MachOImageGenerator
     @StringBuilder
-    private func buildDescription(in machOFile: MachOFile) throws -> String {
-        try "extension \(MetadataReader.demangleSymbol(for: conformingTypeName, in: machOFile)): \(MetadataReader.demangleSymbol(for: protocolTypeName, in: machOFile)) {"
+    public func dump(using options: SymbolPrintOptions, in machOFile: MachOFile) throws -> String {
+        try "extension \(MetadataReader.demangleSymbol(for: conformingTypeName, in: machOFile, using: options)): \(MetadataReader.demangleSymbol(for: protocolTypeName, in: machOFile, using: options)) {"
         for (offset, record) in records.offsetEnumerated() {
             BreakLine()
 
             Indent(level: 1)
 
-            try "typealias \(record.name(in: machOFile)) = \(MetadataReader.demangleSymbol(for: record.substitutedTypeName(in: machOFile), in: machOFile))"
+            try "typealias \(record.name(in: machOFile)) = \(MetadataReader.demangleSymbol(for: record.substitutedTypeName(in: machOFile), in: machOFile, using: options))"
 
             if offset.isEnd {
                 BreakLine()
@@ -44,11 +38,5 @@ public struct AssociatedType {
         }
 
         "}"
-    }
-}
-
-extension AssociatedType: CustomStringConvertible {
-    public var description: String {
-        _cacheDescription
     }
 }

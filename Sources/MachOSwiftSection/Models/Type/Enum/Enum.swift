@@ -17,7 +17,6 @@ import MachOSwiftSectionMacro
 //                            InvertibleProtocolSet,
 //                            TargetSingletonMetadataPointer<Runtime>>
 
-
 @dynamicMemberLookup
 public struct Enum {
     public let descriptor: EnumDescriptor
@@ -29,8 +28,6 @@ public struct Enum {
     public let canonicalSpecializedMetadatasCachingOnceToken: CanonicalSpecializedMetadatasCachingOnceToken?
     public let invertibleProtocolSet: InvertibleProtocolSet?
     public let singletonMetadataPointer: SingletonMetadataPointer?
-
-    private var _cacheDescription: String = ""
 
     @MachOImageGenerator
     public init(descriptor: EnumDescriptor, in machOFile: MachOFile) throws {
@@ -91,28 +88,22 @@ public struct Enum {
         } else {
             self.singletonMetadataPointer = nil
         }
-        
-        do {
-            _cacheDescription = try buildDescription(in: machOFile)
-        } catch {
-            _cacheDescription = "Error: \(error)"
-        }
     }
 
     public subscript<T>(dynamicMember member: KeyPath<EnumDescriptor, T>) -> T {
         return descriptor[keyPath: member]
     }
+}
 
+extension Enum: Dumpable {
     @MachOImageGenerator
     @StringBuilder
-    private func buildDescription(in machOFile: MachOFile) throws -> String {
+    public func dump(using options: SymbolPrintOptions, in machOFile: MachOFile) throws -> String {
         try "enum \(descriptor.fullname(in: machOFile)) {"
 
         for (offset, fieldRecord) in try descriptor.fieldDescriptor(in: machOFile).records(in: machOFile).offsetEnumerated() {
-            
             BreakLine()
-            
-            
+
             Indent(level: 1)
 
             if fieldRecord.flags.contains(.isIndirectCase) {
@@ -123,25 +114,18 @@ public struct Enum {
 
             try "\(fieldRecord.fieldName(in: machOFile))"
 
-            
             let mangledName = try fieldRecord.mangledTypeName(in: machOFile)
-            
+
             if !mangledName.isEmpty {
-                try MetadataReader.demangleType(for: mangledName, in: machOFile).insertBracketIfNeeded
+                try MetadataReader.demangleType(for: mangledName, in: machOFile, using: options).insertBracketIfNeeded
             }
-            
+
             if offset.isEnd {
                 BreakLine()
             }
         }
 
         "}"
-    }
-}
-
-extension Enum: CustomStringConvertible {
-    public var description: String {
-        return _cacheDescription
     }
 }
 

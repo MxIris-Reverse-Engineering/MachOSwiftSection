@@ -40,8 +40,6 @@ public struct ProtocolConformance {
     public let resilientWitnesses: [ResilientWitness]
 
     public let genericWitnessTable: GenericWitnessTable?
-
-    private var _cacheDescription: String = ""
     
     @MachOImageGenerator
     public init(descriptor: ProtocolConformanceDescriptor, in machOFile: MachOFile) throws {
@@ -98,23 +96,14 @@ public struct ProtocolConformance {
         } else {
             self.genericWitnessTable = nil
         }
-        
-        do {
-            _cacheDescription = try buildDescription(in: machOFile)
-        } catch {
-            _cacheDescription = "Error: \(error)"
-        }
     }
 }
 
-extension ProtocolConformance: CustomStringConvertible {
-    public var description: String {
-        _cacheDescription
-    }
+extension ProtocolConformance: Dumpable {
 
     @MachOImageGenerator
     @StringBuilder
-    private func buildDescription(in machOFile: MachOFile) throws -> String {
+    public func dump(using options: SymbolPrintOptions, in machOFile: MachOFile) throws -> String {
         "extension "
         switch typeReference {
         case .directTypeDescriptor(let descriptor):
@@ -122,7 +111,7 @@ extension ProtocolConformance: CustomStringConvertible {
         case .indirectTypeDescriptor(let descriptor):
             switch descriptor {
             case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile)
+                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile, using: options)
             case .element(let element):
                 try element.namedContextDescriptor.map { try $0.fullname(in: machOFile) }.valueOrEmpty
             case nil:
@@ -133,7 +122,7 @@ extension ProtocolConformance: CustomStringConvertible {
         case .indirectObjCClass(let objcClass):
             switch objcClass {
             case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile)
+                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile, using: options)
             case .element(let element):
                 try element.description.resolve(in: machOFile).fullname(in: machOFile)
             case nil:
@@ -144,7 +133,7 @@ extension ProtocolConformance: CustomStringConvertible {
         ": "
         switch `protocol` {
         case .symbol(let unsolvedSymbol):
-            try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile)
+            try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile, using: options)
         case .element(let element):
             try element.fullname(in: machOFile)
         case .none:
@@ -156,7 +145,7 @@ extension ProtocolConformance: CustomStringConvertible {
         }
 
         for conditionalRequirement in conditionalRequirements {
-            try MetadataReader.demangleType(for: try conditionalRequirement.paramManagedName(in: machOFile), in: machOFile)
+            try MetadataReader.demangleType(for: try conditionalRequirement.paramManagedName(in: machOFile), in: machOFile, using: options)
             if conditionalRequirement.flags.kind == .sameType {
                 " == "
             } else {
@@ -164,11 +153,11 @@ extension ProtocolConformance: CustomStringConvertible {
             }
             switch try conditionalRequirement.resolvedContent(in: machOFile) {
             case .type(let mangledName):
-                try MetadataReader.demangleType(for: mangledName, in: machOFile)
+                try MetadataReader.demangleType(for: mangledName, in: machOFile, using: options)
             case .protocol(let resolvableElement):
                 switch resolvableElement {
                 case .symbol(let unsolvedSymbol):
-                    try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile)
+                    try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile, using: options)
                 case .element(let element):
                     switch element {
                     case .objc(let objc):
@@ -214,7 +203,7 @@ extension ProtocolConformance: CustomStringConvertible {
                 "    "
                 switch try resilientWitness.requirement(in: machOFile) {
                 case .symbol(let unsolvedSymbol):
-                    try MetadataReader.demangleSymbol(for: unsolvedSymbol, in: machOFile)
+                    try MetadataReader.demangleSymbol(for: unsolvedSymbol, in: machOFile, using: options)
                 case .element/*(let element)*/:
                     ""
                 case .none:
