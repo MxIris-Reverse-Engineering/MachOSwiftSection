@@ -8,6 +8,17 @@ It may be the most powerful swift dump you can find so far, as it uses a custom 
 > [!NOTE]
 > This library is developed as an extension of [MachOKit](https://github.com/p-x9/MachOKit) for Swift
 
+## Roadmap
+
+- [x] Protocol Descriptors
+- [x] Protocol Conformance Descriptors
+- [x] Type Context Descriptors
+- [x] Associated Type Descriptors
+- [] Builtin Type Descriptors
+- [] Capture Descriptors
+- [] Type Member Layout
+- [] Method Symbol For Dyld Caches
+
 ## Usage
 
 ### Basic
@@ -57,10 +68,10 @@ for typeContextDescriptor in typeContextDescriptors {
 
 #### Dump Swift Interface
 
-Swift Interface definitions can be print from types/protocol/protocolConformance model
+Swift Interface definitions can be print from Enum/Struct/Class/Protocol/ProtocolConformance/AssociatedType model
 
 ```swift
-print(Enum/Struct/Class/Protocol/ProtocolConformance instance)
+print(Enum/Struct/Class/Protocol/ProtocolConformance model)
 ```
 
 <details>
