@@ -32,3 +32,4 @@ public struct UnsolvedSymbol: Resolvable {
         return .init(offset: symbol.offset, stringValue: symbol.name)
     }
 }
+

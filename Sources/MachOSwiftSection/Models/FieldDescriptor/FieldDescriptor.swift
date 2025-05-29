@@ -23,12 +23,10 @@ public struct FieldDescriptor: LocatableLayoutWrapper, Resolvable {
 
 @MachOImageAllMembersGenerator
 extension FieldDescriptor {
-    //@MachOImageGenerator
     public func mangledTypeName(in machOFile: MachOFile) throws -> MangledName {
         return try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machOFile)
     }
 
-    //@MachOImageGenerator
     public func records(in machOFile: MachOFile) throws -> [FieldRecord] {
         guard layout.fieldRecordSize != 0 else { return [] }
         let offset = offset + MemoryLayout<FieldDescriptor.Layout>.size

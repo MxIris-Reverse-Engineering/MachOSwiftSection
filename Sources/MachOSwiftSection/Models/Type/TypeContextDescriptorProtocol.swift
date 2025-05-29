@@ -6,6 +6,12 @@ public protocol TypeContextDescriptorProtocol: NamedContextDescriptorProtocol wh
 
 @MachOImageAllMembersGenerator
 extension TypeContextDescriptorProtocol {
+    
+    public func accessFunction(in machOFile: MachOFile) throws -> UnsolvedSymbol? {
+        let ptr = RelativeDirectPointer<UnsolvedSymbol?>(relativeOffset: layout.accessFunctionPtr)
+        return try ptr.resolve(from: offset + layout.offset(of: .accessFunctionPtr), in: machOFile)
+    }
+    
     public func fieldDescriptor(in machOFile: MachOFile) throws -> FieldDescriptor {
         try layout.fieldDescriptor.resolve(from: offset + layout.offset(of: .fieldDescriptor), in: machOFile)
     }
