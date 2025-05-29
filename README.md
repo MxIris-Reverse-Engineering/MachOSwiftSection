@@ -55,15 +55,15 @@ for typeContextDescriptor in typeContextDescriptors {
     case .enum:
         let enumDescriptor = try typeContextDescriptor.enumDescriptor(in: machO)!
         let enumType = try Enum(descriptor: enumDescriptor, in: machO)
-        print(enumType)
+        try print(enumType.dump(using: .default, in: machO))
     case .struct:
         let structDescriptor = try typeContextDescriptor.structDescriptor(in: machO)!
         let structType = try Struct(descriptor: structDescriptor, in: machO)
-        print(structType)
+        try print(structType.dump(using: .default, in: machO))
     case .class:
         let classDescriptor = try typeContextDescriptor.classDescriptor(in: machO)!
         let classType = try Class(descriptor: classDescriptor, in: machO)
-        print(classType)
+        try print(classType.dump(using: .default, in: machO))
     default:
         break
     }
@@ -72,10 +72,14 @@ for typeContextDescriptor in typeContextDescriptors {
 
 #### Dump Swift Interface
 
-Swift Interface definitions can be print from Enum/Struct/Class/Protocol/ProtocolConformance/AssociatedType model
+Swift Interface definitions can be dump from Enum/Struct/Class/Protocol/ProtocolConformance/AssociatedType model
+
+Options can customize the print content, such as using syntactic sugar types or strip the ObjC Module.
 
 ```swift
-print(Enum/Struct/Class/Protocol/ProtocolConformance model)
+let enumDescriptor = try typeContextDescriptor.enumDescriptor(in: machO)!
+let enumType = try Enum(descriptor: enumDescriptor, in: machO)
+try print(enumType.dump(using: .default, in: machO))
 ```
 
 <details>
