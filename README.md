@@ -3,6 +3,8 @@
 A Swift library for parsing mach-o files to obtain Swift information.
 （Types/Protocol/ProtocolConformance info）
 
+It may be the most powerful swift dump you can find so far, as it uses a custom Demangler to parse symbolic references and restore the original logic of the Swift Runtime as much as possible.
+
 > [!NOTE]
 > This library is developed as an extension of [MachOKit](https://github.com/p-x9/MachOKit) for Swift
 
