@@ -1,5 +1,9 @@
 # MachOSwiftSection
 
+> [!NOTE]
+> The dyld subCache parsing error is a known issues. please switch to `MachOKit`'s main branch as a temporary workaround.
+> https://github.com/p-x9/MachOKit/commit/064dd49dda8ceeeae5857782bcd5037e34fc2e19
+
 A Swift library for parsing mach-o files to obtain Swift information.
 （Types/Protocol/ProtocolConformance info）
 
