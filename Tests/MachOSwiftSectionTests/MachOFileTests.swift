@@ -7,13 +7,22 @@ enum Error: Swift.Error {
     case notFound
 }
 
+let printOptions: SymbolPrintOptions = {
+    var options = SymbolPrintOptions.default
+    options.remove(.displayObjCModule)
+    options.insert(.synthesizeSugarOnTypes)
+    options.remove(.displayWhereClauses)
+    options.remove(.displayExtensionContexts)
+    return options
+}()
+
 @Suite
 struct MachOFileTests {
     let machOFile: MachOFile
 
     init() throws {
-//        let path = "/Library/Developer/CoreSimulator/Volumes/iOS_22E238/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 18.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUICore.framework/SwiftUICore"
-        let path = "/System/Applications/iPhone Mirroring.app/Contents/Frameworks/ScreenContinuityUI.framework/Versions/A/ScreenContinuityUI"
+        let path = "/Library/Developer/CoreSimulator/Volumes/iOS_22E238/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 18.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUICore.framework/SwiftUICore"
+//        let path = "/System/Applications/iPhone Mirroring.app/Contents/Frameworks/ScreenContinuityUI.framework/Versions/A/ScreenContinuityUI"
 //        let path = "/Applications/SourceEdit.app/Contents/Frameworks/SourceEditor.framework/Versions/A/SourceEditor"
         let url = URL(fileURLWithPath: path)
         let file = try MachOKit.loadFromFile(url: url)
@@ -39,15 +48,11 @@ struct MachOFileTests {
 
         for (index, protocolConformanceDescriptor) in protocolConformanceDescriptors.enumerated() {
             print(index)
-            try print(ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machOFile))
+            try print(ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machOFile).dump(using: printOptions, in: machOFile))
         }
     }
 
     @Test func types() async throws {
-        var options = SymbolPrintOptions.default
-        options.remove(.displayObjCModule)
-        options.insert(.synthesizeSugarOnTypes)
-        
         let typeContextDescriptors = try required(machOFile.swift.typeContextDescriptors)
 
         for typeContextDescriptor in typeContextDescriptors {
@@ -55,15 +60,15 @@ struct MachOFileTests {
             case .enum:
                 let enumDescriptor = try required(typeContextDescriptor.enumDescriptor(in: machOFile))
                 let enumType = try Enum(descriptor: enumDescriptor, in: machOFile)
-                try print(enumType.dump(using: options, in: machOFile))
+                try print(enumType.dump(using: printOptions, in: machOFile))
             case .struct:
                 let structDescriptor = try required(typeContextDescriptor.structDescriptor(in: machOFile))
                 let structType = try Struct(descriptor: structDescriptor, in: machOFile)
-                try print(structType.dump(using: options, in: machOFile))
+                try print(structType.dump(using: printOptions, in: machOFile))
             case .class:
                 let classDescriptor = try required(typeContextDescriptor.classDescriptor(in: machOFile))
                 let classType = try Class(descriptor: classDescriptor, in: machOFile)
-                try print(classType.dump(using: options, in: machOFile))
+                try print(classType.dump(using: printOptions, in: machOFile))
             default:
                 break
             }
@@ -74,7 +79,7 @@ struct MachOFileTests {
     @Test func associatedTypes() throws {
         let associatedTypeDescriptors = try require(machOFile.swift.associatedTypeDescriptors)
         for associatedTypeDescriptor in associatedTypeDescriptors {
-            try print(AssociatedType(descriptor: associatedTypeDescriptor, in: machOFile))
+            try print(AssociatedType(descriptor: associatedTypeDescriptor, in: machOFile).dump(using: printOptions, in: machOFile))
         }
     }
 

@@ -1,14 +1,10 @@
 import Testing
 import Foundation
-@testable import MachOSwiftSection
 import MachOKit
+@testable import MachOSwiftSection
 
 @Suite
 struct DyldCacheFileTests {
-    enum Error: Swift.Error {
-        case notFound
-    }
-
     let mainCache: DyldCache
 
     let mainCacheMachOFileInCache: MachOFile
@@ -22,12 +18,12 @@ struct DyldCacheFileTests {
     init() throws {
         // Cache
         let arch = "arm64e"
-//        let mainCachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch)"
-//        let subCachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch).01"
+        let mainCachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch)"
+        let subCachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch).01"
 //        let mainCachePath = "/Volumes/Resources/24F74__MacOS/dyld_shared_cache_\(arch)"
 //        let subCachePath = "/Volumes/Resources/24F74__MacOS/dyld_shared_cache_\(arch).01"
-        let mainCachePath = "/Volumes/RE/Dyld-Shared-Cache/macOS/15.5/dyld_shared_cache_\(arch)"
-        let subCachePath = "/Volumes/RE/Dyld-Shared-Cache/macOS/15.5/dyld_shared_cache_\(arch).01"
+//        let mainCachePath = "/Volumes/RE/Dyld-Shared-Cache/macOS/15.5/dyld_shared_cache_\(arch)"
+//        let subCachePath = "/Volumes/RE/Dyld-Shared-Cache/macOS/15.5/dyld_shared_cache_\(arch).01"
         let mainCacheURL = URL(fileURLWithPath: mainCachePath)
         let subCacheURL = URL(fileURLWithPath: subCachePath)
         self.mainCache = try! DyldCache(url: mainCacheURL)
@@ -38,7 +34,7 @@ struct DyldCacheFileTests {
         })!
 
         self.subCacheMachOFileInCache = subCache.machOFiles().first(where: {
-            $0.imagePath.contains("CodableSwiftUI")
+            $0.imagePath.contains("SwiftUI")
         })!
 
         self.machOFileInCache = (mainCache.machOFiles().map { $0 } + subCache.machOFiles().map { $0 }).first {
@@ -46,7 +42,7 @@ struct DyldCacheFileTests {
         }!
     }
 
-    @Test func protocolsInFile() async throws {
+    @Test func protocolNames() async throws {
         guard let protocols = subCacheMachOFileInCache.swift.protocolDescriptors else {
             throw Error.notFound
         }
@@ -77,9 +73,6 @@ struct DyldCacheFileTests {
     }
 
     private func dumpTypes(for machOFile: MachOFile) async throws {
-        for section in machOFile.sections {
-            print(section.sectionName)
-        }
         let typeContextDescriptors = try required(machOFile.swift.typeContextDescriptors)
 
         for typeContextDescriptor in typeContextDescriptors {
@@ -87,27 +80,22 @@ struct DyldCacheFileTests {
             case .enum:
                 let enumDescriptor = try required(typeContextDescriptor.enumDescriptor(in: machOFile))
                 let enumType = try Enum(descriptor: enumDescriptor, in: machOFile)
-                try print(enumType.dump(using: .default, in: machOFile))
+                try print(enumType.dump(using: printOptions, in: machOFile))
             case .struct:
                 let structDescriptor = try required(typeContextDescriptor.structDescriptor(in: machOFile))
                 let structType = try Struct(descriptor: structDescriptor, in: machOFile)
-                try print(structType.dump(using: .default, in: machOFile))
+                try print(structType.dump(using: printOptions, in: machOFile))
             case .class:
                 let classDescriptor = try required(typeContextDescriptor.classDescriptor(in: machOFile))
                 let classType = try Class(descriptor: classDescriptor, in: machOFile)
-                try print(classType.dump(using: .default, in: machOFile))
+                try print(classType.dump(using: printOptions, in: machOFile))
             default:
                 break
             }
         }
     }
 
-    @Test func dumpType() async throws {
-        let machOFile = mainCacheMachOFileInCache
-        try await Dump.dumpTypeContextDescriptors(in: machOFile)
-    }
-
-    @Test func cacheFileOffsets() async throws {
+    @Test func cacheFiles() async throws {
         print("Main Cache MachO Files:")
         for machOFile in mainCache.machOFiles() {
             print(machOFile.imagePath)
