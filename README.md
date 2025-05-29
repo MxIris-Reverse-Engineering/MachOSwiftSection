@@ -64,6 +64,7 @@ print(Enum/Struct/Class/Protocol/ProtocolConformance instance)
 <details>
 
 <summary>Example of dumped string</summary>
+
 ```swift
 enum Foundation.Date.ComponentsFormatStyle.Field.Option {
     case year
@@ -86,6 +87,7 @@ struct Foundation.TimeZoneCache {
     let lock: LockedState<TimeZoneCache.State>
 }
 ```
+
 </details>
 
 ## License
