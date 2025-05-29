@@ -16,7 +16,7 @@ Swift information from MachOImage or MachOFile can be retrieved via the `swift` 
 
 ```swift
 import MachOKit
-import MachOObjCSection
+import MachOSwiftSection
 
 let machO //` MachOFile` or `MachOImage`
 
