@@ -44,6 +44,10 @@ struct MachOFileTests {
     }
 
     @Test func types() async throws {
+        var options = SymbolPrintOptions.default
+        options.remove(.displayObjCModule)
+        options.insert(.synthesizeSugarOnTypes)
+        
         let typeContextDescriptors = try required(machOFile.swift.typeContextDescriptors)
 
         for typeContextDescriptor in typeContextDescriptors {
@@ -51,15 +55,15 @@ struct MachOFileTests {
             case .enum:
                 let enumDescriptor = try required(typeContextDescriptor.enumDescriptor(in: machOFile))
                 let enumType = try Enum(descriptor: enumDescriptor, in: machOFile)
-                try print(enumType.dump(using: .default, in: machOFile))
+                try print(enumType.dump(using: options, in: machOFile))
             case .struct:
                 let structDescriptor = try required(typeContextDescriptor.structDescriptor(in: machOFile))
                 let structType = try Struct(descriptor: structDescriptor, in: machOFile)
-                try print(structType.dump(using: .default, in: machOFile))
+                try print(structType.dump(using: options, in: machOFile))
             case .class:
                 let classDescriptor = try required(typeContextDescriptor.classDescriptor(in: machOFile))
                 let classType = try Class(descriptor: classDescriptor, in: machOFile)
-                try print(classType.dump(using: .default, in: machOFile))
+                try print(classType.dump(using: options, in: machOFile))
             default:
                 break
             }
