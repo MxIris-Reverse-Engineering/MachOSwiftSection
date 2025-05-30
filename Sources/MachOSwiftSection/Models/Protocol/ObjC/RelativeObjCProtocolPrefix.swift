@@ -20,7 +20,6 @@ public struct RelativeObjCProtocolPrefix: LocatableLayoutWrapper {
 
 @MachOImageAllMembersGenerator
 extension RelativeObjCProtocolPrefix {
-    //@MachOImageGenerator
     func mangledName(in machOFile: MachOFile) throws -> MangledName {
         return try layout.mangledName.resolve(from: offset(of: \.mangledName), in: machOFile)
     }

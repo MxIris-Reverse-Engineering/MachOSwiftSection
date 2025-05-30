@@ -43,9 +43,7 @@ struct DyldCacheFileTests {
     }
 
     @Test func protocolNames() async throws {
-        guard let protocols = subCacheMachOFileInCache.swift.protocolDescriptors else {
-            throw Error.notFound
-        }
+        let protocols = try required(subCacheMachOFileInCache.swift.protocolDescriptors)
         for proto in protocols {
             try print(proto.name(in: subCacheMachOFileInCache))
         }

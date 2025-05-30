@@ -6,13 +6,11 @@
 //
 
 import MachOKit
-import MachOSwiftSection
+@testable import MachOSwiftSection
 
 enum Dump {
     static func dumpTypeContextDescriptors(in machOFile: MachOFile) async throws {
-        guard let typeContextDescriptors = machOFile.swift.typeContextDescriptors else {
-            throw Error.notFound
-        }
+        let typeContextDescriptors = try required(machOFile.swift.typeContextDescriptors)
         for typeContextDescriptor in typeContextDescriptors {
             let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machOFile)
             print("----------------------------------------")

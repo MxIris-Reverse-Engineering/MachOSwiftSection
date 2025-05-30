@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOSwiftSectionMacro
 
 /// A protocol descriptor.
 ///
@@ -33,5 +34,11 @@ public struct ProtocolDescriptor: ProtocolDescriptorProtocol, Resolvable {
     }
 }
 
-
+@MachOImageAllMembersGenerator
+extension ProtocolDescriptor {
+    public func associatedTypes(in machOFile: MachOFile) throws -> [String] {
+        guard layout.associatedTypes.isValid else { return [] }
+        return try layout.associatedTypes.resolve(from: offset(of: \.associatedTypes), in: machOFile).components(separatedBy: " ")
+    }
+}
 

@@ -145,52 +145,7 @@ extension ProtocolConformance: Dumpable {
         }
 
         for conditionalRequirement in conditionalRequirements {
-            try MetadataReader.demangleType(for: try conditionalRequirement.paramManagedName(in: machOFile), in: machOFile, using: options)
-            if conditionalRequirement.flags.kind == .sameType {
-                " == "
-            } else {
-                ": "
-            }
-            switch try conditionalRequirement.resolvedContent(in: machOFile) {
-            case .type(let mangledName):
-                try MetadataReader.demangleType(for: mangledName, in: machOFile, using: options)
-            case .protocol(let resolvableElement):
-                switch resolvableElement {
-                case .symbol(let unsolvedSymbol):
-                    try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile, using: options)
-                case .element(let element):
-                    switch element {
-                    case .objc(let objc):
-                        try objc.mangledName(in: machOFile)
-                    case .swift(let protocolDescriptor):
-                        try protocolDescriptor.fullname(in: machOFile)
-                    }
-                }
-            case .layout(let genericRequirementLayoutKind):
-                switch genericRequirementLayoutKind {
-                case .class:
-                    "AnyObject"
-                }
-            case .conformance/*(let protocolConformanceDescriptor)*/:
-                ""
-            case .invertedProtocols(let invertedProtocols):
-                if invertedProtocols.protocols.hasCopyable, invertedProtocols.protocols.hasEscapable {
-                    "Copyable, Escapable"
-                } else if invertedProtocols.protocols.hasCopyable || invertedProtocols.protocols.hasEscapable {
-                    if invertedProtocols.protocols.hasCopyable {
-                        "Copyable"
-                    } else {
-                        "~Copyable"
-                    }
-                    if invertedProtocols.protocols.hasEscapable {
-                        "Escapable"
-                    } else {
-                        "~Escapable"
-                    }
-                } else {
-                    "~Copyable, ~Escapable"
-                }
-            }
+            try conditionalRequirement.dump(using: options, in: machOFile)
         }
         
         if resilientWitnesses.isEmpty {

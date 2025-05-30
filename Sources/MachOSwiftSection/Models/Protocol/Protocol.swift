@@ -8,7 +8,7 @@ import MachOSwiftSectionMacro
 //      TargetGenericRequirementDescriptor<Runtime>,
 //      TargetProtocolRequirement<Runtime>>;
 
-public struct `Protocol` {
+public struct Protocol {
     public enum Error: Swift.Error {
         case invalidProtocolDescriptor
     }
@@ -48,12 +48,62 @@ public struct `Protocol` {
         } else {
             self.requirementInSignatures = []
         }
-        
+
         if descriptor.numRequirements > 0 {
             self.requirements = try machOFile.readElements(offset: currentOffset, numberOfElements: descriptor.numRequirements.cast())
             currentOffset.offset(of: ProtocolRequirement.self, numbersOfElements: descriptor.numRequirements.cast())
         } else {
             self.requirements = []
         }
+    }
+}
+
+extension Protocol: Dumpable {
+    @MachOImageGenerator
+    @StringBuilder
+    public func dump(using options: SymbolPrintOptions, in machOFile: MachOFile) throws -> String {
+        try "protocol \(descriptor.fullname(in: machOFile))"
+
+        if numberOfRequirementsInSignature > 0 {
+            " where "
+
+            for (offset, requirement) in requirementInSignatures.offsetEnumerated() {
+                try requirement.dump(using: options, in: machOFile)
+                if !offset.isEnd {
+                    ", "
+                }
+            }
+        }
+
+        " {"
+
+        let associatedTypes = try descriptor.associatedTypes(in: machOFile)
+
+        if !associatedTypes.isEmpty {
+            for (offset, associatedType) in associatedTypes.offsetEnumerated() {
+                BreakLine()
+                Indent(level: 1)
+                "associatedtype \(associatedType)"
+                if offset.isEnd {
+                    BreakLine()
+                }
+            }
+        }
+
+        for (offset, requirement) in requirements.offsetEnumerated() {
+            BreakLine()
+            Indent(level: 1)
+            if let symbol = try requirement.defaultImplementationSymbol(in: machOFile) {
+                "[Default Implementation] "
+                try MetadataReader.demangleSymbol(for: symbol, in: machOFile, using: options)
+            } else {
+                "[Stripped Symbol]"
+            }
+            if offset.isEnd {
+                BreakLine()
+            }
+        }
+
+        "}"
     }
 }

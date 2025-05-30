@@ -3,33 +3,20 @@ import Foundation
 import MachOKit
 @testable import MachOSwiftSection
 
-enum Error: Swift.Error {
-    case notFound
-}
-
-let printOptions: SymbolPrintOptions = {
-    var options = SymbolPrintOptions.default
-    options.remove(.displayObjCModule)
-    options.insert(.synthesizeSugarOnTypes)
-    options.remove(.displayWhereClauses)
-    options.remove(.displayExtensionContexts)
-    return options
-}()
-
 @Suite
 struct MachOFileTests {
     let machOFile: MachOFile
 
     init() throws {
-        let path = "/Library/Developer/CoreSimulator/Volumes/iOS_22E238/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 18.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUICore.framework/SwiftUICore"
+//        let path = "/Library/Developer/CoreSimulator/Volumes/iOS_22E238/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 18.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUICore.framework/SwiftUICore"
 //        let path = "/System/Applications/iPhone Mirroring.app/Contents/Frameworks/ScreenContinuityUI.framework/Versions/A/ScreenContinuityUI"
-//        let path = "/Applications/SourceEdit.app/Contents/Frameworks/SourceEditor.framework/Versions/A/SourceEditor"
+        let path = "/Applications/SourceEdit.app/Contents/Frameworks/SourceEditor.framework/Versions/A/SourceEditor"
         let url = URL(fileURLWithPath: path)
         let file = try MachOKit.loadFromFile(url: url)
         switch file {
-        case .fat(let fatFile):
+        case let .fat(fatFile):
             self.machOFile = try fatFile.machOFiles().first(where: { $0.header.cpu.type == .x86_64 })!
-        case .machO(let machO):
+        case let .machO(machO):
             self.machOFile = machO
         @unknown default:
             fatalError()
@@ -37,14 +24,14 @@ struct MachOFileTests {
     }
 
     @Test func protocols() async throws {
-        let protocolDescriptors = try require(machOFile.swift.protocolDescriptors)
+        let protocolDescriptors = try required(machOFile.swift.protocolDescriptors)
         for protocolDescriptor in protocolDescriptors {
-            try print(Protocol(descriptor: protocolDescriptor, in: machOFile))
+            try print(Protocol(descriptor: protocolDescriptor, in: machOFile).dump(using: printOptions, in: machOFile))
         }
     }
 
     @Test func protocolConformances() async throws {
-        let protocolConformanceDescriptors = try require(machOFile.swift.protocolConformanceDescriptors)
+        let protocolConformanceDescriptors = try required(machOFile.swift.protocolConformanceDescriptors)
 
         for (index, protocolConformanceDescriptor) in protocolConformanceDescriptors.enumerated() {
             print(index)
@@ -77,14 +64,9 @@ struct MachOFileTests {
 
     @MainActor
     @Test func associatedTypes() throws {
-        let associatedTypeDescriptors = try require(machOFile.swift.associatedTypeDescriptors)
+        let associatedTypeDescriptors = try required(machOFile.swift.associatedTypeDescriptors)
         for associatedTypeDescriptor in associatedTypeDescriptors {
             try print(AssociatedType(descriptor: associatedTypeDescriptor, in: machOFile).dump(using: printOptions, in: machOFile))
         }
-    }
-
-    private func require<T>(_ optional: T?) throws -> T {
-        guard let optional else { throw Error.notFound }
-        return optional
     }
 }
