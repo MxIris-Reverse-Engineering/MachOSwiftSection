@@ -161,13 +161,22 @@ extension Class: Dumpable {
     public func dump(using options: SymbolPrintOptions, in machOFile: MachOFile) throws -> String {
         try "class \(descriptor.fullname(in: machOFile))"
 
-        if let superclassMangledName = try descriptor.superclassTypeMangledName(in: machOFile) {
-            try ": \(MetadataReader.demangleType(for: superclassMangledName, in: machOFile, using: options)) {"
-        } else if let resilientSuperclass, let kind = descriptor.resilientSuperclassReferenceKind, let superclass = try resilientSuperclass.superclass(for: kind, in: machOFile) {
-            superclass
-        } else {
-            " {"
+        if let genericContext {
+            try genericContext.dumpGenericParameters(in: machOFile)
         }
+        
+        if let superclassMangledName = try descriptor.superclassTypeMangledName(in: machOFile) {
+            try ": \(MetadataReader.demangleType(for: superclassMangledName, in: machOFile, using: options))"
+        } else if let resilientSuperclass, let kind = descriptor.resilientSuperclassReferenceKind, let superclass = try resilientSuperclass.superclass(for: kind, in: machOFile) {
+            ": \(superclass)"
+        }
+        
+        if let genericContext, genericContext.requirements.count > 0 {
+            " where "
+            try genericContext.dumpGenericRequirements(using: options, in: machOFile)
+        }
+        
+        " {"
 
         for (offset, fieldRecord) in try descriptor.fieldDescriptor(in: machOFile).records(in: machOFile).offsetEnumerated() {
             BreakLine()

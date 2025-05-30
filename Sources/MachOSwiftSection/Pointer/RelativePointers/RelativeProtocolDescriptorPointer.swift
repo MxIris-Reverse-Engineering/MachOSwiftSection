@@ -3,7 +3,7 @@ import Foundation
 import MachOSwiftSectionMacro
 
 public enum RelativeProtocolDescriptorPointer {
-    case objcPointer(RelativeResolvableElementPointerIntPair<RelativeObjCProtocolPrefix, Bool>)
+    case objcPointer(RelativeResolvableElementPointerIntPair<ObjCProtocolPrefix, Bool>)
     case swiftPointer(RelativeContextPointerIntPair<ProtocolDescriptor, Bool>)
 
     public var isObjC: Bool {

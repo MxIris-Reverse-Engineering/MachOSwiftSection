@@ -9,8 +9,8 @@ struct MachOFileTests {
 
     init() throws {
 //        let path = "/Library/Developer/CoreSimulator/Volumes/iOS_22E238/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 18.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUICore.framework/SwiftUICore"
-//        let path = "/System/Applications/iPhone Mirroring.app/Contents/Frameworks/ScreenContinuityUI.framework/Versions/A/ScreenContinuityUI"
-        let path = "/Applications/SourceEdit.app/Contents/Frameworks/SourceEditor.framework/Versions/A/SourceEditor"
+        let path = "/System/Applications/iPhone Mirroring.app/Contents/Frameworks/ScreenContinuityUI.framework/Versions/A/ScreenContinuityUI"
+//        let path = "/Applications/SourceEdit.app/Contents/Frameworks/SourceEditor.framework/Versions/A/SourceEditor"
         let url = URL(fileURLWithPath: path)
         let file = try MachOKit.loadFromFile(url: url)
         switch file {
@@ -48,14 +48,26 @@ struct MachOFileTests {
                 let enumDescriptor = try required(typeContextDescriptor.enumDescriptor(in: machOFile))
                 let enumType = try Enum(descriptor: enumDescriptor, in: machOFile)
                 try print(enumType.dump(using: printOptions, in: machOFile))
+                if let genericContext = enumType.genericContext {
+                    print("Generic Context")
+                    print(genericContext.parameters, genericContext.requirements, genericContext.typePacks, genericContext.values)
+                }
             case .struct:
                 let structDescriptor = try required(typeContextDescriptor.structDescriptor(in: machOFile))
                 let structType = try Struct(descriptor: structDescriptor, in: machOFile)
                 try print(structType.dump(using: printOptions, in: machOFile))
+                if let genericContext = structType.genericContext {
+                    print("Generic Context")
+                    print(genericContext.parameters, genericContext.requirements, genericContext.typePacks, genericContext.values)
+                }
             case .class:
                 let classDescriptor = try required(typeContextDescriptor.classDescriptor(in: machOFile))
                 let classType = try Class(descriptor: classDescriptor, in: machOFile)
                 try print(classType.dump(using: printOptions, in: machOFile))
+                if let genericContext = classType.genericContext {
+                    print("Generic Context")
+                    print(genericContext.parameters, genericContext.requirements, genericContext.typePacks, genericContext.values)
+                }
             default:
                 break
             }

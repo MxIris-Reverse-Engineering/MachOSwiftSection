@@ -99,8 +99,17 @@ extension Enum: Dumpable {
     @MachOImageGenerator
     @StringBuilder
     public func dump(using options: SymbolPrintOptions, in machOFile: MachOFile) throws -> String {
-        try "enum \(descriptor.fullname(in: machOFile)) {"
-
+        try "enum \(descriptor.fullname(in: machOFile))"
+        
+        if let genericContext {
+            try genericContext.dumpGenericParameters(in: machOFile)
+            if genericContext.requirements.count > 0 {
+                " where "
+                try genericContext.dumpGenericRequirements(using: options, in: machOFile)
+            }
+        }
+        
+        " {"
         for (offset, fieldRecord) in try descriptor.fieldDescriptor(in: machOFile).records(in: machOFile).offsetEnumerated() {
             BreakLine()
 

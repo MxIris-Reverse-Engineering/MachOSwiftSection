@@ -30,7 +30,8 @@ struct DyldCacheFileTests {
         self.subCache = try! DyldCache(subcacheUrl: subCacheURL, mainCacheHeader: mainCache.mainCacheHeader)
 
         self.mainCacheMachOFileInCache = mainCache.machOFiles().first(where: {
-            $0.imagePath.contains("AppKit")
+//            $0.imagePath.contains("/AppKit")
+            $0.imagePath.contains("/SwiftUI")
         })!
 
         self.subCacheMachOFileInCache = subCache.machOFiles().first(where: {
