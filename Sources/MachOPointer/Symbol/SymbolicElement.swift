@@ -65,6 +65,28 @@ public enum SymbolicElement<Element: Resolvable>: Resolvable {
             return try .element(transform(context))
         }
     }
+    
+    public func mapOptional<T>(_ transform: (Element) throws -> T?) rethrows -> SymbolicElement<T>? {
+        switch self {
+        case .symbol(let unsolvedSymbol):
+            return .symbol(unsolvedSymbol)
+        case .element(let context):
+            if let transformed = try transform(context) {
+                return .element(transformed)
+            } else {
+                return nil
+            }
+        }
+    }
+    
+    public func flatMap<T>(_ transform: (Element) throws -> SymbolicElement<T>) rethrows -> SymbolicElement<T> {
+        switch self {
+        case .symbol(let unsolvedSymbol):
+            return .symbol(unsolvedSymbol)
+        case .element(let context):
+            return try transform(context)
+        }
+    }
 }
 
 extension SymbolicElement where Element: OptionalProtocol, Element.Wrapped: Resolvable {

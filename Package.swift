@@ -17,12 +17,12 @@ extension Package.Dependency {
 
     static let MachOKitMain = Package.Dependency.package(
         url: "https://github.com/p-x9/MachOKit.git",
-        branch: "main"
+        from: "0.34.0"
     )
 
     static let MachOKitSPM = Package.Dependency.package(
         url: "https://github.com/p-x9/MachOKit-SPM",
-        from: "0.33.0"
+        from: "0.34.0"
     )
 }
 
