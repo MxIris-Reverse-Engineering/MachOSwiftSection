@@ -1,6 +1,6 @@
 import Foundation
 
-public struct CanonicalSpecializedMetadataAccessorsListEntry: LocatableLayoutWrapper {
+public struct CanonicalSpecializedMetadataAccessorsListEntry: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let accessor: RelativeDirectRawPointer
     }

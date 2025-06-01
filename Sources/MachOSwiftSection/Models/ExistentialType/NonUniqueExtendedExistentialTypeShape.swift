@@ -1,8 +1,9 @@
 import Foundation
 import MachOKit
+import MachOFoundation
 import MachOSwiftSectionMacro
 
-public struct NonUniqueExtendedExistentialTypeShape: LocatableLayoutWrapper {
+public struct NonUniqueExtendedExistentialTypeShape: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let uniqueCache: RelativeDirectPointer<Pointer<ExtendedExistentialTypeShape>>
         public let localCopy: ExtendedExistentialTypeShape.Layout

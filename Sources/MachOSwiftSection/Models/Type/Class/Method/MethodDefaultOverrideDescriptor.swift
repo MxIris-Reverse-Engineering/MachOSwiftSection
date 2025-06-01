@@ -2,7 +2,7 @@ import Foundation
 import MachOKit
 import MachOSwiftSectionMacro
 
-public struct MethodDefaultOverrideDescriptor: LocatableLayoutWrapper {
+public struct MethodDefaultOverrideDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let replacement: RelativeMethodDescriptorPointer
         public let original: RelativeMethodDescriptorPointer

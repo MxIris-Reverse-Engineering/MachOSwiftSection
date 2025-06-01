@@ -1,7 +1,7 @@
 import Foundation
 import MachOKit
 
-public struct StructDescriptor: LocatableLayoutWrapper, TypeContextDescriptorProtocol {
+public struct StructDescriptor: TypeContextDescriptorProtocol {
     public struct Layout: StructDescriptorLayout {
         public let flags: ContextDescriptorFlags
         public let parent: RelativeContextPointer<ContextDescriptorWrapper?>

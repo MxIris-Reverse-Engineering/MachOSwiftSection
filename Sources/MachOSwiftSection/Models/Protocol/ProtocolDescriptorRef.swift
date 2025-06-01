@@ -1,6 +1,7 @@
 import Foundation
 import MachOKit
 import MachOSwiftSectionMacro
+import MachOFoundation
 
 public struct ProtocolDescriptorRef {
     public let storage: StoredPointer

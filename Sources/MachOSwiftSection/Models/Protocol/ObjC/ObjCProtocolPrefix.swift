@@ -1,8 +1,9 @@
 import Foundation
 import MachOKit
 import MachOSwiftSectionMacro
+import MachOFoundation
 
-public struct ObjCProtocolPrefix: LocatableLayoutWrapper {
+public struct ObjCProtocolPrefix: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let isa: RawPointer
         public let name: Pointer<String>

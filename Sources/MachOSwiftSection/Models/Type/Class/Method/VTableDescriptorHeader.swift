@@ -1,6 +1,6 @@
 import Foundation
 
-public struct VTableDescriptorHeader: LocatableLayoutWrapper {
+public struct VTableDescriptorHeader: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let vTableOffset: UInt32
         public let vTableSize: UInt32

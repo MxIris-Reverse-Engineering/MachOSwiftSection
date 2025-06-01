@@ -1,6 +1,6 @@
 import Foundation
 
-public struct ResilientWitnessesHeader: LocatableLayoutWrapper {
+public struct ResilientWitnessesHeader: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let numWitnesses: UInt32
     }

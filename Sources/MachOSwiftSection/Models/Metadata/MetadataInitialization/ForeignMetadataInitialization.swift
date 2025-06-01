@@ -1,6 +1,6 @@
 import Foundation
 
-public struct ForeignMetadataInitialization: LocatableLayoutWrapper {
+public struct ForeignMetadataInitialization: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let completionFunction: RelativeDirectRawPointer
     }

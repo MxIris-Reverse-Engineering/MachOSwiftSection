@@ -1,5 +1,5 @@
 import MachOKit
-import Foundation
+import MachOFoundation
 
 public enum ResolvableElement<Element: Resolvable>: Resolvable {
     case symbol(UnsolvedSymbol)

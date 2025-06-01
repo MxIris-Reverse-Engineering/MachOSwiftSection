@@ -2,7 +2,7 @@ import Foundation
 import MachOKit
 import MachOSwiftSectionMacro
 
-public struct ClassDescriptor: LocatableLayoutWrapper, TypeContextDescriptorProtocol {
+public struct ClassDescriptor: TypeContextDescriptorProtocol {
     public struct Layout: ClassDescriptorLayout {
         public let flags: ContextDescriptorFlags
         public let parent: RelativeContextPointer<ContextDescriptorWrapper?>

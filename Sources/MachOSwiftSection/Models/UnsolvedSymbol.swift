@@ -1,6 +1,6 @@
-import Foundation
 import MachOKit
 import MachOSwiftSectionMacro
+import MachOFoundation
 
 enum ResolvableError: Error {
     case symbolNotFound

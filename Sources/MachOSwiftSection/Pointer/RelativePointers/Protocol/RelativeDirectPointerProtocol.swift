@@ -1,8 +1,8 @@
 import MachOKit
 import MachOSwiftSectionMacro
+import MachOFoundation
 
 public protocol RelativeDirectPointerProtocol<Pointee>: RelativePointerProtocol {}
-
 
 @MachOImageAllMembersGenerator
 extension RelativeDirectPointerProtocol {
@@ -22,24 +22,6 @@ extension RelativeDirectPointerProtocol {
         return try machOFile.readElement(offset: resolveDirectOffset(from: fileOffset))
     }
 }
-
-//extension RelativeDirectPointerProtocol {
-//    public func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> Pointee {
-//        return try resolveDirect(from: imageOffset, in: machOImage)
-//    }
-//    
-//    func resolveDirect(from imageOffset: Int, in machOImage: MachOImage) throws -> Pointee {
-//        return try Pointee.resolve(from: resolveDirectOffset(from: imageOffset), in: machOImage)
-//    }
-//    
-//    public func resolveAny<T>(from imageOffset: Int, in machOImage: MachOImage) throws -> T {
-//        return try resolveDirect(from: imageOffset, in: machOImage)
-//    }
-//
-//    func resolveDirect<T>(from imageOffset: Int, in machOImage: MachOImage) throws -> T {
-//        return try machOImage.assumingElement(offset: resolveDirectOffset(from: imageOffset))
-//    }
-//}
 
 extension RelativeDirectPointerProtocol where Pointee: OptionalProtocol {
     public func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Pointee {

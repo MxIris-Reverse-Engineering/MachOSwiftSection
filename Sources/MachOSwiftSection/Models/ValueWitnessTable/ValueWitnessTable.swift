@@ -1,6 +1,4 @@
-import Foundation
-
-public struct ValueWitnessTable: LocatableLayoutWrapper {
+public struct ValueWitnessTable: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let size: StoredSize
         public let stride: StoredSize

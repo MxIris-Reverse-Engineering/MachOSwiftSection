@@ -1,4 +1,5 @@
 import MachOKit
+import MachOFoundation
 import MachOSwiftSectionMacro
 
 @dynamicMemberLookup
@@ -10,7 +11,7 @@ public enum ContextDescriptorWrapper {
     case module(ModuleContextDescriptor)
     case opaqueType(OpaqueTypeDescriptor)
 
-    var protocolDescriptor: ProtocolDescriptor? {
+    public var protocolDescriptor: ProtocolDescriptor? {
         if case .protocol(let descriptor) = self {
             return descriptor
         } else {
@@ -18,7 +19,7 @@ public enum ContextDescriptorWrapper {
         }
     }
 
-    var extensionContextDescriptor: ExtensionContextDescriptor? {
+    public var extensionContextDescriptor: ExtensionContextDescriptor? {
         if case .extension(let descriptor) = self {
             return descriptor
         } else {
@@ -26,7 +27,7 @@ public enum ContextDescriptorWrapper {
         }
     }
 
-    var opaqueTypeDescriptor: OpaqueTypeDescriptor? {
+    public var opaqueTypeDescriptor: OpaqueTypeDescriptor? {
         if case .opaqueType(let descriptor) = self {
             return descriptor
         } else {
@@ -34,7 +35,7 @@ public enum ContextDescriptorWrapper {
         }
     }
 
-    var moduleContextDescriptor: ModuleContextDescriptor? {
+    public var moduleContextDescriptor: ModuleContextDescriptor? {
         if case .module(let descriptor) = self {
             return descriptor
         } else {
@@ -42,7 +43,7 @@ public enum ContextDescriptorWrapper {
         }
     }
 
-    var anonymousContextDescriptor: AnonymousContextDescriptor? {
+    public var anonymousContextDescriptor: AnonymousContextDescriptor? {
         if case .anonymous(let descriptor) = self {
             return descriptor
         } else {
@@ -50,7 +51,7 @@ public enum ContextDescriptorWrapper {
         }
     }
 
-    var isType: Bool {
+    public var isType: Bool {
         switch self {
         case .type:
             return true
@@ -59,7 +60,7 @@ public enum ContextDescriptorWrapper {
         }
     }
 
-    var isProtocol: Bool {
+    public var isProtocol: Bool {
         switch self {
         case .protocol:
             return true
@@ -69,20 +70,13 @@ public enum ContextDescriptorWrapper {
     }
 
     @MachOImageGenerator
-    func parent(in machOFile: MachOFile) throws -> ResolvableElement<ContextDescriptorWrapper>? {
+    public func parent(in machOFile: MachOFile) throws -> ResolvableElement<ContextDescriptorWrapper>? {
         return try contextDescriptor.parent(in: machOFile)
     }
 
-    @MachOImageGenerator
-    func name(in machOFile: MachOFile) throws -> String? {
-        if case .extension(let extensionContextDescriptor) = self {
-            return try extensionContextDescriptor.extendedContext(in: machOFile).map { try MetadataReader.demangleType(for: $0, in: machOFile) }
-        } else {
-            return try namedContextDescriptor?.name(in: machOFile)
-        }
-    }
 
-    var contextDescriptor: any ContextDescriptorProtocol {
+
+    public var contextDescriptor: any ContextDescriptorProtocol {
         switch self {
         case .type(let typeContextDescriptor):
             return typeContextDescriptor.contextDescriptor
@@ -99,7 +93,7 @@ public enum ContextDescriptorWrapper {
         }
     }
 
-    var namedContextDescriptor: (any NamedContextDescriptorProtocol)? {
+    public var namedContextDescriptor: (any NamedContextDescriptorProtocol)? {
         switch self {
         case .type(let typeContextDescriptor):
             return typeContextDescriptor.namedContextDescriptor
@@ -114,7 +108,7 @@ public enum ContextDescriptorWrapper {
         }
     }
 
-    subscript<Property>(dynamicMember keyPath: KeyPath<any ContextDescriptorProtocol, Property>) -> Property {
+    public subscript<Property>(dynamicMember keyPath: KeyPath<any ContextDescriptorProtocol, Property>) -> Property {
         return contextDescriptor[keyPath: keyPath]
     }
 }

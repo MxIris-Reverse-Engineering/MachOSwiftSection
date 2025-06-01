@@ -1,4 +1,4 @@
-import Foundation
+import MachOFoundation
 
 public typealias RelativeOffset = Int32
 

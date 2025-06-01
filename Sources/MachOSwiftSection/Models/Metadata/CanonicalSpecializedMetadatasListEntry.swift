@@ -1,6 +1,6 @@
 import Foundation
 
-public struct CanonicalSpecializedMetadatasListEntry: LocatableLayoutWrapper {
+public struct CanonicalSpecializedMetadatasListEntry: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         let metadata: RelativeDirectPointer<MetadataWrapper>
     }

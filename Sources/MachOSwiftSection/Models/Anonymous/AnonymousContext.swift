@@ -1,5 +1,6 @@
 import Foundation
-import MachOKit
+import MachOKit 
+import MachOFoundation
 import MachOSwiftSectionMacro
 
 public struct AnonymousContext {

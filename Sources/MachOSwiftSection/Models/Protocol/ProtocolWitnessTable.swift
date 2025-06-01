@@ -1,6 +1,6 @@
 import Foundation
 
-public struct ProtocolWitnessTable: LocatableLayoutWrapper {
+public struct ProtocolWitnessTable: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let descriptor: Pointer<ProtocolConformanceDescriptor>
     }

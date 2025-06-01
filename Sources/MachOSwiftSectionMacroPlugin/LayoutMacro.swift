@@ -112,7 +112,7 @@ public struct LayoutMacro: PeerMacro, MemberMacro, ExtensionMacro {
             let typeString = field.type.trimmedDescription
             // Offsets for direct fields are relative to currentOffset (which starts after parent)
             calculationLogicLines.append("offsets[.\(field.name)] = currentOffset")
-            calculationLogicLines.append("currentOffset += MemoryLayout<\(typeString)>.stride")
+            calculationLogicLines.append("currentOffset += MemoryLayout<\(typeString)>.size")
         }
         // The final currentOffset is the total size *including* the parent's size contribution
         // and this protocol's direct fields.

@@ -1,7 +1,7 @@
 public enum GenericRequirementContent {
     public struct InvertedProtocols {
-        let genericParamIndex: UInt16
-        let protocols: InvertibleProtocolSet
+        public let genericParamIndex: UInt16
+        public let protocols: InvertibleProtocolSet
     }
 
     case type(RelativeDirectPointer<MangledName>)

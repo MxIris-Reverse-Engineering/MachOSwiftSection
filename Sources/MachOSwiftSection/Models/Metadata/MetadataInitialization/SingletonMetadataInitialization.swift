@@ -1,6 +1,6 @@
 import Foundation
 
-public struct SingletonMetadataInitialization: LocatableLayoutWrapper {
+public struct SingletonMetadataInitialization: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let initializationCacheOffset: RelativeOffset
         public let incompleteMetadata: RelativeOffset

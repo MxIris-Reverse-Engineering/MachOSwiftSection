@@ -1,7 +1,7 @@
-import Foundation
 import MachOKit
+import MachOFoundation
 
-public protocol RelativePointerProtocol<Pointee> {
+public protocol RelativePointerProtocol<Pointee, Offset> {
     associatedtype Pointee: Resolvable
     associatedtype Offset: FixedWidthInteger & SignedInteger
     

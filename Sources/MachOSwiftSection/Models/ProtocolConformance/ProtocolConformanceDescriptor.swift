@@ -1,8 +1,9 @@
 import Foundation
 import MachOKit
 import MachOSwiftSectionMacro
+import MachOFoundation
 
-public struct ProtocolConformanceDescriptor: LocatableLayoutWrapper {
+public struct ProtocolConformanceDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let protocolDescriptor: RelativeContextPointer<ProtocolDescriptor?>
         public let typeReference: RelativeOffset

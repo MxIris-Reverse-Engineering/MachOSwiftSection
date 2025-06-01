@@ -1,3 +1,5 @@
+import MachOFoundation
+
 public struct TargetRelativeIndirectablePointer<Pointee: Resolvable, Offset: FixedWidthInteger & SignedInteger, IndirectType: RelativeIndirectType>: RelativeIndirectablePointerProtocol where Pointee == IndirectType.Resolved {
     public let relativeOffsetPlusIndirect: Offset
 

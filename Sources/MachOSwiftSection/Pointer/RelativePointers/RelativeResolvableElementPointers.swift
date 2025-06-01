@@ -1,4 +1,4 @@
-import Foundation
+import MachOFoundation
 
 public typealias RelativeMethodDescriptorPointer = RelativeResolvableElementPointer<MethodDescriptor?>
 

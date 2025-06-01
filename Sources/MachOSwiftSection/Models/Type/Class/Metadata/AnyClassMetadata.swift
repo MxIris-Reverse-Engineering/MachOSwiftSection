@@ -1,7 +1,7 @@
 import Foundation
 
-public struct AnyClassMetadata: LocatableLayoutWrapper {
-    public struct Layout {
+public struct AnyClassMetadata: MetadataProtocol {
+    public struct Layout: AnyClassMetadataLayout {
         public let kind: StoredPointer
         public let superclass: StoredPointer
     }
@@ -16,11 +16,12 @@ public struct AnyClassMetadata: LocatableLayoutWrapper {
     }
 }
 
-public struct AnyClassMetadataObjCInterop: LocatableLayoutWrapper {
-    public struct Layout {
+public struct AnyClassMetadataObjCInterop: MetadataProtocol {
+    public struct Layout: AnyClassMetadataObjCInteropLayout {
         public let kind: StoredPointer
         public let superclass: StoredPointer
-        public let cacheData: (RawPointer, RawPointer)
+        public let cache: RawPointer
+        public let vtable: RawPointer
         public let data: StoredSize
     }
     

@@ -1,11 +1,12 @@
 import MachOKit
 import MachOSwiftSectionMacro
+import MachOFoundation
 
 public protocol RelativeIndirectPointerProtocol: RelativePointerProtocol {
     associatedtype IndirectType: RelativeIndirectType where IndirectType.Resolved == Pointee
-    
+
     func resolveIndirectOffset(from fileOffset: Int, in machOFile: MachOFile) throws -> Int
-    
+
     func resolveIndirectOffset(from imageOffset: Int, in machOImage: MachOImage) throws -> Int
 }
 
@@ -35,32 +36,6 @@ extension RelativeIndirectPointerProtocol {
         return try resolveIndirectType(from: fileOffset, in: machOFile).resolveOffset(in: machOFile)
     }
 }
-
-//extension RelativeIndirectPointerProtocol {
-//    public func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> Pointee {
-//        return try resolveIndirect(from: imageOffset, in: machOImage)
-//    }
-//
-//    func resolveIndirect(from imageOffset: Int, in machOImage: MachOImage) throws -> Pointee {
-//        return try resolveIndirectType(from: imageOffset, in: machOImage).resolve(in: machOImage)
-//    }
-//
-//    public func resolveAny<T>(from imageOffset: Int, in machOImage: MachOImage) throws -> T {
-//        return try resolveIndirect(from: imageOffset, in: machOImage)
-//    }
-//
-//    func resolveIndirect<T>(from imageOffset: Int, in machOImage: MachOImage) throws -> T {
-//        return try resolveIndirectType(from: imageOffset, in: machOImage).resolveAny(in: machOImage)
-//    }
-//
-//    func resolveIndirectType(from imageOffset: Int, in machOImage: MachOImage) throws -> IndirectType {
-//        return try .resolve(from: resolveDirectOffset(from: imageOffset), in: machOImage)
-//    }
-//
-//    public func resolveIndirectOffset(from imageOffset: Int, in machOImage: MachOImage) throws -> Int {
-//        return try resolveIndirectType(from: imageOffset, in: machOImage).resolveOffset(in: machOImage)
-//    }
-//}
 
 extension RelativeIndirectPointerProtocol where Pointee: OptionalProtocol {
     public func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Pointee {

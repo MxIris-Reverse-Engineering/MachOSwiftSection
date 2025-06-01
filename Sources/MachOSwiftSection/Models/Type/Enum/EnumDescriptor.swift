@@ -1,6 +1,6 @@
 import Foundation
 
-public struct EnumDescriptor: LocatableLayoutWrapper, TypeContextDescriptorProtocol {
+public struct EnumDescriptor: TypeContextDescriptorProtocol {
     public struct Layout: EnumDescriptorLayout {
         public let flags: ContextDescriptorFlags
         public let parent: RelativeContextPointer<ContextDescriptorWrapper?>

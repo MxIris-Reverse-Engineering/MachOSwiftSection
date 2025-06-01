@@ -2,7 +2,7 @@ import Foundation
 import MachOKit
 import MachOSwiftSectionMacro
 
-public struct MethodDescriptor: LocatableLayoutWrapper {
+public struct MethodDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let flags: MethodDescriptorFlags
         public let implementation: RelativeDirectPointer<UnsolvedSymbol?>

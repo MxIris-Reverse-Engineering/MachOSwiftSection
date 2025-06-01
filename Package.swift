@@ -19,13 +19,11 @@ extension Package.Dependency {
         url: "https://github.com/p-x9/MachOKit.git",
         branch: "main"
     )
+
     static let MachOKitSPM = Package.Dependency.package(
         url: "https://github.com/p-x9/MachOKit-SPM",
         from: "0.33.0"
     )
-//    static let MachOKitSPM = Package.Dependency.package(
-//        path: "/Volumes/Repositories/Private/Fork/Library/MachOKit-SPM"
-//    )
 }
 
 extension Target.Dependency {
@@ -75,28 +73,73 @@ let package = Package(
             name: "MachOSwiftSection",
             targets: ["MachOSwiftSection"]
         ),
+        .library(
+            name: "SwiftDump",
+            targets: ["SwiftDump"]
+        ),
     ],
     dependencies: [
         .MachOKit,
         .package(url: "https://github.com/swiftlang/swift-syntax", from: "601.0.1"),
         .package(url: "https://github.com/MxIris-Library-Forks/AssociatedObject", branch: "main"),
+        .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
     ],
     targets: [
         .target(
+            name: "Demangle"
+        ),
+
+        .target(
+            name: "MachOExtensions",
+            dependencies: [
+                .MachOKit,
+            ]
+        ),
+
+        .target(
+            name: "MachOReading",
+            dependencies: [
+                .MachOKit,
+                "MachOExtensions",
+                .product(name: "FileIO", package: "swift-fileio"),
+            ]
+        ),
+        
+        .target(
+            name: "MachOFoundation",
+            dependencies: [
+                .MachOKit,
+                "MachOReading",
+                "MachOExtensions",
+                "MachOSwiftSectionMacro",
+            ]
+        ),
+        
+        .target(
             name: "MachOSwiftSection",
             dependencies: [
-                "Demangling",
+                "Demangle",
+                "MachOFoundation",
                 "MachOSwiftSectionMacro",
                 .MachOKit,
                 .product(name: "AssociatedObject", package: "AssociatedObject"),
             ]
         ),
+
+        .target(
+            name: "SwiftDump",
+            dependencies: [
+                "MachOSwiftSection",
+            ]
+        ),
+
         .target(
             name: "MachOSwiftSectionMacro",
             dependencies: [
                 "MachOSwiftSectionMacroPlugin",
             ]
         ),
+
         .macro(
             name: "MachOSwiftSectionMacroPlugin",
             dependencies: [
@@ -106,19 +149,25 @@ let package = Package(
                 .SwiftSyntaxBuilder,
             ]
         ),
-        .target(
-            name: "Demangling"
-        ),
+
         .testTarget(
             name: "MachOSwiftSectionTests",
             dependencies: [
                 "MachOSwiftSection",
             ]
         ),
+
         .testTarget(
-            name: "DemanglingTests",
+            name: "DemangleTests",
             dependencies: [
-                "Demangling",
+                "Demangle",
+            ]
+        ),
+
+        .testTarget(
+            name: "SwiftDumpTests",
+            dependencies: [
+                "SwiftDump",
             ]
         ),
     ]

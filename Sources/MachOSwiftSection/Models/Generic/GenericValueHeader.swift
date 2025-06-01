@@ -1,6 +1,6 @@
 import Foundation
 
-public struct GenericValueHeader: LocatableLayoutWrapper {
+public struct GenericValueHeader: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let numValues: UInt32
     }

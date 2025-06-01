@@ -173,31 +173,31 @@ class MachOBodyRewriter: SyntaxRewriter {
         return ExprSyntax(newNode)
     }
 
-    override func visit(_ node: MemberAccessExprSyntax) -> ExprSyntax {
-        let newBase = node.base.map { self.rewrite($0).as(ExprSyntax.self)! } ?? nil
-        if let baseIdentifier = newBase?.as(DeclReferenceExprSyntax.self),
-           baseIdentifier.baseName.text == "machOImage" {
-            let memberName = node.declName.baseName.text
-            var newMemberNameToken: TokenSyntax?
+//    override func visit(_ node: MemberAccessExprSyntax) -> ExprSyntax {
+//        let newBase = node.base.map { self.rewrite($0).as(ExprSyntax.self)! } ?? nil
+//        if let baseIdentifier = newBase?.as(DeclReferenceExprSyntax.self),
+//           baseIdentifier.baseName.text == "machOImage" {
+//            let memberName = node.declName.baseName.text
+//            var newMemberNameToken: TokenSyntax?
 
-            switch memberName {
-            case "readElement":
-                newMemberNameToken = .identifier("assumingElement")
-            case "readElements":
-                newMemberNameToken = .identifier("assumingElements")
-            case "readString":
-                newMemberNameToken = .identifier("assumingString")
-            default:
-                break
-            }
+//            switch memberName {
+//            case "readElement":
+//                newMemberNameToken = .identifier("assumingElement")
+//            case "readElements":
+//                newMemberNameToken = .identifier("assumingElements")
+//            case "readString":
+//                newMemberNameToken = .identifier("assumingString")
+//            default:
+//                break
+//            }
 
-            if let newMemberNameToken = newMemberNameToken {
-                return ExprSyntax(
-                    node.with(\.base, newBase)
-                        .with(\.declName, DeclReferenceExprSyntax(baseName: newMemberNameToken))
-                )
-            }
-        }
-        return ExprSyntax(node.with(\.base, newBase))
-    }
+//            if let newMemberNameToken = newMemberNameToken {
+//                return ExprSyntax(
+//                    node.with(\.base, newBase)
+//                        .with(\.declName, DeclReferenceExprSyntax(baseName: newMemberNameToken))
+//                )
+//            }
+//        }
+//        return ExprSyntax(node.with(\.base, newBase))
+//    }
 }

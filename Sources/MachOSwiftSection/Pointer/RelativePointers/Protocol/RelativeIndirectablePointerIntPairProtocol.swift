@@ -1,5 +1,5 @@
-import Foundation
 import MachOKit
+import MachOFoundation
 
 public protocol RelativeIndirectablePointerIntPairProtocol: RelativeIndirectablePointerProtocol {
     typealias Integer = Value.RawValue

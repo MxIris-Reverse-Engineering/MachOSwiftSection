@@ -1,4 +1,5 @@
 import MachOKit
+import MachOFoundation
 
 public struct Pointer<Pointee: Resolvable>: RelativeIndirectType, PointerProtocol {
     public typealias Resolved = Pointee

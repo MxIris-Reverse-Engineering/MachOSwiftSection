@@ -1,5 +1,5 @@
 import MachOKit
-import Foundation
+import MachOFoundation
 
 public enum SignedResolvableElementPointer<Context: Resolvable>: RelativeIndirectType {
     public typealias Resolved = ResolvableElement<Context>
@@ -65,6 +65,6 @@ public enum SignedResolvableElementPointer<Context: Resolvable>: RelativeIndirec
     }
 
     public static func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> Self {
-        return try .address(machOImage.assumingElement(offset: imageOffset))
+        return try .address(machOImage.readElement(offset: imageOffset))
     }
 }

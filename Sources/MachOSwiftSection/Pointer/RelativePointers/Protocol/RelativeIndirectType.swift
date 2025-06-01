@@ -1,4 +1,5 @@
 import MachOKit
+import MachOFoundation
 
 public protocol RelativeIndirectType: Resolvable {
     associatedtype Resolved: Resolvable

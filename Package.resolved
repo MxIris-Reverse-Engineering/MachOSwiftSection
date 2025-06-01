@@ -1,5 +1,5 @@
 {
-  "originHash" : "be5170ca5b51896a250ad39f95a5369cff2eaa6c88c736178a3ee1891f1f59be",
+  "originHash" : "6058f4c7173b12eba0ca1a9d82dcaea118789691aa13feedbe97f09ffa091665",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -16,7 +16,7 @@
       "location" : "https://github.com/p-x9/MachOKit.git",
       "state" : {
         "branch" : "main",
-        "revision" : "064dd49dda8ceeeae5857782bcd5037e34fc2e19"
+        "revision" : "6686a583910beb0578720a40ccd5f90fa78549e6"
       }
     },
     {

@@ -1,7 +1,8 @@
 import MachOKit
+import MachOFoundation
 import MachOSwiftSectionMacro
 
-public protocol ContextDescriptorProtocol: LocatableLayoutWrapper where Layout: ContextDescriptorLayout {}
+public protocol ContextDescriptorProtocol: ResolvableLocatableLayoutWrapper where Layout: ContextDescriptorLayout {}
 
 @MachOImageAllMembersGenerator
 extension ContextDescriptorProtocol {

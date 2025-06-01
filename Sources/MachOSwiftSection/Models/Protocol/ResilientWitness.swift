@@ -2,7 +2,7 @@ import Foundation
 import MachOKit
 import MachOSwiftSectionMacro
 
-public struct ResilientWitness: LocatableLayoutWrapper {
+public struct ResilientWitness: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let requirement: RelativeProtocolRequirementPointer
         public let implementation: RelativeDirectRawPointer

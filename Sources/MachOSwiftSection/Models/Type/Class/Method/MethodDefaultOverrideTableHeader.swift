@@ -1,6 +1,6 @@
 import Foundation
 
-public struct MethodDefaultOverrideTableHeader: LocatableLayoutWrapper {
+public struct MethodDefaultOverrideTableHeader: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let numEntries: UInt32
     }

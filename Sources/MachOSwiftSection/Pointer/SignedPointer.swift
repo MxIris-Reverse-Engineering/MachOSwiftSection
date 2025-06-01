@@ -1,4 +1,5 @@
 import MachOKit
+import MachOFoundation
 
 public struct SignedPointer<Pointee: Resolvable>: RelativeIndirectType, PointerProtocol {
     public let address: UInt64

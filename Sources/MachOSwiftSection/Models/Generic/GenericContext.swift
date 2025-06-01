@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import MachOFoundation
 import MachOSwiftSectionMacro
 
 public typealias GenericContext = TargetGenericContext<GenericContextDescriptorHeader>
@@ -148,41 +149,3 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
 }
 
 
-extension TargetGenericContext {
-    @MachOImageGenerator
-    @StringBuilder
-    func dumpGenericParameters(in machOFile: MachOFile) throws -> String {
-        "<"
-        for (offset, parameter) in self.parameters.offsetEnumerated() {
-            try genericParameterName(depth: 0, index: offset.index)
-            if !offset.isEnd {
-                ", "
-            }
-        }
-        ">"
-    }
-    
-    private func genericParameterName(depth: Int, index: Int) throws -> String {
-        var charIndex = index
-        var name = ""
-        repeat {
-            try name.unicodeScalars.append(required(UnicodeScalar(UnicodeScalar("A").value + UInt32(charIndex % 26))))
-            charIndex /= 26
-        } while charIndex != 0
-        if depth != 0 {
-            name = "\(name)\(depth)"
-        }
-        return name
-    }
-        
-    @MachOImageGenerator
-    @StringBuilder
-    func dumpGenericRequirements(using options: SymbolPrintOptions, in machOFile: MachOFile) throws -> String {
-        for (offset, requirement) in requirements.offsetEnumerated() {
-            try requirement.dump(using: options, in: machOFile)
-            if !offset.isEnd {
-                ", "
-            }
-        }
-    }
-}

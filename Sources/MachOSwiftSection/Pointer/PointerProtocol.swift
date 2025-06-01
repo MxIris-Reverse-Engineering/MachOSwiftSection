@@ -1,5 +1,5 @@
-import Foundation
 import MachOKit
+import MachOFoundation
 
 public protocol PointerProtocol: Resolvable {
     associatedtype Pointee: Resolvable
@@ -35,7 +35,7 @@ extension PointerProtocol {
     }
 
     public func resolveAny<T>(in machOImage: MachOImage) throws -> T {
-        return try machOImage.assumingElement(offset: resolveOffset(in: machOImage))
+        return try machOImage.readElement(offset: resolveOffset(in: machOImage))
     }
 
     public func resolve(in machOImage: MachOImage) throws -> Pointee {

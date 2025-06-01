@@ -1,5 +1,3 @@
-import Foundation
-
 public struct ValueWitnessFlags: OptionSet {
     public typealias RawValue = UInt32
     

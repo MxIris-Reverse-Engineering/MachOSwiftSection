@@ -2,7 +2,7 @@ import Foundation
 
 public typealias SwiftOnceToken = intptr_t
 
-public struct CanonicalSpecializedMetadatasCachingOnceToken: LocatableLayoutWrapper {
+public struct CanonicalSpecializedMetadatasCachingOnceToken: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         let token: RelativeDirectPointer<SwiftOnceToken>
     }

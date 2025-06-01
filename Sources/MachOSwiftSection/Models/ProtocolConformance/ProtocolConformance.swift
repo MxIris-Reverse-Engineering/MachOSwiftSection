@@ -1,7 +1,8 @@
 import Foundation
 import MachOKit
 import MachOSwiftSectionMacro
-
+import MachOExtensions
+import MachOReading
 // using TrailingObjects = swift::ABI::TrailingObjects<
 //                           TargetProtocolConformanceDescriptor<Runtime>,
 //                           TargetRelativeContextPointer<Runtime>,
@@ -95,79 +96,6 @@ public struct ProtocolConformance {
             currentOffset.offset(of: GenericWitnessTable.self)
         } else {
             self.genericWitnessTable = nil
-        }
-    }
-}
-
-extension ProtocolConformance: Dumpable {
-
-    @MachOImageGenerator
-    @StringBuilder
-    public func dump(using options: SymbolPrintOptions, in machOFile: MachOFile) throws -> String {
-        "extension "
-        switch typeReference {
-        case .directTypeDescriptor(let descriptor):
-            try descriptor.flatMap { try $0.namedContextDescriptor?.fullname(in: machOFile) }.valueOrEmpty
-        case .indirectTypeDescriptor(let descriptor):
-            switch descriptor {
-            case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile, using: options)
-            case .element(let element):
-                try element.namedContextDescriptor.map { try $0.fullname(in: machOFile) }.valueOrEmpty
-            case nil:
-                ""
-            }
-        case .directObjCClassName(let objcClassName):
-            objcClassName.valueOrEmpty
-        case .indirectObjCClass(let objcClass):
-            switch objcClass {
-            case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile, using: options)
-            case .element(let element):
-                try element.description.resolve(in: machOFile).fullname(in: machOFile)
-            case nil:
-                ""
-            }
-            
-        }
-        ": "
-        switch `protocol` {
-        case .symbol(let unsolvedSymbol):
-            try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile, using: options)
-        case .element(let element):
-            try element.fullname(in: machOFile)
-        case .none:
-            ""
-        }
-
-        if !conditionalRequirements.isEmpty {
-            " where "
-        }
-
-        for conditionalRequirement in conditionalRequirements {
-            try conditionalRequirement.dump(using: options, in: machOFile)
-        }
-        
-        if resilientWitnesses.isEmpty {
-            " {}"
-        } else {
-            " {"
-            
-            for resilientWitness in self.resilientWitnesses {
-                "\n"
-                "    "
-                switch try resilientWitness.requirement(in: machOFile) {
-                case .symbol(let unsolvedSymbol):
-                    try MetadataReader.demangleSymbol(for: unsolvedSymbol, in: machOFile, using: options)
-                case .element/*(let element)*/:
-                    ""
-                case .none:
-                    ""
-                }
-            }
-            
-            "\n"
-            "}"
         }
     }
 }

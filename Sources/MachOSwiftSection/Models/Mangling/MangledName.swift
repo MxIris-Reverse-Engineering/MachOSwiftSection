@@ -1,5 +1,6 @@
-import MachOKit
 import Foundation
+import MachOKit
+import MachOFoundation
 import MachOSwiftSectionMacro
 
 public struct MangledName {
