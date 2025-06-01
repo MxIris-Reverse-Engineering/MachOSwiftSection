@@ -58,7 +58,7 @@ public struct ClassMetadataObjCInterop: TypeMetadataProtocol {
     public static var descriptorOffset: Int { Layout.offset(of: .descriptor) }
 }
 
-import MachOSwiftSectionMacro
+import MachOMacro
 
 @Layout
 public protocol AnyClassMetadataLayout: MetadataLayout {

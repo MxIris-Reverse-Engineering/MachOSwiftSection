@@ -1,6 +1,6 @@
 import MachOKit
 import MachOFoundation
-import MachOSwiftSectionMacro
+import MachOMacro
 
 @dynamicMemberLookup
 public enum ContextDescriptorWrapper {

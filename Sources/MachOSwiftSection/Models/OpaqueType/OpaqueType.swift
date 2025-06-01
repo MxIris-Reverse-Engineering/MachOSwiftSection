@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOMacro
 
 public struct OpaqueType {
     public let descriptor: OpaqueTypeDescriptor

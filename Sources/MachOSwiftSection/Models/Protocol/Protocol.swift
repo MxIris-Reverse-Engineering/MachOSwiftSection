@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOMacro
 
 // using TrailingObjects
 //  = swift::ABI::TrailingObjects<

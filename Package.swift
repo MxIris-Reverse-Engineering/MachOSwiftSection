@@ -111,7 +111,7 @@ let package = Package(
                 .MachOKit,
                 "MachOReading",
                 "MachOExtensions",
-                "MachOSwiftSectionMacro",
+                "MachOMacro",
             ]
         ),
         
@@ -120,7 +120,7 @@ let package = Package(
             dependencies: [
                 "Demangle",
                 "MachOFoundation",
-                "MachOSwiftSectionMacro",
+                "MachOMacro",
                 .MachOKit,
                 .product(name: "AssociatedObject", package: "AssociatedObject"),
             ]
@@ -134,14 +134,14 @@ let package = Package(
         ),
 
         .target(
-            name: "MachOSwiftSectionMacro",
+            name: "MachOMacro",
             dependencies: [
-                "MachOSwiftSectionMacroPlugin",
+                "MachOMacroPlugin",
             ]
         ),
 
         .macro(
-            name: "MachOSwiftSectionMacroPlugin",
+            name: "MachOMacroPlugin",
             dependencies: [
                 .SwiftSyntax,
                 .SwiftSyntaxMacros,

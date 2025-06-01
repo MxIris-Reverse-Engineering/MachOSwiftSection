@@ -1,7 +1,7 @@
 import MachOKit
 import MachOReading
 import MachOExtensions
-import MachOSwiftSectionMacro
+import MachOMacro
 
 public protocol Resolvable {
     static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self

@@ -1,6 +1,6 @@
 import MachOKit
 import MachOFoundation
-import MachOSwiftSectionMacro
+import MachOMacro
 
 public protocol ContextDescriptorProtocol: ResolvableLocatableLayoutWrapper where Layout: ContextDescriptorLayout {}
 

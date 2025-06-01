@@ -1,5 +1,5 @@
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOMacro
 import MachOFoundation
 
 public protocol RelativeDirectPointerProtocol<Pointee>: RelativePointerProtocol {}

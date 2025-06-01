@@ -1,9 +1,8 @@
-import Foundation
 import SwiftCompilerPlugin
 import SwiftSyntaxMacros
 
 @main
-struct MachOSwiftSectionMacroPlugin: CompilerPlugin {
+struct MachOMacroPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
         LayoutMacro.self,
         MachOImageGeneratorMacro.self,

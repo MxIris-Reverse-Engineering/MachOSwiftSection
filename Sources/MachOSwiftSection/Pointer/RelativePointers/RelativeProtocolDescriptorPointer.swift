@@ -1,5 +1,5 @@
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOMacro
 
 public enum RelativeProtocolDescriptorPointer {
     case objcPointer(RelativeResolvableElementPointerIntPair<ObjCProtocolPrefix, Bool>)

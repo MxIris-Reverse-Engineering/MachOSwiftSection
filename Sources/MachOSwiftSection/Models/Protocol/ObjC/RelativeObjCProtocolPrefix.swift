@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOMacro
 import MachOFoundation
 
 public struct RelativeObjCProtocolPrefix: ResolvableLocatableLayoutWrapper {

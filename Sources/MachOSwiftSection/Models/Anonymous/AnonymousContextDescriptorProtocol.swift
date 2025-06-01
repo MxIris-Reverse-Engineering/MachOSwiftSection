@@ -1,6 +1,6 @@
 import MachOKit
 import MachOFoundation
-import MachOSwiftSectionMacro
+import MachOMacro
 
 public protocol AnonymousContextDescriptorProtocol: ContextDescriptorProtocol where Layout: AnonymousContextDescriptorLayout {}
 

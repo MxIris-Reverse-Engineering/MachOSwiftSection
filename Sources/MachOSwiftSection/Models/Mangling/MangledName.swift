@@ -1,7 +1,7 @@
 import Foundation
 import MachOKit
 import MachOFoundation
-import MachOSwiftSectionMacro
+import MachOMacro
 
 public struct MangledName {
     enum Element {

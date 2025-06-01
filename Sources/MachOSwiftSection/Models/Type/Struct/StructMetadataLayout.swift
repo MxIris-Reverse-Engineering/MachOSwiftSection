@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOMacro
 
 @Layout
 public protocol StructMetadataLayout: MetadataLayout {

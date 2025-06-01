@@ -1,7 +1,7 @@
 import Testing
 import Foundation
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOMacro
 @testable import MachOSwiftSection
 @testable import SwiftDump
 

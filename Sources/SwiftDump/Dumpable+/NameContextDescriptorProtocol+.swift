@@ -1,7 +1,7 @@
 import Foundation
 import MachOKit
 import MachOSwiftSection
-import MachOSwiftSectionMacro
+import MachOMacro
 
 //@MachOImageAllMembersGenerator
 //extension NamedContextDescriptorProtocol {

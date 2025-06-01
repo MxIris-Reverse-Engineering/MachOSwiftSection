@@ -1,4 +1,4 @@
-import MachOSwiftSectionMacro
+import MachOMacro
 
 @Layout
 public protocol TypeContextDescriptorLayout: NamedContextDescriptorLayout {

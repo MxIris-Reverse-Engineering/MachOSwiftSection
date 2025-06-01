@@ -1,5 +1,5 @@
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOMacro
 
 public protocol NamedContextDescriptorProtocol: ContextDescriptorProtocol where Layout: NamedContextDescriptorLayout {}
 

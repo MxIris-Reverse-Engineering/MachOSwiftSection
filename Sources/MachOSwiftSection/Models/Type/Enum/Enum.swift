@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOMacro
 
 // template <typename Runtime>
 // class swift_ptrauth_struct_context_descriptor(EnumDescriptor)

@@ -2,7 +2,7 @@ import Foundation
 import MachOKit
 import Demangle
 import MachOFoundation
-import MachOSwiftSectionMacro
+import MachOMacro
 
 @MachOImageAllMembersGenerator
 public struct MetadataReader {
