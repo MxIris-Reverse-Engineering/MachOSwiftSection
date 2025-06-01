@@ -62,7 +62,7 @@ extension GenericRequirementDescriptor {
             case .element(let element):
                 switch element {
                 case .objc(let objc):
-                    try objc.mangledName(in: machOFile)
+                    try objc.mangledName(in: machOFile).rawStringValue()
                 case .swift(let protocolDescriptor):
                     try MetadataReader.demangleContext(for: .protocol(protocolDescriptor), in: machOFile).print(using: options)
                 }

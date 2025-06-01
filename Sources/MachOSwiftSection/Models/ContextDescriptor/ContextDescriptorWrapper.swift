@@ -74,8 +74,6 @@ public enum ContextDescriptorWrapper {
         return try contextDescriptor.parent(in: machOFile)
     }
 
-
-
     public var contextDescriptor: any ContextDescriptorProtocol {
         switch self {
         case .type(let typeContextDescriptor):
@@ -114,11 +112,10 @@ public enum ContextDescriptorWrapper {
 }
 
 extension ContextDescriptorWrapper: Resolvable {
-    
     public enum ResolutionError: Error {
         case invalidContextDescriptor
     }
-    
+
     @MachOImageGenerator
     public static func resolve(from offset: Int, in machOFile: MachOFile) throws -> Self {
         let contextDescriptor: ContextDescriptor = try machOFile.readElement(offset: offset)
@@ -143,7 +140,7 @@ extension ContextDescriptorWrapper: Resolvable {
             throw ResolutionError.invalidContextDescriptor
         }
     }
-    
+
     @MachOImageGenerator
     public static func resolve(from offset: Int, in machOFile: MachOFile) throws -> Self? {
         do {

@@ -18,7 +18,7 @@ public struct SwiftSymbol {
                 return nil
             case .index:
                 return nil
-            case let .name(string):
+            case .name(let string):
                 return string
             }
         }
@@ -55,14 +55,14 @@ public struct SwiftSymbol {
 
     public var text: String? {
         switch contents {
-        case let .name(s): return s
+        case .name(let s): return s
         default: return nil
         }
     }
 
     public var index: UInt64? {
         switch contents {
-        case let .index(i): return i
+        case .index(let i): return i
         default: return nil
         }
     }
@@ -90,9 +90,9 @@ public struct SwiftSymbol {
     }
 
     package func changeKind(_ newKind: Kind, additionalChildren: [SwiftSymbol] = []) -> SwiftSymbol {
-        if case let .name(text) = contents {
+        if case .name(let text) = contents {
             return SwiftSymbol(kind: newKind, children: children + additionalChildren, contents: .name(text))
-        } else if case let .index(i) = contents {
+        } else if case .index(let i) = contents {
             return SwiftSymbol(kind: newKind, children: children + additionalChildren, contents: .index(i))
         } else {
             return SwiftSymbol(kind: newKind, children: children + additionalChildren, contents: .none)
@@ -734,4 +734,154 @@ extension SwiftSymbol: CustomStringConvertible {
         _ = printer.printName(self)
         return printer.target
     }
+}
+
+extension SwiftSymbol {
+    // MARK: - Tree Traversal Helpers (internal)
+
+    // These methods operate on `self` as the root of the tree being traversed.
+
+    /// Retrieves a node within the tree rooted at `self`, specified by a path of child indices.
+    /// An empty path refers to `self`.
+    fileprivate func _node(at path: [Int]) -> SwiftSymbol? {
+        if path.isEmpty {
+            return self
+        }
+        var current = self
+        for childIndex in path {
+            guard current.children.indices.contains(childIndex) else {
+                return nil // Path is out of bounds
+            }
+            current = current.children[childIndex]
+        }
+        return current
+    }
+
+    /// Calculates the path of the next node in a pre-order traversal, relative to `self`.
+    /// - Parameter currentPath: The path of the current node from `self` (array of child indices).
+    /// - Returns: The path of the next node, or `nil` if `currentPath` is the last node in the traversal.
+    fileprivate func _nextPreOrderPath(after currentPath: [Int]) -> [Int]? {
+        guard let currentNode = _node(at: currentPath) else {
+            assertionFailure("Invalid currentPath provided to _nextPreOrderPath: \(currentPath)")
+            return nil
+        }
+
+        // 1. Try to go deeper: if current node has children, next node is its first child.
+        if !currentNode.children.isEmpty {
+            return currentPath + [0]
+        }
+
+        // 2. No children. Backtrack to find a parent's next sibling.
+        var pathToTrace = currentPath
+        while !pathToTrace.isEmpty {
+            let parentPath = Array(pathToTrace.dropLast())
+            let childIndexInParent = pathToTrace.last!
+
+            // The parent node is resolved from `self` using `parentPath`.
+            guard let parentNode = _node(at: parentPath) else {
+                assertionFailure("Could not get parent node for path \(parentPath)")
+                return nil
+            }
+
+            let nextSiblingIndex = childIndexInParent + 1
+            if nextSiblingIndex < parentNode.children.count {
+                // Found next sibling
+                return parentPath + [nextSiblingIndex]
+            }
+            // No more siblings at this level, continue backtracking.
+            pathToTrace = parentPath
+        }
+        return nil // End of traversal
+    }
+}
+
+
+// MARK: - Collection Index Definition
+extension SwiftSymbol {
+    /// An index for a `SwiftSymbol` collection, representing a node during a pre-order traversal
+    /// of its tree structure.
+    public struct Index: Comparable, Hashable {
+        /// The path from the collection's root element to this element.
+        /// `nil` represents `endIndex`.
+        /// An empty array `[]` represents the root element itself.
+        fileprivate let _path: [Int]?
+
+        // Internal initializer. Made public for convenience in example code,
+        // but typically indices should be obtained from the collection itself.
+        public init(_path: [Int]?) {
+            self._path = _path
+        }
+
+        // Static properties for well-known indices, used internally by SwiftSymbol's collection logic.
+        fileprivate static var _root: SwiftSymbol.Index { SwiftSymbol.Index(_path: []) }
+        fileprivate static var _end: SwiftSymbol.Index { SwiftSymbol.Index(_path: nil) }
+
+        public static func < (lhs: Index, rhs: Index) -> Bool {
+            switch (lhs._path, rhs._path) {
+            case (nil, nil): return false // end == end
+            case (nil, .some(_)): return false // endIndex is not less than any valid index
+            case (.some(_), nil): return true  // Any valid index is less than endIndex
+            case (let .some(lhsPath), let .some(rhsPath)):
+                // Lexicographical comparison for pre-order paths.
+                let minLength = Swift.min(lhsPath.count, rhsPath.count)
+                for i in 0..<minLength {
+                    if lhsPath[i] < rhsPath[i] { return true }
+                    if lhsPath[i] > rhsPath[i] { return false }
+                }
+                // If one path is a prefix of the other, the shorter path is smaller.
+                return lhsPath.count < rhsPath.count
+            }
+        }
+        
+        // Equatable is synthesized automatically. Hashable is implemented explicitly.
+        public func hash(into hasher: inout Hasher) {
+            hasher.combine(_path)
+        }
+    }
+}
+
+// MARK: - Collection Conformance
+extension SwiftSymbol: Collection {
+    // The `Index` type is now `SwiftSymbol.Index` (defined above)
+    // The `Element` type
+    public typealias Element = SwiftSymbol
+
+    public var startIndex: Index {
+        // The collection always contains `self` as the first element.
+        return Index._root
+    }
+
+    public var endIndex: Index {
+        return Index._end
+    }
+
+    public subscript(position: Index) -> Element {
+        guard let path = position._path else {
+            fatalError("Cannot subscript Collection with endIndex.")
+        }
+        // `_node(at:)` is called on `self` (the collection instance).
+        // An empty path `[]` correctly refers to `self`.
+        guard let node = _node(at: path) else {
+            // This implies an invalid index was used.
+            fatalError("Invalid tree index path: \(path). The tree structure might have changed, or the index is invalid.")
+        }
+        return node
+    }
+
+    public func index(after i: Index) -> Index {
+        guard let currentPath = i._path else {
+            fatalError("Cannot advance endIndex using index(after:).")
+        }
+        
+        // `_nextPreOrderPath(after:)` is called on `self` (the collection instance).
+        if let nextPath = _nextPreOrderPath(after: currentPath) {
+            return Index(_path: nextPath)
+        } else {
+            // No next path means we've reached the end of the traversal.
+            return endIndex
+        }
+    }
+    
+    // Note: `count` will be O(N) as it needs to iterate.
+    // `isEmpty` will always be false because `self` is always an element.
 }

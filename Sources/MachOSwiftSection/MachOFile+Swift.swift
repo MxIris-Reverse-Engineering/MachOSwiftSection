@@ -33,8 +33,14 @@ extension MachOFile.Swift {
         guard let section = _section(for: .__swift5_assocty, in: machOFile) else { return nil }
         do {
             var associatedTypeDescriptors: [AssociatedTypeDescriptor] = []
-            var currentOffset = section.offset
-            while currentOffset < section.offset + section.size {
+            let offset = if let cache = machOFile.cache {
+                section.address - cache.mainCacheHeader.sharedRegionStart.cast()
+            } else {
+                section.offset
+            }
+            var currentOffset = offset
+            let endOffset = offset + section.size
+            while currentOffset < endOffset {
                 let associatedTypeDescriptor: AssociatedTypeDescriptor = try machOFile.readElement(offset: currentOffset)
                 currentOffset += associatedTypeDescriptor.size
                 associatedTypeDescriptors.append(associatedTypeDescriptor)

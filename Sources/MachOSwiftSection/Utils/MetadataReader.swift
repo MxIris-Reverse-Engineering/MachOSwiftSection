@@ -150,6 +150,7 @@ public struct MetadataReader {
         }
 
         let kind: SwiftSymbol.Kind
+        
         func getContextName() throws -> Bool {
             if nameNode != nil {
                 return true
@@ -175,11 +176,10 @@ public struct MetadataReader {
             guard try getContextName() else { return nil }
             kind = .protocol
         case .extension:
-//            return parentDemangling
             guard let parentDemangling else { return nil }
             guard let extensionContext = context.extensionContextDescriptor else { return nil }
             guard let extendedContext = try extensionContext.extendedContext(in: machOFile) else { return nil }
-            guard let demangledExtendedContext = try demangle(for: extendedContext, kind: .type, in: machOFile).typeNonWrapperSymbol else { return nil }
+            guard let demangledExtendedContext = try demangle(for: extendedContext, kind: .type, in: machOFile).extensionSymbol else { return nil }
             var demangling = SwiftSymbol(kind: .extension, children: [parentDemangling, demangledExtendedContext])
             if let requirements = try extensionContext.genericContext(in: machOFile)?.requirements {
                 var signatureNode = SwiftSymbol(kind: .dependentGenericSignature)
@@ -233,15 +233,13 @@ public struct MetadataReader {
             }
             return demangling
         case .anonymous:
-//            return nil
-//            break
-            return parentDemangling
 //            var anonNode = SwiftSymbol(kind: .anonymousContext)
 //            anonNode.children.append(.init(kind: .identifier, contents: .name(context.offset.description)))
 //            if let parentDemangling {
 //                anonNode.children.append(parentDemangling)
 //            }
 //            return anonNode
+            return parentDemangling
         case .module:
             if parentDemangling != nil {
                 return nil
@@ -317,12 +315,26 @@ public struct MetadataReader {
                     switch directness {
                     case .direct:
                         if let context = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset).resolve(from: offset, in: machOFile) {
-                            result = try buildContextMangling(context: .element(context), in: machOFile)
+                            if context.opaqueTypeDescriptor != nil {
+                                // Try to preserve a reference to an OpaqueTypeDescriptor
+                                // symbolically, since we'd like to read out and resolve the type ref
+                                // to the underlying type if available.
+                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, contents: .index(context.offset.cast()))
+                            } else {
+                                result = try buildContextMangling(context: .element(context), in: machOFile)
+                            }
                         }
                     case .indirect:
                         let relativePointer = RelativeIndirectSymbolicElementPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset)
                         if let resolvableElement = try relativePointer.resolve(from: offset, in: machOFile).asOptional {
-                            result = try buildContextMangling(context: resolvableElement, in: machOFile)
+                            if case .element(let element) = resolvableElement, element.opaqueTypeDescriptor != nil {
+                                // Try to preserve a reference to an OpaqueTypeDescriptor
+                                // symbolically, since we'd like to read out and resolve the type ref
+                                // to the underlying type if available.
+                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, contents: .index(element.offset.cast()))
+                            } else {
+                                result = try buildContextMangling(context: resolvableElement, in: machOFile)
+                            }
                         }
                     }
                 case .accessorFunctionReference:
@@ -394,5 +406,9 @@ extension SwiftSymbol {
             return nil
         }
         return enumerate(self)
+    }
+
+    fileprivate var extensionSymbol: SwiftSymbol? {
+        typeNonWrapperSymbol
     }
 }
