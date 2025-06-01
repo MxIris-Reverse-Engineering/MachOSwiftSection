@@ -1,6 +1,7 @@
 import Foundation
 import MachOKit
 import MachOMacro
+import MachOFoundation
 
 public struct OpaqueType {
     public let descriptor: OpaqueTypeDescriptor

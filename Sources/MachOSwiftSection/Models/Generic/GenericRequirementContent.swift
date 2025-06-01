@@ -1,3 +1,5 @@
+import MachOFoundation
+
 public enum GenericRequirementContent {
     public struct InvertedProtocols {
         public let genericParamIndex: UInt16
@@ -13,7 +15,7 @@ public enum GenericRequirementContent {
 
 public enum ResolvedGenericRequirementContent {
     case type(MangledName)
-    case `protocol`(ResolvableElement<ProtocolDescriptorWithObjCInterop>)
+    case `protocol`(SymbolicElement<ProtocolDescriptorWithObjCInterop>)
     case layout(GenericRequirementLayoutKind)
     case conformance(ProtocolConformanceDescriptor)
     case invertedProtocols(GenericRequirementContent.InvertedProtocols)

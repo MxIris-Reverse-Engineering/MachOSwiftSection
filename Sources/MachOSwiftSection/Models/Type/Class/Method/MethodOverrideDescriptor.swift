@@ -1,10 +1,11 @@
 import Foundation
 import MachOKit
 import MachOMacro
+import MachOFoundation
 
 public struct MethodOverrideDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout {
-        public let `class`: RelativeContextPointer<ContextDescriptorWrapper?>
+        public let `class`: RelativeContextPointer
         public let method: RelativeMethodDescriptorPointer
         public let implementation: RelativeDirectPointer<UnsolvedSymbol?>
     }

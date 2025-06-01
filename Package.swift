@@ -100,11 +100,20 @@ let package = Package(
             name: "MachOReading",
             dependencies: [
                 .MachOKit,
+                "MachOMacro",
                 "MachOExtensions",
                 .product(name: "FileIO", package: "swift-fileio"),
+                .product(name: "AssociatedObject", package: "AssociatedObject"),
             ]
         ),
-        
+        .target(
+            name: "MachOPointer",
+            dependencies: [
+                .MachOKit,
+                "MachOReading",
+                "MachOMacro",
+            ]
+        ),
         .target(
             name: "MachOFoundation",
             dependencies: [
@@ -112,6 +121,7 @@ let package = Package(
                 "MachOReading",
                 "MachOExtensions",
                 "MachOMacro",
+                "MachOPointer"
             ]
         ),
         

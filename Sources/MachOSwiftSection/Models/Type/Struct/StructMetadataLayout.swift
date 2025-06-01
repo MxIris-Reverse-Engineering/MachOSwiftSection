@@ -1,8 +1,9 @@
 import Foundation
 import MachOKit
 import MachOMacro
+import MachOFoundation
 
 @Layout
 public protocol StructMetadataLayout: MetadataLayout {
-    var descriptor: SignedPointer<StructDescriptor> { get }
+    var descriptor: Pointer<StructDescriptor> { get }
 }

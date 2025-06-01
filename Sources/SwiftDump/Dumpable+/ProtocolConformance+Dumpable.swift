@@ -56,19 +56,28 @@ extension ProtocolConformance: Dumpable {
             " {"
 
             for resilientWitness in resilientWitnesses {
-                "\n"
-                "    "
-                switch try resilientWitness.requirement(in: machOFile) {
-                case .symbol(let unsolvedSymbol):
-                    try MetadataReader.demangleSymbol(for: unsolvedSymbol, in: machOFile).print(using: options)
-                case .element /* (let element) */:
-                    ""
-                case .none:
-                    ""
+                BreakLine()
+                Indent(level: 1)
+                if let symbol = try resilientWitness.implementationSymbol(in: machOFile) {
+                    try MetadataReader.demangleSymbol(for: symbol, in: machOFile).print(using: options)
+                } else {
+                    switch try resilientWitness.requirement(in: machOFile) {
+                    case .symbol(let symbol):
+                        try MetadataReader.demangleSymbol(for: symbol, in: machOFile).print(using: options)
+                    case .element(let element):
+                        if let symbol = try element.defaultImplementationSymbol(in: machOFile) {
+                            try MetadataReader.demangleSymbol(for: symbol, in: machOFile).print(using: options)
+                        } else {
+                            "Symbol not found"
+                        }
+                    case .none:
+                        ""
+                    }
                 }
             }
 
-            "\n"
+            BreakLine()
+            
             "}"
         }
     }

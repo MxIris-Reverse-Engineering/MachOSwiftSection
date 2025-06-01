@@ -1,4 +1,5 @@
 import Foundation
+import MachOFoundation
 
 public enum MethodImplementationPointer {
     case implementation(RelativeDirectRawPointer)

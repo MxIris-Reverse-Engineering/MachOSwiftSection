@@ -1,10 +1,11 @@
 import Foundation
 import MachOKit
+import MachOFoundation
 
 public struct ModuleContextDescriptor: ModuleContextDescriptorProtocol {
     public struct Layout: ModuleContextDescriptorLayout {
         public let flags: ContextDescriptorFlags
-        public let parent: RelativeContextPointer<ContextDescriptorWrapper?>
+        public let parent: RelativeContextPointer
         public let name: RelativeDirectPointer<String>
     }
 

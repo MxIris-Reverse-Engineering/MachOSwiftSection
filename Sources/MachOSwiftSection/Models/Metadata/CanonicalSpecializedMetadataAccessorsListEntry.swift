@@ -1,4 +1,5 @@
 import Foundation
+import MachOFoundation
 
 public struct CanonicalSpecializedMetadataAccessorsListEntry: ResolvableLocatableLayoutWrapper {
     public struct Layout {

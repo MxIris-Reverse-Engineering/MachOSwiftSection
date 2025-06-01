@@ -26,7 +26,7 @@ public struct MetadataReader {
         return try required(buildContextMangling(context: context, in: machOFile))
     }
 
-    private static func buildContextMangling(context: ResolvableElement<ContextDescriptorWrapper>, in machOFile: MachOFile) throws -> SwiftSymbol? {
+    private static func buildContextMangling(context: SymbolicElement<ContextDescriptorWrapper>, in machOFile: MachOFile) throws -> SwiftSymbol? {
         switch context {
         case .symbol(let symbol):
             return try buildContextManglingForSymbol(symbol: symbol, in: machOFile)
@@ -320,7 +320,7 @@ public struct MetadataReader {
                             result = try buildContextMangling(context: .element(context), in: machOFile)
                         }
                     case .indirect:
-                        let relativePointer = RelativeIndirectResolvableElementPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset)
+                        let relativePointer = RelativeIndirectSymbolicElementPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset)
                         if let resolvableElement = try relativePointer.resolve(from: offset, in: machOFile).asOptional {
                             result = try buildContextMangling(context: resolvableElement, in: machOFile)
                         }

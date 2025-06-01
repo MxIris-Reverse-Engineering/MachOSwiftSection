@@ -1,4 +1,5 @@
 import Foundation
+import MachOFoundation
 
 public typealias SwiftOnceToken = intptr_t
 

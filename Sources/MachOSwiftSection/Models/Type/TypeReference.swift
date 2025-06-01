@@ -4,9 +4,9 @@ import MachOFoundation
 
 public enum TypeReference {
     case directTypeDescriptor(RelativeDirectPointer<ContextDescriptorWrapper?>)
-    case indirectTypeDescriptor(RelativeDirectPointer<SignedContextPointer<ContextDescriptorWrapper?>>)
+    case indirectTypeDescriptor(RelativeDirectPointer<ContextPointer>)
     case directObjCClassName(RelativeDirectPointer<String?>)
-    case indirectObjCClass(RelativeDirectPointer<SignedResolvableElementPointer<ClassMetadataObjCInterop?>>)
+    case indirectObjCClass(RelativeDirectPointer<SymbolicElementPointer<ClassMetadataObjCInterop?>>)
 
     public static func forKind(_ kind: TypeReferenceKind, at relativeOffset: RelativeOffset) -> TypeReference {
         switch kind {
@@ -39,7 +39,7 @@ public enum TypeReference {
 
 public enum ResolvedTypeReference {
     case directTypeDescriptor(ContextDescriptorWrapper?)
-    case indirectTypeDescriptor(ResolvableElement<ContextDescriptorWrapper>?)
+    case indirectTypeDescriptor(SymbolicElement<ContextDescriptorWrapper>?)
     case directObjCClassName(String?)
-    case indirectObjCClass(ResolvableElement<ClassMetadataObjCInterop>?)
+    case indirectObjCClass(SymbolicElement<ClassMetadataObjCInterop>?)
 }

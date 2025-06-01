@@ -1,11 +1,12 @@
 import Foundation
 import MachOKit
 import MachOMacro
+import MachOFoundation
 
 public struct ResilientWitness: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let requirement: RelativeProtocolRequirementPointer
-        public let implementation: RelativeDirectRawPointer
+        public let implementation: RelativeDirectPointer<UnsolvedSymbol?>
     }
     
     public let offset: Int
@@ -19,9 +20,13 @@ public struct ResilientWitness: ResolvableLocatableLayoutWrapper {
 }
 
 
+@MachOImageAllMembersGenerator
 extension ResilientWitness {
-    @MachOImageGenerator
-    public func requirement(in machOFile: MachOFile) throws -> ResolvableElement<ProtocolRequirement>? {
+    public func requirement(in machOFile: MachOFile) throws -> SymbolicElement<ProtocolRequirement>? {
         return try layout.requirement.resolve(from: offset(of: \.requirement), in: machOFile).asOptional
+    }
+    
+    public func implementationSymbol(in machOFile: MachOFile) throws -> UnsolvedSymbol? {
+        return try layout.implementation.resolve(from: offset(of: \.implementation), in: machOFile)
     }
 }

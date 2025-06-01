@@ -1,8 +1,8 @@
 import Foundation
 import MachOKit
 import MachOMacro
-import MachOExtensions
-import MachOReading
+import MachOFoundation
+
 // using TrailingObjects = swift::ABI::TrailingObjects<
 //                           TargetProtocolConformanceDescriptor<Runtime>,
 //                           TargetRelativeContextPointer<Runtime>,
@@ -20,7 +20,7 @@ import MachOReading
 public struct ProtocolConformance {
     public let descriptor: ProtocolConformanceDescriptor
 
-    public let `protocol`: ResolvableElement<ProtocolDescriptor>?
+    public let `protocol`: SymbolicElement<ProtocolDescriptor>?
 
     public let typeReference: ResolvedTypeReference
 
@@ -28,7 +28,7 @@ public struct ProtocolConformance {
 
     public var flags: ProtocolConformanceFlags { descriptor.flags }
 
-    public let retroactiveContextDescriptor: ResolvableElement<ContextDescriptorWrapper>?
+    public let retroactiveContextDescriptor: SymbolicElement<ContextDescriptorWrapper>?
 
     public let conditionalRequirements: [GenericRequirementDescriptor]
 
@@ -55,7 +55,7 @@ public struct ProtocolConformance {
         var currentOffset = descriptor.offset + descriptor.layoutSize
 
         if descriptor.flags.isRetroactive {
-            let retroactiveContextPointer: RelativeContextPointer<ContextDescriptorWrapper?> = try machOFile.readElement(offset: currentOffset)
+            let retroactiveContextPointer: RelativeContextPointer = try machOFile.readElement(offset: currentOffset)
             self.retroactiveContextDescriptor = try retroactiveContextPointer.resolve(from: currentOffset, in: machOFile).asOptional
             currentOffset.offset(of: RelativeIndirectablePointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>>.self)
         } else {
@@ -70,10 +70,11 @@ public struct ProtocolConformance {
         }
 
         if descriptor.flags.numConditionalPackShapeDescriptors > 0 {
-            self.conditionalPackShapeHeader = try machOFile.readElement(offset: currentOffset)
+            let header: GenericPackShapeHeader = try machOFile.readElement(offset: currentOffset)
+            self.conditionalPackShapeHeader = header
             currentOffset.offset(of: GenericPackShapeHeader.self)
-            self.conditionalPackShapeDescriptors = try machOFile.readElements(offset: currentOffset, numberOfElements: descriptor.flags.numConditionalPackShapeDescriptors.cast())
-            currentOffset.offset(of: GenericPackShapeDescriptor.self, numbersOfElements: descriptor.flags.numConditionalPackShapeDescriptors.cast())
+            self.conditionalPackShapeDescriptors = try machOFile.readWrapperElements(offset: currentOffset, numberOfElements: header.numPacks.cast())
+            currentOffset.offset(of: GenericPackShapeDescriptor.self, numbersOfElements: header.numPacks.cast())
         } else {
             self.conditionalPackShapeHeader = nil
             self.conditionalPackShapeDescriptors = []

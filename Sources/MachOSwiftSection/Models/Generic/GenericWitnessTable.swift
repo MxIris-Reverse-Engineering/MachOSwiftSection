@@ -1,4 +1,5 @@
 import Foundation
+import MachOFoundation
 
 public struct GenericWitnessTable: ResolvableLocatableLayoutWrapper {
     public struct Layout {

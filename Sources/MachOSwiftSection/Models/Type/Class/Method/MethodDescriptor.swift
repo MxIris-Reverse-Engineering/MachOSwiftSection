@@ -1,6 +1,7 @@
 import Foundation
 import MachOKit
 import MachOMacro
+import MachOFoundation
 
 public struct MethodDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout {

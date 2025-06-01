@@ -34,6 +34,7 @@ struct SwiftDumpTests {
         self.mainCacheMachOFileInCache = mainCache.machOFiles().first(where: {
 //            $0.imagePath.contains("/AppKit")
             $0.imagePath.contains("/SwiftUI")
+//            $0.imagePath.contains("/Foundation")
         })!
 
         self.subCacheMachOFileInCache = subCache.machOFiles().first(where: {
@@ -41,7 +42,7 @@ struct SwiftDumpTests {
         })!
 
         self.machOFileInCache = (mainCache.machOFiles().map { $0 } + subCache.machOFiles().map { $0 }).first {
-            $0.imagePath.contains("/SwiftData")
+            $0.imagePath.contains("/Foundation")
         }!
 
         // File
@@ -94,6 +95,18 @@ extension SwiftDumpTests {
 
     @Test func typesInSubCacheFile() async throws {
         try await dumpTypes(for: subCacheMachOFileInCache)
+    }
+    
+    @Test func protocolsInCacheFile() async throws {
+        try await dumpProtocols(for: machOFileInCache)
+    }
+
+    @Test func protocolConformancesInCacheFile() async throws {
+        try await dumpProtocolConformances(for: machOFileInCache)
+    }
+
+    @Test func associatedTypesInCacheFile() async throws {
+        try await dumpAssociatedTypes(for: machOFileInCache)
     }
 }
 
@@ -154,7 +167,7 @@ extension SwiftDumpTests {
     @MainActor
     private func dumpTypes(for machO: MachOFile) async throws {
         let typeContextDescriptors = try required(machO.swift.typeContextDescriptors)
-        let metadataFinder = MetadataFinder(machO: machO)
+//        let metadataFinder = MetadataFinder(machO: machO)
         for typeContextDescriptor in typeContextDescriptors {
             switch typeContextDescriptor {
             case .type(let typeContextDescriptorWrapper):
@@ -164,12 +177,12 @@ extension SwiftDumpTests {
                     try print(enumType.dump(using: printOptions, in: machO))
                 case .struct(let structDescriptor):
                     let structType = try Struct(descriptor: structDescriptor, in: machO)
-                    try print(metadataFinder.metadata(for: structDescriptor) as StructMetadata?)
+//                    try print(metadataFinder.metadata(for: structDescriptor) as StructMetadata?)
                     try print(structType.dump(using: printOptions, in: machO))
                 case .class(let classDescriptor):
                     let classType = try Class(descriptor: classDescriptor, in: machO)
                     try print(classType.dump(using: printOptions, in: machO))
-                    try print(metadataFinder.metadata(for: classDescriptor) as ClassMetadataObjCInterop?)
+//                    try print(metadataFinder.metadata(for: classDescriptor) as ClassMetadataObjCInterop?)
                 }
 //                print("")
             case .protocol /* (let protocolDescriptor) */:

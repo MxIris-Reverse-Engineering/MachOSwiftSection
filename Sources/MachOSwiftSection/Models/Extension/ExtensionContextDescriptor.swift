@@ -1,11 +1,12 @@
 import Foundation
 import MachOKit
 import MachOMacro
+import MachOFoundation
 
 public struct ExtensionContextDescriptor: ExtensionContextDescriptorProtocol {
     public struct Layout: ExtensionContextDescriptorLayout {
         public let flags: ContextDescriptorFlags
-        public let parent: RelativeContextPointer<ContextDescriptorWrapper?>
+        public let parent: RelativeContextPointer
         public let extendedContext: RelativeDirectPointer<MangledName?>
     }
 

@@ -15,7 +15,7 @@ import MachOFoundation
 public struct ProtocolDescriptor: ProtocolDescriptorProtocol {
     public struct Layout: ProtocolDescriptorLayout {
         public let flags: ContextDescriptorFlags
-        public let parent: RelativeContextPointer<ContextDescriptorWrapper?>
+        public let parent: RelativeContextPointer
         public var name: RelativeDirectPointer<String>
         public var numRequirementsInSignature: UInt32
         public var numRequirements: UInt32

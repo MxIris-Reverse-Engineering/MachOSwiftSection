@@ -70,7 +70,7 @@ public enum ContextDescriptorWrapper {
     }
 
     @MachOImageGenerator
-    public func parent(in machOFile: MachOFile) throws -> ResolvableElement<ContextDescriptorWrapper>? {
+    public func parent(in machOFile: MachOFile) throws -> SymbolicElement<ContextDescriptorWrapper>? {
         return try contextDescriptor.parent(in: machOFile)
     }
 

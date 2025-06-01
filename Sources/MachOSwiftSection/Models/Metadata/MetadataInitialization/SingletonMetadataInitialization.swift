@@ -1,4 +1,5 @@
 import Foundation
+import MachOFoundation
 
 public struct SingletonMetadataInitialization: ResolvableLocatableLayoutWrapper {
     public struct Layout {

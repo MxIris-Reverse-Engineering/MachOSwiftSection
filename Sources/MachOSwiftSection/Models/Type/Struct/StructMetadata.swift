@@ -1,9 +1,10 @@
 import Foundation
+import MachOFoundation
 
 public struct StructMetadata: TypeMetadataProtocol {
     public struct Layout: StructMetadataLayout {
         public let kind: StoredPointer
-        public let descriptor: SignedPointer<StructDescriptor>
+        public let descriptor: Pointer<StructDescriptor>
     }
     
     public var layout: Layout

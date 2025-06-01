@@ -1,4 +1,5 @@
 import Foundation
+import MachOFoundation
 
 public struct AnyClassMetadata: MetadataProtocol {
     public struct Layout: AnyClassMetadataLayout {

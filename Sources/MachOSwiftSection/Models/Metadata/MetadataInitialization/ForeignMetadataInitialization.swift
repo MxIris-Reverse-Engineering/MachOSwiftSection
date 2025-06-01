@@ -1,4 +1,5 @@
 import Foundation
+import MachOFoundation
 
 public struct ForeignMetadataInitialization: ResolvableLocatableLayoutWrapper {
     public struct Layout {

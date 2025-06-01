@@ -1,4 +1,5 @@
 import Foundation
+import MachOFoundation
 
 public struct ClassMetadata: TypeMetadataProtocol {
     public struct Layout: ClassMetadataLayout {
@@ -11,7 +12,7 @@ public struct ClassMetadata: TypeMetadataProtocol {
         public let reserved: UInt16
         public let classSize: UInt32
         public let classAddressPoint: UInt32
-        public let descriptor: SignedPointer<ClassDescriptor>
+        public let descriptor: Pointer<ClassDescriptor>
         public let iVarDestroyer: RawPointer
     }
 
@@ -41,7 +42,7 @@ public struct ClassMetadataObjCInterop: TypeMetadataProtocol {
         public let reserved: UInt16
         public let classSize: UInt32
         public let classAddressPoint: UInt32
-        public let descriptor: SignedPointer<ClassDescriptor>
+        public let descriptor: Pointer<ClassDescriptor>
         public let iVarDestroyer: RawPointer
     }
 
@@ -81,7 +82,7 @@ public protocol ClassMetadataLayout: AnyClassMetadataLayout {
     var reserved: UInt16 { get }
     var classSize: UInt32 { get }
     var classAddressPoint: UInt32 { get }
-    var descriptor: SignedPointer<ClassDescriptor> { get }
+    var descriptor: Pointer<ClassDescriptor> { get }
     var iVarDestroyer: RawPointer { get }
 }
 
@@ -94,6 +95,6 @@ public protocol ClassMetadataObjCInteropLayout: AnyClassMetadataObjCInteropLayou
     var reserved: UInt16 { get }
     var classSize: UInt32 { get }
     var classAddressPoint: UInt32 { get }
-    var descriptor: SignedPointer<ClassDescriptor> { get }
+    var descriptor: Pointer<ClassDescriptor> { get }
     var iVarDestroyer: RawPointer { get }
 }

@@ -1,5 +1,6 @@
 import Foundation
 import MachOMacro
+import MachOFoundation
 
 @Layout
 public protocol ClassDescriptorLayout: TypeContextDescriptorLayout {

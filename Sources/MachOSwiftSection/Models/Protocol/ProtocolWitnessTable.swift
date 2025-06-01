@@ -1,4 +1,5 @@
 import Foundation
+import MachOFoundation
 
 public struct ProtocolWitnessTable: ResolvableLocatableLayoutWrapper {
     public struct Layout {

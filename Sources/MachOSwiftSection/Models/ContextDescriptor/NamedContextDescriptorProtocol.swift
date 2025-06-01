@@ -1,5 +1,6 @@
 import MachOKit
 import MachOMacro
+import MachOFoundation
 
 public protocol NamedContextDescriptorProtocol: ContextDescriptorProtocol where Layout: NamedContextDescriptorLayout {}
 

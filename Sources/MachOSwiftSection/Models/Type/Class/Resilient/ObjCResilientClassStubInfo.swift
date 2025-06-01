@@ -1,4 +1,5 @@
 import Foundation
+import MachOFoundation
 
 public struct ObjCResilientClassStubInfo: ResolvableLocatableLayoutWrapper {
     public struct Layout {
