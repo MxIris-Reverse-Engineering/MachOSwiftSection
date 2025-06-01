@@ -8,7 +8,7 @@ extension MachOFile {
     }
 
     var fileIO: MemoryMappedFile {
-        try! File.open(
+        try! .open(
             url: url,
             isWritable: false
         )

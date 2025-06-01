@@ -17,11 +17,11 @@ extension Package.Dependency {
 
     static let MachOKitMain = Package.Dependency.package(
         url: "https://github.com/p-x9/MachOKit.git",
-        branch: "main"
+        from: "0.34.0"
     )
     static let MachOKitSPM = Package.Dependency.package(
         url: "https://github.com/p-x9/MachOKit-SPM",
-        from: "0.33.0"
+        from: "0.34.0"
     )
 //    static let MachOKitSPM = Package.Dependency.package(
 //        path: "/Volumes/Repositories/Private/Fork/Library/MachOKit-SPM"
@@ -80,6 +80,7 @@ let package = Package(
         .MachOKit,
         .package(url: "https://github.com/swiftlang/swift-syntax", from: "601.0.1"),
         .package(url: "https://github.com/MxIris-Library-Forks/AssociatedObject", branch: "main"),
+        .package(url: "https://github.com/p-x9/swift-fileio", from: "0.9.0"),
     ],
     targets: [
         .target(
@@ -89,6 +90,7 @@ let package = Package(
                 "MachOSwiftSectionMacro",
                 .MachOKit,
                 .product(name: "AssociatedObject", package: "AssociatedObject"),
+                .product(name: "FileIO", package: "swift-fileio"),
             ]
         ),
         .target(
