@@ -6,7 +6,7 @@ public enum TypeReference {
     case directTypeDescriptor(RelativeDirectPointer<ContextDescriptorWrapper?>)
     case indirectTypeDescriptor(RelativeDirectPointer<ContextPointer>)
     case directObjCClassName(RelativeDirectPointer<String?>)
-    case indirectObjCClass(RelativeDirectPointer<SymbolicElementPointer<ClassMetadataObjCInterop?>>)
+    case indirectObjCClass(RelativeDirectPointer<SymbolOrElementPointer<ClassMetadataObjCInterop?>>)
 
     public static func forKind(_ kind: TypeReferenceKind, at relativeOffset: RelativeOffset) -> TypeReference {
         switch kind {
@@ -39,7 +39,7 @@ public enum TypeReference {
 
 public enum ResolvedTypeReference {
     case directTypeDescriptor(ContextDescriptorWrapper?)
-    case indirectTypeDescriptor(SymbolicElement<ContextDescriptorWrapper>?)
+    case indirectTypeDescriptor(SymbolOrElement<ContextDescriptorWrapper>?)
     case directObjCClassName(String?)
-    case indirectObjCClass(SymbolicElement<ClassMetadataObjCInterop>?)
+    case indirectObjCClass(SymbolOrElement<ClassMetadataObjCInterop>?)
 }

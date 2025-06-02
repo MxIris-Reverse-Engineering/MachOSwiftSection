@@ -14,11 +14,11 @@ public struct MetadataReader {
         return try demangle(for: mangledName, kind: .symbol, in: machOFile)
     }
 
-    public static func demangleType(for unsolvedSymbol: UnsolvedSymbol, in machOFile: MachOFile) throws -> SwiftSymbol {
+    public static func demangleType(for unsolvedSymbol: MachOSymbol, in machOFile: MachOFile) throws -> SwiftSymbol {
         return try required(buildContextManglingForSymbol(symbol: unsolvedSymbol, in: machOFile))
     }
 
-    public static func demangleSymbol(for unsolvedSymbol: UnsolvedSymbol, in machOFile: MachOFile) throws -> SwiftSymbol {
+    public static func demangleSymbol(for unsolvedSymbol: MachOSymbol, in machOFile: MachOFile) throws -> SwiftSymbol {
         return try demangle(for: .init(unsolvedSymbol: unsolvedSymbol), kind: .symbol, in: machOFile)
     }
 
@@ -26,7 +26,7 @@ public struct MetadataReader {
         return try required(buildContextMangling(context: context, in: machOFile))
     }
 
-    private static func buildContextMangling(context: SymbolicElement<ContextDescriptorWrapper>, in machOFile: MachOFile) throws -> SwiftSymbol? {
+    private static func buildContextMangling(context: SymbolOrElement<ContextDescriptorWrapper>, in machOFile: MachOFile) throws -> SwiftSymbol? {
         switch context {
         case .symbol(let symbol):
             return try buildContextManglingForSymbol(symbol: symbol, in: machOFile)
@@ -277,7 +277,7 @@ public struct MetadataReader {
         return demangling
     }
 
-    private static func buildContextManglingForSymbol(symbol: UnsolvedSymbol, in machOFile: MachOFile) throws -> SwiftSymbol? {
+    private static func buildContextManglingForSymbol(symbol: MachOSymbol, in machOFile: MachOFile) throws -> SwiftSymbol? {
         var demangler = Demangler(scalars: symbol.stringValue.unicodeScalars)
         var demangledSymbol = try demangler.demangleSymbol()
         if demangledSymbol.kind == .global {
@@ -325,7 +325,7 @@ public struct MetadataReader {
                             }
                         }
                     case .indirect:
-                        let relativePointer = RelativeIndirectSymbolicElementPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset)
+                        let relativePointer = RelativeIndirectSymbolOrElementPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset)
                         if let resolvableElement = try relativePointer.resolve(from: offset, in: machOFile).asOptional {
                             if case .element(let element) = resolvableElement, element.opaqueTypeDescriptor != nil {
                                 // Try to preserve a reference to an OpaqueTypeDescriptor

@@ -6,7 +6,7 @@ public protocol ContextDescriptorProtocol: ResolvableLocatableLayoutWrapper wher
 
 @MachOImageAllMembersGenerator
 extension ContextDescriptorProtocol {
-    public func parent(in machOFile: MachOFile) throws -> SymbolicElement<ContextDescriptorWrapper>? {
+    public func parent(in machOFile: MachOFile) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
         guard layout.flags.kind != .module else { return nil }
         return try layout.parent.resolve(from: offset + layout.offset(of: .parent), in: machOFile).asOptional
     }

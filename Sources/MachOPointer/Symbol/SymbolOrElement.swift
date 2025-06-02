@@ -2,8 +2,8 @@ import MachOKit
 import MachOReading
 import MachOExtensions
 
-public enum SymbolicElement<Element: Resolvable>: Resolvable {
-    case symbol(UnsolvedSymbol)
+public enum SymbolOrElement<Element: Resolvable>: Resolvable {
+    case symbol(MachOSymbol)
     case element(Element)
 
     public var isResolved: Bool {
@@ -15,7 +15,7 @@ public enum SymbolicElement<Element: Resolvable>: Resolvable {
         }
     }
     
-    public var symbol: UnsolvedSymbol? {
+    public var symbol: MachOSymbol? {
         switch self {
         case .symbol(let unsolvedSymbol):
             return unsolvedSymbol
@@ -33,7 +33,7 @@ public enum SymbolicElement<Element: Resolvable>: Resolvable {
         }
     }
 
-    public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> SymbolicElement<Element> {
+    public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> SymbolOrElement<Element> {
         if let symbol = machOFile.resolveBind(fileOffset: fileOffset) {
             return .symbol(.init(offset: fileOffset, stringValue: symbol))
         } else {
@@ -41,7 +41,7 @@ public enum SymbolicElement<Element: Resolvable>: Resolvable {
         }
     }
 
-    public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> SymbolicElement<Element>? {
+    public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> SymbolOrElement<Element>? {
         if let symbol = machOFile.resolveBind(fileOffset: fileOffset) {
             return .symbol(.init(offset: fileOffset, stringValue: symbol))
         } else {
@@ -49,15 +49,15 @@ public enum SymbolicElement<Element: Resolvable>: Resolvable {
         }
     }
     
-    public static func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> SymbolicElement<Element> {
+    public static func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> SymbolOrElement<Element> {
         return try .element(.resolve(from: imageOffset, in: machOImage))
     }
     
-    public static func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> SymbolicElement<Element>? {
+    public static func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> SymbolOrElement<Element>? {
         return try Element.resolve(from: imageOffset, in: machOImage).map { .element($0) }
     }
     
-    public func map<T>(_ transform: (Element) throws -> T) rethrows -> SymbolicElement<T> {
+    public func map<T>(_ transform: (Element) throws -> T) rethrows -> SymbolOrElement<T> {
         switch self {
         case .symbol(let unsolvedSymbol):
             return .symbol(unsolvedSymbol)
@@ -66,7 +66,7 @@ public enum SymbolicElement<Element: Resolvable>: Resolvable {
         }
     }
     
-    public func mapOptional<T>(_ transform: (Element) throws -> T?) rethrows -> SymbolicElement<T>? {
+    public func mapOptional<T>(_ transform: (Element) throws -> T?) rethrows -> SymbolOrElement<T>? {
         switch self {
         case .symbol(let unsolvedSymbol):
             return .symbol(unsolvedSymbol)
@@ -79,7 +79,7 @@ public enum SymbolicElement<Element: Resolvable>: Resolvable {
         }
     }
     
-    public func flatMap<T>(_ transform: (Element) throws -> SymbolicElement<T>) rethrows -> SymbolicElement<T> {
+    public func flatMap<T>(_ transform: (Element) throws -> SymbolOrElement<T>) rethrows -> SymbolOrElement<T> {
         switch self {
         case .symbol(let unsolvedSymbol):
             return .symbol(unsolvedSymbol)
@@ -89,8 +89,8 @@ public enum SymbolicElement<Element: Resolvable>: Resolvable {
     }
 }
 
-extension SymbolicElement where Element: OptionalProtocol, Element.Wrapped: Resolvable {
-    public var asOptional: SymbolicElement<Element.Wrapped>? {
+extension SymbolOrElement where Element: OptionalProtocol, Element.Wrapped: Resolvable {
+    public var asOptional: SymbolOrElement<Element.Wrapped>? {
         switch self {
         case .symbol(let unsolvedSymbol):
             return .symbol(unsolvedSymbol)

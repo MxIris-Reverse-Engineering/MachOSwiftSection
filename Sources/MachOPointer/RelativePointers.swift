@@ -19,8 +19,8 @@ public typealias RelativeIndirectablePointerIntPair<Pointee: Resolvable, Integer
 
 public typealias RelativeIndirectableRawPointerIntPair<Integer: RawRepresentable> = TargetRelativeIndirectablePointerIntPair<AnyResolvable, RelativeOffset, Integer, Pointer<AnyResolvable>> where Integer.RawValue: FixedWidthInteger
 
-public typealias RelativeSymbolicElementPointer<Element: Resolvable> = RelativeIndirectablePointer<SymbolicElement<Element>, SymbolicElementPointer<Element>>
+public typealias RelativeSymbolOrElementPointer<Element: Resolvable> = RelativeIndirectablePointer<SymbolOrElement<Element>, SymbolOrElementPointer<Element>>
 
-public typealias RelativeIndirectSymbolicElementPointer<Element: Resolvable> = RelativeIndirectPointer<SymbolicElement<Element>, SymbolicElementPointer<Element>>
+public typealias RelativeIndirectSymbolOrElementPointer<Element: Resolvable> = RelativeIndirectPointer<SymbolOrElement<Element>, SymbolOrElementPointer<Element>>
 
-public typealias RelativeSymbolicElementPointerIntPair<Element: Resolvable, Value: RawRepresentable> = RelativeIndirectablePointerIntPair<SymbolicElement<Element>, Value, SymbolicElementPointer<Element>> where Value.RawValue: FixedWidthInteger
+public typealias RelativeSymbolOrElementPointerIntPair<Element: Resolvable, Value: RawRepresentable> = RelativeIndirectablePointerIntPair<SymbolOrElement<Element>, Value, SymbolOrElementPointer<Element>> where Value.RawValue: FixedWidthInteger

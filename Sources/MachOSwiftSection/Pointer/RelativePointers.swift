@@ -1,9 +1,9 @@
 import MachOFoundation
 
-public typealias RelativeMethodDescriptorPointer = RelativeSymbolicElementPointer<MethodDescriptor?>
+public typealias RelativeMethodDescriptorPointer = RelativeSymbolOrElementPointer<MethodDescriptor?>
 
-public typealias RelativeProtocolRequirementPointer = RelativeSymbolicElementPointer<ProtocolRequirement?>
+public typealias RelativeProtocolRequirementPointer = RelativeSymbolOrElementPointer<ProtocolRequirement?>
 
-public typealias RelativeContextPointer = RelativeSymbolicElementPointer<ContextDescriptorWrapper?>
+public typealias RelativeContextPointer = RelativeSymbolOrElementPointer<ContextDescriptorWrapper?>
 
-public typealias RelativeContextPointerIntPair<Value: RawRepresentable> = RelativeSymbolicElementPointerIntPair<ContextDescriptorWrapper?, Value> where Value.RawValue: FixedWidthInteger
+public typealias RelativeContextPointerIntPair<Value: RawRepresentable> = RelativeSymbolOrElementPointerIntPair<ContextDescriptorWrapper?, Value> where Value.RawValue: FixedWidthInteger

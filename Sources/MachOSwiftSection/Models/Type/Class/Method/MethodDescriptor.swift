@@ -6,7 +6,7 @@ import MachOFoundation
 public struct MethodDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let flags: MethodDescriptorFlags
-        public let implementation: RelativeDirectPointer<UnsolvedSymbol?>
+        public let implementation: RelativeDirectPointer<MachOSymbol?>
     }
     
     public var layout: Layout
@@ -22,7 +22,7 @@ public struct MethodDescriptor: ResolvableLocatableLayoutWrapper {
 @MachOImageAllMembersGenerator
 extension MethodDescriptor {
     //@MachOImageGenerator
-    public func implementationSymbol(in machOFile: MachOFile) throws -> UnsolvedSymbol? {
+    public func implementationSymbol(in machOFile: MachOFile) throws -> MachOSymbol? {
         return try layout.implementation.resolve(from: offset(of: \.implementation), in: machOFile)
     }
 }

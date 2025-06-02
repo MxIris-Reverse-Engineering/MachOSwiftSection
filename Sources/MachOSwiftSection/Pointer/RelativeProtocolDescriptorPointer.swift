@@ -3,8 +3,8 @@ import MachOMacro
 import MachOFoundation
 
 public enum RelativeProtocolDescriptorPointer {
-    case objcPointer(RelativeSymbolicElementPointerIntPair<ObjCProtocolPrefix, Bool>)
-    case swiftPointer(RelativeSymbolicElementPointerIntPair<ProtocolDescriptor, Bool>)
+    case objcPointer(RelativeSymbolOrElementPointerIntPair<ObjCProtocolPrefix, Bool>)
+    case swiftPointer(RelativeSymbolOrElementPointerIntPair<ProtocolDescriptor, Bool>)
 
     public var isObjC: Bool {
         switch self {
@@ -35,7 +35,7 @@ public enum RelativeProtocolDescriptorPointer {
     }
 
     @MachOImageGenerator
-    public func resolve(from offset: Int, in machOFile: MachOFile) throws -> SymbolicElement<ProtocolDescriptorWithObjCInterop> {
+    public func resolve(from offset: Int, in machOFile: MachOFile) throws -> SymbolOrElement<ProtocolDescriptorWithObjCInterop> {
         switch self {
         case .objcPointer(let relativeIndirectablePointerIntPair):
             return try relativeIndirectablePointerIntPair.resolve(from: offset, in: machOFile).map { .objc($0) }

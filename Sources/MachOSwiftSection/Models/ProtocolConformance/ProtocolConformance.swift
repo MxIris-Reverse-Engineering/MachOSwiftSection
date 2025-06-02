@@ -20,7 +20,7 @@ import MachOFoundation
 public struct ProtocolConformance {
     public let descriptor: ProtocolConformanceDescriptor
 
-    public let `protocol`: SymbolicElement<ProtocolDescriptor>?
+    public let `protocol`: SymbolOrElement<ProtocolDescriptor>?
 
     public let typeReference: ResolvedTypeReference
 
@@ -28,7 +28,7 @@ public struct ProtocolConformance {
 
     public var flags: ProtocolConformanceFlags { descriptor.flags }
 
-    public let retroactiveContextDescriptor: SymbolicElement<ContextDescriptorWrapper>?
+    public let retroactiveContextDescriptor: SymbolOrElement<ContextDescriptorWrapper>?
 
     public let conditionalRequirements: [GenericRequirementDescriptor]
 

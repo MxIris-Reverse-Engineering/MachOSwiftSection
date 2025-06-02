@@ -60,7 +60,7 @@ public struct MangledName {
         self.endOffset = endOffset
     }
 
-    init(unsolvedSymbol: UnsolvedSymbol) {
+    init(unsolvedSymbol: MachOSymbol) {
         self.init(elements: [.string(unsolvedSymbol.stringValue)], startOffset: unsolvedSymbol.offset, endOffset: nil)
     }
 
