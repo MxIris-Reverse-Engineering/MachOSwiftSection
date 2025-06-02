@@ -13,7 +13,17 @@ protocol MachOOffsetConverter {
 
 extension MachOFile: MachOOffsetConverter {
     func offset(of address: UInt64) -> Int {
-        fileOffset(of: address).cast()
+        if let cache, let offset = cache.fileOffset(of: address) {
+            return offset.cast()
+        } else {
+            return fileOffset(of: address).cast()
+        }
+    }
+}
+
+extension MachOImage: MachOOffsetConverter {
+    func offset(of address: UInt64) -> Int {
+        numericCast(address - ptr.uint.cast())
     }
 }
 
@@ -27,11 +37,21 @@ extension MachOFile: MachODataSectionProvider {
     }
 }
 
+extension MachOImage: MachODataSectionProvider {
+    var dataConst: (any SectionProtocol)? {
+        return loadCommands.dataConst64?._section(for: "__const", in: self)
+    }
+
+    var data: (any SectionProtocol)? {
+        return loadCommands.data64?._section(for: "__data", in: self)
+    }
+}
+
 protocol TypeMetadataProtocol: MetadataProtocol {
     static var descriptorOffset: Int { get }
 }
 
-class MetadataFinder<MachO: MachOReadable & MachODataSectionProvider & MachOOffsetConverter> {
+class MetadataFinder<MachO: MachORepresentable & MachOReadable & MachODataSectionProvider & MachOOffsetConverter> {
     let machO: MachO
 
     private var metadataOffsetByDescriptorOffset: [Int: Int] = [:]

@@ -94,3 +94,11 @@ extension GenericRequirementDescriptor {
         }
     }
 }
+
+extension OptionSet {
+    func removing(_ element: Element) -> Self {
+        var copy = self
+        copy.remove(element)
+        return copy
+    }
+}

@@ -1,4 +1,5 @@
-import Foundation
+import MachOKit
+import MachOMacro
 import MachOFoundation
 
 public struct StructMetadata: TypeMetadataProtocol {
@@ -17,4 +18,14 @@ public struct StructMetadata: TypeMetadataProtocol {
     }
     
     public static var descriptorOffset: Int { Layout.offset(of: .descriptor) }
+}
+
+@MachOImageAllMembersGenerator
+extension StructMetadata {
+    public func fieldOffsets(for descriptor: StructDescriptor? = nil, in machOFile: MachOFile) throws -> [UInt32] {
+        let descriptor = try descriptor ?? layout.descriptor.resolve(in: machOFile)
+        guard descriptor.fieldOffsetVector != .zero else { return [] }
+        let offset = offset + descriptor.fieldOffsetVector.cast() * MemoryLayout<StoredPointer>.size
+        return try machOFile.readElements(offset: offset, numberOfElements: descriptor.numFields.cast())
+    }
 }

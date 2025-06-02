@@ -189,12 +189,17 @@ extension SwiftDumpTests {
                     try print(enumType.dump(using: printOptions, in: machO))
                 case .struct(let structDescriptor):
                     let structType = try Struct(descriptor: structDescriptor, in: machO)
-//                    try print(metadataFinder.metadata(for: structDescriptor) as StructMetadata?)
                     try print(structType.dump(using: printOptions, in: machO))
+//                    if let metadata = try metadataFinder.metadata(for: structDescriptor) as StructMetadata? {
+//                        print(try metadata.fieldOffsets(for: structDescriptor, in: machO))
+//                    }
                 case .class(let classDescriptor):
                     let classType = try Class(descriptor: classDescriptor, in: machO)
                     try print(classType.dump(using: printOptions, in: machO))
 //                    try print(metadataFinder.metadata(for: classDescriptor) as ClassMetadataObjCInterop?)
+//                    if let metadata = try metadataFinder.metadata(for: classDescriptor) as ClassMetadataObjCInterop? {
+//                        print(try metadata.fieldOffsets(for: classDescriptor, in: machO))
+//                    }
                 }
 //                print("")
             case .protocol /* (let protocolDescriptor) */:
