@@ -34,32 +34,33 @@ let machO //` MachOFile` or `MachOImage`
 // Protocol Descriptors
 let protocolDescriptors = machO.swift.protocolDescriptors ?? []
 for protocolDescriptor in protocolDescriptors {
-    try print(Protocol(descriptor: protocolDescriptor, in: machO))
+    let protocolType = try Protocol(descriptor: protocolDescriptor, in: machO)
+    // do somethings ...
 }
 
 // Protocol Conformance Descriptors
 let protocolConformanceDescriptors = machO.swift.protocolConformanceDescriptors ?? []
-for (index, protocolConformanceDescriptor) in protocolConformanceDescriptors.enumerated() {
-    print(index)
-    try print(ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO))
+for protocolConformanceDescriptor in protocolConformanceDescriptors {
+    let protocolConformance = try ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO)
+    // do somethings ...
 }
 
 // Type/Nominal Descriptors
 let typeContextDescriptors = machO.swift.typesContextDescriptors ?? []
 for typeContextDescriptor in typeContextDescriptors {
-    switch typeContextDescriptor.flags.kind {
-    case .enum:
-        let enumDescriptor = try typeContextDescriptor.enumDescriptor(in: machO)!
-        let enumType = try Enum(descriptor: enumDescriptor, in: machO)
-        try print(enumType.dump(using: .default, in: machO))
-    case .struct:
-        let structDescriptor = try typeContextDescriptor.structDescriptor(in: machO)!
-        let structType = try Struct(descriptor: structDescriptor, in: machO)
-        try print(structType.dump(using: .default, in: machO))
-    case .class:
-        let classDescriptor = try typeContextDescriptor.classDescriptor(in: machO)!
-        let classType = try Class(descriptor: classDescriptor, in: machO)
-        try print(classType.dump(using: .default, in: machO))
+    switch typeContextDescriptor {
+    case .type(let typeContextDescriptorWrapper):
+        switch typeContextDescriptorWrapper {
+        case .enum(let enumDescriptor):
+            let enumType = try Enum(descriptor: enumDescriptor, in: machO)
+            // do somethings ...
+        case .struct(let structDescriptor):
+            let structType = try Struct(descriptor: structDescriptor, in: machO)
+            // do somethings ...
+        case .class(let classDescriptor):
+            let classType = try Class(descriptor: classDescriptor, in: machO)
+            // do somethings ...
+        }
     default:
         break
     }
@@ -70,12 +71,34 @@ for typeContextDescriptor in typeContextDescriptors {
 
 Swift Interface definitions can be dump from Enum/Struct/Class/Protocol/ProtocolConformance/AssociatedType model
 
+First, you need to import `SwiftDump` module.
+
 Options can customize the print content, such as using syntactic sugar types or strip the ObjC Module.
 
 ```swift
-let enumDescriptor = try typeContextDescriptor.enumDescriptor(in: machO)!
-let enumType = try Enum(descriptor: enumDescriptor, in: machO)
-try print(enumType.dump(using: .default, in: machO))
+import MachOKit
+import MachOSwiftSection
+import SwiftDump
+
+let typeContextDescriptors = machO.swift.typesContextDescriptors ?? []
+for typeContextDescriptor in typeContextDescriptors {
+    switch typeContextDescriptor {
+    case .type(let typeContextDescriptorWrapper):
+        switch typeContextDescriptorWrapper {
+        case .enum(let enumDescriptor):
+            let enumType = try Enum(descriptor: enumDescriptor, in: machO)
+            try print(enumType.dump(using: printOptions, in: machO))
+        case .struct(let structDescriptor):
+            let structType = try Struct(descriptor: structDescriptor, in: machO)
+            try print(structType.dump(using: printOptions, in: machO))
+        case .class(let classDescriptor):
+            let classType = try Class(descriptor: classDescriptor, in: machO)
+            try print(classType.dump(using: printOptions, in: machO))
+        }
+    default:
+        break
+    }
+}
 ```
 
 <details>
