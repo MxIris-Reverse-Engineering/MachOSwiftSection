@@ -1,9 +1,10 @@
 import Foundation
+import MachOFoundation
 
-public struct EnumDescriptor: LocatableLayoutWrapper, TypeContextDescriptorProtocol {
+public struct EnumDescriptor: TypeContextDescriptorProtocol {
     public struct Layout: EnumDescriptorLayout {
         public let flags: ContextDescriptorFlags
-        public let parent: RelativeContextPointer<ContextDescriptorWrapper?>
+        public let parent: RelativeContextPointer
         public let name: RelativeDirectPointer<String>
         public let accessFunctionPtr: RelativeOffset
         public let fieldDescriptor: RelativeDirectPointer<FieldDescriptor>

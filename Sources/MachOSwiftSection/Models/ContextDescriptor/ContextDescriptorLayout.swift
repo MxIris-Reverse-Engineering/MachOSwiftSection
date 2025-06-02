@@ -1,8 +1,9 @@
 import Foundation
-import MachOSwiftSectionMacro
+import MachOMacro
+import MachOFoundation
 
 @Layout
 public protocol ContextDescriptorLayout {
     var flags: ContextDescriptorFlags { get }
-    var parent: RelativeContextPointer<ContextDescriptorWrapper?> { get }
+    var parent: RelativeContextPointer { get }
 }

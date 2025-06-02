@@ -1,8 +1,9 @@
 import Foundation
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOMacro
+import MachOFoundation
 
-public struct RelativeObjCProtocolPrefix: LocatableLayoutWrapper {
+public struct RelativeObjCProtocolPrefix: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let isa: RelativeDirectRawPointer
         public let mangledName: RelativeDirectPointer<MangledName>

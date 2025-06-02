@@ -1,10 +1,11 @@
 import Foundation
 import MachOKit
+import MachOFoundation
 
-public struct StructDescriptor: LocatableLayoutWrapper, TypeContextDescriptorProtocol {
+public struct StructDescriptor: TypeContextDescriptorProtocol {
     public struct Layout: StructDescriptorLayout {
         public let flags: ContextDescriptorFlags
-        public let parent: RelativeContextPointer<ContextDescriptorWrapper?>
+        public let parent: RelativeContextPointer
         public let name: RelativeDirectPointer<String>
         public let accessFunctionPtr: RelativeOffset
         public let fieldDescriptor: RelativeDirectPointer<FieldDescriptor>

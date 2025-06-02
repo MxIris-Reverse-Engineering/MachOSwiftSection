@@ -1,6 +1,6 @@
-public struct GenericPackShapeDescriptor: LocatableLayoutWrapper {
+public struct GenericPackShapeDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout {
-        public let kind: GenericPackKind
+        public let kind: UInt16
         public let index: UInt16
         public let shapeClass: UInt16
         public let unused: UInt16

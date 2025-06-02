@@ -1,11 +1,11 @@
-import Foundation
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOMacro
+import MachOFoundation
 
-public struct ProtocolRequirement: LocatableLayoutWrapper, Resolvable {
+public struct ProtocolRequirement: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let flags: ProtocolRequirementFlags
-        public let defaultImplementation: RelativeDirectPointer<UnsolvedSymbol?>
+        public let defaultImplementation: RelativeDirectPointer<MachOSymbol?>
     }
 
     public let offset: Int
@@ -20,7 +20,7 @@ public struct ProtocolRequirement: LocatableLayoutWrapper, Resolvable {
 
 @MachOImageAllMembersGenerator
 extension ProtocolRequirement {
-    public func defaultImplementationSymbol(in machOFile: MachOFile) throws -> UnsolvedSymbol? {
+    public func defaultImplementationSymbol(in machOFile: MachOFile) throws -> MachOSymbol? {
         guard layout.defaultImplementation.isValid else { return nil }
         return try layout.defaultImplementation.resolve(from: offset(of: \.defaultImplementation), in: machOFile)
     }

@@ -1,7 +1,7 @@
 import Foundation
 import MachOKit
 
-public protocol GenericContextDescriptorHeaderProtocol: LocatableLayoutWrapper where Layout: GenericContextDescriptorHeaderLayout {}
+public protocol GenericContextDescriptorHeaderProtocol: ResolvableLocatableLayoutWrapper where Layout: GenericContextDescriptorHeaderLayout {}
 
 public protocol GenericContextDescriptorHeaderLayout {
     var numParams: UInt16 { get }

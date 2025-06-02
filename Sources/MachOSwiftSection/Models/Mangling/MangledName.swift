@@ -1,6 +1,7 @@
-import MachOKit
 import Foundation
-import MachOSwiftSectionMacro
+import MachOKit
+import MachOFoundation
+import MachOMacro
 
 public struct MangledName {
     enum Element {
@@ -59,7 +60,7 @@ public struct MangledName {
         self.endOffset = endOffset
     }
 
-    init(unsolvedSymbol: UnsolvedSymbol) {
+    init(unsolvedSymbol: MachOSymbol) {
         self.init(elements: [.string(unsolvedSymbol.stringValue)], startOffset: unsolvedSymbol.offset, endOffset: nil)
     }
 

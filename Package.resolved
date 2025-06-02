@@ -1,5 +1,5 @@
 {
-  "originHash" : "be5170ca5b51896a250ad39f95a5369cff2eaa6c88c736178a3ee1891f1f59be",
+  "originHash" : "5ff04716ff722fe4bf65c1e124ed976aab3fbf4a2a511fc7c90e2ee2f0d2e423",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -11,12 +11,12 @@
       }
     },
     {
-      "identity" : "machokit",
+      "identity" : "machokit-spm",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/p-x9/MachOKit.git",
+      "location" : "https://github.com/p-x9/MachOKit-SPM",
       "state" : {
-        "branch" : "main",
-        "revision" : "064dd49dda8ceeeae5857782bcd5037e34fc2e19"
+        "revision" : "c1990f779773ea3430016b2e549ca0e3dd97f164",
+        "version" : "0.34.0"
       }
     },
     {

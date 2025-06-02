@@ -1,8 +1,8 @@
 import Foundation
 
-public struct GenericValueDescriptor: LocatableLayoutWrapper {
+public struct GenericValueDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout {
-        public let type: GenericValueType
+        public let type: UInt32
     }
 
     public let offset: Int

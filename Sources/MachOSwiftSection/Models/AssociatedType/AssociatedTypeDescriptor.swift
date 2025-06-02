@@ -1,8 +1,9 @@
 import Foundation
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOFoundation
+import MachOMacro
 
-public struct AssociatedTypeDescriptor: LocatableLayoutWrapper {
+public struct AssociatedTypeDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let conformingTypeName: RelativeDirectPointer<MangledName>
         public let protocolTypeName: RelativeDirectPointer<MangledName>

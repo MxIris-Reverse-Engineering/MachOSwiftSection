@@ -1,3 +1,5 @@
+import MachOFoundation
+
 public struct TypeGenericContextDescriptorHeader: GenericContextDescriptorHeaderProtocol {
     public struct Layout: GenericContextDescriptorHeaderLayout {
         public let instantiationCache: RelativeOffset

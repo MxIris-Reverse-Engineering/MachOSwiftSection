@@ -1,8 +1,9 @@
 import Foundation
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOFoundation
+import MachOMacro
 
-public struct GenericRequirementDescriptor: LocatableLayoutWrapper {
+public struct GenericRequirementDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let flags: GenericRequirementFlags
         public let param: RelativeDirectPointer<MangledName>
@@ -19,72 +20,20 @@ public struct GenericRequirementDescriptor: LocatableLayoutWrapper {
     }
 }
 
-extension GenericRequirementDescriptor: Dumpable {
-    @MachOImageGenerator
-    @StringBuilder
-    public func dump(using options: SymbolPrintOptions, in machOFile: MachOFile) throws -> String {
-        try MetadataReader.demangleType(for: try paramManagedName(in: machOFile), in: machOFile, using: options)
-        if layout.flags.kind == .sameType {
-            " == "
-        } else {
-            ": "
-        }
-        switch try resolvedContent(in: machOFile) {
-        case .type(let mangledName):
-            try MetadataReader.demangleType(for: mangledName, in: machOFile, using: options)
-        case .protocol(let resolvableElement):
-            switch resolvableElement {
-            case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile, using: options)
-            case .element(let element):
-                switch element {
-                case .objc(let objc):
-                    try objc.mangledName(in: machOFile)
-                case .swift(let protocolDescriptor):
-                    try protocolDescriptor.fullname(in: machOFile)
-                }
-            }
-        case .layout(let genericRequirementLayoutKind):
-            switch genericRequirementLayoutKind {
-            case .class:
-                "AnyObject"
-            }
-        case .conformance/*(let protocolConformanceDescriptor)*/:
-            ""
-        case .invertedProtocols(let invertedProtocols):
-            if invertedProtocols.protocols.hasCopyable, invertedProtocols.protocols.hasEscapable {
-                "Copyable, Escapable"
-            } else if invertedProtocols.protocols.hasCopyable || invertedProtocols.protocols.hasEscapable {
-                if invertedProtocols.protocols.hasCopyable {
-                    "Copyable"
-                } else {
-                    "~Copyable"
-                }
-                if invertedProtocols.protocols.hasEscapable {
-                    "Escapable"
-                } else {
-                    "~Escapable"
-                }
-            } else {
-                "~Copyable, ~Escapable"
-            }
-        }
-    }
-}
 
 @MachOImageAllMembersGenerator
 extension GenericRequirementDescriptor {
     //@MachOImageGenerator
-    func paramManagedName(in machOFile: MachOFile) throws -> MangledName {
+    public func paramManagedName(in machOFile: MachOFile) throws -> MangledName {
         return try layout.param.resolve(from: offset(of: \.param), in: machOFile)
     }
 
     //@MachOImageGenerator
-    func type(in machOFile: MachOFile) throws -> MangledName {
+    public func type(in machOFile: MachOFile) throws -> MangledName {
         return try RelativeDirectPointer<MangledName>(relativeOffset: layout.content).resolve(from: offset(of: \.content), in: machOFile)
     }
 
-    var content: GenericRequirementContent {
+    public var content: GenericRequirementContent {
         switch layout.flags.kind {
         case .protocol:
             let ptr = RelativeIndirectableRawPointerIntPair<Bool>(relativeOffsetPlusIndirectAndInt: layout.content)
@@ -110,7 +59,7 @@ extension GenericRequirementDescriptor {
     }
 
     //@MachOImageGenerator
-    func resolvedContent(in machOFile: MachOFile) throws -> ResolvedGenericRequirementContent {
+    public func resolvedContent(in machOFile: MachOFile) throws -> ResolvedGenericRequirementContent {
         let offset = offset(of: \.content)
         switch content {
         case .type(let relativeDirectPointer):

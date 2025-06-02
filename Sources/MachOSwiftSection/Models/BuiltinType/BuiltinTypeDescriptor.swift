@@ -1,6 +1,7 @@
 import Foundation
+import MachOFoundation
 
-public struct BuiltinTypeDescriptor: LocatableLayoutWrapper {
+public struct BuiltinTypeDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let typeName: RelativeDirectPointer<MangledName?>
         public let size: UInt32

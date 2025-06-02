@@ -1,8 +1,9 @@
 import Foundation
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOFoundation
+import MachOMacro
 
-public struct ExtendedExistentialTypeShape: LocatableLayoutWrapper, Resolvable {
+public struct ExtendedExistentialTypeShape: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let flags: ExtendedExistentialTypeShapeFlags
         public let existentialType: RelativeDirectPointer<MangledName>

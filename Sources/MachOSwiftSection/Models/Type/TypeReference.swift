@@ -1,14 +1,14 @@
 import MachOKit
-import Foundation
-import MachOSwiftSectionMacro
+import MachOMacro
+import MachOFoundation
 
 public enum TypeReference {
     case directTypeDescriptor(RelativeDirectPointer<ContextDescriptorWrapper?>)
-    case indirectTypeDescriptor(RelativeDirectPointer<SignedContextPointer<ContextDescriptorWrapper?>>)
+    case indirectTypeDescriptor(RelativeDirectPointer<ContextPointer>)
     case directObjCClassName(RelativeDirectPointer<String?>)
-    case indirectObjCClass(RelativeDirectPointer<SignedResolvableElementPointer<ClassMetadataObjCInterop?>>)
+    case indirectObjCClass(RelativeDirectPointer<SymbolOrElementPointer<ClassMetadataObjCInterop?>>)
 
-    static func forKind(_ kind: TypeReferenceKind, at relativeOffset: RelativeOffset) -> TypeReference {
+    public static func forKind(_ kind: TypeReferenceKind, at relativeOffset: RelativeOffset) -> TypeReference {
         switch kind {
         case .directTypeDescriptor:
             return .directTypeDescriptor(.init(relativeOffset: relativeOffset))
@@ -23,7 +23,7 @@ public enum TypeReference {
 
     
     @MachOImageGenerator
-    func resolve(at fileOffset: Int, in machOFile: MachOFile) throws -> ResolvedTypeReference {
+    public func resolve(at fileOffset: Int, in machOFile: MachOFile) throws -> ResolvedTypeReference {
         switch self {
         case let .directTypeDescriptor(relativeDirectPointer):
             return try .directTypeDescriptor(relativeDirectPointer.resolve(from: fileOffset, in: machOFile))
@@ -39,7 +39,7 @@ public enum TypeReference {
 
 public enum ResolvedTypeReference {
     case directTypeDescriptor(ContextDescriptorWrapper?)
-    case indirectTypeDescriptor(ResolvableElement<ContextDescriptorWrapper>?)
+    case indirectTypeDescriptor(SymbolOrElement<ContextDescriptorWrapper>?)
     case directObjCClassName(String?)
-    case indirectObjCClass(ResolvableElement<ClassMetadataObjCInterop>?)
+    case indirectObjCClass(SymbolOrElement<ClassMetadataObjCInterop>?)
 }

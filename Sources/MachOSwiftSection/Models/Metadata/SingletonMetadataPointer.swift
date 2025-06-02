@@ -1,4 +1,6 @@
-public struct SingletonMetadataPointer: LocatableLayoutWrapper {
+import MachOFoundation
+
+public struct SingletonMetadataPointer: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         let metadata: RelativeDirectPointer<Metadata>
     }

@@ -1,10 +1,11 @@
 import Foundation
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOMacro
+import MachOFoundation
 
-public struct ProtocolConformanceDescriptor: LocatableLayoutWrapper {
+public struct ProtocolConformanceDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout {
-        public let protocolDescriptor: RelativeContextPointer<ProtocolDescriptor?>
+        public let protocolDescriptor: RelativeSymbolOrElementPointer<ProtocolDescriptor?>
         public let typeReference: RelativeOffset
         public let witnessTablePattern: RelativeDirectPointer<ProtocolWitnessTable>
         public let flags: ProtocolConformanceFlags
@@ -22,7 +23,7 @@ public struct ProtocolConformanceDescriptor: LocatableLayoutWrapper {
 
 @MachOImageAllMembersGenerator
 extension ProtocolConformanceDescriptor {
-    public func protocolDescriptor(in machOFile: MachOFile) throws -> ResolvableElement<ProtocolDescriptor>? {
+    public func protocolDescriptor(in machOFile: MachOFile) throws -> SymbolOrElement<ProtocolDescriptor>? {
         try layout.protocolDescriptor.resolve(from: offset(of: \.protocolDescriptor), in: machOFile).asOptional
     }
 

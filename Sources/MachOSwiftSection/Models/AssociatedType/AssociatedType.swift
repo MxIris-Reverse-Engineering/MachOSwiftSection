@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOMacro
 
 public struct AssociatedType {
     public let descriptor: AssociatedTypeDescriptor
@@ -20,23 +20,3 @@ public struct AssociatedType {
     }
 }
 
-extension AssociatedType: Dumpable {
-    @MachOImageGenerator
-    @StringBuilder
-    public func dump(using options: SymbolPrintOptions, in machOFile: MachOFile) throws -> String {
-        try "extension \(MetadataReader.demangleSymbol(for: conformingTypeName, in: machOFile, using: options)): \(MetadataReader.demangleSymbol(for: protocolTypeName, in: machOFile, using: options)) {"
-        for (offset, record) in records.offsetEnumerated() {
-            BreakLine()
-
-            Indent(level: 1)
-
-            try "typealias \(record.name(in: machOFile)) = \(MetadataReader.demangleSymbol(for: record.substitutedTypeName(in: machOFile), in: machOFile, using: options))"
-
-            if offset.isEnd {
-                BreakLine()
-            }
-        }
-
-        "}"
-    }
-}

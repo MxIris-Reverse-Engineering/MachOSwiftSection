@@ -4,7 +4,7 @@
 import PackageDescription
 import CompilerPluginSupport
 
-let useSPMPrebuildVersion = false
+let useSPMPrebuildVersion = true
 
 extension Package.Dependency {
     static let MachOKit: Package.Dependency = {
@@ -17,15 +17,13 @@ extension Package.Dependency {
 
     static let MachOKitMain = Package.Dependency.package(
         url: "https://github.com/p-x9/MachOKit.git",
-        branch: "main"
+        from: "0.34.0"
     )
+
     static let MachOKitSPM = Package.Dependency.package(
         url: "https://github.com/p-x9/MachOKit-SPM",
-        from: "0.33.0"
+        from: "0.34.0"
     )
-//    static let MachOKitSPM = Package.Dependency.package(
-//        path: "/Volumes/Repositories/Private/Fork/Library/MachOKit-SPM"
-//    )
 }
 
 extension Target.Dependency {
@@ -75,30 +73,85 @@ let package = Package(
             name: "MachOSwiftSection",
             targets: ["MachOSwiftSection"]
         ),
+        .library(
+            name: "SwiftDump",
+            targets: ["SwiftDump"]
+        ),
     ],
     dependencies: [
         .MachOKit,
         .package(url: "https://github.com/swiftlang/swift-syntax", from: "601.0.1"),
         .package(url: "https://github.com/MxIris-Library-Forks/AssociatedObject", branch: "main"),
+        .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
     ],
     targets: [
         .target(
-            name: "MachOSwiftSection",
+            name: "Demangle"
+        ),
+
+        .target(
+            name: "MachOExtensions",
             dependencies: [
-                "Demangling",
-                "MachOSwiftSectionMacro",
                 .MachOKit,
+            ]
+        ),
+
+        .target(
+            name: "MachOReading",
+            dependencies: [
+                .MachOKit,
+                "MachOMacro",
+                "MachOExtensions",
+                .product(name: "FileIO", package: "swift-fileio"),
                 .product(name: "AssociatedObject", package: "AssociatedObject"),
             ]
         ),
         .target(
-            name: "MachOSwiftSectionMacro",
+            name: "MachOPointer",
             dependencies: [
-                "MachOSwiftSectionMacroPlugin",
+                .MachOKit,
+                "MachOReading",
+                "MachOMacro",
             ]
         ),
+        .target(
+            name: "MachOFoundation",
+            dependencies: [
+                .MachOKit,
+                "MachOReading",
+                "MachOExtensions",
+                "MachOMacro",
+                "MachOPointer"
+            ]
+        ),
+        
+        .target(
+            name: "MachOSwiftSection",
+            dependencies: [
+                "Demangle",
+                "MachOFoundation",
+                "MachOMacro",
+                .MachOKit,
+                .product(name: "AssociatedObject", package: "AssociatedObject"),
+            ]
+        ),
+
+        .target(
+            name: "SwiftDump",
+            dependencies: [
+                "MachOSwiftSection",
+            ]
+        ),
+
+        .target(
+            name: "MachOMacro",
+            dependencies: [
+                "MachOMacroPlugin",
+            ]
+        ),
+
         .macro(
-            name: "MachOSwiftSectionMacroPlugin",
+            name: "MachOMacroPlugin",
             dependencies: [
                 .SwiftSyntax,
                 .SwiftSyntaxMacros,
@@ -106,19 +159,25 @@ let package = Package(
                 .SwiftSyntaxBuilder,
             ]
         ),
-        .target(
-            name: "Demangling"
-        ),
+
         .testTarget(
             name: "MachOSwiftSectionTests",
             dependencies: [
                 "MachOSwiftSection",
             ]
         ),
+
         .testTarget(
-            name: "DemanglingTests",
+            name: "DemangleTests",
             dependencies: [
-                "Demangling",
+                "Demangle",
+            ]
+        ),
+
+        .testTarget(
+            name: "SwiftDumpTests",
+            dependencies: [
+                "SwiftDump",
             ]
         ),
     ]

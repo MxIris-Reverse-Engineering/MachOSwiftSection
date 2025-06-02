@@ -1,5 +1,5 @@
-import Foundation
-import MachOSwiftSectionMacro
+import MachOMacro
+import MachOFoundation
 
 @Layout
 public protocol TypeContextDescriptorLayout: NamedContextDescriptorLayout {

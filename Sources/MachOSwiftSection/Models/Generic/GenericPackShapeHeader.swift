@@ -1,4 +1,4 @@
-public struct GenericPackShapeHeader: LocatableLayoutWrapper {
+public struct GenericPackShapeHeader: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let numPacks: UInt16
         public let numShapeClasses: UInt16

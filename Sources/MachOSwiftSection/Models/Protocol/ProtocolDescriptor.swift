@@ -1,6 +1,7 @@
 import Foundation
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOMacro
+import MachOFoundation
 
 /// A protocol descriptor.
 ///
@@ -11,10 +12,10 @@ import MachOSwiftSectionMacro
 /// Only Swift protocols are defined by a protocol descriptor, whereas
 /// Objective-C (including protocols defined in Swift as @objc) use the
 /// Objective-C protocol layout.
-public struct ProtocolDescriptor: ProtocolDescriptorProtocol, Resolvable {
+public struct ProtocolDescriptor: ProtocolDescriptorProtocol {
     public struct Layout: ProtocolDescriptorLayout {
         public let flags: ContextDescriptorFlags
-        public let parent: RelativeContextPointer<ContextDescriptorWrapper?>
+        public let parent: RelativeContextPointer
         public var name: RelativeDirectPointer<String>
         public var numRequirementsInSignature: UInt32
         public var numRequirements: UInt32

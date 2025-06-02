@@ -1,11 +1,12 @@
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOFoundation
+import MachOMacro
 
-public protocol ContextDescriptorProtocol: LocatableLayoutWrapper where Layout: ContextDescriptorLayout {}
+public protocol ContextDescriptorProtocol: ResolvableLocatableLayoutWrapper where Layout: ContextDescriptorLayout {}
 
 @MachOImageAllMembersGenerator
 extension ContextDescriptorProtocol {
-    public func parent(in machOFile: MachOFile) throws -> ResolvableElement<ContextDescriptorWrapper>? {
+    public func parent(in machOFile: MachOFile) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
         guard layout.flags.kind != .module else { return nil }
         return try layout.parent.resolve(from: offset + layout.offset(of: .parent), in: machOFile).asOptional
     }

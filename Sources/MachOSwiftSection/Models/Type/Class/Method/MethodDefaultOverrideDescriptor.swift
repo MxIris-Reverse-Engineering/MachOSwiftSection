@@ -1,12 +1,13 @@
 import Foundation
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOMacro
+import MachOFoundation
 
-public struct MethodDefaultOverrideDescriptor: LocatableLayoutWrapper {
+public struct MethodDefaultOverrideDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let replacement: RelativeMethodDescriptorPointer
         public let original: RelativeMethodDescriptorPointer
-        public let implementation: RelativeDirectPointer<UnsolvedSymbol?>
+        public let implementation: RelativeDirectPointer<MachOSymbol?>
     }
     
     public var layout: Layout
@@ -22,7 +23,7 @@ public struct MethodDefaultOverrideDescriptor: LocatableLayoutWrapper {
 @MachOImageAllMembersGenerator
 extension MethodDefaultOverrideDescriptor {
     //@MachOImageGenerator
-    public func implementationSymbol(in machOFile: MachOFile) throws -> UnsolvedSymbol? {
+    public func implementationSymbol(in machOFile: MachOFile) throws -> MachOSymbol? {
         return try layout.implementation.resolve(from: offset(of: \.implementation), in: machOFile)
     }
 }

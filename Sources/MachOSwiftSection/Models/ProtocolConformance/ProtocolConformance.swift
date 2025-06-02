@@ -1,6 +1,7 @@
 import Foundation
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOMacro
+import MachOFoundation
 
 // using TrailingObjects = swift::ABI::TrailingObjects<
 //                           TargetProtocolConformanceDescriptor<Runtime>,
@@ -19,7 +20,7 @@ import MachOSwiftSectionMacro
 public struct ProtocolConformance {
     public let descriptor: ProtocolConformanceDescriptor
 
-    public let `protocol`: ResolvableElement<ProtocolDescriptor>?
+    public let `protocol`: SymbolOrElement<ProtocolDescriptor>?
 
     public let typeReference: ResolvedTypeReference
 
@@ -27,7 +28,7 @@ public struct ProtocolConformance {
 
     public var flags: ProtocolConformanceFlags { descriptor.flags }
 
-    public let retroactiveContextDescriptor: ResolvableElement<ContextDescriptorWrapper>?
+    public let retroactiveContextDescriptor: SymbolOrElement<ContextDescriptorWrapper>?
 
     public let conditionalRequirements: [GenericRequirementDescriptor]
 
@@ -54,7 +55,7 @@ public struct ProtocolConformance {
         var currentOffset = descriptor.offset + descriptor.layoutSize
 
         if descriptor.flags.isRetroactive {
-            let retroactiveContextPointer: RelativeContextPointer<ContextDescriptorWrapper?> = try machOFile.readElement(offset: currentOffset)
+            let retroactiveContextPointer: RelativeContextPointer = try machOFile.readElement(offset: currentOffset)
             self.retroactiveContextDescriptor = try retroactiveContextPointer.resolve(from: currentOffset, in: machOFile).asOptional
             currentOffset.offset(of: RelativeIndirectablePointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>>.self)
         } else {
@@ -69,10 +70,11 @@ public struct ProtocolConformance {
         }
 
         if descriptor.flags.numConditionalPackShapeDescriptors > 0 {
-            self.conditionalPackShapeHeader = try machOFile.readElement(offset: currentOffset)
+            let header: GenericPackShapeHeader = try machOFile.readElement(offset: currentOffset)
+            self.conditionalPackShapeHeader = header
             currentOffset.offset(of: GenericPackShapeHeader.self)
-            self.conditionalPackShapeDescriptors = try machOFile.readElements(offset: currentOffset, numberOfElements: descriptor.flags.numConditionalPackShapeDescriptors.cast())
-            currentOffset.offset(of: GenericPackShapeDescriptor.self, numbersOfElements: descriptor.flags.numConditionalPackShapeDescriptors.cast())
+            self.conditionalPackShapeDescriptors = try machOFile.readWrapperElements(offset: currentOffset, numberOfElements: header.numPacks.cast())
+            currentOffset.offset(of: GenericPackShapeDescriptor.self, numbersOfElements: header.numPacks.cast())
         } else {
             self.conditionalPackShapeHeader = nil
             self.conditionalPackShapeDescriptors = []
@@ -95,79 +97,6 @@ public struct ProtocolConformance {
             currentOffset.offset(of: GenericWitnessTable.self)
         } else {
             self.genericWitnessTable = nil
-        }
-    }
-}
-
-extension ProtocolConformance: Dumpable {
-
-    @MachOImageGenerator
-    @StringBuilder
-    public func dump(using options: SymbolPrintOptions, in machOFile: MachOFile) throws -> String {
-        "extension "
-        switch typeReference {
-        case .directTypeDescriptor(let descriptor):
-            try descriptor.flatMap { try $0.namedContextDescriptor?.fullname(in: machOFile) }.valueOrEmpty
-        case .indirectTypeDescriptor(let descriptor):
-            switch descriptor {
-            case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile, using: options)
-            case .element(let element):
-                try element.namedContextDescriptor.map { try $0.fullname(in: machOFile) }.valueOrEmpty
-            case nil:
-                ""
-            }
-        case .directObjCClassName(let objcClassName):
-            objcClassName.valueOrEmpty
-        case .indirectObjCClass(let objcClass):
-            switch objcClass {
-            case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile, using: options)
-            case .element(let element):
-                try element.description.resolve(in: machOFile).fullname(in: machOFile)
-            case nil:
-                ""
-            }
-            
-        }
-        ": "
-        switch `protocol` {
-        case .symbol(let unsolvedSymbol):
-            try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile, using: options)
-        case .element(let element):
-            try element.fullname(in: machOFile)
-        case .none:
-            ""
-        }
-
-        if !conditionalRequirements.isEmpty {
-            " where "
-        }
-
-        for conditionalRequirement in conditionalRequirements {
-            try conditionalRequirement.dump(using: options, in: machOFile)
-        }
-        
-        if resilientWitnesses.isEmpty {
-            " {}"
-        } else {
-            " {"
-            
-            for resilientWitness in self.resilientWitnesses {
-                "\n"
-                "    "
-                switch try resilientWitness.requirement(in: machOFile) {
-                case .symbol(let unsolvedSymbol):
-                    try MetadataReader.demangleSymbol(for: unsolvedSymbol, in: machOFile, using: options)
-                case .element/*(let element)*/:
-                    ""
-                case .none:
-                    ""
-                }
-            }
-            
-            "\n"
-            "}"
         }
     }
 }

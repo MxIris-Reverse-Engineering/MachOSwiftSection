@@ -1,12 +1,13 @@
 import Foundation
 import MachOKit
-import MachOSwiftSectionMacro
+import MachOFoundation
+import MachOMacro
 
-public struct FieldDescriptor: LocatableLayoutWrapper, Resolvable {
+public struct FieldDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let mangledTypeName: RelativeDirectPointer<MangledName>
         public let superclass: RelativeOffset
-        public let kind: FieldDescriptorKind
+        public let kind: UInt16
         public let fieldRecordSize: UInt16
         public let numFields: UInt32
     }
@@ -23,6 +24,9 @@ public struct FieldDescriptor: LocatableLayoutWrapper, Resolvable {
 
 @MachOImageAllMembersGenerator
 extension FieldDescriptor {
+    
+    public var kind: FieldDescriptorKind { .init(rawValue: layout.kind)! }
+    
     public func mangledTypeName(in machOFile: MachOFile) throws -> MangledName {
         return try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machOFile)
     }

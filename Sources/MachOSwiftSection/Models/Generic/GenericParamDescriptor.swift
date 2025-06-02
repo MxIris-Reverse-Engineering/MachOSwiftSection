@@ -1,4 +1,4 @@
-public struct GenericParamDescriptor: LocatableLayoutWrapper {
+public struct GenericParamDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout {
         public let rawValue: UInt8
     }
