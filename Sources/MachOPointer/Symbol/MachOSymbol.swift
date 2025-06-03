@@ -28,9 +28,9 @@ public struct MachOSymbol: Resolvable {
         if let symbol = machOFile.findSymbol(offset: fileOffset) {
             return symbol
         }
-        if let symbol = machOFile.symbol(for: fileOffset) {
-            return MachOSymbol(offset: symbol.offset, stringValue: symbol.name)
-        }
+//        if let symbol = machOFile.symbol(for: fileOffset) {
+//            return MachOSymbol(offset: symbol.offset, stringValue: symbol.name)
+//        }
         return nil
     }
 }

@@ -3,17 +3,18 @@ import Foundation
 import UniformTypeIdentifiers
 
 enum MachOImageName: String {
+    // MainCache
     case AppKit
-    case UIKit
-    case UIKitCore
     case SwiftUI
     case SwiftUICore
     case AttributeGraph
     case Foundation
-    case CoreFoundation
+    // SubCache
     case CodableSwiftUI
     case AAAFoundationSwift
-
+    case UIKitCore
+    case HomeKit
+    
     var path: String {
         "/\(rawValue)"
     }
@@ -26,6 +27,7 @@ enum MachOFileName: String {
     case iOS_22E238_Simulator_SwiftUICore = "/Library/Developer/CoreSimulator/Volumes/iOS_22E238/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 18.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUICore.framework"
     case SourceEdit = "/Applications/SourceEdit.app"
     case SourceEditor = "/Applications/SourceEdit.app/Contents/Frameworks/SourceEditor.framework"
+    case ControlCenter = "/System/Library/CoreServices/ControlCenter.app"
 }
 
 func loadFromFile(named: MachOFileName) throws -> File {

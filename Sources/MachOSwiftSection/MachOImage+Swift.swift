@@ -47,7 +47,7 @@ extension MachOImage.Swift {
                   let section = text._section(for: swiftMachOSection, in: machOImage) {
             swiftSection = section
         } else {
-            throw MachOSwiftSectionError.sectionNotFound(section: swiftMachOSection)
+            throw MachOSwiftSectionError.sectionNotFound(section: swiftMachOSection, allSectionNames: machOImage.sections.map(\.sectionName))
         }
         guard swiftSection.align * 2 == 4 else {
             

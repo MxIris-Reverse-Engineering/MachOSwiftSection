@@ -41,10 +41,10 @@ struct SwiftDumpTests {
             try #require(subCache.machOFile(named: .UIKitCore))
         }
 
-        self.machOFileInCache = try #require(mainCache.machOFile(named: .Foundation))
+        self.machOFileInCache = try #require(mainCache.machOFile(named: .AttributeGraph))
 
         // File
-        let file = try loadFromFile(named: .Finder)
+        let file = try loadFromFile(named: .ControlCenter)
         switch file {
         case let .fat(fatFile):
             self.machOFile = try #require(fatFile.machOFiles().first(where: { $0.header.cpu.type == .x86_64 }))
@@ -59,11 +59,11 @@ struct SwiftDumpTests {
     }
 
     @Test func printCacheFiles() {
-        print("Main Cache")
+        print("******************************[Main Cache]******************************")
         for file in mainCache.machOFiles() {
             print(file.imagePath)
         }
-        print("Sub Cache")
+        print("******************************[Sub Cache]*******************************")
         for file in subCache.machOFiles() {
             print(file.imagePath)
         }

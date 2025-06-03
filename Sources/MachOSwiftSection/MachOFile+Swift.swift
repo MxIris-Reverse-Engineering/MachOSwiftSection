@@ -17,8 +17,17 @@ extension MachOFile {
 }
 
 enum MachOSwiftSectionError: LocalizedError {
-    case sectionNotFound(section: MachOSwiftSectionName)
+    case sectionNotFound(section: MachOSwiftSectionName, allSectionNames: [String])
     case invalidSectionAlignment(section: MachOSwiftSectionName, align: Int)
+    
+    var errorDescription: String? {
+        switch self {
+        case .sectionNotFound(let section, let allSectionNames):
+            return "Swift section \(section.rawValue) not found in Mach-O. Available sections: \(allSectionNames.joined(separator: ", "))"
+        case .invalidSectionAlignment(let section, let align):
+            return "Invalid alignment for Swift section \(section.rawValue). Expected alignment is 4, but found \(align)."
+        }
+    }
 }
 
 extension MachOFile.Swift {
@@ -36,7 +45,7 @@ extension MachOFile.Swift {
 
     public var typeContextDescriptors: [ContextDescriptorWrapper] {
         get throws {
-            return try _readDescriptors(from: .__swift5_types, in: machOFile) + _readDescriptors(from: .__swift5_types2, in: machOFile)
+            return try _readDescriptors(from: .__swift5_types, in: machOFile) + (try? _readDescriptors(from: .__swift5_types2, in: machOFile))
         }
     }
 
@@ -72,7 +81,7 @@ extension MachOFile.Swift {
                   let section = text._section(for: swiftMachOSection, in: machOFile) {
             swiftSection = section
         } else {
-            throw MachOSwiftSectionError.sectionNotFound(section: swiftMachOSection)
+            throw MachOSwiftSectionError.sectionNotFound(section: swiftMachOSection, allSectionNames: machOFile.sections.map(\.sectionName))
         }
         guard swiftSection.align * 2 == 4 else {
             throw MachOSwiftSectionError.invalidSectionAlignment(section: swiftMachOSection, align: swiftSection.align)
@@ -98,8 +107,14 @@ extension MachOFile.Swift {
     }
 }
 
-func + <Element>(lhs: [Element]?, rhs: [Element]?) -> [Element]? {
-    guard let lhs = lhs else { return rhs ?? nil }
-    guard let rhs = rhs else { return lhs }
-    return lhs + rhs
+func + <Element>(lhs: [Element]?, rhs: [Element]?) -> [Element] {
+    (lhs ?? []) + (rhs ?? [])
+}
+
+func + <Element>(lhs: [Element], rhs: [Element]?) -> [Element] {
+    lhs + (rhs ?? [])
+}
+
+func + <Element>(lhs: [Element]?, rhs: [Element]) -> [Element] {
+    (lhs ?? []) + rhs
 }
