@@ -22,7 +22,7 @@ struct SwiftDumpTests {
     let machOImage: MachOImage
 
     let isEnabledSearchMetadata: Bool = false
-    
+
     init() throws {
         // Cache
         let arch = "arm64e"
@@ -38,17 +38,13 @@ struct SwiftDumpTests {
         self.machOFileInSubCache = if #available(macOS 15.5, *) {
             try #require(subCache.machOFile(named: .CodableSwiftUI))
         } else {
-            try #require(subCache.machOFile(named: .AAAFoundationSwift))
+            try #require(subCache.machOFile(named: .UIKitCore))
         }
 
         self.machOFileInCache = try #require(mainCache.machOFile(named: .Foundation))
 
         // File
-//        let path = "/Library/Developer/CoreSimulator/Volumes/iOS_22E238/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 18.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUICore.framework/SwiftUICore"
-        let path = "/System/Applications/iPhone Mirroring.app/Contents/Frameworks/ScreenContinuityUI.framework/Versions/A/ScreenContinuityUI"
-//        let path = "/Applications/SourceEdit.app/Contents/Frameworks/SourceEditor.framework/Versions/A/SourceEditor"
-        let url = URL(fileURLWithPath: path)
-        let file = try MachOKit.loadFromFile(url: url)
+        let file = try loadFromFile(named: .Finder)
         switch file {
         case let .fat(fatFile):
             self.machOFile = try #require(fatFile.machOFiles().first(where: { $0.header.cpu.type == .x86_64 }))
@@ -59,8 +55,7 @@ struct SwiftDumpTests {
         }
 
         // Image
-
-        self.machOImage = try #require(MachOImage(name: "Foundation"))
+        self.machOImage = try #require(MachOImage(named: .Foundation))
     }
 
     @Test func printCacheFiles() {
@@ -197,13 +192,13 @@ extension SwiftDumpTests {
                     let structType = try Struct(descriptor: structDescriptor, in: machO)
                     try print(structType.dump(using: printOptions, in: machO))
                     if let metadata = try metadataFinder?.metadata(for: structDescriptor) as StructMetadata? {
-                        print(try metadata.fieldOffsets(for: structDescriptor, in: machO))
+                        try print(metadata.fieldOffsets(for: structDescriptor, in: machO))
                     }
                 case let .class(classDescriptor):
                     let classType = try Class(descriptor: classDescriptor, in: machO)
                     try print(classType.dump(using: printOptions, in: machO))
                     if let metadata = try metadataFinder?.metadata(for: classDescriptor) as ClassMetadataObjCInterop? {
-                        print(try metadata.fieldOffsets(for: classDescriptor, in: machO))
+                        try print(metadata.fieldOffsets(for: classDescriptor, in: machO))
                     }
                 }
             default:

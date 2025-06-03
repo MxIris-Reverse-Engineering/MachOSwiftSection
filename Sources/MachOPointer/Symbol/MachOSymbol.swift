@@ -23,13 +23,14 @@ public struct MachOSymbol: Resolvable {
         return symbol
     }
 
+    @MachOImageGenerator
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self? {
-        guard let symbol = machOFile.findSymbol(offset: fileOffset) else { return nil }
-        return symbol
-    }
-
-    public static func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> Self? {
-        guard let symbol = machOImage.symbol(for: imageOffset) else { return nil }
-        return .init(offset: symbol.offset, stringValue: symbol.name)
+        if let symbol = machOFile.findSymbol(offset: fileOffset) {
+            return symbol
+        }
+        if let symbol = machOFile.symbol(for: fileOffset) {
+            return MachOSymbol(offset: symbol.offset, stringValue: symbol.name)
+        }
+        return nil
     }
 }
