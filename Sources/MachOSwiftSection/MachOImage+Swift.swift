@@ -17,21 +17,27 @@ extension MachOImage {
 }
 
 extension MachOImage.Swift {
-    public var protocolDescriptors: [ProtocolDescriptor]? {
-        return _readDescriptors(from: .__swift5_protos, in: machOImage)
+    public var protocolDescriptors: [ProtocolDescriptor] {
+        get throws {
+            return try _readDescriptors(from: .__swift5_protos, in: machOImage)
+        }
     }
 
-    public var protocolConformanceDescriptors: [ProtocolConformanceDescriptor]? {
-        return _readDescriptors(from: .__swift5_proto, in: machOImage)
+    public var protocolConformanceDescriptors: [ProtocolConformanceDescriptor] {
+        get throws {
+            return try _readDescriptors(from: .__swift5_proto, in: machOImage)
+        }
     }
 
-    public var typeContextDescriptors: [ContextDescriptorWrapper]? {
-        return _readDescriptors(from: .__swift5_types, in: machOImage) + _readDescriptors(from: .__swift5_types2, in: machOImage)
+    public var typeContextDescriptors: [ContextDescriptorWrapper] {
+        get throws {
+            return try _readDescriptors(from: .__swift5_types, in: machOImage) + _readDescriptors(from: .__swift5_types2, in: machOImage)
+        }
     }
 }
 
 extension MachOImage.Swift {
-    private func _section(for swiftMachOSection: MachOSwiftSectionName, in machOImage: MachOImage) -> (any SectionProtocol)? {
+    private func _section(for swiftMachOSection: MachOSwiftSectionName, in machOImage: MachOImage) throws -> (any SectionProtocol) {
         let loadCommands = machOImage.loadCommands
         let swiftSection: any SectionProtocol
         if let text = loadCommands.text64,
@@ -41,24 +47,23 @@ extension MachOImage.Swift {
                   let section = text._section(for: swiftMachOSection, in: machOImage) {
             swiftSection = section
         } else {
-            return nil
+            throw MachOSwiftSectionError.sectionNotFound(section: swiftMachOSection)
         }
         guard swiftSection.align * 2 == 4 else {
-            return nil
+            
+                throw MachOSwiftSectionError.invalidSectionAlignment(section: swiftMachOSection, align: swiftSection.align)
         }
         return swiftSection
     }
 
-    private func _readDescriptors<Descriptor: Resolvable>(from swiftMachOSection: MachOSwiftSectionName, in machOImage: MachOImage) -> [Descriptor]? {
-        guard let section = _section(for: swiftMachOSection, in: machOImage) else { return nil }
-        return try? _readDescriptors(from: section, in: machOImage)
+    private func _readDescriptors<Descriptor: Resolvable>(from swiftMachOSection: MachOSwiftSectionName, in machOImage: MachOImage) throws -> [Descriptor] {
+        let section = try _section(for: swiftMachOSection, in: machOImage)
+        return try _readDescriptors(from: section, in: machOImage)
     }
 
-    private func _readDescriptors<Descriptor: Resolvable>(from section: any SectionProtocol, in machO: MachOImage) throws -> [Descriptor]? {
-        guard let vmaddrSlide = machO.vmaddrSlide else { return nil }
-        guard let start = UnsafeRawPointer(
-            bitPattern: section.address + vmaddrSlide
-        ) else { return nil }
+    private func _readDescriptors<Descriptor: Resolvable>(from section: any SectionProtocol, in machO: MachOImage) throws -> [Descriptor] {
+        let vmaddrSlide = try required(machO.vmaddrSlide)
+        let start = try required(UnsafeRawPointer(bitPattern: section.address + vmaddrSlide))
         
         let offset = start.int - machO.ptr.int
         

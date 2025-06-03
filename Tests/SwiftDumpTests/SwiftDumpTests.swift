@@ -156,7 +156,7 @@ extension SwiftDumpTests {
     @MachOImageGenerator
     @MainActor
     private func dumpProtocols(for machO: MachOFile) async throws {
-        let protocolDescriptors = try #require(machO.swift.protocolDescriptors)
+        let protocolDescriptors = try machO.swift.protocolDescriptors
         for protocolDescriptor in protocolDescriptors {
             try print(Protocol(descriptor: protocolDescriptor, in: machO).dump(using: printOptions, in: machO))
         }
@@ -165,7 +165,7 @@ extension SwiftDumpTests {
     @MachOImageGenerator
     @MainActor
     private func dumpProtocolConformances(for machO: MachOFile) async throws {
-        let protocolConformanceDescriptors = try #require(machO.swift.protocolConformanceDescriptors)
+        let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
 
         for (index, protocolConformanceDescriptor) in protocolConformanceDescriptors.enumerated() {
             print(index)
@@ -176,7 +176,7 @@ extension SwiftDumpTests {
     @MachOImageGenerator
     @MainActor
     private func dumpTypes(for machO: MachOFile) async throws {
-        let typeContextDescriptors = try #require(machO.swift.typeContextDescriptors)
+        let typeContextDescriptors = try machO.swift.typeContextDescriptors
         var metadataFinder: MetadataFinder<MachOFile>?
         if isEnabledSearchMetadata {
             metadataFinder = MetadataFinder(machO: machO)
@@ -209,7 +209,7 @@ extension SwiftDumpTests {
 
     @MainActor
     private func dumpAssociatedTypes(for machO: MachOFile) async throws {
-        let associatedTypeDescriptors = try #require(machO.swift.associatedTypeDescriptors)
+        let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
         for associatedTypeDescriptor in associatedTypeDescriptors {
             try print(AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: printOptions, in: machO))
         }
