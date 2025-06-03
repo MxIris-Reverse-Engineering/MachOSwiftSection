@@ -1,5 +1,5 @@
-import Testing
 import Foundation
+import Testing
 import MachOKit
 import MachOMacro
 @testable import MachOSwiftSection
@@ -21,6 +21,8 @@ struct SwiftDumpTests {
 
     let machOImage: MachOImage
 
+    let isEnabledSearchMetadata: Bool = false
+    
     init() throws {
         // Cache
         let arch = "arm64e"
@@ -31,25 +33,15 @@ struct SwiftDumpTests {
         self.mainCache = try DyldCache(url: mainCacheURL)
         self.subCache = try DyldCache(subcacheUrl: subCacheURL, mainCacheHeader: mainCache.mainCacheHeader)
 
-        self.machOFileInMainCache = try #require(
-            mainCache.machOFiles().first {
-//            $0.imagePath.contains("/AppKit")
-                $0.imagePath.contains("/SwiftUI")
-//            $0.imagePath.contains("/Foundation")
-            }
-        )
+        self.machOFileInMainCache = try #require(mainCache.machOFile(named: .SwiftUI))
 
-        self.machOFileInSubCache = try #require(
-            subCache.machOFiles().first {
-                $0.imagePath.contains("/CodableSwiftUI")
-            }
-        )
+        self.machOFileInSubCache = if #available(macOS 15.5, *) {
+            try #require(subCache.machOFile(named: .CodableSwiftUI))
+        } else {
+            try #require(subCache.machOFile(named: .AAAFoundationSwift))
+        }
 
-        self.machOFileInCache = try #require(
-            (mainCache.machOFiles().map { $0 } + subCache.machOFiles().map { $0 }).first {
-                $0.imagePath.contains("/Foundation")
-            }
-        )
+        self.machOFileInCache = try #require(mainCache.machOFile(named: .Foundation))
 
         // File
 //        let path = "/Library/Developer/CoreSimulator/Volumes/iOS_22E238/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 18.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUICore.framework/SwiftUICore"
@@ -58,9 +50,9 @@ struct SwiftDumpTests {
         let url = URL(fileURLWithPath: path)
         let file = try MachOKit.loadFromFile(url: url)
         switch file {
-        case .fat(let fatFile):
+        case let .fat(fatFile):
             self.machOFile = try #require(fatFile.machOFiles().first(where: { $0.header.cpu.type == .x86_64 }))
-        case .machO(let machO):
+        case let .machO(machO):
             self.machOFile = machO
         @unknown default:
             fatalError()
@@ -69,6 +61,17 @@ struct SwiftDumpTests {
         // Image
 
         self.machOImage = try #require(MachOImage(name: "Foundation"))
+    }
+
+    @Test func printCacheFiles() {
+        print("Main Cache")
+        for file in mainCache.machOFiles() {
+            print(file.imagePath)
+        }
+        print("Sub Cache")
+        for file in subCache.machOFiles() {
+            print(file.imagePath)
+        }
     }
 }
 
@@ -179,35 +182,31 @@ extension SwiftDumpTests {
     @MainActor
     private func dumpTypes(for machO: MachOFile) async throws {
         let typeContextDescriptors = try #require(machO.swift.typeContextDescriptors)
-//        let metadataFinder = MetadataFinder(machO: machO)
+        var metadataFinder: MetadataFinder<MachOFile>?
+        if isEnabledSearchMetadata {
+            metadataFinder = MetadataFinder(machO: machO)
+        }
         for typeContextDescriptor in typeContextDescriptors {
             switch typeContextDescriptor {
-            case .type(let typeContextDescriptorWrapper):
+            case let .type(typeContextDescriptorWrapper):
                 switch typeContextDescriptorWrapper {
-                case .enum(let enumDescriptor):
+                case let .enum(enumDescriptor):
                     let enumType = try Enum(descriptor: enumDescriptor, in: machO)
                     try print(enumType.dump(using: printOptions, in: machO))
-                case .struct(let structDescriptor):
+                case let .struct(structDescriptor):
                     let structType = try Struct(descriptor: structDescriptor, in: machO)
-//                    try print(metadataFinder.metadata(for: structDescriptor) as StructMetadata?)
                     try print(structType.dump(using: printOptions, in: machO))
-                case .class(let classDescriptor):
+                    if let metadata = try metadataFinder?.metadata(for: structDescriptor) as StructMetadata? {
+                        print(try metadata.fieldOffsets(for: structDescriptor, in: machO))
+                    }
+                case let .class(classDescriptor):
                     let classType = try Class(descriptor: classDescriptor, in: machO)
                     try print(classType.dump(using: printOptions, in: machO))
-//                    try print(metadataFinder.metadata(for: classDescriptor) as ClassMetadataObjCInterop?)
+                    if let metadata = try metadataFinder?.metadata(for: classDescriptor) as ClassMetadataObjCInterop? {
+                        print(try metadata.fieldOffsets(for: classDescriptor, in: machO))
+                    }
                 }
-//                print("")
-            case .protocol /* (let protocolDescriptor) */:
-                break
-            case .anonymous /* (let anonymousContextDescriptor) */:
-                break
-            case .extension /* (let extensionContextDescriptor) */:
-                break
-            case .module /* (let moduleContextDescriptor) */:
-                break
-            case .opaqueType /* (let opaqueTypeDescriptor) */:
-//                let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
-//                try print(opaqueType.dump(using: printOptions, in: machO))
+            default:
                 break
             }
         }

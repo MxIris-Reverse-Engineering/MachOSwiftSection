@@ -1,10 +1,3 @@
-//
-//  SymbolicReference.swift
-//  MachOSwiftSection
-//
-//  Created by JH on 2025/5/10.
-//
-
 public enum SymbolicReferenceKind: UInt8 {
     /// A symbolic reference to a context descriptor, representing the
     /// (unapplied generic) context.

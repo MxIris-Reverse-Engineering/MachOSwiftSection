@@ -1,4 +1,4 @@
-import Foundation
+import MachOKit
 import MachOFoundation
 
 public struct ClassMetadata: TypeMetadataProtocol {
@@ -97,4 +97,15 @@ public protocol ClassMetadataObjCInteropLayout: AnyClassMetadataObjCInteropLayou
     var classAddressPoint: UInt32 { get }
     var descriptor: Pointer<ClassDescriptor> { get }
     var iVarDestroyer: RawPointer { get }
+}
+
+
+@MachOImageAllMembersGenerator
+extension ClassMetadataObjCInterop {
+    public func fieldOffsets(for descriptor: ClassDescriptor? = nil, in machOFile: MachOFile) throws -> [StoredPointer] {
+        let descriptor = try descriptor ?? layout.descriptor.resolve(in: machOFile)
+        guard descriptor.fieldOffsetVectorOffset != .zero else { return [] }
+        let offset = offset + descriptor.fieldOffsetVectorOffset.cast() * MemoryLayout<StoredPointer>.size
+        return try machOFile.readElements(offset: offset, numberOfElements: descriptor.numFields.cast())
+    }
 }
