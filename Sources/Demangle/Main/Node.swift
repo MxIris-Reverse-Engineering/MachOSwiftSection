@@ -1,6 +1,7 @@
 public final class Node: @unchecked Sendable {
     public let kind: Kind
     public let contents: Contents
+    public private(set) weak var parent: Node?
     public private(set) var children: [Node]
 
     public enum Contents: Hashable, Sendable {
@@ -28,6 +29,9 @@ public final class Node: @unchecked Sendable {
         self.kind = kind
         self.children = children
         self.contents = contents
+        for child in children {
+            child.parent = self
+        }
     }
 
     package convenience init(kind: Kind, child: Node) {
@@ -100,6 +104,7 @@ public final class Node: @unchecked Sendable {
     }
     
     public func addChild(_ newChild: Node) {
+        newChild.parent = self
         children.append(newChild)
     }
     
@@ -110,19 +115,27 @@ public final class Node: @unchecked Sendable {
     
     public func insertChild(_ newChild: Node, at index: Int) {
         guard index >= 0 && index <= children.count else { return }
+        newChild.parent = self
         children.insert(newChild, at: index)
     }
     
     public func addChildren(_ newChildren: [Node]) {
+        for child in newChildren {
+            child.parent = self
+        }
         children.append(contentsOf: newChildren)
     }
     
     public func setChildren(_ newChildren: [Node]) {
+        for child in newChildren {
+            child.parent = self
+        }
         children = newChildren
     }
     
     public func setChild(_ child: Node, at index: Int) {
         guard children.indices.contains(index) else { return }
+        child.parent = self
         children[index] = child
     }
     

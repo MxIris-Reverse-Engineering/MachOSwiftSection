@@ -14,6 +14,9 @@ struct NodePrinter: Sendable {
         guard options.contains(.qualifyEntities) else {
             return false
         }
+        if let dependentMemberType = context.parent?.parent?.parent?.parent, dependentMemberType.kind == .dependentMemberType  {
+            return false
+        }
         if context.kind == .module, let text = context.text, !text.isEmpty {
             switch text {
             case stdlibName: return options.contains(.displayStdlibModule)
