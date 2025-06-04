@@ -2,7 +2,7 @@ import Foundation
 import MachOFoundation
 
 public struct SingletonMetadataInitialization: ResolvableLocatableLayoutWrapper {
-    public struct Layout {
+    public struct Layout: Sendable {
         public let initializationCacheOffset: RelativeOffset
         public let incompleteMetadata: RelativeOffset
         public let completionFunction: RelativeOffset

@@ -32,7 +32,7 @@ extension TargetGenericContext {
 
     @MachOImageGenerator
     @StringBuilder
-    func dumpGenericRequirements(using options: SymbolPrintOptions, in machOFile: MachOFile) throws -> String {
+    func dumpGenericRequirements(using options: DemangleOptions, in machOFile: MachOFile) throws -> String {
         for (offset, requirement) in requirements.offsetEnumerated() {
             try requirement.dump(using: options, in: machOFile)
             if !offset.isEnd {
@@ -45,7 +45,7 @@ extension TargetGenericContext {
 extension GenericRequirementDescriptor {
     @MachOImageGenerator
     @StringBuilder
-    func dump(using options: SymbolPrintOptions, in machOFile: MachOFile) throws -> String {
+    func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> String {
         try MetadataReader.demangleType(for: paramManagedName(in: machOFile), in: machOFile).print(using: options)
         if layout.flags.kind == .sameType {
             " == "

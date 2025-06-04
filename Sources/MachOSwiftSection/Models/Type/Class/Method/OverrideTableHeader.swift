@@ -1,7 +1,7 @@
 import Foundation
 
 public struct OverrideTableHeader: ResolvableLocatableLayoutWrapper {
-    public struct Layout {
+    public struct Layout: Sendable {
         public let numEntries: UInt32
     }
     

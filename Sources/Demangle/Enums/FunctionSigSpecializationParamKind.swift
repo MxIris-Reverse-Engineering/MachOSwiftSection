@@ -1,4 +1,4 @@
-enum FunctionSigSpecializationParamKind: UInt64 {
+enum FunctionSigSpecializationParamKind: UInt64, Sendable {
 	case constantPropFunction = 0
 	case constantPropGlobal = 1
 	case constantPropInteger = 2

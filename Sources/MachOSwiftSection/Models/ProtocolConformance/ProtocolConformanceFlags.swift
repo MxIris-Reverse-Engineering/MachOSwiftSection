@@ -1,7 +1,7 @@
 import Foundation
 
 /// Flags that go in a TargetConformanceDescriptor structure.
-public struct ProtocolConformanceFlags: RawRepresentable {
+public struct ProtocolConformanceFlags: RawRepresentable, Sendable {
     public let rawValue: UInt32
     
     public init(rawValue: UInt32) {

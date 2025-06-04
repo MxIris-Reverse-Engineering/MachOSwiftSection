@@ -1,7 +1,7 @@
 import Foundation
 
 // https://github.com/apple/swift/blob/main/include/swift/ABI/MetadataValues.h#L1849
-public struct ContextDescriptorFlags: OptionSet {
+public struct ContextDescriptorFlags: OptionSet, Sendable {
     public let rawValue: UInt32
 
     public init(rawValue: UInt32) {

@@ -6,7 +6,7 @@ import MachOMacro
 extension ProtocolConformance: Dumpable {
     @MachOImageGenerator
     @StringBuilder
-    public func dump(using options: SymbolPrintOptions, in machOFile: MachOFile) throws -> String {
+    public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> String {
         "extension "
         switch typeReference {
         case .directTypeDescriptor(let descriptor):

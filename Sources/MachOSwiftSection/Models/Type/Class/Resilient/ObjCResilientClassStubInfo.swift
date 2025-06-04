@@ -2,7 +2,7 @@ import Foundation
 import MachOFoundation
 
 public struct ObjCResilientClassStubInfo: ResolvableLocatableLayoutWrapper {
-    public struct Layout {
+    public struct Layout: Sendable {
         public let stub: RelativeDirectRawPointer
     }
     

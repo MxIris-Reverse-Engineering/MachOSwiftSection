@@ -4,7 +4,7 @@ import MachOMacro
 import MachOFoundation
 
 public struct MethodDefaultOverrideDescriptor: ResolvableLocatableLayoutWrapper {
-    public struct Layout {
+    public struct Layout: Sendable {
         public let replacement: RelativeMethodDescriptorPointer
         public let original: RelativeMethodDescriptorPointer
         public let implementation: RelativeDirectPointer<MachOSymbol?>

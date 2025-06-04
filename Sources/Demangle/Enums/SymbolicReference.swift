@@ -1,4 +1,4 @@
-public enum SymbolicReferenceKind: UInt8 {
+public enum SymbolicReferenceKind: UInt8, Sendable {
     /// A symbolic reference to a context descriptor, representing the
     /// (unapplied generic) context.
     case context

@@ -1,4 +1,4 @@
-enum SugarType {
+enum SugarType: Sendable {
 	case none
 	case optional
 	case implicitlyUnwrappedOptional

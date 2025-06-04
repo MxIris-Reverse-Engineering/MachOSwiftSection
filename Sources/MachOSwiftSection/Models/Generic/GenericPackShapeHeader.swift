@@ -1,5 +1,5 @@
 public struct GenericPackShapeHeader: ResolvableLocatableLayoutWrapper {
-    public struct Layout {
+    public struct Layout: Sendable {
         public let numPacks: UInt16
         public let numShapeClasses: UInt16
     }

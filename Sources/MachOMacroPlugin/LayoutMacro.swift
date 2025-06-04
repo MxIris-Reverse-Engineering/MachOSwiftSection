@@ -93,7 +93,7 @@ public struct LayoutMacro: PeerMacro, MemberMacro, ExtensionMacro {
             // For now, let's assume the first inherited type *is* the @Layout parent if one exists.
             // This is a strong assumption.
             if let lastInheritedType = inheritanceClause.inheritedTypes.last?.type,
-               let inheritedProtocolName = lastInheritedType.as(IdentifierTypeSyntax.self)?.name.text {
+               let inheritedProtocolName = lastInheritedType.as(IdentifierTypeSyntax.self)?.name.text, inheritedProtocolName != "Sendable" {
                 // Check if this parent is also @Layout (requires same-file lookup for the attribute)
                 // For simplicity of this example, we'll just assume it is if it's named.
                 // A more robust check would use findProtocolDeclarationSyntax.

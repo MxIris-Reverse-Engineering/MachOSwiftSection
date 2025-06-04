@@ -3,7 +3,7 @@ import MachOMacro
 import MachOFoundation
 
 @Layout
-public protocol ContextDescriptorLayout {
+public protocol ContextDescriptorLayout: Sendable {
     var flags: ContextDescriptorFlags { get }
     var parent: RelativeContextPointer { get }
 }

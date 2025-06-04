@@ -1,4 +1,4 @@
-enum DemangleGenericRequirementConstraintKind {
+enum DemangleGenericRequirementConstraintKind: Sendable {
 	case `protocol`
 	case baseClass
 	case sameType

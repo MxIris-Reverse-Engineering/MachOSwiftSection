@@ -1,4 +1,4 @@
-enum AutoDiffFunctionKind: UnicodeScalar {
+enum AutoDiffFunctionKind: UnicodeScalar, Sendable {
 	case forward = "f"
 	case reverse = "r"
 	case differential = "d"

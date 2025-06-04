@@ -1,5 +1,5 @@
 public struct ValueWitnessTable: ResolvableLocatableLayoutWrapper {
-    public struct Layout {
+    public struct Layout: Sendable {
         public let size: StoredSize
         public let stride: StoredSize
         public let flags: ValueWitnessFlags

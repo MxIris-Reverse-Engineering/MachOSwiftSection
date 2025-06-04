@@ -1,5 +1,5 @@
 public struct GenericParamDescriptor: ResolvableLocatableLayoutWrapper {
-    public struct Layout {
+    public struct Layout: Sendable {
         public let rawValue: UInt8
     }
 

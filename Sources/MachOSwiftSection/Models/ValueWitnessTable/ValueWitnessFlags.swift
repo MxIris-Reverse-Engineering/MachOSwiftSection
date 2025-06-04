@@ -1,4 +1,4 @@
-public struct ValueWitnessFlags: OptionSet {
+public struct ValueWitnessFlags: OptionSet, Sendable {
     public typealias RawValue = UInt32
     
     public let rawValue: RawValue

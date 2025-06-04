@@ -3,7 +3,7 @@ import MachOKit
 
 public protocol GenericContextDescriptorHeaderProtocol: ResolvableLocatableLayoutWrapper where Layout: GenericContextDescriptorHeaderLayout {}
 
-public protocol GenericContextDescriptorHeaderLayout {
+public protocol GenericContextDescriptorHeaderLayout: Sendable {
     var numParams: UInt16 { get }
     var numRequirements: UInt16 { get }
     var numKeyArguments: UInt16 { get }

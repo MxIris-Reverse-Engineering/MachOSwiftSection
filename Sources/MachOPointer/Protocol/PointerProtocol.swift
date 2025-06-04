@@ -3,7 +3,7 @@ import MachOMacro
 import MachOReading
 import MachOExtensions
 
-public protocol PointerProtocol: Resolvable {
+public protocol PointerProtocol: Resolvable, Sendable {
     associatedtype Pointee: Resolvable
 
     var address: UInt64 { get }
@@ -26,14 +26,13 @@ extension PointerProtocol {
     public func resolve(in machOFile: MachOFile) throws -> Pointee {
         return try Pointee.resolve(from: resolveOffset(in: machOFile), in: machOFile)
     }
-
 }
 
 extension PointerProtocol {
     public func resolveOffset(in machOFile: MachOFile) -> Int {
         numericCast(machOFile.fileOffset(of: address))
     }
-    
+
     public func resolveOffset(in machOImage: MachOImage) -> Int {
         Int(address) - machOImage.ptr.int
     }

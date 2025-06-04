@@ -6,7 +6,7 @@ import MachOMacro
 extension AssociatedType: Dumpable {
     @MachOImageGenerator
     @StringBuilder
-    public func dump(using options: SymbolPrintOptions, in machOFile: MachOFile) throws -> String {
+    public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> String {
         try "extension \(MetadataReader.demangleSymbol(for: conformingTypeName, in: machOFile).print(using: options)): \(MetadataReader.demangleSymbol(for: protocolTypeName, in: machOFile).print(using: options)) {"
         for (offset, record) in records.offsetEnumerated() {
             BreakLine()

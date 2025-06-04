@@ -33,7 +33,7 @@ struct SwiftDumpTests {
         self.mainCache = try DyldCache(url: mainCacheURL)
         self.subCache = try DyldCache(subcacheUrl: subCacheURL, mainCacheHeader: mainCache.mainCacheHeader)
 
-        self.machOFileInMainCache = try #require(mainCache.machOFile(named: .SwiftUI))
+        self.machOFileInMainCache = try #require(mainCache.machOFile(named: .SwiftUICore))
 
         self.machOFileInSubCache = if #available(macOS 15.5, *) {
             try #require(subCache.machOFile(named: .CodableSwiftUI))

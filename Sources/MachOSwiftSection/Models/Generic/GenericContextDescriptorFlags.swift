@@ -1,4 +1,4 @@
-public struct GenericContextDescriptorFlags: OptionSet {
+public struct GenericContextDescriptorFlags: OptionSet, Sendable {
     public let rawValue: UInt16
 
     public init(rawValue: UInt16) {

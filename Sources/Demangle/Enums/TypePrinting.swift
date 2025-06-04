@@ -1,4 +1,4 @@
-enum TypePrinting {
+enum TypePrinting: Sendable {
 	case noType
 	case withColon
 	case functionStyle

@@ -3,7 +3,7 @@
 /// A structure for traversing a `String.UnicodeScalarView`.
 ///
 /// **UNICODE WARNING**: this struct ignores all Unicode combining rules and parses each scalar individually. The rules for parsing must allow combined characters to be parsed separately or better yet, forbid combining characters at critical parse locations. If your data structure does not include these types of rule then you should be iterating over the `Character` elements in a `String` rather than using this struct.
-struct ScalarScanner<C: Collection> where C.Iterator.Element == UnicodeScalar {
+struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == UnicodeScalar, C: Sendable, C.Index: Sendable {
     /// The underlying storage
     let scalars: C
 

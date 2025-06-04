@@ -4,7 +4,7 @@ import MachOFoundation
 import MachOMacro
 
 public struct AssociatedTypeRecord: ResolvableLocatableLayoutWrapper {
-    public struct Layout {
+    public struct Layout: Sendable {
         public let name: RelativeDirectPointer<String>
         public let substitutedTypeName: RelativeDirectPointer<MangledName>
     }
