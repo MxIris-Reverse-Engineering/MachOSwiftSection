@@ -31,7 +31,7 @@ extension MachOImage.Swift {
 
     public var typeContextDescriptors: [ContextDescriptorWrapper] {
         get throws {
-            return try _readDescriptors(from: .__swift5_types, in: machOImage) + _readDescriptors(from: .__swift5_types2, in: machOImage)
+            return try _readDescriptors(from: .__swift5_types, in: machOImage) + (try? _readDescriptors(from: .__swift5_types2, in: machOImage))
         }
     }
 }
