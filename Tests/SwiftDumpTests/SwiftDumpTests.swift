@@ -68,6 +68,13 @@ struct SwiftDumpTests {
             print(file.imagePath)
         }
     }
+    
+    @Test func subCacheSymbols() async throws {
+        print(subCache.mainCacheHeader.sharedRegionStart)
+//        for symbol in machOFileInSubCache.symbols {
+//            print(symbol.offset - subCache.mainCacheHeader.sharedRegionStart.cast(), symbol.name)
+//        }
+    }
 }
 
 extension SwiftDumpTests {

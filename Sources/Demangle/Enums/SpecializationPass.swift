@@ -1,4 +1,4 @@
-enum SpecializationPass: Sendable {
+enum SpecializationPass: CaseIterable, Sendable {
 	case allocBoxToStack
 	case closureSpecializer
 	case capturePromotion

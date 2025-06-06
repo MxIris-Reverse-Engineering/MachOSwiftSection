@@ -1,4 +1,4 @@
-enum Differentiability: UnicodeScalar, Sendable {
+enum Differentiability: UnicodeScalar, CaseIterable, Sendable {
 	case normal = "d"
 	case linear = "l"
 	case forward = "f"

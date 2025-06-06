@@ -57,21 +57,24 @@ public struct Class {
             currentOffset += genericContext.size
         }
         if descriptor.hasResilientSuperclass {
-            self.resilientSuperclass = try machOFile.readElement(offset: currentOffset)
+            let resilientSuperclass: ResilientSuperclass = try machOFile.readWrapperElement(offset: currentOffset)
+            self.resilientSuperclass = resilientSuperclass
             currentOffset.offset(of: ResilientSuperclass.self)
         } else {
             self.resilientSuperclass = nil
         }
 
         if descriptor.hasForeignMetadataInitialization {
-            self.foreignMetadataInitialization = try machOFile.readElement(offset: currentOffset)
+            let foreignMetadataInitialization: ForeignMetadataInitialization = try machOFile.readWrapperElement(offset: currentOffset)
+            self.foreignMetadataInitialization = foreignMetadataInitialization
             currentOffset.offset(of: ForeignMetadataInitialization.self)
         } else {
             self.foreignMetadataInitialization = nil
         }
 
         if descriptor.hasSingletonMetadataInitialization {
-            self.singletonMetadataInitialization = try machOFile.readElement(offset: currentOffset)
+            let singletonMetadataInitialization: SingletonMetadataInitialization = try machOFile.readWrapperElement(offset: currentOffset)
+            self.singletonMetadataInitialization = singletonMetadataInitialization
             currentOffset.offset(of: SingletonMetadataInitialization.self)
         } else {
             self.singletonMetadataInitialization = nil
@@ -81,7 +84,8 @@ public struct Class {
             let vTableDescriptorHeader: VTableDescriptorHeader = try machOFile.readElement(offset: currentOffset)
             self.vTableDescriptorHeader = vTableDescriptorHeader
             currentOffset.offset(of: VTableDescriptorHeader.self)
-            self.methodDescriptors = try machOFile.readElements(offset: currentOffset, numberOfElements: vTableDescriptorHeader.vTableSize.cast())
+            let methodDescriptors: [MethodDescriptor] = try machOFile.readWrapperElements(offset: currentOffset, numberOfElements: vTableDescriptorHeader.vTableSize.cast())
+            self.methodDescriptors = methodDescriptors
             currentOffset.offset(of: MethodDescriptor.self, numbersOfElements: vTableDescriptorHeader.vTableSize.cast())
         } else {
             self.vTableDescriptorHeader = nil
@@ -89,10 +93,11 @@ public struct Class {
         }
 
         if descriptor.hasOverrideTable {
-            let overrideTableHeader: OverrideTableHeader = try machOFile.readElement(offset: currentOffset)
+            let overrideTableHeader: OverrideTableHeader = try machOFile.readWrapperElement(offset: currentOffset)
             self.overrideTableHeader = overrideTableHeader
             currentOffset.offset(of: OverrideTableHeader.self)
-            self.methodOverrideDescriptors = try machOFile.readElements(offset: currentOffset, numberOfElements: overrideTableHeader.numEntries.cast())
+            let methodOverrideDescriptors: [MethodOverrideDescriptor] = try machOFile.readWrapperElements(offset: currentOffset, numberOfElements: overrideTableHeader.numEntries.cast())
+            self.methodOverrideDescriptors = methodOverrideDescriptors
             currentOffset.offset(of: MethodOverrideDescriptor.self, numbersOfElements: overrideTableHeader.numEntries.cast())
         } else {
             self.overrideTableHeader = nil
@@ -100,7 +105,8 @@ public struct Class {
         }
 
         if descriptor.hasObjCResilientClassStub {
-            self.objcResilientClassStubInfo = try machOFile.readElement(offset: currentOffset)
+            let objcResilientClassStubInfo: ObjCResilientClassStubInfo = try machOFile.readWrapperElement(offset: currentOffset)
+            self.objcResilientClassStubInfo = objcResilientClassStubInfo
             currentOffset.offset(of: ObjCResilientClassStubInfo.self)
         } else {
             self.objcResilientClassStubInfo = nil
@@ -111,11 +117,14 @@ public struct Class {
             self.canonicalSpecializedMetadatasListCount = count
             currentOffset.offset(of: CanonicalSpecializedMetadatasListCount.self)
             let countValue = count.rawValue
-            self.canonicalSpecializedMetadatas = try machOFile.readElements(offset: currentOffset, numberOfElements: countValue.cast())
+            let canonicalSpecializedMetadatas: [CanonicalSpecializedMetadatasListEntry] = try machOFile.readWrapperElements(offset: currentOffset, numberOfElements: countValue.cast())
+            self.canonicalSpecializedMetadatas = canonicalSpecializedMetadatas
             currentOffset.offset(of: CanonicalSpecializedMetadatasListEntry.self, numbersOfElements: countValue.cast())
-            self.canonicalSpecializedMetadataAccessors = try machOFile.readElements(offset: currentOffset, numberOfElements: countValue.cast())
+            let canonicalSpecializedMetadataAccessors: [CanonicalSpecializedMetadataAccessorsListEntry] = try machOFile.readWrapperElements(offset: currentOffset, numberOfElements: countValue.cast())
+            self.canonicalSpecializedMetadataAccessors = canonicalSpecializedMetadataAccessors
             currentOffset.offset(of: CanonicalSpecializedMetadataAccessorsListEntry.self, numbersOfElements: countValue.cast())
-            self.canonicalSpecializedMetadatasCachingOnceToken = try machOFile.readElement(offset: currentOffset)
+            let canonicalSpecializedMetadatasCachingOnceToken: CanonicalSpecializedMetadatasCachingOnceToken = try machOFile.readWrapperElement(offset: currentOffset)
+            self.canonicalSpecializedMetadatasCachingOnceToken = canonicalSpecializedMetadatasCachingOnceToken
             currentOffset.offset(of: CanonicalSpecializedMetadatasCachingOnceToken.self)
         } else {
             self.canonicalSpecializedMetadatasListCount = nil
@@ -125,24 +134,27 @@ public struct Class {
         }
 
         if descriptor.flags.contains(.hasInvertibleProtocols) {
-            self.invertibleProtocolSet = try machOFile.readElement(offset: currentOffset)
+            let invertibleProtocolSet: InvertibleProtocolSet = try machOFile.readElement(offset: currentOffset)
+            self.invertibleProtocolSet = invertibleProtocolSet
             currentOffset.offset(of: InvertibleProtocolSet.self)
         } else {
             self.invertibleProtocolSet = nil
         }
 
         if descriptor.hasSingletonMetadataPointer {
-            self.singletonMetadataPointer = try machOFile.readElement(offset: currentOffset)
+            let singletonMetadataPointer: SingletonMetadataPointer = try machOFile.readWrapperElement(offset: currentOffset)
+            self.singletonMetadataPointer = singletonMetadataPointer
             currentOffset.offset(of: SingletonMetadataPointer.self)
         } else {
             self.singletonMetadataPointer = nil
         }
 
         if descriptor.hasDefaultOverrideTable {
-            let methodDefaultOverrideTableHeader: MethodDefaultOverrideTableHeader = try machOFile.readElement(offset: currentOffset)
+            let methodDefaultOverrideTableHeader: MethodDefaultOverrideTableHeader = try machOFile.readWrapperElement(offset: currentOffset)
             self.methodDefaultOverrideTableHeader = methodDefaultOverrideTableHeader
             currentOffset.offset(of: MethodDefaultOverrideTableHeader.self)
-            self.methodDefaultOverrideDescriptors = try machOFile.readElements(offset: currentOffset, numberOfElements: methodDefaultOverrideTableHeader.numEntries.cast())
+            let methodDefaultOverrideDescriptors: [MethodDefaultOverrideDescriptor] = try machOFile.readWrapperElements(offset: currentOffset, numberOfElements: methodDefaultOverrideTableHeader.numEntries.cast())
+            self.methodDefaultOverrideDescriptors = methodDefaultOverrideDescriptors
             currentOffset.offset(of: MethodDefaultOverrideDescriptor.self, numbersOfElements: methodDefaultOverrideTableHeader.numEntries.cast())
         } else {
             self.methodDefaultOverrideTableHeader = nil

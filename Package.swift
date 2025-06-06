@@ -77,12 +77,17 @@ let package = Package(
             name: "SwiftDump",
             targets: ["SwiftDump"]
         ),
+        .executable(
+            name: "swift-dump",
+            targets: ["swift-dump"]
+        ),
     ],
     dependencies: [
         .MachOKit,
         .package(url: "https://github.com/swiftlang/swift-syntax", from: "601.0.1"),
         .package(url: "https://github.com/MxIris-Library-Forks/AssociatedObject", branch: "main"),
         .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
     ],
     targets: [
         .target(
@@ -142,7 +147,13 @@ let package = Package(
                 "MachOSwiftSection",
             ]
         ),
-
+        .executableTarget(
+            name: "swift-dump",
+            dependencies: [
+                "SwiftDump",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ]
+        ),
         .target(
             name: "MachOMacro",
             dependencies: [

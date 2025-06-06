@@ -29,7 +29,7 @@ class MachOSymbolCache {
 
     @discardableResult
     private func createCacheIfNeeded<MachO: MachORepresentableWithCache>(for identifier: CacheIdentifier, in machO: MachO, isForced: Bool = false) -> Bool {
-        guard isForced || (entryByIdentifier[identifier]?.isEmpty ?? false) else { return false }
+        guard isForced || (entryByIdentifier[identifier]?.isEmpty ?? true) else { return false }
         guard let symbols64 = machO.symbols64 else { return false }
         var cacheEntry: CacheEntry = [:]
         for symbol in symbols64 where !symbol.name.isEmpty {
@@ -42,9 +42,7 @@ class MachOSymbolCache {
 
         for exportedSymbol in machO.exportedSymbols {
             if var offset = exportedSymbol.offset {
-                if let cache = machO.cache {
-                    offset -= cache.mainCacheHeader.sharedRegionStart.cast()
-                }
+                offset += machO.startOffset
                 cacheEntry[offset] = .init(offset: offset, stringValue: exportedSymbol.name)
             }
         }
