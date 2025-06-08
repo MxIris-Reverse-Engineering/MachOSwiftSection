@@ -2,16 +2,16 @@ import Foundation
 import MachOKit
 import MachOFoundation
 
-protocol MachODataSectionProvider {
+package protocol MachODataSectionProvider {
     var dataSections: [any SectionProtocol] { get }
 }
 
-protocol MachOOffsetConverter {
+package protocol MachOOffsetConverter {
     func offset(of address: UInt64, at fileOffset: Int) -> Int
 }
 
 extension MachOFile: MachOOffsetConverter {
-    func offset(of address: UInt64, at fileOffset: Int) -> Int {
+    package func offset(of address: UInt64, at fileOffset: Int) -> Int {
         if cache != nil, let offset = resolveRebase(fileOffset: fileOffset) {
             return offset.cast()
         } else {
@@ -21,13 +21,13 @@ extension MachOFile: MachOOffsetConverter {
 }
 
 extension MachOImage: MachOOffsetConverter {
-    func offset(of address: UInt64, at fileOffset: Int) -> Int {
+    package func offset(of address: UInt64, at fileOffset: Int) -> Int {
         numericCast(address - ptr.uint.cast())
     }
 }
 
 extension MachOFile: MachODataSectionProvider {
-    var dataSections: [any SectionProtocol] {
+    package var dataSections: [any SectionProtocol] {
         [
             loadCommands.dataConst64?._section(for: "__const", in: self),
             loadCommands.data64?._section(for: "__data", in: self),
@@ -37,7 +37,7 @@ extension MachOFile: MachODataSectionProvider {
 }
 
 extension MachOImage: MachODataSectionProvider {
-    var dataSections: [any SectionProtocol] {
+    package var dataSections: [any SectionProtocol] {
         [
             loadCommands.dataConst64?._section(for: "__const", in: self),
             loadCommands.data64?._section(for: "__data", in: self),
@@ -46,16 +46,16 @@ extension MachOImage: MachODataSectionProvider {
     }
 }
 
-protocol TypeMetadataProtocol: MetadataProtocol {
+package protocol TypeMetadataProtocol: MetadataProtocol {
     static var descriptorOffset: Int { get }
 }
 
-class MetadataFinder<MachO: MachORepresentableWithCache & MachOReadable & MachODataSectionProvider & MachOOffsetConverter> {
-    let machO: MachO
+package final class MetadataFinder<MachO: MachORepresentableWithCache & MachOReadable & MachODataSectionProvider & MachOOffsetConverter> {
+    package let machO: MachO
 
     private var metadataOffsetByDescriptorOffset: [Int: Int] = [:]
 
-    init(machO: MachO) {
+    package init(machO: MachO) {
         self.machO = machO
 
         buildOffsetMap()
@@ -86,7 +86,7 @@ class MetadataFinder<MachO: MachORepresentableWithCache & MachOReadable & MachOD
         }
     }
 
-    public func metadata<Descriptor: TypeContextDescriptorProtocol, Metadata: TypeMetadataProtocol>(for descriptor: Descriptor) throws -> Metadata? {
+    package func metadata<Descriptor: TypeContextDescriptorProtocol, Metadata: TypeMetadataProtocol>(for descriptor: Descriptor) throws -> Metadata? {
         guard let offset = metadataOffsetByDescriptorOffset[descriptor.offset] else { return nil }
         return try machO.readWrapperElement(offset: offset - Metadata.descriptorOffset) as Metadata
     }

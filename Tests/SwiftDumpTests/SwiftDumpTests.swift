@@ -45,11 +45,11 @@ struct SwiftDumpTests {
         self.machOFileInCache = try #require(mainCache.machOFile(named: .AttributeGraph))
 
         // File
-        let file = try loadFromFile(named: .ControlCenter)
+        let file = try loadFromFile(named: .iOS_22E238_Simulator_SwiftUICore)
         switch file {
-        case let .fat(fatFile):
+        case .fat(let fatFile):
             self.machOFile = try #require(fatFile.machOFiles().first(where: { $0.header.cpu.type == .x86_64 }))
-        case let .machO(machO):
+        case .machO(let machO):
             self.machOFile = machO
         @unknown default:
             fatalError()
@@ -69,12 +69,13 @@ struct SwiftDumpTests {
             print(file.imagePath)
         }
     }
-    
+
     @Test func subCacheSymbols() async throws {
-        print(subCache.fileStartOffset)
+//        print(subCache.fileStartOffset)
 //        for symbol in machOFileInSubCache.symbols {
 //            print(symbol.offset - subCache.mainCacheHeader.sharedRegionStart.cast(), symbol.name)
 //        }
+        try print(MetadataReader.demangleSymbol(for: .init(offset: 0, stringValue: "_$sSo10CUICatalogC7SwiftUIE9findAsset3key10matchTypes11assetLookupxSgAC10CatalogKeyV_q_AHSSXEtSo08CUINamedJ0CRbzSlR_AC0kE9MatchTypeO7ElementRt_r0_lFSo0M5ColorC_SayANGTB503$s7b3UI5q107V05NamedC033_F70ADAD69423F89598F901BDE477D497LLV14resolveCGColor2inSo0L3RefaSgAA17EnvironmentValuesV_tFSo08M12C0CSgSSXEfU_AbC0Q0V0uQ001_wxyZ10BDE477D497LLVAC0q5CacheL0AXLLVSiTf1nncn_nTf4nnngggn_n"), in: machOFile).print(using: .default))
     }
 }
 
@@ -191,18 +192,18 @@ extension SwiftDumpTests {
         }
         for typeContextDescriptor in typeContextDescriptors {
             switch typeContextDescriptor {
-            case let .type(typeContextDescriptorWrapper):
+            case .type(let typeContextDescriptorWrapper):
                 switch typeContextDescriptorWrapper {
-                case let .enum(enumDescriptor):
+                case .enum(let enumDescriptor):
                     let enumType = try Enum(descriptor: enumDescriptor, in: machO)
                     try print(enumType.dump(using: printOptions, in: machO))
-                case let .struct(structDescriptor):
+                case .struct(let structDescriptor):
                     let structType = try Struct(descriptor: structDescriptor, in: machO)
                     try print(structType.dump(using: printOptions, in: machO))
                     if let metadata = try metadataFinder?.metadata(for: structDescriptor) as StructMetadata? {
                         try print(metadata.fieldOffsets(for: structDescriptor, in: machO))
                     }
-                case let .class(classDescriptor):
+                case .class(let classDescriptor):
                     let classType = try Class(descriptor: classDescriptor, in: machO)
                     try print(classType.dump(using: printOptions, in: machO))
                     if let metadata = try metadataFinder?.metadata(for: classDescriptor) as ClassMetadataObjCInterop? {

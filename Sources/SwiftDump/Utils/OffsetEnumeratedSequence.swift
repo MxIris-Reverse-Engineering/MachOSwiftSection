@@ -15,7 +15,9 @@ struct OffsetEnumeratedSequence<Base: Collection>: Sequence {
 
     typealias Element = (offset: OffsetInfo, element: Base.Element)
 
-    struct Iterator<BaseIterator: IteratorProtocol>: IteratorProtocol {
+    typealias Iterator = TargetIterator<Base.Iterator>
+    
+    struct TargetIterator<BaseIterator: IteratorProtocol>: IteratorProtocol {
         typealias Element = (offset: OffsetInfo, element: BaseIterator.Element)
 
         private var baseIterator: BaseIterator
@@ -58,7 +60,7 @@ struct OffsetEnumeratedSequence<Base: Collection>: Sequence {
         self.base = base
     }
 
-    func makeIterator() -> Iterator<Base.Iterator> {
+    func makeIterator() -> Iterator {
         return Iterator(baseIterator: base.makeIterator(), count: base.count)
     }
 }

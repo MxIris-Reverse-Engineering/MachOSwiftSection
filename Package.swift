@@ -15,9 +15,14 @@ extension Package.Dependency {
         }
     }()
 
-    static let MachOKitMain = Package.Dependency.package(
+    static let MachOKitOrigin = Package.Dependency.package(
         url: "https://github.com/p-x9/MachOKit.git",
         from: "0.34.0"
+    )
+    
+    static let MachOKitMain = Package.Dependency.package(
+        url: "https://github.com/MxIris-Reverse-Engineering/MachOKit",
+        branch: "main"
     )
 
     static let MachOKitSPM = Package.Dependency.package(
