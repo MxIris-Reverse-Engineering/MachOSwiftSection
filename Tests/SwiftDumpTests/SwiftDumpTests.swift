@@ -69,14 +69,6 @@ struct SwiftDumpTests {
             print(file.imagePath)
         }
     }
-
-    @Test func subCacheSymbols() async throws {
-//        print(subCache.fileStartOffset)
-//        for symbol in machOFileInSubCache.symbols {
-//            print(symbol.offset - subCache.mainCacheHeader.sharedRegionStart.cast(), symbol.name)
-//        }
-        try print(MetadataReader.demangleSymbol(for: .init(offset: 0, stringValue: "_$sSo10CUICatalogC7SwiftUIE9findAsset3key10matchTypes11assetLookupxSgAC10CatalogKeyV_q_AHSSXEtSo08CUINamedJ0CRbzSlR_AC0kE9MatchTypeO7ElementRt_r0_lFSo0M5ColorC_SayANGTB503$s7b3UI5q107V05NamedC033_F70ADAD69423F89598F901BDE477D497LLV14resolveCGColor2inSo0L3RefaSgAA17EnvironmentValuesV_tFSo08M12C0CSgSSXEfU_AbC0Q0V0uQ001_wxyZ10BDE477D497LLVAC0q5CacheL0AXLLVSiTf1nncn_nTf4nnngggn_n"), in: machOFile).print(using: .default))
-    }
 }
 
 extension SwiftDumpTests {
