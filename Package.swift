@@ -126,10 +126,10 @@ let package = Package(
                 "MachOReading",
                 "MachOExtensions",
                 "MachOMacro",
-                "MachOPointer"
+                "MachOPointer",
             ]
         ),
-        
+
         .target(
             name: "MachOSwiftSection",
             dependencies: [
@@ -138,6 +138,14 @@ let package = Package(
                 "MachOMacro",
                 .MachOKit,
                 .product(name: "AssociatedObject", package: "AssociatedObject"),
+            ]
+        ),
+
+        .target(
+            name: "MachOTestingSupport",
+            dependencies: [
+                .MachOKit,
+                "MachOExtensions",
             ]
         ),
 
@@ -172,16 +180,17 @@ let package = Package(
         ),
 
         .testTarget(
-            name: "MachOSwiftSectionTests",
-            dependencies: [
-                "MachOSwiftSection",
-            ]
-        ),
-
-        .testTarget(
             name: "DemangleTests",
             dependencies: [
                 "Demangle",
+            ]
+        ),
+        
+        .testTarget(
+            name: "MachOSwiftSectionTests",
+            dependencies: [
+                "MachOSwiftSection",
+                "MachOTestingSupport",
             ]
         ),
 
@@ -189,6 +198,7 @@ let package = Package(
             name: "SwiftDumpTests",
             dependencies: [
                 "SwiftDump",
+                "MachOTestingSupport",
             ]
         ),
     ]

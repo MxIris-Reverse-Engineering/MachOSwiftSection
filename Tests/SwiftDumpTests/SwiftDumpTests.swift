@@ -4,6 +4,7 @@ import MachOKit
 import MachOMacro
 @testable import MachOSwiftSection
 @testable import SwiftDump
+import MachOTestingSupport
 
 @Suite(.serialized)
 struct SwiftDumpTests {
@@ -70,7 +71,7 @@ struct SwiftDumpTests {
     }
     
     @Test func subCacheSymbols() async throws {
-        print(subCache.mainCacheHeader.sharedRegionStart)
+        print(subCache.fileStartOffset)
 //        for symbol in machOFileInSubCache.symbols {
 //            print(symbol.offset - subCache.mainCacheHeader.sharedRegionStart.cast(), symbol.name)
 //        }

@@ -30,9 +30,5 @@ extension DyldCache {
         }
     }
 
-    package var fileStartOffset: UInt64 {
-        numericCast(
-            header.sharedRegionStart - mainCacheHeader.sharedRegionStart
-        )
-    }
+    
 }

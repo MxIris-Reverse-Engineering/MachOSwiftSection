@@ -1,8 +1,9 @@
-import MachOKit
 import Foundation
+import MachOKit
+import MachOExtensions
 import UniformTypeIdentifiers
 
-enum MachOImageName: String {
+package enum MachOImageName: String {
     // MainCache
     case AppKit
     case SwiftUI
@@ -14,13 +15,13 @@ enum MachOImageName: String {
     case AAAFoundationSwift
     case UIKitCore
     case HomeKit
-    
+
     var path: String {
         "/\(rawValue)"
     }
 }
 
-enum MachOFileName: String {
+package enum MachOFileName: String {
     case Finder = "/System/Library/CoreServices/Finder.app"
     case iPhoneMirroring = "/System/Applications/iPhone Mirroring.app"
     case ScreenContinuityUI = "/System/Applications/iPhone Mirroring.app/Contents/Frameworks/ScreenContinuityUI.framework"
@@ -30,9 +31,10 @@ enum MachOFileName: String {
     case ControlCenter = "/System/Library/CoreServices/ControlCenter.app"
 }
 
-func loadFromFile(named: MachOFileName) throws -> File {
+@available(macOS 11.0, iOS 14.0, tvOS 14.0, watchOS 7.0, *)
+package func loadFromFile(named: MachOFileName) throws -> File {
     var url = URL(fileURLWithPath: named.rawValue)
-    
+
     if let contentType = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType {
         if contentType.conforms(to: .bundle), let executableURL = Bundle(url: url)?.executableURL {
             url = executableURL
@@ -42,13 +44,13 @@ func loadFromFile(named: MachOFileName) throws -> File {
 }
 
 extension MachOImage {
-    init?(named: MachOImageName) {
+    package init?(named: MachOImageName) {
         self.init(name: named.rawValue)
     }
 }
 
 extension DyldCache {
-    func machOFile(named: MachOImageName) -> MachOFile? {
+    package func machOFile(named: MachOImageName) -> MachOFile? {
         if let found = machOFiles().first(where: { $0.imagePath.contains(named.path) }) {
             return found
         }

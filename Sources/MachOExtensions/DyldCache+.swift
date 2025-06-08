@@ -11,4 +11,10 @@ extension DyldCache {
             return self
         }
     }
+    
+    package var fileStartOffset: UInt64 {
+        numericCast(
+            header.sharedRegionStart - mainCacheHeader.sharedRegionStart
+        )
+    }
 }

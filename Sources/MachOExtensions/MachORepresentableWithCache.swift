@@ -7,8 +7,8 @@ package protocol MachORepresentableWithCache: MachORepresentable {
 
 extension MachOFile: MachORepresentableWithCache {
     package var startOffset: Int {
-        if cache != nil {
-            headerStartOffsetInCache
+        if let cache {
+            headerStartOffsetInCache + cache.fileStartOffset.cast()
         } else {
             headerStartOffset
         }
