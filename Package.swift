@@ -156,7 +156,6 @@ let package = Package(
         .target(
             name: "SwiftDump",
             dependencies: [
-                .MachOKit,
                 "MachOSwiftSection",
             ]
         ),
@@ -164,7 +163,6 @@ let package = Package(
             name: "swift-dump",
             dependencies: [
                 "SwiftDump",
-                .MachOKit,
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),
