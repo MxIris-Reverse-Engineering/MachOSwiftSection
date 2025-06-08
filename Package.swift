@@ -19,7 +19,7 @@ extension Package.Dependency {
         url: "https://github.com/p-x9/MachOKit.git",
         from: "0.34.0"
     )
-    
+
     static let MachOKitMain = Package.Dependency.package(
         url: "https://github.com/MxIris-Reverse-Engineering/MachOKit",
         branch: "main"
@@ -142,7 +142,6 @@ let package = Package(
                 "MachOFoundation",
                 "MachOMacro",
                 .MachOKit,
-                .product(name: "AssociatedObject", package: "AssociatedObject"),
             ]
         ),
 
@@ -157,6 +156,7 @@ let package = Package(
         .target(
             name: "SwiftDump",
             dependencies: [
+                .MachOKit,
                 "MachOSwiftSection",
             ]
         ),
@@ -164,6 +164,7 @@ let package = Package(
             name: "swift-dump",
             dependencies: [
                 "SwiftDump",
+                .MachOKit,
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),
@@ -190,7 +191,7 @@ let package = Package(
                 "Demangle",
             ]
         ),
-        
+
         .testTarget(
             name: "MachOSwiftSectionTests",
             dependencies: [
