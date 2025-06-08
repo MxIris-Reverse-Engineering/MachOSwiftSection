@@ -6,8 +6,18 @@ import MachOSwiftSection
 import SwiftDump
 
 @main
-struct SwiftDumpCommand: AsyncParsableCommand {
-    static let configuration: CommandConfiguration = .init(commandName: "swift-dump")
+struct SwiftSectionCommand: AsyncParsableCommand {
+    static let configuration: CommandConfiguration = .init(
+        commandName: "swift-section",
+        subcommands: [
+            DumpCommand.self,
+        ],
+        defaultSubcommand: DumpCommand.self
+    )
+}
+
+struct DumpCommand: AsyncParsableCommand {
+    static let configuration: CommandConfiguration = .init(commandName: "dump")
 
     enum Section: String, ExpressibleByArgument, CaseIterable {
         case types
@@ -32,7 +42,7 @@ struct SwiftDumpCommand: AsyncParsableCommand {
             }
         }
     }
-    
+
     @Argument(help: "The path to the Mach-O file to dump.", completion: .file())
     var filePath: String
 
@@ -55,7 +65,7 @@ struct SwiftDumpCommand: AsyncParsableCommand {
     private var metadataFinder: MetadataFinder<MachOFile>?
 
     private var dumpedString = ""
-    
+
     @MainActor
     mutating func run() async throws {
         let file = try MachOKit.loadFromFile(url: URL(fileURLWithPath: filePath))
@@ -84,7 +94,7 @@ struct SwiftDumpCommand: AsyncParsableCommand {
                 try await dumpAssociatedTypes(using: demangleOptions, in: machOFile)
             }
         }
-        
+
         if let outputPath {
             let outputURL = URL(fileURLWithPath: outputPath)
             try dumpedString.write(to: outputURL, atomically: true, encoding: .utf8)
@@ -145,11 +155,11 @@ struct SwiftDumpCommand: AsyncParsableCommand {
             try dumpOrPrint(ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO).dump(using: options, in: machO))
         }
     }
-    
+
     private mutating func dumpOrPrint<Value: CustomStringConvertible>(_ value: Value) {
         dumpOrPrint(value.description)
     }
-    
+
     private mutating func dumpOrPrint(_ string: String) {
         if outputPath != nil {
             dumpedString.append(string)
@@ -158,7 +168,6 @@ struct SwiftDumpCommand: AsyncParsableCommand {
             print(string)
         }
     }
-    
 }
 
 struct DemangleOptionGroup: ParsableArguments {

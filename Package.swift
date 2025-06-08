@@ -83,8 +83,8 @@ let package = Package(
             targets: ["SwiftDump"]
         ),
         .executable(
-            name: "swift-dump",
-            targets: ["swift-dump"]
+            name: "swift-section",
+            targets: ["swift-section"]
         ),
     ],
     dependencies: [
@@ -156,11 +156,12 @@ let package = Package(
         .target(
             name: "SwiftDump",
             dependencies: [
+                .MachOKit,
                 "MachOSwiftSection",
             ]
         ),
         .executableTarget(
-            name: "swift-dump",
+            name: "swift-section",
             dependencies: [
                 "SwiftDump",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
