@@ -6,7 +6,7 @@ import MachOMacro
 extension TargetGenericContext {
     @MachOImageGenerator
     @StringBuilder
-    func dumpGenericParameters(in machOFile: MachOFile) throws -> String {
+    package func dumpGenericParameters(in machOFile: MachOFile) throws -> String {
         "<"
         for (offset, _) in parameters.offsetEnumerated() {
             try genericParameterName(depth: 0, index: offset.index)
@@ -32,7 +32,7 @@ extension TargetGenericContext {
 
     @MachOImageGenerator
     @StringBuilder
-    func dumpGenericRequirements(using options: DemangleOptions, in machOFile: MachOFile) throws -> String {
+    package func dumpGenericRequirements(using options: DemangleOptions, in machOFile: MachOFile) throws -> String {
         for (offset, requirement) in requirements.offsetEnumerated() {
             try requirement.dump(using: options, in: machOFile)
             if !offset.isEnd {
@@ -45,7 +45,7 @@ extension TargetGenericContext {
 extension GenericRequirementDescriptor {
     @MachOImageGenerator
     @StringBuilder
-    func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> String {
+    package func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> String {
         try MetadataReader.demangleType(for: paramManagedName(in: machOFile), in: machOFile).print(using: options)
         if layout.flags.kind == .sameType {
             " == "
@@ -96,7 +96,7 @@ extension GenericRequirementDescriptor {
 }
 
 extension OptionSet {
-    func removing(_ element: Element) -> Self {
+    fileprivate func removing(_ element: Element) -> Self {
         var copy = self
         copy.remove(element)
         return copy

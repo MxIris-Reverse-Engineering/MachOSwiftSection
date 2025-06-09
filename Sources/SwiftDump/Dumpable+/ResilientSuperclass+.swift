@@ -5,7 +5,7 @@ import MachOMacro
 
 extension ResilientSuperclass {
     @MachOImageGenerator
-    func dumpSuperclass(using options: DemangleOptions, for kind: TypeReferenceKind, in machOFile: MachOFile) throws -> String? {
+    package func dumpSuperclass(using options: DemangleOptions, for kind: TypeReferenceKind, in machOFile: MachOFile) throws -> String? {
         let typeReference = TypeReference.forKind(kind, at: layout.superclass.relativeOffset)
         let resolvedTypeReference = try typeReference.resolve(at: offset(of: \.superclass), in: machOFile)
         switch resolvedTypeReference {
