@@ -1,4 +1,4 @@
-import MachOFoundation
+import MachOExtensions
 
 @propertyWrapper
 struct IgnoreCoding<Value> {

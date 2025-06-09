@@ -51,23 +51,6 @@ extension MachOImage {
 
 extension DyldCache {
     package func machOFile(named: MachOImageName) -> MachOFile? {
-        if let found = machOFiles().first(where: { $0.imagePath.contains(named.path) }) {
-            return found
-        }
-
-        guard let mainCache else { return nil }
-
-        if let found = mainCache.machOFiles().first(where: { $0.imagePath.contains(named.path) }) {
-            return found
-        }
-
-        if let subCaches {
-            for subCacheEntry in subCaches {
-                if let subCache = try? subCacheEntry.subcache(for: mainCache), let found = subCache.machOFiles().first(where: { $0.imagePath.contains(named.path) }) {
-                    return found
-                }
-            }
-        }
-        return nil
+        machOFile(by: .name(named.rawValue))
     }
 }

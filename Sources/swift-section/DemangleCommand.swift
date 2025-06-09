@@ -13,7 +13,7 @@ struct DemangleCommand: AsyncParsableCommand {
     @OptionGroup
     var machOOptions: MachOOptionGroup
 
-    @Argument(help: "The mangled name to demangle.")
+    @Option(name: .shortAndLong, help: "The mangled name to demangle.")
     var mangledName: String
 
     @Option(name: .shortAndLong, help: "The offset of the mangled name in the Mach-O file. If not specified, it will be assumed to be 0.")
@@ -26,6 +26,6 @@ struct DemangleCommand: AsyncParsableCommand {
         let machOFile = try loadMachOFile(options: machOOptions)
         let demangledNode = try MetadataReader.demangleSymbol(for: .init(offset: fileOffset ?? 0, stringValue: mangledName), in: machOFile)
         let demangleOptions = demangleOptionGroup.buildSwiftDumpDemangleOptions()
-        print(mangledName, "->", demangledNode.print(using: demangleOptions))
+        print(mangledName, "--->", demangledNode.print(using: demangleOptions))
     }
 }

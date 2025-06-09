@@ -16,7 +16,7 @@ struct DemangleOptionGroup: ParsableArguments {
         }
     }
 
-    @Option(help: "Specify the Swift demangle options to use. Defaults to `.default`.")
+    @Option(help: "Specify the Swift demangle options to use.")
     var demangleOptions: PresetOptions = .default
 
     @Flag(inversion: .prefixedEnableDisable)
@@ -61,6 +61,8 @@ struct DemangleOptionGroup: ParsableArguments {
     var printForTypeName: Bool?
     @Flag(inversion: .prefixedEnableDisable)
     var showClosureSignature: Bool?
+    @Flag(inversion: .prefixedEnableDisable)
+    var showModuleInDependentMemberType: Bool?
 
     func buildSwiftDumpDemangleOptions() -> SwiftDump.DemangleOptions {
         var options = demangleOptions.options
@@ -127,7 +129,9 @@ struct DemangleOptionGroup: ParsableArguments {
         if let showClosureSignature = showClosureSignature {
             options = options.update(.showClosureSignature, enabled: showClosureSignature)
         }
-
+        if let showModuleInDependentMemberType {
+            options = options.update(.showModuleInDependentMemberType, enabled: showModuleInDependentMemberType)
+        }
         return options
     }
 }

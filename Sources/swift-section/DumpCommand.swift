@@ -5,12 +5,6 @@ import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
 
-
-
-
-
-
-
 struct DumpCommand: AsyncParsableCommand {
     static let configuration: CommandConfiguration = .init(
         commandName: "dump",
@@ -72,18 +66,18 @@ struct DumpCommand: AsyncParsableCommand {
 
         for typeContextDescriptor in typeContextDescriptors {
             switch typeContextDescriptor {
-            case let .type(typeContextDescriptorWrapper):
+            case .type(let typeContextDescriptorWrapper):
                 switch typeContextDescriptorWrapper {
-                case let .enum(enumDescriptor):
+                case .enum(let enumDescriptor):
                     let enumType = try Enum(descriptor: enumDescriptor, in: machO)
                     try dumpOrPrint(enumType.dump(using: options, in: machO))
-                case let .struct(structDescriptor):
+                case .struct(let structDescriptor):
                     let structType = try Struct(descriptor: structDescriptor, in: machO)
                     try dumpOrPrint(structType.dump(using: options, in: machO))
                     if let metadata = try metadataFinder?.metadata(for: structDescriptor) as StructMetadata? {
                         try dumpOrPrint(metadata.fieldOffsets(for: structDescriptor, in: machO))
                     }
-                case let .class(classDescriptor):
+                case .class(let classDescriptor):
                     let classType = try Class(descriptor: classDescriptor, in: machO)
                     try dumpOrPrint(classType.dump(using: options, in: machO))
                     if let metadata = try metadataFinder?.metadata(for: classDescriptor) as ClassMetadataObjCInterop? {
@@ -134,4 +128,3 @@ struct DumpCommand: AsyncParsableCommand {
         }
     }
 }
-
