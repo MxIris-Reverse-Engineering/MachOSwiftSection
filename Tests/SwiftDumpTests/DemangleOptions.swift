@@ -9,5 +9,6 @@ let printOptions: DemangleOptions = {
     options.remove(.displayWhereClauses)
     options.remove(.displayExtensionContexts)
     options.remove(.showPrivateDiscriminators)
+    options.remove(.showModuleInDependentMemberType)
     return options
 }()
