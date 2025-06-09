@@ -51,9 +51,15 @@ extension MachOFile {
     fileprivate func match(by mode: DyldCache.ImageSearchMode) -> Bool {
         switch mode {
         case let .name(name):
-            return imagePath.contains(name)
+            return imagePath.nsString.lastPathComponent.nsString.deletingPathExtension == name
         case let .path(path):
             return imagePath == path
         }
+    }
+}
+
+extension String {
+    fileprivate var nsString: NSString {
+        return self as NSString
     }
 }

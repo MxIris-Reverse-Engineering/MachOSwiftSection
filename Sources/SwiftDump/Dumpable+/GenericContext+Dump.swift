@@ -1,7 +1,8 @@
 import Foundation
 import MachOKit
-import MachOSwiftSection
 import MachOMacro
+import MachOFoundation
+import MachOSwiftSection
 
 extension TargetGenericContext {
     @MachOImageGenerator

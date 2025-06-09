@@ -5,49 +5,11 @@ import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
 
-enum Architecture: String, ExpressibleByArgument, CaseIterable {
-    case x86_64
-    case arm64
-    case arm64e
 
-    var cpu: CPUSubType {
-        switch self {
-        case .x86_64:
-            return .x86(.x86_64_all)
-        case .arm64:
-            return .arm64(.arm64_all)
-        case .arm64e:
-            return .arm64(.arm64e)
-        }
-    }
-}
 
-struct MachOOptionGroup: ParsableArguments {
-    @Argument(help: "The path to the Mach-O file or dyld shared cache to dump.", completion: .file())
-    var filePath: String
 
-    @Option(help: "The path to the dyld shared cache image. If filePath is a Mach-O file, this option is ignored.")
-    var cacheImagePath: String?
 
-    @Option(help: "The name of the dyld shared cache image. If filePath is a Mach-O file, this option is ignored.")
-    var cacheImageName: String?
 
-    @Flag(name: .customLong("dyld-shared-cache"), help: "The flag to indicate if the Mach-O file is a dyld shared cache.")
-    var isDyldSharedCache: Bool = false
-
-    @Flag(help: "Use the current dyld shared cache instead of the specified one. This option is ignored if filePath is a Mach-O file.")
-    var usesSystemDyldSharedCache: Bool = false
-    
-    @Option(help: "The architecture of the Mach-O file. If not specified, the current architecture will be used.")
-    var architecture: Architecture?
-}
-
-enum Section: String, ExpressibleByArgument, CaseIterable {
-    case types
-    case protocols
-    case protocolConformances
-    case associatedTypes
-}
 
 struct DumpCommand: AsyncParsableCommand {
     static let configuration: CommandConfiguration = .init(
@@ -65,7 +27,7 @@ struct DumpCommand: AsyncParsableCommand {
     var outputPath: String?
 
     @Option(name: .shortAndLong, parsing: .remaining, help: "The sections to dump. If not specified, all sections will be dumped.")
-    var sections: [Section] = Section.allCases
+    var sections: [SwiftSection] = SwiftSection.allCases
 
 //    @Flag(inversion: .prefixedEnableDisable, help: "Enable searching for metadata.")
     private var searchMetadata: Bool = false
@@ -173,63 +135,3 @@ struct DumpCommand: AsyncParsableCommand {
     }
 }
 
-enum SwiftSectionCommandError: LocalizedError {
-    case ambiguousCacheImageNameAndCacheImagePath
-    case missingCacheImageNameOrCacheImagePath
-    case imageNotFound
-    case invalidArchitecture
-    case failedFetchFromSystemDyldSharedCache
-    var errorDescription: String? {
-        switch self {
-        case .ambiguousCacheImageNameAndCacheImagePath:
-            "Both cacheImageName and cacheImagePath are provided, but only one should be specified."
-        case .missingCacheImageNameOrCacheImagePath:
-            "Either cacheImageName or cacheImagePath must be provided when dyldSharedCache is true."
-        case .imageNotFound:
-            "The specified image was not found in the dyld shared cache."
-        case .invalidArchitecture:
-            "The specified architecture is not found or supported."
-        case .failedFetchFromSystemDyldSharedCache:
-            "Failed to fetch the Mach-O file from the current system dyld shared cache. Please ensure the cache is accessible."
-        }
-    }
-}
-
-
-func loadMachOFile(options: MachOOptionGroup) throws -> MachOFile {
-    var url = URL(fileURLWithPath: options.filePath)
-    if options.isDyldSharedCache {
-        if options.usesSystemDyldSharedCache {
-            guard let currentCPUType = CPUType.current else { throw SwiftSectionCommandError.failedFetchFromSystemDyldSharedCache }
-            switch currentCPUType {
-            case .x86_64:
-                url = URL(fileURLWithPath: "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_x86_64")
-            case .arm64:
-                url = URL(fileURLWithPath: "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_arm64e")
-            default:
-                throw SwiftSectionCommandError.failedFetchFromSystemDyldSharedCache
-            }
-            
-        }
-        let dyldCache = try DyldCache(url: url)
-        
-        if let _ = options.cacheImagePath, let _ = options.cacheImageName {
-            throw SwiftSectionCommandError.ambiguousCacheImageNameAndCacheImagePath
-        } else if let cacheImageName = options.cacheImageName {
-            return try required(dyldCache.machOFile(by: .name(cacheImageName)), error: SwiftSectionCommandError.imageNotFound)
-        } else if let cacheImagePath = options.cacheImagePath {
-            return try required(dyldCache.machOFile(by: .path(cacheImagePath)), error: SwiftSectionCommandError.imageNotFound)
-        } else {
-            throw SwiftSectionCommandError.missingCacheImageNameOrCacheImagePath
-        }
-    } else {
-        let file = try MachOKit.loadFromFile(url: url)
-        switch file {
-        case let .machO(machOFile):
-            return machOFile
-        case let .fat(fatFile):
-            return try required(fatFile.machOFiles().first { $0.header.cpu.subtype == options.architecture?.cpu ?? CPU.current?.subtype } ?? fatFile.machOFiles().first, error: SwiftSectionCommandError.invalidArchitecture)
-        }
-    }
-    
-}
