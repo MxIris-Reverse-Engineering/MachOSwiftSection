@@ -1,7 +1,6 @@
 import Foundation
 import MachOKit
 import MachOFoundation
-import UniformTypeIdentifiers
 
 func loadMachOFile(options: MachOOptionGroup) throws -> MachOFile {
     if options.isDyldSharedCache || options.usesSystemDyldSharedCache {
@@ -46,28 +45,13 @@ func loadMachOFile(options: MachOOptionGroup) throws -> MachOFile {
             throw SwiftSectionCommandError.missingCacheImageNameOrCacheImagePath
         }
     } else {
-        var url = try URL(fileURLWithPath: required(options.filePath, error: SwiftSectionCommandError.missingFilePath))
-
-        if url.contentTypeConformsToBundle(), let executableURL = Bundle(url: url)?.executableURL {
-            url = executableURL
-        }
-
-        let file = try MachOKit.loadFromFile(url: url)
+        let url = try URL(fileURLWithPath: required(options.filePath, error: SwiftSectionCommandError.missingFilePath))
+        let file = try File.loadFromFile(url: url)
         switch file {
         case .machO(let machOFile):
             return machOFile
         case .fat(let fatFile):
             return try required(fatFile.machOFiles().first { $0.header.cpu.subtype == options.architecture?.cpu ?? CPU.current?.subtype } ?? fatFile.machOFiles().first, error: SwiftSectionCommandError.invalidArchitecture)
-        }
-    }
-}
-
-extension URL {
-    func contentTypeConformsToBundle() -> Bool {
-        if #available(macOS 11.0, *) {
-            return (try? resourceValues(forKeys: [.contentTypeKey]).contentType?.conforms(to: .bundle)) ?? false
-        } else {
-            return (try? resourceValues(forKeys: [.typeIdentifierKey]).typeIdentifier).map { UTTypeConformsTo($0 as CFString, kUTTypeBundle) } ?? false
         }
     }
 }

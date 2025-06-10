@@ -195,6 +195,7 @@ let package = Package(
             name: "MachOSwiftSectionTests",
             dependencies: [
                 "MachOSwiftSection",
+                "SwiftDump",
                 "MachOTestingSupport",
             ]
         ),

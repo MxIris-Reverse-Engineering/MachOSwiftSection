@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import MachOKit
 import MachOMacro
+import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
 import MachOTestingSupport
@@ -26,16 +27,10 @@ struct SwiftDumpTests {
 
     init() throws {
         // Cache
-        let arch = "arm64e"
-        let mainCachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch)"
-        let subCachePath = "/System/Volumes/Preboot/Cryptexes/OS/System/Library/dyld/dyld_shared_cache_\(arch).01"
-        let mainCacheURL = URL(fileURLWithPath: mainCachePath)
-        let subCacheURL = URL(fileURLWithPath: subCachePath)
-        self.mainCache = try DyldCache(url: mainCacheURL)
-        self.subCache = try DyldCache(subcacheUrl: subCacheURL, mainCacheHeader: mainCache.mainCacheHeader)
+        self.mainCache = try DyldCache(path: .current)
+        self.subCache = try required(mainCache.subCaches?.first?.subcache(for: mainCache))
 
-        self.machOFileInMainCache = try #require(mainCache.machOFile(named: .SwiftUICore))
-
+        self.machOFileInMainCache = try #require(mainCache.machOFile(named: .Foundation))
         self.machOFileInSubCache = if #available(macOS 15.5, *) {
             try #require(subCache.machOFile(named: .CodableSwiftUI))
         } else {
