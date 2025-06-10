@@ -4,7 +4,7 @@ import MachOFoundation
 public typealias SwiftOnceToken = intptr_t
 
 public struct CanonicalSpecializedMetadatasCachingOnceToken: ResolvableLocatableLayoutWrapper {
-    public struct Layout {
+    public struct Layout: Sendable {
         let token: RelativeDirectPointer<SwiftOnceToken>
     }
 

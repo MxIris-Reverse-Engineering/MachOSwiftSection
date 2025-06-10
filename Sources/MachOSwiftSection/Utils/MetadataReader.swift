@@ -6,40 +6,40 @@ import MachOMacro
 
 @MachOImageAllMembersGenerator
 public struct MetadataReader {
-    public static func demangleType(for mangledName: MangledName, in machOFile: MachOFile) throws -> SwiftSymbol {
+    public static func demangleType(for mangledName: MangledName, in machOFile: MachOFile) throws -> Node {
         return try demangle(for: mangledName, kind: .type, in: machOFile)
     }
 
-    public static func demangleSymbol(for mangledName: MangledName, in machOFile: MachOFile) throws -> SwiftSymbol {
+    public static func demangleSymbol(for mangledName: MangledName, in machOFile: MachOFile) throws -> Node {
         return try demangle(for: mangledName, kind: .symbol, in: machOFile)
     }
 
-    public static func demangleType(for unsolvedSymbol: MachOSymbol, in machOFile: MachOFile) throws -> SwiftSymbol {
+    public static func demangleType(for unsolvedSymbol: MachOSymbol, in machOFile: MachOFile) throws -> Node {
         return try required(buildContextManglingForSymbol(symbol: unsolvedSymbol, in: machOFile))
     }
 
-    public static func demangleSymbol(for unsolvedSymbol: MachOSymbol, in machOFile: MachOFile) throws -> SwiftSymbol {
+    public static func demangleSymbol(for unsolvedSymbol: MachOSymbol, in machOFile: MachOFile) throws -> Node {
         return try demangle(for: .init(unsolvedSymbol: unsolvedSymbol), kind: .symbol, in: machOFile)
     }
 
-    public static func demangleContext(for context: ContextDescriptorWrapper, in machOFile: MachOFile) throws -> SwiftSymbol {
+    public static func demangleContext(for context: ContextDescriptorWrapper, in machOFile: MachOFile) throws -> Node {
         return try required(buildContextMangling(context: context, in: machOFile))
     }
 
-    private static func buildContextMangling(context: SymbolOrElement<ContextDescriptorWrapper>, in machOFile: MachOFile) throws -> SwiftSymbol? {
+    private static func buildContextMangling(context: SymbolOrElement<ContextDescriptorWrapper>, in machOFile: MachOFile) throws -> Node? {
         switch context {
-        case .symbol(let symbol):
+        case let .symbol(symbol):
             return try buildContextManglingForSymbol(symbol: symbol, in: machOFile)
-        case .element(let contextDescriptorProtocol):
+        case let .element(contextDescriptorProtocol):
             return try buildContextMangling(context: contextDescriptorProtocol, in: machOFile)
         }
     }
 
-    private static func buildContextMangling(context: ContextDescriptorWrapper, in machOFile: MachOFile) throws -> SwiftSymbol? {
+    private static func buildContextMangling(context: ContextDescriptorWrapper, in machOFile: MachOFile) throws -> Node? {
         guard let demangling = try buildContextDescriptorMangling(context: context, recursionLimit: 50, in: machOFile) else {
             return nil
         }
-        let top: SwiftSymbol
+        let top: Node
 
         switch context {
         case .type,
@@ -52,11 +52,11 @@ public struct MetadataReader {
         return top
     }
 
-    private static func adoptAnonymousContextName(context: ContextDescriptorWrapper, parentContextRef: inout ContextDescriptorWrapper?, outSymbol: inout SwiftSymbol?, in machOFile: MachOFile) throws -> SwiftSymbol? {
+    private static func adoptAnonymousContextName(context: ContextDescriptorWrapper, parentContextRef: inout ContextDescriptorWrapper?, outSymbol: inout Node?, in machOFile: MachOFile) throws -> Node? {
         outSymbol = nil
         guard let parentContext = parentContextRef else { return nil }
         guard context.isType || context.isProtocol else { return nil }
-        guard case .anonymous(let anonymousParent) = parentContext else { return nil }
+        guard case let .anonymous(anonymousParent) = parentContext else { return nil }
         guard var mangledNode = try demangleAnonymousContextName(context: anonymousParent, in: machOFile) else { return nil }
         if mangledNode.kind == .global {
             mangledNode = mangledNode.children[0]
@@ -81,7 +81,7 @@ public struct MetadataReader {
         return nameChild
     }
 
-    private static func demangleAnonymousContextName(context: AnonymousContextDescriptor, in machOFile: MachOFile) throws -> SwiftSymbol? {
+    private static func demangleAnonymousContextName(context: AnonymousContextDescriptor, in machOFile: MachOFile) throws -> Node? {
 //        switch context {
 //        case .symbol(let unsolvedSymbol):
 //            return try buildContextManglingForSymbol(symbol: unsolvedSymbol)
@@ -91,14 +91,14 @@ public struct MetadataReader {
 //        }
     }
 
-    private static func readProtocol(offset: Int, pointer: RelativeProtocolDescriptorPointer, in machOFile: MachOFile) throws -> SwiftSymbol? {
+    private static func readProtocol(offset: Int, pointer: RelativeProtocolDescriptorPointer, in machOFile: MachOFile) throws -> Node? {
         switch pointer {
-        case .objcPointer(let objcPointer):
+        case let .objcPointer(objcPointer):
             let objcPrefixElement = try objcPointer.resolve(from: offset, in: machOFile)
             switch objcPrefixElement {
-            case .symbol(let symbol):
+            case let .symbol(symbol):
                 return try buildContextManglingForSymbol(symbol: symbol, in: machOFile)
-            case .element(let objcPrefix):
+            case let .element(objcPrefix):
                 let mangledName = try objcPrefix.mangledName(in: machOFile)
                 let name = mangledName.symbolStringValue()
                 if name.starts(with: "_TtP") {
@@ -116,27 +116,27 @@ public struct MetadataReader {
                     }
                     return demangled
                 } else {
-                    return SwiftSymbol(kind: .protocol, children: [.init(kind: .module, contents: .name(objcModule)), .init(kind: .identifier, contents: .name(name))])
+                    return Node(kind: .protocol, children: [.init(kind: .module, contents: .name(objcModule)), .init(kind: .identifier, contents: .name(name))])
                 }
             }
-        case .swiftPointer(let swiftPointer):
+        case let .swiftPointer(swiftPointer):
             let resolvableProtocolDescriptor = try swiftPointer.resolve(from: offset, in: machOFile)
             switch resolvableProtocolDescriptor {
-            case .symbol(let symbol):
+            case let .symbol(symbol):
                 return try buildContextManglingForSymbol(symbol: symbol, in: machOFile)
-            case .element(let context):
+            case let .element(context):
                 return try buildContextMangling(context: .protocol(context), in: machOFile)
             }
         }
     }
 
-    private static func buildContextDescriptorMangling(context: ContextDescriptorWrapper, recursionLimit: Int, in machOFile: MachOFile) throws -> SwiftSymbol? {
+    private static func buildContextDescriptorMangling(context: ContextDescriptorWrapper, recursionLimit: Int, in machOFile: MachOFile) throws -> Node? {
         guard recursionLimit > 0 else { return nil }
         var parentDescriptorResult = try context.parent(in: machOFile)?.resolved
-        var demangledParentNode: SwiftSymbol?
+        var demangledParentNode: Node?
         var nameNode = try adoptAnonymousContextName(context: context, parentContextRef: &parentDescriptorResult, outSymbol: &demangledParentNode, in: machOFile)
 //        guard let parentDescriptorResult else { return nil }
-        var parentDemangling: SwiftSymbol?
+        var parentDemangling: Node?
 
         if let parentDescriptor = parentDescriptorResult {
             parentDemangling = try buildContextDescriptorMangling(context: parentDescriptor, recursionLimit: recursionLimit - 1, in: machOFile)
@@ -149,8 +149,8 @@ public struct MetadataReader {
             parentDemangling = demangledParentNode
         }
 
-        let kind: SwiftSymbol.Kind
-        
+        let kind: Node.Kind
+
         func getContextName() throws -> Bool {
             if nameNode != nil {
                 return true
@@ -180,9 +180,9 @@ public struct MetadataReader {
             guard let extensionContext = context.extensionContextDescriptor else { return nil }
             guard let extendedContext = try extensionContext.extendedContext(in: machOFile) else { return nil }
             guard let demangledExtendedContext = try demangle(for: extendedContext, kind: .type, in: machOFile).extensionSymbol else { return nil }
-            var demangling = SwiftSymbol(kind: .extension, children: [parentDemangling, demangledExtendedContext])
+            let demangling = Node(kind: .extension, children: [parentDemangling, demangledExtendedContext])
             if let requirements = try extensionContext.genericContext(in: machOFile)?.requirements {
-                var signatureNode = SwiftSymbol(kind: .dependentGenericSignature)
+                let signatureNode = Node(kind: .dependentGenericSignature)
                 var failed = false
                 for requirement in requirements {
                     if failed {
@@ -191,20 +191,20 @@ public struct MetadataReader {
                     let subject = try demangle(for: requirement.paramManagedName(in: machOFile), kind: .type, in: machOFile)
                     let offset = requirement.offset(of: \.content)
                     switch requirement.content {
-                    case .protocol(let relativeProtocolDescriptorPointer):
+                    case let .protocol(relativeProtocolDescriptorPointer):
                         guard let proto = try? readProtocol(offset: offset, pointer: relativeProtocolDescriptorPointer, in: machOFile) else {
                             failed = true
                             break
                         }
-                        let requirementNode = SwiftSymbol(kind: .dependentGenericConformanceRequirement, children: [subject, proto])
-                        signatureNode.children.append(requirementNode)
-                    case .type(let relativeDirectPointer):
+                        let requirementNode = Node(kind: .dependentGenericConformanceRequirement, children: [subject, proto])
+                        signatureNode.addChild(requirementNode)
+                    case let .type(relativeDirectPointer):
                         let mangledName = try relativeDirectPointer.resolve(from: offset, in: machOFile)
                         guard let type = try? demangle(for: mangledName, kind: .type, in: machOFile) else {
                             failed = true
                             break
                         }
-                        let nodeKind: SwiftSymbol.Kind
+                        let nodeKind: Node.Kind
 
                         if requirement.flags.kind == .sameType {
                             nodeKind = .dependentGenericSameTypeRequirement
@@ -212,12 +212,12 @@ public struct MetadataReader {
                             nodeKind = .dependentGenericConformanceRequirement
                         }
 
-                        let requirementNode = SwiftSymbol(kind: nodeKind, children: [subject, type])
-                        signatureNode.children.append(requirementNode)
-                    case .layout(let genericRequirementLayoutKind):
+                        let requirementNode = Node(kind: nodeKind, children: [subject, type])
+                        signatureNode.addChild(requirementNode)
+                    case let .layout(genericRequirementLayoutKind):
                         if genericRequirementLayoutKind == .class {
-                            let requirementNode = SwiftSymbol(kind: .dependentGenericLayoutRequirement, children: [subject, .init(kind: .identifier, contents: .name("C"))])
-                            signatureNode.children.append(requirementNode)
+                            let requirementNode = Node(kind: .dependentGenericLayoutRequirement, children: [subject, .init(kind: .identifier, contents: .name("C"))])
+                            signatureNode.addChild(requirementNode)
                         } else {
                             failed = true
                         }
@@ -228,7 +228,7 @@ public struct MetadataReader {
                     }
                 }
                 if !failed {
-                    demangling.children.append(signatureNode)
+                    demangling.addChild(signatureNode)
                 }
             }
             return demangling
@@ -255,10 +255,10 @@ public struct MetadataReader {
                 if mangledNode.kind == .global {
                     mangledNode = mangledNode.children[0]
                 }
-                let opaqueNode = SwiftSymbol(kind: .opaqueReturnTypeOf, children: [mangledNode])
+                let opaqueNode = Node(kind: .opaqueReturnTypeOf, children: [mangledNode])
                 return opaqueNode
             } else if let parentDemangling, parentDemangling.kind == .module {
-                let opaqueNode = SwiftSymbol(kind: .opaqueReturnTypeOf, children: [parentDemangling])
+                let opaqueNode = Node(kind: .opaqueReturnTypeOf, children: [parentDemangling])
                 return opaqueNode
             } else {
                 return nil
@@ -272,12 +272,12 @@ public struct MetadataReader {
                 return nil
             }
         }
-        let demangling = SwiftSymbol(kind: kind, children: [parentDemangling, nameNode])
+        let demangling = Node(kind: kind, children: [parentDemangling, nameNode])
 
         return demangling
     }
 
-    private static func buildContextManglingForSymbol(symbol: MachOSymbol, in machOFile: MachOFile) throws -> SwiftSymbol? {
+    private static func buildContextManglingForSymbol(symbol: MachOSymbol, in machOFile: MachOFile) throws -> Node? {
         var demangler = Demangler(scalars: symbol.stringValue.unicodeScalars)
         var demangledSymbol = try demangler.demangleSymbol()
         if demangledSymbol.kind == .global {
@@ -295,7 +295,7 @@ public struct MetadataReader {
         return demangledSymbol
     }
 
-    private static func demangle(for mangledName: MangledName, kind: MangledNameKind, useOpaqueTypeSymbolicReferences: Bool = false, in machOFile: MachOFile) throws -> SwiftSymbol {
+    private static func demangle(for mangledName: MangledName, kind: MangledNameKind, useOpaqueTypeSymbolicReferences: Bool = false, in machOFile: MachOFile) throws -> Node {
         let stringValue = switch kind {
         case .type:
             mangledName.typeStringValue()
@@ -303,12 +303,12 @@ public struct MetadataReader {
             mangledName.symbolStringValue()
         }
         var demangler = Demangler(scalars: stringValue.unicodeScalars)
-        demangler.symbolicReferenceResolver = { kind, directness, index -> SwiftSymbol? in
+        demangler.symbolicReferenceResolver = { kind, directness, index -> Node? in
             do {
-                var result: SwiftSymbol?
+                var result: Node?
                 let lookup = mangledName.lookupElements[index]
                 let offset = lookup.offset
-                guard case .relative(let relativeReference) = lookup.reference else { return nil }
+                guard case let .relative(relativeReference) = lookup.reference else { return nil }
                 let relativeOffset = relativeReference.relativeOffset
                 switch kind {
                 case .context:
@@ -327,7 +327,7 @@ public struct MetadataReader {
                     case .indirect:
                         let relativePointer = RelativeIndirectSymbolOrElementPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset)
                         if let resolvableElement = try relativePointer.resolve(from: offset, in: machOFile).asOptional {
-                            if case .element(let element) = resolvableElement, element.opaqueTypeDescriptor != nil {
+                            if case let .element(element) = resolvableElement, element.opaqueTypeDescriptor != nil {
                                 // Try to preserve a reference to an OpaqueTypeDescriptor
                                 // symbolically, since we'd like to read out and resolve the type ref
                                 // to the underlying type if available.
@@ -344,23 +344,23 @@ public struct MetadataReader {
                 case .uniqueExtendedExistentialTypeShape:
                     let extendedExistentialTypeShape = try RelativeDirectPointer<ExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: offset, in: machOFile)
                     let existentialType = try extendedExistentialTypeShape.existentialType(in: machOFile).symbolStringValue()
-                    result = try .init(kind: .uniqueExtendedExistentialTypeShapeSymbolicReference, children: parseMangledSwiftSymbol(existentialType.insertManglePrefix).children)
+                    result = try .init(kind: .uniqueExtendedExistentialTypeShapeSymbolicReference, children: demangleAsNode(existentialType.insertManglePrefix).children)
                 case .nonUniqueExtendedExistentialTypeShape:
                     let nonUniqueExtendedExistentialTypeShape = try RelativeDirectPointer<NonUniqueExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: offset, in: machOFile)
                     let existentialType = try nonUniqueExtendedExistentialTypeShape.existentialType(in: machOFile).symbolStringValue()
-                    result = try .init(kind: .nonUniqueExtendedExistentialTypeShapeSymbolicReference, children: parseMangledSwiftSymbol(existentialType.insertManglePrefix).children)
+                    result = try .init(kind: .nonUniqueExtendedExistentialTypeShapeSymbolicReference, children: demangleAsNode(existentialType.insertManglePrefix).children)
                 case .objectiveCProtocol:
                     let relativePointer = RelativeDirectPointer<RelativeObjCProtocolPrefix>(relativeOffset: relativeOffset)
                     let objcProtocol = try relativePointer.resolve(from: offset, in: machOFile)
                     let name = try objcProtocol.mangledName(in: machOFile).symbolStringValue()
-                    result = try parseMangledSwiftSymbol(name).typeSymbol
+                    result = try demangleAsNode(name).typeSymbol
                 }
                 return result
             } catch {
                 return nil
             }
         }
-        let result: SwiftSymbol
+        let result: Node
         switch kind {
         case .type:
             result = try demangler.demangleType()
@@ -371,9 +371,9 @@ public struct MetadataReader {
     }
 }
 
-extension SwiftSymbol {
-    fileprivate var typeSymbol: SwiftSymbol? {
-        func enumerate(_ child: SwiftSymbol) -> SwiftSymbol? {
+extension Node {
+    fileprivate var typeSymbol: Node? {
+        func enumerate(_ child: Node) -> Node? {
             if child.kind == .type {
                 return child
             }
@@ -392,8 +392,8 @@ extension SwiftSymbol {
         return enumerate(self)
     }
 
-    fileprivate var typeNonWrapperSymbol: SwiftSymbol? {
-        func enumerate(_ child: SwiftSymbol) -> SwiftSymbol? {
+    fileprivate var typeNonWrapperSymbol: Node? {
+        func enumerate(_ child: Node) -> Node? {
             if child.kind == .enum || child.kind == .structure || child.kind == .class || child.kind == .protocol {
                 return child
             }
@@ -408,7 +408,49 @@ extension SwiftSymbol {
         return enumerate(self)
     }
 
-    fileprivate var extensionSymbol: SwiftSymbol? {
+    fileprivate var extensionSymbol: Node? {
         typeNonWrapperSymbol
+    }
+
+    func nodes(for kind: Node.Kind) -> [Node] {
+        var nodes: [Node] = []
+        func enumerate(_ child: Node) {
+            if child.kind == kind {
+                nodes.append(child)
+            }
+            for child in child.children {
+                enumerate(child)
+            }
+        }
+        enumerate(self)
+        return nodes
+    }
+
+//    fileprivate var stripModuleInDependentMemberType: Node {
+//        let dependentMemberTypes = nodes(for: .dependentMemberType)
+//        for dependentMemberType in dependentMemberTypes {
+//            do {
+//                let dependentGenericParamType = try required(dependentMemberType.children[safe: 0])
+//                let dependentAssociatedTypeRef = try required(dependentMemberType.children[safe: 1])
+//                try required(dependentGenericParamType.kind == .type)
+//                try required(dependentAssociatedTypeRef.kind == .dependentAssociatedTypeRef)
+//                let type = try required(dependentAssociatedTypeRef.children[safe: 1])
+//                try required(type.kind == .type)
+//                try required(type.children[safe: 0]?.children[safe:0]?.kind == .module)
+//                dependentMemberType.children[1].children[1].children[0].children.remove(at: 0)
+//            } catch {
+//                return dependentMemberType
+//            }
+//        }
+//        return self
+//    }
+}
+
+extension Array {
+    subscript(safe index: Int) -> Element? {
+        if index < 0 || index >= count {
+            return nil
+        }
+        return self[index]
     }
 }

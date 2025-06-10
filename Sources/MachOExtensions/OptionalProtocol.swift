@@ -1,4 +1,4 @@
-public protocol OptionalProtocol: ExpressibleByNilLiteral {
+public protocol OptionalProtocol: ExpressibleByNilLiteral, Sendable {
     associatedtype Wrapped
     static var none: Self { get }
     static func some(_ wrappedValue: Wrapped) -> Self

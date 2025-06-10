@@ -4,7 +4,7 @@ import MachOFoundation
 import MachOMacro
 
 public struct GenericRequirementDescriptor: ResolvableLocatableLayoutWrapper {
-    public struct Layout {
+    public struct Layout: Sendable {
         public let flags: GenericRequirementFlags
         public let param: RelativeDirectPointer<MangledName>
         public let content: RelativeOffset

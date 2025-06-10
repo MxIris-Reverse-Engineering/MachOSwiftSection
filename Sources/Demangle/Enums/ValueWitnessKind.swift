@@ -1,4 +1,4 @@
-enum ValueWitnessKind: UInt64, CustomStringConvertible {
+enum ValueWitnessKind: UInt64, CaseIterable, CustomStringConvertible, Sendable {
     case allocateBuffer = 0
     case assignWithCopy = 1
     case assignWithTake = 2

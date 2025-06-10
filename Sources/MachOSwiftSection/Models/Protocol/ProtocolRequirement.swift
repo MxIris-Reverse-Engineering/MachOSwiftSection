@@ -3,7 +3,7 @@ import MachOMacro
 import MachOFoundation
 
 public struct ProtocolRequirement: ResolvableLocatableLayoutWrapper {
-    public struct Layout {
+    public struct Layout: Sendable {
         public let flags: ProtocolRequirementFlags
         public let defaultImplementation: RelativeDirectPointer<MachOSymbol?>
     }

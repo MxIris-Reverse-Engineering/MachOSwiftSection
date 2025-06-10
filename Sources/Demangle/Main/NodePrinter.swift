@@ -1,17 +1,20 @@
-struct SymbolPrinter {
+struct NodePrinter: Sendable {
     var target: String
     var specializationPrefixPrinted: Bool
-    var options: SymbolPrintOptions
+    var options: DemangleOptions
     var hidingCurrentModule: String = ""
 
-    init(options: SymbolPrintOptions = .default) {
+    init(options: DemangleOptions = .default) {
         self.target = ""
         self.specializationPrefixPrinted = false
         self.options = options
     }
 
-    func shouldPrintContext(_ context: SwiftSymbol) -> Bool {
+    func shouldPrintContext(_ context: Node) -> Bool {
         guard options.contains(.qualifyEntities) else {
+            return false
+        }
+        if !options.contains(.showModuleInDependentMemberType), let dependentMemberType = context.parent?.parent?.parent?.parent, dependentMemberType.kind == .dependentMemberType  {
             return false
         }
         if context.kind == .module, let text = context.text, !text.isEmpty {
@@ -28,7 +31,7 @@ struct SymbolPrinter {
         return true
     }
 
-    mutating func printOptional(_ optional: SwiftSymbol?, prefix: String? = nil, suffix: String? = nil, asPrefixContext: Bool = false) -> SwiftSymbol? {
+    mutating func printOptional(_ optional: Node?, prefix: String? = nil, suffix: String? = nil, asPrefixContext: Bool = false) -> Node? {
         guard let o = optional else { return nil }
         prefix.map { target.write($0) }
         let r = printName(o)
@@ -36,11 +39,11 @@ struct SymbolPrinter {
         return r
     }
 
-    mutating func printFirstChild(_ ofName: SwiftSymbol, prefix: String? = nil, suffix: String? = nil, asPrefixContext: Bool = false) {
+    mutating func printFirstChild(_ ofName: Node, prefix: String? = nil, suffix: String? = nil, asPrefixContext: Bool = false) {
         _ = printOptional(ofName.children.at(0), prefix: prefix, suffix: suffix)
     }
 
-    mutating func printSequence<S>(_ names: S, prefix: String? = nil, suffix: String? = nil, separator: String? = nil) where S: Sequence, S.Element == SwiftSymbol {
+    mutating func printSequence<S>(_ names: S, prefix: String? = nil, suffix: String? = nil, separator: String? = nil) where S: Sequence, S.Element == Node {
         var isFirst = true
         prefix.map { target.write($0) }
         for c in names {
@@ -54,15 +57,15 @@ struct SymbolPrinter {
         suffix.map { target.write($0) }
     }
 
-    mutating func printChildren(_ ofName: SwiftSymbol, prefix: String? = nil, suffix: String? = nil, separator: String? = nil) {
+    mutating func printChildren(_ ofName: Node, prefix: String? = nil, suffix: String? = nil, separator: String? = nil) {
         printSequence(ofName.children, prefix: prefix, suffix: suffix, separator: separator)
     }
 
-    mutating func printMacro(name: SwiftSymbol, asPrefixContext: Bool, label: String) -> SwiftSymbol? {
+    mutating func printMacro(name: Node, asPrefixContext: Bool, label: String) -> Node? {
         return printEntity(name, asPrefixContext: asPrefixContext, typePrinting: .noType, hasName: true, extraName: "\(label) macro @\(name.children.at(2)?.description ?? "") expansion #", extraIndex: (name.children.at(3)?.index ?? 0) + 1)
     }
 
-    mutating func printAnonymousContext(_ name: SwiftSymbol) {
+    mutating func printAnonymousContext(_ name: Node) {
         if options.contains(.qualifyEntities), options.contains(.displayExtensionContexts) {
             _ = printOptional(name.children.at(1))
             target.write(".(unknown context at " + (name.children.first?.text ?? "") + ")")
@@ -74,7 +77,7 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printExtension(_ name: SwiftSymbol) {
+    mutating func printExtension(_ name: Node) {
         if options.contains(.qualifyEntities), options.contains(.displayExtensionContexts) {
             printFirstChild(name, prefix: "(extension in ", suffix: "):", asPrefixContext: true)
         }
@@ -82,25 +85,25 @@ struct SymbolPrinter {
         _ = printOptional(!options.contains(.printForTypeName) ? name.children.at(2) : nil)
     }
 
-    mutating func printSuffix(_ name: SwiftSymbol) {
+    mutating func printSuffix(_ name: Node) {
         if options.contains(.displayUnmangledSuffix) {
             target.write(" with unmangled suffix ")
             quotedString(name.text ?? "")
         }
     }
 
-    mutating func printPrivateDeclName(_ name: SwiftSymbol) {
+    mutating func printPrivateDeclName(_ name: Node) {
         _ = printOptional(name.children.at(1), prefix: options.contains(.showPrivateDiscriminators) ? "(" : nil)
         target.write(options.contains(.showPrivateDiscriminators) ? "\(name.children.count > 1 ? " " : "(")in \(name.children.at(0)?.text ?? ""))" : "")
     }
 
-    mutating func printModule(_ name: SwiftSymbol) {
+    mutating func printModule(_ name: Node) {
         if options.contains(.displayModuleNames) {
             target.write(name.text ?? "")
         }
     }
 
-    mutating func printReturnType(_ name: SwiftSymbol) {
+    mutating func printReturnType(_ name: Node) {
         if name.children.isEmpty, let t = name.text {
             target.write(t)
         } else {
@@ -108,13 +111,13 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printRetroactiveConformance(_ name: SwiftSymbol) {
+    mutating func printRetroactiveConformance(_ name: Node) {
         if name.children.count == 2 {
             printChildren(name, prefix: "retroactive @ ")
         }
     }
 
-    mutating func printGenericSpecializationParam(_ name: SwiftSymbol) {
+    mutating func printGenericSpecializationParam(_ name: Node) {
         printFirstChild(name)
         _ = printOptional(name.children.at(1), prefix: " with ")
         name.children.slice(2, name.children.endIndex).forEach {
@@ -123,7 +126,7 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printFunctionSignatureSpecializationParam(_ name: SwiftSymbol) {
+    mutating func printFunctionSignatureSpecializationParam(_ name: Node) {
         var idx = 0
         while idx < name.children.count {
             guard let firstChild = name.children.at(idx), let v = firstChild.index else { return }
@@ -138,7 +141,7 @@ struct SymbolPrinter {
                  .constantPropGlobal:
                 _ = printOptional(name.children.at(idx), prefix: "[", suffix: " : ")
                 guard let t = name.children.at(idx + 1)?.text else { return }
-                let demangedName = (try? parseMangledSwiftSymbol(t))?.description ?? ""
+                let demangedName = (try? demangleAsNode(t))?.description ?? ""
                 if demangedName.isEmpty {
                     target.write(t)
                 } else {
@@ -181,7 +184,7 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printFunctionSignatureSpecializationParamKind(_ name: SwiftSymbol) {
+    mutating func printFunctionSignatureSpecializationParamKind(_ name: Node) {
         let raw = name.index ?? 0
         var printedOptionSet = false
         if raw & FunctionSigSpecializationParamKind.existentialToGeneric.rawValue != 0 {
@@ -218,41 +221,41 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printLazyProtocolWitnesstableAccessor(_ name: SwiftSymbol) {
+    mutating func printLazyProtocolWitnesstableAccessor(_ name: Node) {
         _ = printOptional(name.children.at(0), prefix: "lazy protocol witness table accessor for type ")
         _ = printOptional(name.children.at(1), prefix: " and conformance ")
     }
 
-    mutating func printLazyProtocolWitnesstableCacheVariable(_ name: SwiftSymbol) {
+    mutating func printLazyProtocolWitnesstableCacheVariable(_ name: Node) {
         _ = printOptional(name.children.at(0), prefix: "lazy protocol witness table cache variable for type ")
         _ = printOptional(name.children.at(1), prefix: " and conformance ")
     }
 
-    mutating func printVTableThunk(_ name: SwiftSymbol) {
+    mutating func printVTableThunk(_ name: Node) {
         _ = printOptional(name.children.at(1), prefix: "vtable thunk for ")
         _ = printOptional(name.children.at(0), prefix: " dispatching to ")
     }
 
-    mutating func printProtocolWitness(_ name: SwiftSymbol) {
+    mutating func printProtocolWitness(_ name: Node) {
         _ = printOptional(name.children.at(1), prefix: "protocol witness for ")
         _ = printOptional(name.children.at(0), prefix: " in conformance ")
     }
 
-    mutating func printPartialApplyForwarder(_ name: SwiftSymbol) {
+    mutating func printPartialApplyForwarder(_ name: Node) {
         target.write("partial apply\(options.contains(.shortenPartialApply) ? "" : " forwarder")")
         if !name.children.isEmpty {
             printChildren(name, prefix: " for ")
         }
     }
 
-    mutating func printPartialApplyObjCForwarder(_ name: SwiftSymbol) {
+    mutating func printPartialApplyObjCForwarder(_ name: Node) {
         target.write("partial apply\(options.contains(.shortenPartialApply) ? "" : " ObjC forwarder")")
         if !name.children.isEmpty {
             printChildren(name, prefix: " for ")
         }
     }
 
-    mutating func printKeyPathAccessorThunkHelper(_ name: SwiftSymbol) {
+    mutating func printKeyPathAccessorThunkHelper(_ name: Node) {
         printFirstChild(name, prefix: "key path \(name.kind == .keyPathGetterThunkHelper ? "getter" : "setter") for ", suffix: " : ")
         for child in name.children.dropFirst() {
             if child.kind == .isSerialized {
@@ -262,7 +265,7 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printKeyPathEqualityThunkHelper(_ name: SwiftSymbol) {
+    mutating func printKeyPathEqualityThunkHelper(_ name: Node) {
         target.write("key path index \(name.kind == .keyPathEqualsThunkHelper ? "equality" : "hash") operator for ")
         var dropLast = false
         if let lastChild = name.children.last, lastChild.kind == .dependentGenericSignature {
@@ -272,12 +275,12 @@ struct SymbolPrinter {
         printSequence(dropLast ? Array(name.children.dropLast()) : name.children, prefix: "(", suffix: ")", separator: ", ")
     }
 
-    mutating func printFieldOffset(_ name: SwiftSymbol) {
+    mutating func printFieldOffset(_ name: Node) {
         printFirstChild(name)
         _ = printOptional(name.children.at(1), prefix: "field offset for ", asPrefixContext: true)
     }
 
-    mutating func printReabstractionThunk(_ name: SwiftSymbol) {
+    mutating func printReabstractionThunk(_ name: Node) {
         if options.contains(.shortenThunk) {
             _ = printOptional(name.children.at(name.children.count - 2), prefix: "thunk for ")
         } else {
@@ -289,36 +292,36 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printAssociatedConformanceDescriptor(_ name: SwiftSymbol) {
+    mutating func printAssociatedConformanceDescriptor(_ name: Node) {
         _ = printOptional(name.children.at(0), prefix: "associated conformance descriptor for ")
         _ = printOptional(name.children.at(1), prefix: ".")
         _ = printOptional(name.children.at(2), prefix: ": ")
     }
 
-    mutating func printDefaultAssociatedConformanceAccessor(_ name: SwiftSymbol) {
+    mutating func printDefaultAssociatedConformanceAccessor(_ name: Node) {
         _ = printOptional(name.children.at(0), prefix: "default associated conformance accessor for ")
         _ = printOptional(name.children.at(1), prefix: ".")
         _ = printOptional(name.children.at(2), prefix: ": ")
     }
 
-    mutating func printAssociatedTypeMetadataAccessor(_ name: SwiftSymbol) {
+    mutating func printAssociatedTypeMetadataAccessor(_ name: Node) {
         _ = printOptional(name.children.at(1), prefix: "associated type metadata accessor for ")
         _ = printOptional(name.children.at(0), prefix: " in ")
     }
 
-    mutating func printAssociatedTypeWitnessTableAccessor(_ name: SwiftSymbol) {
+    mutating func printAssociatedTypeWitnessTableAccessor(_ name: Node) {
         _ = printOptional(name.children.at(1), prefix: "associated type witness table accessor for ")
         _ = printOptional(name.children.at(2), prefix: " : ")
         _ = printOptional(name.children.at(0), prefix: " in ")
     }
 
-    mutating func printValueWitness(_ name: SwiftSymbol) {
+    mutating func printValueWitness(_ name: Node) {
         target.write(ValueWitnessKind(rawValue: name.index ?? 0)?.description ?? "")
         target.write(options.contains(.shortenValueWitness) ? " for " : " value witness for ")
         printFirstChild(name)
     }
 
-    mutating func printConcreteProtocolConformance(_ name: SwiftSymbol) {
+    mutating func printConcreteProtocolConformance(_ name: Node) {
         target.write("concrete protocol conformance ")
         if let index = name.index {
             target.write(" #\(index)")
@@ -332,7 +335,7 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printMetatype(_ name: SwiftSymbol) {
+    mutating func printMetatype(_ name: Node) {
         if name.children.count == 2 {
             printFirstChild(name, suffix: " ")
         }
@@ -344,19 +347,19 @@ struct SymbolPrinter {
         target.write(type.kind.isExistentialType ? ".Protocol" : ".Type")
     }
 
-    mutating func printExistentialMetatype(_ name: SwiftSymbol) {
+    mutating func printExistentialMetatype(_ name: Node) {
         if name.children.count == 2 {
             printFirstChild(name, suffix: " ")
         }
         _ = printOptional(name.children.at(name.children.count == 2 ? 1 : 0), suffix: ".Type")
     }
 
-    mutating func printAssociatedTypeRef(_ name: SwiftSymbol) {
+    mutating func printAssociatedTypeRef(_ name: Node) {
         printFirstChild(name)
         target.write(".\(name.children.at(1)?.text ?? "")")
     }
 
-    mutating func printProtocolList(_ name: SwiftSymbol) {
+    mutating func printProtocolList(_ name: Node) {
         guard let typeList = name.children.first else { return }
         if typeList.children.isEmpty {
             target.write("Any")
@@ -365,7 +368,7 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printProtocolListWithClass(_ name: SwiftSymbol) {
+    mutating func printProtocolListWithClass(_ name: Node) {
         guard name.children.count >= 2 else { return }
         _ = printOptional(name.children.at(1), suffix: " & ")
         if let protocolsTypeList = name.children.first?.children.first {
@@ -373,7 +376,7 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printProtocolListWithAnyObject(_ name: SwiftSymbol) {
+    mutating func printProtocolListWithAnyObject(_ name: Node) {
         guard let prot = name.children.first, let protocolsTypeList = prot.children.first else { return }
         if protocolsTypeList.children.count > 0 {
             printChildren(protocolsTypeList, suffix: " & ", separator: " & ")
@@ -384,7 +387,7 @@ struct SymbolPrinter {
         target.write("AnyObject")
     }
 
-    mutating func printProtocolConformance(_ name: SwiftSymbol) {
+    mutating func printProtocolConformance(_ name: Node) {
         if name.children.count == 4 {
             _ = printOptional(name.children.at(2), prefix: "property behavior storage of ")
             _ = printOptional(name.children.at(0), prefix: " in ")
@@ -398,7 +401,7 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printImplParameter(_ name: SwiftSymbol) {
+    mutating func printImplParameter(_ name: Node) {
         printFirstChild(name, suffix: " ")
         if name.children.count == 3 {
             _ = printOptional(name.children.at(1))
@@ -409,7 +412,7 @@ struct SymbolPrinter {
         _ = printOptional(name.children.last)
     }
 
-    mutating func printDependentProtocolConformanceAssociated(_ name: SwiftSymbol) {
+    mutating func printDependentProtocolConformanceAssociated(_ name: Node) {
         target.write("dependent associated protocol conformance ")
         if let index = name.children.at(2)?.index {
             target.write("#\(index) ")
@@ -419,7 +422,7 @@ struct SymbolPrinter {
         _ = printOptional(name.children.at(1))
     }
 
-    mutating func printDependentProtocolConformanceInherited(_ name: SwiftSymbol) {
+    mutating func printDependentProtocolConformanceInherited(_ name: Node) {
         target.write("dependent inherited protocol conformance ")
         if let index = name.children.at(2)?.index {
             target.write("#\(index) ")
@@ -429,7 +432,7 @@ struct SymbolPrinter {
         _ = printOptional(name.children.at(1))
     }
 
-    mutating func printDependentProtocolConformanceRoot(_ name: SwiftSymbol) {
+    mutating func printDependentProtocolConformanceRoot(_ name: Node) {
         target.write("dependent root protocol conformance ")
         if let index = name.children.at(2)?.index {
             target.write("#\(index) ")
@@ -454,7 +457,7 @@ struct SymbolPrinter {
         return name
     }
 
-    mutating func printGenericSignature(_ name: SwiftSymbol) {
+    mutating func printGenericSignature(_ name: Node) {
         target.write("<")
         var numGenericParams = 0
         for c in name.children {
@@ -490,7 +493,7 @@ struct SymbolPrinter {
             return false
         }
 
-        let isGenericParamValue = { (depth: UInt64, index: UInt64) -> SwiftSymbol? in
+        let isGenericParamValue = { (depth: UInt64, index: UInt64) -> Node? in
             for var child in name.children.dropFirst(numGenericParams).prefix(firstRequirement) {
                 guard child.kind == .dependentGenericParamValueMarker else { continue }
                 child = child.children.first ?? child
@@ -559,12 +562,12 @@ struct SymbolPrinter {
         target.write(">")
     }
 
-    mutating func printDependentGenericConformanceRequirement(_ name: SwiftSymbol) {
+    mutating func printDependentGenericConformanceRequirement(_ name: Node) {
         printFirstChild(name)
         _ = printOptional(name.children.at(1), prefix: ": ")
     }
 
-    mutating func printDependentGenericLayoutRequirement(_ name: SwiftSymbol) {
+    mutating func printDependentGenericLayoutRequirement(_ name: Node) {
         guard let layout = name.children.at(1), let c = layout.text?.unicodeScalars.first else { return }
         printFirstChild(name, suffix: ": ")
         switch c {
@@ -587,29 +590,29 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printDependentGenericSameTypeRequirement(_ name: SwiftSymbol) {
+    mutating func printDependentGenericSameTypeRequirement(_ name: Node) {
         printFirstChild(name)
         _ = printOptional(name.children.at(1), prefix: " == ")
     }
 
-    mutating func printDependentGenericType(_ name: SwiftSymbol) {
+    mutating func printDependentGenericType(_ name: Node) {
         guard let depType = name.children.at(1) else { return }
         printFirstChild(name)
         _ = printOptional(depType, prefix: depType.needSpaceBeforeType ? " " : "")
     }
 
-    mutating func printDependentMemberType(_ name: SwiftSymbol) {
+    mutating func printDependentMemberType(_ name: Node) {
         printFirstChild(name)
         target.write(".")
         _ = printOptional(name.children.at(1))
     }
 
-    mutating func printDependentAssociatedTypeRef(_ name: SwiftSymbol) {
+    mutating func printDependentAssociatedTypeRef(_ name: Node) {
         _ = printOptional(name.children.at(1), suffix: ".")
         printFirstChild(name)
     }
 
-    mutating func printSilBoxTypeWithLayout(_ name: SwiftSymbol) {
+    mutating func printSilBoxTypeWithLayout(_ name: Node) {
         guard let layout = name.children.first else { return }
         _ = printOptional(name.children.at(1), suffix: " ")
         _ = printName(layout)
@@ -618,7 +621,7 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printSugaredOptional(_ name: SwiftSymbol) {
+    mutating func printSugaredOptional(_ name: Node) {
         if let type = name.children.first {
             let needParens = !type.isSimpleType
             target.write(needParens ? "(" : "")
@@ -628,18 +631,18 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printSugaredDictionary(_ name: SwiftSymbol) {
+    mutating func printSugaredDictionary(_ name: Node) {
         printFirstChild(name, prefix: "[", suffix: " : ")
         _ = printOptional(name.children.at(1), suffix: "]")
     }
 
-    mutating func printOpaqueType(_ name: SwiftSymbol) {
+    mutating func printOpaqueType(_ name: Node) {
         printFirstChild(name)
         target.write(".")
         _ = printOptional(name.children.at(1))
     }
 
-    mutating func printImplInvocationsSubstitutions(_ name: SwiftSymbol) {
+    mutating func printImplInvocationsSubstitutions(_ name: Node) {
         if let secondChild = name.children.at(0) {
             target.write(" for <")
             printChildren(secondChild, separator: ", ")
@@ -647,7 +650,7 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printImplPatternSubstitutions(_ name: SwiftSymbol) {
+    mutating func printImplPatternSubstitutions(_ name: Node) {
         target.write("@substituted ")
         printFirstChild(name)
         if let secondChild = name.children.at(1) {
@@ -657,13 +660,13 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printImplDifferentiability(_ name: SwiftSymbol) {
+    mutating func printImplDifferentiability(_ name: Node) {
         if let text = name.text, !text.isEmpty {
             target.write("\(text) ")
         }
     }
 
-    mutating func printMacroExpansionLoc(_ name: SwiftSymbol) {
+    mutating func printMacroExpansionLoc(_ name: Node) {
         if let module = name.children.at(0) {
             target.write("module ")
             _ = printName(module)
@@ -682,7 +685,7 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printGlobalActorFunctionType(_ name: SwiftSymbol) {
+    mutating func printGlobalActorFunctionType(_ name: Node) {
         if let firstChild = name.children.first {
             target.write("@")
             _ = printName(firstChild)
@@ -690,14 +693,14 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printGlobalVariableOnceFunction(_ name: SwiftSymbol) {
+    mutating func printGlobalVariableOnceFunction(_ name: Node) {
         target.write(name.kind == .globalVariableOnceToken ? "one-time initialization token for " : "one-time initialization function for ")
         if let firstChild = name.children.first, shouldPrintContext(firstChild) {
             _ = printName(firstChild)
         }
     }
 
-    mutating func printGlobalVariableOnceDeclList(_ name: SwiftSymbol) {
+    mutating func printGlobalVariableOnceDeclList(_ name: Node) {
         if name.children.count == 1 {
             printFirstChild(name)
         } else {
@@ -705,7 +708,7 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printTypeThrowsAnnotation(_ name: SwiftSymbol) {
+    mutating func printTypeThrowsAnnotation(_ name: Node) {
         target.write(" throws(")
         if let child = name.children.first {
             _ = printName(child)
@@ -713,7 +716,7 @@ struct SymbolPrinter {
         target.write(")")
     }
 
-    mutating func printDifferentiableFunctionType(_ name: SwiftSymbol) {
+    mutating func printDifferentiableFunctionType(_ name: Node) {
         target.write("@differentiable")
         switch UnicodeScalar(UInt8(name.index ?? 0)) {
         case "f": target.write("(_forward)")
@@ -723,7 +726,7 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printDifferentiabilityWitness(_ name: SwiftSymbol) {
+    mutating func printDifferentiabilityWitness(_ name: Node) {
         let kindNodeIndex = name.children.count - (name.children.last?.kind == .dependentGenericSignature ? 4 : 3)
         let kind = (name.children.at(kindNodeIndex)?.index).flatMap { Differentiability($0) }
         switch kind {
@@ -744,7 +747,7 @@ struct SymbolPrinter {
         _ = printOptional(name.children.at(idx + 3), prefix: " with ")
     }
 
-    mutating func printAsyncAwaitResumePartialFunction(_ name: SwiftSymbol) {
+    mutating func printAsyncAwaitResumePartialFunction(_ name: Node) {
         if options.contains(.showAsyncResumePartial) {
             target.write("(")
             _ = printName(name.children.first!)
@@ -753,7 +756,7 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printAsyncSuspendResumePartialFunction(_ name: SwiftSymbol) {
+    mutating func printAsyncSuspendResumePartialFunction(_ name: Node) {
         if options.contains(.showAsyncResumePartial) {
             target.write("(")
             _ = printName(name.children.first!)
@@ -762,11 +765,11 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printExtendedExistentialTypeShape(_ name: SwiftSymbol) {
+    mutating func printExtendedExistentialTypeShape(_ name: Node) {
         let savedDisplayWhereClauses = options.contains(.displayWhereClauses)
         options.insert(.displayWhereClauses)
-        var genSig: SwiftSymbol?
-        let type: SwiftSymbol
+        var genSig: Node?
+        let type: Node
         if name.children.count == 2 {
             genSig = name.children[0]
             type = name.children[1]
@@ -785,7 +788,7 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printSymbolicExtendedExistentialType(_ name: SwiftSymbol) {
+    mutating func printSymbolicExtendedExistentialType(_ name: Node) {
         guard let shape = name.children.first else { return }
         let isUnique = shape.kind == .uniqueExtendedExistentialTypeShapeSymbolicReference
         target.write("symbolic existential type (\(isUnique ? "" : "non-")unique) 0x")
@@ -800,7 +803,7 @@ struct SymbolPrinter {
         target.write(">")
     }
 
-    mutating func printTupleElement(_ name: SwiftSymbol) {
+    mutating func printTupleElement(_ name: Node) {
         if let label = name.children.first(where: { $0.kind == .tupleElementName }) {
             target.write("\(label.text ?? ""): ")
         }
@@ -811,7 +814,7 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printObjCAsyncCompletionHandlerImpl(_ name: SwiftSymbol) {
+    mutating func printObjCAsyncCompletionHandlerImpl(_ name: Node) {
         if name.kind == .predefinedObjCAsyncCompletionHandlerImpl {
             target.write("predefined ")
         }
@@ -829,7 +832,7 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printImplInvocationSubstitutions(_ name: SwiftSymbol) {
+    mutating func printImplInvocationSubstitutions(_ name: Node) {
         if let secondChild = name.children.at(0) {
             target.write(" for <")
             printChildren(secondChild, separator: ", ")
@@ -837,7 +840,7 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printImplDifferentiabilityKind(_ name: SwiftSymbol) {
+    mutating func printImplDifferentiabilityKind(_ name: Node) {
         target.write("@differentiable")
         if case let .index(value) = name.contents, let differentiability = Differentiability(value) {
             switch differentiability {
@@ -849,12 +852,12 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printImplCoroutineKind(_ name: SwiftSymbol) {
+    mutating func printImplCoroutineKind(_ name: Node) {
         guard case let .name(value) = name.contents, !value.isEmpty else { return }
         target.write("@\(value)")
     }
 
-    mutating func printImplFunctionConvention(_ name: SwiftSymbol) {
+    mutating func printImplFunctionConvention(_ name: Node) {
         target.write("@convention(")
         if let second = name.children.at(1) {
             target.write("\(name.children.at(0)?.text ?? ""), mangledCType: \"")
@@ -866,17 +869,17 @@ struct SymbolPrinter {
         target.write(")")
     }
 
-    mutating func printImplParameterName(_ name: SwiftSymbol) {
+    mutating func printImplParameterName(_ name: Node) {
         guard case let .name(value) = name.contents, !value.isEmpty else { return }
         target.write("\(value) ")
     }
 
-    mutating func printBaseConformanceDescriptor(_ name: SwiftSymbol) {
+    mutating func printBaseConformanceDescriptor(_ name: Node) {
         printFirstChild(name, prefix: "base conformance descriptor for ")
         _ = printOptional(name.children.at(1), prefix: ": ")
     }
 
-    mutating func printReabstractionThunkHelperWithSelf(_ name: SwiftSymbol) {
+    mutating func printReabstractionThunkHelperWithSelf(_ name: Node) {
         target.write("reabstraction thunk ")
         var idx = 0
         if name.children.count == 4 {
@@ -888,17 +891,17 @@ struct SymbolPrinter {
         _ = printOptional(name.children.at(idx), prefix: " self ")
     }
 
-    mutating func printReabstracctionThunkHelperWithGlobalActor(_ name: SwiftSymbol) {
+    mutating func printReabstracctionThunkHelperWithGlobalActor(_ name: Node) {
         printFirstChild(name)
         _ = printOptional(name.children.at(1), prefix: " with global actor constraint")
     }
 
-    mutating func printBuildInFixedArray(_ name: SwiftSymbol) {
+    mutating func printBuildInFixedArray(_ name: Node) {
         _ = printOptional(name.children.first, prefix: "Builtin.FixedArray<")
         _ = printOptional(name.children.at(1), prefix: ", ", suffix: ">")
     }
 
-    mutating func printAutoDiffFunctionOrSimpleThunk(_ name: SwiftSymbol) {
+    mutating func printAutoDiffFunctionOrSimpleThunk(_ name: Node) {
         var prefixEndIndex = 0
         while prefixEndIndex < name.children.count, name.children[prefixEndIndex].kind != .autoDiffFunctionKind {
             prefixEndIndex += 1
@@ -912,7 +915,7 @@ struct SymbolPrinter {
         }
         _ = printOptional(funcKind)
         target.write(" of ")
-        var optionalGenSig: SwiftSymbol?
+        var optionalGenSig: Node?
         for i in 0 ..< prefixEndIndex {
             if i == prefixEndIndex - 1, name.children.at(i)?.kind == .dependentGenericSignature {
                 optionalGenSig = name.children.at(i)
@@ -930,7 +933,7 @@ struct SymbolPrinter {
         _ = printOptional(options.contains(.displayWhereClauses) ? optionalGenSig : nil, prefix: " with ")
     }
 
-    mutating func printAutoDiffFunctionKind(_ name: SwiftSymbol) {
+    mutating func printAutoDiffFunctionKind(_ name: Node) {
         guard let kind = name.index else { return }
         switch AutoDiffFunctionKind(kind) {
         case .forward: target.write("forward-mode derivative")
@@ -941,13 +944,13 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printAutoDiffSelfReorderingReabstractionThunk(_ name: SwiftSymbol) {
+    mutating func printAutoDiffSelfReorderingReabstractionThunk(_ name: Node) {
         target.write("autodiff self-reordering reabstraction thunk ")
         let fromType = name.children.first
         _ = printOptional(options.contains(.shortenThunk) ? fromType : nil, prefix: "for ")
         let toType = name.children.at(1)
         var kindIndex = 2
-        var optionalGenSig: SwiftSymbol?
+        var optionalGenSig: Node?
         if name.children.at(kindIndex)?.kind == .dependentGenericSignature {
             optionalGenSig = name.children.at(kindIndex)
             kindIndex += 1
@@ -959,7 +962,7 @@ struct SymbolPrinter {
         _ = printOptional(toType, prefix: " to ")
     }
 
-    mutating func printAutoDiffSubsetParametersThunk(_ name: SwiftSymbol) {
+    mutating func printAutoDiffSubsetParametersThunk(_ name: Node) {
         target.write("autodiff subset parameters thunk for ")
         let lastIndex = name.children.count - 1
         let toParamIndices = name.children.at(lastIndex)
@@ -985,7 +988,7 @@ struct SymbolPrinter {
         _ = printOptional(currentIndex > 0 ? name.children.at(currentIndex) : nil, prefix: " of type ")
     }
 
-    mutating func printIndexSubset(_ name: SwiftSymbol) {
+    mutating func printIndexSubset(_ name: Node) {
         target.write("{")
         var printedAnyIndex = false
         for (i, c) in (name.text ?? "").enumerated() {
@@ -1001,12 +1004,12 @@ struct SymbolPrinter {
         target.write("}")
     }
 
-    mutating func printBaseWitnessTableAccessor(_ name: SwiftSymbol) {
+    mutating func printBaseWitnessTableAccessor(_ name: Node) {
         _ = printOptional(name.children.at(1), prefix: "base witness table accessor for ")
         _ = printOptional(name.children.at(0), prefix: " in ")
     }
 
-    mutating func printDependentGenericInverseConformanceRequirement(_ name: SwiftSymbol) {
+    mutating func printDependentGenericInverseConformanceRequirement(_ name: Node) {
         printFirstChild(name, suffix: ": ~")
         switch name.children.at(1)?.index {
         case 0: target.write("Swift.Copyable")
@@ -1015,17 +1018,17 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printDependentGenericSameShapeRequirement(_ name: SwiftSymbol) {
+    mutating func printDependentGenericSameShapeRequirement(_ name: Node) {
         _ = printOptional(name.children.at(0), suffix: ".shape == ")
         _ = printOptional(name.children.at(1), suffix: ".shape")
     }
 
-    mutating func printConstrainedExistential(_ name: SwiftSymbol) {
+    mutating func printConstrainedExistential(_ name: Node) {
         printFirstChild(name, prefix: "any ")
         _ = printOptional(name.children.at(1), prefix: "<", suffix: ">")
     }
 
-    mutating func printName(_ name: SwiftSymbol, asPrefixContext: Bool = false) -> SwiftSymbol? {
+    mutating func printName(_ name: Node, asPrefixContext: Bool = false) -> Node? {
         switch name.kind {
         case .accessibleFunctionRecord: target.write(conditional: !options.contains(.shortenThunk), "accessible function runtime record for ")
         case .accessorAttachedMacroExpansion: return printMacro(name: name, asPrefixContext: asPrefixContext, label: "accessor")
@@ -1153,7 +1156,7 @@ struct SymbolPrinter {
         case .functionSignatureSpecialization: printSpecializationPrefix(name, description: "function signature specialization")
         case .functionSignatureSpecializationParam: printFunctionSignatureSpecializationParam(name)
         case .functionSignatureSpecializationParamKind: printFunctionSignatureSpecializationParamKind(name)
-        case .functionSignatureSpecializationParamPayload: target.write((try? parseMangledSwiftSymbol(name.text ?? "").description) ?? (name.text ?? ""))
+        case .functionSignatureSpecializationParamPayload: target.write((try? demangleAsNode(name.text ?? "").description) ?? (name.text ?? ""))
         case .functionSignatureSpecializationReturn: printFunctionSignatureSpecializationParam(name)
         case .genericPartialSpecialization: printSpecializationPrefix(name, description: "generic partial specialization", paramPrefix: "Signature = ")
         case .genericPartialSpecializationNotReAbstracted: printSpecializationPrefix(name, description: "generic not re-abstracted partial specialization", paramPrefix: "Signature = ")
@@ -1394,7 +1397,7 @@ struct SymbolPrinter {
         return nil
     }
 
-    mutating func printAbstractStorage(_ name: SwiftSymbol?, asPrefixContext: Bool, extraName: String) -> SwiftSymbol? {
+    mutating func printAbstractStorage(_ name: Node?, asPrefixContext: Bool, extraName: String) -> Node? {
         guard let n = name else { return nil }
         switch n.kind {
         case .variable: return printEntity(n, asPrefixContext: asPrefixContext, typePrinting: .withColon, hasName: true, extraName: extraName)
@@ -1403,7 +1406,7 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printEntityType(name: SwiftSymbol, type: SwiftSymbol, genericFunctionTypeList: SwiftSymbol?) {
+    mutating func printEntityType(name: Node, type: Node, genericFunctionTypeList: Node?) {
         let labelList = name.children.first(where: { $0.kind == .labelList })
         if labelList != nil || genericFunctionTypeList != nil {
             if let gftl = genericFunctionTypeList {
@@ -1429,8 +1432,8 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printEntity(_ name: SwiftSymbol, asPrefixContext: Bool, typePrinting: TypePrinting, hasName: Bool, extraName: String? = nil, extraIndex: UInt64? = nil, overwriteName: String? = nil) -> SwiftSymbol? {
-        var genericFunctionTypeList: SwiftSymbol?
+    mutating func printEntity(_ name: Node, asPrefixContext: Bool, typePrinting: TypePrinting, hasName: Bool, extraName: String? = nil, extraIndex: UInt64? = nil, overwriteName: String? = nil) -> Node? {
+        var genericFunctionTypeList: Node?
         var name = name
         if name.kind == .boundGenericFunction, let first = name.children.at(0), let second = name.children.at(1) {
             name = first
@@ -1443,7 +1446,7 @@ struct SymbolPrinter {
         }
 
         guard let context = name.children.first else { return nil }
-        var postfixContext: SwiftSymbol?
+        var postfixContext: Node?
         if shouldPrintContext(context) {
             if multiWordName {
                 postfixContext = context
@@ -1540,7 +1543,7 @@ struct SymbolPrinter {
         return postfixContext
     }
 
-    mutating func printSpecializationPrefix(_ name: SwiftSymbol, description: String, paramPrefix: String = "") {
+    mutating func printSpecializationPrefix(_ name: Node, description: String, paramPrefix: String = "") {
         if !options.contains(.displayGenericSpecializations) {
             if !specializationPrefixPrinted {
                 target.write("specialized ")
@@ -1581,7 +1584,7 @@ struct SymbolPrinter {
         target.write("> of ")
     }
 
-    mutating func printFunctionParameters(labelList: SwiftSymbol?, parameterType: SwiftSymbol, showTypes: Bool) {
+    mutating func printFunctionParameters(labelList: Node?, parameterType: Node, showTypes: Bool) {
         guard parameterType.kind == .argumentTuple else { return }
         guard let t = parameterType.children.first, t.kind == .type else { return }
         guard let parameters = t.children.first else { return }
@@ -1622,7 +1625,7 @@ struct SymbolPrinter {
         target.write(")")
     }
 
-    mutating func printConventionWithMangledCType(_ name: SwiftSymbol, label: String) {
+    mutating func printConventionWithMangledCType(_ name: Node, label: String) {
         target.write("@convention(\(label)")
         if let firstChild = name.children.first, firstChild.kind == .clangType {
             target.write(", mangledCType: \"")
@@ -1632,7 +1635,7 @@ struct SymbolPrinter {
         target.write(") ")
     }
 
-    mutating func printFunctionType(labelList: SwiftSymbol? = nil, _ name: SwiftSymbol) {
+    mutating func printFunctionType(labelList: Node? = nil, _ name: Node) {
         switch name.kind {
         case .autoClosureType,
              .escapingAutoClosureType: target.write("@autoclosure ")
@@ -1672,7 +1675,7 @@ struct SymbolPrinter {
             diffKind = UnicodeScalar(UInt8(name.children.at(startIndex)?.index ?? 0))
             startIndex += 1
         }
-        var thrownErrorNode: SwiftSymbol?
+        var thrownErrorNode: Node?
         if name.children.at(startIndex)?.kind == .throwsAnnotation || name.children.at(startIndex)?.kind == .typedThrowsAnnotation {
             thrownErrorNode = name.children.at(startIndex)
             startIndex += 1
@@ -1717,13 +1720,13 @@ struct SymbolPrinter {
         _ = printOptional(name.children.at(argIndex + 1))
     }
 
-    mutating func printBoundGenericNoSugar(_ name: SwiftSymbol) {
+    mutating func printBoundGenericNoSugar(_ name: Node) {
         guard let typeList = name.children.at(1) else { return }
         printFirstChild(name)
         printChildren(typeList, prefix: "<", suffix: ">", separator: ", ")
     }
 
-    func findSugar(_ name: SwiftSymbol) -> SugarType {
+    func findSugar(_ name: Node) -> SugarType {
         guard let firstChild = name.children.at(0) else { return .none }
         if name.children.count == 1, firstChild.kind == .type { return findSugar(firstChild) }
 
@@ -1755,7 +1758,7 @@ struct SymbolPrinter {
         return .none
     }
 
-    mutating func printBoundGeneric(_ name: SwiftSymbol) {
+    mutating func printBoundGeneric(_ name: Node) {
         guard name.children.count >= 2 else { return }
         guard name.children.count == 2, options.contains(.synthesizeSugarOnTypes), name.kind != .boundGenericClass else {
             printBoundGenericNoSugar(name)
@@ -1788,13 +1791,13 @@ struct SymbolPrinter {
         }
     }
 
-    mutating func printImplFunctionType(_ name: SwiftSymbol) {
+    mutating func printImplFunctionType(_ name: Node) {
         enum State: Int { case attrs, inputs, results }
         var curState: State = .attrs
-        var patternSubs: SwiftSymbol?
-        var invocationSubs: SwiftSymbol?
-        var sendingResult: SwiftSymbol?
-        let transitionTo = { (printer: inout SymbolPrinter, newState: State) in
+        var patternSubs: Node?
+        var invocationSubs: Node?
+        var sendingResult: Node?
+        let transitionTo = { (printer: inout NodePrinter, newState: State) in
             while curState != newState {
                 switch curState {
                 case .attrs:

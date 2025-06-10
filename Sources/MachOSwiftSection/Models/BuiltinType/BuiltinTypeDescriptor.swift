@@ -2,7 +2,7 @@ import Foundation
 import MachOFoundation
 
 public struct BuiltinTypeDescriptor: ResolvableLocatableLayoutWrapper {
-    public struct Layout {
+    public struct Layout: Sendable {
         public let typeName: RelativeDirectPointer<MangledName?>
         public let size: UInt32
         public let alignmentAndFlags: UInt32

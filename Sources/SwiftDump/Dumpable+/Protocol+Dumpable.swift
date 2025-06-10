@@ -6,7 +6,7 @@ import MachOMacro
 extension MachOSwiftSection.`Protocol`: Dumpable {
     @MachOImageGenerator
     @StringBuilder
-    public func dump(using options: SymbolPrintOptions, in machOFile: MachOFile) throws -> String {
+    public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> String {
         try "protocol \(MetadataReader.demangleContext(for: .protocol(descriptor), in: machOFile).print(using: options))"
 
         if numberOfRequirementsInSignature > 0 {

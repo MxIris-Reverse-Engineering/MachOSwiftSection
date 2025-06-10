@@ -6,7 +6,7 @@ import MachOMacro
 extension Struct: Dumpable {
     @MachOImageGenerator
     @StringBuilder
-    public func dump(using options: SymbolPrintOptions, in machOFile: MachOFile) throws -> String {
+    public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> String {
         try "struct \(MetadataReader.demangleContext(for: .type(.struct(descriptor)), in: machOFile).print(using: options))"
 
         if let genericContext {

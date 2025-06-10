@@ -1,7 +1,7 @@
 import Foundation
 
 public struct ResilientWitnessesHeader: ResolvableLocatableLayoutWrapper {
-    public struct Layout {
+    public struct Layout: Sendable {
         public let numWitnesses: UInt32
     }
     

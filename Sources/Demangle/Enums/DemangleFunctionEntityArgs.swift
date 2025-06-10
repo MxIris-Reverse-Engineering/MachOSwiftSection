@@ -1,4 +1,4 @@
-enum DemangleFunctionEntityArgs {
+enum DemangleFunctionEntityArgs: CaseIterable, Sendable {
     case none
     case typeAndMaybePrivateName
     case typeAndIndex

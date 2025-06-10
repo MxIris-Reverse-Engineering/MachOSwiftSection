@@ -4,6 +4,7 @@ import MachOKit
 import MachOMacro
 @testable import MachOSwiftSection
 @testable import SwiftDump
+import MachOTestingSupport
 
 @Suite(.serialized)
 struct SwiftDumpTests {
@@ -22,7 +23,7 @@ struct SwiftDumpTests {
     let machOImage: MachOImage
 
     let isEnabledSearchMetadata: Bool = false
-    
+
     init() throws {
         // Cache
         let arch = "arm64e"
@@ -33,42 +34,37 @@ struct SwiftDumpTests {
         self.mainCache = try DyldCache(url: mainCacheURL)
         self.subCache = try DyldCache(subcacheUrl: subCacheURL, mainCacheHeader: mainCache.mainCacheHeader)
 
-        self.machOFileInMainCache = try #require(mainCache.machOFile(named: .SwiftUI))
+        self.machOFileInMainCache = try #require(mainCache.machOFile(named: .SwiftUICore))
 
         self.machOFileInSubCache = if #available(macOS 15.5, *) {
             try #require(subCache.machOFile(named: .CodableSwiftUI))
         } else {
-            try #require(subCache.machOFile(named: .AAAFoundationSwift))
+            try #require(subCache.machOFile(named: .UIKitCore))
         }
 
-        self.machOFileInCache = try #require(mainCache.machOFile(named: .Foundation))
+        self.machOFileInCache = try #require(mainCache.machOFile(named: .AttributeGraph))
 
         // File
-//        let path = "/Library/Developer/CoreSimulator/Volumes/iOS_22E238/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 18.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUICore.framework/SwiftUICore"
-        let path = "/System/Applications/iPhone Mirroring.app/Contents/Frameworks/ScreenContinuityUI.framework/Versions/A/ScreenContinuityUI"
-//        let path = "/Applications/SourceEdit.app/Contents/Frameworks/SourceEditor.framework/Versions/A/SourceEditor"
-        let url = URL(fileURLWithPath: path)
-        let file = try MachOKit.loadFromFile(url: url)
+        let file = try loadFromFile(named: .iOS_22E238_Simulator_SwiftUICore)
         switch file {
-        case let .fat(fatFile):
+        case .fat(let fatFile):
             self.machOFile = try #require(fatFile.machOFiles().first(where: { $0.header.cpu.type == .x86_64 }))
-        case let .machO(machO):
+        case .machO(let machO):
             self.machOFile = machO
         @unknown default:
             fatalError()
         }
 
         // Image
-
-        self.machOImage = try #require(MachOImage(name: "Foundation"))
+        self.machOImage = try #require(MachOImage(named: .Foundation))
     }
 
     @Test func printCacheFiles() {
-        print("Main Cache")
+        print("******************************[Main Cache]******************************")
         for file in mainCache.machOFiles() {
             print(file.imagePath)
         }
-        print("Sub Cache")
+        print("******************************[Sub Cache]*******************************")
         for file in subCache.machOFiles() {
             print(file.imagePath)
         }
@@ -161,7 +157,7 @@ extension SwiftDumpTests {
     @MachOImageGenerator
     @MainActor
     private func dumpProtocols(for machO: MachOFile) async throws {
-        let protocolDescriptors = try #require(machO.swift.protocolDescriptors)
+        let protocolDescriptors = try machO.swift.protocolDescriptors
         for protocolDescriptor in protocolDescriptors {
             try print(Protocol(descriptor: protocolDescriptor, in: machO).dump(using: printOptions, in: machO))
         }
@@ -170,7 +166,7 @@ extension SwiftDumpTests {
     @MachOImageGenerator
     @MainActor
     private func dumpProtocolConformances(for machO: MachOFile) async throws {
-        let protocolConformanceDescriptors = try #require(machO.swift.protocolConformanceDescriptors)
+        let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
 
         for (index, protocolConformanceDescriptor) in protocolConformanceDescriptors.enumerated() {
             print(index)
@@ -181,29 +177,29 @@ extension SwiftDumpTests {
     @MachOImageGenerator
     @MainActor
     private func dumpTypes(for machO: MachOFile) async throws {
-        let typeContextDescriptors = try #require(machO.swift.typeContextDescriptors)
+        let typeContextDescriptors = try machO.swift.typeContextDescriptors
         var metadataFinder: MetadataFinder<MachOFile>?
         if isEnabledSearchMetadata {
             metadataFinder = MetadataFinder(machO: machO)
         }
         for typeContextDescriptor in typeContextDescriptors {
             switch typeContextDescriptor {
-            case let .type(typeContextDescriptorWrapper):
+            case .type(let typeContextDescriptorWrapper):
                 switch typeContextDescriptorWrapper {
-                case let .enum(enumDescriptor):
+                case .enum(let enumDescriptor):
                     let enumType = try Enum(descriptor: enumDescriptor, in: machO)
                     try print(enumType.dump(using: printOptions, in: machO))
-                case let .struct(structDescriptor):
+                case .struct(let structDescriptor):
                     let structType = try Struct(descriptor: structDescriptor, in: machO)
                     try print(structType.dump(using: printOptions, in: machO))
                     if let metadata = try metadataFinder?.metadata(for: structDescriptor) as StructMetadata? {
-                        print(try metadata.fieldOffsets(for: structDescriptor, in: machO))
+                        try print(metadata.fieldOffsets(for: structDescriptor, in: machO))
                     }
-                case let .class(classDescriptor):
+                case .class(let classDescriptor):
                     let classType = try Class(descriptor: classDescriptor, in: machO)
                     try print(classType.dump(using: printOptions, in: machO))
                     if let metadata = try metadataFinder?.metadata(for: classDescriptor) as ClassMetadataObjCInterop? {
-                        print(try metadata.fieldOffsets(for: classDescriptor, in: machO))
+                        try print(metadata.fieldOffsets(for: classDescriptor, in: machO))
                     }
                 }
             default:
@@ -214,7 +210,7 @@ extension SwiftDumpTests {
 
     @MainActor
     private func dumpAssociatedTypes(for machO: MachOFile) async throws {
-        let associatedTypeDescriptors = try #require(machO.swift.associatedTypeDescriptors)
+        let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
         for associatedTypeDescriptor in associatedTypeDescriptors {
             try print(AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: printOptions, in: machO))
         }

@@ -1,4 +1,4 @@
-public struct ProtocolRequirementFlags: OptionSet {
+public struct ProtocolRequirementFlags: OptionSet, Sendable {
     public let rawValue: UInt32
 
     public init(rawValue: UInt32) {

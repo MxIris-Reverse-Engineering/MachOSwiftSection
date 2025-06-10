@@ -1,7 +1,7 @@
 import Foundation
 
 public struct GenericValueHeader: ResolvableLocatableLayoutWrapper {
-    public struct Layout {
+    public struct Layout: Sendable {
         public let numValues: UInt32
     }
 

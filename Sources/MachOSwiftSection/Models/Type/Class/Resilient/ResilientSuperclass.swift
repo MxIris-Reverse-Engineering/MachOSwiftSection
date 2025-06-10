@@ -4,7 +4,7 @@ import MachOMacro
 import MachOFoundation
 
 public struct ResilientSuperclass: ResolvableLocatableLayoutWrapper {
-    public struct Layout {
+    public struct Layout: Sendable {
         public let superclass: RelativeDirectRawPointer
     }
     

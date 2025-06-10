@@ -1,7 +1,7 @@
 import MachOFoundation
 
 public struct SingletonMetadataPointer: ResolvableLocatableLayoutWrapper {
-    public struct Layout {
+    public struct Layout: Sendable {
         let metadata: RelativeDirectPointer<Metadata>
     }
 

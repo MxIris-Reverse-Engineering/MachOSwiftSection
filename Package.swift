@@ -4,7 +4,7 @@
 import PackageDescription
 import CompilerPluginSupport
 
-let useSPMPrebuildVersion = true
+let useSPMPrebuildVersion = false
 
 extension Package.Dependency {
     static let MachOKit: Package.Dependency = {
@@ -15,9 +15,14 @@ extension Package.Dependency {
         }
     }()
 
-    static let MachOKitMain = Package.Dependency.package(
+    static let MachOKitOrigin = Package.Dependency.package(
         url: "https://github.com/p-x9/MachOKit.git",
         from: "0.34.0"
+    )
+
+    static let MachOKitMain = Package.Dependency.package(
+        url: "https://github.com/MxIris-Reverse-Engineering/MachOKit",
+        branch: "main"
     )
 
     static let MachOKitSPM = Package.Dependency.package(
@@ -77,12 +82,17 @@ let package = Package(
             name: "SwiftDump",
             targets: ["SwiftDump"]
         ),
+        .executable(
+            name: "swift-section",
+            targets: ["swift-section"]
+        ),
     ],
     dependencies: [
         .MachOKit,
         .package(url: "https://github.com/swiftlang/swift-syntax", from: "601.0.1"),
         .package(url: "https://github.com/MxIris-Library-Forks/AssociatedObject", branch: "main"),
         .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
     ],
     targets: [
         .target(
@@ -121,10 +131,10 @@ let package = Package(
                 "MachOReading",
                 "MachOExtensions",
                 "MachOMacro",
-                "MachOPointer"
+                "MachOPointer",
             ]
         ),
-        
+
         .target(
             name: "MachOSwiftSection",
             dependencies: [
@@ -132,17 +142,31 @@ let package = Package(
                 "MachOFoundation",
                 "MachOMacro",
                 .MachOKit,
-                .product(name: "AssociatedObject", package: "AssociatedObject"),
+            ]
+        ),
+
+        .target(
+            name: "MachOTestingSupport",
+            dependencies: [
+                .MachOKit,
+                "MachOExtensions",
             ]
         ),
 
         .target(
             name: "SwiftDump",
             dependencies: [
+                .MachOKit,
                 "MachOSwiftSection",
             ]
         ),
-
+        .executableTarget(
+            name: "swift-section",
+            dependencies: [
+                "SwiftDump",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ]
+        ),
         .target(
             name: "MachOMacro",
             dependencies: [
@@ -161,13 +185,6 @@ let package = Package(
         ),
 
         .testTarget(
-            name: "MachOSwiftSectionTests",
-            dependencies: [
-                "MachOSwiftSection",
-            ]
-        ),
-
-        .testTarget(
             name: "DemangleTests",
             dependencies: [
                 "Demangle",
@@ -175,9 +192,18 @@ let package = Package(
         ),
 
         .testTarget(
+            name: "MachOSwiftSectionTests",
+            dependencies: [
+                "MachOSwiftSection",
+                "MachOTestingSupport",
+            ]
+        ),
+
+        .testTarget(
             name: "SwiftDumpTests",
             dependencies: [
                 "SwiftDump",
+                "MachOTestingSupport",
             ]
         ),
     ]

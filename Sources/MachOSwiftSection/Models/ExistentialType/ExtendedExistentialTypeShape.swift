@@ -4,7 +4,7 @@ import MachOFoundation
 import MachOMacro
 
 public struct ExtendedExistentialTypeShape: ResolvableLocatableLayoutWrapper {
-    public struct Layout {
+    public struct Layout: Sendable {
         public let flags: ExtendedExistentialTypeShapeFlags
         public let existentialType: RelativeDirectPointer<MangledName>
         public let requirementSignatureHeader: GenericContextDescriptorHeader.Layout
@@ -27,7 +27,7 @@ extension ExtendedExistentialTypeShape {
     }
 }
 
-public struct ExtendedExistentialTypeShapeFlags: OptionSet {
+public struct ExtendedExistentialTypeShapeFlags: OptionSet, Sendable {
     public let rawValue: UInt32
     
     public init(rawValue: UInt32) {

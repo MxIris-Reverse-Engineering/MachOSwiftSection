@@ -1,3 +1,6 @@
-enum DemangleGenericRequirementTypeKind {
-	case generic, assoc, compoundAssoc, substitution
+enum DemangleGenericRequirementTypeKind: CaseIterable, Sendable {
+    case generic
+    case assoc
+    case compoundAssoc
+    case substitution
 }

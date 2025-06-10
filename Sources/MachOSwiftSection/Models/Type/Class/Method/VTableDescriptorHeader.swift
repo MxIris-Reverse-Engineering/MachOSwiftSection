@@ -1,7 +1,7 @@
 import Foundation
 
 public struct VTableDescriptorHeader: ResolvableLocatableLayoutWrapper {
-    public struct Layout {
+    public struct Layout: Sendable {
         public let vTableOffset: UInt32
         public let vTableSize: UInt32
     }

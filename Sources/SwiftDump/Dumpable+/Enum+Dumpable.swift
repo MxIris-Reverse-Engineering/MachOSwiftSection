@@ -6,7 +6,7 @@ import MachOMacro
 extension Enum: Dumpable {
     @MachOImageGenerator
     @StringBuilder
-    public func dump(using options: SymbolPrintOptions, in machOFile: MachOFile) throws -> String {
+    public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> String {
         try "enum \(MetadataReader.demangleContext(for: .type(.enum(descriptor)), in: machOFile).print(using: options))"
 
         if let genericContext {

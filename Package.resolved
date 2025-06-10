@@ -1,5 +1,5 @@
 {
-  "originHash" : "5ff04716ff722fe4bf65c1e124ed976aab3fbf4a2a511fc7c90e2ee2f0d2e423",
+  "originHash" : "15ec23cec1a2a2dcc798c1eb5e33ddd62b0914b1085d8c1066f0655b60fb029b",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -11,12 +11,21 @@
       }
     },
     {
-      "identity" : "machokit-spm",
+      "identity" : "machokit",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/p-x9/MachOKit-SPM",
+      "location" : "https://github.com/MxIris-Reverse-Engineering/MachOKit",
       "state" : {
-        "revision" : "c1990f779773ea3430016b2e549ca0e3dd97f164",
-        "version" : "0.34.0"
+        "branch" : "main",
+        "revision" : "241b94ce1f64e262203931270ccac767e7858d56"
+      }
+    },
+    {
+      "identity" : "swift-argument-parser",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-argument-parser",
+      "state" : {
+        "revision" : "011f0c765fb46d9cac61bca19be0527e99c98c8b",
+        "version" : "1.5.1"
       }
     },
     {

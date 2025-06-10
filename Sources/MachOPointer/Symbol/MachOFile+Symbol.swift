@@ -1,42 +1,16 @@
 import MachOKit
 import MachOExtensions
-import AssociatedObject
-
-private class SymbolCache {
-    var symbolByOffset: [Int: MachOSymbol] = [:]
-}
 
 extension MachOFile {
-    @AssociatedObject(.retain(.nonatomic))
-    private var symbolCache: SymbolCache = .init()
-
-    private func buildSymbolByOffsetIfNeeded() {
-        guard symbolCache.symbolByOffset.isEmpty else { return }
-        guard let symbols64 else { return }
-        var symbolByOffset: [Int: MachOSymbol] = [:]
-        for symbol in symbols64 where !symbol.name.isEmpty {
-            var offset = symbol.offset
-            if let cache {
-                offset -= cache.mainCacheHeader.sharedRegionStart.cast()
-            }
-            symbolByOffset[offset] = .init(offset: offset, stringValue: symbol.name)
-        }
-
-        for exportedSymbol in exportedSymbols {
-            if var offset = exportedSymbol.offset {
-                if let cache {
-                    offset -= cache.mainCacheHeader.sharedRegionStart.cast()
-                }
-                symbolByOffset[offset] = .init(offset: offset, stringValue: exportedSymbol.name)
-            }
-        }
-        symbolCache.symbolByOffset = symbolByOffset
-    }
-
     package func findSymbol(offset: Int) -> MachOSymbol? {
-        buildSymbolByOffsetIfNeeded()
-        return symbolCache.symbolByOffset[offset]
+        MachOSymbolCache.shared.createCacheIfNeeded(for: self)
+        return MachOSymbolCache.shared.symbol(for: offset, in: self)
     }
 }
 
-
+extension MachOImage {
+    package func findSymbol(offset: Int) -> MachOSymbol? {
+        MachOSymbolCache.shared.createCacheIfNeeded(for: self)
+        return MachOSymbolCache.shared.symbol(for: offset, in: self)
+    }
+}

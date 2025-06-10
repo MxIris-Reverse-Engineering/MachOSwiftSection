@@ -2,7 +2,7 @@ import Foundation
 import MachOFoundation
 
 public struct CanonicalSpecializedMetadataAccessorsListEntry: ResolvableLocatableLayoutWrapper {
-    public struct Layout {
+    public struct Layout: Sendable {
         public let accessor: RelativeDirectRawPointer
     }
     

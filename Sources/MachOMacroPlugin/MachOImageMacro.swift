@@ -9,7 +9,7 @@ private func buildFuncDecl(of node: AttributeSyntax, funcDecl: FunctionDeclSynta
 
     let preservedAttributes = AttributeListSyntax(
         originalAttributes.compactMap { element -> AttributeListSyntax.Element? in
-            if case .attribute(let attr) = element, attr.trimmedDescription == node.trimmedDescription {
+            if case let .attribute(attr) = element, attr.trimmedDescription == node.trimmedDescription {
                 return nil
             }
             return element
@@ -100,7 +100,7 @@ public struct MachOImageGeneratorMacro: PeerMacro {
 
             let preservedAttributes = AttributeListSyntax(
                 originalAttributes.compactMap { element -> AttributeListSyntax.Element? in
-                    if case .attribute(let attr) = element, attr.trimmedDescription == node.trimmedDescription {
+                    if case let .attribute(attr) = element, attr.trimmedDescription == node.trimmedDescription {
                         return nil
                     }
                     return element
@@ -128,7 +128,7 @@ public struct MachOImageGeneratorMacro: PeerMacro {
                 if param.firstName.text == "fileOffset" {
                     newParam = param.with(\.firstName, .identifier("imageOffset"))
                 }
-                
+
                 if let secondName = param.secondName, secondName.text == "fileOffset" {
                     newParam = param.with(\.secondName, .identifier("imageOffset"))
                 }
@@ -163,13 +163,24 @@ public struct MachOImageGeneratorMacro: PeerMacro {
 
 class MachOBodyRewriter: SyntaxRewriter {
     override func visit(_ node: DeclReferenceExprSyntax) -> ExprSyntax {
-        var newNode = node
         if node.baseName.text == "machOFile" {
-            newNode = node.with(\.baseName, .identifier("machOImage"))
+            return ExprSyntax(node.with(\.baseName, .identifier("machOImage")))
         } else if node.baseName.text == "fileOffset" {
-            newNode = node.with(\.baseName, .identifier("imageOffset"))
+            return ExprSyntax(node.with(\.baseName, .identifier("imageOffset")))
         }
-        return ExprSyntax(newNode)
+        return super.visit(node)
+    }
+
+    override func visit(_ node: IdentifierTypeSyntax) -> TypeSyntax {
+        if node.name.text == "MachOFile" {
+            let newName = TokenSyntax.identifier("MachOImage")
+            let newNode = IdentifierTypeSyntax(
+                name: newName,
+                genericArgumentClause: node.genericArgumentClause // 保留 MachOFile 可能有的泛型参数
+            )
+            return TypeSyntax(newNode)
+        }
+        return super.visit(node)
     }
 
 //    override func visit(_ node: MemberAccessExprSyntax) -> ExprSyntax {
