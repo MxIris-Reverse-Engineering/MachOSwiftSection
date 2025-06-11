@@ -4,6 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
+import Semantic
 
 struct DumpCommand: AsyncParsableCommand {
     static let configuration: CommandConfiguration = .init(
@@ -94,7 +95,7 @@ struct DumpCommand: AsyncParsableCommand {
     private mutating func dumpAssociatedTypes(using options: DemangleOptions, in machO: MachOFile) async throws {
         let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
         for associatedTypeDescriptor in associatedTypeDescriptors {
-            try dumpOrPrint(AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: options, in: machO))
+            try dumpOrPrint(AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: options, in: machO) as SemanticString)
         }
     }
 
@@ -125,6 +126,62 @@ struct DumpCommand: AsyncParsableCommand {
             dumpedString.append("\n")
         } else {
             print(string)
+        }
+    }
+    
+    private mutating func dumpOrPrint(_ semanticString: SemanticString) {
+        if outputPath != nil {
+            dumpedString.append(semanticString.string)
+            dumpedString.append("\n")
+        } else {
+            var finalString = ""
+            semanticString.enumerate { string, type in
+                finalString.append(string.withColor(for: type))
+            }
+            print(finalString)
+        }
+    }
+}
+
+import Rainbow
+
+extension String {
+    
+    func withColorHex(for type: SemanticType) -> String? {
+        switch type {
+        case .standard:
+            nil
+        case .comment:
+            "#6C7987"
+        case .keyword:
+            "#F2248C"
+        case .variable:
+            nil
+        case .typeName:
+            "#D0A8FF"
+        case .typeDeclaration:
+            "#5DD8FF"
+        case .functionOrMethodName, .memberName:
+            "#A167E6"
+        case .functionOrMethodDeclaration, .memberDeclaration:
+            "#41A1C0"
+        case .numeric:
+            "#D0BF69"
+        case .argument:
+            nil
+        }
+    }
+    
+    func withColor(for type: SemanticType) -> String {
+        if let colorHex = withColorHex(for: type) {
+            let resolved = hex(colorHex, to: .bit24)
+            if type == .keyword {
+                return resolved.bold
+            } else {
+                return resolved
+            }
+        } else {
+            return self
         }
     }
 }

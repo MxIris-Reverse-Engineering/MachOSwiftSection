@@ -3,19 +3,20 @@ import MachOKit
 import MachOMacro
 import MachOFoundation
 import MachOSwiftSection
+import Semantic
 
 extension TargetGenericContext {
     @MachOImageGenerator
-    @StringBuilder
-    package func dumpGenericParameters(in machOFile: MachOFile) throws -> String {
-        "<"
+    @SemanticStringBuilder
+    package func dumpGenericParameters(in machOFile: MachOFile) throws -> SemanticString {
+        Standard("<")
         for (offset, _) in parameters.offsetEnumerated() {
-            try genericParameterName(depth: 0, index: offset.index)
+            Standard(try genericParameterName(depth: 0, index: offset.index))
             if !offset.isEnd {
-                ", "
+                Standard(", ")
             }
         }
-        ">"
+        Standard(">")
     }
 
     private func genericParameterName(depth: Int, index: Int) throws -> String {
@@ -32,12 +33,13 @@ extension TargetGenericContext {
     }
 
     @MachOImageGenerator
-    @StringBuilder
-    package func dumpGenericRequirements(using options: DemangleOptions, in machOFile: MachOFile) throws -> String {
+    @SemanticStringBuilder
+    package func dumpGenericRequirements(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
         for (offset, requirement) in requirements.offsetEnumerated() {
             try requirement.dump(using: options, in: machOFile)
             if !offset.isEnd {
-                ", "
+                Standard(",")
+                Space()
             }
         }
     }
@@ -45,53 +47,58 @@ extension TargetGenericContext {
 
 extension GenericRequirementDescriptor {
     @MachOImageGenerator
-    @StringBuilder
-    package func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> String {
-        try MetadataReader.demangleType(for: paramManagedName(in: machOFile), in: machOFile).print(using: options)
+    @SemanticStringBuilder
+    package func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
+        try MetadataReader.demangleType(for: paramManagedName(in: machOFile), in: machOFile).printSemantic(using: options)
         if layout.flags.kind == .sameType {
-            " == "
+            Space()
+            Standard("==")
+            Space()
         } else {
-            ": "
+            Standard(":")
+            Space()
         }
         switch try resolvedContent(in: machOFile) {
         case .type(let mangledName):
-            try MetadataReader.demangleType(for: mangledName, in: machOFile).print(using: options)
+            try MetadataReader.demangleType(for: mangledName, in: machOFile).printSemantic(using: options)
         case .protocol(let resolvableElement):
             switch resolvableElement {
             case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).print(using: options)
+                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).printSemantic(using: options)
             case .element(let element):
                 switch element {
                 case .objc(let objc):
-                    try objc.mangledName(in: machOFile).rawStringValue()
+                    TypeName(try objc.mangledName(in: machOFile).rawStringValue())
                 case .swift(let protocolDescriptor):
-                    try MetadataReader.demangleContext(for: .protocol(protocolDescriptor), in: machOFile).print(using: options)
+                    try MetadataReader.demangleContext(for: .protocol(protocolDescriptor), in: machOFile).printSemantic(using: options)
                 }
             }
         case .layout(let genericRequirementLayoutKind):
             switch genericRequirementLayoutKind {
             case .class:
-                "AnyObject"
+                TypeName("AnyObject")
             }
         case .conformance /* (let protocolConformanceDescriptor) */:
-            ""
-        case .invertedProtocols(let invertedProtocols):
-            if invertedProtocols.protocols.hasCopyable, invertedProtocols.protocols.hasEscapable {
-                "Copyable, Escapable"
-            } else if invertedProtocols.protocols.hasCopyable || invertedProtocols.protocols.hasEscapable {
-                if invertedProtocols.protocols.hasCopyable {
-                    "Copyable"
-                } else {
-                    "~Copyable"
-                }
-                if invertedProtocols.protocols.hasEscapable {
-                    "Escapable"
-                } else {
-                    "~Escapable"
-                }
-            } else {
-                "~Copyable, ~Escapable"
-            }
+            Standard("")
+        case .invertedProtocols/* (let invertedProtocols) */:
+            Standard("")
+//            if invertedProtocols.protocols.hasCopyable, invertedProtocols.protocols.hasEscapable {
+//                
+//                "Copyable, Escapable"
+//            } else if invertedProtocols.protocols.hasCopyable || invertedProtocols.protocols.hasEscapable {
+//                if invertedProtocols.protocols.hasCopyable {
+//                    "Copyable"
+//                } else {
+//                    "~Copyable"
+//                }
+//                if invertedProtocols.protocols.hasEscapable {
+//                    "Escapable"
+//                } else {
+//                    "~Escapable"
+//                }
+//            } else {
+//                "~Copyable, ~Escapable"
+//            }
         }
     }
 }

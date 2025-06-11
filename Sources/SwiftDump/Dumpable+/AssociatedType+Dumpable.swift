@@ -31,13 +31,19 @@ extension AssociatedType: Dumpable {
         
         Space()
         
-        try Type(MetadataReader.demangleSymbol(for: conformingTypeName, in: machOFile).print(using: options))
+        try MetadataReader.demangleSymbol(for: conformingTypeName, in: machOFile).printSemantic(using: options).map {
+            if $0.type == .typeName {
+                return TypeDeclaration($0.string)
+            } else {
+                return $0
+            }
+        }
         
         Standard(":")
         
         Space()
         
-        try Type(MetadataReader.demangleSymbol(for: protocolTypeName, in: machOFile).print(using: options))
+        try MetadataReader.demangleSymbol(for: protocolTypeName, in: machOFile).printSemantic(using: options)
         
         Space()
         
@@ -52,13 +58,15 @@ extension AssociatedType: Dumpable {
 
             Space()
 
-            try Type(record.name(in: machOFile))
+            try TypeName(record.name(in: machOFile))
 
             Space()
 
             Standard("=")
 
-            try Type(MetadataReader.demangleSymbol(for: record.substitutedTypeName(in: machOFile), in: machOFile).print(using: options))
+            Space()
+            
+            try MetadataReader.demangleSymbol(for: record.substitutedTypeName(in: machOFile), in: machOFile).printSemantic(using: options)
 
             if offset.isEnd {
                 BreakLine()
@@ -70,29 +78,28 @@ extension AssociatedType: Dumpable {
 }
 
 extension Keyword {
-    enum Swift {
+    enum Swift: String {
         case `associatedtype`
         case `extension`
         case `typealias`
         case `class`
         case `struct`
         case `enum`
+        case `lazy`
+        case `weak`
+        case `override`
+        case `static`
+        case `dynamic`
+        case `func`
+        case `case`
+        case `let`
+        case `var`
+        case `where`
+        case `indirect`
+        case `protocol`
     }
     
     init(_ keyword: Swift) {
-        switch keyword {
-        case .associatedtype:
-            self.init("associatedtype")
-        case .extension:
-            self.init("extension")
-        case .typealias:
-            self.init("typealias")
-        case .class:
-            self.init("class")
-        case .struct:
-            self.init("struct")
-        case .enum:
-            self.init("enum")
-        }
+        self.init(keyword.rawValue)
     }
 }

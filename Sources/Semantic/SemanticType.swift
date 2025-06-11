@@ -3,8 +3,12 @@ public enum SemanticType: CaseIterable, Sendable {
     case comment
     case keyword
     case variable
-    case type
-    case method
+    case typeName
+    case typeDeclaration
+    case functionOrMethodName
+    case functionOrMethodDeclaration
     case numeric
     case argument
+    case memberDeclaration
+    case memberName
 }

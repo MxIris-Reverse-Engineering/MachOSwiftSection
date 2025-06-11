@@ -93,17 +93,20 @@ let package = Package(
         .package(url: "https://github.com/MxIris-Library-Forks/AssociatedObject", branch: "main"),
         .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
+        .package(url: "https://github.com/onevcat/Rainbow", .upToNextMajor(from: "4.0.0")),
     ],
     targets: [
         .target(
             name: "Semantic"
         ),
+
         .target(
             name: "Demangle",
             dependencies: [
                 "Semantic",
             ]
         ),
+
         .target(
             name: "MachOExtensions",
             dependencies: [
@@ -166,13 +169,16 @@ let package = Package(
                 "Semantic",
             ]
         ),
+
         .executableTarget(
             name: "swift-section",
             dependencies: [
                 "SwiftDump",
+                .product(name: "Rainbow", package: "Rainbow"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),
+
         .target(
             name: "MachOMacro",
             dependencies: [

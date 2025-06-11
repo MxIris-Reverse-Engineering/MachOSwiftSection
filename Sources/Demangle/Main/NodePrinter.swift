@@ -1179,7 +1179,7 @@ struct NodePrinter: Sendable {
         case .globalVariableOnceFunction,
              .globalVariableOnceToken: printGlobalVariableOnceFunction(name)
         case .hasSymbolQuery: target.write("#_hasSymbol query for ")
-        case .identifier: target.write(name.text ?? "")
+        case .identifier: target.write(name.text ?? "", type: name.parent?.kind == .function ? .functionOrMethodDeclaration : .typeName)
         case .implConvention: target.write(name.text ?? "")
         case .implCoroutineKind: printImplCoroutineKind(name)
         case .implDifferentiabilityKind: printImplDifferentiabilityKind(name)

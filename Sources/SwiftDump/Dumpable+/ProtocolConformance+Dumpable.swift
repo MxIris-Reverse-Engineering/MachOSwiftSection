@@ -2,48 +2,53 @@ import Foundation
 import MachOKit
 import MachOSwiftSection
 import MachOMacro
+import Semantic
 
 extension ProtocolConformance: Dumpable {
     @MachOImageGenerator
-    @StringBuilder
-    public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> String {
-        "extension "
+    @SemanticStringBuilder
+    public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
+        Keyword(.extension)
+        Space()
         switch typeReference {
         case .directTypeDescriptor(let descriptor):
-            try descriptor.flatMap { try $0.dumpName(using: options, in: machOFile) }.valueOrEmpty
+            try TypeDeclaration(descriptor.flatMap { try $0.dumpName(using: options, in: machOFile) }.valueOrEmpty)
         case .indirectTypeDescriptor(let descriptor):
             switch descriptor {
             case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).print(using: options)
+                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).printSemantic(using: options)
             case .element(let element):
-                try element.dumpName(using: options, in: machOFile)
+                try TypeDeclaration(element.dumpName(using: options, in: machOFile))
             case nil:
-                ""
+                Standard("")
             }
         case .directObjCClassName(let objcClassName):
-            objcClassName.valueOrEmpty
+            TypeDeclaration(objcClassName.valueOrEmpty)
         case .indirectObjCClass(let objcClass):
             switch objcClass {
             case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).print(using: options)
+                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).printSemantic(using: options)
             case .element(let element):
-                try MetadataReader.demangleContext(for: .type(.class(element.descriptor.resolve(in: machOFile))), in: machOFile).print(using: options)
+                try MetadataReader.demangleContext(for: .type(.class(element.descriptor.resolve(in: machOFile))), in: machOFile).printSemantic(using: options)
             case nil:
-                ""
+                Standard("")
             }
         }
-        ": "
+        Standard(":")
+        Space()
         switch `protocol` {
         case .symbol(let unsolvedSymbol):
-            try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).print(using: options)
+            try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).printSemantic(using: options)
         case .element(let element):
-            try MetadataReader.demangleContext(for: .protocol(element), in: machOFile).print(using: options)
+            try MetadataReader.demangleContext(for: .protocol(element), in: machOFile).printSemantic(using: options)
         case .none:
-            ""
+            Standard("")
         }
 
         if !conditionalRequirements.isEmpty {
-            " where "
+            Space()
+            Keyword(.where)
+            Space()
         }
 
         for conditionalRequirement in conditionalRequirements {
@@ -51,32 +56,34 @@ extension ProtocolConformance: Dumpable {
         }
 
         if resilientWitnesses.isEmpty {
-            " {}"
+            Space()
+            Standard("{}")
         } else {
-            " {"
+            Space()
+            Standard("{")
 
             for resilientWitness in resilientWitnesses {
                 BreakLine()
-                
+
                 Indent(level: 1)
-                
+
                 if let symbol = try resilientWitness.implementationSymbol(in: machOFile) {
-                    try MetadataReader.demangleSymbol(for: symbol, in: machOFile).print(using: options)
+                    try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
                 } else if let implSymbol = try resilientWitness.requirement(in: machOFile)?.mapOptional({ try $0.defaultImplementationSymbol(in: machOFile) }) {
                     switch implSymbol {
                     case .symbol(let symbol):
-                        try MetadataReader.demangleSymbol(for: symbol, in: machOFile).print(using: options)
+                        try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
                     case .element(let symbol):
-                        try MetadataReader.demangleSymbol(for: symbol, in: machOFile).print(using: options)
+                        try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
                     }
                 } else {
-                    "Symbol not found"
+                    InlineComment("Symbol not found")
                 }
             }
 
             BreakLine()
-            
-            "}"
+
+            Standard("}")
         }
     }
 }

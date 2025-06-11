@@ -1,3 +1,5 @@
+import Semantic
+
 public final class Node: @unchecked Sendable {
     public let kind: Kind
     public let contents: Contents
@@ -19,7 +21,7 @@ public final class Node: @unchecked Sendable {
                 return nil
             case .index:
                 return nil
-            case let .name(string):
+            case .name(let string):
                 return string
             }
         }
@@ -59,14 +61,14 @@ public final class Node: @unchecked Sendable {
 
     public var text: String? {
         switch contents {
-        case let .name(s): return s
+        case .name(let s): return s
         default: return nil
         }
     }
 
     public var index: UInt64? {
         switch contents {
-        case let .index(i): return i
+        case .index(let i): return i
         default: return nil
         }
     }
@@ -94,51 +96,51 @@ public final class Node: @unchecked Sendable {
     }
 
     package func changeKind(_ newKind: Kind, additionalChildren: [Node] = []) -> Node {
-        if case let .name(text) = contents {
+        if case .name(let text) = contents {
             return Node(kind: newKind, children: children + additionalChildren, contents: .name(text))
-        } else if case let .index(i) = contents {
+        } else if case .index(let i) = contents {
             return Node(kind: newKind, children: children + additionalChildren, contents: .index(i))
         } else {
             return Node(kind: newKind, children: children + additionalChildren, contents: .none)
         }
     }
-    
+
     public func addChild(_ newChild: Node) {
         newChild.parent = self
         children.append(newChild)
     }
-    
+
     public func removeChild(at index: Int) {
         guard children.indices.contains(index) else { return }
         children.remove(at: index)
     }
-    
+
     public func insertChild(_ newChild: Node, at index: Int) {
-        guard index >= 0 && index <= children.count else { return }
+        guard index >= 0, index <= children.count else { return }
         newChild.parent = self
         children.insert(newChild, at: index)
     }
-    
+
     public func addChildren(_ newChildren: [Node]) {
         for child in newChildren {
             child.parent = self
         }
         children.append(contentsOf: newChildren)
     }
-    
+
     public func setChildren(_ newChildren: [Node]) {
         for child in newChildren {
             child.parent = self
         }
         children = newChildren
     }
-    
+
     public func setChild(_ child: Node, at index: Int) {
         guard children.indices.contains(index) else { return }
         child.parent = self
         children[index] = child
     }
-    
+
     public func reverseChildren() {
         children.reverse()
     }
@@ -233,8 +235,12 @@ extension Node: CustomStringConvertible {
     /// - Parameter options: an option set containing the different `DemangleOptions` from the Swift project.
     /// - Returns: `self` printed to a string according to the specified options.
     public func print(using options: DemangleOptions = .default) -> String {
+        printSemantic(using: options).string
+    }
+
+    public func printSemantic(using options: DemangleOptions = .default) -> SemanticString {
         var printer = NodePrinter(options: options)
         _ = printer.printName(self)
-        return printer.target.string
+        return printer.target
     }
 }
