@@ -1,11 +1,13 @@
+import Semantic
+
 struct NodePrinter: Sendable {
-    var target: String
+    var target: SemanticString
     var specializationPrefixPrinted: Bool
     var options: DemangleOptions
     var hidingCurrentModule: String = ""
 
     init(options: DemangleOptions = .default) {
-        self.target = ""
+        self.target = .init()
         self.specializationPrefixPrinted = false
         self.options = options
     }

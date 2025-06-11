@@ -1,3 +1,5 @@
+import Semantic
+
 extension String {
 	mutating func writeHex(prefix: String? = nil, _ value: UInt64) {
 		if let prefix = prefix {
@@ -5,6 +7,15 @@ extension String {
 		}
 		write(String(value, radix: 16, uppercase: true))
 	}
+}
+
+extension SemanticString {
+    mutating func writeHex(prefix: String? = nil, _ value: UInt64) {
+        if let prefix = prefix {
+            write(prefix)
+        }
+        write(String(value, radix: 16, uppercase: true))
+    }
 }
 
 extension Array {

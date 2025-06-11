@@ -225,7 +225,7 @@ extension Node: CustomStringConvertible {
     public var description: String {
         var printer = NodePrinter()
         _ = printer.printName(self)
-        return printer.target
+        return printer.target.string
     }
 
     /// Prints `SwiftSymbol`s to a String with the full set of printing options.
@@ -235,6 +235,6 @@ extension Node: CustomStringConvertible {
     public func print(using options: DemangleOptions = .default) -> String {
         var printer = NodePrinter(options: options)
         _ = printer.printName(self)
-        return printer.target
+        return printer.target.string
     }
 }

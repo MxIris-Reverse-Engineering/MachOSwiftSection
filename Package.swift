@@ -96,9 +96,14 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "Demangle"
+            name: "Semantic"
         ),
-
+        .target(
+            name: "Demangle",
+            dependencies: [
+                "Semantic",
+            ]
+        ),
         .target(
             name: "MachOExtensions",
             dependencies: [
@@ -158,6 +163,7 @@ let package = Package(
             dependencies: [
                 .MachOKit,
                 "MachOSwiftSection",
+                "Semantic",
             ]
         ),
         .executableTarget(
