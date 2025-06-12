@@ -16,7 +16,7 @@ extension ProtocolConformance: Dumpable {
         case .indirectTypeDescriptor(let descriptor):
             switch descriptor {
             case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).printSemantic(using: options)
+                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
             case .element(let element):
                 try TypeDeclaration(element.dumpName(using: options, in: machOFile))
             case nil:
@@ -27,9 +27,9 @@ extension ProtocolConformance: Dumpable {
         case .indirectObjCClass(let objcClass):
             switch objcClass {
             case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).printSemantic(using: options)
+                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
             case .element(let element):
-                try MetadataReader.demangleContext(for: .type(.class(element.descriptor.resolve(in: machOFile))), in: machOFile).printSemantic(using: options)
+                try MetadataReader.demangleContext(for: .type(.class(element.descriptor.resolve(in: machOFile))), in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
             case nil:
                 Standard("")
             }

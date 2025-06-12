@@ -9,9 +9,10 @@ extension Enum: Dumpable {
     @SemanticStringBuilder
     public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
         Keyword(.enum)
+        
         Space()
         
-        try MetadataReader.demangleContext(for: .type(.enum(descriptor)), in: machOFile).printSemantic(using: options)
+        try MetadataReader.demangleContext(for: .type(.enum(descriptor)), in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
 
         if let genericContext {
             try genericContext.dumpGenericParameters(in: machOFile)

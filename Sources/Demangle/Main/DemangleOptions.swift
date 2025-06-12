@@ -24,11 +24,13 @@ public struct DemangleOptions: OptionSet, Sendable {
     public static let printForTypeName = DemangleOptions(rawValue: 1 << 19)
     public static let showClosureSignature = DemangleOptions(rawValue: 1 << 20)
     public static let showModuleInDependentMemberType = DemangleOptions(rawValue: 1 << 21)
+    public static let showPrefixAndSuffix = DemangleOptions(rawValue: 1 << 22)
+    
     
     public init(rawValue: Int) {
         self.rawValue = rawValue
     }
 
-    public static let `default`: DemangleOptions = [.displayDebuggerGeneratedModule, .qualifyEntities, .displayExtensionContexts, .displayUnmangledSuffix, .displayModuleNames, .displayGenericSpecializations, .displayProtocolConformances, .displayWhereClauses, .displayEntityTypes, .showPrivateDiscriminators, .showFunctionArgumentTypes, .showAsyncResumePartial, .displayStdlibModule, .displayObjCModule, .showClosureSignature, .showModuleInDependentMemberType]
+    public static let `default`: DemangleOptions = [.displayDebuggerGeneratedModule, .qualifyEntities, .displayExtensionContexts, .displayUnmangledSuffix, .displayModuleNames, .displayGenericSpecializations, .displayProtocolConformances, .displayWhereClauses, .displayEntityTypes, .showPrivateDiscriminators, .showFunctionArgumentTypes, .showAsyncResumePartial, .displayStdlibModule, .displayObjCModule, .showClosureSignature, .showModuleInDependentMemberType, .showPrefixAndSuffix]
     public static let simplified: DemangleOptions = [.synthesizeSugarOnTypes, .qualifyEntities, .shortenPartialApply, .shortenThunk, .shortenValueWitness, .shortenArchetype]
 }

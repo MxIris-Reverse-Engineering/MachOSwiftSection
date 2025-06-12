@@ -31,13 +31,7 @@ extension AssociatedType: Dumpable {
         
         Space()
         
-        try MetadataReader.demangleSymbol(for: conformingTypeName, in: machOFile).printSemantic(using: options).map {
-            if $0.type == .typeName {
-                return TypeDeclaration($0.string)
-            } else {
-                return $0
-            }
-        }
+        try MetadataReader.demangleSymbol(for: conformingTypeName, in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
         
         Standard(":")
         
@@ -58,7 +52,7 @@ extension AssociatedType: Dumpable {
 
             Space()
 
-            try TypeName(record.name(in: machOFile))
+            try TypeDeclaration(record.name(in: machOFile))
 
             Space()
 

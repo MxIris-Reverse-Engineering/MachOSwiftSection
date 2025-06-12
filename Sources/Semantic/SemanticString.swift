@@ -34,4 +34,14 @@ public struct SemanticString: Sendable, TextOutputStream {
     public func map(_ modifier: (any SemanticStringComponent) -> any SemanticStringComponent) -> SemanticString {
         .init(components: components.map { modifier($0) })
     }
+    
+    public func replacing(from type: SemanticType, to newType: SemanticType) -> SemanticString {
+        map { component in
+            if component.type == type {
+                return AnyComponent(string: component.string, type: newType)
+            } else {
+                return component
+            }
+        }
+    }
 }

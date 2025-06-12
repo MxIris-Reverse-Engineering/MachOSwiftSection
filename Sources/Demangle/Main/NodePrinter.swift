@@ -5,7 +5,7 @@ struct NodePrinter: Sendable {
     var specializationPrefixPrinted: Bool
     var options: DemangleOptions
     var hidingCurrentModule: String = ""
-
+    
     init(options: DemangleOptions = .default) {
         self.target = .init()
         self.specializationPrefixPrinted = false
@@ -35,9 +35,13 @@ struct NodePrinter: Sendable {
 
     mutating func printOptional(_ optional: Node?, prefix: String? = nil, suffix: String? = nil, asPrefixContext: Bool = false) -> Node? {
         guard let o = optional else { return nil }
-        prefix.map { target.write($0) }
+        if options.contains(.showPrefixAndSuffix) {
+            prefix.map { target.write($0) }
+        }
         let r = printName(o)
-        suffix.map { target.write($0) }
+        if options.contains(.showPrefixAndSuffix) {
+            suffix.map { target.write($0) }
+        }
         return r
     }
 

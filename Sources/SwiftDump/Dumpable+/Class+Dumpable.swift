@@ -3,6 +3,7 @@ import MachOKit
 import MachOSwiftSection
 import MachOMacro
 import Semantic
+import Demangle
 
 extension Class: Dumpable {
     @MachOImageGenerator
@@ -12,7 +13,7 @@ extension Class: Dumpable {
 
         Space()
 
-        try MetadataReader.demangleContext(for: .type(.class(descriptor)), in: machOFile).printSemantic(using: options)
+        try MetadataReader.demangleContext(for: .type(.class(descriptor)), in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
 
         if let genericContext {
             try genericContext.dumpGenericParameters(in: machOFile)
@@ -42,13 +43,12 @@ extension Class: Dumpable {
 
             Indent(level: 1)
 
-            let demangledTypeName = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machOFile), in: machOFile).printSemantic(using: options)
-            let demangledTypeNameString = demangledTypeName.string
+            let demangledTypeNode = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machOFile), in: machOFile)
 
             let fieldName = try fieldRecord.fieldName(in: machOFile)
 
             if fieldRecord.flags.contains(.isVariadic) {
-                if demangledTypeNameString.hasWeakPrefix {
+                if demangledTypeNode.hasWeakNode {
                     Keyword(.weak)
                     Space()
                     Keyword(.var)
@@ -74,7 +74,7 @@ extension Class: Dumpable {
 
             Space()
 
-            TypeName(demangledTypeNameString.stripWeakPrefix)
+            demangledTypeNode.printSemantic(using: options.subtracting(.showPrefixAndSuffix))
 
             if offset.isEnd {
                 BreakLine()
@@ -86,7 +86,7 @@ extension Class: Dumpable {
 
             Indent(level: 1)
 
-            InlineComment("[\(descriptor.flags.kind)] ")
+            InlineComment("[\(descriptor.flags.kind)]")
 
             if !descriptor.flags.isInstance, descriptor.flags.kind != .`init` {
                 Keyword(.static)
@@ -159,3 +159,10 @@ extension Class: Dumpable {
         Standard("}")
     }
 }
+
+extension Node {
+    var hasWeakNode: Bool {
+        first { $0.kind == .weak } != nil
+    }
+}
+

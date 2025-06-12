@@ -10,7 +10,7 @@ extension MachOSwiftSection.`Protocol`: Dumpable {
     public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
         Keyword(.protocol)
         Space()
-        try MetadataReader.demangleContext(for: .protocol(descriptor), in: machOFile).printSemantic(using: options)
+        try MetadataReader.demangleContext(for: .protocol(descriptor), in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
 
         if numberOfRequirementsInSignature > 0 {
             Space()
@@ -47,7 +47,7 @@ extension MachOSwiftSection.`Protocol`: Dumpable {
             BreakLine()
             Indent(level: 1)
             if let symbol = try requirement.defaultImplementationSymbol(in: machOFile) {
-                InlineComment("[Default Implementation] ")
+                InlineComment("[Default Implementation]")
                 try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
             } else {
                 InlineComment("[Stripped Symbol]")

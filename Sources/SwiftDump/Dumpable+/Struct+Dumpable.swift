@@ -10,7 +10,7 @@ extension Struct: Dumpable {
     public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
         Keyword(.struct)
         Space()
-        try MetadataReader.demangleContext(for: .type(.struct(descriptor)), in: machOFile).printSemantic(using: options)
+        try MetadataReader.demangleContext(for: .type(.struct(descriptor)), in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
 
         if let genericContext {
             try genericContext.dumpGenericParameters(in: machOFile)
@@ -30,13 +30,12 @@ extension Struct: Dumpable {
             
             Indent(level: 1)
 
-            let demangledTypeName = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machOFile), in: machOFile).printSemantic(using: options)
-            let demangledTypeNameString = demangledTypeName.string
+            let demangledTypeNode = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machOFile), in: machOFile)
             
             let fieldName = try fieldRecord.fieldName(in: machOFile)
             
             if fieldRecord.flags.contains(.isVariadic) {
-                if demangledTypeNameString.hasWeakPrefix {
+                if demangledTypeNode.hasWeakNode {
                     Keyword(.weak)
                     Space()
                     Keyword(.var)
@@ -58,7 +57,7 @@ extension Struct: Dumpable {
             MemberDeclaration(fieldName.stripLazyPrefix)
             Standard(":")
             Space()
-            TypeName(demangledTypeNameString.stripWeakPrefix)
+            demangledTypeNode.printSemantic(using: options.subtracting(.showPrefixAndSuffix))
 
             if offset.isEnd {
                 BreakLine()

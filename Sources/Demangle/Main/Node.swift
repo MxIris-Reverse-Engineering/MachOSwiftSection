@@ -225,9 +225,7 @@ extension Node {
 extension Node: CustomStringConvertible {
     /// Overridden method to allow simple printing with default options
     public var description: String {
-        var printer = NodePrinter()
-        _ = printer.printName(self)
-        return printer.target.string
+        print()
     }
 
     /// Prints `SwiftSymbol`s to a String with the full set of printing options.
