@@ -4,6 +4,7 @@ import MachOSwiftSection
 import MachOMacro
 import Semantic
 import Demangle
+import MachOFoundation
 
 extension Class: Dumpable {
     @MachOImageGenerator
@@ -36,6 +37,7 @@ extension Class: Dumpable {
             try genericContext.dumpGenericRequirements(using: options, in: machOFile)
         }
         Space()
+
         Standard("{")
 
         for (offset, fieldRecord) in try descriptor.fieldDescriptor(in: machOFile).records(in: machOFile).offsetEnumerated() {
@@ -67,7 +69,6 @@ extension Class: Dumpable {
                 Space()
             }
 
-//            "\(fieldName.stripLazyPrefix): \(demangledTypeNameString.stripWeakPrefix)"
             MemberDeclaration(fieldName.stripLazyPrefix)
 
             Standard(":")
@@ -86,29 +87,15 @@ extension Class: Dumpable {
 
             Indent(level: 1)
 
-            InlineComment("[\(descriptor.flags.kind)]")
 
-            if !descriptor.flags.isInstance, descriptor.flags.kind != .`init` {
-                Keyword(.static)
-                Space()
-            }
-
-            if descriptor.flags.isDynamic {
-                Keyword(.dynamic)
-                Space()
-            }
-
-            if descriptor.flags.kind == .method {
-                Keyword(.func)
-                Space()
-            }
+            dumpMethodKeyword(for: descriptor)
 
             if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
                 try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
             } else if !descriptor.implementation.isNull {
-                Standard("\(descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)))")
+                FunctionOrMethodDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
             } else {
-                InlineComment("Symbol not found")
+                Error("Symbol not found")
             }
 
             if offset.isEnd {
@@ -125,10 +112,21 @@ extension Class: Dumpable {
 
             Space()
 
-            if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
-                try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+            if let methodDescriptor = try descriptor.methodDescriptor(in: machOFile) {
+                switch methodDescriptor {
+                case .symbol(let symbol):
+                    try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+                case .element(let element):
+                    dumpMethodKeyword(for: element)
+                }
             } else {
-                InlineComment("Symbol not found")
+                if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
+                    try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+                } else if !descriptor.implementation.isNull {
+                    FunctionOrMethodDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
+                } else {
+                    Error("Symbol not found")
+                }
             }
 
             if offset.isEnd {
@@ -147,8 +145,10 @@ extension Class: Dumpable {
 
             if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
                 try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+            } else if !descriptor.implementation.isNull {
+                FunctionOrMethodDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
             } else {
-                InlineComment("Symbol not found")
+                Error("Symbol not found")
             }
 
             if offset.isEnd {
@@ -158,6 +158,29 @@ extension Class: Dumpable {
 
         Standard("}")
     }
+    
+    @SemanticStringBuilder
+    private func dumpMethodKeyword(for descriptor: MethodDescriptor) -> SemanticString {
+        InlineComment("[\(descriptor.flags.kind)]")
+
+        Space()
+        
+        if !descriptor.flags.isInstance, descriptor.flags.kind != .`init` {
+            Keyword(.static)
+            Space()
+        }
+
+        if descriptor.flags.isDynamic {
+            Keyword(.dynamic)
+            Space()
+        }
+
+        if descriptor.flags.kind == .method {
+            Keyword(.func)
+            Space()
+        }
+    }
+    
 }
 
 extension Node {
@@ -166,3 +189,18 @@ extension Node {
     }
 }
 
+extension Dumpable {
+    func addressString<MachO: MachORepresentableWithCache>(of fileOffset: Int, in machOFile: MachO) -> String {
+        if let cache = machOFile.cache {
+            return .init(cache.mainCacheHeader.sharedRegionStart.cast() + fileOffset, radix: 16, uppercase: true)
+        } else {
+            return .init(0x100000000 + fileOffset, radix: 16, uppercase: true)
+        }
+    }
+}
+
+extension String {
+    var insertSubFunctionPrefix: String {
+        "sub_" + self
+    }
+}

@@ -158,7 +158,7 @@ extension SwiftDumpTests {
     private func dumpProtocols(for machO: MachOFile) async throws {
         let protocolDescriptors = try machO.swift.protocolDescriptors
         for protocolDescriptor in protocolDescriptors {
-            try print(Protocol(descriptor: protocolDescriptor, in: machO).dump(using: printOptions, in: machO))
+            try print(Protocol(descriptor: protocolDescriptor, in: machO).dump(using: printOptions, in: machO).string)
         }
     }
 
@@ -168,8 +168,7 @@ extension SwiftDumpTests {
         let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
 
         for (index, protocolConformanceDescriptor) in protocolConformanceDescriptors.enumerated() {
-            print(index)
-            try print(ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO).dump(using: printOptions, in: machO))
+            try print(ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO).dump(using: printOptions, in: machO).string)
         }
     }
 
@@ -187,16 +186,16 @@ extension SwiftDumpTests {
                 switch typeContextDescriptorWrapper {
                 case .enum(let enumDescriptor):
                     let enumType = try Enum(descriptor: enumDescriptor, in: machO)
-                    try print(enumType.dump(using: printOptions, in: machO))
+                    try print(enumType.dump(using: printOptions, in: machO).string)
                 case .struct(let structDescriptor):
                     let structType = try Struct(descriptor: structDescriptor, in: machO)
-                    try print(structType.dump(using: printOptions, in: machO))
+                    try print(structType.dump(using: printOptions, in: machO).string)
                     if let metadata = try metadataFinder?.metadata(for: structDescriptor) as StructMetadata? {
                         try print(metadata.fieldOffsets(for: structDescriptor, in: machO))
                     }
                 case .class(let classDescriptor):
                     let classType = try Class(descriptor: classDescriptor, in: machO)
-                    try print(classType.dump(using: printOptions, in: machO))
+                    try print(classType.dump(using: printOptions, in: machO).string)
                     if let metadata = try metadataFinder?.metadata(for: classDescriptor) as ClassMetadataObjCInterop? {
                         try print(metadata.fieldOffsets(for: classDescriptor, in: machO))
                     }
@@ -211,7 +210,7 @@ extension SwiftDumpTests {
     private func dumpAssociatedTypes(for machO: MachOFile) async throws {
         let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
         for associatedTypeDescriptor in associatedTypeDescriptors {
-            try print(AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: printOptions, in: machO) as String)
+            try print(AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: printOptions, in: machO).string)
         }
     }
 }

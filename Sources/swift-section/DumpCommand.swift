@@ -32,6 +32,9 @@ struct DumpCommand: AsyncParsableCommand {
 
     private var dumpedString = ""
 
+    @Option(name: .shortAndLong, help: "The color scheme for the output.")
+    var colorScheme: SemanticColorScheme = .none
+
     @MainActor
     mutating func run() async throws {
         let machOFile = try loadMachOFile(options: machOOptions)
@@ -128,60 +131,13 @@ struct DumpCommand: AsyncParsableCommand {
             print(string)
         }
     }
-    
+
     private mutating func dumpOrPrint(_ semanticString: SemanticString) {
         if outputPath != nil {
             dumpedString.append(semanticString.string)
             dumpedString.append("\n")
         } else {
-            var finalString = ""
-            semanticString.enumerate { string, type in
-                finalString.append(string.withColor(for: type))
-            }
-            print(finalString)
-        }
-    }
-}
-
-import Rainbow
-
-extension String {
-    
-    func withColorHex(for type: SemanticType) -> String? {
-        switch type {
-        case .standard:
-            nil
-        case .comment:
-            "#6C7987"
-        case .keyword:
-            "#F2248C"
-        case .variable:
-            nil
-        case .typeName:
-            "#D0A8FF"
-        case .typeDeclaration:
-            "#5DD8FF"
-        case .functionOrMethodName, .memberName:
-            "#A167E6"
-        case .functionOrMethodDeclaration, .memberDeclaration:
-            "#41A1C0"
-        case .numeric:
-            "#D0BF69"
-        case .argument:
-            nil
-        }
-    }
-    
-    func withColor(for type: SemanticType) -> String {
-        if let colorHex = withColorHex(for: type) {
-            let resolved = hex(colorHex, to: .bit24)
-            if type == .keyword {
-                return resolved.bold
-            } else {
-                return resolved
-            }
-        } else {
-            return self
+            print(semanticString.components.map { $0.string.withColor(for: $0.type, colorScheme: colorScheme) }.joined())
         }
     }
 }

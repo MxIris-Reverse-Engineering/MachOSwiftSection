@@ -13,7 +13,7 @@ public enum MethodDescriptorKind: UInt8, CaseIterable, CustomStringConvertible {
         case .method:
             return "Method"
         case .`init`:
-            return "Init"
+            return " Init "
         case .getter:
             return "Getter"
         case .setter:
@@ -21,7 +21,7 @@ public enum MethodDescriptorKind: UInt8, CaseIterable, CustomStringConvertible {
         case .modifyCoroutine:
             return "Modify"
         case .readCoroutine:
-            return "Read"
+            return " Read "
         }
     }
 }

@@ -11,4 +11,5 @@ public enum SemanticType: CaseIterable, Sendable {
     case argument
     case memberDeclaration
     case memberName
+    case error
 }

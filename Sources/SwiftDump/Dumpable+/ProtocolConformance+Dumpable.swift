@@ -77,7 +77,7 @@ extension ProtocolConformance: Dumpable {
                         try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
                     }
                 } else {
-                    InlineComment("Symbol not found")
+                    Error("Symbol not found")
                 }
             }
 

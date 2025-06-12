@@ -63,7 +63,10 @@ struct DemangleOptionGroup: ParsableArguments {
     var showClosureSignature: Bool?
     @Flag(inversion: .prefixedEnableDisable)
     var showModuleInDependentMemberType: Bool?
-
+    @Flag(inversion: .prefixedEnableDisable)
+    var showPrefixAndSuffix: Bool?
+    
+    
     func buildSwiftDumpDemangleOptions() -> SwiftDump.DemangleOptions {
         var options = demangleOptions.options
         if let synthesizeSugarOnTypes = synthesizeSugarOnTypes {
@@ -131,6 +134,9 @@ struct DemangleOptionGroup: ParsableArguments {
         }
         if let showModuleInDependentMemberType {
             options = options.update(.showModuleInDependentMemberType, enabled: showModuleInDependentMemberType)
+        }
+        if let showPrefixAndSuffix {
+            options = options.update(.showPrefixAndSuffix, enabled: showPrefixAndSuffix)
         }
         return options
     }
