@@ -87,16 +87,11 @@ extension Class: Dumpable {
 
             Indent(level: 1)
 
-
+            dumpMethodKind(for: descriptor)
+            
             dumpMethodKeyword(for: descriptor)
 
-            if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
-                try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
-            } else if !descriptor.implementation.isNull {
-                FunctionOrMethodDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
-            } else {
-                Error("Symbol not found")
-            }
+            try dumpMethodDeclaration(for: descriptor, using: options, in: machOFile)
 
             if offset.isEnd {
                 BreakLine()
@@ -107,23 +102,27 @@ extension Class: Dumpable {
             BreakLine()
 
             Indent(level: 1)
-
-            Keyword(.override)
-
-            Space()
-
+            
             if let methodDescriptor = try descriptor.methodDescriptor(in: machOFile) {
                 switch methodDescriptor {
                 case .symbol(let symbol):
+                    Keyword(.override)
+                    Space()
                     try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
                 case .element(let element):
+                    dumpMethodKind(for: element)
+                    Keyword(.override)
+                    Space()
                     dumpMethodKeyword(for: element)
+                    try dumpMethodDeclaration(for: element, using: options, in: machOFile)
                 }
             } else {
+                Keyword(.override)
+                Space()
                 if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
                     try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
                 } else if !descriptor.implementation.isNull {
-                    FunctionOrMethodDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
+                    FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
                 } else {
                     Error("Symbol not found")
                 }
@@ -146,7 +145,7 @@ extension Class: Dumpable {
             if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
                 try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
             } else if !descriptor.implementation.isNull {
-                FunctionOrMethodDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
+                FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
             } else {
                 Error("Symbol not found")
             }
@@ -160,11 +159,15 @@ extension Class: Dumpable {
     }
     
     @SemanticStringBuilder
-    private func dumpMethodKeyword(for descriptor: MethodDescriptor) -> SemanticString {
+    private func dumpMethodKind(for descriptor: MethodDescriptor) -> SemanticString {
         InlineComment("[\(descriptor.flags.kind)]")
 
         Space()
-        
+    }
+    
+    
+    @SemanticStringBuilder
+    private func dumpMethodKeyword(for descriptor: MethodDescriptor) -> SemanticString {
         if !descriptor.flags.isInstance, descriptor.flags.kind != .`init` {
             Keyword(.static)
             Space()
@@ -181,6 +184,17 @@ extension Class: Dumpable {
         }
     }
     
+    @MachOImageGenerator
+    @SemanticStringBuilder
+    private func dumpMethodDeclaration(for descriptor: MethodDescriptor, using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
+        if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
+            try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+        } else if !descriptor.implementation.isNull {
+            FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
+        } else {
+            Error("Symbol not found")
+        }
+    }
 }
 
 extension Node {

@@ -1,9 +1,8 @@
-import Foundation
+import Semantic
 import MachOKit
 import MachOMacro
 import MachOFoundation
 import MachOSwiftSection
-import Semantic
 
 extension TargetGenericContext {
     @MachOImageGenerator

@@ -4,37 +4,39 @@ import MachOFoundation
 import Rainbow
 import Semantic
 
-func loadMachOFile(options: MachOOptionGroup) throws -> MachOFile {
-    if options.isDyldSharedCache || options.usesSystemDyldSharedCache {
-        let dyldCache: DyldCache
-        if options.usesSystemDyldSharedCache {
-            if let host = DyldCache.host {
-                dyldCache = host
+extension MachOFile {
+    static func load(options: MachOOptionGroup) throws -> MachOFile {
+        if options.isDyldSharedCache || options.usesSystemDyldSharedCache {
+            let dyldCache: DyldCache
+            if options.usesSystemDyldSharedCache {
+                if let host = DyldCache.host {
+                    dyldCache = host
+                } else {
+                    throw SwiftSectionCommandError.unsupportedSystemVersionForDyldSharedCache
+                }
             } else {
-                throw SwiftSectionCommandError.unsupportedSystemVersionForDyldSharedCache
+                let url = try URL(fileURLWithPath: required(options.filePath, error: SwiftSectionCommandError.missingFilePath))
+                dyldCache = try DyldCache(url: url)
+            }
+
+            if let _ = options.cacheImagePath, let _ = options.cacheImageName {
+                throw SwiftSectionCommandError.ambiguousCacheImageNameAndCacheImagePath
+            } else if let cacheImageName = options.cacheImageName {
+                return try required(dyldCache.machOFile(by: .name(cacheImageName)), error: SwiftSectionCommandError.imageNotFound)
+            } else if let cacheImagePath = options.cacheImagePath {
+                return try required(dyldCache.machOFile(by: .path(cacheImagePath)), error: SwiftSectionCommandError.imageNotFound)
+            } else {
+                throw SwiftSectionCommandError.missingCacheImageNameOrCacheImagePath
             }
         } else {
             let url = try URL(fileURLWithPath: required(options.filePath, error: SwiftSectionCommandError.missingFilePath))
-            dyldCache = try DyldCache(url: url)
-        }
-
-        if let _ = options.cacheImagePath, let _ = options.cacheImageName {
-            throw SwiftSectionCommandError.ambiguousCacheImageNameAndCacheImagePath
-        } else if let cacheImageName = options.cacheImageName {
-            return try required(dyldCache.machOFile(by: .name(cacheImageName)), error: SwiftSectionCommandError.imageNotFound)
-        } else if let cacheImagePath = options.cacheImagePath {
-            return try required(dyldCache.machOFile(by: .path(cacheImagePath)), error: SwiftSectionCommandError.imageNotFound)
-        } else {
-            throw SwiftSectionCommandError.missingCacheImageNameOrCacheImagePath
-        }
-    } else {
-        let url = try URL(fileURLWithPath: required(options.filePath, error: SwiftSectionCommandError.missingFilePath))
-        let file = try File.loadFromFile(url: url)
-        switch file {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            return try required(fatFile.machOFiles().first { $0.header.cpu.subtype == options.architecture?.cpu ?? CPU.current?.subtype } ?? fatFile.machOFiles().first, error: SwiftSectionCommandError.invalidArchitecture)
+            let file = try File.loadFromFile(url: url)
+            switch file {
+            case .machO(let machOFile):
+                return machOFile
+            case .fat(let fatFile):
+                return try required(fatFile.machOFiles().first { $0.header.cpu.subtype == options.architecture?.cpu ?? CPU.current?.subtype } ?? fatFile.machOFiles().first, error: SwiftSectionCommandError.invalidArchitecture)
+            }
         }
     }
 }
@@ -54,10 +56,10 @@ extension String {
                 return "#2E0D6E"
             case .typeDeclaration:
                 return "#004975"
-            case .functionOrMethodName,
+            case .functionName,
                  .memberName:
                 return "#5C2699"
-            case .functionOrMethodDeclaration,
+            case .functionDeclaration,
                  .memberDeclaration:
                 return "#0F68A0"
             case .numeric:
@@ -75,10 +77,10 @@ extension String {
                 return "#D0A8FF"
             case .typeDeclaration:
                 return "#5DD8FF"
-            case .functionOrMethodName,
+            case .functionName,
                  .memberName:
                 return "#A167E6"
-            case .functionOrMethodDeclaration,
+            case .functionDeclaration,
                  .memberDeclaration:
                 return "#41A1C0"
             case .numeric:

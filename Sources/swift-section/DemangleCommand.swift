@@ -23,7 +23,7 @@ struct DemangleCommand: AsyncParsableCommand {
     var demangleOptionGroup: DemangleOptionGroup
 
     func run() async throws {
-        let machOFile = try loadMachOFile(options: machOOptions)
+        let machOFile = try MachOFile.load(options: machOOptions)
         let demangledNode = try MetadataReader.demangleSymbol(for: .init(offset: fileOffset ?? 0, stringValue: mangledName), in: machOFile)
         let demangleOptions = demangleOptionGroup.buildSwiftDumpDemangleOptions()
         print(mangledName, "--->", demangledNode.print(using: demangleOptions))

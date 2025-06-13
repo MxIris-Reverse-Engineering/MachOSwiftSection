@@ -40,7 +40,7 @@ struct SwiftDumpTests {
         self.machOFileInCache = try #require(mainCache.machOFile(named: .AttributeGraph))
 
         // File
-        let file = try loadFromFile(named: .iOS_22E238_Simulator_SwiftUICore)
+        let file = try loadFromFile(named: .SourceEditor)
         switch file {
         case .fat(let fatFile):
             self.machOFile = try #require(fatFile.machOFiles().first(where: { $0.header.cpu.type == .x86_64 }))

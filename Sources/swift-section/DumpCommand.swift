@@ -37,7 +37,7 @@ struct DumpCommand: AsyncParsableCommand {
 
     @MainActor
     mutating func run() async throws {
-        let machOFile = try loadMachOFile(options: machOOptions)
+        let machOFile = try MachOFile.load(options: machOOptions)
 
         if searchMetadata {
             metadataFinder = MetadataFinder(machO: machOFile)

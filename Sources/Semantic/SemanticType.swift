@@ -4,12 +4,12 @@ public enum SemanticType: CaseIterable, Sendable {
     case keyword
     case variable
     case typeName
-    case typeDeclaration
-    case functionOrMethodName
-    case functionOrMethodDeclaration
     case numeric
     case argument
+    case error
+    case typeDeclaration
     case memberDeclaration
     case memberName
-    case error
+    case functionName
+    case functionDeclaration
 }

@@ -6,25 +6,6 @@ import Semantic
 
 extension AssociatedType: Dumpable {
     @MachOImageGenerator
-    @StringBuilder
-    public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> String {
-        try "extension \(MetadataReader.demangleSymbol(for: conformingTypeName, in: machOFile).print(using: options)): \(MetadataReader.demangleSymbol(for: protocolTypeName, in: machOFile).print(using: options)) {"
-        for (offset, record) in records.offsetEnumerated() {
-            BreakLine()
-
-            Indent(level: 1)
-
-            try "typealias \(record.name(in: machOFile)) = \(MetadataReader.demangleSymbol(for: record.substitutedTypeName(in: machOFile), in: machOFile).print(using: options))"
-
-            if offset.isEnd {
-                BreakLine()
-            }
-        }
-
-        "}"
-    }
-
-    @MachOImageGenerator
     @SemanticStringBuilder
     public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
         Keyword(.extension)
@@ -71,29 +52,4 @@ extension AssociatedType: Dumpable {
     }
 }
 
-extension Keyword {
-    enum Swift: String {
-        case `associatedtype`
-        case `extension`
-        case `typealias`
-        case `class`
-        case `struct`
-        case `enum`
-        case `lazy`
-        case `weak`
-        case `override`
-        case `static`
-        case `dynamic`
-        case `func`
-        case `case`
-        case `let`
-        case `var`
-        case `where`
-        case `indirect`
-        case `protocol`
-    }
-    
-    init(_ keyword: Swift) {
-        self.init(keyword.rawValue)
-    }
-}
+

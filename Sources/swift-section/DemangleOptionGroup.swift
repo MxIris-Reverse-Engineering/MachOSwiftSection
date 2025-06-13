@@ -56,7 +56,7 @@ struct DemangleOptionGroup: ParsableArguments {
     @Flag(inversion: .prefixedEnableDisable)
     var displayStdlibModule: Bool?
     @Flag(inversion: .prefixedEnableDisable)
-    var displayObjCModule: Bool?
+    var displayObjcModule: Bool?
     @Flag(inversion: .prefixedEnableDisable)
     var printForTypeName: Bool?
     @Flag(inversion: .prefixedEnableDisable)
@@ -123,7 +123,7 @@ struct DemangleOptionGroup: ParsableArguments {
         if let displayStdlibModule = displayStdlibModule {
             options = options.update(.displayStdlibModule, enabled: displayStdlibModule)
         }
-        if let displayObjCModule = displayObjCModule {
+        if let displayObjCModule = displayObjcModule {
             options = options.update(.displayObjCModule, enabled: displayObjCModule)
         }
         if let printForTypeName = printForTypeName {

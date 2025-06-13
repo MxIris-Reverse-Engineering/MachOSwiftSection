@@ -9,7 +9,9 @@ extension Struct: Dumpable {
     @SemanticStringBuilder
     public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
         Keyword(.struct)
+        
         Space()
+        
         try MetadataReader.demangleContext(for: .type(.struct(descriptor)), in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
 
         if let genericContext {
@@ -21,7 +23,9 @@ extension Struct: Dumpable {
                 try genericContext.dumpGenericRequirements(using: options, in: machOFile)
             }
         }
+        
         Space()
+        
         Standard("{")
         
         for (offset, fieldRecord) in try descriptor.fieldDescriptor(in: machOFile).records(in: machOFile).offsetEnumerated() {

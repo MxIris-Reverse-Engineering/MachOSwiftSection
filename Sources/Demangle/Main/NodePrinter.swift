@@ -1183,7 +1183,7 @@ struct NodePrinter: Sendable {
         case .globalVariableOnceFunction,
              .globalVariableOnceToken: printGlobalVariableOnceFunction(name)
         case .hasSymbolQuery: target.write("#_hasSymbol query for ")
-        case .identifier: target.write(name.text ?? "", type: name.parent?.kind == .function ? .functionOrMethodDeclaration : .typeName)
+        case .identifier: target.write(name.text ?? "", type: (name.parent?.kind == .function || name.parent?.kind == .variable) ? .functionDeclaration : .typeName)
         case .implConvention: target.write(name.text ?? "")
         case .implCoroutineKind: printImplCoroutineKind(name)
         case .implDifferentiabilityKind: printImplDifferentiabilityKind(name)
@@ -1609,15 +1609,18 @@ struct NodePrinter: Sendable {
         target.write("(")
         for tuple in parameters.children.enumerated() {
             if let label = labelList?.children.at(tuple.offset) {
-                target.write("\(label.kind == .identifier ? (label.text ?? "") : "_"):")
+                target.write(label.kind == .identifier ? (label.text ?? "") : "_", type: .functionDeclaration)
+                target.write(":")
                 if showTypes {
                     target.write(" ")
                 }
             } else if !showTypes {
                 if let label = tuple.element.children.first(where: { $0.kind == .tupleElementName }) {
-                    target.write("\(label.text ?? ""):")
+                    target.write(label.text ?? "", type: .functionDeclaration)
+                    target.write(":")
                 } else {
-                    target.write("_:")
+                    target.write("_", type: .functionDeclaration)
+                    target.write(":")
                 }
             }
 
