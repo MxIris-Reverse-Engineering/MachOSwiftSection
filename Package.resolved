@@ -1,22 +1,22 @@
 {
-  "originHash" : "f3bb61c42471401aa297d5952733293b262386671acc79c070077ae08f0b6954",
+  "originHash" : "9d8876b2bcb3801f141c832885b514212fd366b1371b127e1437b5c578551889",
   "pins" : [
     {
       "identity" : "associatedobject",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/MxIris-Library-Forks/AssociatedObject",
+      "location" : "https://github.com/p-x9/AssociatedObject",
       "state" : {
-        "branch" : "main",
-        "revision" : "c7b9b51d3bc8c6a6b07475275795316129945685"
+        "revision" : "32a7d18f0f82e179e1bb91613b6ae8b0ebcfa931",
+        "version" : "0.13.0"
       }
     },
     {
       "identity" : "machokit",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/MxIris-Reverse-Engineering/MachOKit",
+      "location" : "https://github.com/p-x9/MachOKit.git",
       "state" : {
-        "branch" : "main",
-        "revision" : "a87e2c15d4e0c06a763893fbb9fe62e58327ba58"
+        "revision" : "ada952cd41d85daa13051c72dc03414175ac0697",
+        "version" : "0.35.0"
       }
     },
     {
@@ -49,10 +49,10 @@
     {
       "identity" : "swift-literal-type-inference",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/MxIris-Library-Forks/swift-literal-type-inference.git",
+      "location" : "https://github.com/p-x9/swift-literal-type-inference.git",
       "state" : {
-        "branch" : "main",
-        "revision" : "ee038e38d8d540cbef6c457ca1cd464e173dc66f"
+        "revision" : "7235a8e47b257bbd54da76191b043976509c4b8c",
+        "version" : "0.4.0"
       }
     },
     {

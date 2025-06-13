@@ -11,13 +11,13 @@ extension Package.Dependency {
         if useSPMPrebuildVersion {
             return .MachOKitSPM
         } else {
-            return .MachOKitMain
+            return .MachOKitOrigin
         }
     }()
 
     static let MachOKitOrigin = Package.Dependency.package(
         url: "https://github.com/p-x9/MachOKit.git",
-        from: "0.34.0"
+        from: "0.35.0"
     )
 
     static let MachOKitMain = Package.Dependency.package(
@@ -27,7 +27,7 @@ extension Package.Dependency {
 
     static let MachOKitSPM = Package.Dependency.package(
         url: "https://github.com/p-x9/MachOKit-SPM",
-        from: "0.34.0"
+        from: "0.35.0"
     )
 }
 
@@ -90,7 +90,7 @@ let package = Package(
     dependencies: [
         .MachOKit,
         .package(url: "https://github.com/swiftlang/swift-syntax", from: "601.0.1"),
-        .package(url: "https://github.com/MxIris-Library-Forks/AssociatedObject", branch: "main"),
+        .package(url: "https://github.com/p-x9/AssociatedObject", from: "0.13.0"),
         .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
         .package(url: "https://github.com/onevcat/Rainbow", .upToNextMajor(from: "4.0.0")),
