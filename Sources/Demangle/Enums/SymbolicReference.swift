@@ -1,4 +1,4 @@
-public enum SymbolicReferenceKind: UInt8, CaseIterable, Sendable {
+package enum SymbolicReferenceKind: UInt8, CaseIterable, Sendable {
     /// A symbolic reference to a context descriptor, representing the
     /// (unapplied generic) context.
     case context
@@ -13,8 +13,8 @@ public enum SymbolicReferenceKind: UInt8, CaseIterable, Sendable {
     case objectiveCProtocol
 }
 
-enum SymbolicReference {
-    static func symbolicReference(for rawValue: UInt8) -> (SymbolicReferenceKind, Directness)? {
+package enum SymbolicReference {
+    package static func symbolicReference(for rawValue: UInt8) -> (SymbolicReferenceKind, Directness)? {
         switch rawValue {
         case 0x01:
             return (.context, .direct)
@@ -33,3 +33,5 @@ enum SymbolicReference {
         }
     }
 }
+
+package typealias SymbolicReferenceResolver = @Sendable (SymbolicReferenceKind, Directness, Int) -> Node?

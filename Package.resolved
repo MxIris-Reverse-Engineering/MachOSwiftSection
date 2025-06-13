@@ -1,5 +1,5 @@
 {
-  "originHash" : "15ec23cec1a2a2dcc798c1eb5e33ddd62b0914b1085d8c1066f0655b60fb029b",
+  "originHash" : "f3bb61c42471401aa297d5952733293b262386671acc79c070077ae08f0b6954",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -16,7 +16,16 @@
       "location" : "https://github.com/MxIris-Reverse-Engineering/MachOKit",
       "state" : {
         "branch" : "main",
-        "revision" : "241b94ce1f64e262203931270ccac767e7858d56"
+        "revision" : "a87e2c15d4e0c06a763893fbb9fe62e58327ba58"
+      }
+    },
+    {
+      "identity" : "rainbow",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/onevcat/Rainbow",
+      "state" : {
+        "revision" : "0c627a4f8a39ef37eadec1ceec02e4a7f55561ac",
+        "version" : "4.1.0"
       }
     },
     {

@@ -22,7 +22,11 @@ public struct MethodOverrideDescriptor: ResolvableLocatableLayoutWrapper {
 
 @MachOImageAllMembersGenerator
 extension MethodOverrideDescriptor {
-    //@MachOImageGenerator
+    
+    public func methodDescriptor(in machOFile: MachOFile) throws -> SymbolOrElement<MethodDescriptor>? {
+        return try layout.method.resolve(from: offset(of: \.method), in: machOFile).asOptional
+    }
+    
     public func implementationSymbol(in machOFile: MachOFile) throws -> MachOSymbol? {
         return try layout.implementation.resolve(from: offset(of: \.implementation), in: machOFile)
     }

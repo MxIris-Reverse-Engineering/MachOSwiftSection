@@ -72,7 +72,6 @@ package final class MetadataFinder<MachO: MachORepresentableWithCache & MachORea
             while currentOffset < endOffset {
                 do {
                     let address = try machO.readElement(offset: currentOffset) as UInt64
-                    print(currentOffset, address)
                     metadataOffsetByDescriptorOffset[machO.offset(of: address, at: currentOffset)] = currentOffset
                 } catch {
                     print(error)

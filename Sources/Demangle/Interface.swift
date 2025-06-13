@@ -28,4 +28,4 @@ package func demangleAsNode<C: Collection>(_ mangled: C, isType: Bool = false, s
     }
 }
 
-package typealias SymbolicReferenceResolver = @Sendable (SymbolicReferenceKind, Directness, Int) -> Node?
+

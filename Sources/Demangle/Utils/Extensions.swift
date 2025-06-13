@@ -1,23 +1,35 @@
+import Semantic
+
 extension String {
-	mutating func writeHex(prefix: String? = nil, _ value: UInt64) {
-		if let prefix = prefix {
-			write(prefix)
-		}
-		write(String(value, radix: 16, uppercase: true))
-	}
+    mutating func writeHex(prefix: String? = nil, _ value: UInt64) {
+        if let prefix = prefix {
+            write(prefix)
+        }
+        write(String(value, radix: 16, uppercase: true))
+    }
+}
+
+extension SemanticString {
+    mutating func writeHex(prefix: String? = nil, _ value: UInt64) {
+        if let prefix = prefix {
+            write(prefix)
+        }
+        write(String(value, radix: 16, uppercase: true))
+    }
 }
 
 extension Array {
-	func at(_ index: Int) -> Element? {
-		return self.indices.contains(index) ? self[index] : nil
-	}
-	func slice(_ from: Int, _ to: Int) -> ArraySlice<Element> {
-		if from > to || from > self.endIndex || to < self.startIndex {
-			return ArraySlice()
-		} else {
-			return self[(from > self.startIndex ? from : self.startIndex)..<(to < self.endIndex ? to : self.endIndex)]
-		}
-	}
+    func at(_ index: Int) -> Element? {
+        return indices.contains(index) ? self[index] : nil
+    }
+
+    func slice(_ from: Int, _ to: Int) -> ArraySlice<Element> {
+        if from > to || from > endIndex || to < startIndex {
+            return ArraySlice()
+        } else {
+            return self[(from > startIndex ? from : startIndex) ..< (to < endIndex ? to : endIndex)]
+        }
+    }
 }
 
 extension TextOutputStream {
@@ -34,22 +46,22 @@ extension UnicodeScalar {
     func isInRange(_ range: ClosedRange<UnicodeScalar>) -> Bool {
         return range.contains(self)
     }
-    
+
     /// Tests if the scalar is a plain ASCII digit
     var isDigit: Bool {
-        return ("0"..."9").contains(self)
+        return ("0" ... "9").contains(self)
     }
-    
+
     /// Tests if the scalar is a plain ASCII English alphabet lowercase letter
     var isLower: Bool {
-        return ("a"..."z").contains(self)
+        return ("a" ... "z").contains(self)
     }
-    
+
     /// Tests if the scalar is a plain ASCII English alphabet uppercase letter
     var isUpper: Bool {
-        return ("A"..."Z").contains(self)
+        return ("A" ... "Z").contains(self)
     }
-    
+
     /// Tests if the scalar is a plain ASCII English alphabet letter
     var isLetter: Bool {
         return isLower || isUpper

@@ -1,6 +1,6 @@
 import ArgumentParser
 
-enum SwiftSection: String, ExpressibleByArgument, CaseIterable {
+enum SwiftSection: String, CaseIterable, ExpressibleByArgument {
     case types
     case protocols
     case protocolConformances

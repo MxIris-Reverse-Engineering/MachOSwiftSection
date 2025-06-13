@@ -2,39 +2,58 @@ import Foundation
 import MachOKit
 import MachOSwiftSection
 import MachOMacro
+import Semantic
 
 extension Enum: Dumpable {
     @MachOImageGenerator
-    @StringBuilder
-    public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> String {
-        try "enum \(MetadataReader.demangleContext(for: .type(.enum(descriptor)), in: machOFile).print(using: options))"
+    @SemanticStringBuilder
+    public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
+        Keyword(.enum)
+        
+        Space()
+        
+        try MetadataReader.demangleContext(for: .type(.enum(descriptor)), in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
 
         if let genericContext {
             try genericContext.dumpGenericParameters(in: machOFile)
             if genericContext.requirements.count > 0 {
-                " where "
+                Space()
+                Keyword(.where)
+                Space()
                 try genericContext.dumpGenericRequirements(using: options, in: machOFile)
             }
         }
-
-        " {"
+        Space()
+        Standard("{")
         for (offset, fieldRecord) in try descriptor.fieldDescriptor(in: machOFile).records(in: machOFile).offsetEnumerated() {
             BreakLine()
 
             Indent(level: 1)
 
             if fieldRecord.flags.contains(.isIndirectCase) {
-                "indirect case "
+                Keyword(.indirect)
+                Space()
+                Keyword(.case)
+                Space()
             } else {
-                "case "
+                Keyword(.case)
+                Space()
             }
 
-            try "\(fieldRecord.fieldName(in: machOFile))"
+            try MemberDeclaration("\(fieldRecord.fieldName(in: machOFile))")
 
             let mangledName = try fieldRecord.mangledTypeName(in: machOFile)
 
             if !mangledName.isEmpty {
-                try MetadataReader.demangleType(for: mangledName, in: machOFile).print(using: options).insertBracketIfNeeded
+                let demangledName = try MetadataReader.demangleType(for: mangledName, in: machOFile).printSemantic(using: options)
+                let demangledNameString = demangledName.string
+                if demangledNameString.hasPrefix("("), demangledNameString.hasSuffix(")") {
+                    demangledName
+                } else {
+                    Standard("(")
+                    demangledName
+                    Standard(")")
+                }
             }
 
             if offset.isEnd {
@@ -42,6 +61,6 @@ extension Enum: Dumpable {
             }
         }
 
-        "}"
+        Standard("}")
     }
 }

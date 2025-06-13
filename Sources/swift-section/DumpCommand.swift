@@ -4,6 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
+import Semantic
 
 struct DumpCommand: AsyncParsableCommand {
     static let configuration: CommandConfiguration = .init(
@@ -31,9 +32,12 @@ struct DumpCommand: AsyncParsableCommand {
 
     private var dumpedString = ""
 
+    @Option(name: .shortAndLong, help: "The color scheme for the output.")
+    var colorScheme: SemanticColorScheme = .none
+
     @MainActor
     mutating func run() async throws {
-        let machOFile = try loadMachOFile(options: machOOptions)
+        let machOFile = try MachOFile.load(options: machOOptions)
 
         if searchMetadata {
             metadataFinder = MetadataFinder(machO: machOFile)
@@ -94,7 +98,7 @@ struct DumpCommand: AsyncParsableCommand {
     private mutating func dumpAssociatedTypes(using options: DemangleOptions, in machO: MachOFile) async throws {
         let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
         for associatedTypeDescriptor in associatedTypeDescriptors {
-            try dumpOrPrint(AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: options, in: machO))
+            try dumpOrPrint(AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: options, in: machO) as SemanticString)
         }
     }
 
@@ -125,6 +129,15 @@ struct DumpCommand: AsyncParsableCommand {
             dumpedString.append("\n")
         } else {
             print(string)
+        }
+    }
+
+    private mutating func dumpOrPrint(_ semanticString: SemanticString) {
+        if outputPath != nil {
+            dumpedString.append(semanticString.string)
+            dumpedString.append("\n")
+        } else {
+            print(semanticString.components.map { $0.string.withColor(for: $0.type, colorScheme: colorScheme) }.joined())
         }
     }
 }

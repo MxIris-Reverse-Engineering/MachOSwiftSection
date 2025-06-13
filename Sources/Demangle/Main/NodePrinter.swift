@@ -1,11 +1,13 @@
+import Semantic
+
 struct NodePrinter: Sendable {
-    var target: String
+    var target: SemanticString
     var specializationPrefixPrinted: Bool
     var options: DemangleOptions
     var hidingCurrentModule: String = ""
-
+    
     init(options: DemangleOptions = .default) {
-        self.target = ""
+        self.target = .init()
         self.specializationPrefixPrinted = false
         self.options = options
     }
@@ -33,9 +35,13 @@ struct NodePrinter: Sendable {
 
     mutating func printOptional(_ optional: Node?, prefix: String? = nil, suffix: String? = nil, asPrefixContext: Bool = false) -> Node? {
         guard let o = optional else { return nil }
-        prefix.map { target.write($0) }
+        if options.contains(.showPrefixAndSuffix) {
+            prefix.map { target.write($0) }
+        }
         let r = printName(o)
-        suffix.map { target.write($0) }
+        if options.contains(.showPrefixAndSuffix) {
+            suffix.map { target.write($0) }
+        }
         return r
     }
 
@@ -1177,7 +1183,7 @@ struct NodePrinter: Sendable {
         case .globalVariableOnceFunction,
              .globalVariableOnceToken: printGlobalVariableOnceFunction(name)
         case .hasSymbolQuery: target.write("#_hasSymbol query for ")
-        case .identifier: target.write(name.text ?? "")
+        case .identifier: target.write(name.text ?? "", type: (name.parent?.kind == .function || name.parent?.kind == .variable) ? .functionDeclaration : .typeName)
         case .implConvention: target.write(name.text ?? "")
         case .implCoroutineKind: printImplCoroutineKind(name)
         case .implDifferentiabilityKind: printImplDifferentiabilityKind(name)
@@ -1603,15 +1609,18 @@ struct NodePrinter: Sendable {
         target.write("(")
         for tuple in parameters.children.enumerated() {
             if let label = labelList?.children.at(tuple.offset) {
-                target.write("\(label.kind == .identifier ? (label.text ?? "") : "_"):")
+                target.write(label.kind == .identifier ? (label.text ?? "") : "_", type: .functionDeclaration)
+                target.write(":")
                 if showTypes {
                     target.write(" ")
                 }
             } else if !showTypes {
                 if let label = tuple.element.children.first(where: { $0.kind == .tupleElementName }) {
-                    target.write("\(label.text ?? ""):")
+                    target.write(label.text ?? "", type: .functionDeclaration)
+                    target.write(":")
                 } else {
-                    target.write("_:")
+                    target.write("_", type: .functionDeclaration)
+                    target.write(":")
                 }
             }
 

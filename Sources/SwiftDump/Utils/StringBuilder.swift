@@ -75,25 +75,4 @@ extension StringBuilder {
     }
 }
 
-package struct Indent: CustomStringConvertible {
-    package let level: Int
 
-    package init(level: Int) {
-        self.level = level
-    }
-
-    package var description: String {
-        String(repeating: " ", count: level * 4)
-    }
-}
-
-package struct BreakLine: CustomStringConvertible {
-    package init() {}
-
-    package var description: String { "\n" }
-}
-
-package struct Space: CustomStringConvertible {
-    package init() {}
-    package var description: String { " " }
-}

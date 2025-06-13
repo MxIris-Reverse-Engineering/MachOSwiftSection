@@ -2,25 +2,31 @@ import Foundation
 import MachOKit
 import MachOSwiftSection
 import MachOMacro
+import Semantic
 
 extension MachOSwiftSection.`Protocol`: Dumpable {
     @MachOImageGenerator
-    @StringBuilder
-    public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> String {
-        try "protocol \(MetadataReader.demangleContext(for: .protocol(descriptor), in: machOFile).print(using: options))"
+    @SemanticStringBuilder
+    public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
+        Keyword(.protocol)
+        Space()
+        try MetadataReader.demangleContext(for: .protocol(descriptor), in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
 
         if numberOfRequirementsInSignature > 0 {
-            " where "
+            Space()
+            Keyword(.where)
+            Space()
 
             for (offset, requirement) in requirementInSignatures.offsetEnumerated() {
                 try requirement.dump(using: options, in: machOFile)
                 if !offset.isEnd {
-                    ", "
+                    Standard(",")
+                    Space()
                 }
             }
         }
-
-        " {"
+        Space()
+        Standard("{")
 
         let associatedTypes = try descriptor.associatedTypes(in: machOFile)
 
@@ -28,7 +34,9 @@ extension MachOSwiftSection.`Protocol`: Dumpable {
             for (offset, associatedType) in associatedTypes.offsetEnumerated() {
                 BreakLine()
                 Indent(level: 1)
-                "associatedtype \(associatedType)"
+                Keyword(.associatedtype)
+                Space()
+                TypeDeclaration(associatedType)
                 if offset.isEnd {
                     BreakLine()
                 }
@@ -39,16 +47,16 @@ extension MachOSwiftSection.`Protocol`: Dumpable {
             BreakLine()
             Indent(level: 1)
             if let symbol = try requirement.defaultImplementationSymbol(in: machOFile) {
-                "[Default Implementation] "
-                try MetadataReader.demangleSymbol(for: symbol, in: machOFile).print(using: options)
+                InlineComment("[Default Implementation]")
+                try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
             } else {
-                "[Stripped Symbol]"
+                InlineComment("[Stripped Symbol]")
             }
             if offset.isEnd {
                 BreakLine()
             }
         }
 
-        "}"
+        Standard("}")
     }
 }

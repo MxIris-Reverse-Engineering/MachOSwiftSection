@@ -1,7 +1,6 @@
-import Foundation
 import MachOKit
-import MachOSwiftSection
 import MachOMacro
+import MachOSwiftSection
 
 extension ResilientSuperclass {
     @MachOImageGenerator

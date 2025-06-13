@@ -2,52 +2,80 @@ import Foundation
 import MachOKit
 import MachOSwiftSection
 import MachOMacro
+import Semantic
+import Demangle
+import MachOFoundation
 
 extension Class: Dumpable {
     @MachOImageGenerator
-    @StringBuilder
-    public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> String {
-        try "class \(MetadataReader.demangleContext(for: .type(.class(descriptor)), in: machOFile).print(using: options))"
+    @SemanticStringBuilder
+    public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
+        Keyword(.class)
+
+        Space()
+
+        try MetadataReader.demangleContext(for: .type(.class(descriptor)), in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
 
         if let genericContext {
             try genericContext.dumpGenericParameters(in: machOFile)
         }
 
         if let superclassMangledName = try descriptor.superclassTypeMangledName(in: machOFile) {
-            try ": \(MetadataReader.demangleType(for: superclassMangledName, in: machOFile).print(using: options))"
+            Standard(":")
+            Space()
+            try MetadataReader.demangleType(for: superclassMangledName, in: machOFile).printSemantic(using: options)
         } else if let resilientSuperclass, let kind = descriptor.resilientSuperclassReferenceKind, let superclass = try resilientSuperclass.dumpSuperclass(using: options, for: kind, in: machOFile) {
-            ": \(superclass)"
+            Standard(":")
+            Space()
+            TypeName(superclass)
         }
 
         if let genericContext, genericContext.requirements.count > 0 {
-            " where "
+            Space()
+            Keyword(.where)
+            Space()
             try genericContext.dumpGenericRequirements(using: options, in: machOFile)
         }
+        Space()
 
-        " {"
+        Standard("{")
 
         for (offset, fieldRecord) in try descriptor.fieldDescriptor(in: machOFile).records(in: machOFile).offsetEnumerated() {
             BreakLine()
 
             Indent(level: 1)
 
-            let demangledTypeName = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machOFile), in: machOFile).print(using: options)
+            let demangledTypeNode = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machOFile), in: machOFile)
 
             let fieldName = try fieldRecord.fieldName(in: machOFile)
 
             if fieldRecord.flags.contains(.isVariadic) {
-                if demangledTypeName.hasWeakPrefix {
-                    "weak var "
+                if demangledTypeNode.hasWeakNode {
+                    Keyword(.weak)
+                    Space()
+                    Keyword(.var)
+                    Space()
                 } else if fieldName.hasLazyPrefix {
-                    "lazy var "
+                    Keyword(.lazy)
+                    Space()
+                    Keyword(.var)
+                    Space()
                 } else {
-                    "var "
+                    Keyword(.var)
+                    Space()
                 }
             } else {
-                "let "
+                Keyword(.let)
+                Space()
             }
 
-            "\(fieldName.stripLazyPrefix): \(demangledTypeName.stripWeakPrefix)"
+            MemberDeclaration(fieldName.stripLazyPrefix)
+
+            Standard(":")
+
+            Space()
+
+            demangledTypeNode.printSemantic(using: options.subtracting(.showPrefixAndSuffix))
 
             if offset.isEnd {
                 BreakLine()
@@ -59,27 +87,11 @@ extension Class: Dumpable {
 
             Indent(level: 1)
 
-            "[\(descriptor.flags.kind)] "
+            dumpMethodKind(for: descriptor)
+            
+            dumpMethodKeyword(for: descriptor)
 
-            if !descriptor.flags.isInstance, descriptor.flags.kind != .`init` {
-                "static "
-            }
-
-            if descriptor.flags.isDynamic {
-                "dynamic "
-            }
-
-            if descriptor.flags.kind == .method {
-                "func "
-            }
-
-            if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
-                (try? MetadataReader.demangleSymbol(for: symbol, in: machOFile).print(using: options)) ?? "Demangle Error"
-            } else if !descriptor.implementation.isNull {
-                "\(descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)))"
-            } else {
-                "Symbol not found"
-            }
+            try dumpMethodDeclaration(for: descriptor, using: options, in: machOFile)
 
             if offset.isEnd {
                 BreakLine()
@@ -90,25 +102,30 @@ extension Class: Dumpable {
             BreakLine()
 
             Indent(level: 1)
-
-            "override "
-
-//            if !descriptor.method.res, descriptor.flags.kind != .`init` {
-//                "class "
-//            }
-//
-//            if descriptor.flags.isDynamic {
-//                "dynamic "
-//            }
-//
-//            if descriptor.flags.kind == .method {
-//                "func "
-//            }
-
-            if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
-                (try? MetadataReader.demangleSymbol(for: symbol, in: machOFile).print(using: options)) ?? "Error"
+            
+            if let methodDescriptor = try descriptor.methodDescriptor(in: machOFile) {
+                switch methodDescriptor {
+                case .symbol(let symbol):
+                    Keyword(.override)
+                    Space()
+                    try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+                case .element(let element):
+                    dumpMethodKind(for: element)
+                    Keyword(.override)
+                    Space()
+                    dumpMethodKeyword(for: element)
+                    try dumpMethodDeclaration(for: element, using: options, in: machOFile)
+                }
             } else {
-                "Symbol not found"
+                Keyword(.override)
+                Space()
+                if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
+                    try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+                } else if !descriptor.implementation.isNull {
+                    FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
+                } else {
+                    Error("Symbol not found")
+                }
             }
 
             if offset.isEnd {
@@ -121,12 +138,16 @@ extension Class: Dumpable {
 
             Indent(level: 1)
 
-            "default override "
+            Keyword(.override)
+
+            Space()
 
             if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
-                (try? MetadataReader.demangleSymbol(for: symbol, in: machOFile).print(using: options)) ?? "Error"
+                try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+            } else if !descriptor.implementation.isNull {
+                FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
             } else {
-                "Symbol not found"
+                Error("Symbol not found")
             }
 
             if offset.isEnd {
@@ -134,6 +155,66 @@ extension Class: Dumpable {
             }
         }
 
-        "}"
+        Standard("}")
+    }
+    
+    @SemanticStringBuilder
+    private func dumpMethodKind(for descriptor: MethodDescriptor) -> SemanticString {
+        InlineComment("[\(descriptor.flags.kind)]")
+
+        Space()
+    }
+    
+    
+    @SemanticStringBuilder
+    private func dumpMethodKeyword(for descriptor: MethodDescriptor) -> SemanticString {
+        if !descriptor.flags.isInstance, descriptor.flags.kind != .`init` {
+            Keyword(.static)
+            Space()
+        }
+
+        if descriptor.flags.isDynamic {
+            Keyword(.dynamic)
+            Space()
+        }
+
+        if descriptor.flags.kind == .method {
+            Keyword(.func)
+            Space()
+        }
+    }
+    
+    @MachOImageGenerator
+    @SemanticStringBuilder
+    private func dumpMethodDeclaration(for descriptor: MethodDescriptor, using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
+        if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
+            try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+        } else if !descriptor.implementation.isNull {
+            FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
+        } else {
+            Error("Symbol not found")
+        }
+    }
+}
+
+extension Node {
+    var hasWeakNode: Bool {
+        first { $0.kind == .weak } != nil
+    }
+}
+
+extension Dumpable {
+    func addressString<MachO: MachORepresentableWithCache>(of fileOffset: Int, in machOFile: MachO) -> String {
+        if let cache = machOFile.cache {
+            return .init(cache.mainCacheHeader.sharedRegionStart.cast() + fileOffset, radix: 16, uppercase: true)
+        } else {
+            return .init(0x100000000 + fileOffset, radix: 16, uppercase: true)
+        }
+    }
+}
+
+extension String {
+    var insertSubFunctionPrefix: String {
+        "sub_" + self
     }
 }
