@@ -6,4 +6,5 @@ package enum MachOFileName: String {
     case SourceEdit = "/Applications/SourceEdit.app"
     case SourceEditor = "/Applications/SourceEdit.app/Contents/Frameworks/SourceEditor.framework"
     case ControlCenter = "/System/Library/CoreServices/ControlCenter.app"
+    case Freeform = "/System/Applications/Freeform.app"
 }

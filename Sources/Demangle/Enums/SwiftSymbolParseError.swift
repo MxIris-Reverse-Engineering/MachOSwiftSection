@@ -23,4 +23,6 @@ public enum SwiftSymbolParseError: Error, Sendable {
     case integerOverflow(at: Int)
 
     case unimplementedFeature
+    
+    case requiredNonOptional
 }

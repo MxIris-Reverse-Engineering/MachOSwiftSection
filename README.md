@@ -14,10 +14,10 @@ It may be the most powerful swift dump you can find so far, as it uses a custom 
 - [x] Protocol Conformance Descriptors
 - [x] Type Context Descriptors
 - [x] Associated Type Descriptors
+- [x] Method Symbol For Dyld Caches
+- [ ] Type Member Layout (WIP)
 - [ ] Builtin Type Descriptors
 - [ ] Capture Descriptors
-- [ ] Type Member Layout
-- [ ] Method Symbol For Dyld Caches
 
 ## Usage
 

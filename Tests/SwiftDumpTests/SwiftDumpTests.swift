@@ -40,10 +40,10 @@ struct SwiftDumpTests {
         self.machOFileInCache = try #require(mainCache.machOFile(named: .AttributeGraph))
 
         // File
-        let file = try loadFromFile(named: .SourceEditor)
+        let file = try loadFromFile(named: .Freeform)
         switch file {
         case .fat(let fatFile):
-            self.machOFile = try #require(fatFile.machOFiles().first(where: { $0.header.cpu.type == .x86_64 }))
+            self.machOFile = try #require(fatFile.machOFiles().first(where: { $0.header.cpu.subtype == .arm64(.arm64e) }))
         case .machO(let machO):
             self.machOFile = machO
         @unknown default:
@@ -67,6 +67,14 @@ struct SwiftDumpTests {
     
     @Test func mangledName() async throws {
         try MetadataReader.demangleSymbol(for: .init(offset: 0, stringValue: "_$sSo10CUICatalogC7SwiftUIE9findAsset3key10matchTypes11assetLookupxSgAC10CatalogKeyV_q_AHSSXEtSo08CUINamedJ0CRbzSlR_AC0kE9MatchTypeO7ElementRt_r0_lFSo0M5ColorC_SayANGTB503$s7b3UI5q107V05NamedC033_F70ADAD69423F89598F901BDE477D497LLV14resolveCGColor2inSo0L3RefaSgAA17EnvironmentValuesV_tFSo08M12C0CSgSSXEfU_AbC0Q0V0uQ001_wxyZ10BDE477D497LLVAC0q5CacheL0AXLLVSiTf1nncn_nTf4nnngggn_n"), in: machOFile).print(using: printOptions).print()
+    }
+    
+    @Test func dyldCacheLoaded() async throws {
+        let current = try #require(DyldCacheLoaded.current)
+        print(current.mainCacheHeader.sharedRegionStart)
+        for machOImage in current.machOImages() {
+            print(machOImage.ptr.uint, machOImage.path)
+        }
     }
 }
 
@@ -167,7 +175,7 @@ extension SwiftDumpTests {
     private func dumpProtocolConformances(for machO: MachOFile) async throws {
         let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
 
-        for (index, protocolConformanceDescriptor) in protocolConformanceDescriptors.enumerated() {
+        for protocolConformanceDescriptor in protocolConformanceDescriptors {
             try print(ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO).dump(using: printOptions, in: machO).string)
         }
     }
