@@ -114,11 +114,12 @@ extension Demangler {
     }
 
     private mutating func demangleSymbolicReference(rawValue: UInt8) throws -> Node {
+        
         guard let (kind, directness) = SymbolicReference.symbolicReference(for: rawValue) else {
-            throw SwiftSymbolParseError.unimplementedFeature
+            throw SwiftSymbolParseError.requiredNonOptional
         }
         guard let symbolicReferenceResolver, let symbol = symbolicReferenceResolver(kind, directness, symbolicReferenceIndex) else {
-            throw SwiftSymbolParseError.unimplementedFeature
+            throw SwiftSymbolParseError.requiredNonOptional
         }
         symbolicReferenceIndex += 1
         if (kind == .context || kind == .objectiveCProtocol) && (symbol.kind != .opaqueTypeDescriptorSymbolicReference && symbol.kind != .opaqueReturnTypeOf) {
