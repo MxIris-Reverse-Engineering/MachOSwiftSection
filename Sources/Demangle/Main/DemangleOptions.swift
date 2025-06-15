@@ -1,5 +1,5 @@
 /// These options mimic those used in the Swift project. Check that project for details.
-public struct DemangleOptions: OptionSet, Sendable {
+public struct DemangleOptions: OptionSet, Codable, Sendable {
     public let rawValue: Int
 
     public static let synthesizeSugarOnTypes = DemangleOptions(rawValue: 1 << 0)
@@ -31,6 +31,48 @@ public struct DemangleOptions: OptionSet, Sendable {
         self.rawValue = rawValue
     }
 
-    public static let `default`: DemangleOptions = [.displayDebuggerGeneratedModule, .qualifyEntities, .displayExtensionContexts, .displayUnmangledSuffix, .displayModuleNames, .displayGenericSpecializations, .displayProtocolConformances, .displayWhereClauses, .displayEntityTypes, .showPrivateDiscriminators, .showFunctionArgumentTypes, .showAsyncResumePartial, .displayStdlibModule, .displayObjCModule, .showClosureSignature, .showModuleInDependentMemberType, .showPrefixAndSuffix]
-    public static let simplified: DemangleOptions = [.synthesizeSugarOnTypes, .qualifyEntities, .shortenPartialApply, .shortenThunk, .shortenValueWitness, .shortenArchetype]
+    public static let `default`: DemangleOptions = [
+        .displayDebuggerGeneratedModule,
+        .qualifyEntities,
+        .displayExtensionContexts,
+        .displayUnmangledSuffix,
+        .displayModuleNames,
+        .displayGenericSpecializations,
+        .displayProtocolConformances,
+        .displayWhereClauses,
+        .displayEntityTypes,
+        .showPrivateDiscriminators,
+        .showFunctionArgumentTypes,
+        .showAsyncResumePartial,
+        .displayStdlibModule,
+        .displayObjCModule,
+        .showClosureSignature,
+        .showModuleInDependentMemberType,
+        .showPrefixAndSuffix
+    ]
+    
+    public static let simplified: DemangleOptions = [
+        .synthesizeSugarOnTypes,
+        .qualifyEntities,
+        .shortenPartialApply,
+        .shortenThunk,
+        .shortenValueWitness,
+        .shortenArchetype
+    ]
+    
+    public static let interface: DemangleOptions = [
+        .synthesizeSugarOnTypes,
+        .qualifyEntities,
+        .displayModuleNames,
+        .displayGenericSpecializations,
+        .displayProtocolConformances,
+        .displayWhereClauses,
+        .displayEntityTypes,
+        .showFunctionArgumentTypes,
+        .showAsyncResumePartial,
+        .displayStdlibModule,
+        .showClosureSignature,
+        .showModuleInDependentMemberType,
+        .showPrefixAndSuffix
+    ]
 }
