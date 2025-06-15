@@ -1,4 +1,4 @@
-public enum SemanticType: CaseIterable, Sendable {
+public enum SemanticType: CaseIterable, Codable, Sendable {
     case standard
     case comment
     case keyword
