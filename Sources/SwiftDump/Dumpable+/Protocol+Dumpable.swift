@@ -16,7 +16,7 @@ extension MachOSwiftSection.`Protocol`: NamedDumpable {
     public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
         Keyword(.protocol)
         Space()
-        try dumpName(using: options, in: machOFile) .replacing(from: .typeName, to: .typeDeclaration)
+        try dumpName(using: options, in: machOFile).replacing(from: .typeName, to: .typeDeclaration)
 
         if numberOfRequirementsInSignature > 0 {
             Space()
