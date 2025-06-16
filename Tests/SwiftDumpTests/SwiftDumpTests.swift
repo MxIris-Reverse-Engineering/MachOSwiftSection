@@ -40,10 +40,10 @@ struct SwiftDumpTests {
         self.machOFileInCache = try #require(mainCache.machOFile(named: .AttributeGraph))
 
         // File
-        let file = try loadFromFile(named: .Freeform)
+        let file = try loadFromFile(named: .iOS_23A5260l_Simulator_SwiftUICore)
         switch file {
         case .fat(let fatFile):
-            self.machOFile = try #require(fatFile.machOFiles().first(where: { $0.header.cpu.subtype == .arm64(.arm64e) }))
+            self.machOFile = try #require(fatFile.machOFiles().first(where: { $0.header.cpu.subtype == .arm64(.arm64_all) }))
         case .machO(let machO):
             self.machOFile = machO
         @unknown default:

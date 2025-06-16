@@ -7,6 +7,14 @@ public struct SemanticString: Sendable, TextOutputStream, Codable {
 
     public init() {}
 
+    public init(@SemanticStringBuilder builder: () -> SemanticString) {
+        self = builder()
+    }
+    
+    public init(components: any SemanticStringComponent...) {
+        self.components = components.map { .init(component: $0) }
+    }
+    
     public init(components: [any SemanticStringComponent]) {
         self.components = components.map { .init(component: $0) }
     }

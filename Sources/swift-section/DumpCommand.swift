@@ -73,19 +73,32 @@ struct DumpCommand: AsyncParsableCommand {
             case .type(let typeContextDescriptorWrapper):
                 switch typeContextDescriptorWrapper {
                 case .enum(let enumDescriptor):
-                    let enumType = try Enum(descriptor: enumDescriptor, in: machO)
-                    try dumpOrPrint(enumType.dump(using: options, in: machO))
-                case .struct(let structDescriptor):
-                    let structType = try Struct(descriptor: structDescriptor, in: machO)
-                    try dumpOrPrint(structType.dump(using: options, in: machO))
-                    if let metadata = try metadataFinder?.metadata(for: structDescriptor) as StructMetadata? {
-                        try dumpOrPrint(metadata.fieldOffsets(for: structDescriptor, in: machO))
+                    do {
+                        let enumType = try Enum(descriptor: enumDescriptor, in: machO)
+                        try dumpOrPrint(enumType.dump(using: options, in: machO))
+                    } catch {
+                        dumpError(error)
                     }
+                case .struct(let structDescriptor):
+                    do {
+                        let structType = try Struct(descriptor: structDescriptor, in: machO)
+                        try dumpOrPrint(structType.dump(using: options, in: machO))
+                        if let metadata = try metadataFinder?.metadata(for: structDescriptor) as StructMetadata? {
+                            try dumpOrPrint(metadata.fieldOffsets(for: structDescriptor, in: machO))
+                        }
+                    } catch {
+                        dumpError(error)
+                    }
+
                 case .class(let classDescriptor):
-                    let classType = try Class(descriptor: classDescriptor, in: machO)
-                    try dumpOrPrint(classType.dump(using: options, in: machO))
-                    if let metadata = try metadataFinder?.metadata(for: classDescriptor) as ClassMetadataObjCInterop? {
-                        try dumpOrPrint(metadata.fieldOffsets(for: classDescriptor, in: machO))
+                    do {
+                        let classType = try Class(descriptor: classDescriptor, in: machO)
+                        try dumpOrPrint(classType.dump(using: options, in: machO))
+                        if let metadata = try metadataFinder?.metadata(for: classDescriptor) as ClassMetadataObjCInterop? {
+                            try dumpOrPrint(metadata.fieldOffsets(for: classDescriptor, in: machO))
+                        }
+                    } catch {
+                        dumpError(error)
                     }
                 }
             default:
@@ -98,7 +111,11 @@ struct DumpCommand: AsyncParsableCommand {
     private mutating func dumpAssociatedTypes(using options: DemangleOptions, in machO: MachOFile) async throws {
         let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
         for associatedTypeDescriptor in associatedTypeDescriptors {
-            try dumpOrPrint(AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: options, in: machO) as SemanticString)
+            do {
+                try dumpOrPrint(AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: options, in: machO) as SemanticString)
+            } catch {
+                dumpError(error)
+            }
         }
     }
 
@@ -106,7 +123,11 @@ struct DumpCommand: AsyncParsableCommand {
     private mutating func dumpProtocols(using options: DemangleOptions, in machO: MachOFile) async throws {
         let protocolDescriptors = try machO.swift.protocolDescriptors
         for protocolDescriptor in protocolDescriptors {
-            try dumpOrPrint(Protocol(descriptor: protocolDescriptor, in: machO).dump(using: options, in: machO))
+            do {
+                try dumpOrPrint(Protocol(descriptor: protocolDescriptor, in: machO).dump(using: options, in: machO))
+            } catch {
+                dumpError(error)
+            }
         }
     }
 
@@ -115,7 +136,11 @@ struct DumpCommand: AsyncParsableCommand {
         let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
 
         for protocolConformanceDescriptor in protocolConformanceDescriptors {
-            try dumpOrPrint(ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO).dump(using: options, in: machO))
+            do {
+                try dumpOrPrint(ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO).dump(using: options, in: machO))
+            } catch {
+                dumpError(error)
+            }
         }
     }
 
@@ -132,6 +157,10 @@ struct DumpCommand: AsyncParsableCommand {
         }
     }
 
+    private mutating func dumpError(_ error: Swift.Error) {
+        dumpOrPrint(SemanticString(components: Error(error.localizedDescription)))
+    }
+    
     private mutating func dumpOrPrint(_ semanticString: SemanticString) {
         if outputPath != nil {
             dumpedString.append(semanticString.string)

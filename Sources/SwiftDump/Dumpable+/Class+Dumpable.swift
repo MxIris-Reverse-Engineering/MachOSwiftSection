@@ -208,15 +208,6 @@ extension Node {
     }
 }
 
-extension Dumpable {
-    func addressString<MachO: MachORepresentableWithCache>(of fileOffset: Int, in machOFile: MachO) -> String {
-        if let cache = machOFile.cache {
-            return .init(cache.mainCacheHeader.sharedRegionStart.cast() + fileOffset, radix: 16, uppercase: true)
-        } else {
-            return .init(0x100000000 + fileOffset, radix: 16, uppercase: true)
-        }
-    }
-}
 
 extension String {
     var insertSubFunctionPrefix: String {

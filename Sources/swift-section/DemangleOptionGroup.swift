@@ -5,6 +5,7 @@ struct DemangleOptionGroup: ParsableArguments {
     enum PresetOptions: String, ExpressibleByArgument, CaseIterable {
         case `default`
         case simplified
+        case interface
 
         var options: DemangleOptions {
             switch self {
@@ -12,6 +13,8 @@ struct DemangleOptionGroup: ParsableArguments {
                 return .default
             case .simplified:
                 return .simplified
+            case .interface:
+                return .interface
             }
         }
     }
