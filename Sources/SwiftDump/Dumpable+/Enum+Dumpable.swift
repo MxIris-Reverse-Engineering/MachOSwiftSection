@@ -4,7 +4,13 @@ import MachOSwiftSection
 import MachOMacro
 import Semantic
 
-extension Enum: Dumpable {
+extension Enum: NamedDumpable {
+    
+    @MachOImageGenerator
+    public func dumpName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
+        try MetadataReader.demangleContext(for: .type(.enum(descriptor)), in: machOFile).printSemantic(using: options)
+    }
+    
     @MachOImageGenerator
     @SemanticStringBuilder
     public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
@@ -12,7 +18,7 @@ extension Enum: Dumpable {
         
         Space()
         
-        try MetadataReader.demangleContext(for: .type(.enum(descriptor)), in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
+        try dumpName(using: options, in: machOFile).replacing(from: .typeName, to: .typeDeclaration)
 
         if let genericContext {
             try genericContext.dumpGenericParameters(in: machOFile)

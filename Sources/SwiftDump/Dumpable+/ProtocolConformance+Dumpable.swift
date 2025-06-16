@@ -7,9 +7,7 @@ import Semantic
 extension ProtocolConformance: Dumpable {
     @MachOImageGenerator
     @SemanticStringBuilder
-    public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
-        Keyword(.extension)
-        Space()
+    public func dumpTypeName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
         switch typeReference {
         case .directTypeDescriptor(let descriptor):
             try TypeDeclaration(descriptor.flatMap { try $0.dumpName(using: options, in: machOFile) }.valueOrEmpty)
@@ -34,8 +32,11 @@ extension ProtocolConformance: Dumpable {
                 Standard("")
             }
         }
-        Standard(":")
-        Space()
+    }
+
+    @MachOImageGenerator
+    @SemanticStringBuilder
+    public func dumpProtocolName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
         switch `protocol` {
         case .symbol(let unsolvedSymbol):
             try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).printSemantic(using: options)
@@ -44,6 +45,22 @@ extension ProtocolConformance: Dumpable {
         case .none:
             Standard("")
         }
+    }
+
+    @MachOImageGenerator
+    @SemanticStringBuilder
+    public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
+        Keyword(.extension)
+
+        Space()
+
+        try dumpTypeName(using: options, in: machOFile)
+
+        Standard(":")
+
+        Space()
+
+        try dumpProtocolName(using: options, in: machOFile)
 
         if !conditionalRequirements.isEmpty {
             Space()

@@ -1,12 +1,17 @@
-import Foundation
-import MachOKit
-import MachOSwiftSection
-import MachOMacro
 import Semantic
 import Demangle
+import MachOKit
+import MachOMacro
 import MachOFoundation
+import MachOSwiftSection
 
-extension Class: Dumpable {
+extension Class: NamedDumpable {
+    
+    @MachOImageGenerator
+    public func dumpName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
+        try MetadataReader.demangleContext(for: .type(.class(descriptor)), in: machOFile).printSemantic(using: options)
+    }
+    
     @MachOImageGenerator
     @SemanticStringBuilder
     public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
@@ -14,7 +19,7 @@ extension Class: Dumpable {
 
         Space()
 
-        try MetadataReader.demangleContext(for: .type(.class(descriptor)), in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
+        try dumpName(using: options, in: machOFile).replacing(from: .typeName, to: .typeDeclaration)
 
         if let genericContext {
             try genericContext.dumpGenericParameters(in: machOFile)
@@ -203,15 +208,6 @@ extension Node {
     }
 }
 
-extension Dumpable {
-    func addressString<MachO: MachORepresentableWithCache>(of fileOffset: Int, in machOFile: MachO) -> String {
-        if let cache = machOFile.cache {
-            return .init(cache.mainCacheHeader.sharedRegionStart.cast() + fileOffset, radix: 16, uppercase: true)
-        } else {
-            return .init(0x100000000 + fileOffset, radix: 16, uppercase: true)
-        }
-    }
-}
 
 extension String {
     var insertSubFunctionPrefix: String {

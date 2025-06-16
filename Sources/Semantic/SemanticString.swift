@@ -1,5 +1,5 @@
-public struct SemanticString: Sendable, TextOutputStream {
-    public private(set) var components: [any SemanticStringComponent] = []
+public struct SemanticString: Sendable, TextOutputStream, Codable {
+    public private(set) var components: [AnyComponent] = []
 
     public var count: Int { components.count }
 
@@ -7,8 +7,16 @@ public struct SemanticString: Sendable, TextOutputStream {
 
     public init() {}
 
+    public init(@SemanticStringBuilder builder: () -> SemanticString) {
+        self = builder()
+    }
+    
+    public init(components: any SemanticStringComponent...) {
+        self.components = components.map { .init(component: $0) }
+    }
+    
     public init(components: [any SemanticStringComponent]) {
-        self.components = components
+        self.components = components.map { .init(component: $0) }
     }
 
     public mutating func append(_ string: String, type: SemanticType) {
