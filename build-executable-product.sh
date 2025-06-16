@@ -3,10 +3,10 @@
 set -e  # Exit on any error
 
 echo "Building x86_64 architecture..."
-swift build -c release --arch x86_64 --product swift-section
+swift build -c release --arch x86_64 --product swift-section --enable-experimental-prebuilts
 
 echo "Building arm64 architecture..."
-swift build -c release --arch arm64 --product swift-section
+swift build -c release --arch arm64 --product swift-section --enable-experimental-prebuilts
 
 # Create Products directory
 if [ ! -d "./Products" ]; then
