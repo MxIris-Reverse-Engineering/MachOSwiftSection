@@ -74,10 +74,6 @@ extension MachOFile.Swift {
     private func _section(for swiftMachOSection: MachOSwiftSectionName, in machOFile: MachOFile) throws -> (any SectionProtocol) {
         let loadCommands = machOFile.loadCommands
         let swiftSection: any SectionProtocol
-//        print(SEG_TEXT)
-//        for info in loadCommands.infos(of: LoadCommand.segment64) {
-//            print(SEG_TEXT.isEqual(to: info.segname), String(tuple: info.segname))
-//        }
         if let text = loadCommands.text64,
            let section = text._section(for: swiftMachOSection, in: machOFile) {
             swiftSection = section

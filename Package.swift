@@ -89,11 +89,11 @@ let package = Package(
     ],
     dependencies: [
         .MachOKit,
-        .package(url: "https://github.com/swift-precompiled/swift-syntax.git", from: "601.0.1"),
-        .package(url: "https://github.com/MxIris-Library-Forks/AssociatedObject", from: "0.13.0"),
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.1.0"..<"602.0.0"),
+        .package(url: "https://github.com/p-x9/AssociatedObject", from: "0.13.0"),
         .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
-        .package(url: "https://github.com/onevcat/Rainbow", .upToNextMajor(from: "4.0.0")),
+        .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
     ],
     targets: [
         .target(
