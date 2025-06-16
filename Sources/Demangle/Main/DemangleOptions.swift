@@ -60,19 +60,15 @@ public struct DemangleOptions: OptionSet, Codable, Sendable {
         .shortenArchetype
     ]
     
-    public static let interface: DemangleOptions = [
-        .synthesizeSugarOnTypes,
-        .qualifyEntities,
-        .displayModuleNames,
-        .displayGenericSpecializations,
-        .displayProtocolConformances,
-        .displayWhereClauses,
-        .displayEntityTypes,
-        .showFunctionArgumentTypes,
-        .showAsyncResumePartial,
-        .displayStdlibModule,
-        .showClosureSignature,
-        .showModuleInDependentMemberType,
-        .showPrefixAndSuffix
-    ]
+    public static let interface: DemangleOptions = {
+        var options = DemangleOptions.default
+        options.remove(.displayObjCModule)
+        options.insert(.synthesizeSugarOnTypes)
+        options.remove(.displayWhereClauses)
+        options.remove(.displayExtensionContexts)
+        options.remove(.showPrivateDiscriminators)
+        options.remove(.showModuleInDependentMemberType)
+        return options
+    }()
+
 }

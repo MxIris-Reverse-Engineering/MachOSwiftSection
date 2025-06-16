@@ -40,12 +40,22 @@ extension String {
 }
 
 extension String {
+    @inline(__always)
     package func isEqual(to tuple: CCharTuple16) -> Bool {
-        self == String(tuple: tuple)
+        withUnsafePointer(to: tuple) { tuple in
+            withCString { str in
+                strcmp(str, tuple) == 0
+            }
+        }
     }
 
+    @inline(__always)
     package func isEqual(to tuple: CCharTuple32) -> Bool {
-        self == String(tuple: tuple)
+        withUnsafePointer(to: tuple) { tuple in
+            withCString { str in
+                strcmp(str, tuple) == 0
+            }
+        }
     }
 }
 
