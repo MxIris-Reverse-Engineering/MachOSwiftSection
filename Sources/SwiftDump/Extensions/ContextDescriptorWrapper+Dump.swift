@@ -1,10 +1,11 @@
 import MachOKit
 import MachOMacro
 import MachOSwiftSection
+import Semantic
 
 extension ContextDescriptorWrapper {
     @MachOImageGenerator
-    package func dumpName(using options: DemangleOptions, in machOFile: MachOFile) throws -> String {
-        try MetadataReader.demangleContext(for: self, in: machOFile).print(using: options)
+    package func dumpName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
+        try MetadataReader.demangleContext(for: self, in: machOFile).printSemantic(using: options)
     }
 }

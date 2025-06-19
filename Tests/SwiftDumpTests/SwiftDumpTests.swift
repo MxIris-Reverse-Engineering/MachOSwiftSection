@@ -8,7 +8,7 @@ import MachOFoundation
 import MachOTestingSupport
 
 @Suite(.serialized)
-struct SwiftDumpTests {
+struct DyldCacheDumpTests: DumpableTest {
     let mainCache: DyldCache
 
     let subCache: DyldCache
@@ -19,18 +19,13 @@ struct SwiftDumpTests {
 
     let machOFileInCache: MachOFile
 
-    let machOFile: MachOFile
-
-    let machOImage: MachOImage
-
     let isEnabledSearchMetadata: Bool = false
 
-    init() throws {
-        // Cache
+    init() async throws {
         self.mainCache = try DyldCache(path: .current)
         self.subCache = try required(mainCache.subCaches?.first?.subcache(for: mainCache))
 
-        self.machOFileInMainCache = try #require(mainCache.machOFile(named: .Foundation))
+        self.machOFileInMainCache = try #require(mainCache.machOFile(named: .SwiftUI))
         self.machOFileInSubCache = if #available(macOS 15.5, *) {
             try #require(subCache.machOFile(named: .CodableSwiftUI))
         } else {
@@ -38,8 +33,16 @@ struct SwiftDumpTests {
         }
 
         self.machOFileInCache = try #require(mainCache.machOFile(named: .AttributeGraph))
+    }
+}
 
-        // File
+@Suite(.serialized)
+struct MachOFileDumpTests: DumpableTest {
+    let machOFile: MachOFile
+
+    let isEnabledSearchMetadata: Bool = false
+
+    init() async throws {
         let file = try loadFromFile(named: .iOS_23A5260l_Simulator_SwiftUICore)
         switch file {
         case .fat(let fatFile):
@@ -49,36 +52,21 @@ struct SwiftDumpTests {
         @unknown default:
             fatalError()
         }
-
-        // Image
-        self.machOImage = try #require(MachOImage(named: .Foundation))
-    }
-
-    @Test func printCacheFiles() {
-        print("******************************[Main Cache]******************************")
-        for file in mainCache.machOFiles() {
-            print(file.imagePath)
-        }
-        print("******************************[Sub Cache]*******************************")
-        for file in subCache.machOFiles() {
-            print(file.imagePath)
-        }
-    }
-    
-    @Test func mangledName() async throws {
-        try MetadataReader.demangleSymbol(for: .init(offset: 0, stringValue: "_$sSo10CUICatalogC7SwiftUIE9findAsset3key10matchTypes11assetLookupxSgAC10CatalogKeyV_q_AHSSXEtSo08CUINamedJ0CRbzSlR_AC0kE9MatchTypeO7ElementRt_r0_lFSo0M5ColorC_SayANGTB503$s7b3UI5q107V05NamedC033_F70ADAD69423F89598F901BDE477D497LLV14resolveCGColor2inSo0L3RefaSgAA17EnvironmentValuesV_tFSo08M12C0CSgSSXEfU_AbC0Q0V0uQ001_wxyZ10BDE477D497LLVAC0q5CacheL0AXLLVSiTf1nncn_nTf4nnngggn_n"), in: machOFile).print(using: printOptions).print()
-    }
-    
-    @Test func dyldCacheLoaded() async throws {
-        let current = try #require(DyldCacheLoaded.current)
-        print(current.mainCacheHeader.sharedRegionStart)
-        for machOImage in current.machOImages() {
-            print(machOImage.ptr.uint, machOImage.path)
-        }
     }
 }
 
-extension SwiftDumpTests {
+@Suite(.serialized)
+struct MachOImageDumpTests: DumpableTest {
+    let machOImage: MachOImage
+
+    let isEnabledSearchMetadata: Bool = false
+
+    init() async throws {
+        self.machOImage = try #require(MachOImage(named: .Foundation))
+    }
+}
+
+extension DyldCacheDumpTests {
     @Test func typesInCacheFile() async throws {
         try await dumpTypes(for: machOFileInCache)
     }
@@ -128,7 +116,7 @@ extension SwiftDumpTests {
     }
 }
 
-extension SwiftDumpTests {
+extension MachOFileDumpTests {
     @Test func typesInFile() async throws {
         try await dumpTypes(for: machOFile)
     }
@@ -146,7 +134,7 @@ extension SwiftDumpTests {
     }
 }
 
-extension SwiftDumpTests {
+extension MachOImageDumpTests {
     @Test func typesInImage() async throws {
         try await dumpTypes(for: machOImage)
     }
@@ -158,12 +146,20 @@ extension SwiftDumpTests {
     @Test func protocolConformancesInImage() async throws {
         try await dumpProtocolConformances(for: machOImage)
     }
+
+    @Test func associatedTypesInImage() async throws {
+        try await dumpAssociatedTypes(for: machOImage)
+    }
 }
 
-extension SwiftDumpTests {
+protocol DumpableTest {
+    var isEnabledSearchMetadata: Bool { get }
+}
+
+extension DumpableTest {
     @MachOImageGenerator
     @MainActor
-    private func dumpProtocols(for machO: MachOFile) async throws {
+    func dumpProtocols(for machO: MachOFile) async throws {
         let protocolDescriptors = try machO.swift.protocolDescriptors
         for protocolDescriptor in protocolDescriptors {
             try print(Protocol(descriptor: protocolDescriptor, in: machO).dump(using: printOptions, in: machO).string)
@@ -172,7 +168,7 @@ extension SwiftDumpTests {
 
     @MachOImageGenerator
     @MainActor
-    private func dumpProtocolConformances(for machO: MachOFile) async throws {
+    func dumpProtocolConformances(for machO: MachOFile) async throws {
         let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
 
         for protocolConformanceDescriptor in protocolConformanceDescriptors {
@@ -182,7 +178,7 @@ extension SwiftDumpTests {
 
     @MachOImageGenerator
     @MainActor
-    private func dumpTypes(for machO: MachOFile) async throws {
+    func dumpTypes(for machO: MachOFile) async throws {
         let typeContextDescriptors = try machO.swift.typeContextDescriptors
         var metadataFinder: MetadataFinder<MachOFile>?
         if isEnabledSearchMetadata {
@@ -214,8 +210,9 @@ extension SwiftDumpTests {
         }
     }
 
+    @MachOImageGenerator
     @MainActor
-    private func dumpAssociatedTypes(for machO: MachOFile) async throws {
+    func dumpAssociatedTypes(for machO: MachOFile) async throws {
         let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
         for associatedTypeDescriptor in associatedTypeDescriptors {
             try print(AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: printOptions, in: machO).string)

@@ -111,6 +111,7 @@ let package = Package(
             name: "MachOExtensions",
             dependencies: [
                 .MachOKit,
+                "MachOMacro",
             ]
         ),
 
@@ -146,10 +147,10 @@ let package = Package(
         .target(
             name: "MachOSwiftSection",
             dependencies: [
+                .MachOKit,
                 "Demangle",
                 "MachOFoundation",
                 "MachOMacro",
-                .MachOKit,
             ]
         ),
 

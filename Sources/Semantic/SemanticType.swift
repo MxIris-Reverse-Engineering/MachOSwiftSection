@@ -12,4 +12,5 @@ public enum SemanticType: CaseIterable, Codable, Sendable {
     case memberName
     case functionName
     case functionDeclaration
+    case other
 }

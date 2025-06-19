@@ -7,23 +7,35 @@ import Semantic
 extension AssociatedType: Dumpable {
     @MachOImageGenerator
     @SemanticStringBuilder
+    public func dumpTypeName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
+        try MetadataReader.demangleSymbol(for: conformingTypeName, in: machOFile).printSemantic(using: options).replacing(from: .typeName, .other, to: .typeDeclaration)
+    }
+
+    @MachOImageGenerator
+    @SemanticStringBuilder
+    public func dumpProtocolName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
+        try MetadataReader.demangleSymbol(for: protocolTypeName, in: machOFile).printSemantic(using: options)
+    }
+
+    @MachOImageGenerator
+    @SemanticStringBuilder
     public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
         Keyword(.extension)
-        
+
         Space()
-        
-        try MetadataReader.demangleSymbol(for: conformingTypeName, in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
-        
+
+        try dumpTypeName(using: options, in: machOFile)
+
         Standard(":")
-        
+
         Space()
-        
-        try MetadataReader.demangleSymbol(for: protocolTypeName, in: machOFile).printSemantic(using: options)
-        
+
+        try dumpProtocolName(using: options, in: machOFile)
+
         Space()
-        
+
         Standard("{")
-        
+
         for (offset, record) in records.offsetEnumerated() {
             BreakLine()
 
@@ -40,7 +52,7 @@ extension AssociatedType: Dumpable {
             Standard("=")
 
             Space()
-            
+
             try MetadataReader.demangleSymbol(for: record.substitutedTypeName(in: machOFile), in: machOFile).printSemantic(using: options)
 
             if offset.isEnd {
@@ -51,5 +63,3 @@ extension AssociatedType: Dumpable {
         Standard("}")
     }
 }
-
-

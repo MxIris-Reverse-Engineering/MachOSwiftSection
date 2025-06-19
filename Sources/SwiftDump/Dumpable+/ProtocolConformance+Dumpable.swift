@@ -10,13 +10,13 @@ extension ProtocolConformance: Dumpable {
     public func dumpTypeName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
         switch typeReference {
         case .directTypeDescriptor(let descriptor):
-            try TypeDeclaration(descriptor.flatMap { try $0.dumpName(using: options, in: machOFile) }.valueOrEmpty)
+            (try descriptor?.dumpName(using: options, in: machOFile) ?? SemanticString()).replacingTypeNameOrOtherToTypeDeclaration()
         case .indirectTypeDescriptor(let descriptor):
             switch descriptor {
             case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
+                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
             case .element(let element):
-                try TypeDeclaration(element.dumpName(using: options, in: machOFile))
+                (try element.dumpName(using: options, in: machOFile) ?? SemanticString()).replacingTypeNameOrOtherToTypeDeclaration()
             case nil:
                 Standard("")
             }
@@ -25,9 +25,9 @@ extension ProtocolConformance: Dumpable {
         case .indirectObjCClass(let objcClass):
             switch objcClass {
             case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
+                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
             case .element(let element):
-                try MetadataReader.demangleContext(for: .type(.class(element.descriptor.resolve(in: machOFile))), in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
+                try MetadataReader.demangleContext(for: .type(.class(element.descriptor.resolve(in: machOFile))), in: machOFile).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
             case nil:
                 Standard("")
             }
@@ -102,5 +102,11 @@ extension ProtocolConformance: Dumpable {
 
             Standard("}")
         }
+    }
+}
+
+extension SemanticString {
+    func replacingTypeNameOrOtherToTypeDeclaration() -> SemanticString {
+        self.replacing(from: .typeName, .other, to: .typeDeclaration)
     }
 }

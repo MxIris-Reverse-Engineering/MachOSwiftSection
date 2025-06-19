@@ -5,18 +5,19 @@ import MachOMacro
 import Semantic
 
 extension MachOSwiftSection.`Protocol`: NamedDumpable {
-    
     @MachOImageGenerator
     public func dumpName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
-        try MetadataReader.demangleContext(for: .protocol(descriptor), in: machOFile).printSemantic(using: options)
+        try MetadataReader.demangleContext(for: .protocol(descriptor), in: machOFile).printSemantic(using: options).replacing(from: .typeName, .other, to: .typeDeclaration)
     }
-    
+
     @MachOImageGenerator
     @SemanticStringBuilder
     public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
         Keyword(.protocol)
+
         Space()
-        try dumpName(using: options, in: machOFile).replacing(from: .typeName, to: .typeDeclaration)
+
+        try dumpName(using: options, in: machOFile)
 
         if numberOfRequirementsInSignature > 0 {
             Space()

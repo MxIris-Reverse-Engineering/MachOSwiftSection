@@ -105,7 +105,7 @@ struct NodePrinter: Sendable {
 
     mutating func printModule(_ name: Node) {
         if options.contains(.displayModuleNames) {
-            target.write(name.text ?? "")
+            target.write(name.text ?? "", type: .other)
         }
     }
 
