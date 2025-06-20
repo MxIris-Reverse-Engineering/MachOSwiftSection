@@ -35,13 +35,9 @@ struct NodePrinter: Sendable {
 
     mutating func printOptional(_ optional: Node?, prefix: String? = nil, suffix: String? = nil, asPrefixContext: Bool = false) -> Node? {
         guard let o = optional else { return nil }
-        if options.contains(.showPrefixAndSuffix) {
-            prefix.map { target.write($0) }
-        }
+        prefix.map { target.write($0) }
         let r = printName(o)
-        if options.contains(.showPrefixAndSuffix) {
-            suffix.map { target.write($0) }
-        }
+        suffix.map { target.write($0) }
         return r
     }
 
@@ -1396,7 +1392,7 @@ struct NodePrinter: Sendable {
         case .variadicMarker: target.write(" variadic-marker ")
         case .vTableAttribute: target.write("override ")
         case .vTableThunk: printVTableThunk(name)
-        case .weak: printFirstChild(name, prefix: "weak ")
+        case .weak: printFirstChild(name, prefix: options.contains(.removeWeakPrefix) ? "" : "weak ")
         case .willSet: return printAbstractStorage(name.children.first, asPrefixContext: asPrefixContext, extraName: "willset")
         }
 

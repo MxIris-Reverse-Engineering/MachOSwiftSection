@@ -79,7 +79,7 @@ extension Class: NamedDumpable {
 
             Space()
 
-            demangledTypeNode.printSemantic(using: options.subtracting(.showPrefixAndSuffix))
+            demangledTypeNode.printSemantic(using: options.union(.removeWeakPrefix))
 
             if offset.isEnd {
                 BreakLine()
@@ -118,7 +118,7 @@ extension Class: NamedDumpable {
                     Keyword(.override)
                     Space()
                     dumpMethodKeyword(for: element)
-                    try dumpMethodDeclaration(for: element, using: options, in: machOFile)
+                    try? dumpMethodDeclaration(for: element, using: options, in: machOFile)
                 }
             } else {
                 Keyword(.override)

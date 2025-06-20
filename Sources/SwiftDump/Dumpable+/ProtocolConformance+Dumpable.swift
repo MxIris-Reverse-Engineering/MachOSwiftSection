@@ -10,13 +10,13 @@ extension ProtocolConformance: Dumpable {
     public func dumpTypeName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
         switch typeReference {
         case .directTypeDescriptor(let descriptor):
-            (try descriptor?.dumpName(using: options, in: machOFile) ?? SemanticString()).replacingTypeNameOrOtherToTypeDeclaration()
+            try descriptor?.dumpName(using: options, in: machOFile).replacingTypeNameOrOtherToTypeDeclaration()
         case .indirectTypeDescriptor(let descriptor):
             switch descriptor {
             case .symbol(let unsolvedSymbol):
                 try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
             case .element(let element):
-                (try element.dumpName(using: options, in: machOFile) ?? SemanticString()).replacingTypeNameOrOtherToTypeDeclaration()
+                try element.dumpName(using: options, in: machOFile).replacingTypeNameOrOtherToTypeDeclaration()
             case nil:
                 Standard("")
             }

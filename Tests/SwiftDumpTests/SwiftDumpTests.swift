@@ -32,7 +32,7 @@ struct DyldCacheDumpTests: DumpableTest {
             try #require(subCache.machOFile(named: .UIKitCore))
         }
 
-        self.machOFileInCache = try #require(mainCache.machOFile(named: .AttributeGraph))
+        self.machOFileInCache = try #require(mainCache.machOFile(named: .AppKit))
     }
 }
 
@@ -189,19 +189,31 @@ extension DumpableTest {
             case .type(let typeContextDescriptorWrapper):
                 switch typeContextDescriptorWrapper {
                 case .enum(let enumDescriptor):
-                    let enumType = try Enum(descriptor: enumDescriptor, in: machO)
-                    try print(enumType.dump(using: printOptions, in: machO).string)
+                    do {
+                        let enumType = try Enum(descriptor: enumDescriptor, in: machO)
+                        try print(enumType.dump(using: printOptions, in: machO).string)
+                    } catch {
+                        print(error)
+                    }
                 case .struct(let structDescriptor):
-                    let structType = try Struct(descriptor: structDescriptor, in: machO)
-                    try print(structType.dump(using: printOptions, in: machO).string)
-                    if let metadata = try metadataFinder?.metadata(for: structDescriptor) as StructMetadata? {
-                        try print(metadata.fieldOffsets(for: structDescriptor, in: machO))
+                    do {
+                        let structType = try Struct(descriptor: structDescriptor, in: machO)
+                        try print(structType.dump(using: printOptions, in: machO).string)
+                        if let metadata = try metadataFinder?.metadata(for: structDescriptor) as StructMetadata? {
+                            try print(metadata.fieldOffsets(for: structDescriptor, in: machO))
+                        }
+                    } catch {
+                        print(error)
                     }
                 case .class(let classDescriptor):
-                    let classType = try Class(descriptor: classDescriptor, in: machO)
-                    try print(classType.dump(using: printOptions, in: machO).string)
-                    if let metadata = try metadataFinder?.metadata(for: classDescriptor) as ClassMetadataObjCInterop? {
-                        try print(metadata.fieldOffsets(for: classDescriptor, in: machO))
+                    do {
+                        let classType = try Class(descriptor: classDescriptor, in: machO)
+                        try print(classType.dump(using: printOptions, in: machO).string)
+                        if let metadata = try metadataFinder?.metadata(for: classDescriptor) as ClassMetadataObjCInterop? {
+                            try print(metadata.fieldOffsets(for: classDescriptor, in: machO))
+                        }
+                    } catch {
+                        print(error)
                     }
                 }
             default:

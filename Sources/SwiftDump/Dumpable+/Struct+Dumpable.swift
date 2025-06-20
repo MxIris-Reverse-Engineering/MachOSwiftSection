@@ -67,7 +67,7 @@ extension Struct: NamedDumpable {
             MemberDeclaration(fieldName.stripLazyPrefix)
             Standard(":")
             Space()
-            demangledTypeNode.printSemantic(using: options.subtracting(.showPrefixAndSuffix))
+            demangledTypeNode.printSemantic(using: options.union(.removeWeakPrefix))
 
             if offset.isEnd {
                 BreakLine()
