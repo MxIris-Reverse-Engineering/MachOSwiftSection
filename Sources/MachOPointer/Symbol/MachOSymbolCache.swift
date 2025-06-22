@@ -34,14 +34,16 @@ class MachOSymbolCache {
         var cacheEntry: CacheEntry = [:]
         for symbol in symbols64 where !symbol.name.isEmpty {
             var offset = symbol.offset
+            cacheEntry[offset] = .init(offset: offset, stringValue: symbol.name)
             if let cache = machO.cache {
                 offset -= cache.mainCacheHeader.sharedRegionStart.cast()
+                cacheEntry[offset] = .init(offset: offset, stringValue: symbol.name)
             }
-            cacheEntry[offset] = .init(offset: offset, stringValue: symbol.name)
         }
 
         for exportedSymbol in machO.exportedSymbols {
             if var offset = exportedSymbol.offset {
+                cacheEntry[offset] = .init(offset: offset, stringValue: exportedSymbol.name)
                 offset += machO.startOffset
                 cacheEntry[offset] = .init(offset: offset, stringValue: exportedSymbol.name)
             }
@@ -78,15 +80,19 @@ class MachOSymbolCache {
 
     func symbol(for offset: Int, in machOImage: MachOImage) -> MachOSymbol? {
         let identifier = CacheIdentifier.image(machOImage.ptr)
-        return symbol(for: offset, with: identifier)
+        return symbol(for: offset, with: identifier, in: machOImage)
     }
 
     func symbol(for offset: Int, in machOFile: MachOFile) -> MachOSymbol? {
         let identifier = CacheIdentifier.file(machOFile.imagePath)
-        return symbol(for: offset, with: identifier)
+        return symbol(for: offset, with: identifier, in: machOFile)
     }
 
-    private func symbol(for offset: Int, with identifier: CacheIdentifier) -> MachOSymbol? {
-        return entryByIdentifier[identifier]?[offset]
+    private func symbol<MachO: MachORepresentableWithCache>(for offset: Int, with identifier: CacheIdentifier, in machO: MachO) -> MachOSymbol? {
+        if let symbol = entryByIdentifier[identifier, default: [:]][offset] {
+            return symbol
+        } else {
+            return nil
+        }
     }
 }
