@@ -17,6 +17,7 @@ jobs:
         release: [2024]
     runs-on: ${{ matrix.os }}
     env:
+      MACHO_SWIFT_SECTION_SILENT_TEST: 1
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
