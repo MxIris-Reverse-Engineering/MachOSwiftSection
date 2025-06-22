@@ -1,7 +1,7 @@
-// swift-tools-version: 5.10
+// swift-tools-version: 6.1
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
-import PackageDescription
+@preconcurrency import PackageDescription
 import CompilerPluginSupport
 
 let useSPMPrebuildVersion = false
@@ -89,7 +89,7 @@ let package = Package(
     ],
     dependencies: [
         .MachOKit,
-        .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.1.0"..<"602.0.0"),
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.1.0" ..< "602.0.0"),
         .package(url: "https://github.com/p-x9/AssociatedObject", from: "0.13.0"),
         .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
@@ -159,6 +159,7 @@ let package = Package(
             dependencies: [
                 .MachOKit,
                 "MachOExtensions",
+                "SwiftDump",
             ]
         ),
 
@@ -220,5 +221,6 @@ let package = Package(
                 "MachOTestingSupport",
             ]
         ),
-    ]
+    ],
+    swiftLanguageModes: [.v5]
 )
