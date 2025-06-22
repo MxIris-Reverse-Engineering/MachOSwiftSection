@@ -26,12 +26,16 @@ extension DyldCache {
 
 extension CustomStringConvertible {
     package func print() {
+        #if !SILENT_TEST
         Swift.print(self)
+        #endif
     }
 }
 
 extension Error {
     package func print() {
+        #if !SILENT_TEST
         Swift.print(self)
+        #endif
     }
 }
