@@ -23,3 +23,9 @@ extension DyldCache {
         machOFile(by: .name(named.rawValue))
     }
 }
+
+extension String {
+    package func print() {
+        Swift.print(self)
+    }
+}
