@@ -54,14 +54,18 @@ extension MachOSwiftSection.`Protocol`: NamedDumpable {
         for (offset, requirement) in requirements.offsetEnumerated() {
             BreakLine()
             Indent(level: 1)
-            if let symbol = try requirement.defaultImplementationSymbol(in: machOFile) {
-                InlineComment("[Default Implementation]")
-                try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
-            } else if let symbol = try MachOSymbol.resolve(from: requirement.offset, in: machOFile) {
-                try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+            if let symbol = try MachOSymbol.resolve(from: requirement.offset, in: machOFile) {
+                try? MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
             } else {
                 InlineComment("[Stripped Symbol]")
             }
+            
+            if let symbol = try requirement.defaultImplementationSymbol(in: machOFile), let defaultImplementation = try? MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options) {
+                BreakLine()
+                InlineComment("[Default Implementation]")
+                defaultImplementation
+            }
+            
             if offset.isEnd {
                 BreakLine()
             }
