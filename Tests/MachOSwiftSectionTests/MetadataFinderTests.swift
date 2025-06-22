@@ -38,10 +38,10 @@ struct MetadataFinderTests {
         self.machOFileInCache = try #require(mainCache.machOFile(named: .AttributeGraph))
 
         // File
-        let file = try loadFromFile(named: .ControlCenter)
+        let file = try loadFromFile(named: .Finder)
         switch file {
         case .fat(let fatFile):
-            self.machOFile = try #require(fatFile.machOFiles().first(where: { $0.header.cpu.type == .x86_64 }))
+            self.machOFile = try #require(fatFile.machOFiles().first(where: { $0.header.cpu.type == .arm64 }))
         case .machO(let machO):
             self.machOFile = machO
         @unknown default:

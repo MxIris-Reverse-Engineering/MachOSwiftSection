@@ -17,7 +17,7 @@ struct MachOFileDumpTests: DumpableTest {
         let file = try loadFromFile(named: .Finder)
         switch file {
         case .fat(let fatFile):
-            self.machOFile = try #require(fatFile.machOFiles().first(where: { $0.header.cpu.subtype == .arm64(.arm64_all) }))
+            self.machOFile = try #require(fatFile.machOFiles().first(where: { $0.header.cpu.subtype == .arm64(.arm64e) }))
         case .machO(let machO):
             self.machOFile = machO
         @unknown default:
