@@ -62,7 +62,9 @@ extension MachOSwiftSection.`Protocol`: NamedDumpable {
             
             if let symbol = try requirement.defaultImplementationSymbol(in: machOFile), let defaultImplementation = try? MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options) {
                 BreakLine()
+                Indent(level: 1)
                 InlineComment("[Default Implementation]")
+                Space()
                 defaultImplementation
             }
             
