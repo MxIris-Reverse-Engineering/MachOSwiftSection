@@ -44,19 +44,26 @@ extension TargetGenericContext {
     }
 }
 
+@MachOImageAllMembersGenerator
 extension GenericRequirementDescriptor {
-    @MachOImageGenerator
-    @SemanticStringBuilder
-    package func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
-        try MetadataReader.demangleType(for: paramManagedName(in: machOFile), in: machOFile).printSemantic(using: options)
-        if layout.flags.kind == .sameType {
-            Space()
-            Standard("==")
-            Space()
+    
+    package func dumpInheritedProtocol(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString? {
+        if try paramManagedName(in: machOFile).rawStringValue() == "A" {
+            return try dumpParameterName(using: options, in: machOFile)
         } else {
-            Standard(":")
-            Space()
+            return nil
         }
+    }
+    
+    
+    @SemanticStringBuilder
+    package func dumpParameterName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
+        let node = try MetadataReader.demangleType(for: paramManagedName(in: machOFile), in: machOFile)
+        node.printSemantic(using: options)
+    }
+    
+    @SemanticStringBuilder
+    package func dumpContent(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
         switch try resolvedContent(in: machOFile) {
         case .type(let mangledName):
             try MetadataReader.demangleType(for: mangledName, in: machOFile).printSemantic(using: options)
@@ -82,7 +89,7 @@ extension GenericRequirementDescriptor {
         case .invertedProtocols/* (let invertedProtocols) */:
             Standard("")
 //            if invertedProtocols.protocols.hasCopyable, invertedProtocols.protocols.hasEscapable {
-//                
+//
 //                "Copyable, Escapable"
 //            } else if invertedProtocols.protocols.hasCopyable || invertedProtocols.protocols.hasEscapable {
 //                if invertedProtocols.protocols.hasCopyable {
@@ -99,6 +106,22 @@ extension GenericRequirementDescriptor {
 //                "~Copyable, ~Escapable"
 //            }
         }
+    }
+    
+    @SemanticStringBuilder
+    package func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
+        try dumpParameterName(using: options, in: machOFile)
+        
+        if layout.flags.kind == .sameType {
+            Space()
+            Standard("==")
+            Space()
+        } else {
+            Standard(":")
+            Space()
+        }
+        
+        try dumpContent(using: options, in: machOFile)
     }
 }
 
