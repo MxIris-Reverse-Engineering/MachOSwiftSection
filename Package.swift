@@ -181,7 +181,8 @@ let package = Package(
                 .MachOKit,
                 "MachOExtensions",
                 "SwiftDump",
-            ]
+            ],
+            swiftSettings: testSettings
         ),
 
         .target(
