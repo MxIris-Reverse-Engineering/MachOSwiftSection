@@ -5,7 +5,7 @@ struct NodePrinter: Sendable {
     var specializationPrefixPrinted: Bool
     var options: DemangleOptions
     var hidingCurrentModule: String = ""
-    
+
     init(options: DemangleOptions = .default) {
         self.target = .init()
         self.specializationPrefixPrinted = false
@@ -16,7 +16,7 @@ struct NodePrinter: Sendable {
         guard options.contains(.qualifyEntities) else {
             return false
         }
-        if !options.contains(.showModuleInDependentMemberType), let dependentMemberType = context.parent?.parent?.parent?.parent, dependentMemberType.kind == .dependentMemberType  {
+        if !options.contains(.showModuleInDependentMemberType), let dependentMemberType = context.parent?.parent?.parent?.parent, dependentMemberType.kind == .dependentMemberType {
             return false
         }
         if context.kind == .module, let text = context.text, !text.isEmpty {
@@ -844,7 +844,7 @@ struct NodePrinter: Sendable {
 
     mutating func printImplDifferentiabilityKind(_ name: Node) {
         target.write("@differentiable")
-        if case let .index(value) = name.contents, let differentiability = Differentiability(value) {
+        if case .index(let value) = name.contents, let differentiability = Differentiability(value) {
             switch differentiability {
             case .normal: break
             case .linear: target.write("(_linear)")
@@ -855,7 +855,7 @@ struct NodePrinter: Sendable {
     }
 
     mutating func printImplCoroutineKind(_ name: Node) {
-        guard case let .name(value) = name.contents, !value.isEmpty else { return }
+        guard case .name(let value) = name.contents, !value.isEmpty else { return }
         target.write("@\(value)")
     }
 
@@ -872,7 +872,7 @@ struct NodePrinter: Sendable {
     }
 
     mutating func printImplParameterName(_ name: Node) {
-        guard case let .name(value) = name.contents, !value.isEmpty else { return }
+        guard case .name(let value) = name.contents, !value.isEmpty else { return }
         target.write("\(value) ")
     }
 
@@ -1179,7 +1179,7 @@ struct NodePrinter: Sendable {
         case .globalVariableOnceFunction,
              .globalVariableOnceToken: printGlobalVariableOnceFunction(name)
         case .hasSymbolQuery: target.write("#_hasSymbol query for ")
-        case .identifier: target.write(name.text ?? "", type: (name.parent?.kind == .function || name.parent?.kind == .variable) ? .functionDeclaration : .typeName)
+        case .identifier: printIdentifier(name, asPrefixContext: asPrefixContext)
         case .implConvention: target.write(name.text ?? "")
         case .implCoroutineKind: printImplCoroutineKind(name)
         case .implDifferentiabilityKind: printImplDifferentiabilityKind(name)
@@ -1399,6 +1399,29 @@ struct NodePrinter: Sendable {
         return nil
     }
 
+    mutating func printIdentifier(_ name: Node, asPrefixContext: Bool = false) {
+        let semanticType: SemanticType
+
+        switch name.parent?.kind {
+        case .function:
+            semanticType = .function(.declaration)
+        case .variable:
+            semanticType = .variable
+        case .enum:
+            semanticType = .type(.enum, .name)
+        case .structure:
+            semanticType = .type(.struct, .name)
+        case .class:
+            semanticType = .type(.class, .name)
+        case .protocol:
+            semanticType = .type(.protocol, .name)
+        default:
+            semanticType = .standard
+        }
+
+        target.write(name.text ?? "", type: semanticType)
+    }
+
     mutating func printAbstractStorage(_ name: Node?, asPrefixContext: Bool, extraName: String) -> Node? {
         guard let n = name else { return nil }
         switch n.kind {
@@ -1605,17 +1628,17 @@ struct NodePrinter: Sendable {
         target.write("(")
         for tuple in parameters.children.enumerated() {
             if let label = labelList?.children.at(tuple.offset) {
-                target.write(label.kind == .identifier ? (label.text ?? "") : "_", type: .functionDeclaration)
+                target.write(label.kind == .identifier ? (label.text ?? "") : "_", type: .function(.declaration))
                 target.write(":")
                 if showTypes {
                     target.write(" ")
                 }
             } else if !showTypes {
                 if let label = tuple.element.children.first(where: { $0.kind == .tupleElementName }) {
-                    target.write(label.text ?? "", type: .functionDeclaration)
+                    target.write(label.text ?? "", type: .function(.declaration))
                     target.write(":")
                 } else {
-                    target.write("_", type: .functionDeclaration)
+                    target.write("_", type: .function(.declaration))
                     target.write(":")
                 }
             }
