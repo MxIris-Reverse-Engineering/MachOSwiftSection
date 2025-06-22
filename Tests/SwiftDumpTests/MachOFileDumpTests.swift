@@ -14,7 +14,7 @@ struct MachOFileDumpTests: DumpableTest {
     let isEnabledSearchMetadata: Bool = false
 
     init() async throws {
-        let file = try loadFromFile(named: .iOS_22E238_Simulator_SwiftUI)
+        let file = try loadFromFile(named: .Finder)
         switch file {
         case .fat(let fatFile):
             self.machOFile = try #require(fatFile.machOFiles().first(where: { $0.header.cpu.subtype == .arm64(.arm64_all) }))
