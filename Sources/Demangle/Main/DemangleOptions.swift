@@ -25,7 +25,7 @@ public struct DemangleOptions: OptionSet, Codable, Sendable {
     public static let showClosureSignature = DemangleOptions(rawValue: 1 << 20)
     public static let showModuleInDependentMemberType = DemangleOptions(rawValue: 1 << 21)
     
-    package static let removeWeakPrefix = DemangleOptions(rawValue: 1 << 100)
+    package static let removeWeakPrefix = DemangleOptions(rawValue: 1 << 22)
     
     public init(rawValue: Int) {
         self.rawValue = rawValue
