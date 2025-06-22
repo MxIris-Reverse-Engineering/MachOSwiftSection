@@ -67,7 +67,7 @@ extension GenericRequirementDescriptor {
             case .element(let element):
                 switch element {
                 case .objc(let objc):
-                    TypeName(try objc.mangledName(in: machOFile).rawStringValue())
+                    TypeName(kind: .protocol, try objc.mangledName(in: machOFile).rawStringValue())
                 case .swift(let protocolDescriptor):
                     try MetadataReader.demangleContext(for: .protocol(protocolDescriptor), in: machOFile).printSemantic(using: options)
                 }
@@ -75,7 +75,7 @@ extension GenericRequirementDescriptor {
         case .layout(let genericRequirementLayoutKind):
             switch genericRequirementLayoutKind {
             case .class:
-                TypeName("AnyObject")
+                TypeName(kind: .other, "AnyObject")
             }
         case .conformance /* (let protocolConformanceDescriptor) */:
             Standard("")

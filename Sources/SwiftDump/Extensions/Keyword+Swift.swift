@@ -6,6 +6,7 @@ extension Keyword {
         case `extension`
         case `typealias`
         case `class`
+        case `actor`
         case `struct`
         case `enum`
         case `lazy`

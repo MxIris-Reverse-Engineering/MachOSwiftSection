@@ -21,7 +21,7 @@ final actor DumpCommand: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "The output path for the dump. If not specified, the output will be printed to the console.", completion: .file())
     var outputPath: String?
 
-    @Option(name: .shortAndLong, parsing: .remaining, help: "The sections to dump. If not specified, all sections will be dumped.")
+    @Option(name: .shortAndLong, parsing: .upToNextOption, help: "The sections to dump. If not specified, all sections will be dumped.")
     var sections: [SwiftSection] = SwiftSection.allCases
 
 //    @Flag(inversion: .prefixedEnableDisable, help: "Enable searching for metadata.")

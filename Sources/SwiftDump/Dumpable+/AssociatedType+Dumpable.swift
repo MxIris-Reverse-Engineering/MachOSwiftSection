@@ -4,11 +4,11 @@ import MachOSwiftSection
 import MachOMacro
 import Semantic
 
-extension AssociatedType: Dumpable {
+extension AssociatedType: ConformedDumpable {
     @MachOImageGenerator
     @SemanticStringBuilder
     public func dumpTypeName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
-        try MetadataReader.demangleSymbol(for: conformingTypeName, in: machOFile).printSemantic(using: options).replacing(from: .typeName, .other, to: .typeDeclaration)
+        try MetadataReader.demangleSymbol(for: conformingTypeName, in: machOFile).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
     }
 
     @MachOImageGenerator
@@ -45,7 +45,7 @@ extension AssociatedType: Dumpable {
 
             Space()
 
-            try TypeDeclaration(record.name(in: machOFile))
+            try TypeDeclaration(kind: .other, record.name(in: machOFile))
 
             Space()
 

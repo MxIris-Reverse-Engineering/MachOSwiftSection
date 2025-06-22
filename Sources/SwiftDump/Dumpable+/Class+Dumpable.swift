@@ -14,7 +14,11 @@ extension Class: NamedDumpable {
     @MachOImageGenerator
     @SemanticStringBuilder
     public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
-        Keyword(.class)
+        if descriptor.isActor {
+            Keyword(.actor)
+        } else {
+            Keyword(.class)
+        }
 
         Space()
 

@@ -2,9 +2,10 @@ import Foundation
 import MachOKit
 import MachOSwiftSection
 import MachOMacro
+import MachOFoundation
 import Semantic
 
-extension ProtocolConformance: Dumpable {
+extension ProtocolConformance: ConformedDumpable {
     @MachOImageGenerator
     @SemanticStringBuilder
     public func dumpTypeName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
@@ -21,7 +22,7 @@ extension ProtocolConformance: Dumpable {
                 Standard("")
             }
         case .directObjCClassName(let objcClassName):
-            TypeDeclaration(objcClassName.valueOrEmpty)
+            TypeDeclaration(kind: .class, objcClassName.valueOrEmpty)
         case .indirectObjCClass(let objcClass):
             switch objcClass {
             case .symbol(let unsolvedSymbol):
@@ -85,7 +86,9 @@ extension ProtocolConformance: Dumpable {
                 Indent(level: 1)
 
                 if let symbol = try resilientWitness.implementationSymbol(in: machOFile) {
-                    try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+                    try? MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+                } else if !resilientWitness.implementation.isNull {
+                    FunctionDeclaration(addressString(of: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
                 } else if let implSymbol = try resilientWitness.requirement(in: machOFile)?.mapOptional({ try $0.defaultImplementationSymbol(in: machOFile) }) {
                     switch implSymbol {
                     case .symbol(let symbol):
@@ -107,6 +110,15 @@ extension ProtocolConformance: Dumpable {
 
 extension SemanticString {
     func replacingTypeNameOrOtherToTypeDeclaration() -> SemanticString {
-        self.replacing(from: .typeName, .other, to: .typeDeclaration)
+        replacing { 
+            switch $0 {
+            case .type(let type, .name):
+                return .type(type, .declaration)
+            case .other:
+                return .type(.other, .declaration)
+            default:
+                return $0
+            }
+        }
     }
 }

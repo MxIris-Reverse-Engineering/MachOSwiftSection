@@ -3,11 +3,12 @@ import MachOKit
 import MachOSwiftSection
 import MachOMacro
 import Semantic
+import MachOFoundation
 
 extension MachOSwiftSection.`Protocol`: NamedDumpable {
     @MachOImageGenerator
     public func dumpName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
-        try MetadataReader.demangleContext(for: .protocol(descriptor), in: machOFile).printSemantic(using: options).replacing(from: .typeName, .other, to: .typeDeclaration)
+        try MetadataReader.demangleContext(for: .protocol(descriptor), in: machOFile).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
     }
 
     @MachOImageGenerator
@@ -43,7 +44,7 @@ extension MachOSwiftSection.`Protocol`: NamedDumpable {
                 Indent(level: 1)
                 Keyword(.associatedtype)
                 Space()
-                TypeDeclaration(associatedType)
+                TypeDeclaration(kind: .other, associatedType)
                 if offset.isEnd {
                     BreakLine()
                 }
@@ -55,6 +56,8 @@ extension MachOSwiftSection.`Protocol`: NamedDumpable {
             Indent(level: 1)
             if let symbol = try requirement.defaultImplementationSymbol(in: machOFile) {
                 InlineComment("[Default Implementation]")
+                try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+            } else if let symbol = try MachOSymbol.resolve(from: requirement.offset, in: machOFile) {
                 try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
             } else {
                 InlineComment("[Stripped Symbol]")

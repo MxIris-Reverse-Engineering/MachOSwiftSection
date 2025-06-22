@@ -21,7 +21,7 @@ extension ResilientSuperclass {
                 return nil
             }
         case .directObjCClassName(let string):
-            return string.map { SemanticString(components: TypeName($0)) } 
+            return string.map { SemanticString(components: TypeName(kind: .class, $0)) } 
         case .indirectObjCClass(let resolvableElement):
             switch resolvableElement {
             case .symbol(let unsolvedSymbol):
