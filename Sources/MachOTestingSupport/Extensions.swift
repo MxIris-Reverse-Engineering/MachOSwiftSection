@@ -24,7 +24,13 @@ extension DyldCache {
     }
 }
 
-extension String {
+extension CustomStringConvertible {
+    package func print() {
+        Swift.print(self)
+    }
+}
+
+extension Error {
     package func print() {
         Swift.print(self)
     }

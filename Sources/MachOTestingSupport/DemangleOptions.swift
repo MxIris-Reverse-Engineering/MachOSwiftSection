@@ -3,7 +3,7 @@ import MachOSwiftSection
 import SwiftDump
 
 extension DemangleOptions {
-    static let test: DemangleOptions = {
+    package static let test: DemangleOptions = {
         var options = DemangleOptions.default
         options.remove(.displayObjCModule)
         options.insert(.synthesizeSugarOnTypes)

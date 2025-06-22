@@ -4,7 +4,28 @@
 @preconcurrency import PackageDescription
 import CompilerPluginSupport
 
-let useSPMPrebuildVersion = false
+func envEnable(_ key: String, default defaultValue: Bool = false) -> Bool {
+    guard let value = Context.environment[key] else {
+        return defaultValue
+    }
+    if value == "1" {
+        return true
+    } else if value == "0" {
+        return false
+    } else {
+        return defaultValue
+    }
+}
+
+let isSilentTest = envEnable("MACHO_SWIFT_SECTION_SILENT_TEST", default: false)
+
+let useSPMPrebuildVersion = envEnable("MACHO_SWIFT_SECTION_USE_SPM_PREBUILD_VERSION", default: false)
+
+var testSettings: [SwiftSetting] = []
+
+if isSilentTest {
+    testSettings.append(.define("SILENT_TEST"))
+}
 
 extension Package.Dependency {
     static let MachOKit: Package.Dependency = {
@@ -211,7 +232,8 @@ let package = Package(
                 "MachOSwiftSection",
                 "SwiftDump",
                 "MachOTestingSupport",
-            ]
+            ],
+            swiftSettings: testSettings
         ),
 
         .testTarget(
@@ -219,7 +241,8 @@ let package = Package(
             dependencies: [
                 "SwiftDump",
                 "MachOTestingSupport",
-            ]
+            ],
+            swiftSettings: testSettings
         ),
     ],
     swiftLanguageModes: [.v5]

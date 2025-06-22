@@ -4,8 +4,8 @@ import MachOKit
 import MachOTestingSupport
 import MachOMacro
 import MachOFoundation
-@testable import MachOSwiftSection
 import SwiftDump
+@testable import MachOSwiftSection
 
 @Suite
 struct MetadataFinderTests {
@@ -73,14 +73,14 @@ struct MetadataFinderTests {
                 guard let metadata = try finder.metadata(for: structDescriptor) as StructMetadata? else {
                     continue
                 }
-                try print(Struct(descriptor: structDescriptor, in: machO).dump(using: .default, in: machO))
-                try print(metadata.fieldOffsets(for: structDescriptor, in: machO))
+                try Struct(descriptor: structDescriptor, in: machO).dump(using: .test, in: machO).string.print()
+                try metadata.fieldOffsets(for: structDescriptor, in: machO).print()
             case .class(let classDescriptor):
                 guard let metadata = try finder.metadata(for: classDescriptor) as ClassMetadataObjCInterop? else {
                     continue
                 }
-                try print(Class(descriptor: classDescriptor, in: machO).dump(using: .default, in: machO))
-                try print(metadata.fieldOffsets(for: classDescriptor, in: machO))
+                try Class(descriptor: classDescriptor, in: machO).dump(using: .test, in: machO).string.print()
+                try metadata.fieldOffsets(for: classDescriptor, in: machO).print()
             }
         }
     }

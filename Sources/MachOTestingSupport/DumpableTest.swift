@@ -4,7 +4,6 @@ import MachOMacro
 import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
-import MachOTestingSupport
 
 package protocol DumpableTest {
     var isEnabledSearchMetadata: Bool { get }
@@ -16,7 +15,7 @@ extension DumpableTest {
     package func dumpProtocols(for machO: MachOFile) async throws {
         let protocolDescriptors = try machO.swift.protocolDescriptors
         for protocolDescriptor in protocolDescriptors {
-            try print(Protocol(descriptor: protocolDescriptor, in: machO).dump(using: .test, in: machO).string)
+            try Protocol(descriptor: protocolDescriptor, in: machO).dump(using: .test, in: machO).string.print()
         }
     }
 
@@ -26,7 +25,7 @@ extension DumpableTest {
         let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
 
         for protocolConformanceDescriptor in protocolConformanceDescriptors {
-            try print(ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO).dump(using: .test, in: machO).string)
+            try ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO).dump(using: .test, in: machO).string.print()
         }
     }
 
@@ -45,29 +44,29 @@ extension DumpableTest {
                 case .enum(let enumDescriptor):
                     do {
                         let enumType = try Enum(descriptor: enumDescriptor, in: machO)
-                        try print(enumType.dump(using: .test, in: machO).string)
+                        try enumType.dump(using: .test, in: machO).string.print()
                     } catch {
-                        print(error)
+                        error.print()
                     }
                 case .struct(let structDescriptor):
                     do {
                         let structType = try Struct(descriptor: structDescriptor, in: machO)
-                        try print(structType.dump(using: .test, in: machO).string)
+                        try structType.dump(using: .test, in: machO).string.print()
                         if let metadata = try metadataFinder?.metadata(for: structDescriptor) as StructMetadata? {
-                            try print(metadata.fieldOffsets(for: structDescriptor, in: machO))
+                            try metadata.fieldOffsets(for: structDescriptor, in: machO).print()
                         }
                     } catch {
-                        print(error)
+                        error.print()
                     }
                 case .class(let classDescriptor):
                     do {
                         let classType = try Class(descriptor: classDescriptor, in: machO)
-                        try print(classType.dump(using: .test, in: machO).string)
+                        try classType.dump(using: .test, in: machO).string.print()
                         if let metadata = try metadataFinder?.metadata(for: classDescriptor) as ClassMetadataObjCInterop? {
-                            try print(metadata.fieldOffsets(for: classDescriptor, in: machO))
+                            try metadata.fieldOffsets(for: classDescriptor, in: machO).print()
                         }
                     } catch {
-                        print(error)
+                        error.print()
                     }
                 }
             default:
@@ -81,7 +80,7 @@ extension DumpableTest {
     package func dumpAssociatedTypes(for machO: MachOFile) async throws {
         let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
         for associatedTypeDescriptor in associatedTypeDescriptors {
-            try print(AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: .test, in: machO).string)
+            try AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: .test, in: machO).string.print()
         }
     }
 }

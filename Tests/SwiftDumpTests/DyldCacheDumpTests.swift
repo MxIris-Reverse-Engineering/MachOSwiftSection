@@ -36,7 +36,6 @@ struct DyldCacheDumpTests: DumpableTest {
     }
 }
 
-
 extension DyldCacheDumpTests {
     @Test func typesInCacheFile() async throws {
         try await dumpTypes(for: machOFileInCache)
