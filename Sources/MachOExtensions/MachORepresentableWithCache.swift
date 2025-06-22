@@ -1,7 +1,9 @@
 import MachOKit
 
 package protocol MachORepresentableWithCache: MachORepresentable {
-    var cache: DyldCache? { get }
+    associatedtype Cache: DyldCacheRepresentable
+
+    var cache: Cache? { get }
     var startOffset: Int { get }
 }
 
@@ -16,8 +18,22 @@ extension MachOFile: MachORepresentableWithCache {
 }
 
 extension MachOImage: MachORepresentableWithCache {
-    package var cache: DyldCache? { nil }
-    package var startOffset: Int { 0 }
+    package var cache: DyldCacheLoaded? {
+        guard let currentCache = DyldCacheLoaded.current else { return nil }
+
+        if ptr.int - currentCache.mainCacheHeader.sharedRegionStart.cast() >= 0 {
+            return currentCache
+        }
+        return nil
+    }
+
+    package var startOffset: Int {
+        if let cache {
+            return cache.mainCacheHeader.sharedRegionStart.cast()
+        } else {
+            return 0
+        }
+    }
 }
 
 package func address<MachO: MachORepresentableWithCache>(of fileOffset: Int, in machO: MachO) -> UInt64 {

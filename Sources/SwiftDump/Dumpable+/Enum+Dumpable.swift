@@ -8,7 +8,7 @@ extension Enum: NamedDumpable {
     
     @MachOImageGenerator
     public func dumpName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
-        try MetadataReader.demangleContext(for: .type(.enum(descriptor)), in: machOFile).printSemantic(using: options)
+        try MetadataReader.demangleContext(for: .type(.enum(descriptor)), in: machOFile).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
     }
     
     @MachOImageGenerator
@@ -18,7 +18,7 @@ extension Enum: NamedDumpable {
         
         Space()
         
-        try dumpName(using: options, in: machOFile).replacing(from: .typeName, to: .typeDeclaration)
+        try dumpName(using: options, in: machOFile)
 
         if let genericContext {
             try genericContext.dumpGenericParameters(in: machOFile)

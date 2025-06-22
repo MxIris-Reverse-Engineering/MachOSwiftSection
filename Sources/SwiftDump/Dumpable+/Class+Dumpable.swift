@@ -6,20 +6,23 @@ import MachOFoundation
 import MachOSwiftSection
 
 extension Class: NamedDumpable {
-    
     @MachOImageGenerator
     public func dumpName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
-        try MetadataReader.demangleContext(for: .type(.class(descriptor)), in: machOFile).printSemantic(using: options)
+        try MetadataReader.demangleContext(for: .type(.class(descriptor)), in: machOFile).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
     }
-    
+
     @MachOImageGenerator
     @SemanticStringBuilder
     public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
-        Keyword(.class)
+        if descriptor.isActor {
+            Keyword(.actor)
+        } else {
+            Keyword(.class)
+        }
 
         Space()
 
-        try dumpName(using: options, in: machOFile).replacing(from: .typeName, to: .typeDeclaration)
+        try dumpName(using: options, in: machOFile)
 
         if let genericContext {
             try genericContext.dumpGenericParameters(in: machOFile)
@@ -32,7 +35,7 @@ extension Class: NamedDumpable {
         } else if let resilientSuperclass, let kind = descriptor.resilientSuperclassReferenceKind, let superclass = try resilientSuperclass.dumpSuperclass(using: options, for: kind, in: machOFile) {
             Standard(":")
             Space()
-            TypeName(superclass)
+            superclass
         }
 
         if let genericContext, genericContext.requirements.count > 0 {
@@ -80,7 +83,7 @@ extension Class: NamedDumpable {
 
             Space()
 
-            demangledTypeNode.printSemantic(using: options.subtracting(.showPrefixAndSuffix))
+            demangledTypeNode.printSemantic(using: options.union(.removeWeakPrefix))
 
             if offset.isEnd {
                 BreakLine()
@@ -93,7 +96,7 @@ extension Class: NamedDumpable {
             Indent(level: 1)
 
             dumpMethodKind(for: descriptor)
-            
+
             dumpMethodKeyword(for: descriptor)
 
             try dumpMethodDeclaration(for: descriptor, using: options, in: machOFile)
@@ -107,7 +110,7 @@ extension Class: NamedDumpable {
             BreakLine()
 
             Indent(level: 1)
-            
+
             if let methodDescriptor = try descriptor.methodDescriptor(in: machOFile) {
                 switch methodDescriptor {
                 case .symbol(let symbol):
@@ -119,7 +122,7 @@ extension Class: NamedDumpable {
                     Keyword(.override)
                     Space()
                     dumpMethodKeyword(for: element)
-                    try dumpMethodDeclaration(for: element, using: options, in: machOFile)
+                    try? dumpMethodDeclaration(for: element, using: options, in: machOFile)
                 }
             } else {
                 Keyword(.override)
@@ -162,15 +165,14 @@ extension Class: NamedDumpable {
 
         Standard("}")
     }
-    
+
     @SemanticStringBuilder
     private func dumpMethodKind(for descriptor: MethodDescriptor) -> SemanticString {
         InlineComment("[\(descriptor.flags.kind)]")
 
         Space()
     }
-    
-    
+
     @SemanticStringBuilder
     private func dumpMethodKeyword(for descriptor: MethodDescriptor) -> SemanticString {
         if !descriptor.flags.isInstance, descriptor.flags.kind != .`init` {
@@ -188,7 +190,7 @@ extension Class: NamedDumpable {
             Space()
         }
     }
-    
+
     @MachOImageGenerator
     @SemanticStringBuilder
     private func dumpMethodDeclaration(for descriptor: MethodDescriptor, using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
@@ -207,7 +209,6 @@ extension Node {
         first { $0.kind == .weak } != nil
     }
 }
-
 
 extension String {
     var insertSubFunctionPrefix: String {

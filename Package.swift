@@ -1,10 +1,31 @@
-// swift-tools-version: 5.10
+// swift-tools-version: 6.1
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
-import PackageDescription
+@preconcurrency import PackageDescription
 import CompilerPluginSupport
 
-let useSPMPrebuildVersion = false
+func envEnable(_ key: String, default defaultValue: Bool = false) -> Bool {
+    guard let value = Context.environment[key] else {
+        return defaultValue
+    }
+    if value == "1" {
+        return true
+    } else if value == "0" {
+        return false
+    } else {
+        return defaultValue
+    }
+}
+
+let isSilentTest = envEnable("MACHO_SWIFT_SECTION_SILENT_TEST", default: false)
+
+let useSPMPrebuildVersion = envEnable("MACHO_SWIFT_SECTION_USE_SPM_PREBUILD_VERSION", default: false)
+
+var testSettings: [SwiftSetting] = []
+
+if isSilentTest {
+    testSettings.append(.define("SILENT_TEST"))
+}
 
 extension Package.Dependency {
     static let MachOKit: Package.Dependency = {
@@ -72,7 +93,7 @@ extension Target.Dependency {
 
 let package = Package(
     name: "MachOSwiftSection",
-    platforms: [.macOS(.v10_15)],
+    platforms: [.macOS(.v10_15), .iOS(.v13), .tvOS(.v13), .watchOS(.v6), .visionOS(.v1)],
     products: [
         .library(
             name: "MachOSwiftSection",
@@ -89,7 +110,7 @@ let package = Package(
     ],
     dependencies: [
         .MachOKit,
-        .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.1.0"..<"602.0.0"),
+        .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.1.0" ..< "602.0.0"),
         .package(url: "https://github.com/p-x9/AssociatedObject", from: "0.13.0"),
         .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
@@ -111,6 +132,7 @@ let package = Package(
             name: "MachOExtensions",
             dependencies: [
                 .MachOKit,
+                "MachOMacro",
             ]
         ),
 
@@ -146,10 +168,10 @@ let package = Package(
         .target(
             name: "MachOSwiftSection",
             dependencies: [
+                .MachOKit,
                 "Demangle",
                 "MachOFoundation",
                 "MachOMacro",
-                .MachOKit,
             ]
         ),
 
@@ -158,7 +180,9 @@ let package = Package(
             dependencies: [
                 .MachOKit,
                 "MachOExtensions",
-            ]
+                "SwiftDump",
+            ],
+            swiftSettings: testSettings
         ),
 
         .target(
@@ -209,7 +233,8 @@ let package = Package(
                 "MachOSwiftSection",
                 "SwiftDump",
                 "MachOTestingSupport",
-            ]
+            ],
+            swiftSettings: testSettings
         ),
 
         .testTarget(
@@ -217,7 +242,9 @@ let package = Package(
             dependencies: [
                 "SwiftDump",
                 "MachOTestingSupport",
-            ]
+            ],
+            swiftSettings: testSettings
         ),
-    ]
+    ],
+    swiftLanguageModes: [.v5]
 )

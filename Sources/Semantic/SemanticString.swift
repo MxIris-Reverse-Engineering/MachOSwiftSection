@@ -43,9 +43,15 @@ public struct SemanticString: Sendable, TextOutputStream, Codable {
         .init(components: components.map { modifier($0) })
     }
     
-    public func replacing(from type: SemanticType, to newType: SemanticType) -> SemanticString {
+    public func replacing(_ transform: (SemanticType) -> SemanticType) -> SemanticString {
         map { component in
-            if component.type == type {
+            return AnyComponent(string: component.string, type: transform(component.type))
+        }
+    }
+    
+    public func replacing(from types: SemanticType..., to newType: SemanticType) -> SemanticString {
+        map { component in
+            if types.contains(component.type) {
                 return AnyComponent(string: component.string, type: newType)
             } else {
                 return component

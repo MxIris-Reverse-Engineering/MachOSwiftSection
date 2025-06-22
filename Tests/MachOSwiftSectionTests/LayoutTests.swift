@@ -13,6 +13,5 @@ struct LayoutTests {
         #expect(TypeContextDescriptor.Layout.offset(of: .name) == 8)
         #expect(TypeContextDescriptor.Layout.offset(of: .accessFunctionPtr) == 12)
         #expect(TypeContextDescriptor.Layout.offset(of: .fieldDescriptor) == 16)
-        print(ClassMetadataObjCInterop.Layout.offset(of: .instanceAddressPoint))
     }
 }

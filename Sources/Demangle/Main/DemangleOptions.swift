@@ -24,8 +24,8 @@ public struct DemangleOptions: OptionSet, Codable, Sendable {
     public static let printForTypeName = DemangleOptions(rawValue: 1 << 19)
     public static let showClosureSignature = DemangleOptions(rawValue: 1 << 20)
     public static let showModuleInDependentMemberType = DemangleOptions(rawValue: 1 << 21)
-    public static let showPrefixAndSuffix = DemangleOptions(rawValue: 1 << 22)
     
+    package static let removeWeakPrefix = DemangleOptions(rawValue: 1 << 22)
     
     public init(rawValue: Int) {
         self.rawValue = rawValue
@@ -47,8 +47,7 @@ public struct DemangleOptions: OptionSet, Codable, Sendable {
         .displayStdlibModule,
         .displayObjCModule,
         .showClosureSignature,
-        .showModuleInDependentMemberType,
-        .showPrefixAndSuffix
+        .showModuleInDependentMemberType
     ]
     
     public static let simplified: DemangleOptions = [

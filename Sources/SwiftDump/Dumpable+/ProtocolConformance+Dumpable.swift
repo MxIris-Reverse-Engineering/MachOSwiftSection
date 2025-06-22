@@ -2,32 +2,33 @@ import Foundation
 import MachOKit
 import MachOSwiftSection
 import MachOMacro
+import MachOFoundation
 import Semantic
 
-extension ProtocolConformance: Dumpable {
+extension ProtocolConformance: ConformedDumpable {
     @MachOImageGenerator
     @SemanticStringBuilder
     public func dumpTypeName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
         switch typeReference {
         case .directTypeDescriptor(let descriptor):
-            try TypeDeclaration(descriptor.flatMap { try $0.dumpName(using: options, in: machOFile) }.valueOrEmpty)
+            try descriptor?.dumpName(using: options, in: machOFile).replacingTypeNameOrOtherToTypeDeclaration()
         case .indirectTypeDescriptor(let descriptor):
             switch descriptor {
             case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
+                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
             case .element(let element):
-                try TypeDeclaration(element.dumpName(using: options, in: machOFile))
+                try element.dumpName(using: options, in: machOFile).replacingTypeNameOrOtherToTypeDeclaration()
             case nil:
                 Standard("")
             }
         case .directObjCClassName(let objcClassName):
-            TypeDeclaration(objcClassName.valueOrEmpty)
+            TypeDeclaration(kind: .class, objcClassName.valueOrEmpty)
         case .indirectObjCClass(let objcClass):
             switch objcClass {
             case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
+                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
             case .element(let element):
-                try MetadataReader.demangleContext(for: .type(.class(element.descriptor.resolve(in: machOFile))), in: machOFile).printSemantic(using: options).replacing(from: .typeName, to: .typeDeclaration)
+                try MetadataReader.demangleContext(for: .type(.class(element.descriptor.resolve(in: machOFile))), in: machOFile).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
             case nil:
                 Standard("")
             }
@@ -85,7 +86,9 @@ extension ProtocolConformance: Dumpable {
                 Indent(level: 1)
 
                 if let symbol = try resilientWitness.implementationSymbol(in: machOFile) {
-                    try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+                    try? MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+                } else if !resilientWitness.implementation.isNull {
+                    FunctionDeclaration(addressString(of: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
                 } else if let implSymbol = try resilientWitness.requirement(in: machOFile)?.mapOptional({ try $0.defaultImplementationSymbol(in: machOFile) }) {
                     switch implSymbol {
                     case .symbol(let symbol):
@@ -101,6 +104,21 @@ extension ProtocolConformance: Dumpable {
             BreakLine()
 
             Standard("}")
+        }
+    }
+}
+
+extension SemanticString {
+    func replacingTypeNameOrOtherToTypeDeclaration() -> SemanticString {
+        replacing { 
+            switch $0 {
+            case .type(let type, .name):
+                return .type(type, .declaration)
+            case .other:
+                return .type(.other, .declaration)
+            default:
+                return $0
+            }
         }
     }
 }

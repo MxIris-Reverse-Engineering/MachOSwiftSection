@@ -51,7 +51,7 @@ extension MachOFile.Swift {
 
     public var associatedTypeDescriptors: [AssociatedTypeDescriptor] {
         get throws {
-            let section = try _section(for: .__swift5_assocty, in: machOFile)
+            let section = try machOFile.section(for: .__swift5_assocty)
             var associatedTypeDescriptors: [AssociatedTypeDescriptor] = []
             let offset = if let cache = machOFile.cache {
                 section.address - cache.mainCacheHeader.sharedRegionStart.cast()
@@ -71,30 +71,8 @@ extension MachOFile.Swift {
 }
 
 extension MachOFile.Swift {
-    private func _section(for swiftMachOSection: MachOSwiftSectionName, in machOFile: MachOFile) throws -> (any SectionProtocol) {
-        let loadCommands = machOFile.loadCommands
-        let swiftSection: any SectionProtocol
-        if let text = loadCommands.text64,
-           let section = text._section(for: swiftMachOSection, in: machOFile) {
-            swiftSection = section
-        } else if let text = loadCommands.text,
-                  let section = text._section(for: swiftMachOSection, in: machOFile) {
-            swiftSection = section
-        } else {
-            throw MachOSwiftSectionError.sectionNotFound(section: swiftMachOSection, allSectionNames: machOFile.sections.map(\.sectionName))
-        }
-        guard swiftSection.align * 2 == 4 else {
-            throw MachOSwiftSectionError.invalidSectionAlignment(section: swiftMachOSection, align: swiftSection.align)
-        }
-        return swiftSection
-    }
-
-    private func _readDescriptors<Descriptor: Resolvable>(from swiftMachOSection: MachOSwiftSectionName, in machOFile: MachOFile) throws -> [Descriptor] {
-        let section = try _section(for: swiftMachOSection, in: machOFile)
-        return try _readDescriptors(from: section, in: machOFile)
-    }
-
-    private func _readDescriptors<Descriptor: Resolvable>(from section: any SectionProtocol, in machO: MachOFile) throws -> [Descriptor] {
+    private func _readDescriptors<Descriptor: Resolvable>(from swiftMachOSection: MachOSwiftSectionName, in machO: MachOFile) throws -> [Descriptor] {
+        let section = try machOFile.section(for: swiftMachOSection)
         let pointerSize: Int = MemoryLayout<RelativeDirectPointer<Descriptor>>.size
         let offset = if let cache = machO.cache {
             section.address - cache.mainCacheHeader.sharedRegionStart.cast()
@@ -107,14 +85,3 @@ extension MachOFile.Swift {
     }
 }
 
-func + <Element>(lhs: [Element]?, rhs: [Element]?) -> [Element] {
-    (lhs ?? []) + (rhs ?? [])
-}
-
-func + <Element>(lhs: [Element], rhs: [Element]?) -> [Element] {
-    lhs + (rhs ?? [])
-}
-
-func + <Element>(lhs: [Element]?, rhs: [Element]) -> [Element] {
-    (lhs ?? []) + rhs
-}

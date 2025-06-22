@@ -52,15 +52,16 @@ extension String {
                 return "#56606B"
             case .keyword:
                 return "#C33381"
-            case .typeName:
+            case .type(_, .name):
                 return "#2E0D6E"
-            case .typeDeclaration:
+            case .type(_, .declaration):
                 return "#004975"
-            case .functionName,
-                 .memberName:
+            case .function(.name),
+                 .member(.name):
                 return "#5C2699"
-            case .functionDeclaration,
-                 .memberDeclaration:
+            case .function(.declaration),
+                 .member(.declaration),
+                 .variable:
                 return "#0F68A0"
             case .numeric:
                 return "#000BFF"
@@ -73,15 +74,15 @@ extension String {
                 return "#6C7987"
             case .keyword:
                 return "#F2248C"
-            case .typeName:
+            case .type(_, .name):
                 return "#D0A8FF"
-            case .typeDeclaration:
+            case .type(_, .declaration):
                 return "#5DD8FF"
-            case .functionName,
-                 .memberName:
+            case .function(.name),
+                 .member(.name):
                 return "#A167E6"
-            case .functionDeclaration,
-                 .memberDeclaration:
+            case .function(.declaration),
+                 .member(.declaration):
                 return "#41A1C0"
             case .numeric:
                 return "#D0BF69"

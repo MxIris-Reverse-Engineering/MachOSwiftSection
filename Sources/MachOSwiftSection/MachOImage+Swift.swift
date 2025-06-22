@@ -34,39 +34,35 @@ extension MachOImage.Swift {
             return try _readDescriptors(from: .__swift5_types, in: machOImage) + (try? _readDescriptors(from: .__swift5_types2, in: machOImage))
         }
     }
+
+    public var associatedTypeDescriptors: [AssociatedTypeDescriptor] {
+        get throws {
+            let section = try machOImage.section(for: .__swift5_assocty)
+            var associatedTypeDescriptors: [AssociatedTypeDescriptor] = []
+            let vmaddrSlide = try required(machOImage.vmaddrSlide)
+            let start = try required(UnsafeRawPointer(bitPattern: section.address + vmaddrSlide))
+            let offset = start.int - machOImage.ptr.int
+            var currentOffset = offset
+            let endOffset = offset + section.size
+            while currentOffset < endOffset {
+                let associatedTypeDescriptor: AssociatedTypeDescriptor = try machOImage.readElement(offset: currentOffset)
+                currentOffset += associatedTypeDescriptor.size
+                associatedTypeDescriptors.append(associatedTypeDescriptor)
+            }
+            return associatedTypeDescriptors
+        }
+    }
 }
 
 extension MachOImage.Swift {
-    private func _section(for swiftMachOSection: MachOSwiftSectionName, in machOImage: MachOImage) throws -> (any SectionProtocol) {
-        let loadCommands = machOImage.loadCommands
-        let swiftSection: any SectionProtocol
-        if let text = loadCommands.text64,
-           let section = text._section(for: swiftMachOSection, in: machOImage) {
-            swiftSection = section
-        } else if let text = loadCommands.text,
-                  let section = text._section(for: swiftMachOSection, in: machOImage) {
-            swiftSection = section
-        } else {
-            throw MachOSwiftSectionError.sectionNotFound(section: swiftMachOSection, allSectionNames: machOImage.sections.map(\.sectionName))
-        }
-        guard swiftSection.align * 2 == 4 else {
-            
-                throw MachOSwiftSectionError.invalidSectionAlignment(section: swiftMachOSection, align: swiftSection.align)
-        }
-        return swiftSection
-    }
-
-    private func _readDescriptors<Descriptor: Resolvable>(from swiftMachOSection: MachOSwiftSectionName, in machOImage: MachOImage) throws -> [Descriptor] {
-        let section = try _section(for: swiftMachOSection, in: machOImage)
-        return try _readDescriptors(from: section, in: machOImage)
-    }
-
-    private func _readDescriptors<Descriptor: Resolvable>(from section: any SectionProtocol, in machO: MachOImage) throws -> [Descriptor] {
+    private func _readDescriptors<Descriptor: Resolvable>(from swiftMachOSection: MachOSwiftSectionName, in machO: MachOImage) throws -> [Descriptor] {
+        let section = try machO.section(for: swiftMachOSection)
+        
         let vmaddrSlide = try required(machO.vmaddrSlide)
         let start = try required(UnsafeRawPointer(bitPattern: section.address + vmaddrSlide))
-        
+
         let offset = start.int - machO.ptr.int
-        
+
         let pointerSize: Int = MemoryLayout<RelativeDirectPointer<Descriptor>>.size
 
         let data: [AnyLocatableLayoutWrapper<RelativeDirectPointer<Descriptor>>] = try machO.readElements(offset: offset, numberOfElements: section.size / pointerSize)
