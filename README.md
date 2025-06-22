@@ -8,7 +8,9 @@ It may be the most powerful swift dump you can find so far, as it uses a custom 
 > [!NOTE]
 > This library is developed as an extension of [MachOKit](https://github.com/p-x9/MachOKit) for Swift
 
-## Roadmap
+## MachOSwiftSection Library
+
+### Roadmap
 
 - [x] Protocol Descriptors
 - [x] Protocol Conformance Descriptors
@@ -19,9 +21,9 @@ It may be the most powerful swift dump you can find so far, as it uses a custom 
 - [ ] Builtin Type Descriptors
 - [ ] Capture Descriptors
 
-## Usage
+### Usage
 
-### Basic
+#### Basic
 
 Swift information from MachOImage or MachOFile can be retrieved via the `swift` property.
 
@@ -129,6 +131,72 @@ struct Foundation.TimeZoneCache {
 ```
 
 </details>
+
+## swift-section CLI Tool
+
+### Installation
+
+You can get the swift-section CLI tool in three ways:
+
+- **GitHub Releases**: Download from [GitHub releases](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/releases)
+- **Homebrew**: Install via `brew install swift-section`
+- **Build from Source**: Build with `./build-executable-product.sh` (requires Xcode 16.3 / Swift 6.1+ toolchain)
+
+### Usage
+
+The swift-section CLI tool provides two main subcommands: `dump` and `demangle`.
+
+#### dump - Dump Swift Information
+
+Dump Swift information from a Mach-O file or dyld shared cache.
+
+```bash
+swift-section dump [options] [file-path]
+```
+
+**Basic usage:**
+```bash
+# Dump all Swift information from a Mach-O file
+swift-section dump /path/to/binary
+
+# Dump only types and protocols
+swift-section dump --sections types,protocols /path/to/binary
+
+# Save output to file
+swift-section dump --output-path output.txt /path/to/binary
+
+# Use specific architecture
+swift-section dump --architecture arm64 /path/to/binary
+```
+
+**Working with dyld shared cache:**
+```bash
+# Dump from system dyld shared cache
+swift-section dump --uses-system-dyld-shared-cache --cache-image-name UIKit
+
+# Dump from specific dyld shared cache
+swift-section dump --dyld-shared-cache --cache-image-path /path/to/cache /path/to/dyld_shared_cache
+```
+
+#### demangle - Demangle Swift Names
+
+Demangle mangled Swift names in a Mach-O file.
+
+```bash
+swift-section demangle [options] [file-path] --mangled-name <mangled-name>
+```
+
+**Basic usage:**
+```bash
+# Demangle a specific mangled name
+swift-section demangle /path/to/binary --mangled-name '$s10Foundation4DateV18ComponentsFormatStyleV5FieldV6OptionO4yearAIcACmF'
+
+# Demangle with specific file offset
+swift-section demangle /path/to/binary --mangled-name '$s...' --file-offset 0x1000
+
+# Use simplified demangle options
+swift-section demangle /path/to/binary --mangled-name '$s...' --demangle-options simplified
+```
 
 ## License
 
