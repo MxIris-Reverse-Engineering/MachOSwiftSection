@@ -1,5 +1,3 @@
-import Semantic
-
 public final class Node: @unchecked Sendable {
     public let kind: Kind
     public let contents: Contents
@@ -27,7 +25,7 @@ public final class Node: @unchecked Sendable {
         }
     }
 
-    public init(kind: Kind, children: [Node] = [], contents: Contents = .none) {
+    public init(kind: Kind, contents: Contents = .none, children: [Node] = []) {
         self.kind = kind
         self.children = children
         self.contents = contents
@@ -37,22 +35,22 @@ public final class Node: @unchecked Sendable {
     }
 
     package convenience init(kind: Kind, child: Node) {
-        self.init(kind: kind, children: [child], contents: .none)
+        self.init(kind: kind, contents: .none, children: [child])
     }
 
     package convenience init(typeWithChildKind: Kind, childChild: Node) {
-        self.init(kind: .type, children: [Node(kind: typeWithChildKind, children: [childChild])], contents: .none)
+        self.init(kind: .type, contents: .none, children: [Node(kind: typeWithChildKind, children: [childChild])])
     }
 
     package convenience init(typeWithChildKind: Kind, childChildren: [Node]) {
-        self.init(kind: .type, children: [Node(kind: typeWithChildKind, children: childChildren)], contents: .none)
+        self.init(kind: .type, contents: .none, children: [Node(kind: typeWithChildKind, children: childChildren)])
     }
 
     package convenience init(swiftStdlibTypeKind: Kind, name: String) {
-        self.init(kind: .type, children: [Node(kind: swiftStdlibTypeKind, children: [
+        self.init(kind: .type, contents: .none, children: [Node(kind: swiftStdlibTypeKind, children: [
             Node(kind: .module, contents: .name(stdlibName)),
             Node(kind: .identifier, contents: .name(name)),
-        ])], contents: .none)
+        ])])
     }
 
     package convenience init(swiftBuiltinType: Kind, name: String) {
@@ -92,16 +90,16 @@ public final class Node: @unchecked Sendable {
         } else {
             modifiedChildren.remove(at: atIndex)
         }
-        return Node(kind: kind, children: modifiedChildren, contents: contents)
+        return Node(kind: kind, contents: contents, children: modifiedChildren)
     }
 
     package func changeKind(_ newKind: Kind, additionalChildren: [Node] = []) -> Node {
         if case .name(let text) = contents {
-            return Node(kind: newKind, children: children + additionalChildren, contents: .name(text))
+            return Node(kind: newKind, contents: .name(text), children: children + additionalChildren)
         } else if case .index(let i) = contents {
-            return Node(kind: newKind, children: children + additionalChildren, contents: .index(i))
+            return Node(kind: newKind, contents: .index(i), children: children + additionalChildren)
         } else {
-            return Node(kind: newKind, children: children + additionalChildren, contents: .none)
+            return Node(kind: newKind, contents: .none, children: children + additionalChildren)
         }
     }
 
@@ -222,23 +220,4 @@ extension Node {
     }
 }
 
-extension Node: CustomStringConvertible {
-    /// Overridden method to allow simple printing with default options
-    public var description: String {
-        print()
-    }
 
-    /// Prints `SwiftSymbol`s to a String with the full set of printing options.
-    ///
-    /// - Parameter options: an option set containing the different `DemangleOptions` from the Swift project.
-    /// - Returns: `self` printed to a string according to the specified options.
-    public func print(using options: DemangleOptions = .default) -> String {
-        printSemantic(using: options).string
-    }
-
-    public func printSemantic(using options: DemangleOptions = .default) -> SemanticString {
-        var printer = NodePrinter(options: options)
-        _ = printer.printName(self)
-        return printer.target
-    }
-}

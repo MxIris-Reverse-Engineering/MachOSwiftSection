@@ -11,8 +11,6 @@ import MachOFoundation
 struct MachOImageDumpTests: DumpableTest {
     let machOImage: MachOImage
 
-    let isEnabledSearchMetadata: Bool = false
-
     init() async throws {
         self.machOImage = try #require(MachOImage(named: .Foundation))
     }

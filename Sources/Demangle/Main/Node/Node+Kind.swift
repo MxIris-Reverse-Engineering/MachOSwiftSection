@@ -171,6 +171,7 @@ extension Node {
         case isolated
         case isolatedDeallocator
         case isolatedAnyFunctionType
+        case nonIsolatedCallerFunctionType
         case isSerialized
         case iVarDestroyer
         case iVarInitializer

@@ -1394,6 +1394,7 @@ struct NodePrinter: Sendable {
         case .vTableThunk: printVTableThunk(name)
         case .weak: printFirstChild(name, prefix: options.contains(.removeWeakPrefix) ? "" : "weak ")
         case .willSet: return printAbstractStorage(name.children.first, asPrefixContext: asPrefixContext, extraName: "willset")
+        case .nonIsolatedCallerFunctionType: target.write("nonisolated(nonsending) ")
         }
 
         return nil
@@ -1695,6 +1696,11 @@ struct NodePrinter: Sendable {
             _ = printOptional(name.children.at(startIndex))
             startIndex += 1
         }
+        var nonIsolatedCallerNode: Node?
+        if name.children.at(startIndex)?.kind == .nonIsolatedCallerFunctionType {
+            nonIsolatedCallerNode = name.children.at(startIndex)
+            startIndex += 1
+        }
         if name.children.at(startIndex)?.kind == .globalActorFunctionType {
             _ = printOptional(name.children.at(startIndex))
             startIndex += 1
@@ -1725,6 +1731,10 @@ struct NodePrinter: Sendable {
         default: break
         }
 
+        if let nonIsolatedCallerNode {
+            _ = printName(nonIsolatedCallerNode)
+        }
+        
         if isSendable {
             target.write("@Sendable ")
         }

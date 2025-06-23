@@ -10,6 +10,8 @@ package protocol DumpableTest {
 }
 
 extension DumpableTest {
+    package var isEnabledSearchMetadata: Bool { false }
+    
     @MachOImageGenerator
     @MainActor
     package func dumpProtocols(for machO: MachOFile) async throws {
