@@ -390,7 +390,7 @@ extension Node {
             }
 
             if child.kind == .enum || child.kind == .structure || child.kind == .class || child.kind == .protocol {
-                return .init(kind: .type, children: [child], contents: .none)
+                return .init(kind: .type, contents: .none, children: [child])
             }
 
             for child in child.children {

@@ -104,7 +104,7 @@ extension Demangler {
             return result
         }
 
-        return Node(kind: .suffix, children: [], contents: .name(String(String.UnicodeScalarView(scanner.scalars))))
+        return Node(kind: .suffix, contents: .name(String(String.UnicodeScalarView(scanner.scalars))), children: [])
     }
 
     private mutating func parseAndPushNames() throws {
@@ -134,6 +134,7 @@ extension Demangler {
         case "A": return Node(kind: .isolatedAnyFunctionType)
         case "b": return Node(kind: .concurrentFunctionType)
         case "c": return try Node(kind: .globalActorFunctionType, child: require(popTypeAndGetChild()))
+        case "C": return Node(kind: .nonIsolatedCallerFunctionType)
         case "i": return try Node(typeWithChildKind: .isolated, childChild: require(popTypeAndGetChild()))
         case "j": return try demangleDifferentiableFunctionType()
         case "k": return try Node(typeWithChildKind: .noDerivative, childChild: require(popTypeAndGetChild()))
@@ -303,7 +304,7 @@ extension Demangler {
         if let sendingResult = pop(kind: .sendingResultFunctionType) {
             name.addChild(sendingResult)
         }
-        if let isFunctionIsolation = pop(where: { $0 == .globalActorFunctionType || $0 == .isolatedAnyFunctionType }) {
+        if let isFunctionIsolation = pop(where: { $0 == .globalActorFunctionType || $0 == .isolatedAnyFunctionType || $0 == .nonIsolatedCallerFunctionType }) {
             name.addChild(isFunctionIsolation)
         }
         if let differentiable = pop(kind: .differentiableFunctionType) {
@@ -334,7 +335,7 @@ extension Demangler {
         if kind == .argumentTuple {
             let params = try require(paramsType.children.first)
             let numParams = params.kind == .tuple ? params.children.count : 1
-            return Node(kind: kind, children: [paramsType], contents: .index(UInt64(numParams)))
+            return Node(kind: kind, contents: .index(UInt64(numParams)), children: [paramsType])
         } else {
             return Node(kind: kind, children: [paramsType])
         }
@@ -379,10 +380,16 @@ extension Demangler {
         if funcType.children.at(firstChildIndex)?.kind == .isolatedAnyFunctionType {
             firstChildIndex += 1
         }
+        if funcType.children.at(firstChildIndex)?.kind == .nonIsolatedCallerFunctionType {
+            firstChildIndex += 1
+        }
         if funcType.children.at(firstChildIndex)?.kind == .differentiableFunctionType {
             firstChildIndex += 1
         }
         if funcType.children.at(firstChildIndex)?.kind == .throwsAnnotation || funcType.children.at(0)?.kind == .typedThrowsAnnotation {
+            firstChildIndex += 1
+        }
+        if funcType.children.at(firstChildIndex)?.kind == .concurrentFunctionType {
             firstChildIndex += 1
         }
         if funcType.children.at(firstChildIndex)?.kind == .asyncAnnotation {
@@ -661,10 +668,10 @@ extension Demangler {
             name = "\(name)\(depth)"
         }
 
-        return Node(kind: .dependentGenericParamType, children: [
+        return Node(kind: .dependentGenericParamType, contents: .name(name), children: [
             Node(kind: .index, contents: .index(UInt64(depth))),
             Node(kind: .index, contents: .index(UInt64(index))),
-        ], contents: .name(name))
+        ])
     }
 
     private mutating func demangleStandardSubstitution() throws -> Node {
@@ -877,7 +884,7 @@ extension Demangler {
             return Node(kind: .privateDeclName, children: [discriminator])
         case "a" ... "j",
              "A" ... "J":
-            return try Node(kind: .relatedEntityDeclName, children: [require(pop())], contents: .name(String(c)))
+            return try Node(kind: .relatedEntityDeclName, contents: .name(String(c)), children: [require(pop())])
         default:
             try scanner.backtrack()
             let discriminator = try demangleIndexAsName()
@@ -1323,8 +1330,8 @@ extension Demangler {
         case "q": return try Node(kind: .uniquable, child: require(pop()))
         case "Q": return try Node(kind: .opaqueTypeDescriptor, child: require(pop()))
         case "r": return try Node(kind: .typeMetadataCompletionFunction, child: require(pop(kind: .type)))
-        case "s": return try Node(kind: .objCResilientClassStub, child: require(popProtocol()))
-        case "S": return try Node(kind: .protocolSelfConformanceDescriptor, child: require(pop(kind: .type)))
+        case "s": return try Node(kind: .objCResilientClassStub, child: require(pop(kind: .type)))
+        case "S": return try Node(kind: .protocolSelfConformanceDescriptor, child: popProtocol())
         case "t": return try Node(kind: .fullObjCResilientClassStub, child: require(pop(kind: .type)))
         case "u": return try Node(kind: .methodLookupFunction, child: require(pop(kind: .type)))
         case "U": return try Node(kind: .objCMetadataUpdateFunction, child: require(pop(kind: .type)))
@@ -1802,7 +1809,8 @@ extension Demangler {
             let param = paramIndexPair.element
             guard param.kind == .functionSignatureSpecializationParam else { continue }
             guard let kindName = param.children.first else { continue }
-            guard kindName.kind == .functionSignatureSpecializationParamKind, case let .index(i) = kindName.contents, let paramKind = FunctionSigSpecializationParamKind(rawValue: UInt64(i)) else { throw failure }
+            guard kindName.kind == .functionSignatureSpecializationParamKind, case let .index(i) = kindName.contents else { throw failure }
+            let paramKind = FunctionSigSpecializationParamKind(rawValue: UInt64(i))
             switch paramKind {
             case .constantPropFunction,
                  .constantPropGlobal,
@@ -1881,9 +1889,6 @@ extension Demangler {
             param.addChild(Node(kind: .functionSignatureSpecializationParamKind, contents: .index(value)))
         case "g":
             var value = FunctionSigSpecializationParamKind.ownedToGuaranteed.rawValue
-            if scanner.conditional(scalar: "O") {
-                value |= FunctionSigSpecializationParamKind.guaranteedToOwned.rawValue
-            }
             if scanner.conditional(scalar: "X") {
                 value |= FunctionSigSpecializationParamKind.sroa.rawValue
             }
@@ -1944,7 +1949,7 @@ extension Demangler {
             default: throw failure
             }
             return try Node(kind: .fieldOffset, children: [Node(kind: .directness, contents: .index(directness)), require(pop(where: { $0.isEntity }))])
-        case "S": return try Node(kind: .protocolSelfConformanceWitnessTable, child: popProtocolConformance())
+        case "S": return try Node(kind: .protocolSelfConformanceWitnessTable, child: popProtocol())
         case "P": return try Node(kind: .protocolWitnessTable, child: popProtocolConformance())
         case "p": return try Node(kind: .protocolWitnessTablePattern, child: popProtocolConformance())
         case "G": return try Node(kind: .genericProtocolWitnessTable, child: popProtocolConformance())
@@ -1965,13 +1970,7 @@ extension Demangler {
             return Node(kind: .associatedTypeMetadataAccessor, children: [conf, name])
         case "T":
             let protoType = try require(pop(kind: .type))
-            let assocTypePath = Node(kind: .assocTypePath)
-            var firstElem = false
-            repeat {
-                firstElem = pop(kind: .firstElementMarker) != nil
-                let assocType = try require(pop(where: { $0.isDeclName }))
-                assocTypePath.insertChild(assocType, at: 0)
-            } while !firstElem
+            let assocTypePath = try popAssocTypePath()
             return try Node(kind: .associatedTypeWitnessTableAccessor, children: [popProtocolConformance(), assocTypePath, protoType])
         case "b":
             let protoTy = try require(pop(kind: .type))
@@ -1980,7 +1979,7 @@ extension Demangler {
         case "O":
             let sig = pop(kind: .dependentGenericSignature)
             let type = try require(pop(kind: .type))
-            let children: [Node] = sig.map { [type, $0] } ?? [type]
+            var children: [Node] = sig.map { [type, $0] } ?? [type]
             switch try scanner.readScalar() {
             case "C": return Node(kind: .outlinedInitializeWithCopyNoValueWitness, children: children)
             case "D": return Node(kind: .outlinedAssignWithTakeNoValueWitness, children: children)
@@ -1996,8 +1995,14 @@ extension Demangler {
             case "f": return Node(kind: .outlinedAssignWithCopy, children: children)
             case "h": return Node(kind: .outlinedDestroy, children: children)
             case "g": return Node(kind: .outlinedEnumGetTag, children: children)
-            case "i": return Node(kind: .outlinedEnumTagStore, children: children)
-            case "j": return Node(kind: .outlinedEnumProjectDataForLoad, children: children)
+            case "i":
+                let enumCaseIndex = try demangleIndexAsName()
+                children.append(enumCaseIndex)
+                return Node(kind: .outlinedEnumTagStore, children: children)
+            case "j":
+                let enumCaseIndex = try demangleIndexAsName()
+                children.append(enumCaseIndex)
+                return Node(kind: .outlinedEnumProjectDataForLoad, children: children)
             default: throw failure
             }
         case "Z",
@@ -2015,6 +2020,38 @@ extension Demangler {
         }
     }
 
+    private mutating func popAssocTypePath() throws -> Node {
+        let assocTypePath = Node(kind: .assocTypePath)
+        var firstElem = false
+        repeat {
+            firstElem = pop(kind: .firstElementMarker) != nil
+            let assocType = try require(popAssocTypeName())
+            assocTypePath.addChild(assocType)
+        } while !firstElem
+        assocTypePath.reverseChildren()
+        return assocTypePath
+    }
+    
+    private mutating func popAssocTypeName() -> Node? {
+        var proto = pop(kind: .type)
+        if let proto, !proto.isProtocol {
+            return nil
+        }
+        if proto == nil {
+            proto = pop(kind: .protocolSymbolicReference)
+        }
+        if proto == nil {
+            proto = pop(kind: .objectiveCProtocolSymbolicReference)
+        }
+        
+        guard let identifier = pop(kind: .identifier) else { return nil }
+        let assocType = Node(kind: .dependentAssociatedTypeRef, child: identifier)
+        if let proto {
+            assocType.addChild(proto)
+        }
+        return assocType
+    }
+    
     private mutating func demangleSpecialType() throws -> Node {
         let specialChar = try scanner.readScalar()
         switch specialChar {
@@ -2400,7 +2437,7 @@ extension Demangler {
     private mutating func demangleValueWitness() throws -> Node {
         let code = try scanner.readScalars(count: 2)
         let kind = try require(ValueWitnessKind(code: code))
-        return try Node(kind: .valueWitness, children: [require(pop(kind: .type))], contents: .index(kind.rawValue))
+        return try Node(kind: .valueWitness, contents: .index(kind.rawValue), children: [require(pop(kind: .type))])
     }
 }
 
@@ -2563,7 +2600,7 @@ extension Demangler {
             case ("u", "p"): value = ValueWitnessKind.destructiveProjectEnumData.rawValue
             default: throw scanner.unexpectedError()
             }
-            return try Node(kind: .valueWitness, children: [demangleSwift3Type()], contents: .index(value))
+            return try Node(kind: .valueWitness, contents: .index(value), children: [demangleSwift3Type()])
         case ("W", "V"): return try Node(kind: .valueWitnessTable, children: [demangleSwift3Type()])
         case ("W", "v"): return try Node(kind: .fieldOffset, children: [Node(kind: .directness, contents: .index(scanner.readScalar() == "d" ? 0 : 1)), demangleSwift3Entity()])
         case ("W", "P"): return try Node(kind: .protocolWitnessTable, children: [demangleSwift3ProtocolConformance()])
@@ -2629,7 +2666,7 @@ extension Demangler {
                     try scanner.match(scalar: "_")
                     paramChildren.append(Node(kind: .functionSignatureSpecializationParamKind, contents: .index(value)))
                 }
-                children.append(Node(kind: .functionSignatureSpecializationParam, children: paramChildren, contents: .index(count)))
+                children.append(Node(kind: .functionSignatureSpecializationParam, contents: .index(count), children: paramChildren))
                 count += 1
             }
             return Node(kind: .functionSignatureSpecialization, children: children)
@@ -2871,7 +2908,7 @@ extension Demangler {
             let type = try demangleSwift3Context()
             return Node(kind: .extension, children: [module, type, signature])
         case "S": return try demangleSwift3SubstitutionIndex()
-        case "s": return Node(kind: .module, children: [], contents: .name(stdlibName))
+        case "s": return Node(kind: .module, contents: .name(stdlibName), children: [])
         case "G": return try demangleSwift3BoundGenericArgs(nominalType: demangleSwift3NominalType())
         case "F": fallthrough
         case "I": fallthrough
@@ -2892,7 +2929,7 @@ extension Demangler {
     private mutating func demangleSwift3Module() throws -> Node {
         switch try scanner.readScalar() {
         case "S": return try demangleSwift3SubstitutionIndex()
-        case "s": return Node(kind: .module, children: [], contents: .name("Swift"))
+        case "s": return Node(kind: .module, contents: .name("Swift"), children: [])
         default:
             try scanner.backtrack()
             let module = try demangleSwift3Identifier(kind: .module)
@@ -3053,7 +3090,7 @@ extension Demangler {
             try scanner.backtrack()
             (depth, index) = try (0, demangleSwift3Index() + 1)
         }
-        return Node(kind: .dependentGenericParamType, children: [Node(kind: .index, contents: .index(depth)), Node(kind: .index, contents: .index(index))], contents: .name(archetypeName(index, depth)))
+        return Node(kind: .dependentGenericParamType, contents: .name(archetypeName(index, depth)), children: [Node(kind: .index, contents: .index(depth)), Node(kind: .index, contents: .index(index))])
     }
 
     private mutating func demangleSwift3DependentMemberTypeName(base: Node) throws -> Node {
@@ -3139,7 +3176,7 @@ extension Demangler {
         case "D": type = try Node(kind: .dynamicSelf, children: [demangleSwift3Type()])
         case "E":
             guard try scanner.readScalars(count: 2) == "RR" else { throw scanner.unexpectedError() }
-            type = Node(kind: .errorType, children: [], contents: .name(""))
+            type = Node(kind: .errorType, contents: .name(""), children: [])
         case "F": type = try demangleSwift3FunctionType(kind: .functionType)
         case "f": type = try demangleSwift3FunctionType(kind: .uncurriedFunctionType)
         case "G": type = try demangleSwift3BoundGenericArgs(nominalType: demangleSwift3NominalType())
@@ -3254,7 +3291,7 @@ extension Demangler {
             } else {
                 type = try demangleSwift3GenericParamIndex()
             }
-        case "x": type = Node(kind: .dependentGenericParamType, children: [Node(kind: .index, contents: .index(0)), Node(kind: .index, contents: .index(0))], contents: .name(archetypeName(0, 0)))
+        case "x": type = Node(kind: .dependentGenericParamType, contents: .name(archetypeName(0, 0)), children: [Node(kind: .index, contents: .index(0)), Node(kind: .index, contents: .index(0))])
         case "w": type = try demangleSwift3AssociatedTypeSimple()
         case "W": type = try demangleSwift3AssociatedTypeCompound()
         case "R": type = try Node(kind: .inOut, children: demangleSwift3Type().children)
@@ -3407,6 +3444,6 @@ extension Demangler {
             }
         }
 
-        return Node(kind: k, children: [], contents: .name(identifier))
+        return Node(kind: k, contents: .name(identifier), children: [])
     }
 }

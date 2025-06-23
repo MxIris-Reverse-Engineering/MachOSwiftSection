@@ -11,8 +11,6 @@ import MachOFoundation
 struct MachOFileDumpTests: DumpableTest {
     let machOFile: MachOFile
 
-    let isEnabledSearchMetadata: Bool = false
-
     init() async throws {
         let file = try loadFromFile(named: .Finder)
         switch file {

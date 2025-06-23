@@ -115,6 +115,7 @@ let package = Package(
         .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
         .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
+        .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", from: "0.3.0"),
     ],
     targets: [
         .target(
@@ -125,6 +126,7 @@ let package = Package(
             name: "Demangle",
             dependencies: [
                 "Semantic",
+                .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             ]
         ),
 

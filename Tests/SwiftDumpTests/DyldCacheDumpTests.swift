@@ -19,8 +19,6 @@ struct DyldCacheDumpTests: DumpableTest {
 
     let machOFileInCache: MachOFile
 
-    let isEnabledSearchMetadata: Bool = false
-
     init() async throws {
         self.mainCache = try DyldCache(path: .current)
         self.subCache = try required(mainCache.subCaches?.first?.subcache(for: mainCache))
