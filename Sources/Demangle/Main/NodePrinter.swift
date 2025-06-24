@@ -774,12 +774,12 @@ struct NodePrinter: Sendable {
         let savedDisplayWhereClauses = options.contains(.displayWhereClauses)
         options.insert(.displayWhereClauses)
         var genSig: Node?
-        let type: Node
+        var type: Node?
         if name.children.count == 2 {
-            genSig = name.children[0]
-            type = name.children[1]
+            genSig = name.children.at(1)
+            type = name.children.at(2)
         } else {
-            type = name.children[0]
+            type = name.children.at(1)
         }
         target.write("existential shape for ")
         if let genSig {
@@ -787,7 +787,11 @@ struct NodePrinter: Sendable {
             target.write(" ")
         }
         target.write("any ")
-        _ = printName(type)
+        if let type {
+            _ = printName(type)
+        } else {
+            target.write("<null node pointer>")
+        }
         if !savedDisplayWhereClauses {
             options.remove(.displayWhereClauses)
         }

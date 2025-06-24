@@ -142,6 +142,10 @@ public final class Node: @unchecked Sendable {
     public func reverseChildren() {
         children.reverse()
     }
+    
+    public func reverseFirst(_ count: Int) {
+        children.reverseFirst(count)
+    }
 }
 
 extension Node {
@@ -221,3 +225,23 @@ extension Node {
 }
 
 
+extension Array {
+    /// Reverse the first n elements of the array
+    /// - Parameter count: Number of elements to reverse from the beginning
+    mutating func reverseFirst(_ count: Int) {
+        guard count > 0 && count <= self.count else { return }
+        let endIndex = count - 1
+        for i in 0..<(count / 2) {
+            self.swapAt(i, endIndex - i)
+        }
+    }
+    
+    /// Returns a new array with the first n elements reversed
+    /// - Parameter count: Number of elements to reverse from the beginning
+    /// - Returns: New array with first n elements reversed
+    func reversedFirst(_ count: Int) -> Array {
+        var result = self
+        result.reverseFirst(count)
+        return result
+    }
+}

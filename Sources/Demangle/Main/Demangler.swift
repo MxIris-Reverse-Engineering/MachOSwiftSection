@@ -280,7 +280,12 @@ extension Demangler {
     private mutating func pushMultiSubstitutions(repeatCount: Int, index: Int) throws -> Node {
         try require(repeatCount <= maxRepeatCount)
         let nd = try require(substitutions.at(index))
-        (0 ..< max(0, repeatCount - 1)).forEach { _ in nameStack.append(nd) }
+//        (0 ..< max(0, repeatCount - 1)).forEach { _ in  }
+        var repeatCount = repeatCount
+        while repeatCount > 1 {
+            nameStack.append(nd)
+            repeatCount -= 1
+        }
         return nd
     }
 
@@ -341,11 +346,11 @@ extension Demangler {
         }
     }
 
-    private mutating func getLabel(params: inout Node, idx: Int) throws -> Node {
+    private mutating func getLabel(params: Node, idx: Int) throws -> Node {
         if isOldFunctionTypeMangling {
             let param = try require(params.children.at(idx))
             if let label = param.children.enumerated().first(where: { $0.element.kind == .tupleElementName }) {
-                params.children[idx].removeChild(at: label.offset)
+                param.removeChild(at: label.offset)
                 return Node(kind: .identifier, contents: .name(label.element.text ?? ""))
             }
             return Node(kind: .firstElementMarker)
@@ -386,7 +391,7 @@ extension Demangler {
         if funcType.children.at(firstChildIndex)?.kind == .differentiableFunctionType {
             firstChildIndex += 1
         }
-        if funcType.children.at(firstChildIndex)?.kind == .throwsAnnotation || funcType.children.at(0)?.kind == .typedThrowsAnnotation {
+        if funcType.children.at(firstChildIndex)?.kind == .throwsAnnotation || funcType.children.at(firstChildIndex)?.kind == .typedThrowsAnnotation {
             firstChildIndex += 1
         }
         if funcType.children.at(firstChildIndex)?.kind == .concurrentFunctionType {
@@ -408,14 +413,14 @@ extension Demangler {
         guard numParams > 0 else { return nil }
 
         let possibleTuple = parameterType.children.first?.children.first
-        guard !isOldFunctionTypeMangling, var tuple = possibleTuple, tuple.kind == .tuple else {
+        guard !isOldFunctionTypeMangling, let tuple = possibleTuple, tuple.kind == .tuple else {
             return Node(kind: .labelList)
         }
 
         var hasLabels = false
         var children = [Node]()
         for i in 0 ..< numParams {
-            let label = try getLabel(params: &tuple, idx: Int(i))
+            let label = try getLabel(params: tuple, idx: Int(i))
             try require(label.kind == .identifier || label.kind == .firstElementMarker)
             children.append(label)
             hasLabels = hasLabels || (label.kind != .firstElementMarker)
@@ -429,20 +434,24 @@ extension Demangler {
     }
 
     private mutating func popTuple() throws -> Node {
-        var children: [Node] = []
+        let root = Node(kind: .tuple)
         if pop(kind: .emptyList) == nil {
             var firstElem = false
             repeat {
                 firstElem = pop(kind: .firstElementMarker) != nil
-                var elemChildren: [Node] = pop(kind: .variadicMarker).map { [$0] } ?? []
-                if let ident = pop(kind: .identifier), case let .name(text) = ident.contents {
-                    elemChildren.append(Node(kind: .tupleElementName, contents: .name(text)))
+                let tupleElement = Node(kind: .tupleElement)
+                if let variadicMarker = pop(kind: .variadicMarker) {
+                    tupleElement.addChild(variadicMarker)
                 }
-                try elemChildren.append(require(pop(kind: .type)))
-                children.insert(Node(kind: .tupleElement, children: elemChildren), at: 0)
+                if let ident = pop(kind: .identifier), case let .name(text) = ident.contents {
+                    tupleElement.addChild(Node(kind: .tupleElementName, contents: .name(text)))
+                }
+                try tupleElement.addChild(require(pop(kind: .type)))
+                root.addChild(tupleElement)
             } while !firstElem
+            root.reverseChildren()
         }
-        return Node(typeWithChildKind: .tuple, childChildren: children)
+        return Node(kind: .type, child: root)
     }
 
     private mutating func popPack(kind: Node.Kind = .pack) throws -> Node {
@@ -1216,13 +1225,16 @@ extension Demangler {
         case "B": fConv = "block"
         case "C": fConv = "c"
         case "z":
-            if scanner.conditional(scalar: "B") {
+            switch try scanner.readScalar() {
+            case "B":
                 hasClangType = true
                 fConv = "block"
-            } else if scanner.conditional(scalar: "C") {
+            case "C":
                 hasClangType = true
                 fConv = "c"
-            } else {
+            default:
+                try scanner.backtrack()
+                try scanner.backtrack()
                 fConv = nil
             }
         case "M": fConv = "method"
@@ -1448,6 +1460,7 @@ extension Demangler {
     }
 
     private mutating func demangleGenericParamIndex() throws -> Node {
+        
         switch try scanner.readScalar() {
         case "d":
             let depth = try demangleIndex() + 1
@@ -1574,7 +1587,7 @@ extension Demangler {
             } else {
                 throw failure
             }
-            for t in types {
+            for t in types.reversed() {
                 result.addChild(t)
             }
             if isSerialized {
@@ -2298,11 +2311,11 @@ extension Demangler {
         if let labelList = labelList {
             ss.addChild(labelList)
         }
-        setParentForOpaqueReturnTypeNodes(visited: type, parentId: getParentId(parent: ss, flavor: flavor))
         ss.addChild(type)
         if let pn = privateName {
             ss.addChild(pn)
         }
+        setParentForOpaqueReturnTypeNodes(visited: type, parentId: getParentId(parent: ss, flavor: flavor))
         return try demangleAccessor(child: ss)
     }
 
@@ -2352,6 +2365,13 @@ extension Demangler {
             sig.insertChild(req, at: requirementsIndex)
         }
         return sig
+        /*
+         let count = sig.children.count
+         while let req = pop(where: { $0.isRequirement }) {
+             sig.addChild(req)
+         }
+         sig.reverseFirst(count)
+         */
     }
 
     private mutating func demangleGenericRequirement() throws -> Node {
@@ -2400,7 +2420,7 @@ extension Demangler {
         }
 
         switch constraintAndTypeKinds.constraint {
-        case .valueMarker: return try Node(kind: .dependentGenericParamPackMarker, children: [constrType, require(pop(kind: .type))])
+        case .valueMarker: return try Node(kind: .dependentGenericParamValueMarker, children: [constrType, require(pop(kind: .type))])
         case .packMarker: return Node(kind: .dependentGenericParamPackMarker, children: [constrType])
         case .protocol: return try Node(kind: .dependentGenericConformanceRequirement, children: [constrType, popProtocol()])
         case .inverse: return try Node(kind: .dependentGenericInverseConformanceRequirement, children: [constrType, require(inverseKind)])
@@ -2417,13 +2437,15 @@ extension Demangler {
                  "N",
                  "C",
                  "D",
-                 "T": break
+                 "T",
+                 "B": break
             case "E",
                  "M":
                 size = try demangleIndexAsName()
                 alignment = try demangleIndexAsName()
             case "e",
-                 "m":
+                 "m",
+                 "S":
                 size = try demangleIndexAsName()
             default: throw failure
             }
