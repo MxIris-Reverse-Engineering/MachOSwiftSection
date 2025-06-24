@@ -697,8 +697,11 @@ struct NodePrinter: Sendable {
 
     mutating func printGlobalVariableOnceFunction(_ name: Node) {
         target.write(name.kind == .globalVariableOnceToken ? "one-time initialization token for " : "one-time initialization function for ")
-        if let firstChild = name.children.first, shouldPrintContext(firstChild) {
-            _ = printName(firstChild)
+        if let firstChild = name.children.first {
+            _ = shouldPrintContext(firstChild)
+        }
+        if let secondChild = name.children.at(1) {
+            _ = printName(secondChild)
         }
     }
 
@@ -1216,7 +1219,9 @@ struct NodePrinter: Sendable {
         case .keyPathEqualsThunkHelper,
              .keyPathHashThunkHelper: printKeyPathEqualityThunkHelper(name)
         case .keyPathGetterThunkHelper,
-             .keyPathSetterThunkHelper: printKeyPathAccessorThunkHelper(name)
+             .keyPathSetterThunkHelper,
+             .keyPathAppliedMethodThunkHelper,
+             .keyPathUnappliedMethodThunkHelper: printKeyPathAccessorThunkHelper(name)
         case .labelList: break
         case .lazyProtocolWitnessTableAccessor: printLazyProtocolWitnesstableAccessor(name)
         case .lazyProtocolWitnessTableCacheVariable: printLazyProtocolWitnesstableCacheVariable(name)
@@ -1275,8 +1280,12 @@ struct NodePrinter: Sendable {
         case .outlinedAssignWithTake,
              .outlinedAssignWithTakeNoValueWitness: printFirstChild(name, prefix: "outlined assign with take of ")
         case .outlinedBridgedMethod: target.write("outlined bridged method (\(name.text ?? "")) of ")
-        case .outlinedConsume: printFirstChild(name, prefix: "outlined consume of ")
-        case .outlinedCopy: printFirstChild(name, prefix: "outlined copy of ")
+        case .outlinedConsume:
+            printFirstChild(name, prefix: "outlined consume of ")
+            _ = printOptional(name.children.at(1))
+        case .outlinedCopy:
+            printFirstChild(name, prefix: "outlined copy of ")
+            _ = printOptional(name.children.at(1))
         case .outlinedDestroy,
              .outlinedDestroyNoValueWitness: printFirstChild(name, prefix: "outlined destroy of ")
         case .outlinedEnumGetTag: printFirstChild(name, prefix: "outlined enum get tag of ")
@@ -1375,7 +1384,7 @@ struct NodePrinter: Sendable {
         case .typeMetadataCompletionFunction: printFirstChild(name, prefix: "type metadata completion function for ")
         case .typeMetadataDemanglingCache: printFirstChild(name, prefix: "demangling cache variable for type metadata for ")
         case .typeMetadataInstantiationCache: printFirstChild(name, prefix: "type metadata instantiation cache for ")
-        case .typeMetadataInstantiationFunction: printFirstChild(name, prefix: "type metadata instantiation cache for ")
+        case .typeMetadataInstantiationFunction: printFirstChild(name, prefix: "type metadata instantiation function for ")
         case .typeMetadataLazyCache: printFirstChild(name, prefix: "lazy cache variable for type metadata for ")
         case .typeMetadataSingletonInitializationCache: printFirstChild(name, prefix: "type metadata singleton initialization cache for ")
         case .typeSymbolicReference: target.write("type symbolic reference \("0x" + String(name.index ?? 0, radix: 16, uppercase: true))")

@@ -179,6 +179,8 @@ extension Node {
         case keyPathGetterThunkHelper
         case keyPathHashThunkHelper
         case keyPathSetterThunkHelper
+        case keyPathAppliedMethodThunkHelper
+        case keyPathUnappliedMethodThunkHelper
         case labelList
         case lazyProtocolWitnessTableAccessor
         case lazyProtocolWitnessTableCacheVariable

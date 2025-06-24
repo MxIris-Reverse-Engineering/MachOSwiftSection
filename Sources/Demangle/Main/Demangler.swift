@@ -1544,14 +1544,25 @@ extension Demangler {
         case "f": return try demangleFunctionSpecialization()
         case "K",
              "k":
-            let nodeKind: Node.Kind = c == "K" ? .keyPathGetterThunkHelper : .keyPathSetterThunkHelper
+            let nodeKind: Node.Kind
+            if scanner.conditional(string: "mu") {
+                nodeKind = .keyPathUnappliedMethodThunkHelper
+            } else if scanner.conditional(string: "MA") {
+                nodeKind = .keyPathAppliedMethodThunkHelper
+            } else {
+                nodeKind = c == "K" ? .keyPathGetterThunkHelper : .keyPathSetterThunkHelper
+            }
+             
             let isSerialized = scanner.conditional(string: "q")
             var types = [Node]()
             var node = pop(kind: .type)
-            while let n = node {
-                types.append(n)
+            repeat {
+                if let node {
+                    types.append(node)
+                }
                 node = pop(kind: .type)
-            }
+            } while node != nil && node?.kind == .type
+            
             var result: Node
             if let n = pop() {
                 if n.kind == .dependentGenericSignature {
@@ -2012,7 +2023,7 @@ extension Demangler {
                 guard let identifier = pop(where: { $0.isDeclName }) else { throw failure }
                 declList.addChild(identifier)
             }
-            declList.reverseChildren()
+//            declList.reverseChildren()
             return try Node(kind: c == "Z" ? .globalVariableOnceFunction : .globalVariableOnceToken, children: [popContext(), declList])
         case "J":
             return try demangleDifferentiabilityWitness()
