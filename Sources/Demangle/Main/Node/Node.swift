@@ -193,7 +193,7 @@ extension Node {
         case .tupleElementName: fallthrough
         case .typeAlias: fallthrough
         case .typeList: fallthrough
-        case .typeSymbolicReference: fallthrough
+        case .typeSymbolicReference: return true
         case .type:
             return children.first.map { $0.isSimpleType } ?? false
         case .protocolList:

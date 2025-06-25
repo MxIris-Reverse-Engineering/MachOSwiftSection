@@ -934,7 +934,7 @@ extension Demangler {
         case "p": return Node(swiftBuiltinType: .builtinTypeName, name: "Builtin.RawPointer")
         case "t": return Node(swiftBuiltinType: .builtinTypeName, name: "Builtin.SILToken")
         case "w": return Node(swiftBuiltinType: .builtinTypeName, name: "Builtin.Word")
-        case "c": return Node(swiftBuiltinType: .builtinTypeName, name: "Builtin.DefaultActorStorage")
+        case "c": return Node(swiftBuiltinType: .builtinTypeName, name: "Builtin.RawUnsafeContinuation")
         case "D": return Node(swiftBuiltinType: .builtinTypeName, name: "Builtin.DefaultActorStorage")
         case "d": return Node(swiftBuiltinType: .builtinTypeName, name: "Builtin.NonDefaultDistributedActorStorage")
         case "j": return Node(swiftBuiltinType: .builtinTypeName, name: "Builtin.Job")

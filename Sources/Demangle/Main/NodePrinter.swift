@@ -902,7 +902,7 @@ struct NodePrinter: Sendable {
 
     mutating func printReabstracctionThunkHelperWithGlobalActor(_ name: Node) {
         printFirstChild(name)
-        _ = printOptional(name.children.at(1), prefix: " with global actor constraint")
+        _ = printOptional(name.children.at(1), prefix: " with global actor constraint ")
     }
 
     mutating func printBuildInFixedArray(_ name: Node) {
