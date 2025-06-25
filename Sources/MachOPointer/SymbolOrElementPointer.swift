@@ -1,5 +1,6 @@
 import MachOKit
 import MachOReading
+import MachOSymbols
 
 public enum SymbolOrElementPointer<Context: Resolvable>: RelativeIndirectType {
     public typealias Resolved = SymbolOrElement<Context>

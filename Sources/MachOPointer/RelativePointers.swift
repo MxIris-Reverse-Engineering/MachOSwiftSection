@@ -1,5 +1,6 @@
 import MachOReading
 import MachOExtensions
+import MachOSymbols
 
 public typealias RelativeOffset = Int32
 
