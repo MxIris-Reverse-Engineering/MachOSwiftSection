@@ -1777,7 +1777,8 @@ extension Demangler {
         var str = ""
         let kind = try scanner.readScalar()
         switch kind {
-        case "p",
+        case "o",
+             "p",
              "a",
              "m": str.unicodeScalars.append(kind)
         default: return ""

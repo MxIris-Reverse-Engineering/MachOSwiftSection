@@ -1168,7 +1168,7 @@ struct NodePrinter: Sendable {
         case .functionSignatureSpecializationParamPayload: target.write((try? demangleAsNode(name.text ?? "").description) ?? (name.text ?? ""))
         case .functionSignatureSpecializationReturn: printFunctionSignatureSpecializationParam(name)
         case .genericPartialSpecialization: printSpecializationPrefix(name, description: "generic partial specialization", paramPrefix: "Signature = ")
-        case .genericPartialSpecializationNotReAbstracted: printSpecializationPrefix(name, description: "generic not re-abstracted partial specialization", paramPrefix: "Signature = ")
+        case .genericPartialSpecializationNotReAbstracted: printSpecializationPrefix(name, description: "generic not-reabstracted partial specialization", paramPrefix: "Signature = ")
         case .genericProtocolWitnessTable: printFirstChild(name, prefix: "generic protocol witness table for ")
         case .genericProtocolWitnessTableInstantiationFunction: printFirstChild(name, prefix: "instantiation function for generic protocol witness table for ")
         case .genericSpecialization,
