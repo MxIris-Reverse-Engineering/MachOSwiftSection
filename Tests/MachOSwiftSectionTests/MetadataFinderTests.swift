@@ -11,56 +11,23 @@ import SwiftDump
 struct MetadataFinderTests {
     let mainCache: DyldCache
 
-    let subCache: DyldCache
-
-    let machOFileInMainCache: MachOFile
-
-    let machOFileInSubCache: MachOFile
-
-    let machOFileInCache: MachOFile
-
-    let machOFile: MachOFile
-
-    let machOImage: MachOImage
-
     init() throws {
-        // Cache
         self.mainCache = try DyldCache(path: .current)
-        self.subCache = try required(mainCache.subCaches?.first?.subcache(for: mainCache))
-
-        self.machOFileInMainCache = try #require(mainCache.machOFile(named: .SwiftUI))
-        self.machOFileInSubCache = if #available(macOS 15.5, *) {
-            try #require(subCache.machOFile(named: .CodableSwiftUI))
-        } else {
-            try #require(subCache.machOFile(named: .UIKitCore))
-        }
-
-        self.machOFileInCache = try #require(mainCache.machOFile(named: .AttributeGraph))
-
-        // File
-        let file = try loadFromFile(named: .Finder)
-        switch file {
-        case .fat(let fatFile):
-            self.machOFile = try #require(fatFile.machOFiles().first(where: { $0.header.cpu.type == .arm64 }))
-        case .machO(let machO):
-            self.machOFile = machO
-        @unknown default:
-            fatalError()
-        }
-
-        // Image
-        self.machOImage = try #require(MachOImage(named: .Foundation))
     }
 
-    @Test func dumpMetadatasInMainCache() async throws {
-        try await dumpMetadatas(for: machOFileInMainCache)
+    @Test func dumpMetadatasInAppKit() async throws {
+        try await dumpMetadatas(for: #require(mainCache.machOFile(named: .AppKit)))
     }
 
+    @Test func dumpMetadatasInSwiftUI() async throws {
+        try await dumpMetadatas(for: #require(mainCache.machOFile(named: .SwiftUI)))
+    }
+    
     @MachOImageGenerator
     private func dumpMetadatas(for machO: MachOFile) async throws {
         let finder: MetadataFinder<MachOFile> = .init(machO: machO)
 
-        let typeDescriptors = try machOFileInMainCache.swift.typeContextDescriptors
+        let typeDescriptors = try machO.swift.typeContextDescriptors
 
         for typeDescriptor in typeDescriptors {
             guard case .type(let type) = typeDescriptor else {
