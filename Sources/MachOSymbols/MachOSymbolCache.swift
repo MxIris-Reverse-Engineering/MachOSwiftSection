@@ -1,8 +1,9 @@
 import MachOKit
 import MachOExtensions
+import Demangle
 
-class MachOSymbolCache {
-    static let shared = MachOSymbolCache()
+package final class MachOSymbolCache {
+    package static let shared = MachOSymbolCache()
 
     private let memoryPressureMonitor = MemoryPressureMonitor()
 
@@ -30,9 +31,8 @@ class MachOSymbolCache {
     @discardableResult
     private func createCacheIfNeeded<MachO: MachORepresentableWithCache>(for identifier: CacheIdentifier, in machO: MachO, isForced: Bool = false) -> Bool {
         guard isForced || (entryByIdentifier[identifier]?.isEmpty ?? true) else { return false }
-        guard let symbols64 = machO.symbols64 else { return false }
         var cacheEntry: CacheEntry = [:]
-        for symbol in symbols64 where !symbol.name.isEmpty {
+        for symbol in machO.symbols where symbol.name.isSwiftSymbol {
             var offset = symbol.offset
             cacheEntry[offset] = .init(offset: offset, stringValue: symbol.name)
             if let cache = machO.cache {
@@ -41,7 +41,7 @@ class MachOSymbolCache {
             }
         }
 
-        for exportedSymbol in machO.exportedSymbols {
+        for exportedSymbol in machO.exportedSymbols where exportedSymbol.name.isSwiftSymbol {
             if var offset = exportedSymbol.offset {
                 cacheEntry[offset] = .init(offset: offset, stringValue: exportedSymbol.name)
                 offset += machO.startOffset
@@ -78,12 +78,12 @@ class MachOSymbolCache {
         return createCacheIfNeeded(for: identifier, in: machOFile, isForced: isForced)
     }
 
-    func symbol(for offset: Int, in machOImage: MachOImage) -> MachOSymbol? {
+    package func symbol(for offset: Int, in machOImage: MachOImage) -> MachOSymbol? {
         let identifier = CacheIdentifier.image(machOImage.ptr)
         return symbol(for: offset, with: identifier, in: machOImage)
     }
 
-    func symbol(for offset: Int, in machOFile: MachOFile) -> MachOSymbol? {
+    package func symbol(for offset: Int, in machOFile: MachOFile) -> MachOSymbol? {
         let identifier = CacheIdentifier.file(machOFile.imagePath)
         return symbol(for: offset, with: identifier, in: machOFile)
     }

@@ -148,14 +148,27 @@ let package = Package(
                 .product(name: "AssociatedObject", package: "AssociatedObject"),
             ]
         ),
+        
+        .target(
+            name: "MachOSymbols",
+            dependencies: [
+                .MachOKit,
+                "MachOReading",
+                "MachOMacro",
+                "Demangle",
+            ]
+        ),
+        
         .target(
             name: "MachOPointer",
             dependencies: [
                 .MachOKit,
                 "MachOReading",
                 "MachOMacro",
+                "MachOSymbols",
             ]
         ),
+
         .target(
             name: "MachOFoundation",
             dependencies: [

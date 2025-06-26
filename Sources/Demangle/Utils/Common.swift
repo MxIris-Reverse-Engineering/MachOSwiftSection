@@ -79,7 +79,11 @@ func decodeSwiftPunycode(_ value: String) throws -> String {
         bias = k
         n = n + i / (output.count + 1)
         i = i % (output.count + 1)
-        let validScalar = UnicodeScalar(n) ?? UnicodeScalar(".")
+        var scalarValue = n
+        if scalarValue >= 0xD800, scalarValue < 0xD880 {
+            scalarValue -= 0xD800
+        }
+        let validScalar = UnicodeScalar(scalarValue) ?? UnicodeScalar(".")
         output.insert(validScalar, at: i)
         i += 1
     }

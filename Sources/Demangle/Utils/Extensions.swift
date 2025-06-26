@@ -1,6 +1,12 @@
 import Semantic
 
 extension String {
+    package var isSwiftSymbol: Bool {
+        getManglingPrefixLength(unicodeScalars) > 0
+    }
+}
+
+extension String {
     mutating func writeHex(prefix: String? = nil, _ value: UInt64) {
         if let prefix = prefix {
             write(prefix)
