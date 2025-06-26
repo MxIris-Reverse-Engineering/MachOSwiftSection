@@ -3,6 +3,7 @@ import MachOKit
 import MachOSwiftSection
 import MachOMacro
 import Semantic
+import MachOSymbols
 
 extension Struct: NamedDumpable {
     
@@ -74,6 +75,51 @@ extension Struct: NamedDumpable {
             }
         }
 
+        for kind in SymbolIndexStore.IndexKind.SubKind.allCases.map({ SymbolIndexStore.IndexKind.struct($0) }) {
+            for (offset, function) in SymbolIndexStore.shared.symbols(of: kind, for: try dumpName(using: .interface, in: machOFile).string, in: machOFile).offsetEnumerated() {
+                
+                if offset.isStart {
+                    BreakLine()
+                    
+                    Indent(level: 1)
+                    
+                    switch kind {
+                    case .struct(let subKind):
+                        switch subKind {
+                        case .function:
+                            InlineComment("Functions")
+                        case .functionInExtension:
+                            InlineComment("Functions In Extension")
+                        case .staticFunction:
+                            InlineComment("Static Functions")
+                        case .staticFunctionInExtension:
+                            InlineComment("Static Functions In Extension")
+                        case .variable:
+                            InlineComment("Variables")
+                        case .variableInExtension:
+                            InlineComment("Variables In Extension")
+                        case .staticVariable:
+                            InlineComment("Static Variables")
+                        case .staticVariableInExtension:
+                            InlineComment("Static Variables In Extension")
+                        }
+                    default:
+                        fatalError("unreachable")
+                    }
+                }
+                
+                BreakLine()
+                
+                Indent(level: 1)
+                
+                try MetadataReader.demangleSymbol(for: function, in: machOFile).printSemantic(using: options)
+                
+                if offset.isEnd {
+                    BreakLine()
+                }
+            }
+        }
+        
         Standard("}")
     }
 }

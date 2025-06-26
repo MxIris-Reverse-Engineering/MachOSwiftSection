@@ -3,7 +3,7 @@ import MachOMacro
 import MachOExtensions
 import MachOReading
 
-public struct MachOSymbol: Resolvable {
+public struct Symbol: Resolvable, Hashable {
     enum Error: Swift.Error {
         case symbolNotFound
     }

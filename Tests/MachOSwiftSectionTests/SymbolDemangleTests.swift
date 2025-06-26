@@ -44,10 +44,38 @@ struct SymbolDemangleTests {
         }
     }
 
+    @Test func symbolsInSwiftUI() async throws {
+        let symbols = try symbols(for: .SwiftUI)
+        for symbol in symbols {
+            let swiftStdlibDemangledName = stdlib_demangleName(symbol.stringValue)
+            guard !symbol.stringValue.hasSuffix("$delayInitStub") else { continue }
+            print(symbol.stringValue)
+            print(swiftStdlibDemangledName)
+            print("\n")
+        }
+    }
+
     @Test func demangle() async throws {
         var demangler = Demangler(scalars: "_$s6Charts10ChartProxyV5value2at2asx_q_tSgSo7CGPointV_x_q_tmtAA9PlottableRzAaJR_r0_lF".unicodeScalars)
         let node = try demangler.demangleSymbol()
         node.print().print()
+    }
+
+    @Test func swiftSymbols() async throws {
+        let symbols = try symbols(for: .SwiftUI)
+        for symbol in symbols {
+            var demangler = Demangler(scalars: symbol.stringValue.unicodeScalars)
+            let node = try demangler.demangleSymbol()
+            if let functionNode = node.children.first, functionNode.kind == .function {
+                if let structureNode = functionNode.children.first, structureNode.kind == .structure {
+                    node.print(using: .interface).print()
+                    let typeNode = Node(kind: .global) {
+                        Node(kind: .type, child: structureNode)
+                    }
+                    typeNode.print(using: .interface).print()
+                }
+            }
+        }
     }
 
     private func symbols(for machOImageNames: MachOImageName...) throws -> [MachOSwiftSymbol] {
@@ -82,5 +110,3 @@ struct SymbolDemangleTests {
         return symbols
     }
 }
-
-

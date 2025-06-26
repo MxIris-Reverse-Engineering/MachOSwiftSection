@@ -25,11 +25,11 @@ extension SemanticString {
 }
 
 extension Array {
-    func at(_ index: Int) -> Element? {
+    package func at(_ index: Int) -> Element? {
         return indices.contains(index) ? self[index] : nil
     }
 
-    func slice(_ from: Int, _ to: Int) -> ArraySlice<Element> {
+    package func slice(_ from: Int, _ to: Int) -> ArraySlice<Element> {
         if from > to || from > endIndex || to < startIndex {
             return ArraySlice()
         } else {

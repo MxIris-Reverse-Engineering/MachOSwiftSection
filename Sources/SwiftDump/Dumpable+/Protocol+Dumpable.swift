@@ -54,7 +54,7 @@ extension MachOSwiftSection.`Protocol`: NamedDumpable {
         for (offset, requirement) in requirements.offsetEnumerated() {
             BreakLine()
             Indent(level: 1)
-            if let symbol = try MachOSymbol.resolve(from: requirement.offset, in: machOFile) {
+            if let symbol = try Symbol.resolve(from: requirement.offset, in: machOFile) {
                 try? MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
             } else {
                 InlineComment("[Stripped Symbol]")

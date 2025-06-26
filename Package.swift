@@ -116,6 +116,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
         .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
         .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", from: "0.3.0"),
+        .package(url: "https://github.com/apple/swift-collections", from: "1.2.0"),
     ],
     targets: [
         .target(
@@ -156,6 +157,7 @@ let package = Package(
                 "MachOReading",
                 "MachOMacro",
                 "Demangle",
+                .product(name: "OrderedCollections", package: "swift-collections"),
             ]
         ),
         

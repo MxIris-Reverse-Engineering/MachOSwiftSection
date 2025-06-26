@@ -5,7 +5,7 @@ import MachOSymbols
 public enum SymbolOrElementPointer<Context: Resolvable>: RelativeIndirectType {
     public typealias Resolved = SymbolOrElement<Context>
 
-    case symbol(MachOSymbol)
+    case symbol(Symbol)
     case address(UInt64)
 
     public func resolveOffset(in machOFile: MachOFile) -> Int {
