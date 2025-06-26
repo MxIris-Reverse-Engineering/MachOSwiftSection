@@ -45,12 +45,12 @@ package final class SymbolIndexStore {
 
     private var indexEntryByIdentifier: [MachOTargetIdentifier: IndexEntry] = [:]
 
-    package func removeIndexs(for machOImage: MachOImage) {
+    private func removeIndexs(for machOImage: MachOImage) {
         let identifier = MachOTargetIdentifier.image(machOImage.ptr)
         removeIndexs(for: identifier)
     }
 
-    package func removeIndexs(for machOFile: MachOFile) {
+    private func removeIndexs(for machOFile: MachOFile) {
         let identifier = MachOTargetIdentifier.file(machOFile.imagePath)
         removeIndexs(for: identifier)
     }
@@ -60,13 +60,13 @@ package final class SymbolIndexStore {
     }
 
     @discardableResult
-    package func startIndexingIfNeeded(for machOImage: MachOImage) -> Bool {
+    private func startIndexingIfNeeded(for machOImage: MachOImage) -> Bool {
         let identifier = MachOTargetIdentifier.image(machOImage.ptr)
         return startIndexingIfNeeded(for: identifier, in: machOImage)
     }
 
     @discardableResult
-    package func startIndexingIfNeeded(for machOFile: MachOFile) -> Bool {
+    private func startIndexingIfNeeded(for machOFile: MachOFile) -> Bool {
         let identifier = MachOTargetIdentifier.file(machOFile.imagePath)
         return startIndexingIfNeeded(for: identifier, in: machOFile)
     }
@@ -77,7 +77,7 @@ package final class SymbolIndexStore {
             return true
         }
         var entry = IndexEntry()
-        
+
         var symbols: OrderedDictionary<String, Symbol> = [:]
 
         for symbol in machO.symbols where symbol.name.isSwiftSymbol {
@@ -94,7 +94,7 @@ package final class SymbolIndexStore {
             do {
                 var demangler = Demangler(scalars: symbol.stringValue.unicodeScalars)
                 let node = try demangler.demangleSymbol()
-                func setFunction(_ node: Node, isStatic: Bool = false) {
+                func perform(_ node: Node, isStatic: Bool) {
                     if let functionNode = node.children.first, functionNode.kind == .function {
                         if let structureNode = functionNode.children.first, structureNode.kind == .structure {
                             let typeNode = Node(kind: .global) {
@@ -147,9 +147,9 @@ package final class SymbolIndexStore {
                 }
 
                 if let staticNode = node.children.first, staticNode.kind == .static {
-                    setFunction(staticNode, isStatic: true)
+                    perform(staticNode, isStatic: true)
                 } else {
-                    setFunction(node)
+                    perform(node, isStatic: false)
                 }
 
             } catch {

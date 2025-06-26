@@ -76,7 +76,7 @@ extension Struct: NamedDumpable {
         }
 
         for kind in SymbolIndexStore.IndexKind.SubKind.allCases.map({ SymbolIndexStore.IndexKind.struct($0) }) {
-            for (offset, function) in SymbolIndexStore.shared.symbols(of: kind, for: try dumpName(using: .interface, in: machOFile).string, in: machOFile).offsetEnumerated() {
+            for (offset, symbol) in SymbolIndexStore.shared.symbols(of: kind, for: try dumpName(using: .interface, in: machOFile).string, in: machOFile).offsetEnumerated() {
                 
                 if offset.isStart {
                     BreakLine()
@@ -112,7 +112,7 @@ extension Struct: NamedDumpable {
                 
                 Indent(level: 1)
                 
-                try MetadataReader.demangleSymbol(for: function, in: machOFile).printSemantic(using: options)
+                try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
                 
                 if offset.isEnd {
                     BreakLine()

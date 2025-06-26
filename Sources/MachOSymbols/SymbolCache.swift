@@ -29,13 +29,13 @@ package final class SymbolCache {
     private var cacheEntryByIdentifier: [MachOTargetIdentifier: CacheEntry] = [:]
 
     @discardableResult
-    package func createCacheIfNeeded(for machOImage: MachOImage, isForced: Bool = false) -> Bool {
+    private func createCacheIfNeeded(for machOImage: MachOImage, isForced: Bool = false) -> Bool {
         let identifier = MachOTargetIdentifier.image(machOImage.ptr)
         return createCacheIfNeeded(for: identifier, in: machOImage, isForced: isForced)
     }
 
     @discardableResult
-    package func createCacheIfNeeded(for machOFile: MachOFile, isForced: Bool = false) -> Bool {
+    private func createCacheIfNeeded(for machOFile: MachOFile, isForced: Bool = false) -> Bool {
         let identifier = MachOTargetIdentifier.file(machOFile.imagePath)
         return createCacheIfNeeded(for: identifier, in: machOFile, isForced: isForced)
     }
@@ -64,12 +64,12 @@ package final class SymbolCache {
         return true
     }
 
-    package func removeCache(for machOImage: MachOImage) {
+    private func removeCache(for machOImage: MachOImage) {
         let identifier = MachOTargetIdentifier.image(machOImage.ptr)
         removeCache(for: identifier)
     }
 
-    package func removeCache(for machOFile: MachOFile) {
+    private func removeCache(for machOFile: MachOFile) {
         let identifier = MachOTargetIdentifier.file(machOFile.imagePath)
         removeCache(for: identifier)
     }
@@ -80,11 +80,13 @@ package final class SymbolCache {
 
     package func symbol(for offset: Int, in machOImage: MachOImage) -> Symbol? {
         let identifier = MachOTargetIdentifier.image(machOImage.ptr)
+        createCacheIfNeeded(for: identifier, in: machOImage)
         return symbol(for: offset, with: identifier, in: machOImage)
     }
 
     package func symbol(for offset: Int, in machOFile: MachOFile) -> Symbol? {
         let identifier = MachOTargetIdentifier.file(machOFile.imagePath)
+        createCacheIfNeeded(for: identifier, in: machOFile)
         return symbol(for: offset, with: identifier, in: machOFile)
     }
 
