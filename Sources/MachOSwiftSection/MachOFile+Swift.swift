@@ -16,62 +16,58 @@ extension MachOFile {
     }
 }
 
-enum MachOSwiftSectionError: LocalizedError {
-    case sectionNotFound(section: MachOSwiftSectionName, allSectionNames: [String])
-    case invalidSectionAlignment(section: MachOSwiftSectionName, align: Int)
-    
-    var errorDescription: String? {
-        switch self {
-        case .sectionNotFound(let section, let allSectionNames):
-            return "Swift section \(section.rawValue) not found in Mach-O. Available sections: \(allSectionNames.joined(separator: ", "))"
-        case .invalidSectionAlignment(let section, let align):
-            return "Invalid alignment for Swift section \(section.rawValue). Expected alignment is 4, but found \(align)."
-        }
-    }
-}
-
 extension MachOFile.Swift {
     public var protocolDescriptors: [ProtocolDescriptor] {
         get throws {
-            return try _readDescriptors(from: .__swift5_protos, in: machOFile)
+            return try _readRelativeDescriptors(from: .__swift5_protos, in: machOFile)
         }
     }
 
     public var protocolConformanceDescriptors: [ProtocolConformanceDescriptor] {
         get throws {
-            return try _readDescriptors(from: .__swift5_proto, in: machOFile)
+            return try _readRelativeDescriptors(from: .__swift5_proto, in: machOFile)
         }
     }
 
     public var typeContextDescriptors: [ContextDescriptorWrapper] {
         get throws {
-            return try _readDescriptors(from: .__swift5_types, in: machOFile) + (try? _readDescriptors(from: .__swift5_types2, in: machOFile))
+            return try _readRelativeDescriptors(from: .__swift5_types, in: machOFile) + (try? _readRelativeDescriptors(from: .__swift5_types2, in: machOFile))
         }
     }
 
     public var associatedTypeDescriptors: [AssociatedTypeDescriptor] {
         get throws {
-            let section = try machOFile.section(for: .__swift5_assocty)
-            var associatedTypeDescriptors: [AssociatedTypeDescriptor] = []
-            let offset = if let cache = machOFile.cache {
-                section.address - cache.mainCacheHeader.sharedRegionStart.cast()
-            } else {
-                section.offset
-            }
-            var currentOffset = offset
-            let endOffset = offset + section.size
-            while currentOffset < endOffset {
-                let associatedTypeDescriptor: AssociatedTypeDescriptor = try machOFile.readElement(offset: currentOffset)
-                currentOffset += associatedTypeDescriptor.size
-                associatedTypeDescriptors.append(associatedTypeDescriptor)
-            }
-            return associatedTypeDescriptors
+            return try _readDescriptors(from: .__swift5_assocty, in: machOFile)
+        }
+    }
+
+    public var builtinTypeDescriptors: [BuiltinTypeDescriptor] {
+        get throws {
+            return try _readDescriptors(from: .__swift5_builtin, in: machOFile)
         }
     }
 }
 
 extension MachOFile.Swift {
-    private func _readDescriptors<Descriptor: Resolvable>(from swiftMachOSection: MachOSwiftSectionName, in machO: MachOFile) throws -> [Descriptor] {
+    private func _readDescriptors<Descriptor: TopLevelDescriptor>(from swiftMachOSection: MachOSwiftSectionName, in machO: MachOFile) throws -> [Descriptor] {
+        let section = try machOFile.section(for: swiftMachOSection)
+        var descriptors: [Descriptor] = []
+        let offset = if let cache = machOFile.cache {
+            section.address - cache.mainCacheHeader.sharedRegionStart.cast()
+        } else {
+            section.offset
+        }
+        var currentOffset = offset
+        let endOffset = offset + section.size
+        while currentOffset < endOffset {
+            let descriptor: Descriptor = try machOFile.readElement(offset: currentOffset)
+            currentOffset += descriptor.actualSize
+            descriptors.append(descriptor)
+        }
+        return descriptors
+    }
+
+    private func _readRelativeDescriptors<Descriptor: Resolvable>(from swiftMachOSection: MachOSwiftSectionName, in machO: MachOFile) throws -> [Descriptor] {
         let section = try machOFile.section(for: swiftMachOSection)
         let pointerSize: Int = MemoryLayout<RelativeDirectPointer<Descriptor>>.size
         let offset = if let cache = machO.cache {
@@ -80,8 +76,6 @@ extension MachOFile.Swift {
             section.offset
         }
         let data: [AnyLocatableLayoutWrapper<RelativeDirectPointer<Descriptor>>] = try machO.readElements(offset: offset, numberOfElements: section.size / pointerSize)
-
         return try data.map { try $0.layout.resolve(from: $0.offset, in: machO) }
     }
 }
-

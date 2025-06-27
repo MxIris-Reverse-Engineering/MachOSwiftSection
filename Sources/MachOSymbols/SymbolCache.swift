@@ -44,6 +44,7 @@ package final class SymbolCache {
     private func createCacheIfNeeded<MachO: MachORepresentableWithCache>(for identifier: MachOTargetIdentifier, in machO: MachO, isForced: Bool = false) -> Bool {
         guard isForced || (cacheEntryByIdentifier[identifier]?.isEmpty ?? true) else { return false }
         var cacheEntry: CacheEntry = [:]
+        
         for symbol in machO.symbols where symbol.name.isSwiftSymbol {
             var offset = symbol.offset
             cacheEntry[offset] = .init(offset: offset, stringValue: symbol.name)

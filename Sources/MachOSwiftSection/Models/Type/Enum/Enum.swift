@@ -18,8 +18,7 @@ import MachOFoundation
 //                            InvertibleProtocolSet,
 //                            TargetSingletonMetadataPointer<Runtime>>
 
-@dynamicMemberLookup
-public struct Enum {
+public struct Enum: TopLevelType {
     public let descriptor: EnumDescriptor
     public let genericContext: TypeGenericContext?
     public let foreignMetadataInitialization: ForeignMetadataInitialization?
@@ -89,10 +88,6 @@ public struct Enum {
         } else {
             self.singletonMetadataPointer = nil
         }
-    }
-
-    public subscript<T>(dynamicMember member: KeyPath<EnumDescriptor, T>) -> T {
-        return descriptor[keyPath: member]
     }
 }
 

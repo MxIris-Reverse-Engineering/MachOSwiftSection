@@ -17,7 +17,8 @@ import MachOFoundation
 ///
 /// This contains enough static information to recover the witness table for a
 /// type's conformance to a protocol.
-public struct ProtocolConformance {
+
+public struct ProtocolConformance: TopLevelType {
     public let descriptor: ProtocolConformanceDescriptor
 
     public let `protocol`: SymbolOrElement<ProtocolDescriptor>?

@@ -82,4 +82,16 @@ extension DyldCacheDumpTests {
     @Test func associatedTypesInSubCacheFile() async throws {
         try await dumpAssociatedTypes(for: machOFileInSubCache)
     }
+    
+    @Test func builtinTypesInCacheFile() async throws {
+        try await dumpBuiltinTypes(for: machOFileInCache)
+    }
+    
+    @Test func builtinTypesInMainCacheFile() async throws {
+        try await dumpBuiltinTypes(for: machOFileInMainCache)
+    }
+    
+    @Test func builtinTypesInSubCacheFile() async throws {
+        try await dumpBuiltinTypes(for: machOFileInSubCache)
+    }
 }

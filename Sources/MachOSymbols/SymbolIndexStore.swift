@@ -5,21 +5,42 @@ import Demangle
 import OrderedCollections
 
 package final class SymbolIndexStore {
-    package enum IndexKind: Hashable {
-        package enum SubKind: Hashable, CaseIterable {
-            case function
-            case functionInExtension
-            case staticFunction
-            case staticFunctionInExtension
-            case variable
-            case variableInExtension
-            case staticVariable
-            case staticVariableInExtension
+    package enum IndexKind: Hashable, CaseIterable, CustomStringConvertible {
+        case allocator
+        case allocatorInExtension
+        case function
+        case functionInExtension
+        case staticFunction
+        case staticFunctionInExtension
+        case variable
+        case variableInExtension
+        case staticVariable
+        case staticVariableInExtension
+        
+        package var description: String {
+            switch self {
+            case .allocator:
+                "Allocators"
+            case .allocatorInExtension:
+                "Allocators In Extensions"
+            case .function:
+                "Functions"
+            case .functionInExtension:
+                "Functions In Extensions"
+            case .staticFunction:
+                "Static Functions"
+            case .staticFunctionInExtension:
+                "Static Functions In Extensions"
+            case .variable:
+                "Variables"
+            case .variableInExtension:
+                "Variables In Extensions"
+            case .staticVariable:
+                "Static Variables"
+            case .staticVariableInExtension:
+                "Static Variables In Extensions"
+            }
         }
-
-        case `enum`(SubKind)
-        case `struct`(SubKind)
-        case `class`(SubKind)
     }
 
     package static let shared = SymbolIndexStore()
@@ -94,55 +115,112 @@ package final class SymbolIndexStore {
             do {
                 var demangler = Demangler(scalars: symbol.stringValue.unicodeScalars)
                 let node = try demangler.demangleSymbol()
+//                func perform(_ node: Node, isStatic: Bool) {
+//                    if let functionNode = node.children.first, functionNode.kind == .function {
+//                        if let structureNode = functionNode.children.first, structureNode.kind == .structure {
+//                            let typeNode = Node(kind: .global) {
+//                                Node(kind: .type, child: structureNode)
+//                            }
+//                            entry.symbolsByKind[isStatic ? .struct(.staticFunction) : .struct(.function), default: [:]][typeNode.print(using: .interface), default: []].append(symbol)
+//                        } else if let enumNode = functionNode.children.first, enumNode.kind == .enum {
+//                            let typeNode = Node(kind: .global) {
+//                                Node(kind: .type, child: enumNode)
+//                            }
+//                            entry.symbolsByKind[isStatic ? .enum(.staticFunction) : .enum(.function), default: [:]][typeNode.print(using: .interface), default: []].append(symbol)
+//                        } else if let extensionNode = functionNode.children.first, extensionNode.kind == .extension {
+//                            if let structureNode = extensionNode.children.at(1), structureNode.kind == .structure {
+//                                let typeNode = Node(kind: .global) {
+//                                    Node(kind: .type, child: structureNode)
+//                                }
+//                                entry.symbolsByKind[isStatic ? .struct(.staticFunctionInExtension) : .struct(.functionInExtension), default: [:]][typeNode.print(using: .interface), default: []].append(symbol)
+//                            } else if let enumNode = extensionNode.children.at(1), enumNode.kind == .enum {
+//                                let typeNode = Node(kind: .global) {
+//                                    Node(kind: .type, child: enumNode)
+//                                }
+//                                entry.symbolsByKind[isStatic ? .enum(.staticFunctionInExtension) : .enum(.functionInExtension), default: [:]][typeNode.print(using: .interface), default: []].append(symbol)
+//                            }
+//                        }
+//                    } else if let propertyNode = node.children.first, propertyNode.kind == .getter || propertyNode.kind == .setter || propertyNode.kind == .modifyAccessor, let variableNode = propertyNode.children.first, variableNode.kind == .variable {
+//                        if let structureNode = variableNode.children.first, structureNode.kind == .structure {
+//                            let typeNode = Node(kind: .global) {
+//                                Node(kind: .type, child: structureNode)
+//                            }
+//                            entry.symbolsByKind[isStatic ? .struct(.staticVariable) : .struct(.variable), default: [:]][typeNode.print(using: .interface), default: []].append(symbol)
+//                        } else if let enumNode = variableNode.children.first, enumNode.kind == .enum {
+//                            let typeNode = Node(kind: .global) {
+//                                Node(kind: .type, child: enumNode)
+//                            }
+//                            entry.symbolsByKind[isStatic ? .enum(.staticVariable) : .enum(.variable), default: [:]][typeNode.print(using: .interface), default: []].append(symbol)
+//                        } else if let extensionNode = variableNode.children.first, extensionNode.kind == .extension {
+//                            if let structureNode = extensionNode.children.at(1), structureNode.kind == .structure {
+//                                let typeNode = Node(kind: .global) {
+//                                    Node(kind: .type, child: structureNode)
+//                                }
+//                                entry.symbolsByKind[isStatic ? .struct(.staticVariableInExtension) : .struct(.variableInExtension), default: [:]][typeNode.print(using: .interface), default: []].append(symbol)
+//                            } else if let enumNode = extensionNode.children.at(1), enumNode.kind == .enum {
+//                                let typeNode = Node(kind: .global) {
+//                                    Node(kind: .type, child: enumNode)
+//                                }
+//                                entry.symbolsByKind[isStatic ? .enum(.staticVariableInExtension) : .enum(.variableInExtension), default: [:]][typeNode.print(using: .interface), default: []].append(symbol)
+//                            }
+//                        }
+//                    }
+//                }
+
                 func perform(_ node: Node, isStatic: Bool) {
-                    if let functionNode = node.children.first, functionNode.kind == .function {
-                        if let structureNode = functionNode.children.first, structureNode.kind == .structure {
-                            let typeNode = Node(kind: .global) {
-                                Node(kind: .type, child: structureNode)
+                    guard let firstChild = node.children.first else { return }
+
+                    func processTypeNode(_ typeNode: Node?, inExtension: Bool) {
+                        guard let typeNode = typeNode else { return }
+
+                        let kind: IndexKind
+                        switch firstChild.kind {
+                        case .allocator:
+                            kind = inExtension ? .allocatorInExtension : .allocator
+                        case .function:
+                            if isStatic {
+                                kind = inExtension ? .staticFunctionInExtension : .staticFunction
+                            } else {
+                                kind = inExtension ? .functionInExtension : .function
                             }
-                            entry.symbolsByKind[isStatic ? .struct(.staticFunction) : .struct(.function), default: [:]][typeNode.print(using: .interface), default: []].append(symbol)
-                        } else if let enumNode = functionNode.children.first, enumNode.kind == .enum {
-                            let typeNode = Node(kind: .global) {
-                                Node(kind: .type, child: enumNode)
+                        case .getter,
+                             .setter,
+                             .modifyAccessor:
+                            if isStatic {
+                                kind = inExtension ? .staticVariableInExtension : .staticVariable
+                            } else {
+                                kind = inExtension ? .variableInExtension : .variable
                             }
-                            entry.symbolsByKind[isStatic ? .enum(.staticFunction) : .enum(.function), default: [:]][typeNode.print(using: .interface), default: []].append(symbol)
-                        } else if let extensionNode = functionNode.children.first, extensionNode.kind == .extension {
-                            if let structureNode = extensionNode.children.at(1), structureNode.kind == .structure {
-                                let typeNode = Node(kind: .global) {
-                                    Node(kind: .type, child: structureNode)
-                                }
-                                entry.symbolsByKind[isStatic ? .struct(.staticFunctionInExtension) : .struct(.functionInExtension), default: [:]][typeNode.print(using: .interface), default: []].append(symbol)
-                            } else if let enumNode = extensionNode.children.at(1), enumNode.kind == .enum {
-                                let typeNode = Node(kind: .global) {
-                                    Node(kind: .type, child: enumNode)
-                                }
-                                entry.symbolsByKind[isStatic ? .enum(.staticFunctionInExtension) : .enum(.functionInExtension), default: [:]][typeNode.print(using: .interface), default: []].append(symbol)
-                            }
+                        default:
+                            return
                         }
-                    } else if let propertyNode = node.children.first, propertyNode.kind == .getter || propertyNode.kind == .setter || propertyNode.kind == .modifyAccessor, let variableNode = propertyNode.children.first, variableNode.kind == .variable {
-                        if let structureNode = variableNode.children.first, structureNode.kind == .structure {
-                            let typeNode = Node(kind: .global) {
-                                Node(kind: .type, child: structureNode)
-                            }
-                            entry.symbolsByKind[isStatic ? .struct(.staticVariable) : .struct(.variable), default: [:]][typeNode.print(using: .interface), default: []].append(symbol)
-                        } else if let enumNode = variableNode.children.first, enumNode.kind == .enum {
-                            let typeNode = Node(kind: .global) {
-                                Node(kind: .type, child: enumNode)
-                            }
-                            entry.symbolsByKind[isStatic ? .enum(.staticVariable) : .enum(.variable), default: [:]][typeNode.print(using: .interface), default: []].append(symbol)
-                        } else if let extensionNode = variableNode.children.first, extensionNode.kind == .extension {
-                            if let structureNode = extensionNode.children.at(1), structureNode.kind == .structure {
-                                let typeNode = Node(kind: .global) {
-                                    Node(kind: .type, child: structureNode)
-                                }
-                                entry.symbolsByKind[isStatic ? .struct(.staticVariableInExtension) : .struct(.variableInExtension), default: [:]][typeNode.print(using: .interface), default: []].append(symbol)
-                            } else if let enumNode = extensionNode.children.at(1), enumNode.kind == .enum {
-                                let typeNode = Node(kind: .global) {
-                                    Node(kind: .type, child: enumNode)
-                                }
-                                entry.symbolsByKind[isStatic ? .enum(.staticVariableInExtension) : .enum(.variableInExtension), default: [:]][typeNode.print(using: .interface), default: []].append(symbol)
-                            }
+
+                        let globalTypeNode = Node(kind: .global) {
+                            Node(kind: .type, child: typeNode)
                         }
+
+                        entry.symbolsByKind[kind, default: [:]][globalTypeNode.print(using: .interface), default: []].append(symbol)
+                    }
+
+                    switch firstChild.kind {
+                    case .function,
+                         .allocator:
+                        if firstChild.children.first?.kind == .extension {
+                            processTypeNode(firstChild.children.first?.children.at(1), inExtension: true)
+                        } else {
+                            processTypeNode(firstChild.children.first, inExtension: false)
+                        }
+                    case .getter,
+                         .setter,
+                         .modifyAccessor:
+                        guard let variableNode = firstChild.children.first, variableNode.kind == .variable else { return }
+                        if variableNode.children.first?.kind == .extension {
+                            processTypeNode(variableNode.children.first?.children.at(1), inExtension: true)
+                        } else {
+                            processTypeNode(variableNode.children.first, inExtension: false)
+                        }
+                    default:
+                        break
                     }
                 }
 

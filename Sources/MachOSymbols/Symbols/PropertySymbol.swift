@@ -21,3 +21,20 @@ package struct PropertySymbol {
 
     package let isInExtension: Bool
 }
+
+package struct FunctionSymbol {
+    package let symbol: Symbol
+
+    package let identifier: String
+
+    package let isStatic: Bool
+
+    package let isInExtension: Bool
+}
+
+
+package struct AllocatorSymbol {
+    package let symbol: Symbol
+
+    package let identifier: String
+}

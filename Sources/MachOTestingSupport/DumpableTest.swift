@@ -85,6 +85,16 @@ extension DumpableTest {
             try AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: .test, in: machO).string.print()
         }
     }
+    
+    
+    @MachOImageGenerator
+    @MainActor
+    package func dumpBuiltinTypes(for machO: MachOFile) async throws {
+        let descriptors = try machO.swift.builtinTypeDescriptors
+        for descriptor in descriptors {
+            print(try BuiltinType(descriptor: descriptor, in: machO))
+        }
+    }
 }
 
 

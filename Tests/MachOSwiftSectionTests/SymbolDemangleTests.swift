@@ -45,14 +45,18 @@ struct SymbolDemangleTests {
     }
 
     @Test func symbolsInSwiftUI() async throws {
+        var string = ""
         let symbols = try symbols(for: .SwiftUI)
         for symbol in symbols {
             let swiftStdlibDemangledName = stdlib_demangleName(symbol.stringValue)
             guard !symbol.stringValue.hasSuffix("$delayInitStub") else { continue }
-            print(symbol.stringValue)
-            print(swiftStdlibDemangledName)
-            print("\n")
+            string += symbol.stringValue
+            string += "\n"
+            string += swiftStdlibDemangledName
+            string += "\n"
+            string += "\n"
         }
+        try string.write(to: .desktopDirectory.appendingPathComponent("SwiftUISwiftSymbols.txt"), atomically: true, encoding: .utf8)
     }
 
     @Test func demangle() async throws {

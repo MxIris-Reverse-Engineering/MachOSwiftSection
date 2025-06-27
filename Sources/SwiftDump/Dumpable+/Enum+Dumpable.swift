@@ -67,52 +67,28 @@ extension Enum: NamedDumpable {
             }
         }
 
-        for kind in SymbolIndexStore.IndexKind.SubKind.allCases.map({ SymbolIndexStore.IndexKind.enum($0) }) {
-            for (offset, function) in SymbolIndexStore.shared.symbols(of: kind, for: try dumpName(using: .interface, in: machOFile).string, in: machOFile).offsetEnumerated() {
-                
+        for kind in SymbolIndexStore.IndexKind.allCases {
+            for (offset, function) in try SymbolIndexStore.shared.symbols(of: kind, for: dumpName(using: .interface, in: machOFile).string, in: machOFile).offsetEnumerated() {
                 if offset.isStart {
                     BreakLine()
-                    
+
                     Indent(level: 1)
-                    
-                    switch kind {
-                    case .enum(let subKind):
-                        switch subKind {
-                        case .function:
-                            InlineComment("Functions")
-                        case .functionInExtension:
-                            InlineComment("Functions In Extension")
-                        case .staticFunction:
-                            InlineComment("Static Functions")
-                        case .staticFunctionInExtension:
-                            InlineComment("Static Functions In Extension")
-                        case .variable:
-                            InlineComment("Variables")
-                        case .variableInExtension:
-                            InlineComment("Variables In Extension")
-                        case .staticVariable:
-                            InlineComment("Static Variables")
-                        case .staticVariableInExtension:
-                            InlineComment("Static Variables In Extension")
-                        }
-                    default:
-                        fatalError("unreachable")
-                    }
+
+                    InlineComment(kind.description)
                 }
-                
+
                 BreakLine()
-                
+
                 Indent(level: 1)
-                
+
                 try MetadataReader.demangleSymbol(for: function, in: machOFile).printSemantic(using: options)
-                
+
                 if offset.isEnd {
                     BreakLine()
                 }
             }
         }
-        
-        
+
         Standard("}")
     }
 }
