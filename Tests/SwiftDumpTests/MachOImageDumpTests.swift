@@ -8,13 +8,7 @@ import MachOFoundation
 @testable import MachOTestingSupport
 
 @Suite(.serialized)
-struct MachOImageDumpTests: DumpableTest {
-    let machOImage: MachOImage
-
-    init() async throws {
-        self.machOImage = try #require(MachOImage(named: .Foundation))
-    }
-}
+final class MachOImageDumpTests: MachOImageTests, DumpableTests {}
 
 extension MachOImageDumpTests {
     @Test func typesInImage() async throws {

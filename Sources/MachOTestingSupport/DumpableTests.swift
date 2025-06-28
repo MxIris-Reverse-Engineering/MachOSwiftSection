@@ -5,11 +5,11 @@ import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
 
-package protocol DumpableTest {
+package protocol DumpableTests {
     var isEnabledSearchMetadata: Bool { get }
 }
 
-extension DumpableTest {
+extension DumpableTests {
     package var isEnabledSearchMetadata: Bool { false }
     
     @MachOImageGenerator

@@ -8,9 +8,9 @@ import MachOFoundation
 @testable import MachOTestingSupport
 
 @Suite(.serialized)
-final class MachOFileDumpTests: MachOFileTests, DumpableTests {}
+final class XcodeMachOFileDumpTests: XcodeMachOFileTests, DumpableTests {}
 
-extension MachOFileDumpTests {
+extension XcodeMachOFileDumpTests {
     @Test func typesInFile() async throws {
         try await dumpTypes(for: machOFile)
     }

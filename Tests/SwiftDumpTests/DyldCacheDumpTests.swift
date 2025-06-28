@@ -8,31 +8,7 @@ import MachOFoundation
 @testable import MachOTestingSupport
 
 @Suite(.serialized)
-struct DyldCacheDumpTests: DumpableTest {
-    let mainCache: DyldCache
-
-    let subCache: DyldCache
-
-    let machOFileInMainCache: MachOFile
-
-    let machOFileInSubCache: MachOFile
-
-    let machOFileInCache: MachOFile
-
-    init() async throws {
-        self.mainCache = try DyldCache(path: .current)
-        self.subCache = try required(mainCache.subCaches?.first?.subcache(for: mainCache))
-
-        self.machOFileInMainCache = try #require(mainCache.machOFile(named: .SwiftUI))
-        self.machOFileInSubCache = if #available(macOS 15.5, *) {
-            try #require(subCache.machOFile(named: .CodableSwiftUI))
-        } else {
-            try #require(subCache.machOFile(named: .UIKitCore))
-        }
-
-        self.machOFileInCache = try #require(mainCache.machOFile(named: .AppKit))
-    }
-}
+final class DyldCacheDumpTests: DyldCacheTests, DumpableTests {}
 
 extension DyldCacheDumpTests {
     @Test func typesInCacheFile() async throws {

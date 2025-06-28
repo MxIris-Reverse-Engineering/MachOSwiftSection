@@ -5,19 +5,10 @@ import MachOKit
 import MachOMacro
 import MachOFoundation
 @testable import MachOSwiftSection
-import MachOTestingSupport
+@testable import MachOTestingSupport
 
 @Suite(.serialized)
-struct SymbolDemangleTests {
-    let mainCache: DyldCache
-
-    let subCache: DyldCache
-
-    init() async throws {
-        self.mainCache = try DyldCache(path: .current)
-        self.subCache = try required(mainCache.subCaches?.first?.subcache(for: mainCache))
-    }
-
+final class SymbolDemangleTests: DyldCacheTests {
     struct MachOSwiftSymbol {
         let imagePath: String
         let offset: Int
@@ -46,7 +37,7 @@ struct SymbolDemangleTests {
 
     @Test func symbolsInSwiftUI() async throws {
         var string = ""
-        let symbols = try symbols(for: .SwiftUI)
+        let symbols = try symbols(for: .AttributeGraph)
         for symbol in symbols {
             let swiftStdlibDemangledName = stdlib_demangleName(symbol.stringValue)
             guard !symbol.stringValue.hasSuffix("$delayInitStub") else { continue }
@@ -56,7 +47,7 @@ struct SymbolDemangleTests {
             string += "\n"
             string += "\n"
         }
-        try string.write(to: .desktopDirectory.appendingPathComponent("SwiftUISwiftSymbols.txt"), atomically: true, encoding: .utf8)
+        try string.write(to: .desktopDirectory.appendingPathComponent("AttributeGraphSwiftSymbols.txt"), atomically: true, encoding: .utf8)
     }
 
     @Test func demangle() async throws {
