@@ -64,37 +64,12 @@ package final class SymbolIndexStore {
         var symbolsByKind: [IndexKind: [String: [Symbol]]] = [:]
     }
 
-    private var indexEntryByIdentifier: [MachOTargetIdentifier: IndexEntry] = [:]
+    private var indexEntryByIdentifier: [AnyHashable: IndexEntry] = [:]
 
-    private func removeIndexs(for machOImage: MachOImage) {
-        let identifier = MachOTargetIdentifier.image(machOImage.ptr)
-        removeIndexs(for: identifier)
-    }
-
-    private func removeIndexs(for machOFile: MachOFile) {
-        let identifier = MachOTargetIdentifier.file(machOFile.imagePath)
-        removeIndexs(for: identifier)
-    }
-
-    private func removeIndexs(for identifier: MachOTargetIdentifier) {
-        indexEntryByIdentifier.removeValue(forKey: identifier)
-    }
 
     @discardableResult
-    private func startIndexingIfNeeded(for machOImage: MachOImage) -> Bool {
-        let identifier = MachOTargetIdentifier.image(machOImage.ptr)
-        return startIndexingIfNeeded(for: identifier, in: machOImage)
-    }
-
-    @discardableResult
-    private func startIndexingIfNeeded(for machOFile: MachOFile) -> Bool {
-        let identifier = MachOTargetIdentifier.file(machOFile.imagePath)
-        return startIndexingIfNeeded(for: identifier, in: machOFile)
-    }
-
-    @discardableResult
-    private func startIndexingIfNeeded<MachO: MachORepresentableWithCache>(for identifier: MachOTargetIdentifier, in machO: MachO) -> Bool {
-        if let existedEntry = indexEntryByIdentifier[identifier], existedEntry.isIndexed {
+    package func startIndexingIfNeeded<MachO: MachORepresentableWithCache>(in machO: MachO) -> Bool {
+        if let existedEntry = indexEntryByIdentifier[machO.identifier], existedEntry.isIndexed {
             return true
         }
         var entry = IndexEntry()
@@ -235,24 +210,13 @@ package final class SymbolIndexStore {
             }
         }
         entry.isIndexed = true
-        indexEntryByIdentifier[identifier] = entry
+        indexEntryByIdentifier[machO.identifier] = entry
         return true
     }
 
-    package func symbols(of kind: IndexKind, for name: String, in machOImage: MachOImage) -> [Symbol] {
-        let identifier = MachOTargetIdentifier.image(machOImage.ptr)
-        startIndexingIfNeeded(for: identifier, in: machOImage)
-        return symbols(of: kind, for: name, with: identifier, in: machOImage)
-    }
-
-    package func symbols(of kind: IndexKind, for name: String, in machOFile: MachOFile) -> [Symbol] {
-        let identifier = MachOTargetIdentifier.file(machOFile.imagePath)
-        startIndexingIfNeeded(for: identifier, in: machOFile)
-        return symbols(of: kind, for: name, with: identifier, in: machOFile)
-    }
-
-    private func symbols<MachO: MachORepresentableWithCache>(of kind: IndexKind, for name: String, with identifier: MachOTargetIdentifier, in machO: MachO) -> [Symbol] {
-        if let symbol = indexEntryByIdentifier[identifier]?.symbolsByKind[kind]?[name] {
+    package func symbols<MachO: MachORepresentableWithCache>(of kind: IndexKind, for name: String, in machO: MachO) -> [Symbol] {
+        startIndexingIfNeeded(in: machO)
+        if let symbol = indexEntryByIdentifier[machO.identifier]?.symbolsByKind[kind]?[name] {
             return symbol
         } else {
             return []

@@ -4,37 +4,37 @@ import MachOFoundation
 import MachOMacro
 
 public struct MangledName {
-    enum Element {
-        struct Lookup: CustomStringConvertible {
-            enum Reference {
+    package enum Element {
+        package struct Lookup: CustomStringConvertible {
+            package enum Reference {
                 case relative(RelativeReference)
                 case absolute(AbsoluteReference)
             }
 
-            struct RelativeReference: CustomStringConvertible {
-                let kind: UInt8
-                let relativeOffset: RelativeOffset
-                var description: String {
+            package struct RelativeReference: CustomStringConvertible {
+                package let kind: UInt8
+                package let relativeOffset: RelativeOffset
+                package var description: String {
                     """
                     Kind: \(kind) RelativeOffset: \(relativeOffset)
                     """
                 }
             }
 
-            struct AbsoluteReference: CustomStringConvertible {
-                let kind: UInt8
-                let reference: UInt64
-                var description: String {
+            package struct AbsoluteReference: CustomStringConvertible {
+                package let kind: UInt8
+                package let reference: UInt64
+                package var description: String {
                     """
                     Kind: \(kind) Address: \(reference)
                     """
                 }
             }
 
-            let offset: Int
-            let reference: Reference
+            package let offset: Int
+            package let reference: Reference
 
-            var description: String {
+            package var description: String {
                 switch reference {
                 case .relative(let relative):
                     "[Relative] FileOffset: \(offset) \(relative)"
@@ -48,23 +48,23 @@ public struct MangledName {
         case lookup(Lookup)
     }
 
-    let elements: [Element]
+    package let elements: [Element]
 
-    let startOffset: Int
+    package let startOffset: Int
 
-    let endOffset: Int?
+    package let endOffset: Int?
 
-    init(elements: [Element], startOffset: Int, endOffset: Int?) {
+    package init(elements: [Element], startOffset: Int, endOffset: Int?) {
         self.elements = elements
         self.startOffset = startOffset
         self.endOffset = endOffset
     }
 
-    init(unsolvedSymbol: Symbol) {
+    package init(unsolvedSymbol: Symbol) {
         self.init(elements: [.string(unsolvedSymbol.stringValue)], startOffset: unsolvedSymbol.offset, endOffset: nil)
     }
 
-    var lookupElements: [Element.Lookup] {
+    package var lookupElements: [Element.Lookup] {
         elements.compactMap { if case .lookup(let lookup) = $0 { lookup } else { nil } }
     }
 

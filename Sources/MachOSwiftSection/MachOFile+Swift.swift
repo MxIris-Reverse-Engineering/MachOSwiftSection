@@ -16,7 +16,7 @@ extension MachOFile {
     }
 }
 
-extension MachOFile.Swift {
+extension MachOFile.Swift: SwiftSectionRepresentable {
     public var protocolDescriptors: [ProtocolDescriptor] {
         get throws {
             return try _readRelativeDescriptors(from: .__swift5_protos, in: machOFile)

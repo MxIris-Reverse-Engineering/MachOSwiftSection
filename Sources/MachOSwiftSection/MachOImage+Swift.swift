@@ -16,7 +16,7 @@ extension MachOImage {
     }
 }
 
-extension MachOImage.Swift {
+extension MachOImage.Swift: SwiftSectionRepresentable {
     public var protocolDescriptors: [ProtocolDescriptor] {
         get throws {
             return try _readRelativeDescriptors(from: .__swift5_protos, in: machOImage)

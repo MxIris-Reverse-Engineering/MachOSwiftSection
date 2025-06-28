@@ -2,11 +2,6 @@ import MachOKit
 import MachOExtensions
 import Demangle
 
-enum MachOTargetIdentifier: Hashable {
-    case image(UnsafeRawPointer)
-    case file(String)
-}
-
 package final class SymbolCache {
     package static let shared = SymbolCache()
 
@@ -26,25 +21,13 @@ package final class SymbolCache {
 
     private typealias CacheEntry = [Int: Symbol]
 
-    private var cacheEntryByIdentifier: [MachOTargetIdentifier: CacheEntry] = [:]
+    private var cacheEntryByIdentifier: [AnyHashable: CacheEntry] = [:]
 
     @discardableResult
-    private func createCacheIfNeeded(for machOImage: MachOImage, isForced: Bool = false) -> Bool {
-        let identifier = MachOTargetIdentifier.image(machOImage.ptr)
-        return createCacheIfNeeded(for: identifier, in: machOImage, isForced: isForced)
-    }
-
-    @discardableResult
-    private func createCacheIfNeeded(for machOFile: MachOFile, isForced: Bool = false) -> Bool {
-        let identifier = MachOTargetIdentifier.file(machOFile.imagePath)
-        return createCacheIfNeeded(for: identifier, in: machOFile, isForced: isForced)
-    }
-
-    @discardableResult
-    private func createCacheIfNeeded<MachO: MachORepresentableWithCache>(for identifier: MachOTargetIdentifier, in machO: MachO, isForced: Bool = false) -> Bool {
-        guard isForced || (cacheEntryByIdentifier[identifier]?.isEmpty ?? true) else { return false }
+    package func createCacheIfNeeded<MachO: MachORepresentableWithCache>(in machO: MachO, isForced: Bool = false) -> Bool {
+        guard isForced || (cacheEntryByIdentifier[machO.identifier]?.isEmpty ?? true) else { return false }
         var cacheEntry: CacheEntry = [:]
-        
+
         for symbol in machO.symbols where symbol.name.isSwiftSymbol {
             var offset = symbol.offset
             cacheEntry[offset] = .init(offset: offset, stringValue: symbol.name)
@@ -61,38 +44,13 @@ package final class SymbolCache {
                 cacheEntry[offset] = .init(offset: offset, stringValue: exportedSymbol.name)
             }
         }
-        cacheEntryByIdentifier[identifier] = cacheEntry
+        cacheEntryByIdentifier[machO.identifier] = cacheEntry
         return true
     }
 
-    private func removeCache(for machOImage: MachOImage) {
-        let identifier = MachOTargetIdentifier.image(machOImage.ptr)
-        removeCache(for: identifier)
-    }
-
-    private func removeCache(for machOFile: MachOFile) {
-        let identifier = MachOTargetIdentifier.file(machOFile.imagePath)
-        removeCache(for: identifier)
-    }
-
-    private func removeCache(for identifier: MachOTargetIdentifier) {
-        cacheEntryByIdentifier.removeValue(forKey: identifier)
-    }
-
-    package func symbol(for offset: Int, in machOImage: MachOImage) -> Symbol? {
-        let identifier = MachOTargetIdentifier.image(machOImage.ptr)
-        createCacheIfNeeded(for: identifier, in: machOImage)
-        return symbol(for: offset, with: identifier, in: machOImage)
-    }
-
-    package func symbol(for offset: Int, in machOFile: MachOFile) -> Symbol? {
-        let identifier = MachOTargetIdentifier.file(machOFile.imagePath)
-        createCacheIfNeeded(for: identifier, in: machOFile)
-        return symbol(for: offset, with: identifier, in: machOFile)
-    }
-
-    private func symbol<MachO: MachORepresentableWithCache>(for offset: Int, with identifier: MachOTargetIdentifier, in machO: MachO) -> Symbol? {
-        if let symbol = cacheEntryByIdentifier[identifier, default: [:]][offset] {
+    package func symbol<MachO: MachORepresentableWithCache>(for offset: Int, in machO: MachO) -> Symbol? {
+        createCacheIfNeeded(in: machO)
+        if let symbol = cacheEntryByIdentifier[machO.identifier, default: [:]][offset] {
             return symbol
         } else {
             return nil

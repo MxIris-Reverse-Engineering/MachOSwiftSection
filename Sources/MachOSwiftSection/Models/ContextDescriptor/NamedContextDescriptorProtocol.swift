@@ -10,5 +10,7 @@ extension NamedContextDescriptorProtocol {
         try layout.name.resolve(from: offset + layout.offset(of: .name), in: machOFile)
     }
     
-    
+    public func mangledName(in machOFile: MachOFile) throws -> MangledName {
+        try layout.name.resolveAny(from: offset + layout.offset(of: .name), in: machOFile)
+    }
 }
