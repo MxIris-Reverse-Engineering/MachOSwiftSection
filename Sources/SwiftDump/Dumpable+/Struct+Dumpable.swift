@@ -4,6 +4,7 @@ import MachOSwiftSection
 import MachOMacro
 import Semantic
 import MachOSymbols
+import Utilities
 
 extension Struct: NamedDumpable {
     @MachOImageGenerator

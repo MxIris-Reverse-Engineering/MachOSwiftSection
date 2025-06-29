@@ -4,6 +4,9 @@ import MachOSwiftSection
 import MachOMacro
 import Semantic
 import MachOFoundation
+import Utilities
+import Demangle
+import OrderedCollections
 
 extension MachOSwiftSection.`Protocol`: NamedDumpable {
     @MachOImageGenerator
@@ -51,28 +54,52 @@ extension MachOSwiftSection.`Protocol`: NamedDumpable {
             }
         }
 
+        var defaultImplementations: OrderedSet<Node> = []
+        
         for (offset, requirement) in requirements.offsetEnumerated() {
             BreakLine()
             Indent(level: 1)
-            if let symbol = try Symbol.resolve(from: requirement.offset, in: machOFile) {
-                try? MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+            if let symbols = try Symbols.resolve(from: requirement.offset, in: machOFile), let validNode = try validNode(for: symbols, in: machOFile) {
+                validNode.printSemantic(using: options)
             } else {
                 InlineComment("[Stripped Symbol]")
             }
             
-            if let symbol = try requirement.defaultImplementationSymbol(in: machOFile), let defaultImplementation = try? MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options) {
-                BreakLine()
-                Indent(level: 1)
-                InlineComment("[Default Implementation]")
-                Space()
-                defaultImplementation
+            if let symbols = try requirement.defaultImplementationSymbols(in: machOFile), let defaultImplementation = try validNode(for: symbols, in: machOFile, visitedNode: defaultImplementations) {
+                _ = defaultImplementations.append(defaultImplementation)
             }
             
             if offset.isEnd {
                 BreakLine()
             }
         }
-
+        
+        for (offset, defaultImplementation) in defaultImplementations.offsetEnumerated() {
+         
+            if offset.isStart {
+                BreakLine()
+                Indent(level: 1)
+                InlineComment("[Default Implementation]")
+            }
+            
+            BreakLine()
+            Indent(level: 1)
+            defaultImplementation.printSemantic(using: options)
+            
+            if offset.isEnd {
+                BreakLine()
+            }
+        }
         Standard("}")
+    }
+    
+    @MachOImageGenerator
+    private func validNode(for symbols: Symbols, in machOFile: MachOFile, visitedNode: borrowing OrderedSet<Node> = []) throws -> Node? {
+        for symbol in symbols {
+            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machOFile), let protocolNode = node.first(where: { $0.kind == .protocol }), protocolNode.print(using: .interface) == (try dumpName(using: .interface, in: machOFile)).string, !visitedNode.contains(node) {
+                return node
+            }
+        }
+        return nil
     }
 }

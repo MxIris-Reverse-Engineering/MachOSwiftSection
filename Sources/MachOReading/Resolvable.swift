@@ -17,8 +17,7 @@ extension Resolvable {
     }
 
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self? {
-        let result: Self = try resolve(from: fileOffset, in: machOFile)
-        return .some(result)
+         return try? resolve(from: fileOffset, in: machOFile)
     }
 }
 

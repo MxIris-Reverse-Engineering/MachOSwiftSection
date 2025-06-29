@@ -175,7 +175,4 @@ extension MangledName: CustomStringConvertible {
     }
 }
 
-public enum MangledNameKind {
-    case type
-    case symbol
-}
+

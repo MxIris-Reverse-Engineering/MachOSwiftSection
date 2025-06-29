@@ -34,10 +34,12 @@ final class SymbolDemangleTests: DyldCacheTests {
             }
         }
     }
-
-    @Test func symbolsInSwiftUI() async throws {
+    
+    #if !SILENT_TEST
+    @Test func writeSwiftUISymbolsToDesktop() async throws {
         var string = ""
-        let symbols = try symbols(for: .AttributeGraph)
+        let imageName: MachOImageName = .SwiftUI
+        let symbols = try symbols(for: imageName)
         for symbol in symbols {
             let swiftStdlibDemangledName = stdlib_demangleName(symbol.stringValue)
             guard !symbol.stringValue.hasSuffix("$delayInitStub") else { continue }
@@ -47,9 +49,10 @@ final class SymbolDemangleTests: DyldCacheTests {
             string += "\n"
             string += "\n"
         }
-        try string.write(to: .desktopDirectory.appendingPathComponent("AttributeGraphSwiftSymbols.txt"), atomically: true, encoding: .utf8)
+        try string.write(to: .desktopDirectory.appendingPathComponent("\(imageName.rawValue)-SwiftSymbols.txt"), atomically: true, encoding: .utf8)
     }
-
+    #endif
+    
     @Test func demangle() async throws {
         var demangler = Demangler(scalars: "_$s6Charts10ChartProxyV5value2at2asx_q_tSgSo7CGPointV_x_q_tmtAA9PlottableRzAaJR_r0_lF".unicodeScalars)
         let node = try demangler.demangleSymbol()

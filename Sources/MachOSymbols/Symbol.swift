@@ -4,10 +4,6 @@ import MachOReading
 import MachOExtensions
 
 public struct Symbol: Resolvable, Hashable {
-    public enum ResolveError: Swift.Error {
-        case symbolNotFound
-    }
-
     public let offset: Int
 
     public let stringValue: String
@@ -19,15 +15,15 @@ public struct Symbol: Resolvable, Hashable {
 
     @MachOImageGenerator
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self {
-        guard let symbol = try resolve(from: fileOffset, in: machOFile) else { throw ResolveError.symbolNotFound }
-        return symbol
+        try required(resolve(from: fileOffset, in: machOFile))
     }
 
     @MachOImageGenerator
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self? {
-        if let symbol = machOFile.findSymbol(offset: fileOffset) {
+        if let symbol = machOFile.symbols(offset: fileOffset)?.first {
             return symbol
         }
         return nil
     }
 }
+

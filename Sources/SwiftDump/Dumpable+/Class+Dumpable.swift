@@ -4,6 +4,7 @@ import MachOKit
 import MachOMacro
 import MachOFoundation
 import MachOSwiftSection
+import Utilities
 
 extension Class: NamedDumpable {
     @MachOImageGenerator

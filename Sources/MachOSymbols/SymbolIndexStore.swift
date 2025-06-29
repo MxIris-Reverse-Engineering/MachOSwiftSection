@@ -3,6 +3,7 @@ import MachOKit
 import MachOExtensions
 import Demangle
 import OrderedCollections
+import Utilities
 
 package final class SymbolIndexStore {
     package enum IndexKind: Hashable, CaseIterable, CustomStringConvertible {

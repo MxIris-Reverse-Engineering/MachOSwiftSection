@@ -5,7 +5,7 @@ import MachOFoundation
 public struct ProtocolRequirement: ResolvableLocatableLayoutWrapper {
     public struct Layout: Sendable {
         public let flags: ProtocolRequirementFlags
-        public let defaultImplementation: RelativeDirectPointer<Symbol?>
+        public let defaultImplementation: RelativeDirectPointer<Symbols?>
     }
 
     public let offset: Int
@@ -20,7 +20,7 @@ public struct ProtocolRequirement: ResolvableLocatableLayoutWrapper {
 
 @MachOImageAllMembersGenerator
 extension ProtocolRequirement {
-    public func defaultImplementationSymbol(in machOFile: MachOFile) throws -> Symbol? {
+    public func defaultImplementationSymbols(in machOFile: MachOFile) throws -> Symbols? {
         guard layout.defaultImplementation.isValid else { return nil }
         return try layout.defaultImplementation.resolve(from: offset(of: \.defaultImplementation), in: machOFile)
     }

@@ -132,6 +132,10 @@ let package = Package(
         ),
 
         .target(
+            name: "Utilities"
+        ),
+        
+        .target(
             name: "MachOExtensions",
             dependencies: [
                 .MachOKit,
@@ -157,6 +161,7 @@ let package = Package(
                 "MachOReading",
                 "MachOMacro",
                 "Demangle",
+                "Utilities",
                 .product(name: "OrderedCollections", package: "swift-collections"),
             ]
         ),
@@ -167,7 +172,6 @@ let package = Package(
                 .MachOKit,
                 "MachOReading",
                 "MachOMacro",
-                "MachOSymbols",
             ]
         ),
 
@@ -179,6 +183,7 @@ let package = Package(
                 "MachOExtensions",
                 "MachOMacro",
                 "MachOPointer",
+                "MachOSymbols",
             ]
         ),
 
@@ -208,6 +213,8 @@ let package = Package(
                 .MachOKit,
                 "MachOSwiftSection",
                 "Semantic",
+                "Utilities",
+                .product(name: "OrderedCollections", package: "swift-collections"),
             ]
         ),
 

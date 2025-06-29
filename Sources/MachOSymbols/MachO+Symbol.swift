@@ -2,13 +2,13 @@ import MachOKit
 import MachOExtensions
 
 extension MachOFile {
-    package func findSymbol(offset: Int) -> MachOSymbols.Symbol? {
-        return SymbolCache.shared.symbol(for: offset, in: self)
+    package func symbols(offset: Int) -> MachOSymbols.Symbols? {
+        return SymbolCache.shared.symbols(for: offset, in: self)
     }
 }
 
 extension MachOImage {
-    package func findSymbol(offset: Int) -> MachOSymbols.Symbol? {
-        return SymbolCache.shared.symbol(for: offset, in: self)
+    package func symbols(offset: Int) -> MachOSymbols.Symbols? {
+        return SymbolCache.shared.symbols(for: offset, in: self)
     }
 }
