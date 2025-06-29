@@ -1,5 +1,5 @@
 extension Node {
-    public enum Kind: Hashable, Sendable, CaseIterable {
+    public enum Kind: String, Hashable, Sendable, CaseIterable {
         case allocator
         case accessibleFunctionRecord
         case accessorFunctionReference
@@ -537,5 +537,11 @@ extension Node.Kind {
              .protocolListWithAnyObject: return true
         default: return false
         }
+    }
+}
+
+extension Node.Kind: CustomStringConvertible {
+    public var description: String {
+        rawValue.capitalized
     }
 }

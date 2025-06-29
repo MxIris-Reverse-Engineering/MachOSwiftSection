@@ -1,26 +1,6 @@
-import Semantic
-
 extension String {
     package var isSwiftSymbol: Bool {
         getManglingPrefixLength(unicodeScalars) > 0
-    }
-}
-
-extension String {
-    mutating func writeHex(prefix: String? = nil, _ value: UInt64) {
-        if let prefix = prefix {
-            write(prefix)
-        }
-        write(String(value, radix: 16, uppercase: true))
-    }
-}
-
-extension SemanticString {
-    mutating func writeHex(prefix: String? = nil, _ value: UInt64) {
-        if let prefix = prefix {
-            write(prefix)
-        }
-        write(String(value, radix: 16, uppercase: true))
     }
 }
 
@@ -34,14 +14,6 @@ extension Array {
             return ArraySlice()
         } else {
             return self[(from > startIndex ? from : startIndex) ..< (to < endIndex ? to : endIndex)]
-        }
-    }
-}
-
-extension TextOutputStream {
-    mutating func write(conditional: Bool, _ value: String) {
-        if conditional {
-            write(value)
         }
     }
 }
@@ -92,5 +64,11 @@ extension Array {
         var result = self
         result.reverseFirst(count)
         return result
+    }
+}
+
+extension BinaryInteger {
+    var hexadecimalString: String {
+        String(self, radix: 16, uppercase: true)
     }
 }

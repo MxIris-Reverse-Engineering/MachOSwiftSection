@@ -126,7 +126,6 @@ let package = Package(
         .target(
             name: "Demangle",
             dependencies: [
-                "Semantic",
                 .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             ]
         ),
