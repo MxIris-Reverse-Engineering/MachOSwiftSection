@@ -1,5 +1,5 @@
-package enum XcodeMachOFileName {
-    package enum SharedFrameworks: String {
+package enum XcodeMachOFileName: CaseIterable {
+    package enum SharedFrameworks: String, CaseIterable {
         case AccessibilityAudit
         case AccessibilitySupport
         case AppResourceGeneration
@@ -226,7 +226,6 @@ package enum XcodeMachOFileName {
         case _CodeCompletionFoundation
         case kperfdataDT
         case ktraceDT
-        case libXCTestSwiftSupport
         case llbuild
         package var pathComponent: String {
             "/SharedFrameworks/\(rawValue).framework"
@@ -244,5 +243,9 @@ package enum XcodeMachOFileName {
         case .sharedFrameworks(let framework):
             return "\(contentsDirectory)\(framework.pathComponent)"
         }
+    }
+    
+    package static var allCases: [XcodeMachOFileName] {
+        SharedFrameworks.allCases.map { .sharedFrameworks($0) }
     }
 }

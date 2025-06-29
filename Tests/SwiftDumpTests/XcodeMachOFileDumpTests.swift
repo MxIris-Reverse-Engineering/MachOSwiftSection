@@ -26,10 +26,4 @@ extension XcodeMachOFileDumpTests {
     @Test func associatedTypesInFile() async throws {
         try await dumpAssociatedTypes(for: machOFile)
     }
-    
-    @Test func symbols() async throws {
-        if let symbols: Symbols = try RelativeDirectPointer(relativeOffset: 2).resolve(from: 72870, in: machOFile) {
-            print(symbols)
-        }
-    }
 }

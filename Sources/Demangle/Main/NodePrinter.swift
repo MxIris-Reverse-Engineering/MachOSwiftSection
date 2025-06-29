@@ -199,7 +199,7 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
         case .functionSignatureSpecialization: printSpecializationPrefix(name, description: "function signature specialization")
         case .functionSignatureSpecializationParam: printFunctionSignatureSpecializationParam(name)
         case .functionSignatureSpecializationParamKind: printFunctionSignatureSpecializationParamKind(name)
-        case .functionSignatureSpecializationParamPayload: target.write((try? demangleAsNode(name.text ?? "").description) ?? (name.text ?? ""))
+        case .functionSignatureSpecializationParamPayload: target.write((try? demangleAsNode(name.text ?? "").print(using: options)) ?? (name.text ?? ""))
         case .functionSignatureSpecializationReturn: printFunctionSignatureSpecializationParam(name)
         case .genericPartialSpecialization: printSpecializationPrefix(name, description: "generic partial specialization", paramPrefix: "Signature = ")
         case .genericPartialSpecializationNotReAbstracted: printSpecializationPrefix(name, description: "generic not-reabstracted partial specialization", paramPrefix: "Signature = ")
@@ -507,7 +507,7 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
     }
 
     private mutating func printMacro(name: Node, asPrefixContext: Bool, label: String) -> Node? {
-        return printEntity(name, asPrefixContext: asPrefixContext, typePrinting: .noType, hasName: true, extraName: "\(label) macro @\(name.children.at(2)?.description ?? "") expansion #", extraIndex: (name.children.at(3)?.index ?? 0) + 1)
+        return printEntity(name, asPrefixContext: asPrefixContext, typePrinting: .noType, hasName: true, extraName: "\(label) macro @\(name.children.at(2)?.print(using: options) ?? "") expansion #", extraIndex: (name.children.at(3)?.index ?? 0) + 1)
     }
 
     private mutating func printAnonymousContext(_ name: Node) {
@@ -586,7 +586,7 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
                  .constantPropGlobal:
                 _ = printOptional(name.children.at(idx), prefix: "[", suffix: " : ")
                 guard let t = name.children.at(idx + 1)?.text else { return }
-                let demangedName = (try? demangleAsNode(t))?.description ?? ""
+                let demangedName = (try? demangleAsNode(t))?.print(using: options) ?? ""
                 if demangedName.isEmpty {
                     target.write(t)
                 } else {
