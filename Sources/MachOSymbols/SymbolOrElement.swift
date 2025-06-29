@@ -3,7 +3,7 @@ import MachOReading
 import MachOExtensions
 
 public enum SymbolOrElement<Element: Resolvable>: Resolvable {
-    case symbol(MachOSymbol)
+    case symbol(Symbol)
     case element(Element)
 
     public var isResolved: Bool {
@@ -15,7 +15,7 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
         }
     }
     
-    public var symbol: MachOSymbol? {
+    public var symbol: Symbol? {
         switch self {
         case .symbol(let unsolvedSymbol):
             return unsolvedSymbol

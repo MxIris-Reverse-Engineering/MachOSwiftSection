@@ -5,8 +5,8 @@
 ///   - isType: if true, no prefix is parsed and, on completion, the first item on the parse stack is returned.
 /// - Returns: the successfully parsed result
 /// - Throws: a SwiftSymbolParseError error that contains parse position when the error occurred.
-package func demangleAsNode(_ mangled: String, isType: Bool = false) throws -> Node {
-    return try demangleAsNode(mangled.unicodeScalars, isType: isType)
+package func demangleAsNode(_ mangled: String, isType: Bool = false, symbolicReferenceResolver: SymbolicReferenceResolver? = nil) throws -> Node {
+    return try demangleAsNode(mangled.unicodeScalars, isType: isType, symbolicReferenceResolver: symbolicReferenceResolver)
 }
 
 /// Pass a collection of `UnicodeScalars` containing a Swift mangled symbol or type, get a parsed SwiftSymbol structure which can then be directly examined or printed.
@@ -27,5 +27,3 @@ package func demangleAsNode<C: Collection>(_ mangled: C, isType: Bool = false, s
         return try demangler.demangleSwift3TopLevelSymbol()
     }
 }
-
-

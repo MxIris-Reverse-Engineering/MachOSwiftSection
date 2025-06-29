@@ -116,6 +116,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
         .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
         .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", from: "0.3.0"),
+        .package(url: "https://github.com/apple/swift-collections", from: "1.2.0"),
     ],
     targets: [
         .target(
@@ -125,11 +126,14 @@ let package = Package(
         .target(
             name: "Demangle",
             dependencies: [
-                "Semantic",
                 .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             ]
         ),
 
+        .target(
+            name: "Utilities"
+        ),
+        
         .target(
             name: "MachOExtensions",
             dependencies: [
@@ -156,6 +160,8 @@ let package = Package(
                 "MachOReading",
                 "MachOMacro",
                 "Demangle",
+                "Utilities",
+                .product(name: "OrderedCollections", package: "swift-collections"),
             ]
         ),
         
@@ -165,7 +171,6 @@ let package = Package(
                 .MachOKit,
                 "MachOReading",
                 "MachOMacro",
-                "MachOSymbols",
             ]
         ),
 
@@ -177,6 +182,7 @@ let package = Package(
                 "MachOExtensions",
                 "MachOMacro",
                 "MachOPointer",
+                "MachOSymbols",
             ]
         ),
 
@@ -206,6 +212,8 @@ let package = Package(
                 .MachOKit,
                 "MachOSwiftSection",
                 "Semantic",
+                "Utilities",
+                .product(name: "OrderedCollections", package: "swift-collections"),
             ]
         ),
 

@@ -3,7 +3,7 @@ import MachOKit
 import MachOMacro
 import MachOFoundation
 
-public struct OpaqueType {
+public struct OpaqueType: TopLevelType {
     public let descriptor: OpaqueTypeDescriptor
 
     public let genericContext: GenericContext?

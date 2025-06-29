@@ -14,11 +14,11 @@ public struct MetadataReader {
         return try demangle(for: mangledName, kind: .symbol, in: machOFile)
     }
 
-    public static func demangleType(for unsolvedSymbol: MachOSymbol, in machOFile: MachOFile) throws -> Node {
+    public static func demangleType(for unsolvedSymbol: Symbol, in machOFile: MachOFile) throws -> Node {
         return try required(buildContextManglingForSymbol(unsolvedSymbol, in: machOFile))
     }
 
-    public static func demangleSymbol(for unsolvedSymbol: MachOSymbol, in machOFile: MachOFile) throws -> Node {
+    public static func demangleSymbol(for unsolvedSymbol: Symbol, in machOFile: MachOFile) throws -> Node {
         return try demangle(for: .init(unsolvedSymbol: unsolvedSymbol), kind: .symbol, in: machOFile)
     }
 
@@ -289,7 +289,7 @@ public struct MetadataReader {
         return demangling
     }
 
-    private static func buildContextManglingForSymbol(_ symbol: MachOSymbol, in machOFile: MachOFile) throws -> Node? {
+    private static func buildContextManglingForSymbol(_ symbol: Symbol, in machOFile: MachOFile) throws -> Node? {
         var demangler = Demangler(scalars: symbol.stringValue.unicodeScalars)
         var demangledSymbol = try demangler.demangleSymbol()
         if demangledSymbol.kind == .global {

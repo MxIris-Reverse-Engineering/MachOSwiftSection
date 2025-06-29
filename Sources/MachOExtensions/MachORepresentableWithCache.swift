@@ -2,12 +2,23 @@ import MachOKit
 
 package protocol MachORepresentableWithCache: MachORepresentable {
     associatedtype Cache: DyldCacheRepresentable
+    associatedtype Identifier: Hashable
 
+    var identifier: Identifier { get }
     var cache: Cache? { get }
     var startOffset: Int { get }
 }
 
+package enum MachOTargetIdentifier: Hashable {
+    case image(UnsafeRawPointer)
+    case file(String)
+}
+
 extension MachOFile: MachORepresentableWithCache {
+    package var identifier: MachOTargetIdentifier {
+        .file(imagePath)
+    }
+
     package var startOffset: Int {
         if let cache {
             headerStartOffsetInCache + cache.fileStartOffset.cast()
@@ -18,6 +29,10 @@ extension MachOFile: MachORepresentableWithCache {
 }
 
 extension MachOImage: MachORepresentableWithCache {
+    package var identifier: MachOTargetIdentifier {
+        .image(ptr)
+    }
+
     package var cache: DyldCacheLoaded? {
         guard let currentCache = DyldCacheLoaded.current else { return nil }
 

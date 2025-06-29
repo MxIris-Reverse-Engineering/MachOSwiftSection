@@ -8,7 +8,7 @@ import MachOMacro
 //      TargetGenericRequirementDescriptor<Runtime>,
 //      TargetProtocolRequirement<Runtime>>;
 
-public struct `Protocol` {
+public struct `Protocol`: TopLevelType {
     public enum Error: Swift.Error {
         case invalidProtocolDescriptor
     }

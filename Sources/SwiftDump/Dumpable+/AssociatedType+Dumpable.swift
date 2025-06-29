@@ -3,6 +3,7 @@ import MachOKit
 import MachOSwiftSection
 import MachOMacro
 import Semantic
+import Utilities
 
 extension AssociatedType: ConformedDumpable {
     @MachOImageGenerator

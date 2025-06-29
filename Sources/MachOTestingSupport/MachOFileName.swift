@@ -12,3 +12,5 @@ package enum MachOFileName: String {
     case ControlCenter = "/System/Library/CoreServices/ControlCenter.app"
     case Freeform = "/System/Applications/Freeform.app"
 }
+
+

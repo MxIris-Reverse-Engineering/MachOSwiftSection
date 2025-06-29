@@ -1,7 +1,7 @@
 import Foundation
 
 @_silgen_name("swift_demangle")
-internal func _stdlib_demangleImpl(
+private func _stdlib_demangleImpl(
     mangledName: UnsafePointer<CChar>?,
     mangledNameLength: UInt,
     outputBuffer: UnsafeMutablePointer<CChar>?,
@@ -9,7 +9,7 @@ internal func _stdlib_demangleImpl(
     flags: UInt32
 ) -> UnsafeMutablePointer<CChar>?
 
-internal func stdlib_demangleName(
+package func stdlib_demangleName(
     _ mangledName: String
 ) -> String {
     guard !mangledName.isEmpty else { return mangledName }
@@ -29,7 +29,7 @@ internal func stdlib_demangleName(
     }
 }
 
-internal func stdlib_demangleName(
+package func stdlib_demangleName(
     _ mangledName: UnsafePointer<CChar>
 ) -> UnsafePointer<CChar> {
     let demangledNamePtr = _stdlib_demangleImpl(

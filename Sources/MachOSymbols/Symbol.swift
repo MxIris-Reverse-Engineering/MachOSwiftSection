@@ -1,13 +1,9 @@
 import MachOKit
 import MachOMacro
-import MachOExtensions
 import MachOReading
+import MachOExtensions
 
-public struct MachOSymbol: Resolvable {
-    enum Error: Swift.Error {
-        case symbolNotFound
-    }
-
+public struct Symbol: Resolvable, Hashable {
     public let offset: Int
 
     public let stringValue: String
@@ -19,18 +15,15 @@ public struct MachOSymbol: Resolvable {
 
     @MachOImageGenerator
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self {
-        guard let symbol = try resolve(from: fileOffset, in: machOFile) else { throw Error.symbolNotFound }
-        return symbol
+        try required(resolve(from: fileOffset, in: machOFile))
     }
 
     @MachOImageGenerator
     public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self? {
-        if let symbol = machOFile.findSymbol(offset: fileOffset) {
+        if let symbol = machOFile.symbols(offset: fileOffset)?.first {
             return symbol
         }
-//        if let symbol = machOFile.symbol(for: fileOffset) {
-//            return MachOSymbol(offset: symbol.offset, stringValue: symbol.name)
-//        }
         return nil
     }
 }
+

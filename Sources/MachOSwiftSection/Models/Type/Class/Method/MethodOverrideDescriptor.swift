@@ -7,7 +7,7 @@ public struct MethodOverrideDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout: Sendable {
         public let `class`: RelativeContextPointer
         public let method: RelativeMethodDescriptorPointer
-        public let implementation: RelativeDirectPointer<MachOSymbol?>
+        public let implementation: RelativeDirectPointer<Symbol?>
     }
     
     public var layout: Layout
@@ -27,7 +27,7 @@ extension MethodOverrideDescriptor {
         return try layout.method.resolve(from: offset(of: \.method), in: machOFile).asOptional
     }
     
-    public func implementationSymbol(in machOFile: MachOFile) throws -> MachOSymbol? {
+    public func implementationSymbol(in machOFile: MachOFile) throws -> Symbol? {
         return try layout.implementation.resolve(from: offset(of: \.implementation), in: machOFile)
     }
 }

@@ -1,6 +1,5 @@
 import MachOReading
 import MachOExtensions
-import MachOSymbols
 
 public typealias RelativeOffset = Int32
 
@@ -20,8 +19,3 @@ public typealias RelativeIndirectablePointerIntPair<Pointee: Resolvable, Integer
 
 public typealias RelativeIndirectableRawPointerIntPair<Integer: RawRepresentable> = TargetRelativeIndirectablePointerIntPair<AnyResolvable, RelativeOffset, Integer, Pointer<AnyResolvable>> where Integer.RawValue: FixedWidthInteger
 
-public typealias RelativeSymbolOrElementPointer<Element: Resolvable> = RelativeIndirectablePointer<SymbolOrElement<Element>, SymbolOrElementPointer<Element>>
-
-public typealias RelativeIndirectSymbolOrElementPointer<Element: Resolvable> = RelativeIndirectPointer<SymbolOrElement<Element>, SymbolOrElementPointer<Element>>
-
-public typealias RelativeSymbolOrElementPointerIntPair<Element: Resolvable, Value: RawRepresentable> = RelativeIndirectablePointerIntPair<SymbolOrElement<Element>, Value, SymbolOrElementPointer<Element>> where Value.RawValue: FixedWidthInteger

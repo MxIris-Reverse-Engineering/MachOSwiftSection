@@ -2,7 +2,7 @@ import Foundation
 import MachOKit
 import MachOMacro
 
-public struct AssociatedType {
+public struct AssociatedType: TopLevelType {
     public let descriptor: AssociatedTypeDescriptor
 
     public let conformingTypeName: MangledName

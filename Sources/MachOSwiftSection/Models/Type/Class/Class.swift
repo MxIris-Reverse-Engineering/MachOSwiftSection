@@ -27,8 +27,7 @@ import MachOFoundation
 //                              TargetMethodDefaultOverrideTableHeader<Runtime>,
 //                              TargetMethodDefaultOverrideDescriptor<Runtime>>
 
-@dynamicMemberLookup
-public struct Class {
+public struct Class: TopLevelType {
     public let descriptor: ClassDescriptor
     public let genericContext: TypeGenericContext?
     public let resilientSuperclass: ResilientSuperclass?
@@ -161,9 +160,5 @@ public struct Class {
             self.methodDefaultOverrideTableHeader = nil
             self.methodDefaultOverrideDescriptors = []
         }
-    }
-
-    public subscript<T>(dynamicMember member: KeyPath<ClassDescriptor, T>) -> T {
-        return descriptor[keyPath: member]
     }
 }

@@ -3,8 +3,7 @@ import MachOKit
 import MachOMacro
 import MachOFoundation
 
-@dynamicMemberLookup
-public struct Struct {
+public struct Struct: TopLevelType {
     public let descriptor: StructDescriptor
     public let genericContext: TypeGenericContext?
     public let foreignMetadataInitialization: ForeignMetadataInitialization?
@@ -74,10 +73,6 @@ public struct Struct {
         } else {
             self.singletonMetadataPointer = nil
         }
-    }
-
-    public subscript<T>(dynamicMember member: KeyPath<StructDescriptor, T>) -> T {
-        return descriptor[keyPath: member]
     }
 }
 
