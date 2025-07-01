@@ -6,7 +6,7 @@ import MachOFoundation
 public struct ResilientWitness: ResolvableLocatableLayoutWrapper {
     public struct Layout: Sendable {
         public let requirement: RelativeProtocolRequirementPointer
-        public let implementation: RelativeDirectPointer<MachOSymbol?>
+        public let implementation: RelativeDirectPointer<Symbols?>
     }
     
     public let offset: Int
@@ -26,7 +26,7 @@ extension ResilientWitness {
         return try layout.requirement.resolve(from: offset(of: \.requirement), in: machOFile).asOptional
     }
     
-    public func implementationSymbol(in machOFile: MachOFile) throws -> MachOSymbol? {
+    public func implementationSymbols(in machOFile: MachOFile) throws -> Symbols? {
         return try layout.implementation.resolve(from: offset(of: \.implementation), in: machOFile)
     }
 }

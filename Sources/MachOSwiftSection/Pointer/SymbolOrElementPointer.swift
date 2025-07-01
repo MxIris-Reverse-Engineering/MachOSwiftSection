@@ -1,11 +1,18 @@
 import MachOKit
 import MachOReading
+import MachOPointer
 import MachOSymbols
+
+public typealias RelativeSymbolOrElementPointer<Element: Resolvable> = RelativeIndirectablePointer<SymbolOrElement<Element>, SymbolOrElementPointer<Element>>
+
+public typealias RelativeIndirectSymbolOrElementPointer<Element: Resolvable> = RelativeIndirectPointer<SymbolOrElement<Element>, SymbolOrElementPointer<Element>>
+
+public typealias RelativeSymbolOrElementPointerIntPair<Element: Resolvable, Value: RawRepresentable> = RelativeIndirectablePointerIntPair<SymbolOrElement<Element>, Value, SymbolOrElementPointer<Element>> where Value.RawValue: FixedWidthInteger
 
 public enum SymbolOrElementPointer<Context: Resolvable>: RelativeIndirectType {
     public typealias Resolved = SymbolOrElement<Context>
 
-    case symbol(MachOSymbol)
+    case symbol(Symbol)
     case address(UInt64)
 
     public func resolveOffset(in machOFile: MachOFile) -> Int {

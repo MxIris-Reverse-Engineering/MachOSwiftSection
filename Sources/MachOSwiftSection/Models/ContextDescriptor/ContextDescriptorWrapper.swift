@@ -106,6 +106,22 @@ public enum ContextDescriptorWrapper {
         }
     }
 
+    public var typeContextDescriptor: (any TypeContextDescriptorProtocol)? {
+        if case .type(let typeContextDescriptor) = self {
+            switch typeContextDescriptor {
+            case .enum(let enumDescriptor):
+                return enumDescriptor
+            case .struct(let structDescriptor):
+                return structDescriptor
+            case .class(let classDescriptor):
+                return classDescriptor
+            }
+        } else {
+            return nil
+        }
+    }
+    
+    
     public subscript<Property>(dynamicMember keyPath: KeyPath<any ContextDescriptorProtocol, Property>) -> Property {
         return contextDescriptor[keyPath: keyPath]
     }

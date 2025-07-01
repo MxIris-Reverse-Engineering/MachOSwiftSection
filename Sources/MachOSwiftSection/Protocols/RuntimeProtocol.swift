@@ -1,5 +1,3 @@
-import Foundation
-
 public protocol RuntimeProtocol {
     associatedtype StoredPointer: FixedWidthInteger
     associatedtype StoredSignedPointer: FixedWidthInteger

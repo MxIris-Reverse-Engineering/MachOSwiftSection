@@ -4,6 +4,7 @@ import MachOKit
 import MachOMacro
 import MachOFoundation
 import MachOSwiftSection
+import Utilities
 
 extension Class: NamedDumpable {
     @MachOImageGenerator
@@ -25,7 +26,9 @@ extension Class: NamedDumpable {
         try dumpName(using: options, in: machOFile)
 
         if let genericContext {
-            try genericContext.dumpGenericParameters(in: machOFile)
+            if genericContext.currentParameters.count > 0 {
+                try genericContext.dumpGenericParameters(in: machOFile)
+            }
         }
 
         if let superclassMangledName = try descriptor.superclassTypeMangledName(in: machOFile) {
@@ -38,7 +41,7 @@ extension Class: NamedDumpable {
             superclass
         }
 
-        if let genericContext, genericContext.requirements.count > 0 {
+        if let genericContext, genericContext.currentRequirements.count > 0 {
             Space()
             Keyword(.where)
             Space()

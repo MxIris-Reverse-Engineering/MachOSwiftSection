@@ -1,16 +1,18 @@
 import Dispatch
 
-class MemoryPressureMonitor {
+package class MemoryPressureMonitor {
 
     private var memoryPressureSource: DispatchSourceMemoryPressure?
     
     private let queue = DispatchQueue(label: "com.JH.MemoryPressureMonitorQueue")
 
-    var memoryWarningHandler: (() -> Void)?
+    package var memoryWarningHandler: (() -> Void)?
     
-    var memoryCriticalHandler: (() -> Void)?
+    package var memoryCriticalHandler: (() -> Void)?
     
-    func startMonitoring() {
+    package init() {}
+    
+    package func startMonitoring() {
         guard memoryPressureSource == nil else { return }
         
         let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: queue)
@@ -33,7 +35,7 @@ class MemoryPressureMonitor {
         source.resume()
     }
 
-    func stopMonitoring() {
+    package func stopMonitoring() {
         memoryPressureSource?.cancel()
         memoryPressureSource = nil
     }

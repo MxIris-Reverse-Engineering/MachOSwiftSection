@@ -5,11 +5,11 @@ import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
 
-package protocol DumpableTest {
+package protocol DumpableTests {
     var isEnabledSearchMetadata: Bool { get }
 }
 
-extension DumpableTest {
+extension DumpableTests {
     package var isEnabledSearchMetadata: Bool { false }
     
     @MachOImageGenerator
@@ -83,6 +83,16 @@ extension DumpableTest {
         let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
         for associatedTypeDescriptor in associatedTypeDescriptors {
             try AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: .test, in: machO).string.print()
+        }
+    }
+    
+    
+    @MachOImageGenerator
+    @MainActor
+    package func dumpBuiltinTypes(for machO: MachOFile) async throws {
+        let descriptors = try machO.swift.builtinTypeDescriptors
+        for descriptor in descriptors {
+            print(try BuiltinType(descriptor: descriptor, in: machO))
         }
     }
 }

@@ -1,5 +1,5 @@
 {
-  "originHash" : "11eaed82e8eb6edd730d4cf82f8bce43e2351a0cf3ad8750d9cb645751ff3817",
+  "originHash" : "af420d353ec787ca7235c44800815c9f7dceef9bf6124b29b30dca2ccaee9765",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -47,6 +47,15 @@
       }
     },
     {
+      "identity" : "swift-collections",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-collections",
+      "state" : {
+        "revision" : "c1805596154bb3a265fd91b8ac0c4433b4348fb0",
+        "version" : "1.2.0"
+      }
+    },
+    {
       "identity" : "swift-fileio",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/swift-fileio.git",
@@ -62,6 +71,15 @@
       "state" : {
         "revision" : "7235a8e47b257bbd54da76191b043976509c4b8c",
         "version" : "0.4.0"
+      }
+    },
+    {
+      "identity" : "swift-memberwise-init-macro",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/MxIris-Library-Forks/swift-memberwise-init-macro",
+      "state" : {
+        "revision" : "6121b169fb5a83d7262a69b640468606f98c6c6e",
+        "version" : "0.5.3-fork.1"
       }
     },
     {

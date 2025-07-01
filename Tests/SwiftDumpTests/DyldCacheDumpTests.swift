@@ -8,30 +8,8 @@ import MachOFoundation
 @testable import MachOTestingSupport
 
 @Suite(.serialized)
-struct DyldCacheDumpTests: DumpableTest {
-    let mainCache: DyldCache
-
-    let subCache: DyldCache
-
-    let machOFileInMainCache: MachOFile
-
-    let machOFileInSubCache: MachOFile
-
-    let machOFileInCache: MachOFile
-
-    init() async throws {
-        self.mainCache = try DyldCache(path: .current)
-        self.subCache = try required(mainCache.subCaches?.first?.subcache(for: mainCache))
-
-        self.machOFileInMainCache = try #require(mainCache.machOFile(named: .SwiftUI))
-        self.machOFileInSubCache = if #available(macOS 15.5, *) {
-            try #require(subCache.machOFile(named: .CodableSwiftUI))
-        } else {
-            try #require(subCache.machOFile(named: .UIKitCore))
-        }
-
-        self.machOFileInCache = try #require(mainCache.machOFile(named: .AppKit))
-    }
+final class DyldCacheDumpTests: DyldCacheTests, DumpableTests {
+    override class var cacheImageName: MachOImageName { .SwiftUI }
 }
 
 extension DyldCacheDumpTests {
@@ -81,5 +59,17 @@ extension DyldCacheDumpTests {
 
     @Test func associatedTypesInSubCacheFile() async throws {
         try await dumpAssociatedTypes(for: machOFileInSubCache)
+    }
+
+    @Test func builtinTypesInCacheFile() async throws {
+        try await dumpBuiltinTypes(for: machOFileInCache)
+    }
+
+    @Test func builtinTypesInMainCacheFile() async throws {
+        try await dumpBuiltinTypes(for: machOFileInMainCache)
+    }
+
+    @Test func builtinTypesInSubCacheFile() async throws {
+        try await dumpBuiltinTypes(for: machOFileInSubCache)
     }
 }

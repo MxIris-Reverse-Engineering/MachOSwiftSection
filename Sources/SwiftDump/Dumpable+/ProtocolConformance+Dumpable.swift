@@ -4,6 +4,9 @@ import MachOSwiftSection
 import MachOMacro
 import MachOFoundation
 import Semantic
+import Demangle
+import Utilities
+import OrderedCollections
 
 extension ProtocolConformance: ConformedDumpable {
     @MachOImageGenerator
@@ -80,22 +83,35 @@ extension ProtocolConformance: ConformedDumpable {
             Space()
             Standard("{")
 
+            var visitedNodes: OrderedSet<Node> = []
+            
             for resilientWitness in resilientWitnesses {
                 BreakLine()
 
                 Indent(level: 1)
 
-                if let symbol = try resilientWitness.implementationSymbol(in: machOFile) {
-                    try? MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
-                } else if !resilientWitness.implementation.isNull {
-                    FunctionDeclaration(addressString(of: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
-                } else if let implSymbol = try resilientWitness.requirement(in: machOFile)?.mapOptional({ try $0.defaultImplementationSymbol(in: machOFile) }) {
-                    switch implSymbol {
+                if let symbols = try resilientWitness.implementationSymbols(in: machOFile), let validNode = try validNode(for: symbols, in: machOFile, visitedNode: visitedNodes) {
+                    _ = visitedNodes.append(validNode)
+                    validNode.printSemantic(using: options)
+                } else if let requirement = try resilientWitness.requirement(in: machOFile) {
+                    switch requirement {
                     case .symbol(let symbol):
                         try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
-                    case .element(let symbol):
-                        try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+                    case .element(let element):
+                        if let symbols = try Symbols.resolve(from: element.offset, in: machOFile), let validNode = try validNode(for: symbols, in: machOFile, visitedNode: visitedNodes) {
+                            _ = visitedNodes.append(validNode)
+                            validNode.printSemantic(using: options)
+                        } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machOFile), let validNode = try validNode(for: defaultImplementationSymbols, in: machOFile, visitedNode: visitedNodes) {
+                            _ = visitedNodes.append(validNode)
+                            validNode.printSemantic(using: options)
+                        } else if !element.defaultImplementation.isNull {
+                            FunctionDeclaration(addressString(of: element.defaultImplementation.resolveDirectOffset(from: element.offset(of: \.defaultImplementation)), in: machOFile).insertSubFunctionPrefix)
+                        } else {
+                            Error("Symbol not found")
+                        }
                     }
+                } else if !resilientWitness.implementation.isNull {
+                    FunctionDeclaration(addressString(of: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
                 } else {
                     Error("Symbol not found")
                 }
@@ -105,6 +121,16 @@ extension ProtocolConformance: ConformedDumpable {
 
             Standard("}")
         }
+    }
+    
+    @MachOImageGenerator
+    private func validNode(for symbols: Symbols, in machOFile: MachOFile, visitedNode: borrowing OrderedSet<Node> = []) throws -> Node? {
+        for symbol in symbols {
+            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machOFile), let protocolConformanceNode = node.first(where: { $0.kind == .protocolConformance }), protocolConformanceNode.children.at(0)?.print(using: .interface) == (try dumpTypeName(using: .interface, in: machOFile)).string {
+                return node
+            }
+        }
+        return nil
     }
 }
 
