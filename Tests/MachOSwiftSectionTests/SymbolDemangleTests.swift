@@ -92,6 +92,7 @@ final class DyldCacheSymbolDemangleTests: DyldCacheTests {
     }
 }
 
+#if !SILENT_TEST
 @Suite(.serialized)
 final class XcodeMachOFilesSymbolDemangleTests {
     struct MachOSwiftSymbol {
@@ -136,3 +137,4 @@ final class XcodeMachOFilesSymbolDemangleTests {
         return symbols
     }
 }
+#endif

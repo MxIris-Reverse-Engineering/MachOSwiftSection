@@ -10,8 +10,8 @@ extension TargetGenericContext {
     @SemanticStringBuilder
     package func dumpGenericParameters(in machOFile: MachOFile) throws -> SemanticString {
         Standard("<")
-        for (offset, _) in parameters.offsetEnumerated() {
-            Standard(try genericParameterName(depth: 0, index: offset.index))
+        for (offset, _) in currentParameters.offsetEnumerated() {
+            Standard(try genericParameterName(depth: depth, index: offset.index))
             if !offset.isEnd {
                 Standard(", ")
             }
@@ -35,7 +35,7 @@ extension TargetGenericContext {
     @MachOImageGenerator
     @SemanticStringBuilder
     package func dumpGenericRequirements(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
-        for (offset, requirement) in requirements.offsetEnumerated() {
+        for (offset, requirement) in currentRequirements.offsetEnumerated() {
             try requirement.dump(using: options, in: machOFile)
             if !offset.isEnd {
                 Standard(",")

@@ -22,8 +22,10 @@ extension Struct: NamedDumpable {
         try dumpName(using: options, in: machOFile)
 
         if let genericContext {
-            try genericContext.dumpGenericParameters(in: machOFile)
-            if genericContext.requirements.count > 0 {
+            if genericContext.currentParameters.count > 0 {
+                try genericContext.dumpGenericParameters(in: machOFile)
+            }
+            if genericContext.currentRequirements.count > 0 {
                 Space()
                 Keyword(.where)
                 Space()

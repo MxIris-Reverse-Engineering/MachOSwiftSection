@@ -2,7 +2,13 @@ import MachOKit
 import MachOFoundation
 import MachOMacro
 
-public protocol ContextDescriptorProtocol: ResolvableLocatableLayoutWrapper where Layout: ContextDescriptorLayout {}
+public protocol ContextDescriptorProtocol: ResolvableLocatableLayoutWrapper where Layout: ContextDescriptorLayout {
+    func genericContext(in machO: MachOFile) throws -> GenericContext?
+    func parent(in machO: MachOFile) throws -> SymbolOrElement<ContextDescriptorWrapper>?
+    
+    func genericContext(in machO: MachOImage) throws -> GenericContext?
+    func parent(in machO: MachOImage) throws -> SymbolOrElement<ContextDescriptorWrapper>?
+}
 
 @MachOImageAllMembersGenerator
 extension ContextDescriptorProtocol {

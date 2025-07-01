@@ -1,5 +1,5 @@
 {
-  "originHash" : "c063655621919263a7b3358360d2a18975b69b9fb2af587221263a629ceffba2",
+  "originHash" : "af420d353ec787ca7235c44800815c9f7dceef9bf6124b29b30dca2ccaee9765",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -71,6 +71,15 @@
       "state" : {
         "revision" : "7235a8e47b257bbd54da76191b043976509c4b8c",
         "version" : "0.4.0"
+      }
+    },
+    {
+      "identity" : "swift-memberwise-init-macro",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/MxIris-Library-Forks/swift-memberwise-init-macro",
+      "state" : {
+        "revision" : "6121b169fb5a83d7262a69b640468606f98c6c6e",
+        "version" : "0.5.3-fork.1"
       }
     },
     {

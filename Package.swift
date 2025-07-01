@@ -117,6 +117,7 @@ let package = Package(
         .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
         .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", from: "0.3.0"),
         .package(url: "https://github.com/apple/swift-collections", from: "1.2.0"),
+        .package(url: "https://github.com/MxIris-Library-Forks/swift-memberwise-init-macro", from: "0.5.3-fork"),
     ],
     targets: [
         .target(
@@ -193,6 +194,7 @@ let package = Package(
                 "Demangle",
                 "MachOFoundation",
                 "MachOMacro",
+                .product(name: "MemberwiseInit", package: "swift-memberwise-init-macro")
             ]
         ),
 
