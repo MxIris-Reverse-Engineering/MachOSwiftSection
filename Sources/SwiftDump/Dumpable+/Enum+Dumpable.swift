@@ -84,7 +84,7 @@ extension Enum: NamedDumpable {
 
                 Indent(level: 1)
 
-                try MetadataReader.demangleSymbol(for: function, in: machOFile).printSemantic(using: options)
+                try MetadataReader.demangleSymbol(for: function, in: machOFile)?.printSemantic(using: options)
 
                 if offset.isEnd {
                     BreakLine()

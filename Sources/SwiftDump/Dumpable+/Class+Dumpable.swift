@@ -119,7 +119,7 @@ extension Class: NamedDumpable {
                 case .symbol(let symbol):
                     Keyword(.override)
                     Space()
-                    try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+                    try MetadataReader.demangleSymbol(for: symbol, in: machOFile)?.printSemantic(using: options)
                 case .element(let element):
                     dumpMethodKind(for: element)
                     Keyword(.override)
@@ -131,7 +131,7 @@ extension Class: NamedDumpable {
                 Keyword(.override)
                 Space()
                 if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
-                    try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+                    try MetadataReader.demangleSymbol(for: symbol, in: machOFile)?.printSemantic(using: options)
                 } else if !descriptor.implementation.isNull {
                     FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
                 } else {
@@ -154,7 +154,7 @@ extension Class: NamedDumpable {
             Space()
 
             if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
-                try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+                try MetadataReader.demangleSymbol(for: symbol, in: machOFile)?.printSemantic(using: options)
             } else if !descriptor.implementation.isNull {
                 FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
             } else {
@@ -198,7 +198,7 @@ extension Class: NamedDumpable {
     @SemanticStringBuilder
     private func dumpMethodDeclaration(for descriptor: MethodDescriptor, using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
         if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
-            try MetadataReader.demangleSymbol(for: symbol, in: machOFile).printSemantic(using: options)
+            try MetadataReader.demangleSymbol(for: symbol, in: machOFile)?.printSemantic(using: options)
         } else if !descriptor.implementation.isNull {
             FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
         } else {

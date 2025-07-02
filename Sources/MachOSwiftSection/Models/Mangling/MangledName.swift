@@ -52,16 +52,12 @@ public struct MangledName {
 
     package let startOffset: Int
 
-    package let endOffset: Int?
+    package let endOffset: Int
 
-    package init(elements: [Element], startOffset: Int, endOffset: Int?) {
+    package init(elements: [Element], startOffset: Int, endOffset: Int) {
         self.elements = elements
         self.startOffset = startOffset
         self.endOffset = endOffset
-    }
-
-    package init(unsolvedSymbol: Symbol) {
-        self.init(elements: [.string(unsolvedSymbol.stringValue)], startOffset: unsolvedSymbol.offset, endOffset: nil)
     }
 
     package var lookupElements: [Element.Lookup] {

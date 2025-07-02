@@ -96,7 +96,7 @@ extension MachOSwiftSection.`Protocol`: NamedDumpable {
     @MachOImageGenerator
     private func validNode(for symbols: Symbols, in machOFile: MachOFile, visitedNode: borrowing OrderedSet<Node> = []) throws -> Node? {
         for symbol in symbols {
-            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machOFile), let protocolNode = node.first(where: { $0.kind == .protocol }), protocolNode.print(using: .interface) == (try dumpName(using: .interface, in: machOFile)).string, !visitedNode.contains(node) {
+            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machOFile), let protocolNode = node.first(where: { $0.kind == .protocol }), protocolNode.print(using: .interface) == (try dumpName(using: .interfaceType, in: machOFile)).string, !visitedNode.contains(node) {
                 return node
             }
         }

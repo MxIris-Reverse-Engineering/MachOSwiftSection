@@ -140,6 +140,7 @@ let package = Package(
             dependencies: [
                 .MachOKit,
                 "MachOMacro",
+                .product(name: "AssociatedObject", package: "AssociatedObject"),
             ]
         ),
 

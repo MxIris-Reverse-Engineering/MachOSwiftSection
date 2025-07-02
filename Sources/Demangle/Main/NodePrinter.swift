@@ -1858,6 +1858,7 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
     }
 
     private mutating func printBoundGeneric(_ name: Node) {
+        guard !options.contains(.removeBoundGeneric) else { return }
         guard name.children.count >= 2 else { return }
         guard name.children.count == 2, options.contains(.synthesizeSugarOnTypes), name.kind != .boundGenericClass else {
             printBoundGenericNoSugar(name)

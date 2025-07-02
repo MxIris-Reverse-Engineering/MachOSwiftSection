@@ -25,4 +25,6 @@ public enum SwiftSymbolParseError: Error, Sendable {
     case unimplementedFeature
     
     case requiredNonOptional
+    
+    case invalidSwiftMangledName
 }

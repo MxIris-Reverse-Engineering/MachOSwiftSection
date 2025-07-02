@@ -14,12 +14,13 @@ public struct MetadataReader {
         return try demangle(for: mangledName, kind: .symbol, in: machOFile)
     }
 
-    public static func demangleType(for unsolvedSymbol: Symbol, in machOFile: MachOFile) throws -> Node {
-        return try required(buildContextManglingForSymbol(unsolvedSymbol, in: machOFile))
+    public static func demangleType(for unsolvedSymbol: Symbol, in machOFile: MachOFile) throws -> Node? {
+        return try buildContextManglingForSymbol(unsolvedSymbol, in: machOFile)
     }
 
-    public static func demangleSymbol(for unsolvedSymbol: Symbol, in machOFile: MachOFile) throws -> Node {
-        return try demangle(for: .init(unsolvedSymbol: unsolvedSymbol), kind: .symbol, in: machOFile)
+    public static func demangleSymbol(for unsolvedSymbol: Symbol, in machOFile: MachOFile) throws -> Node? {
+//        return try demangle(for: .init(unsolvedSymbol: unsolvedSymbol), kind: .symbol, in: machOFile)
+        return SymbolCache.shared.demangledNode(for: unsolvedSymbol, in: machOFile)
     }
 
     public static func demangleContext(for context: ContextDescriptorWrapper, in machOFile: MachOFile) throws -> Node {
@@ -33,8 +34,8 @@ public struct MetadataReader {
         case .symbol:
             mangledName.symbolStringValue()
         }
-        var demangler = Demangler(scalars: stringValue.unicodeScalars)
-        demangler.symbolicReferenceResolver = { kind, directness, index -> Node? in
+//        var demangler = Demangler(scalars: stringValue.unicodeScalars)
+        let symbolicReferenceResolver: SymbolicReferenceResolver = { kind, directness, index -> Node? in
             do {
                 var result: Node?
                 let lookup = mangledName.lookupElements[index]
@@ -94,9 +95,9 @@ public struct MetadataReader {
         let result: Node
         switch kind {
         case .type:
-            result = try demangler.demangleType()
+            result = try demangleAsNode(stringValue, isType: true, symbolicReferenceResolver: symbolicReferenceResolver)
         case .symbol:
-            result = try demangler.demangleSymbol()
+            result = try demangleAsNode(stringValue, isType: false, symbolicReferenceResolver: symbolicReferenceResolver)
         }
         return result
     }
@@ -290,8 +291,7 @@ public struct MetadataReader {
     }
 
     private static func buildContextManglingForSymbol(_ symbol: Symbol, in machOFile: MachOFile) throws -> Node? {
-        var demangler = Demangler(scalars: symbol.stringValue.unicodeScalars)
-        var demangledSymbol = try demangler.demangleSymbol()
+        var demangledSymbol = try demangleAsNode(symbol.stringValue)
         if demangledSymbol.kind == .global {
             demangledSymbol = demangledSymbol.children[0]
         }

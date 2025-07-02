@@ -18,7 +18,7 @@ extension Node: CustomStringConvertible {
     
     private func printNode(output: inout String, node: Node, depth: Int = 0) {
         (0..<(depth * 2)).forEach { _ in output.append(" ") }
-        output.append("\(node.kind)")
+        output.append("kind=\(node.kind)")
         switch node.contents {
         case .none:
             break

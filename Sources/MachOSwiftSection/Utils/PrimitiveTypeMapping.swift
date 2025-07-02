@@ -13,6 +13,10 @@ package class PrimitiveTypeMapping {
         }
     }
 
+    package func hasPrimitiveType(for name: String) -> Bool {
+        return storage[name] != nil
+    }
+    
     package func primitiveType(for name: String) -> String? {
         return storage[name]
     }
@@ -34,8 +38,12 @@ package class PrimitiveTypeMapping {
                         guard let descriptor = try RelativeDirectPointer<ContextDescriptorWrapper>(relativeOffset: relativeReference.relativeOffset).resolve(from: descriptorLookup.offset, in: machO).namedContextDescriptor else { continue }
                         let name = try descriptor.name(in: machO)
                         let mangledName = try descriptor.mangledName(in: machO)
-                        guard let endOffset = mangledName.endOffset else { continue }
-                        storage[name] = try machO.readString(offset: endOffset)
+                        let endOffset = mangledName.endOffset 
+                        let primitiveName = try machO.readString(offset: endOffset)
+                        if let firstChar = primitiveName.first, firstChar == "N" {
+                            storage[name] = String(primitiveName.dropFirst())
+                        }
+                        
                     case .indirect:
                         continue
                     }

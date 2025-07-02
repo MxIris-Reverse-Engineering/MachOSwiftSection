@@ -71,7 +71,7 @@ extension GenericRequirementDescriptor {
         case .protocol(let resolvableElement):
             switch resolvableElement {
             case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile).printSemantic(using: options)
+                try MetadataReader.demangleType(for: unsolvedSymbol, in: machOFile)?.printSemantic(using: options)
             case .element(let element):
                 switch element {
                 case .objc(let objc):
@@ -86,9 +86,9 @@ extension GenericRequirementDescriptor {
                 TypeName(kind: .other, "AnyObject")
             }
         case .conformance /* (let protocolConformanceDescriptor) */:
-            Standard("")
+            Standard("SwiftDumpConformance")
         case .invertedProtocols/* (let invertedProtocols) */:
-            Standard("")
+            Standard("SwiftDumpInvertedProtocols")
 //            if invertedProtocols.protocols.hasCopyable, invertedProtocols.protocols.hasEscapable {
 //
 //                "Copyable, Escapable"

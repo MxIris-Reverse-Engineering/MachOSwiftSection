@@ -1,6 +1,6 @@
 extension String {
     package var isSwiftSymbol: Bool {
-        getManglingPrefixLength(unicodeScalars) > 0
+        Demangler.getManglingPrefixLength(unicodeScalars) > 0
     }
 }
 
@@ -70,5 +70,24 @@ extension Array {
 extension BinaryInteger {
     var hexadecimalString: String {
         String(self, radix: 16, uppercase: true)
+    }
+}
+
+extension String {
+    // A computed property to capitalize the first letter of a string.
+    var capitalizingFirstLetter: String {
+        // 1. Get the first character.
+        guard let first = self.first else {
+            // Return an empty string if the original string is empty.
+            return ""
+        }
+        
+        // 2. Uppercase the first character and concatenate it with the rest of the string.
+        return first.uppercased() + self.dropFirst()
+    }
+    
+    // You can also create a mutating method if you want to change the string in place.
+    mutating func capitalizeFirstLetter() {
+        self = self.capitalizingFirstLetter
     }
 }

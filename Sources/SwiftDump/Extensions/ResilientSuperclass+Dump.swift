@@ -14,7 +14,7 @@ extension ResilientSuperclass {
         case .indirectTypeDescriptor(let resolvableElement):
             switch resolvableElement {
             case .symbol(let unsolvedSymbol):
-                return try MetadataReader.demangleSymbol(for: unsolvedSymbol, in: machOFile).printSemantic(using: options)
+                return try MetadataReader.demangleSymbol(for: unsolvedSymbol, in: machOFile)?.printSemantic(using: options)
             case .element(let element):
                 return try element.dumpName(using: options, in: machOFile)
             case nil:
@@ -25,7 +25,7 @@ extension ResilientSuperclass {
         case .indirectObjCClass(let resolvableElement):
             switch resolvableElement {
             case .symbol(let unsolvedSymbol):
-                return try MetadataReader.demangleSymbol(for: unsolvedSymbol, in: machOFile).printSemantic(using: options)
+                return try MetadataReader.demangleSymbol(for: unsolvedSymbol, in: machOFile)?.printSemantic(using: options)
             case .element(let element):
                 return try MetadataReader.demangleContext(for: .type(.class(element.descriptor.resolve(in: machOFile))), in: machOFile).printSemantic(using: options)
             case nil:
