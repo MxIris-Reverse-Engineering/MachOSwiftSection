@@ -206,15 +206,3 @@ extension Class: NamedDumpable {
         }
     }
 }
-
-extension Node {
-    var hasWeakNode: Bool {
-        first { $0.kind == .weak } != nil
-    }
-}
-
-extension String {
-    var insertSubFunctionPrefix: String {
-        "sub_" + self
-    }
-}

@@ -59,11 +59,11 @@ extension ProtocolConformance: ConformedDumpable {
         Space()
 
         let typeName = try dumpTypeName(using: options, in: machOFile)
-        
+
         typeName
-        
+
         let interfaceTypeName = try dumpTypeName(using: .interfaceType, in: machOFile).string
-        
+
         Standard(":")
 
         Space()
@@ -88,7 +88,7 @@ extension ProtocolConformance: ConformedDumpable {
             Standard("{")
 
             var visitedNodes: OrderedSet<Node> = []
-            
+
             for resilientWitness in resilientWitnesses {
                 BreakLine()
 
@@ -110,6 +110,8 @@ extension ProtocolConformance: ConformedDumpable {
                             validNode.printSemantic(using: options)
                         } else if !element.defaultImplementation.isNull {
                             FunctionDeclaration(addressString(of: element.defaultImplementation.resolveDirectOffset(from: element.offset(of: \.defaultImplementation)), in: machOFile).insertSubFunctionPrefix)
+                        } else if !resilientWitness.implementation.isNull {
+                            FunctionDeclaration(addressString(of: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
                         } else {
                             Error("Symbol not found")
                         }
@@ -126,11 +128,11 @@ extension ProtocolConformance: ConformedDumpable {
             Standard("}")
         }
     }
-    
+
     @MachOImageGenerator
     private func validNode(for symbols: Symbols, in machOFile: MachOFile, typeName: String, visitedNode: borrowing OrderedSet<Node> = []) throws -> Node? {
         for symbol in symbols {
-            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machOFile), let protocolConformanceNode = node.first(where: { $0.kind == .protocolConformance }), protocolConformanceNode.children.at(0)?.print(using: .interfaceType) == typeName {
+            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machOFile), let protocolConformanceNode = node.preorder().first(where: { $0.kind == .protocolConformance }), let symbolTypeName = protocolConformanceNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName {
                 return node
             }
         }
@@ -138,17 +140,4 @@ extension ProtocolConformance: ConformedDumpable {
     }
 }
 
-extension SemanticString {
-    func replacingTypeNameOrOtherToTypeDeclaration() -> SemanticString {
-        replacing { 
-            switch $0 {
-            case .type(let type, .name):
-                return .type(type, .declaration)
-            case .other:
-                return .type(.other, .declaration)
-            default:
-                return $0
-            }
-        }
-    }
-}
+

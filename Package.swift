@@ -134,12 +134,23 @@ let package = Package(
         .target(
             name: "Utilities"
         ),
-        
+
         .target(
             name: "MachOExtensions",
             dependencies: [
                 .MachOKit,
                 "MachOMacro",
+                .product(name: "AssociatedObject", package: "AssociatedObject"),
+            ]
+        ),
+
+        .target(
+            name: "MachOCaches",
+            dependencies: [
+                .MachOKit,
+                "MachOExtensions",
+                "MachOMacro",
+                "Utilities",
                 .product(name: "AssociatedObject", package: "AssociatedObject"),
             ]
         ),
@@ -154,7 +165,7 @@ let package = Package(
                 .product(name: "AssociatedObject", package: "AssociatedObject"),
             ]
         ),
-        
+
         .target(
             name: "MachOSymbols",
             dependencies: [
@@ -166,7 +177,7 @@ let package = Package(
                 .product(name: "OrderedCollections", package: "swift-collections"),
             ]
         ),
-        
+
         .target(
             name: "MachOPointer",
             dependencies: [
@@ -195,18 +206,8 @@ let package = Package(
                 "Demangle",
                 "MachOFoundation",
                 "MachOMacro",
-                .product(name: "MemberwiseInit", package: "swift-memberwise-init-macro")
+                .product(name: "MemberwiseInit", package: "swift-memberwise-init-macro"),
             ]
-        ),
-
-        .target(
-            name: "MachOTestingSupport",
-            dependencies: [
-                .MachOKit,
-                "MachOExtensions",
-                "SwiftDump",
-            ],
-            swiftSettings: testSettings
         ),
 
         .target(
@@ -229,6 +230,8 @@ let package = Package(
             ]
         ),
 
+        // MARK: - Macros
+
         .target(
             name: "MachOMacro",
             dependencies: [
@@ -244,6 +247,18 @@ let package = Package(
                 .SwiftCompilerPlugin,
                 .SwiftSyntaxBuilder,
             ]
+        ),
+
+        // MARK: - Testing
+
+        .target(
+            name: "MachOTestingSupport",
+            dependencies: [
+                .MachOKit,
+                "MachOExtensions",
+                "SwiftDump",
+            ],
+            swiftSettings: testSettings
         ),
 
         .testTarget(
