@@ -23,7 +23,6 @@ struct MetadataFinderTests {
         try await dumpMetadatas(for: #require(mainCache.machOFile(named: .SwiftUI)))
     }
     
-    @MachOImageGenerator
     private func dumpMetadatas(for machO: MachOFile) async throws {
         let finder: MetadataFinder<MachOFile> = .init(machO: machO)
 

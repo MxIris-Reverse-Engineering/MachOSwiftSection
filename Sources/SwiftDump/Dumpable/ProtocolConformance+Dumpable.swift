@@ -8,127 +8,140 @@ import Demangle
 import Utilities
 import OrderedCollections
 
-extension ProtocolConformance: ConformedDumpable {
-    @SemanticStringBuilder
-    public func dumpTypeName<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-        switch typeReference {
-        case .directTypeDescriptor(let descriptor):
-            try descriptor?.dumpName(using: options, in: machO).replacingTypeNameOrOtherToTypeDeclaration()
-        case .indirectTypeDescriptor(let descriptor):
-            switch descriptor {
-            case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machO)?.printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
-            case .element(let element):
-                try element.dumpName(using: options, in: machO).replacingTypeNameOrOtherToTypeDeclaration()
-            case nil:
-                Standard("")
+private struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>: ConformedDumper {
+    let protocolConformance: ProtocolConformance
+
+    let options: DemangleOptions
+
+    let machO: MachO
+
+    var typeNameOptions: DemangleOptions { .interfaceType }
+
+    var body: SemanticString {
+        get throws {
+            Keyword(.extension)
+
+            Space()
+
+            let typeName = try self.typeName
+
+            let typeNameString = typeName.string
+
+            typeName
+
+            Standard(":")
+
+            Space()
+
+            try protocolName
+
+            if !protocolConformance.conditionalRequirements.isEmpty {
+                Space()
+                Keyword(.where)
+                Space()
             }
-        case .directObjCClassName(let objcClassName):
-            TypeDeclaration(kind: .class, objcClassName.valueOrEmpty)
-        case .indirectObjCClass(let objcClass):
-            switch objcClass {
-            case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machO)?.printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
-            case .element(let element):
-                try MetadataReader.demangleContext(for: .type(.class(element.descriptor.resolve(in: machO))), in: machO).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
-            case nil:
-                Standard("")
+
+            for conditionalRequirement in protocolConformance.conditionalRequirements {
+                try conditionalRequirement.dump(using: options, in: machO)
             }
-        }
-    }
 
-    @SemanticStringBuilder
-    public func dumpProtocolName<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-        switch `protocol` {
-        case .symbol(let unsolvedSymbol):
-            try MetadataReader.demangleType(for: unsolvedSymbol, in: machO)?.printSemantic(using: options)
-        case .element(let element):
-            try MetadataReader.demangleContext(for: .protocol(element), in: machO).printSemantic(using: options)
-        case .none:
-            Standard("")
-        }
-    }
+            if protocolConformance.resilientWitnesses.isEmpty {
+                Space()
+                Standard("{}")
+            } else {
+                Space()
+                Standard("{")
 
-    @SemanticStringBuilder
-    public func dump<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-        Keyword(.extension)
+                var visitedNodes: OrderedSet<Node> = []
 
-        Space()
+                for resilientWitness in protocolConformance.resilientWitnesses {
+                    BreakLine()
 
-        let typeName = try dumpTypeName(using: options, in: machO)
+                    Indent(level: 1)
 
-        typeName
+                    if let symbols = try resilientWitness.implementationSymbols(in: machO), let validNode = try validNode(for: symbols, typeName: typeNameString, visitedNode: visitedNodes) {
+                        _ = visitedNodes.append(validNode)
+                        validNode.printSemantic(using: options)
+                    } else if let requirement = try resilientWitness.requirement(in: machO) {
+                        switch requirement {
+                        case .symbol(let symbol):
+                            try MetadataReader.demangleSymbol(for: symbol, in: machO)?.printSemantic(using: options)
+                        case .element(let element):
+                            if let symbols = try Symbols.resolve(from: element.offset, in: machO), let validNode = try validNode(for: symbols, typeName: typeNameString, visitedNode: visitedNodes) {
+                                _ = visitedNodes.append(validNode)
+                                validNode.printSemantic(using: options)
+                            } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machO), let validNode = try validNode(for: defaultImplementationSymbols, typeName: typeNameString, visitedNode: visitedNodes) {
+                                _ = visitedNodes.append(validNode)
+                                validNode.printSemantic(using: options)
+                            } else if !element.defaultImplementation.isNull {
+                                FunctionDeclaration(addressString(of: element.defaultImplementation.resolveDirectOffset(from: element.offset(of: \.defaultImplementation)), in: machO).insertSubFunctionPrefix)
+                            } else if !resilientWitness.implementation.isNull {
+                                FunctionDeclaration(addressString(of: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation)), in: machO).insertSubFunctionPrefix)
+                            } else {
+                                Error("Symbol not found")
+                            }
+                        }
+                    } else if !resilientWitness.implementation.isNull {
+                        FunctionDeclaration(addressString(of: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation)), in: machO).insertSubFunctionPrefix)
+                    } else {
+                        Error("Symbol not found")
+                    }
+                }
 
-        let interfaceTypeName = try dumpTypeName(using: .interfaceType, in: machO).string
-
-        Standard(":")
-
-        Space()
-
-        try dumpProtocolName(using: options, in: machO)
-
-        if !conditionalRequirements.isEmpty {
-            Space()
-            Keyword(.where)
-            Space()
-        }
-
-        for conditionalRequirement in conditionalRequirements {
-            try conditionalRequirement.dump(using: options, in: machO)
-        }
-
-        if resilientWitnesses.isEmpty {
-            Space()
-            Standard("{}")
-        } else {
-            Space()
-            Standard("{")
-
-            var visitedNodes: OrderedSet<Node> = []
-
-            for resilientWitness in resilientWitnesses {
                 BreakLine()
 
-                Indent(level: 1)
-
-                if let symbols = try resilientWitness.implementationSymbols(in: machO), let validNode = try validNode(for: symbols, in: machO, typeName: interfaceTypeName, visitedNode: visitedNodes) {
-                    _ = visitedNodes.append(validNode)
-                    validNode.printSemantic(using: options)
-                } else if let requirement = try resilientWitness.requirement(in: machO) {
-                    switch requirement {
-                    case .symbol(let symbol):
-                        try MetadataReader.demangleSymbol(for: symbol, in: machO)?.printSemantic(using: options)
-                    case .element(let element):
-                        if let symbols = try Symbols.resolve(from: element.offset, in: machO), let validNode = try validNode(for: symbols, in: machO, typeName: interfaceTypeName, visitedNode: visitedNodes) {
-                            _ = visitedNodes.append(validNode)
-                            validNode.printSemantic(using: options)
-                        } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machO), let validNode = try validNode(for: defaultImplementationSymbols, in: machO, typeName: interfaceTypeName, visitedNode: visitedNodes) {
-                            _ = visitedNodes.append(validNode)
-                            validNode.printSemantic(using: options)
-                        } else if !element.defaultImplementation.isNull {
-                            FunctionDeclaration(addressString(of: element.defaultImplementation.resolveDirectOffset(from: element.offset(of: \.defaultImplementation)), in: machO).insertSubFunctionPrefix)
-                        } else if !resilientWitness.implementation.isNull {
-                            FunctionDeclaration(addressString(of: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation)), in: machO).insertSubFunctionPrefix)
-                        } else {
-                            Error("Symbol not found")
-                        }
-                    }
-                } else if !resilientWitness.implementation.isNull {
-                    FunctionDeclaration(addressString(of: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation)), in: machO).insertSubFunctionPrefix)
-                } else {
-                    Error("Symbol not found")
-                }
+                Standard("}")
             }
-
-            BreakLine()
-
-            Standard("}")
         }
     }
 
-    private func validNode<MachO: MachORepresentableWithCache & MachOReadable>(for symbols: Symbols, in machO: MachO, typeName: String, visitedNode: borrowing OrderedSet<Node> = []) throws -> Node? {
+    @SemanticStringBuilder
+    var typeName: SemanticString {
+        get throws {
+            switch protocolConformance.typeReference {
+            case .directTypeDescriptor(let descriptor):
+                try descriptor?.dumpName(using: typeNameOptions, in: machO).replacingTypeNameOrOtherToTypeDeclaration()
+            case .indirectTypeDescriptor(let descriptor):
+                switch descriptor {
+                case .symbol(let unsolvedSymbol):
+                    try MetadataReader.demangleType(for: unsolvedSymbol, in: machO)?.printSemantic(using: typeNameOptions).replacingTypeNameOrOtherToTypeDeclaration()
+                case .element(let element):
+                    try element.dumpName(using: typeNameOptions, in: machO).replacingTypeNameOrOtherToTypeDeclaration()
+                case nil:
+                    Standard("")
+                }
+            case .directObjCClassName(let objcClassName):
+                TypeDeclaration(kind: .class, objcClassName.valueOrEmpty)
+            case .indirectObjCClass(let objcClass):
+                switch objcClass {
+                case .symbol(let unsolvedSymbol):
+                    try MetadataReader.demangleType(for: unsolvedSymbol, in: machO)?.printSemantic(using: typeNameOptions).replacingTypeNameOrOtherToTypeDeclaration()
+                case .element(let element):
+                    try MetadataReader.demangleContext(for: .type(.class(element.descriptor.resolve(in: machO))), in: machO).printSemantic(using: typeNameOptions).replacingTypeNameOrOtherToTypeDeclaration()
+                case nil:
+                    Standard("")
+                }
+            }
+        }
+    }
+
+    @SemanticStringBuilder
+    var protocolName: SemanticString {
+        get throws {
+            switch protocolConformance.`protocol` {
+            case .symbol(let unsolvedSymbol):
+                try MetadataReader.demangleType(for: unsolvedSymbol, in: machO)?.printSemantic(using: options)
+            case .element(let element):
+                try MetadataReader.demangleContext(for: .protocol(element), in: machO).printSemantic(using: options)
+            case .none:
+                Standard("")
+            }
+        }
+    }
+
+    private func validNode(for symbols: Symbols, typeName: String, visitedNode: borrowing OrderedSet<Node> = []) throws -> Node? {
         for symbol in symbols {
-            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolConformanceNode = node.preorder().first(where: { $0.kind == .protocolConformance }), let symbolTypeName = protocolConformanceNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName {
+            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolConformanceNode = node.preorder().first(where: { $0.kind == .protocolConformance }), let symbolTypeName = protocolConformanceNode.children.at(0)?.print(using: .interfaceType), (symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.entry(in: machO)?.primitiveType(for: typeName) == symbolTypeName) {
                 return node
             }
         }
@@ -136,4 +149,16 @@ extension ProtocolConformance: ConformedDumpable {
     }
 }
 
+extension ProtocolConformance: ConformedDumpable {
+    public func dumpTypeName<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+        try ProtocolConformanceDumper(protocolConformance: self, options: options, machO: machO).typeName
+    }
 
+    public func dumpProtocolName<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+        try ProtocolConformanceDumper(protocolConformance: self, options: options, machO: machO).protocolName
+    }
+
+    public func dump<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+        try ProtocolConformanceDumper(protocolConformance: self, options: options, machO: machO).body
+    }
+}

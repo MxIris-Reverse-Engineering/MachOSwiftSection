@@ -7,7 +7,7 @@ import Utilities
 
 extension TargetGenericContext {
     @SemanticStringBuilder
-    package func dumpGenericParameters<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> SemanticString {
+    package func dumpGenericParameters<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(in machO: MachO) throws -> SemanticString {
         Standard("<")
         for (offset, _) in currentParameters.offsetEnumerated() {
             Standard(try genericParameterName(depth: depth, index: offset.index))
@@ -32,7 +32,7 @@ extension TargetGenericContext {
     }
 
     @SemanticStringBuilder
-    package func dumpGenericRequirements<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+    package func dumpGenericRequirements<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
         for (offset, requirement) in currentRequirements.offsetEnumerated() {
             try requirement.dump(using: options, in: machO)
             if !offset.isEnd {
@@ -45,7 +45,7 @@ extension TargetGenericContext {
 
 extension GenericRequirementDescriptor {
     
-    package func dumpInheritedProtocol<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString? {
+    package func dumpInheritedProtocol<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString? {
         if try paramManagedName(in: machO).rawStringValue() == "A" {
             return try dumpParameterName(using: options, in: machO)
         } else {
@@ -55,13 +55,13 @@ extension GenericRequirementDescriptor {
     
     
     @SemanticStringBuilder
-    package func dumpParameterName<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+    package func dumpParameterName<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
         let node = try MetadataReader.demangleType(for: paramManagedName(in: machO), in: machO)
         node.printSemantic(using: options)
     }
     
     @SemanticStringBuilder
-    package func dumpContent<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+    package func dumpContent<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
         switch try resolvedContent(in: machO) {
         case .type(let mangledName):
             try MetadataReader.demangleType(for: mangledName, in: machO).printSemantic(using: options)
@@ -107,7 +107,7 @@ extension GenericRequirementDescriptor {
     }
     
     @SemanticStringBuilder
-    package func dump<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+    package func dump<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
         try dumpParameterName(using: options, in: machO)
         
         if layout.flags.kind == .sameType {

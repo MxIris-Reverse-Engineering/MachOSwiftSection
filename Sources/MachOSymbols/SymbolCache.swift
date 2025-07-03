@@ -3,36 +3,20 @@ import MachOExtensions
 import Demangle
 import OrderedCollections
 import Utilities
+import MachOCaches
 
-package final class SymbolCache {
+package final class SymbolCache: MachOCache<SymbolCache.Entry> {
     package static let shared = SymbolCache()
 
-    private let memoryPressureMonitor = MemoryPressureMonitor()
+    private override init() { super.init() }
 
-    private init() {
-        memoryPressureMonitor.memoryWarningHandler = { [weak self] in
-            self?.cacheEntryByIdentifier.removeAll()
-        }
-
-        memoryPressureMonitor.memoryCriticalHandler = { [weak self] in
-            self?.cacheEntryByIdentifier.removeAll()
-        }
-
-        memoryPressureMonitor.startMonitoring()
+    package final class Entry {
+        fileprivate var symbolsByOffset: OrderedDictionary<Int, [Symbol]> = [:]
+        fileprivate var demangledNodeBySymbol: [Symbol: Node] = [:]
     }
 
-    private struct CacheEntry {
-        var isLoaded: Bool = false
-        var symbolsByOffset: OrderedDictionary<Int, [Symbol]> = [:]
-        var demangledNodeBySymbol: [Symbol: Node] = [:]
-    }
-
-    private var cacheEntryByIdentifier: [AnyHashable: CacheEntry] = [:]
-
-    @discardableResult
-    package func createCacheIfNeeded<MachO: MachORepresentableWithCache>(in machO: MachO, isForced: Bool = false) -> Bool {
-        guard isForced || ((cacheEntryByIdentifier[machO.identifier].map(\.isLoaded) ?? false) == false) else { return false }
-        var cacheEntry: CacheEntry = .init()
+    package override func buildEntry<MachO>(for machO: MachO) -> Entry? where MachO: MachORepresentableWithCache {
+        let cacheEntry = Entry()
         var cachedSymbols: Set<String> = []
         for symbol in machO.symbols where symbol.name.isSwiftSymbol {
             var offset = symbol.offset
@@ -51,7 +35,7 @@ package final class SymbolCache {
                 cacheEntry.symbolsByOffset[offset, default: []].append(.init(offset: offset, stringValue: exportedSymbol.name))
             }
         }
-        
+
 //        for symbol in cacheEntry.symbolsByOffset.values.flatMap({ $0 }) {
 //            do {
 //                let node = try demangleAsNode(symbol.stringValue)
@@ -60,29 +44,24 @@ package final class SymbolCache {
 //                print(error)
 //            }
 //        }
-        
-        cacheEntry.isLoaded = true
-        cacheEntryByIdentifier[machO.identifier] = cacheEntry
-        return true
+
+        return cacheEntry
     }
 
     package func symbols<MachO: MachORepresentableWithCache>(for offset: Int, in machO: MachO) -> Symbols? {
-        createCacheIfNeeded(in: machO)
-        if let symbols = cacheEntryByIdentifier[machO.identifier]?.symbolsByOffset[offset], !symbols.isEmpty {
+        if let symbols = entry(in: machO)?.symbolsByOffset[offset], !symbols.isEmpty {
             return .init(offset: offset, symbols: symbols)
         } else {
             return nil
         }
     }
-    
+
     package func demangledNode<MachO: MachORepresentableWithCache>(for symbol: Symbol, in machO: MachO) -> Node? {
-        createCacheIfNeeded(in: machO)
-        guard var cacheEntry = cacheEntryByIdentifier[machO.identifier] else { return nil }
+        guard let cacheEntry = entry(in: machO) else { return nil }
         if let node = cacheEntry.demangledNodeBySymbol[symbol] {
             return node
         } else if let node = try? demangleAsNode(symbol.stringValue) {
             cacheEntry.demangledNodeBySymbol[symbol] = node
-            cacheEntryByIdentifier[machO.identifier] = cacheEntry
             return node
         } else {
             return nil

@@ -5,7 +5,7 @@ import MachOSwiftSection
 import Semantic
 
 extension ResilientSuperclass {
-    package func dumpSuperclass<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, for kind: TypeReferenceKind, in machO: MachO) throws -> SemanticString? {
+    package func dumpSuperclass<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(using options: DemangleOptions, for kind: TypeReferenceKind, in machO: MachO) throws -> SemanticString? {
         let typeReference = TypeReference.forKind(kind, at: layout.superclass.relativeOffset)
         let resolvedTypeReference = try typeReference.resolve(at: offset(of: \.superclass), in: machO)
         switch resolvedTypeReference {

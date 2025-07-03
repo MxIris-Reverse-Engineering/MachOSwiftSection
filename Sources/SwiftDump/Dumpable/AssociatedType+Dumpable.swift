@@ -6,59 +6,80 @@ import Semantic
 import Utilities
 import MachOFoundation
 
-extension AssociatedType: ConformedDumpable {
-    @SemanticStringBuilder
-    public func dumpTypeName<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-        try MetadataReader.demangleSymbol(for: conformingTypeName, in: machO).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
-    }
+private struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>: ConformedDumper {
+    let associatedType: AssociatedType
+    let options: DemangleOptions
+    let machO: MachO
 
-    @SemanticStringBuilder
-    public func dumpProtocolName<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-        try MetadataReader.demangleSymbol(for: protocolTypeName, in: machO).printSemantic(using: options)
-    }
-
-    @SemanticStringBuilder
-    public func dump<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-        Keyword(.extension)
-
-        Space()
-
-        try dumpTypeName(using: options, in: machO)
-
-        Standard(":")
-
-        Space()
-
-        try dumpProtocolName(using: options, in: machO)
-
-        Space()
-
-        Standard("{")
-
-        for (offset, record) in records.offsetEnumerated() {
-            BreakLine()
-
-            Indent(level: 1)
-
-            Keyword(.typealias)
+    var body: SemanticString {
+        get throws {
+            Keyword(.extension)
 
             Space()
 
-            try TypeDeclaration(kind: .other, record.name(in: machO))
+            try typeName
+
+            Standard(":")
 
             Space()
 
-            Standard("=")
+            try protocolName
 
             Space()
 
-            try MetadataReader.demangleSymbol(for: record.substitutedTypeName(in: machO), in: machO).printSemantic(using: options)
+            Standard("{")
 
-            if offset.isEnd {
+            for (offset, record) in associatedType.records.offsetEnumerated() {
                 BreakLine()
-            }
-        }
 
-        Standard("}")
+                Indent(level: 1)
+
+                Keyword(.typealias)
+
+                Space()
+
+                try TypeDeclaration(kind: .other, record.name(in: machO))
+
+                Space()
+
+                Standard("=")
+
+                Space()
+
+                try MetadataReader.demangleSymbol(for: record.substitutedTypeName(in: machO), in: machO).printSemantic(using: options)
+
+                if offset.isEnd {
+                    BreakLine()
+                }
+            }
+
+            Standard("}")
+        }
+    }
+
+    var typeName: SemanticString {
+        get throws {
+            try MetadataReader.demangleSymbol(for: associatedType.conformingTypeName, in: machO).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
+        }
+    }
+
+    var protocolName: SemanticString {
+        get throws {
+            try MetadataReader.demangleSymbol(for: associatedType.protocolTypeName, in: machO).printSemantic(using: options)
+        }
+    }
+}
+
+extension AssociatedType: ConformedDumpable {
+    public func dumpTypeName<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+        try AssociatedTypeDumper(associatedType: self, options: options, machO: machO).typeName
+    }
+
+    public func dumpProtocolName<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+        try AssociatedTypeDumper(associatedType: self, options: options, machO: machO).protocolName
+    }
+
+    public func dump<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+        try AssociatedTypeDumper(associatedType: self, options: options, machO: machO).body
     }
 }

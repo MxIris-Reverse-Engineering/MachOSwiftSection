@@ -4,8 +4,9 @@ import MachOExtensions
 import Demangle
 import OrderedCollections
 import Utilities
+import MachOCaches
 
-package final class SymbolIndexStore {
+package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
     package enum IndexKind: Hashable, CaseIterable, CustomStringConvertible {
         case allocator
         case allocatorInExtension
@@ -17,7 +18,7 @@ package final class SymbolIndexStore {
         case variableInExtension
         case staticVariable
         case staticVariableInExtension
-        
+
         package var description: String {
             switch self {
             case .allocator:
@@ -46,34 +47,16 @@ package final class SymbolIndexStore {
 
     package static let shared = SymbolIndexStore()
 
-    private let memoryPressureMonitor = MemoryPressureMonitor()
-
-    private init() {
-        memoryPressureMonitor.memoryWarningHandler = { [weak self] in
-            self?.indexEntryByIdentifier.removeAll()
-        }
-
-        memoryPressureMonitor.memoryCriticalHandler = { [weak self] in
-            self?.indexEntryByIdentifier.removeAll()
-        }
-
-        memoryPressureMonitor.startMonitoring()
+    private override init() {
+        super.init()
     }
 
-    private struct IndexEntry {
-        var isIndexed: Bool = false
-        var symbolsByKind: [IndexKind: [String: [Symbol]]] = [:]
+    package struct Entry {
+        fileprivate var symbolsByKind: [IndexKind: [String: [Symbol]]] = [:]
     }
 
-    private var indexEntryByIdentifier: [AnyHashable: IndexEntry] = [:]
-
-
-    @discardableResult
-    package func startIndexingIfNeeded<MachO: MachORepresentableWithCache>(in machO: MachO) -> Bool {
-        if let existedEntry = indexEntryByIdentifier[machO.identifier], existedEntry.isIndexed {
-            return true
-        }
-        var entry = IndexEntry()
+    package override func buildEntry<MachO>(for machO: MachO) -> Entry? where MachO: MachORepresentableWithCache {
+        var entry = Entry()
 
         var symbols: OrderedDictionary<String, Symbol> = [:]
 
@@ -89,7 +72,6 @@ package final class SymbolIndexStore {
 
         for symbol in symbols.values {
             do {
-                
                 let node = try demangleAsNode(symbol.stringValue)
 
                 func perform(_ node: Node, isStatic: Bool) {
@@ -159,14 +141,11 @@ package final class SymbolIndexStore {
                 print(error)
             }
         }
-        entry.isIndexed = true
-        indexEntryByIdentifier[machO.identifier] = entry
-        return true
+        return entry
     }
 
     package func symbols<MachO: MachORepresentableWithCache>(of kind: IndexKind, for name: String, in machO: MachO) -> [Symbol] {
-        startIndexingIfNeeded(in: machO)
-        if let symbol = indexEntryByIdentifier[machO.identifier]?.symbolsByKind[kind]?[name] {
+        if let symbol = entry(in: machO)?.symbolsByKind[kind]?[name] {
             return symbol
         } else {
             return []

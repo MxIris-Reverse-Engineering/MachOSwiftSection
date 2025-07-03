@@ -174,6 +174,7 @@ let package = Package(
                 "MachOMacro",
                 "Demangle",
                 "Utilities",
+                "MachOCaches",
                 .product(name: "OrderedCollections", package: "swift-collections"),
             ]
         ),

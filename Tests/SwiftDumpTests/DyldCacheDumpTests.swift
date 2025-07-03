@@ -13,6 +13,8 @@ final class DyldCacheDumpTests: DyldCacheTests, DumpableTests {
 }
 
 extension DyldCacheDumpTests {
+    // MARK: - Types
+    
     @Test func typesInCacheFile() async throws {
         try await dumpTypes(for: machOFileInCache)
     }
@@ -25,6 +27,8 @@ extension DyldCacheDumpTests {
         try await dumpTypes(for: machOFileInSubCache)
     }
 
+    // MARK: - Protocols
+    
     @Test func protocolsInCacheFile() async throws {
         try await dumpProtocols(for: machOFileInCache)
     }
@@ -37,6 +41,8 @@ extension DyldCacheDumpTests {
         try await dumpProtocols(for: machOFileInSubCache)
     }
 
+    // MARK: - ProtocolConformances
+    
     @Test func protocolConformancesInCacheFile() async throws {
         try await dumpProtocolConformances(for: machOFileInCache)
     }
@@ -49,6 +55,8 @@ extension DyldCacheDumpTests {
         try await dumpProtocolConformances(for: machOFileInSubCache)
     }
 
+    // MARK: - AssociatedTypes
+    
     @Test func associatedTypesInCacheFile() async throws {
         try await dumpAssociatedTypes(for: machOFileInCache)
     }
@@ -61,6 +69,8 @@ extension DyldCacheDumpTests {
         try await dumpAssociatedTypes(for: machOFileInSubCache)
     }
 
+    // MARK: - BuiltinTypes
+    
     @Test func builtinTypesInCacheFile() async throws {
         try await dumpBuiltinTypes(for: machOFileInCache)
     }
