@@ -1,9 +1,8 @@
 import MachOKit
 import Semantic
+import MachOFoundation
 
 public protocol ConformedDumpable: Dumpable {
-    func dumpTypeName(using options: DemangleOptions, in machO: MachOFile) throws -> SemanticString
-    func dumpProtocolName(using options: DemangleOptions, in machO: MachOFile) throws -> SemanticString
-    func dumpTypeName(using options: DemangleOptions, in machO: MachOImage) throws -> SemanticString
-    func dumpProtocolName(using options: DemangleOptions, in machO: MachOImage) throws -> SemanticString
+    func dumpTypeName<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString
+    func dumpProtocolName<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString
 }

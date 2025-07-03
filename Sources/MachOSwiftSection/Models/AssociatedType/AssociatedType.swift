@@ -13,11 +13,11 @@ public struct AssociatedType: TopLevelType {
     public let records: [AssociatedTypeRecord]
 
     
-    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: AssociatedTypeDescriptor, in machOFile: MachO) throws {
+    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: AssociatedTypeDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
-        self.conformingTypeName = try descriptor.conformingTypeName(in: machOFile)
-        self.protocolTypeName = try descriptor.protocolTypeName(in: machOFile)
-        self.records = try descriptor.associatedTypeRecords(in: machOFile)
+        self.conformingTypeName = try descriptor.conformingTypeName(in: machO)
+        self.protocolTypeName = try descriptor.protocolTypeName(in: machO)
+        self.records = try descriptor.associatedTypeRecords(in: machO)
     }
 }
 

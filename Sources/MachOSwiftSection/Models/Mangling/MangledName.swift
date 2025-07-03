@@ -37,9 +37,9 @@ public struct MangledName {
             package var description: String {
                 switch reference {
                 case .relative(let relative):
-                    "[Relative] FileOffset: \(offset) \(relative)"
+                    "[Relative] Offset: \(offset) \(relative)"
                 case .absolute(let absolute):
-                    "[Absolute] FileOffset: \(offset) \(absolute)"
+                    "[Absolute] Offset: \(offset) \(absolute)"
                 }
             }
         }
@@ -109,9 +109,9 @@ public struct MangledName {
 }
 
 extension MangledName: Resolvable {
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from fileOffset: Int, in machO: MachO) throws -> MangledName {
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> MangledName {
         var elements: [MangledName.Element] = []
-        var currentOffset = fileOffset
+        var currentOffset = offset
         var currentString = ""
         while true {
             let value: UInt8 = try machO.readElement(offset: currentOffset)
@@ -129,7 +129,7 @@ extension MangledName: Resolvable {
                     currentString = ""
                 }
                 let reference: Int32 = try machO.readElement(offset: currentOffset + 1)
-                let offset = Int(fileOffset + (currentOffset - fileOffset))
+                let offset = Int(offset + (currentOffset - offset))
                 elements.append(.lookup(.init(offset: offset, reference: .relative(.init(kind: value, relativeOffset: reference + 1)))))
                 currentOffset.offset(of: Int32.self)
             } else if value >= 0x18, value <= 0x1F {
@@ -138,7 +138,7 @@ extension MangledName: Resolvable {
                     currentString = ""
                 }
                 let reference: UInt64 = try machO.readElement(offset: currentOffset + 1)
-                let offset = Int(fileOffset + (currentOffset - fileOffset))
+                let offset = Int(offset + (currentOffset - offset))
                 elements.append(.lookup(.init(offset: offset, reference: .absolute(.init(kind: value, reference: reference)))))
                 currentOffset.offset(of: UInt64.self)
             } else {
@@ -147,7 +147,7 @@ extension MangledName: Resolvable {
             currentOffset.offset(of: UInt8.self)
         }
 
-        return .init(elements: elements, startOffset: fileOffset, endOffset: currentOffset)
+        return .init(elements: elements, startOffset: offset, endOffset: currentOffset)
     }
 }
 

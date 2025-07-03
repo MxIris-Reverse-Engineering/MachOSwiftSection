@@ -2,11 +2,9 @@ import Foundation
 import MachOKit
 import MachOMacro
 
-@MachOImageAllMembersGenerator
 extension MachORepresentable {
     package func _section(
-        for name: String,
-        in machOFile: MachOFile
+        for name: String
     ) -> (any SectionProtocol)? {
         sections.first(
             where: {

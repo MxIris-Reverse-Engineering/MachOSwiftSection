@@ -30,14 +30,14 @@ public struct Struct: TopLevelType {
         let typeFlags = try required(descriptor.flags.kindSpecificFlags?.typeFlags)
 
         if typeFlags.hasForeignMetadataInitialization {
-            self.foreignMetadataInitialization = try machO.readWrapperElement(offset: currentOffset)
+            self.foreignMetadataInitialization = try machO.readWrapperElement(offset: currentOffset) as ForeignMetadataInitialization
             currentOffset.offset(of: ForeignMetadataInitialization.self)
         } else {
             self.foreignMetadataInitialization = nil
         }
 
         if typeFlags.hasSingletonMetadataInitialization {
-            self.singletonMetadataInitialization = try machO.readWrapperElement(offset: currentOffset)
+            self.singletonMetadataInitialization = try machO.readWrapperElement(offset: currentOffset) as SingletonMetadataInitialization
             currentOffset.offset(of: SingletonMetadataInitialization.self)
         } else {
             self.singletonMetadataInitialization = nil
@@ -51,7 +51,7 @@ public struct Struct: TopLevelType {
             currentOffset.offset(of: CanonicalSpecializedMetadatasListEntry.self, numbersOfElements: countValue.cast())
             self.canonicalSpecializedMetadatas = canonicalMetadataPrespecializations
             self.canonicalSpecializedMetadatasListCount = count
-            self.canonicalSpecializedMetadatasCachingOnceToken = try machO.readWrapperElement(offset: currentOffset)
+            self.canonicalSpecializedMetadatasCachingOnceToken = try machO.readWrapperElement(offset: currentOffset) as CanonicalSpecializedMetadatasCachingOnceToken
             currentOffset.offset(of: CanonicalSpecializedMetadatasCachingOnceToken.self)
         } else {
             self.canonicalSpecializedMetadatas = []
@@ -60,14 +60,14 @@ public struct Struct: TopLevelType {
         }
 
         if descriptor.flags.hasInvertibleProtocols {
-            self.invertibleProtocolSet = try machO.readElement(offset: currentOffset)
+            self.invertibleProtocolSet = try machO.readElement(offset: currentOffset) as InvertibleProtocolSet
             currentOffset.offset(of: InvertibleProtocolSet.self)
         } else {
             self.invertibleProtocolSet = nil
         }
 
         if descriptor.hasSingletonMetadataPointer {
-            self.singletonMetadataPointer = try machO.readWrapperElement(offset: currentOffset)
+            self.singletonMetadataPointer = try machO.readWrapperElement(offset: currentOffset) as SingletonMetadataPointer
             currentOffset.offset(of: SingletonMetadataPointer.self)
         } else {
             self.singletonMetadataPointer = nil

@@ -9,19 +9,17 @@ import Demangle
 import OrderedCollections
 
 extension MachOSwiftSection.`Protocol`: NamedDumpable {
-    @MachOImageGenerator
-    public func dumpName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
-        try MetadataReader.demangleContext(for: .protocol(descriptor), in: machOFile).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
+    public func dumpName<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+        try MetadataReader.demangleContext(for: .protocol(descriptor), in: machO).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
     }
 
-    @MachOImageGenerator
     @SemanticStringBuilder
-    public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
+    public func dump<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
         Keyword(.protocol)
 
         Space()
 
-        try dumpName(using: options, in: machOFile)
+        try dumpName(using: options, in: machO)
 
         if numberOfRequirementsInSignature > 0 {
             Space()
@@ -29,7 +27,7 @@ extension MachOSwiftSection.`Protocol`: NamedDumpable {
             Space()
 
             for (offset, requirement) in requirementInSignatures.offsetEnumerated() {
-                try requirement.dump(using: options, in: machOFile)
+                try requirement.dump(using: options, in: machO)
                 if !offset.isEnd {
                     Standard(",")
                     Space()
@@ -39,7 +37,7 @@ extension MachOSwiftSection.`Protocol`: NamedDumpable {
         Space()
         Standard("{")
 
-        let associatedTypes = try descriptor.associatedTypes(in: machOFile)
+        let associatedTypes = try descriptor.associatedTypes(in: machO)
 
         if !associatedTypes.isEmpty {
             for (offset, associatedType) in associatedTypes.offsetEnumerated() {
@@ -59,13 +57,13 @@ extension MachOSwiftSection.`Protocol`: NamedDumpable {
         for (offset, requirement) in requirements.offsetEnumerated() {
             BreakLine()
             Indent(level: 1)
-            if let symbols = try Symbols.resolve(from: requirement.offset, in: machOFile), let validNode = try validNode(for: symbols, in: machOFile) {
+            if let symbols = try Symbols.resolve(from: requirement.offset, in: machO), let validNode = try validNode(for: symbols, in: machO) {
                 validNode.printSemantic(using: options)
             } else {
                 InlineComment("[Stripped Symbol]")
             }
             
-            if let symbols = try requirement.defaultImplementationSymbols(in: machOFile), let defaultImplementation = try validNode(for: symbols, in: machOFile, visitedNode: defaultImplementations) {
+            if let symbols = try requirement.defaultImplementationSymbols(in: machO), let defaultImplementation = try validNode(for: symbols, in: machO, visitedNode: defaultImplementations) {
                 _ = defaultImplementations.append(defaultImplementation)
             }
             
@@ -93,10 +91,9 @@ extension MachOSwiftSection.`Protocol`: NamedDumpable {
         Standard("}")
     }
     
-    @MachOImageGenerator
-    private func validNode(for symbols: Symbols, in machOFile: MachOFile, visitedNode: borrowing OrderedSet<Node> = []) throws -> Node? {
+    private func validNode<MachO: MachORepresentableWithCache & MachOReadable>(for symbols: Symbols, in machO: MachO, visitedNode: borrowing OrderedSet<Node> = []) throws -> Node? {
         for symbol in symbols {
-            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machOFile), let protocolNode = node.preorder().first(where: { $0.kind == .protocol }), protocolNode.print(using: .interface) == (try dumpName(using: .interfaceType, in: machOFile)).string, !visitedNode.contains(node) {
+            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolNode = node.preorder().first(where: { $0.kind == .protocol }), protocolNode.print(using: .interface) == (try dumpName(using: .interfaceType, in: machO)).string, !visitedNode.contains(node) {
                 return node
             }
         }

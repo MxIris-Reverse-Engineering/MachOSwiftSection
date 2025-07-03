@@ -69,8 +69,8 @@ public enum ContextDescriptorWrapper {
         }
     }
 
-    public func parent<MachO: MachORepresentableWithCache & MachOReadable>(in machOFile: MachO) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
-        return try contextDescriptor.parent(in: machOFile)
+    public func parent<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+        return try contextDescriptor.parent(in: machO)
     }
 
     public var contextDescriptor: any ContextDescriptorProtocol {
@@ -130,33 +130,33 @@ extension ContextDescriptorWrapper: Resolvable {
         case invalidContextDescriptor
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machOFile: MachO) throws -> Self {
-        let contextDescriptor: ContextDescriptor = try machOFile.readWrapperElement(offset: offset)
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self {
+        let contextDescriptor: ContextDescriptor = try machO.readWrapperElement(offset: offset)
         switch contextDescriptor.flags.kind {
         case .class:
-            return try .type(.class(machOFile.readWrapperElement(offset: offset)))
+            return try .type(.class(machO.readWrapperElement(offset: offset)))
         case .enum:
-            return try .type(.enum(machOFile.readWrapperElement(offset: offset)))
+            return try .type(.enum(machO.readWrapperElement(offset: offset)))
         case .struct:
-            return try .type(.struct(machOFile.readWrapperElement(offset: offset)))
+            return try .type(.struct(machO.readWrapperElement(offset: offset)))
         case .protocol:
-            return try .protocol(machOFile.readWrapperElement(offset: offset))
+            return try .protocol(machO.readWrapperElement(offset: offset))
         case .anonymous:
-            return try .anonymous(machOFile.readWrapperElement(offset: offset))
+            return try .anonymous(machO.readWrapperElement(offset: offset))
         case .extension:
-            return try .extension(machOFile.readWrapperElement(offset: offset))
+            return try .extension(machO.readWrapperElement(offset: offset))
         case .module:
-            return try .module(machOFile.readWrapperElement(offset: offset))
+            return try .module(machO.readWrapperElement(offset: offset))
         case .opaqueType:
-            return try .opaqueType(machOFile.readWrapperElement(offset: offset))
+            return try .opaqueType(machO.readWrapperElement(offset: offset))
         default:
             throw ResolutionError.invalidContextDescriptor
         }
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machOFile: MachO) throws -> Self? {
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self? {
         do {
-            return try resolve(from: offset, in: machOFile) as Self
+            return try resolve(from: offset, in: machO) as Self
         } catch {
             print("Error resolving ContextDescriptorWrapper: \(error)")
             return nil

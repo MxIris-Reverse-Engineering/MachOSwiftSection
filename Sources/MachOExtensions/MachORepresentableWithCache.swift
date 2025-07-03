@@ -26,6 +26,7 @@ extension MachOImage {
         Int(address) - ptr.int
     }
 }
+
 extension MachOFile: MachORepresentableWithCache {
     public var identifier: MachOTargetIdentifier {
         .file(imagePath)

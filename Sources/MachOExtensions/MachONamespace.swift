@@ -1,22 +1,22 @@
 import Foundation
 
-package struct MachONamespace<Base> {
-    package let base: Base
+public struct MachONamespace<Base> {
+    public let base: Base
 
-    package init(_ base: Base) {
+    public init(_ base: Base) {
         self.base = base
     }
 }
 
-package protocol MachONamespacing {}
+public protocol MachONamespacing {}
 
 extension MachONamespacing {
-    package var machO: MachONamespace<Self> {
+    public var machO: MachONamespace<Self> {
         set {}
         get { MachONamespace(self) }
     }
 
-    package static var machO: MachONamespace<Self>.Type {
+    public static var machO: MachONamespace<Self>.Type {
         set {}
         get { MachONamespace.self }
     }

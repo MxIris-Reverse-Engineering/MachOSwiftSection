@@ -66,7 +66,7 @@ public struct Enum: TopLevelType {
             currentOffset.offset(of: CanonicalSpecializedMetadatasListEntry.self, numbersOfElements: countValue.cast())
             self.canonicalSpecializedMetadatas = canonicalMetadataPrespecializations
             self.canonicalSpecializedMetadatasListCount = count
-            self.canonicalSpecializedMetadatasCachingOnceToken = try machO.readWrapperElement(offset: currentOffset)
+            self.canonicalSpecializedMetadatasCachingOnceToken = try machO.readWrapperElement(offset: currentOffset) as CanonicalSpecializedMetadatasCachingOnceToken
             currentOffset.offset(of: CanonicalSpecializedMetadatasCachingOnceToken.self)
         } else {
             self.canonicalSpecializedMetadatas = []
@@ -75,14 +75,14 @@ public struct Enum: TopLevelType {
         }
 
         if descriptor.flags.hasInvertibleProtocols {
-            self.invertibleProtocolSet = try machO.readElement(offset: currentOffset)
+            self.invertibleProtocolSet = try machO.readElement(offset: currentOffset) as InvertibleProtocolSet
             currentOffset.offset(of: InvertibleProtocolSet.self)
         } else {
             self.invertibleProtocolSet = nil
         }
 
         if descriptor.hasSingletonMetadataPointer {
-            self.singletonMetadataPointer = try machO.readWrapperElement(offset: currentOffset)
+            self.singletonMetadataPointer = try machO.readWrapperElement(offset: currentOffset) as SingletonMetadataPointer
             currentOffset.offset(of: SingletonMetadataPointer.self)
         } else {
             self.singletonMetadataPointer = nil

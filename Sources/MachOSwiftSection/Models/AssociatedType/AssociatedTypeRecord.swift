@@ -20,11 +20,11 @@ public struct AssociatedTypeRecord: ResolvableLocatableLayoutWrapper {
 }
 
 extension AssociatedTypeRecord {
-    public func name<MachO: MachORepresentableWithCache & MachOReadable>(in machOFile: MachO) throws -> String {
-        return try layout.name.resolve(from: offset(of: \.name), in: machOFile)
+    public func name<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> String {
+        return try layout.name.resolve(from: offset(of: \.name), in: machO)
     }
 
-    public func substitutedTypeName<MachO: MachORepresentableWithCache & MachOReadable>(in machOFile: MachO) throws -> MangledName {
-        return try layout.substitutedTypeName.resolve(from: offset(of: \.substitutedTypeName), in: machOFile)
+    public func substitutedTypeName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+        return try layout.substitutedTypeName.resolve(from: offset(of: \.substitutedTypeName), in: machO)
     }
 }

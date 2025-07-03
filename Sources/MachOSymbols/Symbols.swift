@@ -13,12 +13,12 @@ public struct Symbols: Resolvable {
         self._storage = symbols
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from fileOffset: Int, in machO: MachO) throws -> Self {
-        try required(resolve(from: fileOffset, in: machO))
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self {
+        try required(resolve(from: offset, in: machO))
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from fileOffset: Int, in machO: MachO) throws -> Self? {
-        return machO.symbols(offset: fileOffset)
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self? {
+        return machO.symbols(offset: offset)
     }
 }
 

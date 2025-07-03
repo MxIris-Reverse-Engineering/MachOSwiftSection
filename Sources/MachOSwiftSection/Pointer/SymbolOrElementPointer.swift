@@ -16,25 +16,25 @@ public enum SymbolOrElementPointer<Context: Resolvable>: RelativeIndirectType {
     case symbol(Symbol)
     case address(UInt64)
 
-    public func resolve<MachO: MachORepresentableWithCache & MachOReadable>(in machOFile: MachO) throws -> Resolved {
+    public func resolve<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> Resolved {
         switch self {
         case let .symbol(unsolvedSymbol):
             return .symbol(unsolvedSymbol)
         case .address:
-            return try .element(Context.resolve(from: resolveOffset(in: machOFile), in: machOFile))
+            return try .element(Context.resolve(from: resolveOffset(in: machO), in: machO))
         }
     }
 
-    public func resolveOffset<MachO: MachORepresentableWithCache & MachOReadable>(in machOFile: MachO) -> Int {
+    public func resolveOffset<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) -> Int {
         switch self {
         case let .symbol(unsolvedSymbol):
             return unsolvedSymbol.offset
         case let .address(address):
-            return numericCast(machOFile.resolveOffset(at: address))
+            return numericCast(machO.resolveOffset(at: address))
         }
     }
 
-    public func resolveAny<T: Resolvable, MachO: MachORepresentableWithCache & MachOReadable>(in machOFile: MachO) throws -> T {
+    public func resolveAny<T: Resolvable, MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> T {
         fatalError()
     }
 

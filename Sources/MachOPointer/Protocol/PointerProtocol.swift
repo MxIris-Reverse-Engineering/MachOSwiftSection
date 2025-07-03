@@ -14,12 +14,12 @@ public protocol PointerProtocol: Resolvable, Sendable {
 }
 
 extension PointerProtocol {
-    public func resolveAny<T: Resolvable, MachO: MachORepresentableWithCache & MachOReadable>(in machOFile: MachO) throws -> T {
-        return try T.resolve(from: resolveOffset(in: machOFile), in: machOFile)
+    public func resolveAny<T: Resolvable, MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> T {
+        return try T.resolve(from: resolveOffset(in: machO), in: machO)
     }
 
-    public func resolve<MachO: MachORepresentableWithCache & MachOReadable>(in machOFile: MachO) throws -> Pointee {
-        return try Pointee.resolve(from: resolveOffset(in: machOFile), in: machOFile)
+    public func resolve<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> Pointee {
+        return try Pointee.resolve(from: resolveOffset(in: machO), in: machO)
     }
 
     public func resolveOffset<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) -> Int {

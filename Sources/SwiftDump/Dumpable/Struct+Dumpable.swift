@@ -5,31 +5,30 @@ import MachOMacro
 import Semantic
 import MachOSymbols
 import Utilities
+import MachOFoundation
 
 extension Struct: NamedDumpable {
-    @MachOImageGenerator
-    public func dumpName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
-        try MetadataReader.demangleContext(for: .type(.struct(descriptor)), in: machOFile).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
+    public func dumpName<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+        try MetadataReader.demangleContext(for: .type(.struct(descriptor)), in: machO).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
     }
 
-    @MachOImageGenerator
     @SemanticStringBuilder
-    public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
+    public func dump<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
         Keyword(.struct)
 
         Space()
 
-        try dumpName(using: options, in: machOFile)
+        try dumpName(using: options, in: machO)
 
         if let genericContext {
             if genericContext.currentParameters.count > 0 {
-                try genericContext.dumpGenericParameters(in: machOFile)
+                try genericContext.dumpGenericParameters(in: machO)
             }
             if genericContext.currentRequirements.count > 0 {
                 Space()
                 Keyword(.where)
                 Space()
-                try genericContext.dumpGenericRequirements(using: options, in: machOFile)
+                try genericContext.dumpGenericRequirements(using: options, in: machO)
             }
         }
 
@@ -37,14 +36,14 @@ extension Struct: NamedDumpable {
 
         Standard("{")
 
-        for (offset, fieldRecord) in try descriptor.fieldDescriptor(in: machOFile).records(in: machOFile).offsetEnumerated() {
+        for (offset, fieldRecord) in try descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
             BreakLine()
 
             Indent(level: 1)
 
-            let demangledTypeNode = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machOFile), in: machOFile)
+            let demangledTypeNode = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machO), in: machO)
 
-            let fieldName = try fieldRecord.fieldName(in: machOFile)
+            let fieldName = try fieldRecord.fieldName(in: machO)
 
             if fieldRecord.flags.contains(.isVariadic) {
                 if demangledTypeNode.hasWeakNode {
@@ -77,7 +76,7 @@ extension Struct: NamedDumpable {
         }
 
         for kind in SymbolIndexStore.IndexKind.allCases {
-            for (offset, symbol) in try SymbolIndexStore.shared.symbols(of: kind, for: dumpName(using: .interface, in: machOFile).string, in: machOFile).offsetEnumerated() {
+            for (offset, symbol) in try SymbolIndexStore.shared.symbols(of: kind, for: dumpName(using: .interface, in: machO).string, in: machO).offsetEnumerated() {
                 if offset.isStart {
                     BreakLine()
 
@@ -90,7 +89,7 @@ extension Struct: NamedDumpable {
 
                 Indent(level: 1)
 
-                try MetadataReader.demangleSymbol(for: symbol, in: machOFile)?.printSemantic(using: options)
+                try MetadataReader.demangleSymbol(for: symbol, in: machO)?.printSemantic(using: options)
 
                 if offset.isEnd {
                     BreakLine()

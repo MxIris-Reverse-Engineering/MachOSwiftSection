@@ -7,7 +7,7 @@ public protocol LocatableLayoutWrapper: LayoutWrapper, Sendable {
 }
 
 extension LocatableLayoutWrapper {
-    public func offset<T>(of keyPath: KeyPath<Layout, T>) -> Int {
+    package func offset<T>(of keyPath: KeyPath<Layout, T>) -> Int {
         return offset + MemoryLayout<Layout>.offset(of: keyPath)!
     }
 }

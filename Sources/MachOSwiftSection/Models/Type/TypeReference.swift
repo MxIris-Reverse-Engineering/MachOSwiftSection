@@ -22,16 +22,16 @@ public enum TypeReference {
     }
 
     
-    public func resolve<MachO: MachORepresentableWithCache & MachOReadable>(at fileOffset: Int, in machO: MachO) throws -> ResolvedTypeReference {
+    public func resolve<MachO: MachORepresentableWithCache & MachOReadable>(at offset: Int, in machO: MachO) throws -> ResolvedTypeReference {
         switch self {
         case let .directTypeDescriptor(relativeDirectPointer):
-            return try .directTypeDescriptor(relativeDirectPointer.resolve(from: fileOffset, in: machO))
+            return try .directTypeDescriptor(relativeDirectPointer.resolve(from: offset, in: machO))
         case let .indirectTypeDescriptor(relativeIndirectPointer):
-            return try .indirectTypeDescriptor(relativeIndirectPointer.resolve(from: fileOffset, in: machO).resolve(in: machO).asOptional)
+            return try .indirectTypeDescriptor(relativeIndirectPointer.resolve(from: offset, in: machO).resolve(in: machO).asOptional)
         case let .directObjCClassName(relativeDirectPointer):
-            return try .directObjCClassName(relativeDirectPointer.resolve(from: fileOffset, in: machO))
+            return try .directObjCClassName(relativeDirectPointer.resolve(from: offset, in: machO))
         case let .indirectObjCClass(relativeIndirectPointer):
-            return try .indirectObjCClass(relativeIndirectPointer.resolve(from: fileOffset, in: machO).resolve(in: machO).asOptional)
+            return try .indirectObjCClass(relativeIndirectPointer.resolve(from: offset, in: machO).resolve(in: machO).asOptional)
         }
     }
 }

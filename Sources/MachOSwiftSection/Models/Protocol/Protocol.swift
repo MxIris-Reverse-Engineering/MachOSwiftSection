@@ -42,7 +42,7 @@ public struct `Protocol`: TopLevelType {
         var currentOffset = descriptor.offset + descriptor.layoutSize
 
         if descriptor.numRequirementsInSignature > 0 {
-            self.requirementInSignatures = try machO.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.numRequirementsInSignature.cast())
+            self.requirementInSignatures = try machO.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.numRequirementsInSignature.cast()) as [GenericRequirementDescriptor]
             currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: descriptor.numRequirementsInSignature.cast())
             currentOffset = align(address: currentOffset.cast(), alignment: 4).cast()
         } else {
@@ -50,7 +50,7 @@ public struct `Protocol`: TopLevelType {
         }
 
         if descriptor.numRequirements > 0 {
-            self.requirements = try machO.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.numRequirements.cast())
+            self.requirements = try machO.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.numRequirements.cast()) as [ProtocolRequirement]
             currentOffset.offset(of: ProtocolRequirement.self, numbersOfElements: descriptor.numRequirements.cast())
         } else {
             self.requirements = []

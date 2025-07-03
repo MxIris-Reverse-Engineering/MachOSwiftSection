@@ -7,14 +7,12 @@ import MachOSwiftSection
 import Utilities
 
 extension Class: NamedDumpable {
-    @MachOImageGenerator
-    public func dumpName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
-        try MetadataReader.demangleContext(for: .type(.class(descriptor)), in: machOFile).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
+    public func dumpName<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+        try MetadataReader.demangleContext(for: .type(.class(descriptor)), in: machO).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
     }
 
-    @MachOImageGenerator
     @SemanticStringBuilder
-    public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
+    public func dump<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
         if descriptor.isActor {
             Keyword(.actor)
         } else {
@@ -23,19 +21,19 @@ extension Class: NamedDumpable {
 
         Space()
 
-        try dumpName(using: options, in: machOFile)
+        try dumpName(using: options, in: machO)
 
         if let genericContext {
             if genericContext.currentParameters.count > 0 {
-                try genericContext.dumpGenericParameters(in: machOFile)
+                try genericContext.dumpGenericParameters(in: machO)
             }
         }
 
-        if let superclassMangledName = try descriptor.superclassTypeMangledName(in: machOFile) {
+        if let superclassMangledName = try descriptor.superclassTypeMangledName(in: machO) {
             Standard(":")
             Space()
-            try MetadataReader.demangleType(for: superclassMangledName, in: machOFile).printSemantic(using: options)
-        } else if let resilientSuperclass, let kind = descriptor.resilientSuperclassReferenceKind, let superclass = try resilientSuperclass.dumpSuperclass(using: options, for: kind, in: machOFile) {
+            try MetadataReader.demangleType(for: superclassMangledName, in: machO).printSemantic(using: options)
+        } else if let resilientSuperclass, let kind = descriptor.resilientSuperclassReferenceKind, let superclass = try resilientSuperclass.dumpSuperclass(using: options, for: kind, in: machO) {
             Standard(":")
             Space()
             superclass
@@ -45,20 +43,20 @@ extension Class: NamedDumpable {
             Space()
             Keyword(.where)
             Space()
-            try genericContext.dumpGenericRequirements(using: options, in: machOFile)
+            try genericContext.dumpGenericRequirements(using: options, in: machO)
         }
         Space()
 
         Standard("{")
 
-        for (offset, fieldRecord) in try descriptor.fieldDescriptor(in: machOFile).records(in: machOFile).offsetEnumerated() {
+        for (offset, fieldRecord) in try descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
             BreakLine()
 
             Indent(level: 1)
 
-            let demangledTypeNode = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machOFile), in: machOFile)
+            let demangledTypeNode = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machO), in: machO)
 
-            let fieldName = try fieldRecord.fieldName(in: machOFile)
+            let fieldName = try fieldRecord.fieldName(in: machO)
 
             if fieldRecord.flags.contains(.isVariadic) {
                 if demangledTypeNode.hasWeakNode {
@@ -102,7 +100,7 @@ extension Class: NamedDumpable {
 
             dumpMethodKeyword(for: descriptor)
 
-            try dumpMethodDeclaration(for: descriptor, using: options, in: machOFile)
+            try dumpMethodDeclaration(for: descriptor, using: options, in: machO)
 
             if offset.isEnd {
                 BreakLine()
@@ -114,26 +112,26 @@ extension Class: NamedDumpable {
 
             Indent(level: 1)
 
-            if let methodDescriptor = try descriptor.methodDescriptor(in: machOFile) {
+            if let methodDescriptor = try descriptor.methodDescriptor(in: machO) {
                 switch methodDescriptor {
                 case .symbol(let symbol):
                     Keyword(.override)
                     Space()
-                    try MetadataReader.demangleSymbol(for: symbol, in: machOFile)?.printSemantic(using: options)
+                    try MetadataReader.demangleSymbol(for: symbol, in: machO)?.printSemantic(using: options)
                 case .element(let element):
                     dumpMethodKind(for: element)
                     Keyword(.override)
                     Space()
                     dumpMethodKeyword(for: element)
-                    try? dumpMethodDeclaration(for: element, using: options, in: machOFile)
+                    try? dumpMethodDeclaration(for: element, using: options, in: machO)
                 }
             } else {
                 Keyword(.override)
                 Space()
-                if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
-                    try MetadataReader.demangleSymbol(for: symbol, in: machOFile)?.printSemantic(using: options)
+                if let symbol = try? descriptor.implementationSymbol(in: machO) {
+                    try MetadataReader.demangleSymbol(for: symbol, in: machO)?.printSemantic(using: options)
                 } else if !descriptor.implementation.isNull {
-                    FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
+                    FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machO).insertSubFunctionPrefix)
                 } else {
                     Error("Symbol not found")
                 }
@@ -153,10 +151,10 @@ extension Class: NamedDumpable {
 
             Space()
 
-            if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
-                try MetadataReader.demangleSymbol(for: symbol, in: machOFile)?.printSemantic(using: options)
+            if let symbol = try? descriptor.implementationSymbol(in: machO) {
+                try MetadataReader.demangleSymbol(for: symbol, in: machO)?.printSemantic(using: options)
             } else if !descriptor.implementation.isNull {
-                FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
+                FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machO).insertSubFunctionPrefix)
             } else {
                 Error("Symbol not found")
             }
@@ -194,13 +192,12 @@ extension Class: NamedDumpable {
         }
     }
 
-    @MachOImageGenerator
     @SemanticStringBuilder
-    private func dumpMethodDeclaration(for descriptor: MethodDescriptor, using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
-        if let symbol = try? descriptor.implementationSymbol(in: machOFile) {
-            try MetadataReader.demangleSymbol(for: symbol, in: machOFile)?.printSemantic(using: options)
+    private func dumpMethodDeclaration<MachO: MachORepresentableWithCache & MachOReadable>(for descriptor: MethodDescriptor, using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+        if let symbol = try? descriptor.implementationSymbol(in: machO) {
+            try MetadataReader.demangleSymbol(for: symbol, in: machO)?.printSemantic(using: options)
         } else if !descriptor.implementation.isNull {
-            FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machOFile).insertSubFunctionPrefix)
+            FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machO).insertSubFunctionPrefix)
         } else {
             Error("Symbol not found")
         }

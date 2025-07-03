@@ -4,34 +4,32 @@ import MachOSwiftSection
 import MachOMacro
 import Semantic
 import Utilities
+import MachOFoundation
 
 extension AssociatedType: ConformedDumpable {
-    @MachOImageGenerator
     @SemanticStringBuilder
-    public func dumpTypeName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
-        try MetadataReader.demangleSymbol(for: conformingTypeName, in: machOFile).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
+    public func dumpTypeName<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+        try MetadataReader.demangleSymbol(for: conformingTypeName, in: machO).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
     }
 
-    @MachOImageGenerator
     @SemanticStringBuilder
-    public func dumpProtocolName(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
-        try MetadataReader.demangleSymbol(for: protocolTypeName, in: machOFile).printSemantic(using: options)
+    public func dumpProtocolName<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+        try MetadataReader.demangleSymbol(for: protocolTypeName, in: machO).printSemantic(using: options)
     }
 
-    @MachOImageGenerator
     @SemanticStringBuilder
-    public func dump(using options: DemangleOptions, in machOFile: MachOFile) throws -> SemanticString {
+    public func dump<MachO: MachORepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
         Keyword(.extension)
 
         Space()
 
-        try dumpTypeName(using: options, in: machOFile)
+        try dumpTypeName(using: options, in: machO)
 
         Standard(":")
 
         Space()
 
-        try dumpProtocolName(using: options, in: machOFile)
+        try dumpProtocolName(using: options, in: machO)
 
         Space()
 
@@ -46,7 +44,7 @@ extension AssociatedType: ConformedDumpable {
 
             Space()
 
-            try TypeDeclaration(kind: .other, record.name(in: machOFile))
+            try TypeDeclaration(kind: .other, record.name(in: machO))
 
             Space()
 
@@ -54,7 +52,7 @@ extension AssociatedType: ConformedDumpable {
 
             Space()
 
-            try MetadataReader.demangleSymbol(for: record.substitutedTypeName(in: machOFile), in: machOFile).printSemantic(using: options)
+            try MetadataReader.demangleSymbol(for: record.substitutedTypeName(in: machO), in: machO).printSemantic(using: options)
 
             if offset.isEnd {
                 BreakLine()

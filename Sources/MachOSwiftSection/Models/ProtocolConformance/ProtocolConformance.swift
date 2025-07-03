@@ -63,7 +63,7 @@ public struct ProtocolConformance: TopLevelType {
         }
 
         if descriptor.flags.numConditionalRequirements > 0 {
-            self.conditionalRequirements = try machO.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.flags.numConditionalRequirements.cast())
+            self.conditionalRequirements = try machO.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.flags.numConditionalRequirements.cast()) as [GenericRequirementDescriptor]
             currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: descriptor.flags.numConditionalRequirements.cast())
         } else {
             self.conditionalRequirements = []
@@ -73,7 +73,7 @@ public struct ProtocolConformance: TopLevelType {
             let header: GenericPackShapeHeader = try machO.readWrapperElement(offset: currentOffset)
             self.conditionalPackShapeHeader = header
             currentOffset.offset(of: GenericPackShapeHeader.self)
-            self.conditionalPackShapeDescriptors = try machO.readWrapperElements(offset: currentOffset, numberOfElements: header.numPacks.cast())
+            self.conditionalPackShapeDescriptors = try machO.readWrapperElements(offset: currentOffset, numberOfElements: header.numPacks.cast()) as [GenericPackShapeDescriptor]
             currentOffset.offset(of: GenericPackShapeDescriptor.self, numbersOfElements: header.numPacks.cast())
         } else {
             self.conditionalPackShapeHeader = nil
@@ -84,7 +84,7 @@ public struct ProtocolConformance: TopLevelType {
             let header: ResilientWitnessesHeader = try machO.readWrapperElement(offset: currentOffset)
             self.resilientWitnessesHeader = header
             currentOffset.offset(of: ResilientWitnessesHeader.self)
-            self.resilientWitnesses = try machO.readWrapperElements(offset: currentOffset, numberOfElements: header.numWitnesses.cast())
+            self.resilientWitnesses = try machO.readWrapperElements(offset: currentOffset, numberOfElements: header.numWitnesses.cast()) as [ResilientWitness]
             currentOffset.offset(of: ResilientWitness.self, numbersOfElements: header.numWitnesses.cast())
         } else {
             self.resilientWitnessesHeader = nil
