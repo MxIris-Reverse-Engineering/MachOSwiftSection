@@ -8,11 +8,9 @@ public protocol RelativePointerProtocol<Pointee, Offset>: Sendable {
     
     var relativeOffset: Offset { get }
     
-    func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Pointee
-    func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> Pointee
+    func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from fileOffset: Int, in machOFile: MachO) throws -> Pointee
     
-    func resolveAny<T: Resolvable>(from fileOffset: Int, in machOFile: MachOFile) throws -> T
-    func resolveAny<T: Resolvable>(from imageOffset: Int, in machOImage: MachOImage) throws -> T
+    func resolveAny<T: Resolvable, MachO: MachORepresentableWithCache & MachOReadable>(from fileOffset: Int, in machOFile: MachO) throws -> T
     
     func resolveDirectOffset(from offset: Int) -> Int
 }

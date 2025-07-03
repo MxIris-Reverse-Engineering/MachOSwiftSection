@@ -18,10 +18,9 @@ public struct ProtocolRequirement: ResolvableLocatableLayoutWrapper {
     }
 }
 
-@MachOImageAllMembersGenerator
 extension ProtocolRequirement {
-    public func defaultImplementationSymbols(in machOFile: MachOFile) throws -> Symbols? {
+    public func defaultImplementationSymbols<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> Symbols? {
         guard layout.defaultImplementation.isValid else { return nil }
-        return try layout.defaultImplementation.resolve(from: offset(of: \.defaultImplementation), in: machOFile)
+        return try layout.defaultImplementation.resolve(from: offset(of: \.defaultImplementation), in: machO)
     }
 }

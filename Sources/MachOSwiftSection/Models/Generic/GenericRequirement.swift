@@ -1,6 +1,7 @@
 import Foundation
 import MachOKit
 import MachOMacro
+import MachOFoundation
 
 public struct GenericRequirement {
     public let descriptor: GenericRequirementDescriptor
@@ -11,10 +12,9 @@ public struct GenericRequirement {
 
     public var content: ResolvedGenericRequirementContent
 
-    @MachOImageGenerator
-    public init(descriptor: GenericRequirementDescriptor, in machOFile: MachOFile) throws {
+    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: GenericRequirementDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
-        self.paramManagledName = try descriptor.paramManagedName(in: machOFile)
-        self.content = try descriptor.resolvedContent(in: machOFile)
+        self.paramManagledName = try descriptor.paramManagedName(in: machO)
+        self.content = try descriptor.resolvedContent(in: machO)
     }
 }

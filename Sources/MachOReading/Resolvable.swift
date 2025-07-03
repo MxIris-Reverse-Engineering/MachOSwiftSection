@@ -3,29 +3,24 @@ import MachOExtensions
 import MachOMacro
 
 public protocol Resolvable {
-    static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self
-    static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self?
-
-    static func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> Self
-    static func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> Self?
+    static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from fileOffset: Int, in machO: MachO) throws -> Self
+    static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from fileOffset: Int, in machO: MachO) throws -> Self?
 }
 
-@MachOImageAllMembersGenerator
 extension Resolvable {
-    public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self {
-        return try machOFile.readElement(offset: fileOffset)
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from fileOffset: Int, in machO: MachO) throws -> Self {
+        return try machO.readElement(offset: fileOffset)
     }
 
-    public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self? {
-        let result: Self = try resolve(from: fileOffset, in: machOFile)
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from fileOffset: Int, in machO: MachO) throws -> Self? {
+        let result: Self = try resolve(from: fileOffset, in: machO)
         return .some(result)
     }
 }
 
-@MachOImageAllMembersGenerator
 extension Optional: Resolvable where Wrapped: Resolvable {
-    public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self {
-        let result: Wrapped? = try Wrapped.resolve(from: fileOffset, in: machOFile)
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from fileOffset: Int, in machO: MachO) throws -> Self {
+        let result: Wrapped? = try Wrapped.resolve(from: fileOffset, in: machO)
         if let result {
             return .some(result)
         } else {
@@ -34,22 +29,15 @@ extension Optional: Resolvable where Wrapped: Resolvable {
     }
 }
 
-@MachOImageAllMembersGenerator
 extension String: Resolvable {
-    public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self {
-        return try machOFile.readString(offset: fileOffset)
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from fileOffset: Int, in machO: MachO) throws -> Self {
+        return try machO.readString(offset: fileOffset)
     }
 }
 
 extension Resolvable where Self: LocatableLayoutWrapper {
-    public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self {
-        try machOFile.readElement(offset: fileOffset)
-    }
-}
-
-extension Resolvable where Self: LocatableLayoutWrapper {
-    public static func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> Self {
-        try machOImage.readElement(offset: imageOffset)
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from fileOffset: Int, in machO: MachO) throws -> Self {
+        try machO.readWrapperElement(offset: fileOffset)
     }
 }
 

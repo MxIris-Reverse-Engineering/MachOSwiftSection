@@ -1,25 +1,37 @@
 import MachOKit
 
-package protocol MachORepresentableWithCache: MachORepresentable {
+public protocol MachORepresentableWithCache: MachORepresentable {
     associatedtype Cache: DyldCacheRepresentable
     associatedtype Identifier: Hashable
 
     var identifier: Identifier { get }
     var cache: Cache? { get }
     var startOffset: Int { get }
+    func resolveOffset(at address: UInt64) -> Int
 }
 
-package enum MachOTargetIdentifier: Hashable {
+public enum MachOTargetIdentifier: Hashable {
     case image(UnsafeRawPointer)
     case file(String)
 }
 
+extension MachOFile {
+    public func resolveOffset(at address: UInt64) -> Int {
+        numericCast(fileOffset(of: address))
+    }
+}
+
+extension MachOImage {
+    public func resolveOffset(at address: UInt64) -> Int {
+        Int(address) - ptr.int
+    }
+}
 extension MachOFile: MachORepresentableWithCache {
-    package var identifier: MachOTargetIdentifier {
+    public var identifier: MachOTargetIdentifier {
         .file(imagePath)
     }
 
-    package var startOffset: Int {
+    public var startOffset: Int {
         if let cache {
             headerStartOffsetInCache + cache.fileStartOffset.cast()
         } else {
@@ -29,11 +41,11 @@ extension MachOFile: MachORepresentableWithCache {
 }
 
 extension MachOImage: MachORepresentableWithCache {
-    package var identifier: MachOTargetIdentifier {
+    public var identifier: MachOTargetIdentifier {
         .image(ptr)
     }
 
-    package var cache: DyldCacheLoaded? {
+    public var cache: DyldCacheLoaded? {
         guard let currentCache = DyldCacheLoaded.current else { return nil }
 
         if ptr.int - currentCache.mainCacheHeader.sharedRegionStart.cast() >= 0 {
@@ -42,7 +54,7 @@ extension MachOImage: MachORepresentableWithCache {
         return nil
     }
 
-    package var startOffset: Int {
+    public var startOffset: Int {
         if let cache {
             return cache.mainCacheHeader.sharedRegionStart.cast()
         } else {

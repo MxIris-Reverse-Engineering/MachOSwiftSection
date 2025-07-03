@@ -23,8 +23,7 @@ public struct BuiltinTypeDescriptor: ResolvableLocatableLayoutWrapper, TopLevelD
 }
 
 extension BuiltinTypeDescriptor {
-    @MachOImageGenerator
-    public func typeName(in machOFile: MachOFile) throws -> MangledName? {
+    public func typeName<MachO: MachORepresentableWithCache & MachOReadable>(in machOFile: MachO) throws -> MangledName? {
         return try layout.typeName.resolve(from: offset(of: \.typeName), in: machOFile)
     }
 

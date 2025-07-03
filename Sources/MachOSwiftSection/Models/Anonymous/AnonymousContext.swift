@@ -8,8 +8,7 @@ public struct AnonymousContext {
     public let genericContext: GenericContext?
     public let mangledName: MangledName?
 
-    @MachOImageGenerator
-    public init(descriptor: AnonymousContextDescriptor, in machOFile: MachOFile) throws {
+    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: AnonymousContextDescriptor, in machOFile: MachO) throws {
         self.descriptor = descriptor
         var currentOffset = descriptor.offset + descriptor.layoutSize
 

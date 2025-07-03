@@ -47,17 +47,16 @@ public struct Class: TopLevelType {
     public let methodDefaultOverrideTableHeader: MethodDefaultOverrideTableHeader?
     public let methodDefaultOverrideDescriptors: [MethodDefaultOverrideDescriptor]
 
-    @MachOImageGenerator
-    public init(descriptor: ClassDescriptor, in machOFile: MachOFile) throws {
+    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: ClassDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
-        let genericContext = try descriptor.typeGenericContext(in: machOFile)
+        let genericContext = try descriptor.typeGenericContext(in: machO)
         self.genericContext = genericContext
         var currentOffset = descriptor.offset + descriptor.layoutSize
         if let genericContext {
             currentOffset += genericContext.size
         }
         if descriptor.hasResilientSuperclass {
-            let resilientSuperclass: ResilientSuperclass = try machOFile.readWrapperElement(offset: currentOffset)
+            let resilientSuperclass: ResilientSuperclass = try machO.readWrapperElement(offset: currentOffset)
             self.resilientSuperclass = resilientSuperclass
             currentOffset.offset(of: ResilientSuperclass.self)
         } else {
@@ -65,7 +64,7 @@ public struct Class: TopLevelType {
         }
 
         if descriptor.hasForeignMetadataInitialization {
-            let foreignMetadataInitialization: ForeignMetadataInitialization = try machOFile.readWrapperElement(offset: currentOffset)
+            let foreignMetadataInitialization: ForeignMetadataInitialization = try machO.readWrapperElement(offset: currentOffset)
             self.foreignMetadataInitialization = foreignMetadataInitialization
             currentOffset.offset(of: ForeignMetadataInitialization.self)
         } else {
@@ -73,7 +72,7 @@ public struct Class: TopLevelType {
         }
 
         if descriptor.hasSingletonMetadataInitialization {
-            let singletonMetadataInitialization: SingletonMetadataInitialization = try machOFile.readWrapperElement(offset: currentOffset)
+            let singletonMetadataInitialization: SingletonMetadataInitialization = try machO.readWrapperElement(offset: currentOffset)
             self.singletonMetadataInitialization = singletonMetadataInitialization
             currentOffset.offset(of: SingletonMetadataInitialization.self)
         } else {
@@ -81,10 +80,10 @@ public struct Class: TopLevelType {
         }
 
         if descriptor.hasVTable {
-            let vTableDescriptorHeader: VTableDescriptorHeader = try machOFile.readElement(offset: currentOffset)
+            let vTableDescriptorHeader: VTableDescriptorHeader = try machO.readWrapperElement(offset: currentOffset)
             self.vTableDescriptorHeader = vTableDescriptorHeader
             currentOffset.offset(of: VTableDescriptorHeader.self)
-            let methodDescriptors: [MethodDescriptor] = try machOFile.readWrapperElements(offset: currentOffset, numberOfElements: vTableDescriptorHeader.vTableSize.cast())
+            let methodDescriptors: [MethodDescriptor] = try machO.readWrapperElements(offset: currentOffset, numberOfElements: vTableDescriptorHeader.vTableSize.cast())
             self.methodDescriptors = methodDescriptors
             currentOffset.offset(of: MethodDescriptor.self, numbersOfElements: vTableDescriptorHeader.vTableSize.cast())
         } else {
@@ -93,10 +92,10 @@ public struct Class: TopLevelType {
         }
 
         if descriptor.hasOverrideTable {
-            let overrideTableHeader: OverrideTableHeader = try machOFile.readWrapperElement(offset: currentOffset)
+            let overrideTableHeader: OverrideTableHeader = try machO.readWrapperElement(offset: currentOffset)
             self.overrideTableHeader = overrideTableHeader
             currentOffset.offset(of: OverrideTableHeader.self)
-            let methodOverrideDescriptors: [MethodOverrideDescriptor] = try machOFile.readWrapperElements(offset: currentOffset, numberOfElements: overrideTableHeader.numEntries.cast())
+            let methodOverrideDescriptors: [MethodOverrideDescriptor] = try machO.readWrapperElements(offset: currentOffset, numberOfElements: overrideTableHeader.numEntries.cast())
             self.methodOverrideDescriptors = methodOverrideDescriptors
             currentOffset.offset(of: MethodOverrideDescriptor.self, numbersOfElements: overrideTableHeader.numEntries.cast())
         } else {
@@ -105,7 +104,7 @@ public struct Class: TopLevelType {
         }
 
         if descriptor.hasObjCResilientClassStub {
-            let objcResilientClassStubInfo: ObjCResilientClassStubInfo = try machOFile.readWrapperElement(offset: currentOffset)
+            let objcResilientClassStubInfo: ObjCResilientClassStubInfo = try machO.readWrapperElement(offset: currentOffset)
             self.objcResilientClassStubInfo = objcResilientClassStubInfo
             currentOffset.offset(of: ObjCResilientClassStubInfo.self)
         } else {
@@ -113,17 +112,17 @@ public struct Class: TopLevelType {
         }
 
         if descriptor.hasCanonicalMetadataPrespecializations {
-            let count: CanonicalSpecializedMetadatasListCount = try machOFile.readElement(offset: currentOffset)
+            let count: CanonicalSpecializedMetadatasListCount = try machO.readElement(offset: currentOffset)
             self.canonicalSpecializedMetadatasListCount = count
             currentOffset.offset(of: CanonicalSpecializedMetadatasListCount.self)
             let countValue = count.rawValue
-            let canonicalSpecializedMetadatas: [CanonicalSpecializedMetadatasListEntry] = try machOFile.readWrapperElements(offset: currentOffset, numberOfElements: countValue.cast())
+            let canonicalSpecializedMetadatas: [CanonicalSpecializedMetadatasListEntry] = try machO.readWrapperElements(offset: currentOffset, numberOfElements: countValue.cast())
             self.canonicalSpecializedMetadatas = canonicalSpecializedMetadatas
             currentOffset.offset(of: CanonicalSpecializedMetadatasListEntry.self, numbersOfElements: countValue.cast())
-            let canonicalSpecializedMetadataAccessors: [CanonicalSpecializedMetadataAccessorsListEntry] = try machOFile.readWrapperElements(offset: currentOffset, numberOfElements: countValue.cast())
+            let canonicalSpecializedMetadataAccessors: [CanonicalSpecializedMetadataAccessorsListEntry] = try machO.readWrapperElements(offset: currentOffset, numberOfElements: countValue.cast())
             self.canonicalSpecializedMetadataAccessors = canonicalSpecializedMetadataAccessors
             currentOffset.offset(of: CanonicalSpecializedMetadataAccessorsListEntry.self, numbersOfElements: countValue.cast())
-            let canonicalSpecializedMetadatasCachingOnceToken: CanonicalSpecializedMetadatasCachingOnceToken = try machOFile.readWrapperElement(offset: currentOffset)
+            let canonicalSpecializedMetadatasCachingOnceToken: CanonicalSpecializedMetadatasCachingOnceToken = try machO.readWrapperElement(offset: currentOffset)
             self.canonicalSpecializedMetadatasCachingOnceToken = canonicalSpecializedMetadatasCachingOnceToken
             currentOffset.offset(of: CanonicalSpecializedMetadatasCachingOnceToken.self)
         } else {
@@ -134,7 +133,7 @@ public struct Class: TopLevelType {
         }
 
         if descriptor.flags.contains(.hasInvertibleProtocols) {
-            let invertibleProtocolSet: InvertibleProtocolSet = try machOFile.readElement(offset: currentOffset)
+            let invertibleProtocolSet: InvertibleProtocolSet = try machO.readElement(offset: currentOffset)
             self.invertibleProtocolSet = invertibleProtocolSet
             currentOffset.offset(of: InvertibleProtocolSet.self)
         } else {
@@ -142,7 +141,7 @@ public struct Class: TopLevelType {
         }
 
         if descriptor.hasSingletonMetadataPointer {
-            let singletonMetadataPointer: SingletonMetadataPointer = try machOFile.readWrapperElement(offset: currentOffset)
+            let singletonMetadataPointer: SingletonMetadataPointer = try machO.readWrapperElement(offset: currentOffset)
             self.singletonMetadataPointer = singletonMetadataPointer
             currentOffset.offset(of: SingletonMetadataPointer.self)
         } else {
@@ -150,10 +149,10 @@ public struct Class: TopLevelType {
         }
 
         if descriptor.hasDefaultOverrideTable {
-            let methodDefaultOverrideTableHeader: MethodDefaultOverrideTableHeader = try machOFile.readWrapperElement(offset: currentOffset)
+            let methodDefaultOverrideTableHeader: MethodDefaultOverrideTableHeader = try machO.readWrapperElement(offset: currentOffset)
             self.methodDefaultOverrideTableHeader = methodDefaultOverrideTableHeader
             currentOffset.offset(of: MethodDefaultOverrideTableHeader.self)
-            let methodDefaultOverrideDescriptors: [MethodDefaultOverrideDescriptor] = try machOFile.readWrapperElements(offset: currentOffset, numberOfElements: methodDefaultOverrideTableHeader.numEntries.cast())
+            let methodDefaultOverrideDescriptors: [MethodDefaultOverrideDescriptor] = try machO.readWrapperElements(offset: currentOffset, numberOfElements: methodDefaultOverrideTableHeader.numEntries.cast())
             self.methodDefaultOverrideDescriptors = methodDefaultOverrideDescriptors
             currentOffset.offset(of: MethodDefaultOverrideDescriptor.self, numbersOfElements: methodDefaultOverrideTableHeader.numEntries.cast())
         } else {

@@ -4,9 +4,9 @@ import MachOMacro
 
 public protocol AnonymousContextDescriptorProtocol: ContextDescriptorProtocol where Layout: AnonymousContextDescriptorLayout {}
 
-@MachOImageAllMembersGenerator
+
 extension AnonymousContextDescriptorProtocol {
-    public func mangledName(in machOFile: MachOFile) throws -> MangledName? {
+    public func mangledName<MachO: MachORepresentableWithCache & MachOReadable>(in machOFile: MachO) throws -> MangledName? {
         guard hasMangledName else {
             return nil
         }

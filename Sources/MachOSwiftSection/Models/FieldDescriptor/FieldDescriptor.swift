@@ -22,18 +22,17 @@ public struct FieldDescriptor: ResolvableLocatableLayoutWrapper {
     }
 }
 
-@MachOImageAllMembersGenerator
 extension FieldDescriptor {
     
     public var kind: FieldDescriptorKind { .init(rawValue: layout.kind)! }
     
-    public func mangledTypeName(in machOFile: MachOFile) throws -> MangledName {
-        return try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machOFile)
+    public func mangledTypeName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+        return try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machO)
     }
 
-    public func records(in machOFile: MachOFile) throws -> [FieldRecord] {
+    public func records<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> [FieldRecord] {
         guard layout.fieldRecordSize != 0 else { return [] }
         let offset = offset + MemoryLayout<FieldDescriptor.Layout>.size
-        return try machOFile.readElements(offset: offset, numberOfElements: layout.numFields.cast())
+        return try machO.readWrapperElements(offset: offset, numberOfElements: layout.numFields.cast())
     }
 }

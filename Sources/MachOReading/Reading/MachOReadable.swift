@@ -1,7 +1,7 @@
 import MachOKit
 import MachOExtensions
 
-package protocol MachOReadable {
+public protocol MachOReadable {
     func readElement<Element>(offset: Int) throws -> Element
 
     func readWrapperElement<Element>(offset: Int) throws -> Element where Element: LocatableLayoutWrapper

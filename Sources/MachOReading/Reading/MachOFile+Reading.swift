@@ -33,7 +33,7 @@ extension MachOFile {
 }
 
 extension MachOFile: MachOReadable {
-    package func readElement<Element>(
+    public func readElement<Element>(
         offset: Int
     ) throws -> Element {
         let originalOffset = offset
@@ -46,13 +46,13 @@ extension MachOFile: MachOReadable {
         return try fileIO.machO.read(offset: numericCast(offset + headerStartOffset))
     }
 
-    package func readElement<Element>(
+    public func readElement<Element>(
         offset: Int
     ) throws -> Element where Element: LocatableLayoutWrapper {
         return try readWrapperElement(offset: offset)
     }
 
-    package func readWrapperElement<Element>(offset: Int) throws -> Element where Element: LocatableLayoutWrapper {
+    public func readWrapperElement<Element>(offset: Int) throws -> Element where Element: LocatableLayoutWrapper {
         let originalOffset = offset
         var offset = originalOffset
         var fileIO = fileIO
@@ -64,7 +64,7 @@ extension MachOFile: MachOReadable {
         return .init(layout: layout, offset: originalOffset)
     }
 
-    package func readElements<Element>(
+    public func readElements<Element>(
         offset: Int,
         numberOfElements: Int
     ) throws -> [Element] {
@@ -83,14 +83,14 @@ extension MachOFile: MachOReadable {
         return elements
     }
 
-    package func readElements<Element>(
+    public func readElements<Element>(
         offset: Int,
         numberOfElements: Int
     ) throws -> [Element] where Element: LocatableLayoutWrapper {
         return try readWrapperElements(offset: offset, numberOfElements: numberOfElements)
     }
 
-    package func readWrapperElements<Element>(offset: Int, numberOfElements: Int) throws -> [Element] where Element: LocatableLayoutWrapper {
+    public func readWrapperElements<Element>(offset: Int, numberOfElements: Int) throws -> [Element] where Element: LocatableLayoutWrapper {
         let originalOffset = offset
         var offset = originalOffset
         var fileIO = fileIO
@@ -107,7 +107,7 @@ extension MachOFile: MachOReadable {
         return elements
     }
 
-    package func readString(offset: Int) throws -> String {
+    public func readString(offset: Int) throws -> String {
         let originalOffset = offset
         var offset = originalOffset
         var fileIO = fileIO

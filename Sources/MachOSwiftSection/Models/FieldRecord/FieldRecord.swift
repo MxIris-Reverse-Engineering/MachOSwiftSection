@@ -20,13 +20,12 @@ public struct FieldRecord: ResolvableLocatableLayoutWrapper {
     }
 }
 
-@MachOImageAllMembersGenerator
 extension FieldRecord {
-    public func mangledTypeName(in machOFile: MachOFile) throws -> MangledName {
-        return try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machOFile)
+    public func mangledTypeName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+        return try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machO)
     }
 
-    public func fieldName(in machOFile: MachOFile) throws -> String {
-        return try layout.fieldName.resolve(from: offset(of: \.fieldName), in: machOFile)
+    public func fieldName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> String {
+        return try layout.fieldName.resolve(from: offset(of: \.fieldName), in: machO)
     }
 }

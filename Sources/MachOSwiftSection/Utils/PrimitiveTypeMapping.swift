@@ -7,8 +7,7 @@ import MachOMacro
 package class PrimitiveTypeMapping {
     private var storage: [String: String] = [:]
 
-    @MachOImageGenerator
-    package init(machO: MachOFile) throws {
+    package init<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(machO: MachO) throws {
         let builtinTypes = try machO.swift.builtinTypeDescriptors.map { try BuiltinType(descriptor: $0, in: machO) }
         for builtinType in builtinTypes {
             guard let typeName = builtinType.typeName else { continue }

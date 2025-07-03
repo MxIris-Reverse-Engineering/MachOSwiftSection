@@ -3,7 +3,7 @@ import MachOKit
 import AssociatedObject
 
 extension MachOFile {
-    package var cache: DyldCache? {
+    public var cache: DyldCache? {
         guard isLoadedFromDyldCache else { return nil }
         if let _cache {
             return _cache
@@ -26,14 +26,14 @@ extension MachOFile {
     @AssociatedObject(.retain(.nonatomic))
     private var _cache: DyldCache?
 
-    package func cache(for address: UInt64) -> DyldCache? {
+    public func cache(for address: UInt64) -> DyldCache? {
         cacheAndFileOffset(for: address)?.0
     }
 
     /// Convert an address that is not slided into the actual cache it contains and the file offset in it.
     /// - Parameter address: address (unslid)
     /// - Returns: cache and file offset
-    package func cacheAndFileOffset(for address: UInt64) -> (DyldCache, UInt64)? {
+    public func cacheAndFileOffset(for address: UInt64) -> (DyldCache, UInt64)? {
         guard let cache else { return nil }
         if let offset = cache.fileOffset(of: address) {
             return (cache, offset)
@@ -64,7 +64,7 @@ extension MachOFile {
     /// it contains and the file offset within that cache.
     /// - Parameter offset: Offset from the start of the main cache.
     /// - Returns: cache and file offset
-    package func cacheAndFileOffset(fromStart offset: UInt64) -> (DyldCache, UInt64)? {
+    public func cacheAndFileOffset(fromStart offset: UInt64) -> (DyldCache, UInt64)? {
         guard let cache else { return nil }
         return cacheAndFileOffset(
             for: cache.mainCacheHeader.sharedRegionStart + offset
@@ -82,7 +82,7 @@ extension MachOFile {
     ///   - machO: The `MachOFile` object representing the MachO file to resolve rebases from.
     /// - Returns: The resolved rebase value as a `UInt64`, or `nil` if the rebase cannot be resolved.
 
-    package func resolveRebase(fileOffset: Int) -> UInt64? {
+    public func resolveRebase(fileOffset: Int) -> UInt64? {
         let offset: UInt64 = numericCast(fileOffset)
         if let (cache, _offset) = resolveCacheStartOffsetIfNeeded(offset: offset),
            let resolved = cache.resolveOptionalRebase(at: _offset) {
@@ -116,7 +116,7 @@ extension MachOFile {
     ///   - machO: The `MachOFile` object representing the MachO file to analyze.
     /// - Returns: The resolved symbol name as a `String`, or `nil` if the bind operation cannot be resolved.
 
-    package func resolveBind(fileOffset: Int) -> String? {
+    public func resolveBind(fileOffset: Int) -> String? {
         guard !isLoadedFromDyldCache else { return nil }
         guard let fixup = dyldChainedFixups else { return nil }
 
@@ -144,17 +144,17 @@ extension MachOFile {
     ///   - machO: The `MachOFile` instance representing the file being analyzed.
     /// - Returns: A `Bool` indicating whether the specified offset represents a bind operation.
 
-    package func isBind(fileOffset: Int) -> Bool {
+    public func isBind(fileOffset: Int) -> Bool {
         guard !isLoadedFromDyldCache else { return false }
         let offset: UInt64 = numericCast(fileOffset)
         return isBind(numericCast(offset))
     }
 
-    package func isBind(_ offset: Int) -> Bool {
+    public func isBind(_ offset: Int) -> Bool {
         resolveBind(at: numericCast(offset)) != nil
     }
 
-    package func resolveCacheStartOffsetIfNeeded(
+    public func resolveCacheStartOffsetIfNeeded(
         offset: UInt64) -> (DyldCache, UInt64)? {
         if let (cache, _offset) = cacheAndFileOffset(
             fromStart: offset

@@ -7,11 +7,11 @@ public struct Pointer<Pointee: Resolvable>: RelativeIndirectType, PointerProtoco
     
     public let address: UInt64
 
-    public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self {
-        if let rebase = machOFile.resolveRebase(fileOffset: fileOffset.cast()) {
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from fileOffset: Int, in machO: MachO) throws -> Self {
+        if let machOFile = machO as? MachOFile, let rebase = machOFile.resolveRebase(fileOffset: fileOffset.cast()) {
             return .init(address: rebase)
         } else {
-            return try machOFile.readElement(offset: fileOffset)
+            return try machO.readElement(offset: fileOffset)
         }
     }
     

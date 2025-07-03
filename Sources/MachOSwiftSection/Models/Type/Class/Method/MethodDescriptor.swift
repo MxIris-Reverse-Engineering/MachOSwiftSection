@@ -19,10 +19,8 @@ public struct MethodDescriptor: ResolvableLocatableLayoutWrapper {
     }
 }
 
-@MachOImageAllMembersGenerator
 extension MethodDescriptor {
-    //@MachOImageGenerator
-    public func implementationSymbol(in machOFile: MachOFile) throws -> Symbol? {
-        return try layout.implementation.resolve(from: offset(of: \.implementation), in: machOFile)
+    public func implementationSymbol<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> Symbol? {
+        return try layout.implementation.resolve(from: offset(of: \.implementation), in: machO)
     }
 }

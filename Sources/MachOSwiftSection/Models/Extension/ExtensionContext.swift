@@ -1,6 +1,7 @@
 import Foundation
 import MachOKit
 import MachOMacro
+import MachOFoundation
 
 public struct ExtensionContext {
     public let descriptor: ExtensionContextDescriptor
@@ -9,10 +10,9 @@ public struct ExtensionContext {
 
     public let extendedContextMangledName: MangledName?
 
-    @MachOImageGenerator
-    public init(descriptor: ExtensionContextDescriptor, in machOFile: MachOFile) throws {
+    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: ExtensionContextDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
-        self.extendedContextMangledName = try descriptor.extendedContext(in: machOFile)
-        self.genericContext = try descriptor.genericContext(in: machOFile)
+        self.extendedContextMangledName = try descriptor.extendedContext(in: machO)
+        self.genericContext = try descriptor.genericContext(in: machO)
     }
 }

@@ -24,9 +24,9 @@ public enum RelativeProtocolDescriptorPointer {
         }
     }
 
-    @MachOImageGenerator
-    public func protocolDescriptorRef(from offset: Int, in machOFile: MachOFile) throws -> ProtocolDescriptorRef {
-        let storedPointer = try rawPointer.resolveIndirectType(from: offset, in: machOFile).address
+    
+    public func protocolDescriptorRef<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> ProtocolDescriptorRef {
+        let storedPointer = try rawPointer.resolveIndirectType(from: offset, in: machO).address
         if isObjC {
             return .forObjC(storedPointer)
         } else {
@@ -34,13 +34,12 @@ public enum RelativeProtocolDescriptorPointer {
         }
     }
 
-    @MachOImageGenerator
-    public func resolve(from offset: Int, in machOFile: MachOFile) throws -> SymbolOrElement<ProtocolDescriptorWithObjCInterop> {
+    public func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> SymbolOrElement<ProtocolDescriptorWithObjCInterop> {
         switch self {
         case .objcPointer(let relativeIndirectablePointerIntPair):
-            return try relativeIndirectablePointerIntPair.resolve(from: offset, in: machOFile).map { .objc($0) }
+            return try relativeIndirectablePointerIntPair.resolve(from: offset, in: machO).map { .objc($0) }
         case .swiftPointer(let relativeContextPointerIntPair):
-            return try relativeContextPointerIntPair.resolve(from: offset, in: machOFile).map { .swift($0) }
+            return try relativeContextPointerIntPair.resolve(from: offset, in: machO).map { .swift($0) }
         }
     }
 }

@@ -19,15 +19,12 @@ public struct ObjCProtocolPrefix: ResolvableLocatableLayoutWrapper {
     }
 }
 
-@MachOImageAllMembersGenerator
 extension ObjCProtocolPrefix {
-    //@MachOImageGenerator
-    public func name(in machOFile: MachOFile) throws -> String {
-        try layout.name.resolve(in: machOFile)
+    public func name<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> String {
+        try layout.name.resolve(in: machO)
     }
     
-    //@MachOImageGenerator
-    public func mangledName(in machOFile: MachOFile) throws -> MangledName {
-        try Pointer<MangledName>(address: layout.name.address).resolve(in: machOFile)
+    public func mangledName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+        try Pointer<MangledName>(address: layout.name.address).resolve(in: machO)
     }
 }

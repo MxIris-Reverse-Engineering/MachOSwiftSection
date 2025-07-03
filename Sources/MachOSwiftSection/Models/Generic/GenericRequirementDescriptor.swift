@@ -20,17 +20,14 @@ public struct GenericRequirementDescriptor: ResolvableLocatableLayoutWrapper {
     }
 }
 
-
-@MachOImageAllMembersGenerator
 extension GenericRequirementDescriptor {
-    //@MachOImageGenerator
-    public func paramManagedName(in machOFile: MachOFile) throws -> MangledName {
-        return try layout.param.resolve(from: offset(of: \.param), in: machOFile)
+    
+    public func paramManagedName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+        return try layout.param.resolve(from: offset(of: \.param), in: machO)
     }
 
-    //@MachOImageGenerator
-    public func type(in machOFile: MachOFile) throws -> MangledName {
-        return try RelativeDirectPointer<MangledName>(relativeOffset: layout.content).resolve(from: offset(of: \.content), in: machOFile)
+    public func type<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+        return try RelativeDirectPointer<MangledName>(relativeOffset: layout.content).resolve(from: offset(of: \.content), in: machO)
     }
 
     public var content: GenericRequirementContent {
@@ -58,18 +55,17 @@ extension GenericRequirementDescriptor {
         }
     }
 
-    //@MachOImageGenerator
-    public func resolvedContent(in machOFile: MachOFile) throws -> ResolvedGenericRequirementContent {
+    public func resolvedContent<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> ResolvedGenericRequirementContent {
         let offset = offset(of: \.content)
         switch content {
         case .type(let relativeDirectPointer):
-            return try .type(relativeDirectPointer.resolve(from: offset, in: machOFile))
+            return try .type(relativeDirectPointer.resolve(from: offset, in: machO))
         case .protocol(let relativeProtocolDescriptorPointer):
-            return try .protocol(relativeProtocolDescriptorPointer.resolve(from: offset, in: machOFile))
+            return try .protocol(relativeProtocolDescriptorPointer.resolve(from: offset, in: machO))
         case .layout(let genericRequirementLayoutKind):
             return .layout(genericRequirementLayoutKind)
         case .conformance(let relativeIndirectablePointer):
-            return try .conformance(relativeIndirectablePointer.resolve(from: offset, in: machOFile))
+            return try .conformance(relativeIndirectablePointer.resolve(from: offset, in: machO))
         case .invertedProtocols(let invertedProtocols):
             return .invertedProtocols(invertedProtocols)
         }
