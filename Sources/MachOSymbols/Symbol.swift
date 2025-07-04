@@ -1,6 +1,7 @@
 import MachOKit
 import MachOMacro
 import MachOReading
+import MachOResolving
 import MachOExtensions
 
 public struct Symbol: Resolvable, Hashable {

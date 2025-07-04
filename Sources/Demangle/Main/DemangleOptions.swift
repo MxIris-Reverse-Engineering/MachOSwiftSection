@@ -69,17 +69,12 @@ public struct DemangleOptions: OptionSet, Codable, Sendable {
         options.remove(.displayExtensionContexts)
         options.remove(.showPrivateDiscriminators)
         options.remove(.showModuleInDependentMemberType)
+        options.remove(.displayUnmangledSuffix)
         return options
     }()
     
     public static let interfaceType: DemangleOptions = {
-        var options = DemangleOptions.default
-        options.remove(.displayObjCModule)
-        options.insert(.synthesizeSugarOnTypes)
-        options.remove(.displayWhereClauses)
-        options.remove(.displayExtensionContexts)
-        options.remove(.showPrivateDiscriminators)
-        options.remove(.showModuleInDependentMemberType)
+        var options = DemangleOptions.interface
         options.insert(.removeBoundGeneric)
         return options
     }()

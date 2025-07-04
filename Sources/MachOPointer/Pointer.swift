@@ -1,5 +1,6 @@
 import MachOKit
 import MachOReading
+import MachOResolving
 import MachOExtensions
 
 public struct Pointer<Pointee: Resolvable>: RelativeIndirectType, PointerProtocol {

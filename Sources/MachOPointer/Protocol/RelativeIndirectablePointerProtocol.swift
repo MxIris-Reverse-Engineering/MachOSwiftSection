@@ -1,9 +1,10 @@
 import MachOKit
 import MachOMacro
 import MachOReading
+import MachOResolving
 import MachOExtensions
 
-public protocol RelativeIndirectablePointerProtocol: RelativeDirectPointerProtocol, RelativeIndirectPointerProtocol {
+public protocol RelativeIndirectablePointerProtocol<Pointee>: RelativeDirectPointerProtocol, RelativeIndirectPointerProtocol {
     var relativeOffsetPlusIndirect: Offset { get }
     var isIndirect: Bool { get }
     func resolveIndirectableOffset<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Int

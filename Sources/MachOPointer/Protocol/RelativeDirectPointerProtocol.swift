@@ -2,9 +2,9 @@ import MachOKit
 import MachOMacro
 import MachOReading
 import MachOExtensions
+import MachOResolving
 
 public protocol RelativeDirectPointerProtocol<Pointee>: RelativePointerProtocol {}
-
 
 extension RelativeDirectPointerProtocol {
     public func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Pointee {

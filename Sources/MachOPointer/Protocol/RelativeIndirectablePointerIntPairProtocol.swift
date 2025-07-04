@@ -2,7 +2,7 @@ import MachOKit
 import MachOReading
 import MachOExtensions
 
-public protocol RelativeIndirectablePointerIntPairProtocol: RelativeIndirectablePointerProtocol {
+public protocol RelativeIndirectablePointerIntPairProtocol<Pointee>: RelativeIndirectablePointerProtocol {
     typealias Integer = Value.RawValue
     associatedtype Value: RawRepresentable where Value.RawValue: FixedWidthInteger
     var relativeOffsetPlusIndirectAndInt: Offset { get }

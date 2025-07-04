@@ -1,9 +1,10 @@
 import MachOKit
 import MachOMacro
 import MachOReading
+import MachOResolving
 import MachOExtensions
 
-public protocol PointerProtocol: Resolvable, Sendable {
+public protocol PointerProtocol<Pointee>: Resolvable, Sendable {
     associatedtype Pointee: Resolvable
 
     var address: UInt64 { get }

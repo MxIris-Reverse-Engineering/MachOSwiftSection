@@ -168,6 +168,28 @@ private struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache & Mach
                 }
             }
 
+            for kind in SymbolIndexStore.IndexKind.allCases {
+                for (offset, symbol) in SymbolIndexStore.shared.symbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
+                    if offset.isStart {
+                        BreakLine()
+
+                        Indent(level: 1)
+
+                        InlineComment(kind.description)
+                    }
+
+                    BreakLine()
+
+                    Indent(level: 1)
+
+                    try MetadataReader.demangleSymbol(for: symbol, in: machO)?.printSemantic(using: options)
+
+                    if offset.isEnd {
+                        BreakLine()
+                    }
+                }
+            }
+            
             Standard("}")
         }
     }

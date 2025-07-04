@@ -167,10 +167,20 @@ let package = Package(
         ),
 
         .target(
+            name: "MachOResolving",
+            dependencies: [
+                .MachOKit,
+                "MachOExtensions",
+                "MachOReading",
+            ]
+        ),
+
+        .target(
             name: "MachOSymbols",
             dependencies: [
                 .MachOKit,
                 "MachOReading",
+                "MachOResolving",
                 "MachOMacro",
                 "Demangle",
                 "Utilities",
@@ -184,7 +194,20 @@ let package = Package(
             dependencies: [
                 .MachOKit,
                 "MachOReading",
+                "MachOResolving",
                 "MachOMacro",
+            ]
+        ),
+
+        .target(
+            name: "MachOSymbolPointer",
+            dependencies: [
+                .MachOKit,
+                "MachOReading",
+                "MachOResolving",
+                "MachOMacro",
+                "MachOPointer",
+                "MachOSymbols",
             ]
         ),
 
@@ -197,6 +220,8 @@ let package = Package(
                 "MachOMacro",
                 "MachOPointer",
                 "MachOSymbols",
+                "MachOResolving",
+                "MachOSymbolPointer",
             ]
         ),
 

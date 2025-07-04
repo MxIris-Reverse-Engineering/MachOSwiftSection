@@ -1,8 +1,9 @@
 import MachOKit
 import MachOReading
+import MachOResolving
 import MachOExtensions
 
-public protocol RelativePointerProtocol<Pointee, Offset>: Sendable {
+public protocol RelativePointerProtocol<Pointee>: Sendable {
     associatedtype Pointee: Resolvable
     associatedtype Offset: FixedWidthInteger & SignedInteger
     

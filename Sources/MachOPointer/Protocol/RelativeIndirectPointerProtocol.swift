@@ -1,9 +1,10 @@
 import MachOKit
 import MachOMacro
 import MachOReading
+import MachOResolving
 import MachOExtensions
 
-public protocol RelativeIndirectPointerProtocol: RelativePointerProtocol {
+public protocol RelativeIndirectPointerProtocol<Pointee>: RelativePointerProtocol {
     associatedtype IndirectType: RelativeIndirectType where IndirectType.Resolved == Pointee
 
     func resolveIndirectOffset<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Int
