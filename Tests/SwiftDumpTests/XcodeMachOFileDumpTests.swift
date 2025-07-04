@@ -10,7 +10,7 @@ import MachOFoundation
 @Suite(.serialized)
 final class XcodeMachOFileDumpTests: XcodeMachOFileTests, DumpableTests {
     
-    override class var fileName: XcodeMachOFileName { .sharedFrameworks(.DNTDocumentationSupport) }
+    override class var fileName: XcodeMachOFileName { .sharedFrameworks(.DNTSourceKitSupport) }
 }
 
 extension XcodeMachOFileDumpTests {
