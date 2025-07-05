@@ -1,15 +1,12 @@
 import MachOKit
 import MachOReading
+import MachOResolving
 import MachOExtensions
 
-public protocol RelativeIndirectType: Resolvable {
+public protocol RelativeIndirectType<Resolved>: Resolvable {
     associatedtype Resolved: Resolvable
     
-    func resolve(in machOFile: MachOFile) throws -> Resolved
-    func resolveAny<T: Resolvable>(in machOFile: MachOFile) throws -> T
-    func resolveOffset(in machOFile: MachOFile) -> Int
-    
-    func resolve(in machOImage: MachOImage) throws -> Resolved
-    func resolveAny<T: Resolvable>(in machOImage: MachOImage) throws -> T
-    func resolveOffset(in machOImage: MachOImage) -> Int
+    func resolve<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> Resolved
+    func resolveAny<T: Resolvable, MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> T
+    func resolveOffset<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) -> Int
 }

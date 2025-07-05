@@ -21,9 +21,9 @@ package func demangleAsNode<C: Collection>(_ mangled: C, isType: Bool = false, s
     demangler.symbolicReferenceResolver = symbolicReferenceResolver
     if isType {
         return try demangler.demangleType()
-    } else if getManglingPrefixLength(mangled) != 0 {
+    } else if Demangler.getManglingPrefixLength(mangled) != 0 {
         return try demangler.demangleSymbol()
     } else {
-        return try demangler.demangleSwift3TopLevelSymbol()
+        throw SwiftSymbolParseError.invalidSwiftMangledName
     }
 }

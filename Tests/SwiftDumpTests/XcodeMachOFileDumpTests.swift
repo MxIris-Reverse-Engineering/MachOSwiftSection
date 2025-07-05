@@ -8,7 +8,10 @@ import MachOFoundation
 @testable import MachOTestingSupport
 
 @Suite(.serialized)
-final class XcodeMachOFileDumpTests: XcodeMachOFileTests, DumpableTests {}
+final class XcodeMachOFileDumpTests: XcodeMachOFileTests, DumpableTests {
+    
+    override class var fileName: XcodeMachOFileName { .sharedFrameworks(.DNTSourceKitSupport) }
+}
 
 extension XcodeMachOFileDumpTests {
     @Test func typesInFile() async throws {

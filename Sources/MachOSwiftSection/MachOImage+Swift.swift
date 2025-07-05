@@ -58,7 +58,7 @@ extension MachOImage.Swift {
         var currentOffset = offset
         let endOffset = offset + section.size
         while currentOffset < endOffset {
-            let descriptor: Descriptor = try machOImage.readElement(offset: currentOffset)
+            let descriptor: Descriptor = try machOImage.readWrapperElement(offset: currentOffset)
             currentOffset += descriptor.actualSize
             descriptors.append(descriptor)
         }
@@ -71,7 +71,7 @@ extension MachOImage.Swift {
         let start = try required(UnsafeRawPointer(bitPattern: section.address + vmaddrSlide))
         let offset = start.int - machO.ptr.int
         let pointerSize: Int = MemoryLayout<RelativeDirectPointer<Descriptor>>.size
-        let data: [AnyLocatableLayoutWrapper<RelativeDirectPointer<Descriptor>>] = try machO.readElements(offset: offset, numberOfElements: section.size / pointerSize)
+        let data: [AnyLocatableLayoutWrapper<RelativeDirectPointer<Descriptor>>] = try machO.readWrapperElements(offset: offset, numberOfElements: section.size / pointerSize)
         return try data.map { try $0.layout.resolve(from: $0.offset, in: machO) }
     }
 }

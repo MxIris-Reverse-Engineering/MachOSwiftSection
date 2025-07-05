@@ -1,6 +1,7 @@
 import MachOKit
 import MachOMacro
 import MachOReading
+import MachOResolving
 import MachOExtensions
 
 public struct Symbol: Resolvable, Hashable {
@@ -13,14 +14,12 @@ public struct Symbol: Resolvable, Hashable {
         self.stringValue = stringValue
     }
 
-    @MachOImageGenerator
-    public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self {
-        try required(resolve(from: fileOffset, in: machOFile))
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self {
+        try required(resolve(from: offset, in: machO))
     }
 
-    @MachOImageGenerator
-    public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> Self? {
-        if let symbol = machOFile.symbols(offset: fileOffset)?.first {
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self? {
+        if let symbol = machO.symbols(offset: offset)?.first {
             return symbol
         }
         return nil

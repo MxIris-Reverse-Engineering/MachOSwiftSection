@@ -22,21 +22,19 @@ public struct TypeContextDescriptor: TypeContextDescriptorProtocol {
     }
 }
 
-
-@MachOImageAllMembersGenerator
 extension TypeContextDescriptor {
-    public func enumDescriptor(in machOFile: MachOFile) throws -> EnumDescriptor? {
+    public func enumDescriptor<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> EnumDescriptor? {
         guard layout.flags.kind == .enum else { return nil }
-        return try machOFile.readElement(offset: offset) as EnumDescriptor
+        return try machO.readWrapperElement(offset: offset) as EnumDescriptor
     }
 
-    public func structDescriptor(in machOFile: MachOFile) throws -> StructDescriptor? {
+    public func structDescriptor<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> StructDescriptor? {
         guard layout.flags.kind == .struct else { return nil }
-        return try machOFile.readElement(offset: offset) as StructDescriptor
+        return try machO.readWrapperElement(offset: offset) as StructDescriptor
     }
 
-    public func classDescriptor(in machOFile: MachOFile) throws -> ClassDescriptor? {
+    public func classDescriptor<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> ClassDescriptor? {
         guard layout.flags.kind == .class else { return nil }
-        return try machOFile.readElement(offset: offset) as ClassDescriptor
+        return try machO.readWrapperElement(offset: offset) as ClassDescriptor
     }
 }

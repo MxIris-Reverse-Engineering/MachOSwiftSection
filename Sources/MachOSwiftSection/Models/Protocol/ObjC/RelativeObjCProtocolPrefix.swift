@@ -19,10 +19,9 @@ public struct RelativeObjCProtocolPrefix: ResolvableLocatableLayoutWrapper {
     }
 }
 
-@MachOImageAllMembersGenerator
 extension RelativeObjCProtocolPrefix {
-    func mangledName(in machOFile: MachOFile) throws -> MangledName {
-        return try layout.mangledName.resolve(from: offset(of: \.mangledName), in: machOFile)
+    func mangledName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+        return try layout.mangledName.resolve(from: offset(of: \.mangledName), in: machO)
     }
 }
 

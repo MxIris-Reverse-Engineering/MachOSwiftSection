@@ -12,12 +12,11 @@ public struct OpaqueType: TopLevelType {
 
     public let invertedProtocols: InvertibleProtocolSet?
 
-    @MachOImageGenerator
-    public init(descriptor: OpaqueTypeDescriptor, in machOFile: MachOFile) throws {
+    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: OpaqueTypeDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
         var currentOffset = descriptor.offset + descriptor.layoutSize
         
-        let genericContext = try descriptor.genericContext(in: machOFile)
+        let genericContext = try descriptor.genericContext(in: machO)
         
         if let genericContext {
             currentOffset += genericContext.size
@@ -25,10 +24,10 @@ public struct OpaqueType: TopLevelType {
         self.genericContext = genericContext
         
         if descriptor.numUnderlyingTypeArugments > 0 {
-            let underlyingTypeArgumentMangledNamePointers: [RelativeDirectPointer<MangledName>] = try machOFile.readElements(offset: currentOffset, numberOfElements: descriptor.numUnderlyingTypeArugments)
+            let underlyingTypeArgumentMangledNamePointers: [RelativeDirectPointer<MangledName>] = try machO.readElements(offset: currentOffset, numberOfElements: descriptor.numUnderlyingTypeArugments)
             var underlyingTypeArgumentMangledNames: [MangledName] = []
             for underlyingTypeArgumentMangledNamePointer in underlyingTypeArgumentMangledNamePointers {
-                try underlyingTypeArgumentMangledNames.append(underlyingTypeArgumentMangledNamePointer.resolve(from: currentOffset, in: machOFile))
+                try underlyingTypeArgumentMangledNames.append(underlyingTypeArgumentMangledNamePointer.resolve(from: currentOffset, in: machO))
                 currentOffset += MemoryLayout<RelativeDirectPointer<MangledName>>.size
             }
             self.underlyingTypeArgumentMangledNames = underlyingTypeArgumentMangledNames
@@ -37,7 +36,7 @@ public struct OpaqueType: TopLevelType {
         }
 
         if descriptor.flags.contains(.hasInvertibleProtocols) {
-            self.invertedProtocols = try machOFile.readElement(offset: currentOffset)
+            self.invertedProtocols = try machO.readElement(offset: currentOffset) as InvertibleProtocolSet
             currentOffset.offset(of: InvertibleProtocolSet.self)
         } else {
             self.invertedProtocols = nil

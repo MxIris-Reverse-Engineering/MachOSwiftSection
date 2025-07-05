@@ -542,6 +542,6 @@ extension Node.Kind {
 
 extension Node.Kind: CustomStringConvertible {
     public var description: String {
-        rawValue.capitalized
+        rawValue.capitalizingFirstLetter
     }
 }

@@ -1,133 +1,22 @@
 // MARK: - Collection Support
 
-extension Node: Collection {
-    public typealias Element = Node
-
-    public struct Index: Comparable {
-        fileprivate let path: [Int]
-        fileprivate let traversalOrder: TraversalOrder
-
-        fileprivate init(path: [Int], traversalOrder: TraversalOrder) {
-            self.path = path
-            self.traversalOrder = traversalOrder
-        }
-
-        public static func < (lhs: Index, rhs: Index) -> Bool {
-            // Compare based on the actual traversal order
-            return lhs.path.lexicographicallyPrecedes(rhs.path)
-        }
-    }
-
-    public enum TraversalOrder {
-        case preorder
-        case inorder
-        case postorder
-        case levelorder
-    }
-
-    public var startIndex: Index {
-        Index(path: [], traversalOrder: .preorder)
-    }
-
-    public var endIndex: Index {
-        Index(path: [-1], traversalOrder: .preorder)
-    }
-
-    public subscript(position: Index) -> Node {
-        return nodeAt(path: position.path, traversalOrder: position.traversalOrder)
-    }
-
-    public func index(after i: Index) -> Index {
-        let nextPath = nextPath(from: i.path, traversalOrder: i.traversalOrder)
-        return Index(path: nextPath, traversalOrder: i.traversalOrder)
-    }
-
+extension Node {
     // MARK: - Traversal Methods
 
-    public func preorderTraversal() -> PreorderSequence {
+    public func preorder() -> PreorderSequence {
         PreorderSequence(root: self)
     }
 
-    public func inorderTraversal() -> InorderSequence {
+    public func inorder() -> InorderSequence {
         InorderSequence(root: self)
     }
 
-    public func postorderTraversal() -> PostorderSequence {
+    public func postorder() -> PostorderSequence {
         PostorderSequence(root: self)
     }
 
-    public func levelorderTraversal() -> LevelorderSequence {
+    public func levelorder() -> LevelorderSequence {
         LevelorderSequence(root: self)
-    }
-
-    // MARK: - Private Helper Methods
-
-    private func nodeAt(path: [Int], traversalOrder: TraversalOrder) -> Node {
-        if path.isEmpty {
-            return self
-        }
-
-        var current = self
-        for index in path {
-            guard index >= 0 && index < current.children.count else {
-                fatalError("Invalid path")
-            }
-            current = current.children[index]
-        }
-        return current
-    }
-
-    private func nextPath(from currentPath: [Int], traversalOrder: TraversalOrder) -> [Int] {
-        switch traversalOrder {
-        case .preorder:
-            return nextPreorderPath(from: currentPath)
-        case .inorder:
-            return nextInorderPath(from: currentPath)
-        case .postorder:
-            return nextPostorderPath(from: currentPath)
-        case .levelorder:
-            return nextLevelorderPath(from: currentPath)
-        }
-    }
-
-    private func nextPreorderPath(from path: [Int]) -> [Int] {
-        if path == [-1] { return [-1] } // End index
-
-        let currentNode = nodeAt(path: path, traversalOrder: .preorder)
-
-        // If current node has children, go to first child
-        if !currentNode.children.isEmpty {
-            return path + [0]
-        }
-
-        // Otherwise, find next sibling or ancestor's sibling
-        var workingPath = path
-        while !workingPath.isEmpty {
-            let lastIndex = workingPath.removeLast()
-            let parentNode = workingPath.isEmpty ? self : nodeAt(path: workingPath, traversalOrder: .preorder)
-
-            if lastIndex + 1 < parentNode.children.count {
-                return workingPath + [lastIndex + 1]
-            }
-        }
-
-        return [-1] // End of traversal
-    }
-
-    private func nextInorderPath(from path: [Int]) -> [Int] {
-        // Simplified inorder implementation
-        // For a more complete implementation, you'd need to track state
-        return nextPreorderPath(from: path)
-    }
-
-    private func nextPostorderPath(from path: [Int]) -> [Int] {
-        // Simplified postorder implementation
-        return nextPreorderPath(from: path)
-    }
-
-    private func nextLevelorderPath(from path: [Int]) -> [Int] {
-        // Simplified level-order implementation
-        return nextPreorderPath(from: path)
     }
 
     // MARK: - Sequence Types for Different Traversals

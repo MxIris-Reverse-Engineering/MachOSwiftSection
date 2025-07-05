@@ -4,52 +4,50 @@ import MachOFoundation
 
 public protocol TypeContextDescriptorProtocol: NamedContextDescriptorProtocol where Layout: TypeContextDescriptorLayout {}
 
-@MachOImageAllMembersGenerator
 extension TypeContextDescriptorProtocol {
-    
-    public func accessFunction(in machOFile: MachOFile) throws -> Symbol? {
+    public func accessFunction<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> Symbol? {
         let ptr = RelativeDirectPointer<Symbol?>(relativeOffset: layout.accessFunctionPtr)
-        return try ptr.resolve(from: offset + layout.offset(of: .accessFunctionPtr), in: machOFile)
-    }
-    
-    public func fieldDescriptor(in machOFile: MachOFile) throws -> FieldDescriptor {
-        try layout.fieldDescriptor.resolve(from: offset + layout.offset(of: .fieldDescriptor), in: machOFile)
+        return try ptr.resolve(from: offset + layout.offset(of: .accessFunctionPtr), in: machO)
     }
 
-    public func genericContext(in machO: MachOFile) throws -> GenericContext? {
+    public func fieldDescriptor<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> FieldDescriptor {
+        try layout.fieldDescriptor.resolve(from: offset + layout.offset(of: .fieldDescriptor), in: machO)
+    }
+
+    public func genericContext<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> GenericContext? {
         guard layout.flags.isGeneric else { return nil }
         return try typeGenericContext(in: machO)?.asGenericContext()
     }
-    
-    public func typeGenericContext(in machOFile: MachOFile) throws -> TypeGenericContext? {
+
+    public func typeGenericContext<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> TypeGenericContext? {
         guard layout.flags.isGeneric else { return nil }
-        return try .init(contextDescriptor: self, in: machOFile)
+        return try .init(contextDescriptor: self, in: machO)
     }
-    
+
     public var hasSingletonMetadataInitialization: Bool {
         return layout.flags.kindSpecificFlags?.typeFlags?.hasSingletonMetadataInitialization ?? false
     }
-    
+
     public var hasForeignMetadataInitialization: Bool {
         return layout.flags.kindSpecificFlags?.typeFlags?.hasForeignMetadataInitialization ?? false
     }
-    
+
     public var hasImportInfo: Bool {
         return layout.flags.kindSpecificFlags?.typeFlags?.hasImportInfo ?? false
     }
-    
+
     public var hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer: Bool {
         return layout.flags.kindSpecificFlags?.typeFlags?.hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer ?? false
     }
-    
+
     public var hasLayoutString: Bool {
         return layout.flags.kindSpecificFlags?.typeFlags?.hasLayoutString ?? false
     }
-    
+
     public var hasCanonicalMetadataPrespecializations: Bool {
         return layout.flags.contains(.isGeneric) && hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer
     }
-    
+
     public var hasSingletonMetadataPointer: Bool {
         return !layout.flags.contains(.isGeneric) && hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer
     }

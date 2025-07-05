@@ -20,22 +20,17 @@ public struct AssociatedTypeDescriptor: ResolvableLocatableLayoutWrapper {
     }
 }
 
-
-@MachOImageAllMembersGenerator
 extension AssociatedTypeDescriptor {
-    
-    public func conformingTypeName(in machOFile: MachOFile) throws -> MangledName {
-        return try layout.conformingTypeName.resolve(from: offset(of: \.conformingTypeName), in: machOFile)
+    public func conformingTypeName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+        return try layout.conformingTypeName.resolve(from: offset(of: \.conformingTypeName), in: machO)
     }
-    
-    //@MachOImageGenerator
-    public func protocolTypeName(in machOFile: MachOFile) throws -> MangledName {
-        return try layout.protocolTypeName.resolve(from: offset(of: \.protocolTypeName), in: machOFile)
+
+    public func protocolTypeName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+        return try layout.protocolTypeName.resolve(from: offset(of: \.protocolTypeName), in: machO)
     }
-    
-    //@MachOImageGenerator
-    public func associatedTypeRecords(in machOFile: MachOFile) throws -> [AssociatedTypeRecord] {
-        return try machOFile.readElements(offset: offset + layoutSize, numberOfElements: layout.numAssociatedTypes.cast())
+
+    public func associatedTypeRecords<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> [AssociatedTypeRecord] {
+        return try machO.readWrapperElements(offset: offset + layoutSize, numberOfElements: layout.numAssociatedTypes.cast())
     }
 }
 

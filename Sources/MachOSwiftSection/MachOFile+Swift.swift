@@ -60,7 +60,7 @@ extension MachOFile.Swift {
         var currentOffset = offset
         let endOffset = offset + section.size
         while currentOffset < endOffset {
-            let descriptor: Descriptor = try machOFile.readElement(offset: currentOffset)
+            let descriptor: Descriptor = try machOFile.readWrapperElement(offset: currentOffset)
             currentOffset += descriptor.actualSize
             descriptors.append(descriptor)
         }
@@ -75,7 +75,7 @@ extension MachOFile.Swift {
         } else {
             section.offset
         }
-        let data: [AnyLocatableLayoutWrapper<RelativeDirectPointer<Descriptor>>] = try machO.readElements(offset: offset, numberOfElements: section.size / pointerSize)
+        let data: [AnyLocatableLayoutWrapper<RelativeDirectPointer<Descriptor>>] = try machO.readWrapperElements(offset: offset, numberOfElements: section.size / pointerSize)
         return try data.map { try $0.layout.resolve(from: $0.offset, in: machO) }
     }
 }

@@ -1,4 +1,5 @@
 import MachOReading
+import MachOResolving
 import MachOExtensions
 
 public struct TargetRelativeIndirectablePointer<Pointee: Resolvable, Offset: FixedWidthInteger & SignedInteger & Sendable, IndirectType: RelativeIndirectType>: RelativeIndirectablePointerProtocol where Pointee == IndirectType.Resolved {

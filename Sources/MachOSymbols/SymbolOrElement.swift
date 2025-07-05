@@ -1,5 +1,6 @@
 import MachOKit
 import MachOReading
+import MachOResolving
 import MachOExtensions
 
 public enum SymbolOrElement<Element: Resolvable>: Resolvable {
@@ -33,28 +34,20 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
         }
     }
 
-    public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> SymbolOrElement<Element> {
-        if let symbol = machOFile.resolveBind(fileOffset: fileOffset) {
-            return .symbol(.init(offset: fileOffset, stringValue: symbol))
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> SymbolOrElement<Element> {
+        if let machOFile = machO as? MachOFile, let symbol = machOFile.resolveBind(fileOffset: offset) {
+            return .symbol(.init(offset: offset, stringValue: symbol))
         } else {
-            return try .element(.resolve(from: fileOffset, in: machOFile))
+            return try .element(.resolve(from: offset, in: machO))
         }
     }
 
-    public static func resolve(from fileOffset: Int, in machOFile: MachOFile) throws -> SymbolOrElement<Element>? {
-        if let symbol = machOFile.resolveBind(fileOffset: fileOffset) {
-            return .symbol(.init(offset: fileOffset, stringValue: symbol))
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> SymbolOrElement<Element>? {
+        if let machOFile = machO as? MachOFile, let symbol = machOFile.resolveBind(fileOffset: offset) {
+            return .symbol(.init(offset: offset, stringValue: symbol))
         } else {
-            return try Element.resolve(from: fileOffset, in: machOFile).map { .element($0) }
+            return try Element.resolve(from: offset, in: machO).map { .element($0) }
         }
-    }
-    
-    public static func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> SymbolOrElement<Element> {
-        return try .element(.resolve(from: imageOffset, in: machOImage))
-    }
-    
-    public static func resolve(from imageOffset: Int, in machOImage: MachOImage) throws -> SymbolOrElement<Element>? {
-        return try Element.resolve(from: imageOffset, in: machOImage).map { .element($0) }
     }
     
     public func map<T>(_ transform: (Element) throws -> T) rethrows -> SymbolOrElement<T> {

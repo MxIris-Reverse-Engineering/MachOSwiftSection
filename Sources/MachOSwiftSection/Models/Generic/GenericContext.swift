@@ -79,18 +79,17 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         )
     }
 
-    @MachOImageGenerator
-    public init(contextDescriptor: any ContextDescriptorProtocol, in machOFile: MachOFile) throws {
+    public init<MachO: MachORepresentableWithCache & MachOReadable>(contextDescriptor: any ContextDescriptorProtocol, in machO: MachO) throws {
         var currentOffset = contextDescriptor.offset + contextDescriptor.layoutSize
         let genericContextOffset = currentOffset
 
-        let header: Header = try machOFile.readElement(offset: currentOffset)
+        let header: Header = try machO.readWrapperElement(offset: currentOffset)
         currentOffset.offset(of: Header.self)
         self.offset = genericContextOffset
         self.header = header
 
         if header.numParams > 0 {
-            let parameters: [GenericParamDescriptor] = try machOFile.readElements(offset: currentOffset, numberOfElements: Int(header.numParams))
+            let parameters: [GenericParamDescriptor] = try machO.readWrapperElements(offset: currentOffset, numberOfElements: Int(header.numParams))
             currentOffset.offset(of: GenericParamDescriptor.self, numbersOfElements: Int(header.numParams))
             currentOffset = numericCast(align(address: numericCast(currentOffset), alignment: 4))
             self.parameters = parameters
@@ -99,7 +98,7 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         }
 
         if header.numRequirements > 0 {
-            let requirements: [GenericRequirementDescriptor] = try machOFile.readElements(offset: currentOffset, numberOfElements: Int(header.numRequirements))
+            let requirements: [GenericRequirementDescriptor] = try machO.readWrapperElements(offset: currentOffset, numberOfElements: Int(header.numRequirements))
             currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: Int(header.numRequirements))
             self.requirements = requirements
         } else {
@@ -107,11 +106,11 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         }
 
         if header.flags.contains(.hasTypePacks) {
-            let typePackHeader: GenericPackShapeHeader = try machOFile.readElement(offset: currentOffset)
+            let typePackHeader: GenericPackShapeHeader = try machO.readWrapperElement(offset: currentOffset)
             currentOffset.offset(of: GenericPackShapeHeader.self)
             self.typePackHeader = typePackHeader
 
-            let typePacks: [GenericPackShapeDescriptor] = try machOFile.readElements(offset: currentOffset, numberOfElements: Int(typePackHeader.numPacks))
+            let typePacks: [GenericPackShapeDescriptor] = try machO.readWrapperElements(offset: currentOffset, numberOfElements: Int(typePackHeader.numPacks))
             currentOffset.offset(of: GenericPackShapeDescriptor.self, numbersOfElements: Int(typePackHeader.numPacks))
             self.typePacks = typePacks
         } else {
@@ -120,15 +119,15 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         }
 
         if header.flags.contains(.hasConditionalInvertedProtocols) {
-            let conditionalInvertibleProtocolSet: InvertibleProtocolSet = try machOFile.readElement(offset: currentOffset)
+            let conditionalInvertibleProtocolSet: InvertibleProtocolSet = try machO.readElement(offset: currentOffset)
             currentOffset.offset(of: InvertibleProtocolSet.self)
             self.conditionalInvertibleProtocolSet = conditionalInvertibleProtocolSet
 
-            let conditionalInvertibleProtocolsRequirementsCount: InvertibleProtocolsRequirementCount = try machOFile.readElement(offset: currentOffset)
+            let conditionalInvertibleProtocolsRequirementsCount: InvertibleProtocolsRequirementCount = try machO.readElement(offset: currentOffset)
             currentOffset.offset(of: InvertibleProtocolsRequirementCount.self)
             self.conditionalInvertibleProtocolsRequirementsCount = conditionalInvertibleProtocolsRequirementsCount
 
-            let conditionalInvertibleProtocolsRequirements: [GenericRequirementDescriptor] = try machOFile.readElements(offset: currentOffset, numberOfElements: Int(conditionalInvertibleProtocolsRequirementsCount.rawValue))
+            let conditionalInvertibleProtocolsRequirements: [GenericRequirementDescriptor] = try machO.readWrapperElements(offset: currentOffset, numberOfElements: Int(conditionalInvertibleProtocolsRequirementsCount.rawValue))
             currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: Int(conditionalInvertibleProtocolsRequirementsCount.rawValue))
             self.conditionalInvertibleProtocolsRequirements = conditionalInvertibleProtocolsRequirements
         } else {
@@ -138,11 +137,11 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         }
 
         if header.flags.contains(.hasValues) {
-            let valueHeader: GenericValueHeader = try machOFile.readElement(offset: currentOffset)
+            let valueHeader: GenericValueHeader = try machO.readWrapperElement(offset: currentOffset)
             currentOffset.offset(of: GenericValueHeader.self)
             self.valueHeader = valueHeader
 
-            let values: [GenericValueDescriptor] = try machOFile.readElements(offset: currentOffset, numberOfElements: Int(valueHeader.numValues))
+            let values: [GenericValueDescriptor] = try machO.readWrapperElements(offset: currentOffset, numberOfElements: Int(valueHeader.numValues))
             currentOffset.offset(of: GenericValueDescriptor.self, numbersOfElements: Int(valueHeader.numValues))
             self.values = values
         } else {
@@ -151,20 +150,20 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         }
         self.size = currentOffset - genericContextOffset
         var depth = 0
-        var parent = try contextDescriptor.parent(in: machOFile)?.resolved
+        var parent = try contextDescriptor.parent(in: machO)?.resolved
         var parentParameters: [GenericParamDescriptor] = []
         var parentRequirements: [GenericRequirementDescriptor] = []
         var parentTypePacks: [GenericPackShapeDescriptor] = []
         var parentValues: [GenericValueDescriptor] = []
         while let currentParent = parent {
-            if let genericContext = try currentParent.typeContextDescriptor?.genericContext(in: machOFile) {
+            if let genericContext = try currentParent.typeContextDescriptor?.genericContext(in: machO) {
                 parentParameters.append(contentsOf: genericContext.parameters)
                 parentRequirements.append(contentsOf: genericContext.requirements)
                 parentTypePacks.append(contentsOf: genericContext.typePacks)
                 parentValues.append(contentsOf: genericContext.values)
                 depth += 1
             }
-            parent = try currentParent.parent(in: machOFile)?.resolved
+            parent = try currentParent.parent(in: machO)?.resolved
         }
         self.parentParameters = parentParameters.reversed()
         self.parentRequirements = parentRequirements.reversed()

@@ -29,13 +29,12 @@ public struct Enum: TopLevelType {
     public let invertibleProtocolSet: InvertibleProtocolSet?
     public let singletonMetadataPointer: SingletonMetadataPointer?
 
-    @MachOImageGenerator
-    public init(descriptor: EnumDescriptor, in machOFile: MachOFile) throws {
+    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: EnumDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
 
         var currentOffset = descriptor.offset + descriptor.layoutSize
 
-        let genericContext = try descriptor.typeGenericContext(in: machOFile)
+        let genericContext = try descriptor.typeGenericContext(in: machO)
 
         if let genericContext {
             currentOffset += genericContext.size
@@ -46,28 +45,28 @@ public struct Enum: TopLevelType {
         let typeFlags = try required(descriptor.flags.kindSpecificFlags?.typeFlags)
 
         if typeFlags.hasForeignMetadataInitialization {
-            self.foreignMetadataInitialization = try machOFile.readElement(offset: currentOffset)
+            self.foreignMetadataInitialization = try machO.readWrapperElement(offset: currentOffset) as ForeignMetadataInitialization
             currentOffset.offset(of: ForeignMetadataInitialization.self)
         } else {
             self.foreignMetadataInitialization = nil
         }
 
         if typeFlags.hasSingletonMetadataInitialization {
-            self.singletonMetadataInitialization = try machOFile.readElement(offset: currentOffset)
+            self.singletonMetadataInitialization = try machO.readWrapperElement(offset: currentOffset) as SingletonMetadataInitialization
             currentOffset.offset(of: SingletonMetadataInitialization.self)
         } else {
             self.singletonMetadataInitialization = nil
         }
 
         if descriptor.hasCanonicalMetadataPrespecializations {
-            let count: CanonicalSpecializedMetadatasListCount = try machOFile.readElement(offset: currentOffset)
+            let count: CanonicalSpecializedMetadatasListCount = try machO.readElement(offset: currentOffset)
             currentOffset.offset(of: CanonicalSpecializedMetadatasListCount.self)
             let countValue = count.rawValue
-            let canonicalMetadataPrespecializations: [CanonicalSpecializedMetadatasListEntry] = try machOFile.readElements(offset: currentOffset, numberOfElements: countValue.cast())
+            let canonicalMetadataPrespecializations: [CanonicalSpecializedMetadatasListEntry] = try machO.readWrapperElements(offset: currentOffset, numberOfElements: countValue.cast())
             currentOffset.offset(of: CanonicalSpecializedMetadatasListEntry.self, numbersOfElements: countValue.cast())
             self.canonicalSpecializedMetadatas = canonicalMetadataPrespecializations
             self.canonicalSpecializedMetadatasListCount = count
-            self.canonicalSpecializedMetadatasCachingOnceToken = try machOFile.readElement(offset: currentOffset)
+            self.canonicalSpecializedMetadatasCachingOnceToken = try machO.readWrapperElement(offset: currentOffset) as CanonicalSpecializedMetadatasCachingOnceToken
             currentOffset.offset(of: CanonicalSpecializedMetadatasCachingOnceToken.self)
         } else {
             self.canonicalSpecializedMetadatas = []
@@ -76,14 +75,14 @@ public struct Enum: TopLevelType {
         }
 
         if descriptor.flags.hasInvertibleProtocols {
-            self.invertibleProtocolSet = try machOFile.readElement(offset: currentOffset)
+            self.invertibleProtocolSet = try machO.readElement(offset: currentOffset) as InvertibleProtocolSet
             currentOffset.offset(of: InvertibleProtocolSet.self)
         } else {
             self.invertibleProtocolSet = nil
         }
 
         if descriptor.hasSingletonMetadataPointer {
-            self.singletonMetadataPointer = try machOFile.readElement(offset: currentOffset)
+            self.singletonMetadataPointer = try machO.readWrapperElement(offset: currentOffset) as SingletonMetadataPointer
             currentOffset.offset(of: SingletonMetadataPointer.self)
         } else {
             self.singletonMetadataPointer = nil

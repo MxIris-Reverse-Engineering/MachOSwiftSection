@@ -1,4 +1,5 @@
 import MachOReading
+import MachOResolving
 import MachOExtensions
 
 public struct TargetRelativeDirectPointer<Pointee: Resolvable, Offset: FixedWidthInteger & SignedInteger & Sendable>: RelativeDirectPointerProtocol {

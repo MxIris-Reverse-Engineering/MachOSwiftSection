@@ -12,7 +12,7 @@ public enum ContextDescriptorWrapper {
     case opaqueType(OpaqueTypeDescriptor)
 
     public var protocolDescriptor: ProtocolDescriptor? {
-        if case .protocol(let descriptor) = self {
+        if case let .protocol(descriptor) = self {
             return descriptor
         } else {
             return nil
@@ -20,7 +20,7 @@ public enum ContextDescriptorWrapper {
     }
 
     public var extensionContextDescriptor: ExtensionContextDescriptor? {
-        if case .extension(let descriptor) = self {
+        if case let .extension(descriptor) = self {
             return descriptor
         } else {
             return nil
@@ -28,7 +28,7 @@ public enum ContextDescriptorWrapper {
     }
 
     public var opaqueTypeDescriptor: OpaqueTypeDescriptor? {
-        if case .opaqueType(let descriptor) = self {
+        if case let .opaqueType(descriptor) = self {
             return descriptor
         } else {
             return nil
@@ -36,7 +36,7 @@ public enum ContextDescriptorWrapper {
     }
 
     public var moduleContextDescriptor: ModuleContextDescriptor? {
-        if case .module(let descriptor) = self {
+        if case let .module(descriptor) = self {
             return descriptor
         } else {
             return nil
@@ -44,7 +44,7 @@ public enum ContextDescriptorWrapper {
     }
 
     public var anonymousContextDescriptor: AnonymousContextDescriptor? {
-        if case .anonymous(let descriptor) = self {
+        if case let .anonymous(descriptor) = self {
             return descriptor
         } else {
             return nil
@@ -69,35 +69,34 @@ public enum ContextDescriptorWrapper {
         }
     }
 
-    @MachOImageGenerator
-    public func parent(in machOFile: MachOFile) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
-        return try contextDescriptor.parent(in: machOFile)
+    public func parent<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+        return try contextDescriptor.parent(in: machO)
     }
 
     public var contextDescriptor: any ContextDescriptorProtocol {
         switch self {
-        case .type(let typeContextDescriptor):
+        case let .type(typeContextDescriptor):
             return typeContextDescriptor.contextDescriptor
-        case .protocol(let protocolDescriptor):
+        case let .protocol(protocolDescriptor):
             return protocolDescriptor
-        case .anonymous(let anonymousContextDescriptor):
+        case let .anonymous(anonymousContextDescriptor):
             return anonymousContextDescriptor
-        case .extension(let extensionContextDescriptor):
+        case let .extension(extensionContextDescriptor):
             return extensionContextDescriptor
-        case .module(let moduleContextDescriptor):
+        case let .module(moduleContextDescriptor):
             return moduleContextDescriptor
-        case .opaqueType(let opaqueTypeDescriptor):
+        case let .opaqueType(opaqueTypeDescriptor):
             return opaqueTypeDescriptor
         }
     }
 
     public var namedContextDescriptor: (any NamedContextDescriptorProtocol)? {
         switch self {
-        case .type(let typeContextDescriptor):
+        case let .type(typeContextDescriptor):
             return typeContextDescriptor.namedContextDescriptor
-        case .protocol(let protocolDescriptor):
+        case let .protocol(protocolDescriptor):
             return protocolDescriptor
-        case .module(let moduleContextDescriptor):
+        case let .module(moduleContextDescriptor):
             return moduleContextDescriptor
         case .anonymous,
              .extension,
@@ -107,21 +106,20 @@ public enum ContextDescriptorWrapper {
     }
 
     public var typeContextDescriptor: (any TypeContextDescriptorProtocol)? {
-        if case .type(let typeContextDescriptor) = self {
+        if case let .type(typeContextDescriptor) = self {
             switch typeContextDescriptor {
-            case .enum(let enumDescriptor):
+            case let .enum(enumDescriptor):
                 return enumDescriptor
-            case .struct(let structDescriptor):
+            case let .struct(structDescriptor):
                 return structDescriptor
-            case .class(let classDescriptor):
+            case let .class(classDescriptor):
                 return classDescriptor
             }
         } else {
             return nil
         }
     }
-    
-    
+
     public subscript<Property>(dynamicMember keyPath: KeyPath<any ContextDescriptorProtocol, Property>) -> Property {
         return contextDescriptor[keyPath: keyPath]
     }
@@ -132,35 +130,33 @@ extension ContextDescriptorWrapper: Resolvable {
         case invalidContextDescriptor
     }
 
-    @MachOImageGenerator
-    public static func resolve(from offset: Int, in machOFile: MachOFile) throws -> Self {
-        let contextDescriptor: ContextDescriptor = try machOFile.readElement(offset: offset)
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self {
+        let contextDescriptor: ContextDescriptor = try machO.readWrapperElement(offset: offset)
         switch contextDescriptor.flags.kind {
         case .class:
-            return try .type(.class(machOFile.readElement(offset: offset)))
+            return try .type(.class(machO.readWrapperElement(offset: offset)))
         case .enum:
-            return try .type(.enum(machOFile.readElement(offset: offset)))
+            return try .type(.enum(machO.readWrapperElement(offset: offset)))
         case .struct:
-            return try .type(.struct(machOFile.readElement(offset: offset)))
+            return try .type(.struct(machO.readWrapperElement(offset: offset)))
         case .protocol:
-            return try .protocol(machOFile.readElement(offset: offset))
+            return try .protocol(machO.readWrapperElement(offset: offset))
         case .anonymous:
-            return try .anonymous(machOFile.readElement(offset: offset))
+            return try .anonymous(machO.readWrapperElement(offset: offset))
         case .extension:
-            return try .extension(machOFile.readElement(offset: offset))
+            return try .extension(machO.readWrapperElement(offset: offset))
         case .module:
-            return try .module(machOFile.readElement(offset: offset))
+            return try .module(machO.readWrapperElement(offset: offset))
         case .opaqueType:
-            return try .opaqueType(machOFile.readElement(offset: offset))
+            return try .opaqueType(machO.readWrapperElement(offset: offset))
         default:
             throw ResolutionError.invalidContextDescriptor
         }
     }
 
-    @MachOImageGenerator
-    public static func resolve(from offset: Int, in machOFile: MachOFile) throws -> Self? {
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self? {
         do {
-            return try resolve(from: offset, in: machOFile) as Self
+            return try resolve(from: offset, in: machO) as Self
         } catch {
             print("Error resolving ContextDescriptorWrapper: \(error)")
             return nil

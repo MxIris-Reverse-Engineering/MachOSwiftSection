@@ -18,26 +18,23 @@ public struct ProtocolDescriptorRef {
         }
     }
 
-    @MachOImageGenerator
-    public func swiftProtocol(in machOFile: MachOFile) throws -> ProtocolDescriptor {
-        try Pointer<ProtocolDescriptor>(address: storage).resolve(in: machOFile)
+    public func swiftProtocol<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> ProtocolDescriptor {
+        try Pointer<ProtocolDescriptor>(address: storage).resolve(in: machO)
     }
 
-    @MachOImageGenerator
-    public func objcProtocol(in machOFile: MachOFile) throws -> ObjCProtocolPrefix {
-        try Pointer<ObjCProtocolPrefix>(address: storage & ~Bits.isObjC).resolve(in: machOFile)
+    public func objcProtocol<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> ObjCProtocolPrefix {
+        try Pointer<ObjCProtocolPrefix>(address: storage & ~Bits.isObjC).resolve(in: machO)
     }
 
     public var isObjC: Bool {
         storage & Bits.isObjC != 0
     }
 
-    @MachOImageGenerator
-    public func name(in machOFile: MachOFile) throws -> String {
+    public func name<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> String {
         if isObjC {
-            return try objcProtocol(in: machOFile).name(in: machOFile)
+            return try objcProtocol(in: machO).name(in: machO)
         } else {
-            return try swiftProtocol(in: machOFile).name(in: machOFile)
+            return try swiftProtocol(in: machO).name(in: machO)
         }
     }
     

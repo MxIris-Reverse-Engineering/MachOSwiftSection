@@ -21,22 +21,21 @@ public struct ProtocolConformanceDescriptor: ResolvableLocatableLayoutWrapper {
     }
 }
 
-@MachOImageAllMembersGenerator
 extension ProtocolConformanceDescriptor {
-    public func protocolDescriptor(in machOFile: MachOFile) throws -> SymbolOrElement<ProtocolDescriptor>? {
-        try layout.protocolDescriptor.resolve(from: offset(of: \.protocolDescriptor), in: machOFile).asOptional
+    public func protocolDescriptor<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> SymbolOrElement<ProtocolDescriptor>? {
+        try layout.protocolDescriptor.resolve(from: offset(of: \.protocolDescriptor), in: machO).asOptional
     }
 
     public var typeReference: TypeReference {
         return .forKind(layout.flags.typeReferenceKind, at: layout.typeReference)
     }
 
-    public func resolvedTypeReference(in machOFile: MachOFile) throws -> ResolvedTypeReference {
+    public func resolvedTypeReference<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> ResolvedTypeReference {
         let offset = offset(of: \.typeReference)
-        return try typeReference.resolve(at: offset, in: machOFile)
+        return try typeReference.resolve(at: offset, in: machO)
     }
 
-    public func witnessTablePattern(in machOFile: MachOFile) throws -> ProtocolWitnessTable? {
-        try layout.witnessTablePattern.resolve(from: offset(of: \.witnessTablePattern), in: machOFile)
+    public func witnessTablePattern<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> ProtocolWitnessTable? {
+        try layout.witnessTablePattern.resolve(from: offset(of: \.witnessTablePattern), in: machO)
     }
 }

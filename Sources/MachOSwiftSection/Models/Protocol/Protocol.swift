@@ -1,6 +1,7 @@
 import Foundation
 import MachOKit
 import MachOMacro
+import MachOFoundation
 
 // using TrailingObjects
 //  = swift::ABI::TrailingObjects<
@@ -31,18 +32,17 @@ public struct `Protocol`: TopLevelType {
         descriptor.numRequirementsInSignature.cast()
     }
 
-    @MachOImageGenerator
-    public init(descriptor: ProtocolDescriptor, in machOFile: MachOFile) throws {
+    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: ProtocolDescriptor, in machO: MachO) throws {
         guard let protocolFlags = descriptor.flags.kindSpecificFlags?.protocolFlags else {
             throw Error.invalidProtocolDescriptor
         }
         self.descriptor = descriptor
         self.protocolFlags = protocolFlags
-        self.name = try descriptor.name(in: machOFile)
+        self.name = try descriptor.name(in: machO)
         var currentOffset = descriptor.offset + descriptor.layoutSize
 
         if descriptor.numRequirementsInSignature > 0 {
-            self.requirementInSignatures = try machOFile.readElements(offset: currentOffset, numberOfElements: descriptor.numRequirementsInSignature.cast())
+            self.requirementInSignatures = try machO.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.numRequirementsInSignature.cast()) as [GenericRequirementDescriptor]
             currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: descriptor.numRequirementsInSignature.cast())
             currentOffset = align(address: currentOffset.cast(), alignment: 4).cast()
         } else {
@@ -50,7 +50,7 @@ public struct `Protocol`: TopLevelType {
         }
 
         if descriptor.numRequirements > 0 {
-            self.requirements = try machOFile.readElements(offset: currentOffset, numberOfElements: descriptor.numRequirements.cast())
+            self.requirements = try machO.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.numRequirements.cast()) as [ProtocolRequirement]
             currentOffset.offset(of: ProtocolRequirement.self, numbersOfElements: descriptor.numRequirements.cast())
         } else {
             self.requirements = []

@@ -1822,6 +1822,7 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
     private mutating func printBoundGenericNoSugar(_ name: Node) {
         guard let typeList = name.children.at(1) else { return }
         printFirstChild(name)
+        guard !options.contains(.removeBoundGeneric) else { return }
         printChildren(typeList, prefix: "<", suffix: ">", separator: ", ")
     }
 

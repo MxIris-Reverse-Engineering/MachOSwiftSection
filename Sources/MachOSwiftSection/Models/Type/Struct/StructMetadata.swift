@@ -20,12 +20,11 @@ public struct StructMetadata: TypeMetadataProtocol {
     public static var descriptorOffset: Int { Layout.offset(of: .descriptor) }
 }
 
-@MachOImageAllMembersGenerator
 extension StructMetadata {
-    public func fieldOffsets(for descriptor: StructDescriptor? = nil, in machOFile: MachOFile) throws -> [UInt32] {
-        let descriptor = try descriptor ?? layout.descriptor.resolve(in: machOFile)
+    public func fieldOffsets<MachO: MachORepresentableWithCache & MachOReadable>(for descriptor: StructDescriptor? = nil, in machO: MachO) throws -> [UInt32] {
+        let descriptor = try descriptor ?? layout.descriptor.resolve(in: machO)
         guard descriptor.fieldOffsetVector != .zero else { return [] }
         let offset = offset + descriptor.fieldOffsetVector.cast() * MemoryLayout<StoredPointer>.size
-        return try machOFile.readElements(offset: offset, numberOfElements: descriptor.numFields.cast())
+        return try machO.readElements(offset: offset, numberOfElements: descriptor.numFields.cast())
     }
 }

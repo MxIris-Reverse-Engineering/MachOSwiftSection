@@ -35,11 +35,10 @@ public struct ProtocolDescriptor: ProtocolDescriptorProtocol {
     }
 }
 
-@MachOImageAllMembersGenerator
 extension ProtocolDescriptor {
-    public func associatedTypes(in machOFile: MachOFile) throws -> [String] {
+    public func associatedTypes<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> [String] {
         guard layout.associatedTypes.isValid else { return [] }
-        return try layout.associatedTypes.resolve(from: offset(of: \.associatedTypes), in: machOFile).components(separatedBy: " ")
+        return try layout.associatedTypes.resolve(from: offset(of: \.associatedTypes), in: machO).components(separatedBy: " ")
     }
 }
 

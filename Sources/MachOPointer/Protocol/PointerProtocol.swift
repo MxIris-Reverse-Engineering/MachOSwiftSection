@@ -1,53 +1,36 @@
 import MachOKit
 import MachOMacro
 import MachOReading
+import MachOResolving
 import MachOExtensions
 
-public protocol PointerProtocol: Resolvable, Sendable {
+public protocol PointerProtocol<Pointee>: Resolvable, Sendable {
     associatedtype Pointee: Resolvable
 
     var address: UInt64 { get }
 
-    func resolve(in machOFile: MachOFile) throws -> Pointee
-    func resolveAny<T: Resolvable>(in machOFile: MachOFile) throws -> T
-    func resolveOffset(in machOFile: MachOFile) -> Int
-
-    func resolve(in machOImage: MachOImage) throws -> Pointee
-    func resolveAny<T: Resolvable>(in machOImage: MachOImage) throws -> T
-    func resolveOffset(in machOImage: MachOImage) -> Int
-}
-
-@MachOImageAllMembersGenerator
-extension PointerProtocol {
-    public func resolveAny<T: Resolvable>(in machOFile: MachOFile) throws -> T {
-        return try T.resolve(from: resolveOffset(in: machOFile), in: machOFile)
-    }
-
-    public func resolve(in machOFile: MachOFile) throws -> Pointee {
-        return try Pointee.resolve(from: resolveOffset(in: machOFile), in: machOFile)
-    }
+    func resolve<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> Pointee
+    func resolveAny<T: Resolvable, MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> T
+    func resolveOffset<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) -> Int
 }
 
 extension PointerProtocol {
-    public func resolveOffset(in machOFile: MachOFile) -> Int {
-        numericCast(machOFile.fileOffset(of: address))
+    public func resolveAny<T: Resolvable, MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> T {
+        return try T.resolve(from: resolveOffset(in: machO), in: machO)
     }
 
-    public func resolveOffset(in machOImage: MachOImage) -> Int {
-        Int(address) - machOImage.ptr.int
+    public func resolve<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> Pointee {
+        return try Pointee.resolve(from: resolveOffset(in: machO), in: machO)
+    }
+
+    public func resolveOffset<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) -> Int {
+        machO.resolveOffset(at: address)
     }
 }
 
 extension PointerProtocol where Pointee: OptionalProtocol {
-    func resolve(in machOFile: MachOFile) throws -> Pointee {
+    public func resolve<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> Pointee {
         guard address != 0 else { return nil }
-        return try Pointee.resolve(from: resolveOffset(in: machOFile), in: machOFile)
-    }
-}
-
-extension PointerProtocol where Pointee: OptionalProtocol {
-    func resolve(in machOImage: MachOImage) throws -> Pointee {
-        guard address != 0 else { return nil }
-        return try Pointee.resolve(from: resolveOffset(in: machOImage), in: machOImage)
+        return try Pointee.resolve(from: resolveOffset(in: machO), in: machO)
     }
 }

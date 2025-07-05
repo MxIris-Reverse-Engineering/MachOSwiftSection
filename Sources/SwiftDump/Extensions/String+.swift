@@ -30,3 +30,9 @@ extension String? {
         self ?? ""
     }
 }
+
+extension String {
+    var insertSubFunctionPrefix: String {
+        "sub_" + self
+    }
+}

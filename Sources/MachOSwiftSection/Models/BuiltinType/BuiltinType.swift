@@ -2,14 +2,14 @@ import Foundation
 import MachOSymbols
 import MachOKit
 import MachOMacro
+import MachOFoundation
 
 public struct BuiltinType: TopLevelType {
     public let descriptor: BuiltinTypeDescriptor
 
     public let typeName: MangledName?
 
-    @MachOImageGenerator
-    public init(descriptor: BuiltinTypeDescriptor, in machO: MachOFile) throws {
+    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: BuiltinTypeDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
         self.typeName = try descriptor.typeName(in: machO)
     }
