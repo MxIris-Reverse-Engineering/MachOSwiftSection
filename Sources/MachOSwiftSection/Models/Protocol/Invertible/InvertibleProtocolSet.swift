@@ -1,6 +1,6 @@
 import Foundation
 
-public struct InvertibleProtocolSet: OptionSet {
+public struct InvertibleProtocolSet: OptionSet, Sendable {
     public let rawValue: UInt16
     
     public init(rawValue: UInt16) {

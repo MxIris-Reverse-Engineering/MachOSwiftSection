@@ -247,6 +247,17 @@ let package = Package(
             ]
         ),
 
+        .target(
+            name: "SwiftInterface",
+            dependencies: [
+                .MachOKit,
+                "MachOSwiftSection",
+                "Semantic",
+                "Utilities",
+                .product(name: "OrderedCollections", package: "swift-collections"),
+            ]
+        ),
+
         .executableTarget(
             name: "swift-section",
             dependencies: [

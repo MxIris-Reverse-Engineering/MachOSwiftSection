@@ -13,7 +13,7 @@ extension DumpableTests {
     package var isEnabledSearchMetadata: Bool { false }
     
     @MainActor
-    package func dumpProtocols<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(for machO: MachO) async throws {
+    package func dumpProtocols<MachO: MachOSwiftSectionRepresentableWithCache>(for machO: MachO) async throws {
         let protocolDescriptors = try machO.swift.protocolDescriptors
         for protocolDescriptor in protocolDescriptors {
             try Protocol(descriptor: protocolDescriptor, in: machO).dump(using: .test, in: machO).string.print()
@@ -21,7 +21,7 @@ extension DumpableTests {
     }
 
     @MainActor
-    package func dumpProtocolConformances<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(for machO: MachO) async throws {
+    package func dumpProtocolConformances<MachO: MachOSwiftSectionRepresentableWithCache>(for machO: MachO) async throws {
         let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
 
         for protocolConformanceDescriptor in protocolConformanceDescriptors {
@@ -30,7 +30,7 @@ extension DumpableTests {
     }
 
     @MainActor
-    package func dumpTypes<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable & MachODataSectionProvider & MachOOffsetConverter>(for machO: MachO) async throws {
+    package func dumpTypes<MachO: MachOSwiftSectionRepresentableWithCache & MachODataSectionProvider & MachOOffsetConverter>(for machO: MachO) async throws {
         let typeContextDescriptors = try machO.swift.typeContextDescriptors
         var metadataFinder: MetadataFinder<MachO>?
         if isEnabledSearchMetadata {
@@ -75,7 +75,7 @@ extension DumpableTests {
     }
 
     @MainActor
-    package func dumpAssociatedTypes<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(for machO: MachO) async throws {
+    package func dumpAssociatedTypes<MachO: MachOSwiftSectionRepresentableWithCache>(for machO: MachO) async throws {
         let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
         for associatedTypeDescriptor in associatedTypeDescriptors {
             try AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: .test, in: machO).string.print()
@@ -83,7 +83,7 @@ extension DumpableTests {
     }
     
     @MainActor
-    package func dumpBuiltinTypes<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(for machO: MachO) async throws {
+    package func dumpBuiltinTypes<MachO: MachOSwiftSectionRepresentableWithCache>(for machO: MachO) async throws {
         let descriptors = try machO.swift.builtinTypeDescriptors
         for descriptor in descriptors {
             print(try BuiltinType(descriptor: descriptor, in: machO))

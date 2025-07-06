@@ -50,7 +50,7 @@ public struct MetadataReader {
                                 // Try to preserve a reference to an OpaqueTypeDescriptor
                                 // symbolically, since we'd like to read out and resolve the type ref
                                 // to the underlying type if available.
-                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, contents: .index(context.offset.cast()))
+                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, contents: .index(context.contextDescriptor.offset.cast()))
                             } else {
                                 result = try buildContextMangling(context: .element(context), in: machO)
                             }
@@ -62,7 +62,7 @@ public struct MetadataReader {
                                 // Try to preserve a reference to an OpaqueTypeDescriptor
                                 // symbolically, since we'd like to read out and resolve the type ref
                                 // to the underlying type if available.
-                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, contents: .index(element.offset.cast()))
+                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, contents: .index(element.contextDescriptor.offset.cast()))
                             } else {
                                 result = try buildContextMangling(context: resolvableElement, in: machO)
                             }

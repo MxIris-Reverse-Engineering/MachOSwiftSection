@@ -7,5 +7,7 @@ struct MachOMacroPlugin: CompilerPlugin {
         LayoutMacro.self,
         MachOImageGeneratorMacro.self,
         MachOImageAllMembersGeneratorMacro.self,
+        AssociatedValueMacro.self,
+        CaseCheckableMacro.self,
     ]
 }

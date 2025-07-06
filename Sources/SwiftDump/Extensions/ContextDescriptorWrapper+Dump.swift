@@ -1,11 +1,9 @@
 import MachOKit
-import MachOMacro
-import MachOFoundation
 import MachOSwiftSection
 import Semantic
 
 extension ContextDescriptorWrapper {
-    package func dumpName<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+    package func dumpName<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
         try MetadataReader.demangleContext(for: self, in: machO).printSemantic(using: options)
     }
 }

@@ -3,15 +3,15 @@ import MachOKit
 import MachOFoundation
 import MachOMacro
 
-public struct MangledName {
-    package enum Element {
-        package struct Lookup: CustomStringConvertible {
+public struct MangledName: Sendable {
+    package enum Element: Sendable {
+        package struct Lookup: CustomStringConvertible, Sendable {
             package enum Reference {
                 case relative(RelativeReference)
                 case absolute(AbsoluteReference)
             }
 
-            package struct RelativeReference: CustomStringConvertible {
+            package struct RelativeReference: CustomStringConvertible, Sendable {
                 package let kind: UInt8
                 package let relativeOffset: RelativeOffset
                 package var description: String {
@@ -21,7 +21,7 @@ public struct MangledName {
                 }
             }
 
-            package struct AbsoluteReference: CustomStringConvertible {
+            package struct AbsoluteReference: CustomStringConvertible, Sendable {
                 package let kind: UInt8
                 package let reference: UInt64
                 package var description: String {

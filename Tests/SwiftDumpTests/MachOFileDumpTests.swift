@@ -8,7 +8,8 @@ import MachOFoundation
 @testable import MachOTestingSupport
 
 @Suite(.serialized)
-final class MachOFileDumpTests: MachOFileTests, DumpableTests {}
+final class MachOFileDumpTests: MachOFileTests, DumpableTests {
+}
 
 extension MachOFileDumpTests {
     @Test func typesInFile() async throws {

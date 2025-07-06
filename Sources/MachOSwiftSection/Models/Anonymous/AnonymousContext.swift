@@ -3,7 +3,7 @@ import MachOKit
 import MachOFoundation
 import MachOMacro
 
-public struct AnonymousContext {
+public struct AnonymousContext: TopLevelType, ContextProtocol {
     public let descriptor: AnonymousContextDescriptor
     public let genericContext: GenericContext?
     public let mangledName: MangledName?

@@ -1,4 +1,4 @@
-public protocol FlagSet: Equatable, RawRepresentable where RawValue: FixedWidthInteger {
+public protocol FlagSet: Equatable, RawRepresentable, Sendable where RawValue: FixedWidthInteger {
     func flag(bit: Int) -> Bool
 
     func field<FieldType: FixedWidthInteger>(

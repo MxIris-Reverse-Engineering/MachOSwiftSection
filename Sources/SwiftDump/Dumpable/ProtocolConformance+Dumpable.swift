@@ -1,14 +1,12 @@
 import Foundation
 import MachOKit
 import MachOSwiftSection
-import MachOMacro
-import MachOFoundation
 import Semantic
 import Demangle
 import Utilities
 import OrderedCollections
 
-private struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>: ConformedDumper {
+package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWithCache>: ConformedDumper {
     let protocolConformance: ProtocolConformance
 
     let options: DemangleOptions
@@ -17,7 +15,7 @@ private struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
 
     var typeNameOptions: DemangleOptions { .interfaceType }
 
-    var body: SemanticString {
+    package var body: SemanticString {
         get throws {
             Keyword(.extension)
 
@@ -96,7 +94,7 @@ private struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
     }
 
     @SemanticStringBuilder
-    var typeName: SemanticString {
+    package var typeName: SemanticString {
         get throws {
             switch protocolConformance.typeReference {
             case .directTypeDescriptor(let descriptor):
@@ -126,7 +124,7 @@ private struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
     }
 
     @SemanticStringBuilder
-    var protocolName: SemanticString {
+    package var protocolName: SemanticString {
         get throws {
             switch protocolConformance.`protocol` {
             case .symbol(let unsolvedSymbol):
@@ -141,7 +139,7 @@ private struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
 
     private func validNode(for symbols: Symbols, typeName: String, visitedNode: borrowing OrderedSet<Node> = []) throws -> Node? {
         for symbol in symbols {
-            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolConformanceNode = node.preorder().first(where: { $0.kind == .protocolConformance }), let symbolTypeName = protocolConformanceNode.children.at(0)?.print(using: .interfaceType), (symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.entry(in: machO)?.primitiveType(for: typeName) == symbolTypeName) {
+            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolConformanceNode = node.preorder().first(where: { $0.kind == .protocolConformance }), let symbolTypeName = protocolConformanceNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.entry(in: machO)?.primitiveType(for: typeName) == symbolTypeName {
                 return node
             }
         }
@@ -150,15 +148,15 @@ private struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
 }
 
 extension ProtocolConformance: ConformedDumpable {
-    public func dumpTypeName<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+    public func dumpTypeName<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
         try ProtocolConformanceDumper(protocolConformance: self, options: options, machO: machO).typeName
     }
 
-    public func dumpProtocolName<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+    public func dumpProtocolName<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
         try ProtocolConformanceDumper(protocolConformance: self, options: options, machO: machO).protocolName
     }
 
-    public func dump<MachO: MachOSwiftSectionRepresentableWithCache & MachOReadable>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+    public func dump<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
         try ProtocolConformanceDumper(protocolConformance: self, options: options, machO: machO).body
     }
 }

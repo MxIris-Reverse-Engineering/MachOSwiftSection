@@ -33,7 +33,7 @@ struct MetadataFinderTests {
                 continue
             }
             switch type {
-            case .enum:
+            case .enum/*(let enumDescriptor)*/:
                 continue
             case .struct(let structDescriptor):
                 guard let metadata = try finder.metadata(for: structDescriptor) as StructMetadata? else {

@@ -9,7 +9,7 @@ import MachOFoundation
 //      TargetGenericRequirementDescriptor<Runtime>,
 //      TargetProtocolRequirement<Runtime>>;
 
-public struct `Protocol`: TopLevelType {
+public struct `Protocol`: TopLevelType, ContextProtocol {
     public enum Error: Swift.Error {
         case invalidProtocolDescriptor
     }

@@ -3,7 +3,7 @@ import MachOKit
 import MachOMacro
 import MachOFoundation
 
-public struct ExtensionContext {
+public struct ExtensionContext: TopLevelType, ContextProtocol {
     public let descriptor: ExtensionContextDescriptor
 
     public let genericContext: GenericContext?

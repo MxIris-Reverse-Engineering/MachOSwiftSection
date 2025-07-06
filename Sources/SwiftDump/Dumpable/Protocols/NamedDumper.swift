@@ -1,5 +1,5 @@
 import Semantic
 
-protocol NamedDumper: Dumper {
+package protocol NamedDumper: Dumper {
     @SemanticStringBuilder var name: SemanticString { get throws }
 }

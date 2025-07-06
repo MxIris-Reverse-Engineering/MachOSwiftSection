@@ -1,7 +1,8 @@
 import MachOKit
 import MachOExtensions
+import MachOReading
 
-public protocol MachOSwiftSectionRepresentableWithCache: MachORepresentableWithCache {
+public protocol MachOSwiftSectionRepresentableWithCache: MachORepresentableWithCache, MachOReadable {
     associatedtype SwiftSection: SwiftSectionRepresentable
 
     var swift: SwiftSection { get }

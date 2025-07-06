@@ -9,7 +9,7 @@ public typealias GenericContext = TargetGenericContext<GenericContextDescriptorH
 public typealias TypeGenericContext = TargetGenericContext<TypeGenericContextDescriptorHeader>
 
 @MemberwiseInit(.private)
-public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtocol> {
+public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtocol>: Sendable {
     public let offset: Int
     public let size: Int
     public let header: Header

@@ -18,7 +18,7 @@ import MachOFoundation
 //                            InvertibleProtocolSet,
 //                            TargetSingletonMetadataPointer<Runtime>>
 
-public struct Enum: TopLevelType {
+public struct Enum: TopLevelType, ContextProtocol {
     public let descriptor: EnumDescriptor
     public let genericContext: TypeGenericContext?
     public let foreignMetadataInitialization: ForeignMetadataInitialization?

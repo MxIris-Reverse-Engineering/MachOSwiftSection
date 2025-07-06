@@ -27,7 +27,7 @@ import MachOFoundation
 //                              TargetMethodDefaultOverrideTableHeader<Runtime>,
 //                              TargetMethodDefaultOverrideDescriptor<Runtime>>
 
-public struct Class: TopLevelType {
+public struct Class: TopLevelType, ContextProtocol {
     public let descriptor: ClassDescriptor
     public let genericContext: TypeGenericContext?
     public let resilientSuperclass: ResilientSuperclass?

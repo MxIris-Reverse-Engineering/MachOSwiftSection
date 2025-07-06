@@ -2,7 +2,6 @@ import MachOKit
 import MachOFoundation
 import MachOMacro
 
-@dynamicMemberLookup
 public enum ContextDescriptorWrapper {
     case type(TypeContextDescriptorWrapper)
     case `protocol`(ProtocolDescriptor)
@@ -12,7 +11,7 @@ public enum ContextDescriptorWrapper {
     case opaqueType(OpaqueTypeDescriptor)
 
     public var protocolDescriptor: ProtocolDescriptor? {
-        if case let .protocol(descriptor) = self {
+        if case .protocol(let descriptor) = self {
             return descriptor
         } else {
             return nil
@@ -20,7 +19,7 @@ public enum ContextDescriptorWrapper {
     }
 
     public var extensionContextDescriptor: ExtensionContextDescriptor? {
-        if case let .extension(descriptor) = self {
+        if case .extension(let descriptor) = self {
             return descriptor
         } else {
             return nil
@@ -28,7 +27,7 @@ public enum ContextDescriptorWrapper {
     }
 
     public var opaqueTypeDescriptor: OpaqueTypeDescriptor? {
-        if case let .opaqueType(descriptor) = self {
+        if case .opaqueType(let descriptor) = self {
             return descriptor
         } else {
             return nil
@@ -36,7 +35,7 @@ public enum ContextDescriptorWrapper {
     }
 
     public var moduleContextDescriptor: ModuleContextDescriptor? {
-        if case let .module(descriptor) = self {
+        if case .module(let descriptor) = self {
             return descriptor
         } else {
             return nil
@@ -44,7 +43,7 @@ public enum ContextDescriptorWrapper {
     }
 
     public var anonymousContextDescriptor: AnonymousContextDescriptor? {
-        if case let .anonymous(descriptor) = self {
+        if case .anonymous(let descriptor) = self {
             return descriptor
         } else {
             return nil
@@ -59,6 +58,30 @@ public enum ContextDescriptorWrapper {
             return false
         }
     }
+    
+    public var isEnum: Bool {
+        if case .type(.enum) = self {
+            return true
+        } else {
+            return false
+        }
+    }
+    
+    public var isStruct: Bool {
+        if case .type(.struct) = self {
+            return true
+        } else {
+            return false
+        }
+    }
+    
+    public var isClass: Bool {
+        if case .type(.class) = self {
+            return true
+        } else {
+            return false
+        }
+    }
 
     public var isProtocol: Bool {
         switch self {
@@ -69,34 +92,74 @@ public enum ContextDescriptorWrapper {
         }
     }
 
+    public var isAnonymous: Bool {
+        switch self {
+        case .anonymous:
+            return true
+        default:
+            return false
+        }
+    }
+
+    public var isExtension: Bool {
+        switch self {
+        case .extension:
+            return true
+        default:
+            return false
+        }
+    }
+
+    public var isModule: Bool {
+        switch self {
+        case .module:
+            return true
+        default:
+            return false
+        }
+    }
+
+    public var isOpaqueType: Bool {
+        switch self {
+        case .opaqueType:
+            return true
+        default:
+            return false
+        }
+    }
+
     public func parent<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
         return try contextDescriptor.parent(in: machO)
     }
 
+    public func genericContext<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> GenericContext? {
+        return try contextDescriptor.genericContext(in: machO)
+    }
+    
     public var contextDescriptor: any ContextDescriptorProtocol {
         switch self {
-        case let .type(typeContextDescriptor):
+        case .type(let typeContextDescriptor):
             return typeContextDescriptor.contextDescriptor
-        case let .protocol(protocolDescriptor):
+        case .protocol(let protocolDescriptor):
             return protocolDescriptor
-        case let .anonymous(anonymousContextDescriptor):
+        case .anonymous(let anonymousContextDescriptor):
             return anonymousContextDescriptor
-        case let .extension(extensionContextDescriptor):
+        case .extension(let extensionContextDescriptor):
             return extensionContextDescriptor
-        case let .module(moduleContextDescriptor):
+        case .module(let moduleContextDescriptor):
             return moduleContextDescriptor
-        case let .opaqueType(opaqueTypeDescriptor):
+        case .opaqueType(let opaqueTypeDescriptor):
             return opaqueTypeDescriptor
         }
     }
 
     public var namedContextDescriptor: (any NamedContextDescriptorProtocol)? {
         switch self {
-        case let .type(typeContextDescriptor):
+        case .type(let typeContextDescriptor):
             return typeContextDescriptor.namedContextDescriptor
-        case let .protocol(protocolDescriptor):
+        case .protocol(let protocolDescriptor):
             return protocolDescriptor
-        case let .module(moduleContextDescriptor):
+        case .module(let moduleContextDescriptor):
             return moduleContextDescriptor
         case .anonymous,
              .extension,
@@ -106,13 +169,13 @@ public enum ContextDescriptorWrapper {
     }
 
     public var typeContextDescriptor: (any TypeContextDescriptorProtocol)? {
-        if case let .type(typeContextDescriptor) = self {
+        if case .type(let typeContextDescriptor) = self {
             switch typeContextDescriptor {
-            case let .enum(enumDescriptor):
+            case .enum(let enumDescriptor):
                 return enumDescriptor
-            case let .struct(structDescriptor):
+            case .struct(let structDescriptor):
                 return structDescriptor
-            case let .class(classDescriptor):
+            case .class(let classDescriptor):
                 return classDescriptor
             }
         } else {
@@ -120,8 +183,12 @@ public enum ContextDescriptorWrapper {
         }
     }
 
-    public subscript<Property>(dynamicMember keyPath: KeyPath<any ContextDescriptorProtocol, Property>) -> Property {
-        return contextDescriptor[keyPath: keyPath]
+    public var typeContextDescriptorWrapper: TypeContextDescriptorWrapper? {
+        if case .type(let typeContextDescriptor) = self {
+            return typeContextDescriptor
+        } else {
+            return nil
+        }
     }
 }
 
