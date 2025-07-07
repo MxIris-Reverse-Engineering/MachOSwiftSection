@@ -6,7 +6,7 @@ import OrderedCollections
 struct TypeName: Hashable {
     let name: String
     let kind: TypeKind
-    
+
     var currentName: String {
         name.components(separatedBy: ".").last ?? name
     }
@@ -121,9 +121,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 }
                 parent = try currentParent.parent(in: machO)?.resolved
             }
-            for typeParent in typeParents {
-                
-            }
+            for typeParent in typeParents {}
 //            TypeDefinition(typeWrapper: type, parent: typeParents.first, extensionContext: extensionContext)
         }
     }

@@ -30,7 +30,7 @@ extension DumpableTests {
     }
 
     @MainActor
-    package func dumpTypes<MachO: MachOSwiftSectionRepresentableWithCache & MachODataSectionProvider & MachOOffsetConverter>(for machO: MachO, isDetail: Bool = true) async throws {
+    package func dumpTypes<MachO: MachOSwiftSectionRepresentableWithCache & MachOOffsetConverter>(for machO: MachO, isDetail: Bool = true) async throws {
         let typeContextDescriptors = try machO.swift.typeContextDescriptors
         var metadataFinder: MetadataFinder<MachO>?
         if isEnabledSearchMetadata {
@@ -82,7 +82,7 @@ extension DumpableTests {
     }
 
     @MainActor
-    package func dumpOpaqueTypes<MachO: MachOSwiftSectionRepresentableWithCache & MachODataSectionProvider & MachOOffsetConverter>(for machO: MachO) async throws {
+    package func dumpOpaqueTypes<MachO: MachOSwiftSectionRepresentableWithCache & MachOOffsetConverter>(for machO: MachO) async throws {
         let symbols = SymbolIndexStore.shared.descriptorSymbols(of: .opaqueType, in: machO)
         for symbol in symbols where symbol.offset != 0 {
             var offset = symbol.offset

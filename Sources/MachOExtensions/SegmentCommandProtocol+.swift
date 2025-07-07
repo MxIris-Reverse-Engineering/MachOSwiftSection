@@ -18,7 +18,7 @@ extension SegmentCommandProtocol {
         )
     }
     
-    package func _section(for name: String, in machO: some MachORepresentable) -> SectionType? {
+    package func _section(for name: String, in machO: some MachORepresentable) -> (any SectionProtocol)? {
         machO.sections.filter { $0.segmentName == segmentName }.first { $0.sectionName == name }
     }
 }
