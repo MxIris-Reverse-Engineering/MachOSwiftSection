@@ -23,12 +23,12 @@ struct ProtocolName: Hashable {
 }
 
 @MemberwiseInit
-class TypeDefinition {
+class TypeDeclaration {
     let typeWrapper: TypeWrapper
 
-    weak var parent: TypeDefinition?
+    weak var parent: TypeDeclaration?
 
-    var children: [TypeDefinition] = []
+    var children: [TypeDeclaration] = []
 
     var extensionContext: ExtensionContext?
 
@@ -43,10 +43,10 @@ class TypeExtension {
 }
 
 @MemberwiseInit
-class ProtocolDefinition {
+class ProtocolDeclaration {
     let `protocol`: MachOSwiftSection.`Protocol`
 
-    weak var parent: TypeDefinition?
+    weak var parent: TypeDeclaration?
 
     var extensionContext: ExtensionContext?
 }
@@ -81,7 +81,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     private var importedModules: OrderedSet<String> = []
 
-    private var topLevelTypes: OrderedDictionary<TypeName, `TypeDefinition`> = [:]
+    private var topLevelTypes: OrderedDictionary<TypeName, TypeDeclaration> = [:]
 
     public init(machO: MachO) throws {
         self.machO = machO
@@ -111,16 +111,20 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     private func index() throws {
         for type in types {
             var parent = try ContextWrapper.type(type).parent(in: machO)?.resolved
-            var typeChain: [TypeWrapper] = []
+            var typeParents: [TypeWrapper] = []
             var extensionContext: ExtensionContext?
             while let currentParent = parent {
                 if let _extensionContext = currentParent.extension {
                     extensionContext = _extensionContext
                 } else if let typeContext = currentParent.type {
-                    typeChain.append(typeContext)
+                    typeParents.append(typeContext)
                 }
                 parent = try currentParent.parent(in: machO)?.resolved
             }
+            for typeParent in typeParents {
+                
+            }
+//            TypeDefinition(typeWrapper: type, parent: typeParents.first, extensionContext: extensionContext)
         }
     }
 

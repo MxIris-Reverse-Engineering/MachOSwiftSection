@@ -5,7 +5,7 @@ public protocol SwiftSectionRepresentable {
     var associatedTypes: [AssociatedType] { get throws }
     var builtinTypes: [BuiltinType] { get throws }
 
-    var typeContextDescriptors: [ContextDescriptorWrapper] { get throws }
+    var typeContextDescriptors: [TypeContextDescriptorWrapper] { get throws }
     var protocolDescriptors: [ProtocolDescriptor] { get throws }
     var protocolConformanceDescriptors: [ProtocolConformanceDescriptor] { get throws }
     var associatedTypeDescriptors: [AssociatedTypeDescriptor] { get throws }

@@ -166,8 +166,8 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Name
                 }
             }
 
-            for kind in SymbolIndexStore.IndexKind.allCases {
-                for (offset, symbol) in SymbolIndexStore.shared.symbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
+            for kind in SymbolIndexStore.MemberKind.allCases {
+                for (offset, symbol) in SymbolIndexStore.shared.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
                     if offset.isStart {
                         BreakLine()
 

@@ -70,8 +70,8 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Named
                 }
             }
 
-            for kind in SymbolIndexStore.IndexKind.allCases {
-                for (offset, function) in SymbolIndexStore.shared.symbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
+            for kind in SymbolIndexStore.MemberKind.allCases {
+                for (offset, function) in SymbolIndexStore.shared.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
                     if offset.isStart {
                         BreakLine()
 

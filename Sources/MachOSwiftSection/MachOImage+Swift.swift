@@ -23,24 +23,19 @@ extension MachOImage.Swift: SwiftSectionRepresentable {
             let typeContextDescriptors = try typeContextDescriptors
             for typeContextDescriptor in typeContextDescriptors {
                 switch typeContextDescriptor {
-                case .type(let type):
-                    switch type {
-                    case .enum(let descriptor):
-                        try results.append(.enum(.init(descriptor: descriptor, in: machO)))
-                    case .struct(let descriptor):
-                        try results.append(.struct(.init(descriptor: descriptor, in: machO)))
-                    case .class(let descriptor):
-                        try results.append(.class(.init(descriptor: descriptor, in: machO)))
-                    }
-                default:
-                    continue
+                case let .enum(descriptor):
+                    try results.append(.enum(.init(descriptor: descriptor, in: machO)))
+                case let .struct(descriptor):
+                    try results.append(.struct(.init(descriptor: descriptor, in: machO)))
+                case let .class(descriptor):
+                    try results.append(.class(.init(descriptor: descriptor, in: machO)))
                 }
             }
             return results
         }
     }
 
-    public var protocols: [`Protocol`] {
+    public var protocols: [Protocol] {
         get throws {
             try protocolDescriptors.map { try Protocol(descriptor: $0, in: machO) }
         }
@@ -64,7 +59,7 @@ extension MachOImage.Swift: SwiftSectionRepresentable {
         }
     }
 
-    public var typeContextDescriptors: [ContextDescriptorWrapper] {
+    public var typeContextDescriptors: [TypeContextDescriptorWrapper] {
         get throws {
             return try _readRelativeDescriptors(from: .__swift5_types, in: machO) + (try? _readRelativeDescriptors(from: .__swift5_types2, in: machO))
         }

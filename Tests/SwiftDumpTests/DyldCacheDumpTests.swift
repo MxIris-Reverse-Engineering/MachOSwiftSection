@@ -18,15 +18,27 @@ extension DyldCacheDumpTests {
     // MARK: - Types
     
     @Test func typesInCacheFile() async throws {
-        try await dumpTypes(for: machOFileInCache)
+        try await dumpTypes(for: machOFileInCache, isDetail: false)
     }
 
     @Test func typesInMainCacheFile() async throws {
-        try await dumpTypes(for: machOFileInMainCache)
+        try await dumpTypes(for: machOFileInMainCache, isDetail: false)
     }
 
     @Test func typesInSubCacheFile() async throws {
-        try await dumpTypes(for: machOFileInSubCache)
+        try await dumpTypes(for: machOFileInSubCache, isDetail: false)
+    }
+    
+    @Test func opaqueTypesInCacheFile() async throws {
+        try await dumpOpaqueTypes(for: machOFileInCache)
+    }
+
+    @Test func opaqueTypesInMainCacheFile() async throws {
+        try await dumpOpaqueTypes(for: machOFileInMainCache)
+    }
+
+    @Test func opaqueTypesInSubCacheFile() async throws {
+        try await dumpOpaqueTypes(for: machOFileInSubCache)
     }
 
     // MARK: - Protocols

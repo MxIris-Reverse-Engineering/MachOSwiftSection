@@ -11,6 +11,7 @@ package enum MachOFileName: String {
     case SourceEditorFromXcode = "/Applications/Xcode.app/Contents/SharedFrameworks/SourceEditor.framework"
     case ControlCenter = "/System/Library/CoreServices/ControlCenter.app"
     case Freeform = "/System/Applications/Freeform.app"
+    case DemoKit = "/Users/JH/Library/Developer/Xcode/DerivedData/DemoKit-ehhahmxasrlfzrgkjldlecadpbmu/Build/Products/Release/DemoKit.framework"
 }
 
 

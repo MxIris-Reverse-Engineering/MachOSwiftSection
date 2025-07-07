@@ -69,35 +69,30 @@ final actor DumpCommand: AsyncParsableCommand {
 
         for typeContextDescriptor in typeContextDescriptors {
             switch typeContextDescriptor {
-            case .type(let typeContextDescriptorWrapper):
-                switch typeContextDescriptorWrapper {
-                case .enum(let enumDescriptor):
-                    await performDump {
-                        try Enum(descriptor: enumDescriptor, in: machO).dump(using: options, in: machO)
-                    }
-                case .struct(let structDescriptor):
-                    await performDump {
-                        try Struct(descriptor: structDescriptor, in: machO).dump(using: options, in: machO)
-                    }
+            case let .enum(enumDescriptor):
+                await performDump {
+                    try Enum(descriptor: enumDescriptor, in: machO).dump(using: options, in: machO)
+                }
+            case let .struct(structDescriptor):
+                await performDump {
+                    try Struct(descriptor: structDescriptor, in: machO).dump(using: options, in: machO)
+                }
 
-                    if let metadata: StructMetadata = try await metadataFinder?.metadata(for: structDescriptor) {
-                        await performDump {
-                            try metadata.fieldOffsets(for: structDescriptor, in: machO)
-                        }
-                    }
-                case .class(let classDescriptor):
+                if let metadata: StructMetadata = try await metadataFinder?.metadata(for: structDescriptor) {
                     await performDump {
-                        try Class(descriptor: classDescriptor, in: machO).dump(using: options, in: machO)
-                    }
-
-                    if let metadata = try await metadataFinder?.metadata(for: classDescriptor) as ClassMetadataObjCInterop? {
-                        await performDump {
-                            try metadata.fieldOffsets(for: classDescriptor, in: machO)
-                        }
+                        try metadata.fieldOffsets(for: structDescriptor, in: machO)
                     }
                 }
-            default:
-                break
+            case let .class(classDescriptor):
+                await performDump {
+                    try Class(descriptor: classDescriptor, in: machO).dump(using: options, in: machO)
+                }
+
+                if let metadata = try await metadataFinder?.metadata(for: classDescriptor) as ClassMetadataObjCInterop? {
+                    await performDump {
+                        try metadata.fieldOffsets(for: classDescriptor, in: machO)
+                    }
+                }
             }
         }
     }

@@ -2,10 +2,6 @@ import Foundation
 import MachOKit
 import MachOFoundation
 
-package protocol MachODataSectionProvider {
-    var dataSections: [any SectionProtocol] { get }
-}
-
 package protocol MachOOffsetConverter {
     func offset(of address: UInt64, at fileOffset: Int) -> Int
 }
@@ -26,17 +22,7 @@ extension MachOImage: MachOOffsetConverter {
     }
 }
 
-extension MachOFile: MachODataSectionProvider {
-    package var dataSections: [any SectionProtocol] {
-        [
-            loadCommands.dataConst64?._section(for: "__const", in: self),
-            loadCommands.data64?._section(for: "__data", in: self),
-            loadCommands.auth64?._section(for: "__data", in: self),
-        ].compactMap { $0 }
-    }
-}
-
-extension MachOImage: MachODataSectionProvider {
+extension MachORepresentableWithCache {
     package var dataSections: [any SectionProtocol] {
         [
             loadCommands.dataConst64?._section(for: "__const", in: self),
@@ -50,7 +36,7 @@ package protocol TypeMetadataProtocol: MetadataProtocol {
     static var descriptorOffset: Int { get }
 }
 
-package final class MetadataFinder<MachO: MachORepresentableWithCache & MachOReadable & MachODataSectionProvider & MachOOffsetConverter> {
+package final class MetadataFinder<MachO: MachORepresentableWithCache & MachOReadable & MachOOffsetConverter> {
     package let machO: MachO
 
     private var metadataOffsetByDescriptorOffset: [Int: Int] = [:]

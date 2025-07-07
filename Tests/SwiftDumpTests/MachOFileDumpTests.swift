@@ -9,11 +9,12 @@ import MachOFoundation
 
 @Suite(.serialized)
 final class MachOFileDumpTests: MachOFileTests, DumpableTests {
+    override class var fileName: MachOFileName { .iOS_22E238_Simulator_SwiftUI }
 }
 
 extension MachOFileDumpTests {
     @Test func typesInFile() async throws {
-        try await dumpTypes(for: machOFile)
+        try await dumpTypes(for: machOFile, isDetail: false)
     }
 
     @Test func protocolsInFile() async throws {

@@ -200,12 +200,8 @@ extension ContextDescriptorWrapper: Resolvable {
     public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self {
         let contextDescriptor: ContextDescriptor = try machO.readWrapperElement(offset: offset)
         switch contextDescriptor.flags.kind {
-        case .class:
-            return try .type(.class(machO.readWrapperElement(offset: offset)))
-        case .enum:
-            return try .type(.enum(machO.readWrapperElement(offset: offset)))
-        case .struct:
-            return try .type(.struct(machO.readWrapperElement(offset: offset)))
+        case .class, .struct, .enum:
+            return try .type(.resolve(from: offset, in: machO))
         case .protocol:
             return try .protocol(machO.readWrapperElement(offset: offset))
         case .anonymous:

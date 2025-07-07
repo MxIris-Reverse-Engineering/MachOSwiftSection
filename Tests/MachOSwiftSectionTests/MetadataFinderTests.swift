@@ -29,10 +29,7 @@ struct MetadataFinderTests {
         let typeDescriptors = try machO.swift.typeContextDescriptors
 
         for typeDescriptor in typeDescriptors {
-            guard case .type(let type) = typeDescriptor else {
-                continue
-            }
-            switch type {
+            switch typeDescriptor {
             case .enum/*(let enumDescriptor)*/:
                 continue
             case .struct(let structDescriptor):
