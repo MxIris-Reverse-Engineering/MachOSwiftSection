@@ -252,6 +252,7 @@ let package = Package(
             dependencies: [
                 .MachOKit,
                 "MachOSwiftSection",
+                "SwiftDump",
                 "Semantic",
                 "Utilities",
                 .product(name: "OrderedCollections", package: "swift-collections"),

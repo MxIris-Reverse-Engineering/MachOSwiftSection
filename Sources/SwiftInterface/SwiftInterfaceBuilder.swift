@@ -2,6 +2,8 @@ import Foundation
 import MachOSwiftSection
 import MemberwiseInit
 import OrderedCollections
+import SwiftDump
+import Demangle
 
 struct TypeName: Hashable {
     let name: String
@@ -23,12 +25,14 @@ struct ProtocolName: Hashable {
 }
 
 @MemberwiseInit
-class TypeDeclaration {
-    let typeWrapper: TypeWrapper
+final class TypeDefinition {
+    let type: TypeWrapper
 
-    weak var parent: TypeDeclaration?
+    let typeName: TypeName
+    
+    weak var parent: TypeDefinition?
 
-    var children: [TypeDeclaration] = []
+    var children: [TypeDefinition] = []
 
     var extensionContext: ExtensionContext?
 
@@ -36,23 +40,23 @@ class TypeDeclaration {
 }
 
 @MemberwiseInit
-class TypeExtension {
+final class TypeExtension {
     let typeName: TypeName
 
     let protocolConformance: ProtocolConformance?
 }
 
 @MemberwiseInit
-class ProtocolDeclaration {
+final class ProtocolDefinition {
     let `protocol`: MachOSwiftSection.`Protocol`
 
-    weak var parent: TypeDeclaration?
+    weak var parent: TypeDefinition?
 
     var extensionContext: ExtensionContext?
 }
 
 @MemberwiseInit
-class ProtocolExtension {
+final class ProtocolExtension {
     let protocolName: ProtocolName
 }
 
@@ -81,7 +85,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     private var importedModules: OrderedSet<String> = []
 
-    private var topLevelTypes: OrderedDictionary<TypeName, TypeDeclaration> = [:]
+    private var topLevelTypes: OrderedDictionary<TypeName, TypeDefinition> = [:]
 
     public init(machO: MachO) throws {
         self.machO = machO
@@ -108,25 +112,119 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         self.associatedTypes = try machO.swift.associatedTypes
     }
 
-    private func index() throws {
-        for type in types {
-            var parent = try ContextWrapper.type(type).parent(in: machO)?.resolved
-            var typeParents: [TypeWrapper] = []
-            var extensionContext: ExtensionContext?
-            while let currentParent = parent {
-                if let _extensionContext = currentParent.extension {
-                    extensionContext = _extensionContext
-                } else if let typeContext = currentParent.type {
-                    typeParents.append(typeContext)
-                }
-                parent = try currentParent.parent(in: machO)?.resolved
+    func index() throws {
+        for conformance in protocolConformances {
+            if let typeName = try? conformance.typeName(in: machO) {
+                protocolConformancesByTypeName[typeName, default: []].append(conformance)
             }
-            for typeParent in typeParents {}
-//            TypeDefinition(typeWrapper: type, parent: typeParents.first, extensionContext: extensionContext)
+        }
+
+        var definitionsCache: OrderedDictionary<TypeName, TypeDefinition> = [:]
+
+        for type in types {
+            if let typeName = try? type.typeName(in: machO) {
+                let declaration = TypeDefinition(
+                    type: type,
+                    typeName: typeName,
+                    protocolConformances: protocolConformancesByTypeName[typeName] ?? []
+                )
+                definitionsCache[typeName] = declaration
+            }
+        }
+
+        for type in types {
+            if let typeName = try? type.typeName(in: machO) {
+                guard let childDefinition = definitionsCache[typeName] else {
+                    continue
+                }
+
+                var parentContext = try ContextWrapper.type(type).parent(in: machO)?.resolved
+
+                while let currentContext = parentContext {
+                    if case .type(let typeContext) = currentContext, let parentTypeName = try? typeContext.typeName(in: machO) {
+                        if let parentDefinition = definitionsCache[parentTypeName] {
+                            childDefinition.parent = parentDefinition
+                            parentDefinition.children.append(childDefinition)
+                        }
+                        break
+                    }
+                    parentContext = try currentContext.parent(in: machO)?.resolved
+                }
+
+                while let currentContext = parentContext {
+                    if case .extension(let extensionContext) = currentContext {
+                        childDefinition.extensionContext = extensionContext
+                        break
+                    }
+                    parentContext = try currentContext.parent(in: machO)?.resolved
+                }
+            }
+        }
+
+        for (typeName, definition) in definitionsCache {
+            if definition.parent == nil {
+                topLevelTypes[typeName] = definition
+            }
         }
     }
 
     public func build() throws -> String {
         return output
+    }
+}
+
+extension ProtocolConformance {
+    func typeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeName? {
+        switch typeReference {
+        case .directTypeDescriptor(let descriptor):
+            return try descriptor?.typeContextDescriptorWrapper?.typeName(in: machO)
+        case .indirectTypeDescriptor(let descriptorOrSymbol):
+            switch descriptorOrSymbol {
+            case .symbol(let symbol):
+                let node = try demangleAsNode(symbol.stringValue)
+
+                let allChildren = node.preorder().map { $0 }
+                let kind: TypeKind
+                if allChildren.contains(.enum) {
+                    kind = .enum
+                } else if allChildren.contains(.structure) {
+                    kind = .struct
+                } else if allChildren.contains(.class) {
+                    kind = .class
+                } else {
+                    return nil
+                }
+                return .init(name: node.print(using: .interfaceType), kind: kind)
+
+            case .element(let element):
+                return try element.typeContextDescriptorWrapper?.typeName(in: machO)
+
+            case nil:
+                return nil
+            }
+        case .directObjCClassName,
+             .indirectObjCClass:
+            return try .init(name: dumpTypeName(using: .interfaceType, in: machO).string, kind: .class)
+        }
+    }
+}
+
+extension TypeWrapper {
+    func typeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeName {
+        try typeContextDescriptor.typeName(in: machO)
+    }
+}
+
+extension TypeContextDescriptorWrapper {
+    func typeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeName {
+        let kind: TypeKind = switch self {
+        case .enum(let `enum`):
+            .enum
+        case .struct(let `struct`):
+            .struct
+        case .class(let `class`):
+            .class
+        }
+        return try .init(name: ContextDescriptorWrapper.type(self).dumpName(using: .interfaceType, in: machO).string, kind: kind)
     }
 }

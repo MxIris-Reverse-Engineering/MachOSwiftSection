@@ -546,12 +546,20 @@ extension Node.Kind: CustomStringConvertible {
     }
 }
 
-extension [Node] {
+extension Collection where Element == Node {
     public func first(of kind: Node.Kind) -> Node? {
         first { $0.kind == kind }
     }
     
     public func first(of kinds: Node.Kind...) -> Node? {
         first { kinds.contains($0.kind) }
+    }
+    
+    public func contains(_ kind: Node.Kind) -> Bool {
+        contains { $0.kind == kind }
+    }
+    
+    public func contains(_ kinds: Node.Kind...) -> Bool {
+        contains { kinds.contains($0.kind) }
     }
 }
