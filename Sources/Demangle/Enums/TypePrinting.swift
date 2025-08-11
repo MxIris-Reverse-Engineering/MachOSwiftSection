@@ -1,4 +1,4 @@
-enum TypePrinting: CaseIterable, Sendable {
+package enum TypePrinting: CaseIterable, Sendable {
 	case noType
 	case withColon
 	case functionStyle

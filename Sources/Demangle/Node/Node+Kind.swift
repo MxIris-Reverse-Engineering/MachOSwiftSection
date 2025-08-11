@@ -545,3 +545,13 @@ extension Node.Kind: CustomStringConvertible {
         rawValue.capitalizingFirstLetter
     }
 }
+
+extension [Node] {
+    public func first(of kind: Node.Kind) -> Node? {
+        first { $0.kind == kind }
+    }
+    
+    public func first(of kinds: Node.Kind...) -> Node? {
+        first { kinds.contains($0.kind) }
+    }
+}

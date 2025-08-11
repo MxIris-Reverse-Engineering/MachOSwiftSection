@@ -323,6 +323,15 @@ let package = Package(
             ],
             swiftSettings: testSettings
         ),
+        
+        .testTarget(
+            name: "SwiftInterfaceTests",
+            dependencies: [
+                "SwiftInterface",
+                "MachOTestingSupport",
+            ],
+            swiftSettings: testSettings
+        ),
     ],
     swiftLanguageModes: [.v5]
 )

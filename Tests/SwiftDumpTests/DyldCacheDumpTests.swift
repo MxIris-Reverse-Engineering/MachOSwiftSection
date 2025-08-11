@@ -9,14 +9,12 @@ import MachOFoundation
 
 @Suite(.serialized)
 final class DyldCacheDumpTests: DyldCacheTests, DumpableTests {
-    
     override class var cacheImageName: MachOImageName { .SwiftUICore }
-    
 }
 
 extension DyldCacheDumpTests {
     // MARK: - Types
-    
+
     @Test func typesInCacheFile() async throws {
         try await dumpTypes(for: machOFileInCache, isDetail: false)
     }
@@ -28,7 +26,7 @@ extension DyldCacheDumpTests {
     @Test func typesInSubCacheFile() async throws {
         try await dumpTypes(for: machOFileInSubCache, isDetail: false)
     }
-    
+
     @Test func opaqueTypesInCacheFile() async throws {
         try await dumpOpaqueTypes(for: machOFileInCache)
     }
@@ -42,7 +40,7 @@ extension DyldCacheDumpTests {
     }
 
     // MARK: - Protocols
-    
+
     @Test func protocolsInCacheFile() async throws {
         try await dumpProtocols(for: machOFileInCache)
     }
@@ -56,7 +54,7 @@ extension DyldCacheDumpTests {
     }
 
     // MARK: - ProtocolConformances
-    
+
     @Test func protocolConformancesInCacheFile() async throws {
         try await dumpProtocolConformances(for: machOFileInCache)
     }
@@ -70,7 +68,7 @@ extension DyldCacheDumpTests {
     }
 
     // MARK: - AssociatedTypes
-    
+
     @Test func associatedTypesInCacheFile() async throws {
         try await dumpAssociatedTypes(for: machOFileInCache)
     }
@@ -84,7 +82,7 @@ extension DyldCacheDumpTests {
     }
 
     // MARK: - BuiltinTypes
-    
+
     @Test func builtinTypesInCacheFile() async throws {
         try await dumpBuiltinTypes(for: machOFileInCache)
     }

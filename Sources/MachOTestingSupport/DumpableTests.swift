@@ -92,7 +92,10 @@ extension DumpableTests {
             }
             let opaqueTypeDescriptor = try machO.readWrapperElement(offset: offset) as OpaqueTypeDescriptor
             let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
-            print(opaqueType)
+            for underlyingTypeArgumentMangledName in opaqueType.underlyingTypeArgumentMangledNames {
+                try MetadataReader.demangleType(for: underlyingTypeArgumentMangledName, in: machO).print(using: .interface).print()
+            }
+            "-----".print()
         }
     }
 
