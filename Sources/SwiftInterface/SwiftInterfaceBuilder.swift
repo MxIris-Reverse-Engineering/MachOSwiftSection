@@ -218,11 +218,11 @@ extension TypeWrapper {
 extension TypeContextDescriptorWrapper {
     func typeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeName {
         let kind: TypeKind = switch self {
-        case .enum(let `enum`):
+        case .enum:
             .enum
-        case .struct(let `struct`):
+        case .struct:
             .struct
-        case .class(let `class`):
+        case .class:
             .class
         }
         return try .init(name: ContextDescriptorWrapper.type(self).dumpName(using: .interfaceType, in: machO).string, kind: kind)

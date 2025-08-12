@@ -64,7 +64,7 @@ public enum MetadataKind: UInt32 {
     }
 
     static func enumeratedMetadataKind(_ kind: UInt64) -> Self {
-        if kind.cast() > lastEnumerated.rawValue {
+        if kind > lastEnumerated.rawValue.cast() {
             return .class
         } else {
             return .init(rawValue: kind.cast()) ?? .lastEnumerated

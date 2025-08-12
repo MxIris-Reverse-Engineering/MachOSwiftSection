@@ -1,25 +1,24 @@
 import Foundation
 import Testing
 import MachOKit
-import MachOTestingSupport
 import MachOMacro
 import MachOFoundation
 import SwiftDump
+import Demangle
 @testable import MachOSwiftSection
+@testable import MachOTestingSupport
 
 @Suite
-struct MetadataFinderTests {
-    let mainCache: DyldCache
+final class MetadataFinderTests: DyldCacheTests {
 
-    init() throws {
-        self.mainCache = try DyldCache(path: .current)
-    }
-
+    override class var cacheImageName: MachOImageName { .AppKit }
+    
     @Test func dumpMetadatasInAppKit() async throws {
-//        try await dumpMetadatas(for: #require(mainCache.machOFile(named: .AppKit)))
-        let symbols = try SymbolIndexStore.shared.symbols(of: .typeMetadata, in: #require(mainCache.machOFile(named: .AppKit)))
+        let symbols = SymbolIndexStore.shared.symbols(of: .typeMetadata, in: machOFileInCache)
         for symbol in symbols {
-            print(symbol.stringValue)
+            let metadata = try Metadata.resolve(from: symbol.offset, in: machOFileInCache)
+            print(try demangleAsNode(symbol.stringValue).print(using: .default), terminator: " ")
+            print(metadata.kind)
         }
     }
 

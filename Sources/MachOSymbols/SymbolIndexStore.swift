@@ -123,11 +123,16 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         var symbols: OrderedDictionary<String, Symbol> = [:]
 
         for symbol in machO.symbols where symbol.name.isSwiftSymbol {
+            var offset = symbol.offset
+            if let cache = machO.cache {
+                offset -= cache.mainCacheHeader.sharedRegionStart.cast()
+            }
             symbols[symbol.name] = .init(offset: symbol.offset, stringValue: symbol.name)
         }
 
         for exportedSymbol in machO.exportedSymbols where exportedSymbol.name.isSwiftSymbol {
-            if let offset = exportedSymbol.offset, symbols[exportedSymbol.name] == nil {
+            if var offset = exportedSymbol.offset, symbols[exportedSymbol.name] == nil {
+                offset += machO.startOffset
                 symbols[exportedSymbol.name] = .init(offset: offset, stringValue: exportedSymbol.name)
             }
         }

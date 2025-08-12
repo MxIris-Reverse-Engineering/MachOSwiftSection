@@ -6,6 +6,7 @@ package enum MachOImageName: String {
     case AttributeGraph
     case Foundation
     case Combine
+    case DeveloperToolsSupport
     // SubCache
     case CodableSwiftUI
     case AAAFoundationSwift

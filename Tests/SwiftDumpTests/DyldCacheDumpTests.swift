@@ -9,14 +9,14 @@ import MachOFoundation
 
 @Suite(.serialized)
 final class DyldCacheDumpTests: DyldCacheTests, DumpableTests {
-    override class var cacheImageName: MachOImageName { .SwiftUICore }
+    override class var cacheImageName: MachOImageName { .DeveloperToolsSupport }
 }
 
 extension DyldCacheDumpTests {
     // MARK: - Types
 
     @Test func typesInCacheFile() async throws {
-        try await dumpTypes(for: machOFileInCache, isDetail: false)
+        try await dumpTypes(for: machOFileInCache, isDetail: true)
     }
 
     @Test func typesInMainCacheFile() async throws {
@@ -24,7 +24,7 @@ extension DyldCacheDumpTests {
     }
 
     @Test func typesInSubCacheFile() async throws {
-        try await dumpTypes(for: machOFileInSubCache, isDetail: false)
+        try await dumpTypes(for: machOFileInSubCache, isDetail: true)
     }
 
     @Test func opaqueTypesInCacheFile() async throws {
