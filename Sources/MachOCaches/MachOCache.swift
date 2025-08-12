@@ -4,6 +4,7 @@ import MachOExtensions
 import Utilities
 
 // Internal use only.
+@_spi(Private)
 open class MachOCache<Entry> {
     private let memoryPressureMonitor = MemoryPressureMonitor()
 
@@ -32,7 +33,7 @@ open class MachOCache<Entry> {
         return nil
     }
 
-    package func entry<MachO: MachORepresentableWithCache>(in machO: MachO) -> Entry? {
+    open func entry<MachO: MachORepresentableWithCache>(in machO: MachO) -> Entry? {
         createEntryIfNeeded(in: machO)
         if let cacheEntry = entryByIdentifier[machO.identifier] {
             return cacheEntry

@@ -1,5 +1,5 @@
 import Foundation
-import MachOCaches
+@_spi(Private) import MachOCaches
 import MachOSwiftSection
 
 package final class PrimitiveTypeMappingCache: MachOCache<PrimitiveTypeMapping> {
@@ -16,4 +16,9 @@ package final class PrimitiveTypeMappingCache: MachOCache<PrimitiveTypeMapping> 
             return nil
         }
     }
+    
+    package override func entry<MachO>(in machO: MachO) -> PrimitiveTypeMapping? where MachO : MachORepresentableWithCache {
+        super.entry(in: machO)
+    }
+    
 }

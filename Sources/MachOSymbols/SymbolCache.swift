@@ -3,7 +3,7 @@ import MachOExtensions
 import Demangle
 import OrderedCollections
 import Utilities
-import MachOCaches
+@_spi(Private) import MachOCaches
 
 package final class SymbolCache: MachOCache<SymbolCache.Entry> {
     package static let shared = SymbolCache()

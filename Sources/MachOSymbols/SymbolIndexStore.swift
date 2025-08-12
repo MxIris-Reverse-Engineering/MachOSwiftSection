@@ -4,7 +4,7 @@ import MachOExtensions
 import Demangle
 import OrderedCollections
 import Utilities
-import MachOCaches
+@_spi(Private) import MachOCaches
 
 package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
     package enum MemberKind: Hashable, CaseIterable, CustomStringConvertible {
@@ -114,6 +114,7 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
     package struct Entry {
         fileprivate var memberSymbolsByKind: [MemberKind: [String: [Symbol]]] = [:]
         fileprivate var descriptorSymbolsByKind: [DesciptorKind: [Symbol]] = [:]
+        fileprivate var symbolsByKind: [Node.Kind: [Symbol]] = [:]
     }
 
     package override func buildEntry<MachO>(for machO: MachO) -> Entry? where MachO: MachORepresentableWithCache {
@@ -143,6 +144,8 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
                     entry.descriptorSymbolsByKind[descriptorKind, default: []].append(symbol)
                 }
 
+                entry.symbolsByKind[node.kind, default: []].append(symbol)
+                
             } catch {
                 print(error)
             }
@@ -205,6 +208,15 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         }
     }
 
+    package func symbols<MachO: MachORepresentableWithCache>(of kind: Node.Kind, in machO: MachO) -> [Symbol] {
+        if let symbols = entry(in: machO)?.symbolsByKind[kind] {
+            return symbols
+        } else {
+            return []
+        }
+    }
+    
+    
     package func descriptorSymbols<MachO: MachORepresentableWithCache>(of kind: DesciptorKind, in machO: MachO) -> [Symbol] {
         if let symbols = entry(in: machO)?.descriptorSymbolsByKind[kind] {
             return symbols

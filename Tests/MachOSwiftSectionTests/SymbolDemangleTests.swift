@@ -38,7 +38,7 @@ final class DyldCacheSymbolDemangleTests: DyldCacheTests {
     #if !SILENT_TEST
     @Test func writeSwiftUISymbolsToDesktop() async throws {
         var string = ""
-        let imageName: MachOImageName = .SwiftUI
+        let imageName: MachOImageName = .CodableSwiftUI
         let symbols = try symbols(for: imageName)
         for symbol in symbols {
             let swiftStdlibDemangledName = stdlib_demangleName(symbol.stringValue)

@@ -59,6 +59,12 @@ extension MachOFile.Swift: SwiftSectionRepresentable {
         }
     }
 
+    public var contextDescriptors: [ContextDescriptorWrapper] {
+        get throws {
+            return try _readRelativeDescriptors(from: .__swift5_types, in: machO) + (try? _readRelativeDescriptors(from: .__swift5_types2, in: machO))
+        }
+    }
+
     public var typeContextDescriptors: [TypeContextDescriptorWrapper] {
         get throws {
             return try _readRelativeDescriptors(from: .__swift5_types, in: machO) + (try? _readRelativeDescriptors(from: .__swift5_types2, in: machO))

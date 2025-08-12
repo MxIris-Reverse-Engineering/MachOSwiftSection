@@ -16,7 +16,11 @@ struct MetadataFinderTests {
     }
 
     @Test func dumpMetadatasInAppKit() async throws {
-        try await dumpMetadatas(for: #require(mainCache.machOFile(named: .AppKit)))
+//        try await dumpMetadatas(for: #require(mainCache.machOFile(named: .AppKit)))
+        let symbols = try SymbolIndexStore.shared.symbols(of: .typeMetadata, in: #require(mainCache.machOFile(named: .AppKit)))
+        for symbol in symbols {
+            print(symbol.stringValue)
+        }
     }
 
     @Test func dumpMetadatasInSwiftUI() async throws {

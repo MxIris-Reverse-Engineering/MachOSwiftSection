@@ -2,8 +2,7 @@ import Foundation
 
 public struct Metadata: MetadataProtocol {
     public struct Layout: MetadataLayout {
-        /// The kind. Only valid for non-class metadata; getKind() must be used to get
-        /// the kind value.
+        /// The kind. Only valid for non-class metadata
         public let kind: StoredPointer
     }
 
