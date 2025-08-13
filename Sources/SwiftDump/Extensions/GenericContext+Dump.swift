@@ -8,12 +8,23 @@ extension TargetGenericContext {
     package func dumpGenericParameters<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SemanticString {
         Standard("<")
         for (offset, _) in currentParameters.offsetEnumerated() {
-            Standard(try genericParameterName(depth: depth, index: offset.index))
+            try Standard(genericParameterName(depth: depth, index: offset.index))
             if !offset.isEnd {
                 Standard(", ")
             }
         }
         Standard(">")
+    }
+
+    @SemanticStringBuilder
+    package func dumpGenericRequirements<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+        for (offset, requirement) in currentRequirements.offsetEnumerated() {
+            try requirement.dump(using: options, in: machO)
+            if !offset.isEnd {
+                Standard(",")
+                Space()
+            }
+        }
     }
 
     private func genericParameterName(depth: Int, index: Int) throws -> String {
@@ -28,21 +39,9 @@ extension TargetGenericContext {
         }
         return name
     }
-
-    @SemanticStringBuilder
-    package func dumpGenericRequirements<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-        for (offset, requirement) in currentRequirements.offsetEnumerated() {
-            try requirement.dump(using: options, in: machO)
-            if !offset.isEnd {
-                Standard(",")
-                Space()
-            }
-        }
-    }
 }
 
 extension GenericRequirementDescriptor {
-    
     package func dumpInheritedProtocol<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString? {
         if try paramManagedName(in: machO).rawStringValue() == "A" {
             return try dumpParameterName(using: options, in: machO)
@@ -50,14 +49,13 @@ extension GenericRequirementDescriptor {
             return nil
         }
     }
-    
-    
+
     @SemanticStringBuilder
     package func dumpParameterName<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
         let node = try MetadataReader.demangleType(for: paramManagedName(in: machO), in: machO)
         node.printSemantic(using: options)
     }
-    
+
     @SemanticStringBuilder
     package func dumpContent<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
         switch try resolvedContent(in: machO) {
@@ -70,7 +68,7 @@ extension GenericRequirementDescriptor {
             case .element(let element):
                 switch element {
                 case .objc(let objc):
-                    TypeName(kind: .protocol, try objc.mangledName(in: machO).rawStringValue())
+                    try TypeName(kind: .protocol, objc.mangledName(in: machO).rawStringValue())
                 case .swift(let protocolDescriptor):
                     try MetadataReader.demangleContext(for: .protocol(protocolDescriptor), in: machO).printSemantic(using: options)
                 }
@@ -82,7 +80,7 @@ extension GenericRequirementDescriptor {
             }
         case .conformance /* (let protocolConformanceDescriptor) */:
             Standard("SwiftDumpConformance")
-        case .invertedProtocols/* (let invertedProtocols) */:
+        case .invertedProtocols /* (let invertedProtocols) */:
             Standard("SwiftDumpInvertedProtocols")
 //            if invertedProtocols.protocols.hasCopyable, invertedProtocols.protocols.hasEscapable {
 //
@@ -103,11 +101,11 @@ extension GenericRequirementDescriptor {
 //            }
         }
     }
-    
+
     @SemanticStringBuilder
     package func dump<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
         try dumpParameterName(using: options, in: machO)
-        
+
         if layout.flags.kind == .sameType {
             Space()
             Standard("==")
@@ -116,7 +114,7 @@ extension GenericRequirementDescriptor {
             Standard(":")
             Space()
         }
-        
+
         try dumpContent(using: options, in: machO)
     }
 }

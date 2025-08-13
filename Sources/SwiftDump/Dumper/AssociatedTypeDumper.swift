@@ -5,11 +5,19 @@ import Semantic
 import Utilities
 
 package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCache>: ConformedDumper {
-    let associatedType: AssociatedType
-    let options: DemangleOptions
-    let machO: MachO
+    private let associatedType: AssociatedType
+    
+    private let options: DemangleOptions
+    
+    private let machO: MachO
 
-    package var body: SemanticString {
+    package init(_ dumped: AssociatedType, options: DemangleOptions, in machO: MachO) {
+        self.associatedType = dumped
+        self.options = options
+        self.machO = machO
+    }
+
+    package var declaration: SemanticString {
         get throws {
             Keyword(.extension)
 
@@ -22,7 +30,13 @@ package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCac
             Space()
 
             try protocolName
+        }
+    }
 
+    package var body: SemanticString {
+        get throws {
+            try declaration
+            
             Space()
 
             Standard("{")

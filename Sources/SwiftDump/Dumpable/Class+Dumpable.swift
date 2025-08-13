@@ -6,10 +6,10 @@ import Utilities
 
 extension Class: NamedDumpable {
     public func dumpName<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-        try ClassDumper(class: self, options: options, machO: machO).name
+        try ClassDumper(self, options: options, in: machO).name
     }
 
     public func dump<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-        try ClassDumper(class: self, options: options, machO: machO).body
+        try ClassDumper(self, options: options, in: machO).body
     }
 }

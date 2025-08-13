@@ -40,7 +40,7 @@ extension Node {
 }
 
 extension Node {
-    var hasWeakNode: Bool {
+    package var hasWeakNode: Bool {
         preorder().first { $0.kind == .weak } != nil
     }
 }

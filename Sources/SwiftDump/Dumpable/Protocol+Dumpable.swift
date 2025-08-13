@@ -8,10 +8,10 @@ import OrderedCollections
 
 extension MachOSwiftSection.`Protocol`: NamedDumpable {
     public func dumpName<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-        try ProtocolDumper(protocol: self, options: options, machO: machO).name
+        try ProtocolDumper(self, options: options, in: machO).name
     }
 
     public func dump<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-        try ProtocolDumper(protocol: self, options: options, machO: machO).body
+        try ProtocolDumper(self, options: options, in: machO).body
     }
 }

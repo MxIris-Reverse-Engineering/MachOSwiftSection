@@ -4,12 +4,20 @@ import MachOKit
 import MachOSwiftSection
 import Utilities
 
-package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: NamedDumper {
-    let `class`: Class
-    let options: DemangleOptions
-    let machO: MachO
+package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
+    private let `class`: Class
+    
+    private let options: DemangleOptions
+    
+    private let machO: MachO
 
-    package var body: SemanticString {
+    package init(_ dumped: Class, options: DemangleOptions, in machO: MachO) {
+        self.class = dumped
+        self.options = options
+        self.machO = machO
+    }
+
+    package var declaration: SemanticString {
         get throws {
             if `class`.descriptor.isActor {
                 Keyword(.actor)
@@ -19,11 +27,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Name
 
             Space()
 
-            let name = try self.name
-
-            let interfaceNameString = try interfaceName.string
-
-            name
+            try name
 
             if let genericContext = `class`.genericContext {
                 if genericContext.currentParameters.count > 0 {
@@ -47,10 +51,11 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Name
                 Space()
                 try genericContext.dumpGenericRequirements(using: options, in: machO)
             }
-            Space()
+        }
+    }
 
-            Standard("{")
-
+    package var fields: SemanticString {
+        get throws {
             for (offset, fieldRecord) in try `class`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
                 BreakLine()
 
@@ -92,6 +97,18 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Name
                     BreakLine()
                 }
             }
+        }
+    }
+
+    package var body: SemanticString {
+        get throws {
+            try declaration
+
+            Space()
+
+            Standard("{")
+
+            try fields
 
             for (offset, descriptor) in `class`.methodDescriptors.offsetEnumerated() {
                 BreakLine()
@@ -165,6 +182,8 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Name
                     BreakLine()
                 }
             }
+
+            let interfaceNameString = try interfaceName.string
 
             for kind in SymbolIndexStore.MemberKind.allCases {
                 for (offset, symbol) in SymbolIndexStore.shared.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {

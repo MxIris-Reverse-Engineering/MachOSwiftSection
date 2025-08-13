@@ -6,10 +6,10 @@ import Utilities
 
 extension Struct: NamedDumpable {
     public func dumpName<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-        try StructDumper(struct: self, options: options, machO: machO).name
+        try StructDumper(self, options: options, in: machO).name
     }
 
     public func dump<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-        try StructDumper(struct: self, options: options, machO: machO).body
+        try StructDumper(self, options: options, in: machO).body
     }
 }

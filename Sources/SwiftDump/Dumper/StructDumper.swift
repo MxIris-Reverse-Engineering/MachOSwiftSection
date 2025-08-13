@@ -4,24 +4,26 @@ import MachOSwiftSection
 import Semantic
 import Utilities
 
-package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: NamedDumper {
-    let `struct`: Struct
+package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
+    private let `struct`: Struct
 
-    let options: DemangleOptions
+    private let options: DemangleOptions
 
-    let machO: MachO
+    private let machO: MachO
 
-    package var body: SemanticString {
+    package init(_ dumped: Struct, options: DemangleOptions, in machO: MachO) {
+        self.struct = dumped
+        self.options = options
+        self.machO = machO
+    }
+
+    package var declaration: SemanticString {
         get throws {
             Keyword(.struct)
 
             Space()
 
-            let name = try self.name
-
-            let interfaceNameString = try interfaceName.string
-
-            name
+            try name
 
             if let genericContext = `struct`.genericContext {
                 if genericContext.currentParameters.count > 0 {
@@ -34,11 +36,11 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Nam
                     try genericContext.dumpGenericRequirements(using: options, in: machO)
                 }
             }
+        }
+    }
 
-            Space()
-
-            Standard("{")
-
+    package var fields: SemanticString {
+        get throws {
             for (offset, fieldRecord) in try `struct`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
                 BreakLine()
 
@@ -77,6 +79,20 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Nam
                     BreakLine()
                 }
             }
+        }
+    }
+
+    package var body: SemanticString {
+        get throws {
+            try declaration
+
+            Space()
+
+            Standard("{")
+
+            try fields
+
+            let interfaceNameString = try interfaceName.string
 
             for kind in SymbolIndexStore.MemberKind.allCases {
                 for (offset, symbol) in SymbolIndexStore.shared.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {

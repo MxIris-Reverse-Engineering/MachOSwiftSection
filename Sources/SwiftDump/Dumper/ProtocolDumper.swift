@@ -7,13 +7,19 @@ import Demangle
 import OrderedCollections
 
 package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: NamedDumper {
-    let `protocol`: MachOSwiftSection.`Protocol`
+    private let `protocol`: MachOSwiftSection.`Protocol`
 
-    let options: DemangleOptions
+    private let options: DemangleOptions
 
-    let machO: MachO
+    private let machO: MachO
 
-    package var body: SemanticString {
+    package init(_ dumped: MachOSwiftSection.`Protocol`, options: DemangleOptions, in machO: MachO) {
+        self.protocol = dumped
+        self.options = options
+        self.machO = machO
+    }
+
+    package var declaration: SemanticString {
         get throws {
             Keyword(.protocol)
 
@@ -34,7 +40,15 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
                     }
                 }
             }
+        }
+    }
+
+    package var body: SemanticString {
+        get throws {
+            try declaration
+
             Space()
+
             Standard("{")
 
             let associatedTypes = try `protocol`.descriptor.associatedTypes(in: machO)

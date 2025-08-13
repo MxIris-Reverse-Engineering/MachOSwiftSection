@@ -4,6 +4,7 @@ import MemberwiseInit
 import OrderedCollections
 import SwiftDump
 import Demangle
+import Semantic
 
 struct TypeName: Hashable {
     let name: String

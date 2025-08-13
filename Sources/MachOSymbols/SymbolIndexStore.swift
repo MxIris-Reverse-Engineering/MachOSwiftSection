@@ -94,8 +94,8 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
                         processMemberSymbols(for: firstChild, in: &entry.methodDescriptorMemberSymbolsByKind)
                     } else if node.kind == .protocolWitness {
                         processMemberSymbols(for: firstChild, in: &entry.protocolWitnessMemberSymbolsByKind)
-                    } else {
-                        processMemberSymbols(for: firstChild, in: &entry.memberSymbolsByKind)
+                    } else if !firstChild.kind.isMember {
+                        processMemberSymbols(for: node, in: &entry.memberSymbolsByKind)
                     }
                 }
 
@@ -171,6 +171,14 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         }
     }
 
+    package func memberSymbols<MachO: MachORepresentableWithCache>(of kind: MemberKind, in machO: MachO) -> [Symbol] {
+        if let symbol = entry(in: machO)?.memberSymbolsByKind[kind]?.values.flatMap({ $0 }) {
+            return symbol
+        } else {
+            return []
+        }
+    }
+
     package func memberSymbols<MachO: MachORepresentableWithCache>(of kind: MemberKind, for name: String, in machO: MachO) -> [Symbol] {
         if let symbol = entry(in: machO)?.memberSymbolsByKind[kind]?[name] {
             return symbol
@@ -179,6 +187,15 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         }
     }
 
+    package func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kind: MemberKind, in machO: MachO) -> [Symbol] {
+        if let symbol = entry(in: machO)?.methodDescriptorMemberSymbolsByKind[kind]?.values.flatMap({ $0 }) {
+            return symbol
+        } else {
+            return []
+        }
+    }
+    
+    
     package func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kind: MemberKind, for name: String, in machO: MachO) -> [Symbol] {
         if let symbol = entry(in: machO)?.methodDescriptorMemberSymbolsByKind[kind]?[name] {
             return symbol
@@ -187,6 +204,15 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         }
     }
 
+    
+    package func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kind: MemberKind, in machO: MachO) -> [Symbol] {
+        if let symbol = entry(in: machO)?.protocolWitnessMemberSymbolsByKind[kind]?.values.flatMap({ $0 }) {
+            return symbol
+        } else {
+            return []
+        }
+    }
+    
     package func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kind: MemberKind, for name: String, in machO: MachO) -> [Symbol] {
         if let symbol = entry(in: machO)?.protocolWitnessMemberSymbolsByKind[kind]?[name] {
             return symbol
