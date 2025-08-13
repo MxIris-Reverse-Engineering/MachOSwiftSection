@@ -85,7 +85,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     private var importedModules: OrderedSet<String> = []
 
-    private var topLevelTypes: OrderedDictionary<TypeName, TypeDefinition> = [:]
+    private var topLevelTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
 
     public init(machO: MachO) throws {
         self.machO = machO
@@ -163,7 +163,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         for (typeName, definition) in definitionsCache {
             if definition.parent == nil {
-                topLevelTypes[typeName] = definition
+                topLevelTypeDefinitions[typeName] = definition
             }
         }
     }

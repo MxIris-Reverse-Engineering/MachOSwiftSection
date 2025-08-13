@@ -83,7 +83,7 @@ extension DumpableTests {
 
     @MainActor
     package func dumpOpaqueTypes<MachO: MachOSwiftSectionRepresentableWithCache & MachOOffsetConverter>(for machO: MachO) async throws {
-        let symbols = SymbolIndexStore.shared.descriptorSymbols(of: .opaqueType, in: machO)
+        let symbols = SymbolIndexStore.shared.symbols(of: .opaqueTypeDescriptor, in: machO)
         for symbol in symbols where symbol.offset != 0 {
             var offset = symbol.offset
             
