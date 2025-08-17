@@ -116,7 +116,7 @@ extension FunctionTypeNodePrintable {
 
         let returnType = functionType.children.at(argIndex + 1)
 
-        if !isBlockOrClosure, let typeNode = returnType?.children.first, typeNode.kind == .type, let tuple = typeNode.children.first, tuple.kind == .tuple {
+        if !isBlockOrClosure, let typeNode = returnType?.children.first, typeNode.kind == .type, let tuple = typeNode.children.first, tuple.kind == .tuple, tuple.children.isEmpty {
             return
         } else if isAllocator {
             return

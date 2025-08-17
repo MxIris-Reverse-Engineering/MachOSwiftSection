@@ -36,9 +36,13 @@ struct FunctionNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, Typ
             name = first
             genericFunctionTypeList = second
         }
-        if name.kind != .allocator, let identifier = name.children.first(of: .identifier) {
+        if name.kind != .allocator {
             target.write("func ")
-            target.write(identifier.text ?? "", context: .context(for: identifier, state: .printIdentifier))
+            if let identifier = name.children.first(of: .identifier) {
+                printIdentifier(identifier)
+            } else if let privateDeclName = name.children.first(of: .privateDeclName) {
+                printPrivateDeclName(privateDeclName)
+            }
         } else if name.kind == .allocator {
             target.write("init")
         }
@@ -88,7 +92,7 @@ struct FunctionNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, Typ
             }
             printFunctionType(functionType, labelList: labelList, isAllocator: name.kind == .allocator, isBlockOrClosure: false)
         } else {
-            printName(type)
+            printFunctionType(type, labelList: labelList, isAllocator: name.kind == .allocator, isBlockOrClosure: false)
         }
     }
 }

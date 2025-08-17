@@ -1,5 +1,4 @@
 package enum MachOImageName: String {
-    // MainCache
     case AppKit
     case SwiftUI
     case SwiftUICore
@@ -7,11 +6,11 @@ package enum MachOImageName: String {
     case Foundation
     case Combine
     case DeveloperToolsSupport
-    // SubCache
     case CodableSwiftUI
     case AAAFoundationSwift
     case UIKitCore
     case HomeKit
+    case Network
 
     var path: String {
         "/\(rawValue)"

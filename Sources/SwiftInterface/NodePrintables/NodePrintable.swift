@@ -16,11 +16,15 @@ extension NodePrintable {
         case .module:
             target.write(name.text ?? "", context: .context(for: name, state: .printModule))
         case .identifier:
-            target.write(name.text ?? "", context: .context(for: name, state: .printIdentifier))
-        case .typeList:
-            printChildren(name)
+            printIdentifier(name)
+        case .privateDeclName:
+            printPrivateDeclName(name)
         case .inOut:
             printFirstChild(name, prefix: "inout ")
+        case .owned:
+            printFirstChild(name, prefix: "__owned ")
+        case .isolated: printFirstChild(name, prefix: "isolated ")
+        case .isolatedAnyFunctionType: target.write("@isolated(any) ")
         default:
             return false
         }
@@ -71,5 +75,13 @@ extension NodePrintable {
 
     mutating func printChildren(_ ofName: Node, prefix: String? = nil, suffix: String? = nil, separator: String? = nil) {
         printSequence(ofName.children, prefix: prefix, suffix: suffix, separator: separator)
+    }
+    
+    mutating func printIdentifier(_ node: Node) {
+        target.write(node.text ?? "", context: .context(for: node, state: .printIdentifier))
+    }
+    
+    mutating func printPrivateDeclName(_ node: Node) {
+        target.write(node.children.at(1)?.text ?? "", context: .context(for: node, state: .printIdentifier))
     }
 }

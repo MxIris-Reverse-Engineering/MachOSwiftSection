@@ -50,10 +50,10 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
     private override init() { super.init() }
 
     package struct Entry {
-        fileprivate var symbolsByKind: [Node.Kind: [Symbol]] = [:]
-        fileprivate var memberSymbolsByKind: [MemberKind: [String: [Symbol]]] = [:]
-        fileprivate var methodDescriptorMemberSymbolsByKind: [MemberKind: [String: [Symbol]]] = [:]
-        fileprivate var protocolWitnessMemberSymbolsByKind: [MemberKind: [String: [Symbol]]] = [:]
+        fileprivate var symbolsByKind: OrderedDictionary<Node.Kind, [Symbol]> = [:]
+        fileprivate var memberSymbolsByKind: OrderedDictionary<MemberKind, OrderedDictionary<String, [Symbol]>> = [:]
+        fileprivate var methodDescriptorMemberSymbolsByKind: OrderedDictionary<MemberKind, OrderedDictionary<String, [Symbol]>> = [:]
+        fileprivate var protocolWitnessMemberSymbolsByKind: OrderedDictionary<MemberKind, OrderedDictionary<String, [Symbol]>> = [:]
     }
 
     package override func buildEntry<MachO>(for machO: MachO) -> Entry? where MachO: MachORepresentableWithCache {
@@ -81,7 +81,7 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
                 let globalNode = try demangleAsNode(symbol.stringValue)
                 guard let node = globalNode.children.first else { continue }
 
-                func processMemberSymbols(for node: Node, in entry: inout [MemberKind: [String: [Symbol]]]) {
+                func processMemberSymbols(for node: Node, in entry: inout OrderedDictionary<MemberKind, OrderedDictionary<String, [Symbol]>>) {
                     if node.kind == .static, let firstChild = node.children.first, firstChild.kind.isMember {
                         processMemberSymbol(symbol, node: firstChild, isStatic: true, in: &entry)
                     } else if node.kind.isMember {
@@ -108,7 +108,7 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         return entry
     }
 
-    private func processMemberSymbol(_ symbol: Symbol, node: Node, isStatic: Bool, in entry: inout [MemberKind: [String: [Symbol]]]) {
+    private func processMemberSymbol(_ symbol: Symbol, node: Node, isStatic: Bool, in entry: inout OrderedDictionary<MemberKind, OrderedDictionary<String, [Symbol]>>) {
         func processTypeNode(_ typeNode: Node?, inExtension: Bool) {
             guard let typeNode = typeNode else { return }
 

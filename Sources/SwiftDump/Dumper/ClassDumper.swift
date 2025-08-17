@@ -206,6 +206,28 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                     }
                 }
             }
+            
+            for kind in SymbolIndexStore.MemberKind.allCases {
+                for (offset, symbol) in SymbolIndexStore.shared.methodDescriptorMemberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
+                    if offset.isStart {
+                        BreakLine()
+
+                        Indent(level: 1)
+
+                        InlineComment("[Method] " + kind.description)
+                    }
+
+                    BreakLine()
+
+                    Indent(level: 1)
+
+                    try MetadataReader.demangleSymbol(for: symbol, in: machO)?.printSemantic(using: options)
+
+                    if offset.isEnd {
+                        BreakLine()
+                    }
+                }
+            }
 
             Standard("}")
         }
