@@ -113,6 +113,12 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         self.associatedTypes = try machO.swift.associatedTypes
     }
 
+    func prepare() throws {
+        try index()
+        collectModules()
+    }
+    
+    
     func index() throws {
         for conformance in protocolConformances {
             if let typeName = try? conformance.typeName(in: machO) {
@@ -171,17 +177,48 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     public func build() throws -> SemanticString {
-        output
+        for typeDefinition in topLevelTypeDefinitions.values {
+            try printTypeDefinition(typeDefinition)
+        }
     }
     
-    
-    
+    @SemanticStringBuilder
+    func printTypeDefinition(_ typeDefinition: TypeDefinition) throws -> SemanticString {
+        for child in typeDefinition.children {
+            try printTypeDefinition(child)
+        }
+        var dumper = typeDefinition.type.dumper(options: .interface, in: machO)
+        try dumper.declaration
+        Space()
+        Standard("{")
+        try dumper.fields
+    }
+
     private func collectModules() {
         var usedModules: OrderedSet<String> = []
+        let filterModules: Set<String> = [cModule, objcModule, stdlibName]
+        
+        func addModule(_ module: String) {
+            if !filterModules.contains(module) {
+                usedModules.append(module)
+            }
+        }
+        
+        
         for symbol in machO.symbols where symbol.name.isSwiftSymbol {
             if let globalNode = try? symbol.demangledNode {
                 for moduleNode in globalNode.preorder().all(of: .module) {
-                    if let module = moduleNode.text {
+                    if let module = moduleNode.text, !filterModules.contains(module) {
+                        usedModules.append(module)
+                    }
+                }
+            }
+        }
+        
+        for symbol in machO.exportedSymbols where symbol.name.isSwiftSymbol {
+            if let globalNode = try? symbol.demangledNode {
+                for moduleNode in globalNode.preorder().all(of: .module) {
+                    if let module = moduleNode.text, !filterModules.contains(module) {
                         usedModules.append(module)
                     }
                 }
@@ -189,7 +226,6 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         }
         importedModules = usedModules
     }
-    
 }
 
 extension ProtocolConformance {

@@ -5,7 +5,7 @@ import MachOResolving
 import MachOExtensions
 import Demangle
 
-public struct Symbol: Resolvable, Hashable {
+public struct Symbol: Resolvable, Hashable, SymbolProtocol {
     public let offset: Int
 
     public let stringValue: String
@@ -29,7 +29,11 @@ public struct Symbol: Resolvable, Hashable {
     }
 }
 
-extension Symbol {
+public protocol SymbolProtocol {
+    var name: String { get }
+}
+
+extension MachOSymbols.SymbolProtocol {
     public var demangledNode: Node {
         get throws {
             try demangleAsNode(name)
@@ -37,7 +41,7 @@ extension Symbol {
     }
 }
 
-extension SymbolProtocol {
+extension MachOKit.SymbolProtocol {
     public var demangledNode: Node {
         get throws {
             try demangleAsNode(name)
@@ -45,4 +49,4 @@ extension SymbolProtocol {
     }
 }
 
-
+extension MachOKit.ExportedSymbol: MachOSymbols.SymbolProtocol {}
