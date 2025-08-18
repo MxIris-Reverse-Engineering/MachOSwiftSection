@@ -118,6 +118,7 @@ let package = Package(
         .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", from: "0.3.0"),
         .package(url: "https://github.com/apple/swift-collections", from: "1.2.0"),
         .package(url: "https://github.com/MxIris-Library-Forks/swift-memberwise-init-macro", from: "0.5.3-fork"),
+        .package(url: "https://github.com/swhitty/swift-mutex", from: "0.0.6"),
     ],
     targets: [
         .target(
@@ -128,11 +129,15 @@ let package = Package(
             name: "Demangle",
             dependencies: [
                 .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+                "Utilities",
             ]
         ),
 
         .target(
-            name: "Utilities"
+            name: "Utilities",
+            dependencies: [
+                .product(name: "Mutex", package: "swift-mutex"),
+            ]
         ),
 
         .target(
@@ -334,5 +339,5 @@ let package = Package(
             swiftSettings: testSettings
         ),
     ],
-    swiftLanguageModes: [.v5]
+    swiftLanguageModes: [.v6]
 )

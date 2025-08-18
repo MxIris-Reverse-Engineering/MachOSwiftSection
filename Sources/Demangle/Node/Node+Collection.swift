@@ -1,35 +1,29 @@
-// MARK: - Collection Support
-
 extension Node {
-    // MARK: - Traversal Methods
-
-    public func preorder() -> PreorderSequence {
+    public func preorder() -> some Sequence<Node> {
         PreorderSequence(root: self)
     }
 
-    public func inorder() -> InorderSequence {
+    public func inorder() -> some Sequence<Node> {
         InorderSequence(root: self)
     }
 
-    public func postorder() -> PostorderSequence {
+    public func postorder() -> some Sequence<Node> {
         PostorderSequence(root: self)
     }
 
-    public func levelorder() -> LevelorderSequence {
+    public func levelorder() -> some Sequence<Node> {
         LevelorderSequence(root: self)
     }
 
-    // MARK: - Sequence Types for Different Traversals
-
-    public struct PreorderSequence: Sequence {
-        public struct Iterator: IteratorProtocol {
+    private struct PreorderSequence: Sequence {
+        struct Iterator: IteratorProtocol {
             private var stack: [Node]
 
             fileprivate init(root: Node) {
                 self.stack = [root]
             }
 
-            public mutating func next() -> Node? {
+            mutating func next() -> Node? {
                 guard !stack.isEmpty else { return nil }
 
                 let current = stack.removeLast()
@@ -49,13 +43,13 @@ extension Node {
             self.root = root
         }
 
-        public func makeIterator() -> Iterator {
+        func makeIterator() -> Iterator {
             Iterator(root: root)
         }
     }
 
-    public struct InorderSequence: Sequence {
-        public struct Iterator: IteratorProtocol {
+    private struct InorderSequence: Sequence {
+        struct Iterator: IteratorProtocol {
             private var stack: [Node]
             private var current: Node?
 
@@ -64,7 +58,7 @@ extension Node {
                 self.current = root
             }
 
-            public mutating func next() -> Node? {
+            mutating func next() -> Node? {
                 while current != nil || !stack.isEmpty {
                     // Go to the leftmost node
                     while let node = current {
@@ -88,12 +82,12 @@ extension Node {
             self.root = root
         }
 
-        public func makeIterator() -> Iterator {
+        func makeIterator() -> Iterator {
             Iterator(root: root)
         }
     }
 
-    public struct PostorderSequence: Sequence {
+    private struct PostorderSequence: Sequence {
         public struct Iterator: IteratorProtocol {
             private var stack: [(node: Node, visited: Bool)]
 
@@ -101,7 +95,7 @@ extension Node {
                 self.stack = [(root, false)]
             }
 
-            public mutating func next() -> Node? {
+            mutating func next() -> Node? {
                 while !stack.isEmpty {
                     let (node, visited) = stack.removeLast()
 
@@ -127,13 +121,13 @@ extension Node {
             self.root = root
         }
 
-        public func makeIterator() -> Iterator {
+        func makeIterator() -> Iterator {
             Iterator(root: root)
         }
     }
 
-    public struct LevelorderSequence: Sequence {
-        public struct Iterator: IteratorProtocol {
+    private struct LevelorderSequence: Sequence {
+        struct Iterator: IteratorProtocol {
             private var queue: [Node]
 
             fileprivate init(root: Node) {
@@ -158,8 +152,34 @@ extension Node {
             self.root = root
         }
 
-        public func makeIterator() -> Iterator {
+        func makeIterator() -> Iterator {
             Iterator(root: root)
         }
+    }
+}
+
+extension Sequence where Element == Node {
+    public func first(of kind: Node.Kind) -> Node? {
+        first { $0.kind == kind }
+    }
+
+    public func first(of kinds: Node.Kind...) -> Node? {
+        first { kinds.contains($0.kind) }
+    }
+
+    public func contains(_ kind: Node.Kind) -> Bool {
+        contains { $0.kind == kind }
+    }
+
+    public func contains(_ kinds: Node.Kind...) -> Bool {
+        contains { kinds.contains($0.kind) }
+    }
+    
+    public func all(of kind: Node.Kind) -> [Node] {
+        filter { $0.kind == kind }
+    }
+    
+    public func all(of kinds: Node.Kind...) -> [Node] {
+        filter { kinds.contains($0.kind) }
     }
 }

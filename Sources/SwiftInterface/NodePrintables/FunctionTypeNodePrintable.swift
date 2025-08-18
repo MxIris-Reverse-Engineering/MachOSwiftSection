@@ -22,6 +22,27 @@ extension FunctionTypeNodePrintable {
              .escapingObjCBlock,
              .uncurriedFunctionType:
             printFunctionType(name, labelList: nil, isAllocator: false, isBlockOrClosure: true)
+        case .throwsAnnotation:
+            target.write(" throws")
+        case .asyncAnnotation:
+            target.write(" async")
+        case .typedThrowsAnnotation:
+            printTypeThrowsAnnotation(name)
+        case .concurrentFunctionType:
+            target.write("@Sendable ")
+        case .globalActorFunctionType:
+            printGlobalActorFunctionType(name)
+        case .differentiableFunctionType:
+            printDifferentiableFunctionType(name)
+        case .nonIsolatedCallerFunctionType: target.write("nonisolated(nonsending) ")
+        case .isolatedAnyFunctionType:
+            target.write("@isolated(any) ")
+        case .sending:
+            printFirstChild(name, prefix: "sending ")
+        case .sendingResultFunctionType:
+            target.write("sending ")
+        case .clangType:
+            target.write(name.text ?? "")
         default:
             return false
         }
@@ -195,12 +216,38 @@ extension FunctionTypeNodePrintable {
         }
         target.write(") ")
     }
-
+    
     private mutating func printReturnType(_ name: Node) {
         if name.children.isEmpty, let t = name.text {
             target.write(t)
         } else {
             printChildren(name)
+        }
+    }
+    
+    mutating func printTypeThrowsAnnotation(_ name: Node) {
+        target.write(" throws(")
+        if let child = name.children.first {
+            _ = printName(child)
+        }
+        target.write(")")
+    }
+    
+    mutating func printGlobalActorFunctionType(_ name: Node) {
+        if let firstChild = name.children.first {
+            target.write("@")
+            _ = printName(firstChild)
+            target.write(" ")
+        }
+    }
+    
+    mutating func printDifferentiableFunctionType(_ name: Node) {
+        target.write("@differentiable")
+        switch UnicodeScalar(UInt8(name.index ?? 0)) {
+        case "f": target.write("(_forward)")
+        case "r": target.write("(reverse)")
+        case "l": target.write("(_linear)")
+        default: break
         }
     }
 }

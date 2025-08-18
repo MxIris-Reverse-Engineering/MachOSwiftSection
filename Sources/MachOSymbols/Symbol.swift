@@ -3,12 +3,15 @@ import MachOMacro
 import MachOReading
 import MachOResolving
 import MachOExtensions
+import Demangle
 
 public struct Symbol: Resolvable, Hashable {
     public let offset: Int
 
     public let stringValue: String
 
+    public var name: String { stringValue }
+    
     public init(offset: Int, stringValue: String) {
         self.offset = offset
         self.stringValue = stringValue
@@ -25,4 +28,21 @@ public struct Symbol: Resolvable, Hashable {
         return nil
     }
 }
+
+extension Symbol {
+    public var demangledNode: Node {
+        get throws {
+            try demangleAsNode(name)
+        }
+    }
+}
+
+extension SymbolProtocol {
+    public var demangledNode: Node {
+        get throws {
+            try demangleAsNode(name)
+        }
+    }
+}
+
 

@@ -1,4 +1,4 @@
-public struct SemanticString: Sendable, TextOutputStream, Codable {
+public struct SemanticString: Sendable, TextOutputStream, Codable, ExpressibleByStringLiteral {
     public private(set) var components: [AnyComponent] = []
 
     public var count: Int { components.count }
@@ -17,6 +17,14 @@ public struct SemanticString: Sendable, TextOutputStream, Codable {
     
     public init(components: [any SemanticStringComponent]) {
         self.components = components.map { .init(component: $0) }
+    }
+    
+    public init(stringLiteral value: StringLiteralType) {
+        if value.isEmpty {
+            self.init()
+        } else {
+            self.init(components: AnyComponent(string: value, type: .standard))
+        }
     }
 
     public mutating func append(_ string: String, type: SemanticType) {

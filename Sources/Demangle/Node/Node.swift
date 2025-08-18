@@ -1,7 +1,14 @@
+import Utilities
+
 public final class Node: @unchecked Sendable {
     public let kind: Kind
+    
     public let contents: Contents
-    public private(set) weak var parent: Node?
+    
+    @WeakMutexed
+    public private(set) var parent: Node?
+    
+    @Mutexed
     public private(set) var children: [Node]
 
     public enum Contents: Hashable, Sendable {

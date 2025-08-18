@@ -30,7 +30,7 @@ final class TypeDefinition {
     let type: TypeWrapper
 
     let typeName: TypeName
-    
+
     weak var parent: TypeDefinition?
 
     var children: [TypeDefinition] = []
@@ -82,7 +82,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     private var associatedTypesByTypeName: [TypeName: [AssociatedType]] = [:]
 
-    private var output: String = ""
+    private var output: SemanticString = ""
 
     private var importedModules: OrderedSet<String> = []
 
@@ -169,9 +169,27 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         }
     }
 
-    public func build() throws -> String {
-        return output
+    @SemanticStringBuilder
+    public func build() throws -> SemanticString {
+        output
     }
+    
+    
+    
+    private func collectModules() {
+        var usedModules: OrderedSet<String> = []
+        for symbol in machO.symbols where symbol.name.isSwiftSymbol {
+            if let globalNode = try? symbol.demangledNode {
+                for moduleNode in globalNode.preorder().all(of: .module) {
+                    if let module = moduleNode.text {
+                        usedModules.append(module)
+                    }
+                }
+            }
+        }
+        importedModules = usedModules
+    }
+    
 }
 
 extension ProtocolConformance {
