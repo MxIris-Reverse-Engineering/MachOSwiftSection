@@ -8,5 +8,5 @@ package protocol Dumper {
     @SemanticStringBuilder var declaration: SemanticString { get throws }
     @SemanticStringBuilder var body: SemanticString { get throws }
     
-    init(_ dumped: Dumped, options: DemangleOptions, in machO: MachO)
+    init(_ dumped: Dumped, using configuration: DumperConfiguration, in machO: MachO)
 }

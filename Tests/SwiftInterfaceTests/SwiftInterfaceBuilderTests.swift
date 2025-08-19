@@ -6,8 +6,7 @@ import Testing
 class SwiftInterfaceBuilderTests: DyldCacheTests {
     @Test func index() async throws {
         let builder = try SwiftInterfaceBuilder(machO: machOFileInMainCache)
-        try builder.index()
-        builder.collectModules()
-        dump(builder)
+        try builder.prepare()
+        try builder.build().string.print()
     }
 }

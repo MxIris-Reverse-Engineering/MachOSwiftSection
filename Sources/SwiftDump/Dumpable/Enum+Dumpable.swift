@@ -6,10 +6,10 @@ import Utilities
 
 extension Enum: NamedDumpable {
     public func dumpName<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-        try EnumDumper(self, options: options, in: machO).name
+        try EnumDumper(self, using: .init(demangleOptions: options), in: machO).name
     }
 
     public func dump<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-        try EnumDumper(self, options: options, in: machO).body
+        try EnumDumper(self, using: .init(demangleOptions: options), in: machO).body
     }
 }

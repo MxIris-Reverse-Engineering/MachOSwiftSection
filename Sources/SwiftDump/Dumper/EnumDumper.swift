@@ -3,18 +3,30 @@ import MachOKit
 import MachOSwiftSection
 import Semantic
 import Utilities
+import MemberwiseInit
+
+@MemberwiseInit(.package)
+package struct DumperConfiguration {
+    package var demangleOptions: DemangleOptions
+    package var indentation: Int = 1
+    package var displayParentName: Bool = true
+}
 
 package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
     private let `enum`: Enum
-    
-    private let options: DemangleOptions
-    
+
+    private let configuration: DumperConfiguration
+
     private let machO: MachO
 
-    package init(_ dumped: Enum, options: DemangleOptions, in machO: MachO) {
+    package init(_ dumped: Enum, using configuration: DumperConfiguration, in machO: MachO) {
         self.enum = dumped
-        self.options = options
+        self.configuration = configuration
         self.machO = machO
+    }
+
+    private var options: DemangleOptions {
+        configuration.demangleOptions
     }
 
     package var declaration: SemanticString {
@@ -44,7 +56,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
             for (offset, fieldRecord) in try `enum`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
                 BreakLine()
 
-                Indent(level: 1)
+                Indent(level: configuration.indentation)
 
                 if fieldRecord.flags.contains(.isIndirectCase) {
                     Keyword(.indirect)
@@ -129,7 +141,12 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
         }
     }
 
+    @SemanticStringBuilder
     private func _name(using options: DemangleOptions) throws -> SemanticString {
-        try MetadataReader.demangleContext(for: .type(.enum(`enum`.descriptor)), in: machO).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
+        if configuration.displayParentName {
+            try MetadataReader.demangleContext(for: .type(.enum(`enum`.descriptor)), in: machO).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
+        } else {
+            try TypeDeclaration(kind: .enum, `enum`.descriptor.name(in: machO))
+        }
     }
 }

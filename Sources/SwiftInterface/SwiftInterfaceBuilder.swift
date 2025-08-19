@@ -119,7 +119,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     }
     
     
-    func index() throws {
+    private func index() throws {
         for conformance in protocolConformances {
             if let typeName = try? conformance.typeName(in: machO) {
                 protocolConformancesByTypeName[typeName, default: []].append(conformance)
@@ -177,21 +177,40 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     public func build() throws -> SemanticString {
+        for module in importedModules {
+            Standard("import \(module)")
+            BreakLine()
+        }
+        BreakLine()
         for typeDefinition in topLevelTypeDefinitions.values {
             try printTypeDefinition(typeDefinition)
+            BreakLine()
         }
     }
     
     @SemanticStringBuilder
-    func printTypeDefinition(_ typeDefinition: TypeDefinition) throws -> SemanticString {
-        for child in typeDefinition.children {
-            try printTypeDefinition(child)
+    private func printTypeDefinition(_ typeDefinition: TypeDefinition, level: Int = 1) throws -> SemanticString {
+        let dumper = typeDefinition.type.dumper(using: .init(demangleOptions: .interface, indentation: level, displayParentName: level == 1), in: machO)
+        if level > 1 {
+            Indent(level: level - 1)
         }
-        var dumper = typeDefinition.type.dumper(options: .interface, in: machO)
         try dumper.declaration
         Space()
         Standard("{")
-        try dumper.fields
+        for child in typeDefinition.children {
+            BreakLine()
+            try printTypeDefinition(child, level: level + 1)
+        }
+        let fields = try dumper.fields
+        if fields.string.isEmpty, level == 1, !typeDefinition.children.isEmpty {
+            BreakLine()
+        } else {
+            fields
+        }
+        if level > 1, !fields.string.isEmpty {
+            Indent(level: level - 1)
+        }
+        Standard("}")
     }
 
     private func collectModules() {
@@ -224,6 +243,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 }
             }
         }
+        
         importedModules = usedModules
     }
 }

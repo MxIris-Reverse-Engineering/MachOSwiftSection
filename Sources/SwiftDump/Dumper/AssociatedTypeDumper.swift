@@ -7,16 +7,20 @@ import Utilities
 package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCache>: ConformedDumper {
     private let associatedType: AssociatedType
     
-    private let options: DemangleOptions
+    private let configuration: DumperConfiguration
     
     private let machO: MachO
 
-    package init(_ dumped: AssociatedType, options: DemangleOptions, in machO: MachO) {
+    package init(_ dumped: AssociatedType, using configuration: DumperConfiguration, in machO: MachO) {
         self.associatedType = dumped
-        self.options = options
+        self.configuration = configuration
         self.machO = machO
     }
 
+    private var options: DemangleOptions {
+        configuration.demangleOptions
+    }
+    
     package var declaration: SemanticString {
         get throws {
             Keyword(.extension)

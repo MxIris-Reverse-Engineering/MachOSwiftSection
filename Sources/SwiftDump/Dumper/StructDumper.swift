@@ -7,24 +7,28 @@ import Utilities
 package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
     private let `struct`: Struct
 
-    private let options: DemangleOptions
+    private let configuration: DumperConfiguration
 
     private let machO: MachO
 
-    package init(_ dumped: Struct, options: DemangleOptions, in machO: MachO) {
+    package init(_ dumped: Struct, using configuration: DumperConfiguration, in machO: MachO) {
         self.struct = dumped
-        self.options = options
+        self.configuration = configuration
         self.machO = machO
     }
 
+    private var options: DemangleOptions {
+        configuration.demangleOptions
+    }
+    
     package var declaration: SemanticString {
         get throws {
             Keyword(.struct)
-
+            
             Space()
-
+            
             try name
-
+            
             if let genericContext = `struct`.genericContext {
                 if genericContext.currentParameters.count > 0 {
                     try genericContext.dumpGenericParameters(in: machO)
@@ -38,13 +42,13 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
             }
         }
     }
-
+    
     package var fields: SemanticString {
         get throws {
             for (offset, fieldRecord) in try `struct`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
                 BreakLine()
 
-                Indent(level: 1)
+                Indent(level: configuration.indentation)
 
                 let demangledTypeNode = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machO), in: machO)
 
@@ -132,7 +136,12 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
         }
     }
 
+    @SemanticStringBuilder
     private func _name(using options: DemangleOptions) throws -> SemanticString {
+        if configuration.displayParentName {
         try MetadataReader.demangleContext(for: .type(.struct(`struct`.descriptor)), in: machO).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
+        } else {
+            try TypeDeclaration(kind: .struct, `struct`.descriptor.name(in: machO))
+        }
     }
 }

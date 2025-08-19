@@ -6,15 +6,19 @@ import Utilities
 
 package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
     private let `class`: Class
-    
-    private let options: DemangleOptions
-    
+
+    private let configuration: DumperConfiguration
+
     private let machO: MachO
 
-    package init(_ dumped: Class, options: DemangleOptions, in machO: MachO) {
+    package init(_ dumped: Class, using configuration: DumperConfiguration, in machO: MachO) {
         self.class = dumped
-        self.options = options
+        self.configuration = configuration
         self.machO = machO
+    }
+
+    private var options: DemangleOptions {
+        configuration.demangleOptions
     }
 
     package var declaration: SemanticString {
@@ -59,7 +63,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
             for (offset, fieldRecord) in try `class`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
                 BreakLine()
 
-                Indent(level: 1)
+                Indent(level: configuration.indentation)
 
                 let demangledTypeNode = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machO), in: machO)
 
@@ -206,7 +210,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                     }
                 }
             }
-            
+
             for kind in SymbolIndexStore.MemberKind.allCases {
                 for (offset, symbol) in SymbolIndexStore.shared.methodDescriptorMemberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
                     if offset.isStart {
@@ -245,8 +249,13 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
         }
     }
 
+    @SemanticStringBuilder
     private func _name(using options: DemangleOptions) throws -> SemanticString {
+        if configuration.displayParentName {
         try MetadataReader.demangleContext(for: .type(.class(`class`.descriptor)), in: machO).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
+        } else {
+            try TypeDeclaration(kind: .class, `class`.descriptor.name(in: machO))
+        }
     }
 
     @SemanticStringBuilder

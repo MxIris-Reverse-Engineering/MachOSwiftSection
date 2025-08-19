@@ -9,16 +9,20 @@ import OrderedCollections
 package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWithCache>: ConformedDumper {
     private let protocolConformance: ProtocolConformance
 
-    private let options: DemangleOptions
+    private let configuration: DumperConfiguration
 
     private let machO: MachO
 
     private var typeNameOptions: DemangleOptions { .interfaceType }
 
-    package init(_ dumped: ProtocolConformance, options: DemangleOptions, in machO: MachO) {
+    package init(_ dumped: ProtocolConformance, using configuration: DumperConfiguration, in machO: MachO) {
         self.protocolConformance = dumped
-        self.options = options
+        self.configuration = configuration
         self.machO = machO
+    }
+
+    private var options: DemangleOptions {
+        configuration.demangleOptions
     }
 
     package var declaration: SemanticString {
