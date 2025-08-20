@@ -1,15 +1,32 @@
 import Utilities
+import Mutex
 
-public final class Node: @unchecked Sendable {
+public final class Node: Sendable {
     public let kind: Kind
     
     public let contents: Contents
     
-    @WeakMutexed
-    public private(set) var parent: Node?
+    private struct WeakBox {
+        weak var wrappedValue: Node?
+    }
     
-    @Mutexed
-    public private(set) var children: [Node]
+    private let _parentMutex: Mutex<WeakBox> = .init(.init())
+    
+    private var _parent: Node? {
+        set { _parentMutex.withLock { $0.wrappedValue = newValue } }
+        get { _parentMutex.withLock { $0.wrappedValue } }
+    }
+    
+    public var parent: Node? { _parent }
+    
+    private let _childrenMutex: Mutex<[Node]>
+    
+    private var _children: [Node] {
+        set { _childrenMutex.withLock { $0 = newValue } }
+        get { _childrenMutex.withLock { $0 } }
+    }
+    
+    public var children: [Node] { _children }
 
     public enum Contents: Hashable, Sendable {
         case none
@@ -34,10 +51,10 @@ public final class Node: @unchecked Sendable {
 
     public init(kind: Kind, contents: Contents = .none, children: [Node] = []) {
         self.kind = kind
-        self.children = children
+        self._childrenMutex = .init(children)
         self.contents = contents
         for child in children {
-            child.parent = self
+            child._parent = self
         }
     }
 
@@ -89,46 +106,46 @@ extension Node {
     }
 
     package func addChild(_ newChild: Node) {
-        newChild.parent = self
-        children.append(newChild)
+        newChild._parent = self
+        _children.append(newChild)
     }
 
     package func removeChild(at index: Int) {
         guard children.indices.contains(index) else { return }
-        children.remove(at: index)
+        _children.remove(at: index)
     }
 
     package func insertChild(_ newChild: Node, at index: Int) {
         guard index >= 0, index <= children.count else { return }
-        newChild.parent = self
-        children.insert(newChild, at: index)
+        newChild._parent = self
+        _children.insert(newChild, at: index)
     }
 
     package func addChildren(_ newChildren: [Node]) {
         for child in newChildren {
-            child.parent = self
+            child._parent = self
         }
-        children.append(contentsOf: newChildren)
+        _children.append(contentsOf: newChildren)
     }
 
     package func setChildren(_ newChildren: [Node]) {
         for child in newChildren {
-            child.parent = self
+            child._parent = self
         }
-        children = newChildren
+        _children = newChildren
     }
 
     package func setChild(_ child: Node, at index: Int) {
         guard children.indices.contains(index) else { return }
-        child.parent = self
-        children[index] = child
+        child._parent = self
+        _children[index] = child
     }
 
     package func reverseChildren() {
-        children.reverse()
+        _children.reverse()
     }
 
     package func reverseFirst(_ count: Int) {
-        children.reverseFirst(count)
+        _children.reverseFirst(count)
     }
 }

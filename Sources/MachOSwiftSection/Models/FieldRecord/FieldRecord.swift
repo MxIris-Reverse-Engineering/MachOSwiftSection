@@ -24,7 +24,7 @@ extension FieldRecord {
     public func mangledTypeName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
         return try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machO)
     }
-
+    
     public func fieldName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> String {
         return try layout.fieldName.resolve(from: offset(of: \.fieldName), in: machO)
     }

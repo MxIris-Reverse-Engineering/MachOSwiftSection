@@ -1,5 +1,5 @@
 {
-  "originHash" : "9e0cff87e73c058d5053528ae4a6df62948910d11a431113ad015c96821bec4a",
+  "originHash" : "a924a67802c0347853dc03f8fb0ce395a84e25d6e5670c5866d0ea9bb1b5acec",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/MachOKit.git",
       "state" : {
-        "revision" : "5a09d8ad1be010bcd58d8a39554480b19e0a45e1",
-        "version" : "0.37.0"
+        "revision" : "954f8ad0b5abb8ebcacb36238765559cde10caa2",
+        "version" : "0.38.0"
       }
     },
     {
@@ -60,8 +60,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/swift-fileio.git",
       "state" : {
-        "revision" : "63daf8e8402789339ccc5a19d198ff0fcafd29d9",
-        "version" : "0.11.0"
+        "revision" : "76a4c719e796a1e5052e283788d8cd92408758fe",
+        "version" : "0.12.0"
       }
     },
     {

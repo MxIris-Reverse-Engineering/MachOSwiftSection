@@ -6,6 +6,7 @@ import SwiftDump
 import Demangle
 import Semantic
 
+@MemberwiseInit
 struct TypeName: Hashable {
     let name: String
     let kind: TypeKind
@@ -19,8 +20,10 @@ enum TypeKind: Hashable {
     case `enum`
     case `struct`
     case `class`
+    case tuple
 }
 
+@MemberwiseInit
 struct ProtocolName: Hashable {
     let name: String
 }
@@ -38,10 +41,60 @@ final class TypeDefinition {
     var extensionContext: ExtensionContext?
 
     var protocolConformances: [ProtocolConformance] = []
+    
+    var fields: [TypeFieldDefinition] = []
+    
+    var variables: [TypeVariableDefinition] = []
+    
+    var functions: [TypeFunctionDefinition] = []
+    
+    
+//    func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws {
+//        let typeContextDescriptor = try required(type.contextDescriptor.typeContextDescriptor)
+//        let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machO)
+//        let records = try fieldDescriptor.records(in: machO)
+//        for record in records {
+//            let node = try record.demangledTypeNode(in: machO)
+//            let name = try record.fieldName(in: machO)
+//            let typeName = try
+//            let isLazy = name.hasLazyPrefix
+//            let isWeak = node.contains(.weak)
+//            let isVar = record.flags.contains(.isVariadic)
+//            let isIndirectCase = record.flags.contains(.isIndirectCase)
+//            TypeFieldDefinition(node: node, name: name, typeName: <#T##TypeName#>, isLazy: <#T##Bool#>, isWeak: <#T##Bool#>, isVar: <#T##Bool#>, isIndirectCase: <#T##Bool#>)
+//        }
+//    }
+    
+}
+
+
+@MemberwiseInit
+struct TypeFieldDefinition {
+    let node: Node
+    let name: String
+    let typeName: TypeName
+    let isLazy: Bool
+    let isWeak: Bool
+    let isVar: Bool
+    let isIndirectCase: Bool
 }
 
 @MemberwiseInit
-final class TypeExtension {
+struct TypeVariableDefinition {
+    let node: Node
+    let name: String
+    let typeName: TypeName
+    let isSetter: Bool
+}
+
+@MemberwiseInit
+struct TypeFunctionDefinition {
+    let node: Node
+    let name: String
+}
+
+@MemberwiseInit
+struct TypeExtensionDefinition {
     let typeName: TypeName
 
     let protocolConformance: ProtocolConformance?
@@ -57,7 +110,7 @@ final class ProtocolDefinition {
 }
 
 @MemberwiseInit
-final class ProtocolExtension {
+struct ProtocolExtensionDefinition {
     let protocolName: ProtocolName
 }
 
@@ -117,8 +170,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         try index()
         collectModules()
     }
-    
-    
+
     private func index() throws {
         for conformance in protocolConformances {
             if let typeName = try? conformance.typeName(in: machO) {
@@ -187,7 +239,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             BreakLine()
         }
     }
-    
+
     @SemanticStringBuilder
     private func printTypeDefinition(_ typeDefinition: TypeDefinition, level: Int = 1) throws -> SemanticString {
         let dumper = typeDefinition.type.dumper(using: .init(demangleOptions: .interface, indentation: level, displayParentName: level == 1), in: machO)
@@ -216,14 +268,13 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     private func collectModules() {
         var usedModules: OrderedSet<String> = []
         let filterModules: Set<String> = [cModule, objcModule, stdlibName]
-        
+
         func addModule(_ module: String) {
             if !filterModules.contains(module) {
                 usedModules.append(module)
             }
         }
-        
-        
+
         for symbol in machO.symbols where symbol.name.isSwiftSymbol {
             if let globalNode = try? symbol.demangledNode {
                 for moduleNode in globalNode.preorder().all(of: .module) {
@@ -233,7 +284,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 }
             }
         }
-        
+
         for symbol in machO.exportedSymbols where symbol.name.isSwiftSymbol {
             if let globalNode = try? symbol.demangledNode {
                 for moduleNode in globalNode.preorder().all(of: .module) {
@@ -243,7 +294,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 }
             }
         }
-        
+
         importedModules = usedModules
     }
 }
@@ -301,5 +352,16 @@ extension TypeContextDescriptorWrapper {
             .class
         }
         return try .init(name: ContextDescriptorWrapper.type(self).dumpName(using: .interfaceType, in: machO).string, kind: kind)
+    }
+}
+
+
+extension FieldRecord {
+    func demangledTypeNode<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Node {
+        try MetadataReader.demangleType(for: mangledTypeName(in: machO), in: machO)
+    }
+    
+    func demangledTypeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SemanticString {
+        try demangledTypeNode(in: machO).printSemantic(using: .interface)
     }
 }

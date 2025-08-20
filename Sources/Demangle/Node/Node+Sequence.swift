@@ -158,6 +158,15 @@ extension Node {
     }
 }
 
+extension Node: Sequence {
+    public typealias Element = Node
+    
+    public func makeIterator() -> some IteratorProtocol<Node> {
+        preorder().makeIterator()
+    }
+}
+
+
 extension Sequence where Element == Node {
     public func first(of kind: Node.Kind) -> Node? {
         first { $0.kind == kind }

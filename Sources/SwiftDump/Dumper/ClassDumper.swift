@@ -70,7 +70,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                 let fieldName = try fieldRecord.fieldName(in: machO)
 
                 if fieldRecord.flags.contains(.isVariadic) {
-                    if demangledTypeNode.hasWeakNode {
+                    if demangledTypeNode.contains(.weak) {
                         Keyword(.weak)
                         Space()
                         Keyword(.var)
