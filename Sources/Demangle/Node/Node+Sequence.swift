@@ -191,4 +191,12 @@ extension Sequence where Element == Node {
     public func all(of kinds: Node.Kind...) -> [Node] {
         filter { kinds.contains($0.kind) }
     }
+    
+    public func filter(of kind: Node.Kind) -> some Sequence<Node> {
+        filter { $0.kind == kind }
+    }
+    
+    public func filter(of kinds: Node.Kind...) -> some Sequence<Node> {
+        filter { kinds.contains($0.kind) }
+    }
 }

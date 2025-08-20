@@ -32,15 +32,27 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
             try name
 
             if `protocol`.numberOfRequirementsInSignature > 0 {
-                Space()
-                Keyword(.where)
-                Space()
-
-                for (offset, requirement) in `protocol`.requirementInSignatures.offsetEnumerated() {
-                    try requirement.dump(using: options, in: machO)
-                    if !offset.isEnd {
+                var requirementInSignatures = `protocol`.requirementInSignatures
+                for (offset, requirement) in requirementInSignatures.extract(where: \.isProtocolInherited).offsetEnumerated() {
+                    if offset.isStart {
+                        Standard(":")
+                    } else {
                         Standard(",")
-                        Space()
+                    }
+                    Space()
+                    try requirement.descriptor.dumpContent(using: options, in: machO)
+                }
+                if !requirementInSignatures.isEmpty {
+                    Space()
+                    Keyword(.where)
+                    Space()
+
+                    for (offset, requirement) in requirementInSignatures.offsetEnumerated() {
+                        try requirement.descriptor.dumpProtocolRequirement(using: options, in: machO)
+                        if !offset.isEnd {
+                            Standard(",")
+                            Space()
+                        }
                     }
                 }
             }
@@ -129,3 +141,56 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
         return nil
     }
 }
+
+
+extension GenericRequirement {
+    var isProtocolInherited: Bool {
+        paramManagledName.rawStringValue() == "x" && (flags.kind == .protocol || flags.kind == .layout || flags.kind == .baseClass)
+    }
+}
+
+extension RangeReplaceableCollection {
+    
+    /**
+     * Removes and returns the elements that satisfy the given predicate.
+     * This method performs the filtering and removal in a single pass.
+     *
+     * - Parameter predicate: A closure that takes an element of the
+     *   sequence as its argument and returns a Boolean value indicating
+     *   whether the element should be extracted.
+     * - Returns: An array containing the elements that were removed from the collection.
+     * - Complexity: O(n), where n is the length of the collection.
+     */
+    @discardableResult
+    mutating func extract(
+        where predicate: (Element) throws -> Bool
+    ) rethrows -> [Element] {
+        
+        // Create a new collection to store the elements that will remain.
+        // We can't modify the collection while iterating over it directly,
+        // so we build a new one for the elements to keep.
+        var remainingElements = Self()
+        
+        // Create an array to store the elements that are extracted.
+        var extractedElements: [Element] = []
+        
+        // Iterate through each element of the original collection.
+        for element in self {
+            // Check if the element satisfies the predicate.
+            if try predicate(element) {
+                // If it matches, add it to the extracted list.
+                extractedElements.append(element)
+            } else {
+                // If it doesn't match, add it to the list of elements to keep.
+                remainingElements.append(element)
+            }
+        }
+        
+        // Replace the original collection's content with the remaining elements.
+        self = remainingElements
+        
+        // Return the array of extracted elements.
+        return extractedElements
+    }
+}
+

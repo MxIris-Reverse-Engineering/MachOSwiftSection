@@ -42,17 +42,26 @@ extension TargetGenericContext {
 }
 
 extension GenericRequirementDescriptor {
-    package func dumpInheritedProtocol<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString? {
-        if try paramManagedName(in: machO).rawStringValue() == "A" {
-            return try dumpParameterName(using: options, in: machO)
-        } else {
-            return nil
-        }
-    }
 
     @SemanticStringBuilder
+    package func dumpProtocolParameterName<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+        let node = try MetadataReader.demangleType(for: paramMangledName(in: machO), in: machO)
+        
+        for (offset, param) in node.preorder().filter(of: .dependentAssociatedTypeRef).compactMap({ $0.first(of: .identifier)?.contents.name }).offsetEnumerated() {
+            if offset.isStart {
+                Keyword(.Self)
+                Standard(".")
+            }
+            Standard(param)
+            if !offset.isEnd {
+                Standard(".")
+            }
+        }
+    }
+    
+    @SemanticStringBuilder
     package func dumpParameterName<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-        let node = try MetadataReader.demangleType(for: paramManagedName(in: machO), in: machO)
+        let node = try MetadataReader.demangleType(for: paramMangledName(in: machO), in: machO)
         node.printSemantic(using: options)
     }
 
@@ -105,6 +114,22 @@ extension GenericRequirementDescriptor {
     @SemanticStringBuilder
     package func dump<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
         try dumpParameterName(using: options, in: machO)
+
+        if layout.flags.kind == .sameType {
+            Space()
+            Standard("==")
+            Space()
+        } else {
+            Standard(":")
+            Space()
+        }
+
+        try dumpContent(using: options, in: machO)
+    }
+    
+    @SemanticStringBuilder
+    package func dumpProtocolRequirement<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+        try dumpProtocolParameterName(using: options, in: machO)
 
         if layout.flags.kind == .sameType {
             Space()

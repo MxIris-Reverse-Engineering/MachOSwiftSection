@@ -16,7 +16,7 @@ public struct `Protocol`: TopLevelType, ContextProtocol {
 
     public let descriptor: ProtocolDescriptor
 
-    public let requirementInSignatures: [GenericRequirementDescriptor]
+    public let requirementInSignatures: [GenericRequirement]
 
     public let requirements: [ProtocolRequirement]
 
@@ -42,7 +42,8 @@ public struct `Protocol`: TopLevelType, ContextProtocol {
         var currentOffset = descriptor.offset + descriptor.layoutSize
 
         if descriptor.numRequirementsInSignature > 0 {
-            self.requirementInSignatures = try machO.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.numRequirementsInSignature.cast()) as [GenericRequirementDescriptor]
+            let requirementInSignatures = try machO.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.numRequirementsInSignature.cast()) as [GenericRequirementDescriptor]
+            self.requirementInSignatures = try requirementInSignatures.map { try .init(descriptor: $0, in: machO) }
             currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: descriptor.numRequirementsInSignature.cast())
             currentOffset = align(address: currentOffset.cast(), alignment: 4).cast()
         } else {

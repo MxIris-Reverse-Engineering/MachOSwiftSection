@@ -200,7 +200,7 @@ public struct MetadataReader {
                     if failed {
                         break
                     }
-                    let subject = try demangle(for: requirement.paramManagedName(in: machO), kind: .type, in: machO)
+                    let subject = try demangle(for: requirement.paramMangledName(in: machO), kind: .type, in: machO)
                     let offset = requirement.offset(of: \.content)
                     switch requirement.content {
                     case let .protocol(relativeProtocolDescriptorPointer):

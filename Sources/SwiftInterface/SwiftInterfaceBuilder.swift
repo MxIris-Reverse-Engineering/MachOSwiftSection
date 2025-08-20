@@ -20,7 +20,6 @@ enum TypeKind: Hashable {
     case `enum`
     case `struct`
     case `class`
-    case tuple
 }
 
 @MemberwiseInit
@@ -49,21 +48,24 @@ final class TypeDefinition {
     var functions: [TypeFunctionDefinition] = []
     
     
-//    func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws {
-//        let typeContextDescriptor = try required(type.contextDescriptor.typeContextDescriptor)
-//        let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machO)
-//        let records = try fieldDescriptor.records(in: machO)
-//        for record in records {
-//            let node = try record.demangledTypeNode(in: machO)
-//            let name = try record.fieldName(in: machO)
-//            let typeName = try
-//            let isLazy = name.hasLazyPrefix
-//            let isWeak = node.contains(.weak)
-//            let isVar = record.flags.contains(.isVariadic)
-//            let isIndirectCase = record.flags.contains(.isIndirectCase)
-//            TypeFieldDefinition(node: node, name: name, typeName: <#T##TypeName#>, isLazy: <#T##Bool#>, isWeak: <#T##Bool#>, isVar: <#T##Bool#>, isIndirectCase: <#T##Bool#>)
-//        }
-//    }
+    func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws {
+        var fields: [TypeFieldDefinition] = []
+        let typeContextDescriptor = try required(type.contextDescriptor.typeContextDescriptor)
+        let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machO)
+        let records = try fieldDescriptor.records(in: machO)
+        for record in records {
+            let node = try record.demangledTypeNode(in: machO)
+            let name = try record.fieldName(in: machO)
+            let isLazy = name.hasLazyPrefix
+            let isWeak = node.contains(.weak)
+            let isVar = record.flags.contains(.isVariadic)
+            let isIndirectCase = record.flags.contains(.isIndirectCase)
+            let field = TypeFieldDefinition(node: node, name: name, isLazy: isLazy, isWeak: isWeak, isVar: isVar, isIndirectCase: isIndirectCase)
+            fields.append(field)
+        }
+        
+        self.fields = fields
+    }
     
 }
 
@@ -72,7 +74,6 @@ final class TypeDefinition {
 struct TypeFieldDefinition {
     let node: Node
     let name: String
-    let typeName: TypeName
     let isLazy: Bool
     let isWeak: Bool
     let isVar: Bool
@@ -83,7 +84,6 @@ struct TypeFieldDefinition {
 struct TypeVariableDefinition {
     let node: Node
     let name: String
-    let typeName: TypeName
     let isSetter: Bool
 }
 

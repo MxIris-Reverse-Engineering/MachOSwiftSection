@@ -1,6 +1,6 @@
 import Foundation
 
-public enum TypeWrapper {
+public enum TypeWrapper: Sendable {
     case `enum`(Enum)
     case `struct`(Struct)
     case `class`(Class)

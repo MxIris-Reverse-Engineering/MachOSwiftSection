@@ -21,6 +21,7 @@ extension Keyword {
         case `where`
         case `indirect`
         case `protocol`
+        case `Self`
     }
     
     package init(_ keyword: Swift) {

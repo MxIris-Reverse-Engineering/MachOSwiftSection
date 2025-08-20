@@ -22,7 +22,7 @@ public struct GenericRequirementDescriptor: ResolvableLocatableLayoutWrapper {
 
 extension GenericRequirementDescriptor {
     
-    public func paramManagedName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+    public func paramMangledName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
         return try layout.param.resolve(from: offset(of: \.param), in: machO)
     }
 

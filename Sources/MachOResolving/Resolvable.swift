@@ -2,7 +2,7 @@ import MachOKit
 import MachOReading
 import MachOExtensions
 
-public protocol Resolvable {
+public protocol Resolvable: Sendable {
     static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self
     static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self?
 }
