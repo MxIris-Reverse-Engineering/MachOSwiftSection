@@ -40,13 +40,16 @@ final class TypeDefinition {
     var extensionContext: ExtensionContext?
 
     var protocolConformances: [ProtocolConformance] = []
-    
+
     var fields: [TypeFieldDefinition] = []
-    
+
     var variables: [TypeVariableDefinition] = []
-    
+
     var functions: [TypeFunctionDefinition] = []
+
+    var staticVariables: [TypeVariableDefinition] = []
     
+    var staticFunctions: [TypeFunctionDefinition] = []
     
     func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws {
         var fields: [TypeFieldDefinition] = []
@@ -60,15 +63,47 @@ final class TypeDefinition {
             let isWeak = node.contains(.weak)
             let isVar = record.flags.contains(.isVariadic)
             let isIndirectCase = record.flags.contains(.isIndirectCase)
-            let field = TypeFieldDefinition(node: node, name: name, isLazy: isLazy, isWeak: isWeak, isVar: isVar, isIndirectCase: isIndirectCase)
+            let field = TypeFieldDefinition(node: node, name: name.stripLazyPrefix, isLazy: isLazy, isWeak: isWeak, isVar: isVar, isIndirectCase: isIndirectCase)
             fields.append(field)
         }
-        
+
         self.fields = fields
+        
+        typealias NodeAndVariableKinds = (node: Node, kind: Set<TypeVariableKind>)
+        var variables: [TypeVariableDefinition] = []
+        var nodeAndVariableKindsByName: [String: NodeAndVariableKinds] = [:]
+        for variable in SymbolIndexStore.shared.memberSymbols(of: .variable, for: typeName.name, in: machO) {
+            let node = variable.demangledNode
+            guard let variableNode = node.first(of: .variable), let name = variableNode.children.at(1)?.contents.name, let variableKind = node.variableKind else { continue }
+            let nodeAndVariableKinds: NodeAndVariableKinds
+            if var existedNodeAndVariableKinds = nodeAndVariableKindsByName[name] {
+                existedNodeAndVariableKinds.kind.insert(variableKind)
+                nodeAndVariableKinds = existedNodeAndVariableKinds
+            } else {
+                nodeAndVariableKinds = (node, [variableKind])
+            }
+            nodeAndVariableKindsByName[name] = nodeAndVariableKinds
+        }
+        
+        for (name, nodeAndVariableKinds) in nodeAndVariableKindsByName {
+            variables.append(.init(node: nodeAndVariableKinds.node, name: name, hasSetter: nodeAndVariableKinds.kind.contains(.setter), hasModifyAccessor: nodeAndVariableKinds.kind.contains(.modifyAccessor)))
+        }
+        
+        self.variables = variables
+        
     }
-    
 }
 
+extension Node {
+    var variableKind: TypeVariableKind? {
+        switch kind {
+        case .getter: .getter
+        case .setter: .setter
+        case .modifyAccessor: .modifyAccessor
+        default: nil
+        }
+    }
+}
 
 @MemberwiseInit
 struct TypeFieldDefinition {
@@ -80,11 +115,18 @@ struct TypeFieldDefinition {
     let isIndirectCase: Bool
 }
 
+enum TypeVariableKind {
+    case getter
+    case setter
+    case modifyAccessor
+}
+
 @MemberwiseInit
 struct TypeVariableDefinition {
     let node: Node
     let name: String
-    let isSetter: Bool
+    let hasSetter: Bool
+    let hasModifyAccessor: Bool
 }
 
 @MemberwiseInit
@@ -182,45 +224,40 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         for type in types {
             guard let module = try? type.contextDescriptorWrapper.contextDescriptor.moduleContextDesciptor(in: machO) else { continue }
-            
+
             guard let moduleName = try? module.name(in: machO), moduleName != cModule, moduleName != objcModule else { continue }
+
+            guard let typeName = try? type.typeName(in: machO) else { continue }
             
-            if let typeName = try? type.typeName(in: machO) {
-                let declaration = TypeDefinition(
-                    type: type,
-                    typeName: typeName,
-                    protocolConformances: protocolConformancesByTypeName[typeName] ?? []
-                )
-                definitionsCache[typeName] = declaration
-            }
+            let declaration = TypeDefinition(type: type, typeName: typeName, protocolConformances: protocolConformancesByTypeName[typeName] ?? [])
+            
+            definitionsCache[typeName] = declaration
         }
 
         for type in types {
-            if let typeName = try? type.typeName(in: machO) {
-                guard let childDefinition = definitionsCache[typeName] else {
-                    continue
-                }
+            guard let typeName = try? type.typeName(in: machO), let childDefinition = definitionsCache[typeName] else {
+                continue
+            }
 
-                var parentContext = try ContextWrapper.type(type).parent(in: machO)?.resolved
+            var parentContext = try ContextWrapper.type(type).parent(in: machO)?.resolved
 
-                while let currentContext = parentContext {
-                    if case .type(let typeContext) = currentContext, let parentTypeName = try? typeContext.typeName(in: machO) {
-                        if let parentDefinition = definitionsCache[parentTypeName] {
-                            childDefinition.parent = parentDefinition
-                            parentDefinition.children.append(childDefinition)
-                        }
-                        break
+            while let currentContext = parentContext {
+                if case .type(let typeContext) = currentContext, let parentTypeName = try? typeContext.typeName(in: machO) {
+                    if let parentDefinition = definitionsCache[parentTypeName] {
+                        childDefinition.parent = parentDefinition
+                        parentDefinition.children.append(childDefinition)
                     }
-                    parentContext = try currentContext.parent(in: machO)?.resolved
+                    break
                 }
+                parentContext = try currentContext.parent(in: machO)?.resolved
+            }
 
-                while let currentContext = parentContext {
-                    if case .extension(let extensionContext) = currentContext {
-                        childDefinition.extensionContext = extensionContext
-                        break
-                    }
-                    parentContext = try currentContext.parent(in: machO)?.resolved
+            while let currentContext = parentContext {
+                if case .extension(let extensionContext) = currentContext {
+                    childDefinition.extensionContext = extensionContext
+                    break
                 }
+                parentContext = try currentContext.parent(in: machO)?.resolved
             }
         }
 
@@ -233,14 +270,20 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     public func build() throws -> SemanticString {
-        for module in importedModules {
+        for module in importedModules.sorted() {
             Standard("import \(module)")
             BreakLine()
         }
+        
         BreakLine()
-        for typeDefinition in topLevelTypeDefinitions.values {
+        
+        for (offset, typeDefinition) in topLevelTypeDefinitions.values.offsetEnumerated() {
             try printTypeDefinition(typeDefinition)
-            BreakLine()
+            
+            if !offset.isEnd {
+                BreakLine()
+                BreakLine()
+            }
         }
     }
 
@@ -359,12 +402,11 @@ extension TypeContextDescriptorWrapper {
     }
 }
 
-
 extension FieldRecord {
     func demangledTypeNode<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Node {
         try MetadataReader.demangleType(for: mangledTypeName(in: machO), in: machO)
     }
-    
+
     func demangledTypeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SemanticString {
         try demangledTypeNode(in: machO).printSemantic(using: .interface)
     }

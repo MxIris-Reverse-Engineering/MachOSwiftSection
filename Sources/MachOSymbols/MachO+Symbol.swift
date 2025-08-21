@@ -7,7 +7,6 @@ extension MachORepresentableWithCache {
     }
 }
 
-
 extension MachORepresentable {
     package var swiftSymbols: [MachOSymbols.Symbol] {
         symbols.filter { $0.name.isSwiftSymbol }.map { .init(offset: $0.offset, stringValue: $0.name) }

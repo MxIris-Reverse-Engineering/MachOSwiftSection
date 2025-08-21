@@ -112,7 +112,7 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
 
                     Indent(level: 1)
 
-                    try MetadataReader.demangleSymbol(for: symbol, in: machO)?.printSemantic(using: options)
+                    symbol.demangledNode.printSemantic(using: options)
 
                     if offset.isEnd {
                         BreakLine()

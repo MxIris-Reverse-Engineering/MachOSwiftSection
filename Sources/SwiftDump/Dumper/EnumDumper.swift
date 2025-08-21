@@ -104,7 +104,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
             let interfaceNameString = try interfaceName.string
 
             for kind in SymbolIndexStore.MemberKind.allCases {
-                for (offset, function) in SymbolIndexStore.shared.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
+                for (offset, symbol) in SymbolIndexStore.shared.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
                     if offset.isStart {
                         BreakLine()
 
@@ -117,7 +117,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
 
                     Indent(level: 1)
 
-                    try MetadataReader.demangleSymbol(for: function, in: machO)?.printSemantic(using: options)
+                    symbol.demangledNode.printSemantic(using: options)
 
                     if offset.isEnd {
                         BreakLine()

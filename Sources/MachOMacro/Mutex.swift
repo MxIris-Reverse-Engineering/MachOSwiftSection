@@ -14,19 +14,19 @@
 ///     var message: String = ""
 /// }
 /// ```
-@attached(peer, names: prefixed(_))
-@attached(accessor)
-//@attached(member, names: arbitrary)
-public macro Mutex() = #externalMacro(
-    module: "MachOMacroPlugin",
-    type: "MutexMacro"
-)
-
-/// A generic weak reference container for thread-safe weak properties
-public struct WeakBox<T: AnyObject> {
-    public weak var value: T?
-    
-    public init(_ value: T? = nil) {
-        self.value = value
-    }
-}
+//@attached(peer, names: prefixed(_))
+//@attached(accessor)
+////@attached(member, names: arbitrary)
+//public macro Mutex() = #externalMacro(
+//    module: "MachOMacroPlugin",
+//    type: "MutexMacro"
+//)
+//
+///// A generic weak reference container for thread-safe weak properties
+//public struct WeakBox<T: AnyObject> {
+//    public weak var value: T?
+//    
+//    public init(_ value: T? = nil) {
+//        self.value = value
+//    }
+//}

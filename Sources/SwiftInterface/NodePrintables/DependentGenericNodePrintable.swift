@@ -36,7 +36,7 @@ extension DependentGenericNodePrintable {
         _ = printOptional(name.children.at(1), suffix: ".")
         printFirstChild(name)
     }
-    
+
     mutating func printDependentGenericParamType(_ name: Node) {
         target.write(name.text ?? "")
     }
@@ -58,26 +58,24 @@ extension DependentGenericNodePrintable {
 
     private func findGenericParamsDepth(_ name: Node) -> [Int: Int]? {
         guard let paramCount: Int = name.children.first(of: .dependentGenericParamCount)?.index?.cast(), let parent = name.parent else { return nil }
-            
+
         var depths: [Int: Int] = [:]
-        
+
         for child in parent.preorder() {
             guard child.kind == .dependentGenericParamType else { continue }
             guard let depth: Int = child.children.at(0)?.index?.cast() else { continue }
             guard let index: Int = child.children.at(1)?.index?.cast() else { continue }
-            
+
             if let currentDepth = depths[index] {
                 depths[index] = max(currentDepth, depth)
             } else {
                 depths[index] = depth
             }
-            
         }
-        
+
         return depths
     }
-    
-    
+
     mutating func printGenericSignature(_ name: Node) {
         target.write("<")
         var numGenericParams = 0
@@ -138,7 +136,7 @@ extension DependentGenericNodePrintable {
         }
 
         let depths = findGenericParamsDepth(name)
-        
+
         for gpDepth in 0 ..< numGenericParams {
             if gpDepth != 0 {
                 target.write("><")

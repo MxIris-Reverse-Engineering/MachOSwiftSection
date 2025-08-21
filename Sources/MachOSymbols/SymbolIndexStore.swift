@@ -49,11 +49,13 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
 
     private override init() { super.init() }
 
+    fileprivate typealias MemberSymbols = OrderedDictionary<String, [DemangledSymbol]>
+
     package struct Entry {
-        fileprivate var symbolsByKind: OrderedDictionary<Node.Kind, [Symbol]> = [:]
-        fileprivate var memberSymbolsByKind: OrderedDictionary<MemberKind, OrderedDictionary<String, [Symbol]>> = [:]
-        fileprivate var methodDescriptorMemberSymbolsByKind: OrderedDictionary<MemberKind, OrderedDictionary<String, [Symbol]>> = [:]
-        fileprivate var protocolWitnessMemberSymbolsByKind: OrderedDictionary<MemberKind, OrderedDictionary<String, [Symbol]>> = [:]
+        fileprivate var symbolsByKind: OrderedDictionary<Node.Kind, [DemangledSymbol]> = [:]
+        fileprivate var memberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
+        fileprivate var methodDescriptorMemberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
+        fileprivate var protocolWitnessMemberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
     }
 
     package override func buildEntry<MachO>(for machO: MachO) -> Entry? where MachO: MachORepresentableWithCache {
@@ -81,11 +83,11 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
                 let globalNode = try demangleAsNode(symbol.stringValue)
                 guard let node = globalNode.children.first else { continue }
 
-                func processMemberSymbols(for node: Node, in entry: inout OrderedDictionary<MemberKind, OrderedDictionary<String, [Symbol]>>) {
+                func processMemberSymbols(for node: Node, in entry: inout OrderedDictionary<MemberKind, MemberSymbols>) {
                     if node.kind == .static, let firstChild = node.children.first, firstChild.kind.isMember {
-                        processMemberSymbol(symbol, node: firstChild, isStatic: true, in: &entry)
+                        processMemberSymbol(symbol, node: firstChild, globalNode: globalNode, isStatic: true, in: &entry)
                     } else if node.kind.isMember {
-                        processMemberSymbol(symbol, node: node, isStatic: false, in: &entry)
+                        processMemberSymbol(symbol, node: node, globalNode: globalNode, isStatic: false, in: &entry)
                     }
                 }
 
@@ -99,7 +101,7 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
                     }
                 }
 
-                entry.symbolsByKind[node.kind, default: []].append(symbol)
+                entry.symbolsByKind[node.kind, default: []].append(.init(symbol: symbol, demangledNode: globalNode))
 
             } catch {
                 print(error)
@@ -108,7 +110,7 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         return entry
     }
 
-    private func processMemberSymbol(_ symbol: Symbol, node: Node, isStatic: Bool, in entry: inout OrderedDictionary<MemberKind, OrderedDictionary<String, [Symbol]>>) {
+    private func processMemberSymbol(_ symbol: Symbol, node: Node, globalNode: Node, isStatic: Bool, in entry: inout OrderedDictionary<MemberKind, MemberSymbols>) {
         func processTypeNode(_ typeNode: Node?, inExtension: Bool) {
             guard let typeNode = typeNode else { return }
 
@@ -138,7 +140,7 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
                 Node(kind: .type, child: typeNode)
             }
 
-            entry[kind, default: [:]][globalTypeNode.print(using: .interface), default: []].append(symbol)
+            entry[kind, default: [:]][globalTypeNode.print(using: .interface), default: []].append(.init(symbol: symbol, demangledNode: globalNode))
         }
 
         switch node.kind {
@@ -163,7 +165,7 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         }
     }
 
-    package func symbols<MachO: MachORepresentableWithCache>(of kind: Node.Kind, in machO: MachO) -> [Symbol] {
+    package func symbols<MachO: MachORepresentableWithCache>(of kind: Node.Kind, in machO: MachO) -> [DemangledSymbol] {
         if let symbols = entry(in: machO)?.symbolsByKind[kind] {
             return symbols
         } else {
@@ -171,7 +173,7 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         }
     }
 
-    package func memberSymbols<MachO: MachORepresentableWithCache>(of kind: MemberKind, in machO: MachO) -> [Symbol] {
+    package func memberSymbols<MachO: MachORepresentableWithCache>(of kind: MemberKind, in machO: MachO) -> [DemangledSymbol] {
         if let symbol = entry(in: machO)?.memberSymbolsByKind[kind]?.values.flatMap({ $0 }) {
             return symbol
         } else {
@@ -179,7 +181,7 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         }
     }
 
-    package func memberSymbols<MachO: MachORepresentableWithCache>(of kind: MemberKind, for name: String, in machO: MachO) -> [Symbol] {
+    package func memberSymbols<MachO: MachORepresentableWithCache>(of kind: MemberKind, for name: String, in machO: MachO) -> [DemangledSymbol] {
         if let symbol = entry(in: machO)?.memberSymbolsByKind[kind]?[name] {
             return symbol
         } else {
@@ -187,16 +189,15 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         }
     }
 
-    package func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kind: MemberKind, in machO: MachO) -> [Symbol] {
+    package func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kind: MemberKind, in machO: MachO) -> [DemangledSymbol] {
         if let symbol = entry(in: machO)?.methodDescriptorMemberSymbolsByKind[kind]?.values.flatMap({ $0 }) {
             return symbol
         } else {
             return []
         }
     }
-    
-    
-    package func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kind: MemberKind, for name: String, in machO: MachO) -> [Symbol] {
+
+    package func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kind: MemberKind, for name: String, in machO: MachO) -> [DemangledSymbol] {
         if let symbol = entry(in: machO)?.methodDescriptorMemberSymbolsByKind[kind]?[name] {
             return symbol
         } else {
@@ -204,16 +205,15 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         }
     }
 
-    
-    package func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kind: MemberKind, in machO: MachO) -> [Symbol] {
+    package func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kind: MemberKind, in machO: MachO) -> [DemangledSymbol] {
         if let symbol = entry(in: machO)?.protocolWitnessMemberSymbolsByKind[kind]?.values.flatMap({ $0 }) {
             return symbol
         } else {
             return []
         }
     }
-    
-    package func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kind: MemberKind, for name: String, in machO: MachO) -> [Symbol] {
+
+    package func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kind: MemberKind, for name: String, in machO: MachO) -> [DemangledSymbol] {
         if let symbol = entry(in: machO)?.protocolWitnessMemberSymbolsByKind[kind]?[name] {
             return symbol
         } else {

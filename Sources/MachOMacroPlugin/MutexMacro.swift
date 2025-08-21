@@ -55,7 +55,7 @@ public struct MutexMacro: PeerMacro, AccessorMacro {
         // Generate the private Mutex property
         let mutexName = "_\(pattern.identifier.text)"
         let accessLevel = extractAccessLevel(from: varDecl)
-        let mutexAccessLevel = accessLevel == "public" || accessLevel == "open" ? "internal" : "private"
+        let mutexAccessLevel = "private"
         
         let mutexDecl: DeclSyntax
         
@@ -189,6 +189,8 @@ public struct MutexMacro: PeerMacro, AccessorMacro {
                 return "private"
             case .keyword(.open):
                 return "open"
+            case .keyword(.package):
+                return "package"
             default:
                 continue
             }

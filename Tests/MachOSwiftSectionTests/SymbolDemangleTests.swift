@@ -36,16 +36,22 @@ final class DyldCacheSymbolDemangleTests: DyldCacheTests {
     }
 
     #if !SILENT_TEST
+    @MainActor
     @Test func writeSwiftUISymbolsToDesktop() async throws {
         var string = ""
-        let imageName: MachOImageName = .CodableSwiftUI
+        let imageName: MachOImageName = .SwiftUI
         let symbols = try symbols(for: imageName)
         for symbol in symbols {
-            let swiftStdlibDemangledName = stdlib_demangleName(symbol.stringValue)
+            let node = try demangleAsNode(symbol.stringValue)
             guard !symbol.stringValue.hasSuffix("$delayInitStub") else { continue }
+            string += "---------------------------------------"
+            string += "\n"
             string += symbol.stringValue
             string += "\n"
-            string += swiftStdlibDemangledName
+            string += node.print(using: .default)
+            string += "\n"
+            string += node.description
+            string += "---------------------------------------"
             string += "\n"
             string += "\n"
         }
