@@ -4,13 +4,12 @@ public enum TypeWrapper: Sendable {
     case `enum`(Enum)
     case `struct`(Struct)
     case `class`(Class)
-    
-    
-    public var contextDescriptor: ContextDescriptorWrapper {
-        return .type(typeContextDescriptor)
+
+    public var contextDescriptorWrapper: ContextDescriptorWrapper {
+        return .type(typeContextDescriptorWrapper)
     }
-    
-    public var typeContextDescriptor: TypeContextDescriptorWrapper {
+
+    public var typeContextDescriptorWrapper: TypeContextDescriptorWrapper {
         switch self {
         case .enum(let `enum`):
             return .enum(`enum`.descriptor)

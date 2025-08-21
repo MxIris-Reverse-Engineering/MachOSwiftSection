@@ -4,7 +4,7 @@ import Testing
 @testable import SwiftInterface
 
 class SwiftInterfaceBuilderTests: DyldCacheTests {
-    @Test func index() async throws {
+    @Test func build() async throws {
         let builder = try SwiftInterfaceBuilder(machO: machOFileInMainCache)
         try builder.prepare()
         try builder.build().string.print()

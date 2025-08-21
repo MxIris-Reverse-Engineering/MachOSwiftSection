@@ -50,7 +50,7 @@ final class TypeDefinition {
     
     func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws {
         var fields: [TypeFieldDefinition] = []
-        let typeContextDescriptor = try required(type.contextDescriptor.typeContextDescriptor)
+        let typeContextDescriptor = try required(type.contextDescriptorWrapper.typeContextDescriptor)
         let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machO)
         let records = try fieldDescriptor.records(in: machO)
         for record in records {
@@ -181,6 +181,10 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         var definitionsCache: OrderedDictionary<TypeName, TypeDefinition> = [:]
 
         for type in types {
+            guard let module = try? type.contextDescriptorWrapper.contextDescriptor.moduleContextDesciptor(in: machO) else { continue }
+            
+            guard let moduleName = try? module.name(in: machO), moduleName != cModule, moduleName != objcModule else { continue }
+            
             if let typeName = try? type.typeName(in: machO) {
                 let declaration = TypeDefinition(
                     type: type,
@@ -337,7 +341,7 @@ extension ProtocolConformance {
 
 extension TypeWrapper {
     func typeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeName {
-        try typeContextDescriptor.typeName(in: machO)
+        try typeContextDescriptorWrapper.typeName(in: machO)
     }
 }
 

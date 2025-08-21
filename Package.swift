@@ -128,7 +128,6 @@ let package = Package(
         .target(
             name: "Demangle",
             dependencies: [
-                .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
                 "Utilities",
             ]
         ),
@@ -136,7 +135,12 @@ let package = Package(
         .target(
             name: "Utilities",
             dependencies: [
+                "MachOMacro",
                 .product(name: "Mutex", package: "swift-mutex"),
+                .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+                .product(name: "AssociatedObject", package: "AssociatedObject"),
+                .product(name: "MemberwiseInit", package: "swift-memberwise-init-macro"),
+                .product(name: "OrderedCollections", package: "swift-collections"),
             ]
         ),
 
@@ -144,8 +148,7 @@ let package = Package(
             name: "MachOExtensions",
             dependencies: [
                 .MachOKit,
-                "MachOMacro",
-                .product(name: "AssociatedObject", package: "AssociatedObject"),
+                "Utilities",
             ]
         ),
 
@@ -154,9 +157,7 @@ let package = Package(
             dependencies: [
                 .MachOKit,
                 "MachOExtensions",
-                "MachOMacro",
                 "Utilities",
-                .product(name: "AssociatedObject", package: "AssociatedObject"),
             ]
         ),
 
@@ -164,10 +165,9 @@ let package = Package(
             name: "MachOReading",
             dependencies: [
                 .MachOKit,
-                "MachOMacro",
+                "Utilities",
                 "MachOExtensions",
                 .product(name: "FileIO", package: "swift-fileio"),
-                .product(name: "AssociatedObject", package: "AssociatedObject"),
             ]
         ),
 
@@ -186,11 +186,9 @@ let package = Package(
                 .MachOKit,
                 "MachOReading",
                 "MachOResolving",
-                "MachOMacro",
                 "Demangle",
                 "Utilities",
                 "MachOCaches",
-                .product(name: "OrderedCollections", package: "swift-collections"),
             ]
         ),
 
@@ -200,7 +198,7 @@ let package = Package(
                 .MachOKit,
                 "MachOReading",
                 "MachOResolving",
-                "MachOMacro",
+                "Utilities",
             ]
         ),
 
@@ -210,9 +208,9 @@ let package = Package(
                 .MachOKit,
                 "MachOReading",
                 "MachOResolving",
-                "MachOMacro",
                 "MachOPointer",
                 "MachOSymbols",
+                "Utilities",
             ]
         ),
 
@@ -222,11 +220,11 @@ let package = Package(
                 .MachOKit,
                 "MachOReading",
                 "MachOExtensions",
-                "MachOMacro",
                 "MachOPointer",
                 "MachOSymbols",
                 "MachOResolving",
                 "MachOSymbolPointer",
+                "Utilities",
             ]
         ),
 
@@ -234,10 +232,9 @@ let package = Package(
             name: "MachOSwiftSection",
             dependencies: [
                 .MachOKit,
-                "Demangle",
                 "MachOFoundation",
-                "MachOMacro",
-                .product(name: "MemberwiseInit", package: "swift-memberwise-init-macro"),
+                "Demangle",
+                "Utilities",
             ]
         ),
 
@@ -248,7 +245,6 @@ let package = Package(
                 "MachOSwiftSection",
                 "Semantic",
                 "Utilities",
-                .product(name: "OrderedCollections", package: "swift-collections"),
             ]
         ),
 
@@ -260,7 +256,6 @@ let package = Package(
                 "SwiftDump",
                 "Semantic",
                 "Utilities",
-                .product(name: "OrderedCollections", package: "swift-collections"),
             ]
         ),
 

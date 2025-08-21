@@ -9,5 +9,6 @@ struct MachOMacroPlugin: CompilerPlugin {
         MachOImageAllMembersGeneratorMacro.self,
         AssociatedValueMacro.self,
         CaseCheckableMacro.self,
+        MutexMacro.self,
     ]
 }
