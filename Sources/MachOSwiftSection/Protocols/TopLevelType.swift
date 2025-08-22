@@ -1,5 +1,5 @@
 @dynamicMemberLookup
-public protocol TopLevelType {
+public protocol TopLevelType: Sendable {
     associatedtype Descriptor
     var descriptor: Descriptor { get }
     subscript<T>(dynamicMember member: KeyPath<Descriptor, T>) -> T { get }

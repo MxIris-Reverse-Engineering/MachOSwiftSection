@@ -1,26 +1,29 @@
 import Foundation
 import Demangle
+import Semantic
 
-struct VariableNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, TypeNodePrintable, DependentGenericNodePrintable {
-    let isSetter: Bool
+struct VariableNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, TypeNodePrintable, DependentGenericNodePrintable, FunctionTypeNodePrintable {
+    let hasSetter: Bool
 
-    var target: String = ""
+    var target: SemanticString = ""
 
-    init(isSetter: Bool) {
-        self.isSetter = isSetter
+    init(hasSetter: Bool) {
+        self.hasSetter = hasSetter
     }
 
     enum Error: Swift.Error {
         case onlySupportedForVariableNode
     }
 
-    mutating func printRoot(_ node: Node) throws -> String {
+    mutating func printRoot(_ node: Node) throws -> SemanticString {
         try _printRoot(node)
         return target
     }
 
     private mutating func _printRoot(_ node: Node) throws {
-        if node.kind == .variable {
+        if node.kind == .global, let first = node.children.first {
+            try _printRoot(first)
+        } else if node.kind == .variable {
             printVariable(node)
         } else if node.kind == .static, let first = node.children.first {
             target.write("static ")
@@ -47,6 +50,9 @@ struct VariableNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, Typ
         if printNameInDependentGeneric(name) {
             return nil
         }
+        if printNameInFunction(name) {
+            return nil
+        }
         return nil
     }
 
@@ -59,7 +65,7 @@ struct VariableNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, Typ
         printName(type)
 
         target.write(" { ")
-        if isSetter {
+        if hasSetter {
             target.write("set ")
         }
         target.write("get ")

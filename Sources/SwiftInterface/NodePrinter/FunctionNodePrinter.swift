@@ -1,21 +1,24 @@
 import Foundation
 import Demangle
 import MachOExtensions
+import Semantic
 
 struct FunctionNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, TypeNodePrintable, DependentGenericNodePrintable, FunctionTypeNodePrintable {
-    var target: String = ""
+    var target: SemanticString = ""
 
     enum Error: Swift.Error {
         case onlySupportedForFunctionNode
     }
 
-    mutating func printRoot(_ node: Node) throws -> String {
+    mutating func printRoot(_ node: Node) throws -> SemanticString {
         try _printRoot(node)
         return target
     }
 
     private mutating func _printRoot(_ node: Node) throws {
-        if node.kind == .function || node.kind == .boundGenericFunction || node.kind == .allocator {
+        if node.kind == .global, let first = node.children.first {
+            try _printRoot(first)
+        } else if node.kind == .function || node.kind == .boundGenericFunction || node.kind == .allocator {
             printFunction(node)
         } else if node.kind == .static, let first = node.children.first {
             target.write("static ")
@@ -42,6 +45,8 @@ struct FunctionNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, Typ
                 printIdentifier(identifier)
             } else if let privateDeclName = name.children.first(of: .privateDeclName) {
                 printPrivateDeclName(privateDeclName)
+            } else if let `operator` = name.children.first(of: .prefixOperator, .infixOperator, .postfixOperator), let text = `operator`.text {
+                target.write(text + " ")
             }
         } else if name.kind == .allocator {
             target.write("init")

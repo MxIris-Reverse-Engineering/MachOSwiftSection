@@ -5,6 +5,7 @@ import OrderedCollections
 import SwiftDump
 import Demangle
 import Semantic
+import SwiftStdlibToolbox
 
 @MemberwiseInit
 struct TypeName: Hashable {
@@ -48,9 +49,15 @@ final class TypeDefinition {
     var functions: [TypeFunctionDefinition] = []
 
     var staticVariables: [TypeVariableDefinition] = []
-    
+
     var staticFunctions: [TypeFunctionDefinition] = []
-    
+
+    var allocators: [TypeFunctionDefinition] = []
+
+    var hasMembers: Bool {
+        !fields.isEmpty || !variables.isEmpty || !functions.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !allocators.isEmpty
+    }
+
     func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws {
         var fields: [TypeFieldDefinition] = []
         let typeContextDescriptor = try required(type.contextDescriptorWrapper.typeContextDescriptor)
@@ -68,39 +75,55 @@ final class TypeDefinition {
         }
 
         self.fields = fields
-        
-        typealias NodeAndVariableKinds = (node: Node, kind: Set<TypeVariableKind>)
-        var variables: [TypeVariableDefinition] = []
-        var nodeAndVariableKindsByName: [String: NodeAndVariableKinds] = [:]
-        for variable in SymbolIndexStore.shared.memberSymbols(of: .variable, for: typeName.name, in: machO) {
-            let node = variable.demangledNode
-            guard let variableNode = node.first(of: .variable), let name = variableNode.children.at(1)?.contents.name, let variableKind = node.variableKind else { continue }
-            let nodeAndVariableKinds: NodeAndVariableKinds
-            if var existedNodeAndVariableKinds = nodeAndVariableKindsByName[name] {
-                existedNodeAndVariableKinds.kind.insert(variableKind)
-                nodeAndVariableKinds = existedNodeAndVariableKinds
-            } else {
-                nodeAndVariableKinds = (node, [variableKind])
+
+        let fieldNames = Set(fields.map(\.name))
+
+        func variables(for demangledSymbols: [DemangledSymbol]) -> [TypeVariableDefinition] {
+            typealias NodeAndVariableKinds = (node: Node, kind: TypeVariableKind)
+            var variables: [TypeVariableDefinition] = []
+            var nodeAndVariableKindsByName: [String: [NodeAndVariableKinds]] = [:]
+            for demangledSymbol in demangledSymbols {
+                let node = demangledSymbol.demangledNode
+                guard let variableNode = node.first(of: .variable) else { continue }
+                guard let name = variableNode.children.at(1)?.contents.name else { continue }
+                guard let variableKind = node.variableKind else { continue }
+                nodeAndVariableKindsByName[name, default: []].append((node, variableKind))
             }
-            nodeAndVariableKindsByName[name] = nodeAndVariableKinds
+
+            for (name, nodeAndVariableKinds) in nodeAndVariableKindsByName {
+                guard !fieldNames.contains(name) else { continue }
+                let nodes = nodeAndVariableKinds.map(\.node)
+                let kinds = nodeAndVariableKinds.map(\.kind)
+                variables.append(.init(nodes: nodes, name: name, hasSetter: kinds.contains(.setter), hasModifyAccessor: kinds.contains(.modifyAccessor)))
+            }
+            return variables
         }
-        
-        for (name, nodeAndVariableKinds) in nodeAndVariableKindsByName {
-            variables.append(.init(node: nodeAndVariableKinds.node, name: name, hasSetter: nodeAndVariableKinds.kind.contains(.setter), hasModifyAccessor: nodeAndVariableKinds.kind.contains(.modifyAccessor)))
+        func functions(for demangledSymbols: [DemangledSymbol]) -> [TypeFunctionDefinition] {
+            var functions: [TypeFunctionDefinition] = []
+            for demangledSymbol in demangledSymbols {
+                guard let functionNode = demangledSymbol.demangledNode.first(of: .function), let name = functionNode.children.at(1)?.contents.name else { continue }
+                functions.append(.init(node: demangledSymbol.demangledNode, name: .function(name)))
+            }
+            return functions
         }
-        
-        self.variables = variables
-        
+
+        self.variables = variables(for: SymbolIndexStore.shared.memberSymbols(of: .variable, for: typeName.name, in: machO))
+        staticVariables = variables(for: SymbolIndexStore.shared.memberSymbols(of: .staticVariable, for: typeName.name, in: machO))
+
+        self.functions = functions(for: SymbolIndexStore.shared.memberSymbols(of: .function, for: typeName.name, in: machO))
+        staticFunctions = functions(for: SymbolIndexStore.shared.memberSymbols(of: .staticFunction, for: typeName.name, in: machO))
+        allocators = SymbolIndexStore.shared.memberSymbols(of: .allocator, for: typeName.name, in: machO).map { .init(node: $0.demangledNode, name: .allocator) }
     }
 }
 
 extension Node {
     var variableKind: TypeVariableKind? {
-        switch kind {
-        case .getter: .getter
-        case .setter: .setter
-        case .modifyAccessor: .modifyAccessor
-        default: nil
+        guard let node = first(of: .getter, .setter, .modifyAccessor) else { return nil }
+        switch node.kind {
+        case .getter: return .getter
+        case .setter: return .setter
+        case .modifyAccessor: return .modifyAccessor
+        default: return nil
         }
     }
 }
@@ -123,7 +146,7 @@ enum TypeVariableKind {
 
 @MemberwiseInit
 struct TypeVariableDefinition {
-    let node: Node
+    let nodes: [Node]
     let name: String
     let hasSetter: Bool
     let hasModifyAccessor: Bool
@@ -132,11 +155,19 @@ struct TypeVariableDefinition {
 @MemberwiseInit
 struct TypeFunctionDefinition {
     let node: Node
-    let name: String
+    enum Name {
+        case function(String)
+        case allocator
+        case deallocator
+    }
+
+    let name: Name
 }
 
 @MemberwiseInit
 struct TypeExtensionDefinition {
+    let type: TypeWrapper
+
     let typeName: TypeName
 
     let protocolConformance: ProtocolConformance?
@@ -156,7 +187,7 @@ struct ProtocolExtensionDefinition {
     let protocolName: ProtocolName
 }
 
-public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWithCache> {
+public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWithCache & Sendable>: Sendable {
     private let machO: MachO
 
     private let enums: [Enum]
@@ -173,15 +204,21 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     private let associatedTypes: [AssociatedType]
 
+    @Mutex
     private var protocolConformancesByTypeName: [TypeName: [ProtocolConformance]] = [:]
 
+    @Mutex
     private var associatedTypesByTypeName: [TypeName: [AssociatedType]] = [:]
 
-    private var output: SemanticString = ""
-
+    @Mutex
     private var importedModules: OrderedSet<String> = []
 
+    @Mutex
     private var topLevelTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
+
+    private static var internalModules: [String] {
+        ["Swift", "_Concurrency", "_StringProcessing", "_SwiftConcurrencyShims"]
+    }
 
     public init(machO: MachO) throws {
         self.machO = machO
@@ -228,10 +265,15 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             guard let moduleName = try? module.name(in: machO), moduleName != cModule, moduleName != objcModule else { continue }
 
             guard let typeName = try? type.typeName(in: machO) else { continue }
-            
+
             let declaration = TypeDefinition(type: type, typeName: typeName, protocolConformances: protocolConformancesByTypeName[typeName] ?? [])
-            
-            definitionsCache[typeName] = declaration
+
+            do {
+                try declaration.index(in: machO)
+                definitionsCache[typeName] = declaration
+            } catch {
+                print(error)
+            }
         }
 
         for type in types {
@@ -270,16 +312,16 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     public func build() throws -> SemanticString {
-        for module in importedModules.sorted() {
+        for module in Self.internalModules + importedModules.sorted() {
             Standard("import \(module)")
             BreakLine()
         }
-        
+
         BreakLine()
-        
+
         for (offset, typeDefinition) in topLevelTypeDefinitions.values.offsetEnumerated() {
             try printTypeDefinition(typeDefinition)
-            
+
             if !offset.isEnd {
                 BreakLine()
                 BreakLine()
@@ -293,22 +335,90 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         if level > 1 {
             Indent(level: level - 1)
         }
+
         try dumper.declaration
+
         Space()
         Standard("{")
+
         for child in typeDefinition.children {
             BreakLine()
             try printTypeDefinition(child, level: level + 1)
         }
+
         let fields = try dumper.fields
+
         if fields.string.isEmpty, level == 1, !typeDefinition.children.isEmpty {
             BreakLine()
         } else {
             fields
         }
-        if level > 1, !fields.string.isEmpty {
+
+        for (offset, variable) in typeDefinition.variables.offsetEnumerated() {
+            let node = variable.nodes.first { $0.contains(.getter) }
+            if let node {
+                BreakLine()
+                Indent(level: level)
+                var printer = VariableNodePrinter(hasSetter: variable.hasSetter)
+                try printer.printRoot(node)
+
+                if offset.isEnd {
+                    BreakLine()
+                }
+            }
+        }
+
+        for (offset, allocator) in typeDefinition.allocators.offsetEnumerated() {
+            BreakLine()
+            Indent(level: level)
+            var printer = FunctionNodePrinter()
+            try printer.printRoot(allocator.node)
+
+            if offset.isEnd {
+                BreakLine()
+            }
+        }
+
+        for (offset, function) in typeDefinition.functions.offsetEnumerated() {
+            BreakLine()
+            Indent(level: level)
+            var printer = FunctionNodePrinter()
+            try printer.printRoot(function.node)
+
+            if offset.isEnd {
+                BreakLine()
+            }
+        }
+
+        for (offset, variable) in typeDefinition.staticVariables.offsetEnumerated() {
+            let node = variable.nodes.first { $0.contains(.getter) }
+            if let node {
+                BreakLine()
+                Indent(level: level)
+                var printer = VariableNodePrinter(hasSetter: variable.hasSetter)
+                try printer.printRoot(node)
+
+                if offset.isEnd {
+                    BreakLine()
+                }
+            }
+        }
+
+        for (offset, function) in typeDefinition.staticFunctions.offsetEnumerated() {
+            BreakLine()
+            Indent(level: level)
+            var printer = FunctionNodePrinter()
+            try printer.printRoot(function.node)
+
+            if offset.isEnd {
+                BreakLine()
+            }
+        }
+
+        if level > 1, typeDefinition.hasMembers {
             Indent(level: level - 1)
         }
+
         Standard("}")
     }
 

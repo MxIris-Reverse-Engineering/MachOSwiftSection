@@ -57,7 +57,7 @@ extension DependentGenericNodePrintable {
     }
 
     private func findGenericParamsDepth(_ name: Node) -> [Int: Int]? {
-        guard let paramCount: Int = name.children.first(of: .dependentGenericParamCount)?.index?.cast(), let parent = name.parent else { return nil }
+        guard let _: Int = name.children.first(of: .dependentGenericParamCount)?.index?.cast(), let parent = name.parent else { return nil }
 
         var depths: [Int: Int] = [:]
 

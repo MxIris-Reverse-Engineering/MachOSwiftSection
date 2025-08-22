@@ -30,6 +30,8 @@ extension TypeNodePrintable {
             printMetatype(name)
         case .existentialMetatype:
             printExistentialMetatype(name)
+        case .opaqueReturnType:
+            target.write("some")
         default:
             return false
         }

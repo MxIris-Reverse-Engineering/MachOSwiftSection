@@ -10,6 +10,7 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
     package enum MemberKind: Hashable, CaseIterable, CustomStringConvertible {
         case allocator
         case allocatorInExtension
+        case deallocator
         case function
         case functionInExtension
         case staticFunction
@@ -25,6 +26,8 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
                 "Allocators"
             case .allocatorInExtension:
                 "Allocators In Extensions"
+            case .deallocator:
+                "Deallocators"
             case .function:
                 "Functions"
             case .functionInExtension:
@@ -47,7 +50,7 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
 
     package static let shared = SymbolIndexStore()
 
-    private override init() { super.init() }
+    override private init() { super.init() }
 
     fileprivate typealias MemberSymbols = OrderedDictionary<String, [DemangledSymbol]>
 
@@ -58,7 +61,7 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         fileprivate var protocolWitnessMemberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
     }
 
-    package override func buildEntry<MachO>(for machO: MachO) -> Entry? where MachO: MachORepresentableWithCache {
+    override package func buildEntry<MachO>(for machO: MachO) -> Entry? where MachO: MachORepresentableWithCache {
         var entry = Entry()
 
         var symbols: OrderedDictionary<String, Symbol> = [:]
@@ -91,14 +94,12 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
                     }
                 }
 
-                if let firstChild = node.children.first {
-                    if node.kind == .methodDescriptor {
-                        processMemberSymbols(for: firstChild, in: &entry.methodDescriptorMemberSymbolsByKind)
-                    } else if node.kind == .protocolWitness {
-                        processMemberSymbols(for: firstChild, in: &entry.protocolWitnessMemberSymbolsByKind)
-                    } else if !firstChild.kind.isMember {
-                        processMemberSymbols(for: node, in: &entry.memberSymbolsByKind)
-                    }
+                if node.kind == .methodDescriptor, let firstChild = node.children.first {
+                    processMemberSymbols(for: firstChild, in: &entry.methodDescriptorMemberSymbolsByKind)
+                } else if node.kind == .protocolWitness, let firstChild = node.children.first {
+                    processMemberSymbols(for: firstChild, in: &entry.protocolWitnessMemberSymbolsByKind)
+                } else {
+                    processMemberSymbols(for: node, in: &entry.memberSymbolsByKind)
                 }
 
                 entry.symbolsByKind[node.kind, default: []].append(.init(symbol: symbol, demangledNode: globalNode))
@@ -118,6 +119,8 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
             switch node.kind {
             case .allocator:
                 kind = inExtension ? .allocatorInExtension : .allocator
+            case .deallocator:
+                kind = .deallocator
             case .function:
                 if isStatic {
                     kind = inExtension ? .staticFunctionInExtension : .staticFunction
@@ -226,6 +229,7 @@ extension Node.Kind {
     fileprivate var isMember: Bool {
         switch self {
         case .allocator,
+             .deallocator,
              .function,
              .getter,
              .setter,

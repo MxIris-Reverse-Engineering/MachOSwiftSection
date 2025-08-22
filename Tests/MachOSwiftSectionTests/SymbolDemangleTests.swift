@@ -55,7 +55,7 @@ final class DyldCacheSymbolDemangleTests: DyldCacheTests {
             string += "\n"
             string += "\n"
         }
-        try string.write(to: .desktopDirectory.appendingPathComponent("\(imageName.rawValue)-SwiftSymbols.txt"), atomically: true, encoding: .utf8)
+        try string.write(to: .desktopDirectory.appendingPathComponent("\(imageName.rawValue)-SwiftSymbolsExpand.txt"), atomically: true, encoding: .utf8)
     }
 
     @Test func demangle() async throws {
