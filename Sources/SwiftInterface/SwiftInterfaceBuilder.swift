@@ -216,7 +216,7 @@ struct ExtensionDefinition: Definition {
     let protocolConformance: ProtocolConformance?
 
     let associatedType: AssociatedType?
-    
+
     var allocators: [FunctionDefinition] = []
 
     var variables: [VariableDefinition] = []
@@ -298,7 +298,7 @@ struct ExtensionDefinition: Definition {
             } else if !resilientWitness.implementation.isNull {
             } else {}
         }
-        
+
         for (kind, memberSymbols) in memberSymbolsByKind {
             switch kind {
             case .variable:
@@ -462,6 +462,9 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     private var typeAliasExtensionDefinitions: OrderedDictionary<String, [ExtensionDefinition]> = [:]
 
     @Mutex
+    private var conformanceExtensionDefinitions: OrderedDictionary<TypeName, [ExtensionDefinition]> = [:]
+    
+    @Mutex
     private var globalVariables: [VariableDefinition] = []
 
     @Mutex
@@ -503,8 +506,6 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     private func index() throws {
         var allNames: Set<String> = []
-
-        
 
         var definitionsCache: OrderedDictionary<TypeName, TypeDefinition> = [:]
 
@@ -559,9 +560,29 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 protocolConformancesByTypeName[typeName, default: [:]][protocolName] = conformance
             }
         }
-        
+
         self.protocolConformancesByTypeName = protocolConformancesByTypeName
 
+        var associatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, AssociatedType>> = [:]
+        
+        for associatedType in associatedTypes {
+            if let typeName = try? associatedType.typeName(in: machO), let protocolName = try? associatedType.protocolName(in: machO) {
+                associatedTypesByTypeName[typeName, default: [:]][protocolName] = associatedType
+            }
+        }
+        self.associatedTypesByTypeName = associatedTypesByTypeName
+        
+        var conformanceExtensionDefinitions: OrderedDictionary<TypeName, [ExtensionDefinition]> = [:]
+        
+        for (typeName, protocolConformances) in protocolConformancesByTypeName {
+            for (protocolName, protocolConformance) in protocolConformances {
+                var extensionDefinition = try ExtensionDefinition(name: typeName.name, kind: .type(typeName.kind), genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO), protocolConformance: protocolConformance, associatedType: associatedTypesByTypeName[typeName]?[protocolName])
+                try extensionDefinition.index(in: machO)
+                conformanceExtensionDefinitions[typeName, default: []].append(extensionDefinition)
+            }
+        }
+        self.conformanceExtensionDefinitions = conformanceExtensionDefinitions
+        
         var typeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
         for (typeName, definition) in definitionsCache {
             if definition.parent == nil {
@@ -705,35 +726,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             }
         }
 
-        for (offset, extensionDefinition) in typeExtensionDefinitions.values.flatMap({ $0 }).offsetEnumerated() {
-            if offset.isStart {
-                BreakLine()
-                BreakLine()
-            }
-
-            try printExtensionDefinition(extensionDefinition)
-
-            if !offset.isEnd {
-                BreakLine()
-                BreakLine()
-            }
-        }
-
-        for (offset, extensionDefinition) in protocolExtensionDefinitions.values.flatMap({ $0 }).offsetEnumerated() {
-            if offset.isStart {
-                BreakLine()
-                BreakLine()
-            }
-
-            try printExtensionDefinition(extensionDefinition)
-
-            if !offset.isEnd {
-                BreakLine()
-                BreakLine()
-            }
-        }
-
-        for (offset, extensionDefinition) in typeAliasExtensionDefinitions.values.flatMap({ $0 }).offsetEnumerated() {
+        for (offset, extensionDefinition) in (typeExtensionDefinitions.values.flatMap({ $0 }) + protocolExtensionDefinitions.values.flatMap({ $0 }) + typeAliasExtensionDefinitions.values.flatMap({ $0 }) + conformanceExtensionDefinitions.values.flatMap({ $0 })).offsetEnumerated() {
             if offset.isStart {
                 BreakLine()
                 BreakLine()
@@ -812,6 +805,11 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         Keyword(.extension)
         Space()
         extensionDefinition.printName()
+        if let protocolConformance = extensionDefinition.protocolConformance, let protocolName = try? protocolConformance.dumpProtocolName(using: .interfaceType, in: machO) {
+            Standard(":")
+            Space()
+            protocolName
+        }
         if let genericSignature = extensionDefinition.genericSignature {
             let nodes = genericSignature.all(of: .requirementKinds)
             for (offset, node) in nodes.offsetEnumerated() {
@@ -829,6 +827,10 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         }
         Space()
         Standard("{")
+        if let associatedType = extensionDefinition.associatedType {
+            let dumper = AssociatedTypeDumper(associatedType, using: .init(demangleOptions: .interface), in: machO)
+            try dumper.records
+        }
         try printDefinition(extensionDefinition, level: 1)
         Standard("}")
     }
@@ -949,6 +951,28 @@ extension ProtocolConformance {
     }
 
     func protocolName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolName? {
+        try .init(name: dumpProtocolName(using: .interfaceType, in: machO).string)
+    }
+}
+
+extension AssociatedType {
+    
+    func typeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeName? {
+        let node = try MetadataReader.demangleSymbol(for: conformingTypeName, in: machO)
+        let kind: TypeKind
+        if node.contains(.enum) || node.contains(.boundGenericEnum) {
+            kind = .enum
+        } else if node.contains(.structure) || node.contains(.boundGenericStructure) {
+            kind = .struct
+        } else if node.contains(.class) || node.contains(.boundGenericClass) {
+            kind = .class
+        } else {
+            return nil
+        }
+        return try .init(name: dumpTypeName(using: .interfaceType, in: machO).string, kind: kind)
+    }
+    
+    func protocolName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolName {
         try .init(name: dumpProtocolName(using: .interfaceType, in: machO).string)
     }
 }

@@ -31,8 +31,8 @@ struct VariableNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, Typ
         } else if node.kind == .static, let first = node.children.first {
             target.write("static ")
             try _printRoot(first)
-        } else if node.kind == .protocolWitness, let setterOrGetter = node.children.first(of: .setter, .getter) {
-            try _printRoot(setterOrGetter)
+        } else if node.kind == .protocolWitness, let second = node.children.second {
+            try _printRoot(second)
         } else if node.kind == .getter || node.kind == .setter, let first = node.children.first {
             try _printRoot(first)
         } else {

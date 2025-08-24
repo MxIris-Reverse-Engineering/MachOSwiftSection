@@ -17,7 +17,11 @@ struct FunctionNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, Typ
 
     private mutating func _printRoot(_ node: Node) throws {
         if node.kind == .global, let first = node.children.first {
-            try _printRoot(first)
+            if first.kind == .asyncFunctionPointer, let second = node.children.second {
+                try _printRoot(second)
+            } else {
+                try _printRoot(first)
+            }
         } else if node.kind == .function || node.kind == .boundGenericFunction || node.kind == .allocator {
             printFunction(node)
         } else if node.kind == .static, let first = node.children.first {
@@ -25,8 +29,8 @@ struct FunctionNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, Typ
             try _printRoot(first)
         } else if node.kind == .methodDescriptor, let first = node.children.first {
             try _printRoot(first)
-        } else if node.kind == .protocolWitness, let function = node.children.first(of: .function) {
-            try _printRoot(function)
+        } else if node.kind == .protocolWitness, let second = node.children.second {
+            try _printRoot(second)
         } else {
             throw Error.onlySupportedForFunctionNode
         }

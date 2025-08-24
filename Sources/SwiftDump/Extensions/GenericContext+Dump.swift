@@ -47,7 +47,7 @@ extension GenericRequirementDescriptor {
     package func dumpProtocolParameterName<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
         let node = try MetadataReader.demangleType(for: paramMangledName(in: machO), in: machO)
         
-        for (offset, param) in node.preorder().filter(of: .dependentAssociatedTypeRef).compactMap({ $0.first(of: .identifier)?.contents.name }).offsetEnumerated() {
+        for (offset, param) in node.filter(of: .dependentAssociatedTypeRef).compactMap({ $0.first(of: .identifier)?.contents.name }).offsetEnumerated() {
             if offset.isStart {
                 Keyword(.Self)
                 Standard(".")

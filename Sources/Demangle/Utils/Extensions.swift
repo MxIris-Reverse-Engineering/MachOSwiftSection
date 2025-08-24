@@ -65,6 +65,10 @@ extension Array {
         result.reverseFirst(count)
         return result
     }
+    
+    package var second: Element? {
+        return at(1)
+    }
 }
 
 extension BinaryInteger {

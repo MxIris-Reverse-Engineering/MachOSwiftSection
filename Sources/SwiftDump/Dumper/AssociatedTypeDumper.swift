@@ -37,14 +37,9 @@ package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCac
         }
     }
 
-    package var body: SemanticString {
+    @SemanticStringBuilder
+    package var records: SemanticString {
         get throws {
-            try declaration
-            
-            Space()
-
-            Standard("{")
-
             for (offset, record) in associatedType.records.offsetEnumerated() {
                 BreakLine()
 
@@ -68,6 +63,18 @@ package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCac
                     BreakLine()
                 }
             }
+        }
+    }
+    
+    package var body: SemanticString {
+        get throws {
+            try declaration
+            
+            Space()
+
+            Standard("{")
+
+            try records
 
             Standard("}")
         }
