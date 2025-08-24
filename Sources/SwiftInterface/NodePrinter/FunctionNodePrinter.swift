@@ -54,6 +54,20 @@ struct FunctionNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, Typ
         if let type = name.children.first(of: .type), let functionType = type.children.first {
             printLabelList(name: name, type: functionType, genericFunctionTypeList: genericFunctionTypeList)
         }
+        
+        if let genericSignature = name.first(of: .dependentGenericSignature) {
+            let nodes = genericSignature.all(of: .requirementKinds)
+            for (offset, node) in nodes.offsetEnumerated() {
+                if offset.isStart {
+                    target.write(" where ")
+                }
+                printName(node)
+                if !offset.isEnd {
+                    target.write(", ")
+                }
+            }
+        }
+        
     }
 
     mutating func printName(_ name: Node, asPrefixContext: Bool) -> Node? {

@@ -51,6 +51,7 @@ final class DyldCacheSymbolDemangleTests: DyldCacheTests {
             string += node.print(using: .default)
             string += "\n"
             string += node.description
+            string += "\n"
             string += "---------------------------------------"
             string += "\n"
             string += "\n"

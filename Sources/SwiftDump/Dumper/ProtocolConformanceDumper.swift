@@ -71,20 +71,20 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
 
                     Indent(level: 1)
 
-                    if let symbols = try resilientWitness.implementationSymbols(in: machO), let validNode = try validNode(for: symbols, typeName: typeNameString, visitedNode: visitedNodes) {
-                        _ = visitedNodes.append(validNode)
-                        validNode.printSemantic(using: options)
+                    if let symbols = try resilientWitness.implementationSymbols(in: machO), let node = try _node(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes) {
+                        _ = visitedNodes.append(node)
+                        node.printSemantic(using: options)
                     } else if let requirement = try resilientWitness.requirement(in: machO) {
                         switch requirement {
                         case .symbol(let symbol):
                             try MetadataReader.demangleSymbol(for: symbol, in: machO)?.printSemantic(using: options)
                         case .element(let element):
-                            if let symbols = try Symbols.resolve(from: element.offset, in: machO), let validNode = try validNode(for: symbols, typeName: typeNameString, visitedNode: visitedNodes) {
-                                _ = visitedNodes.append(validNode)
-                                validNode.printSemantic(using: options)
-                            } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machO), let validNode = try validNode(for: defaultImplementationSymbols, typeName: typeNameString, visitedNode: visitedNodes) {
-                                _ = visitedNodes.append(validNode)
-                                validNode.printSemantic(using: options)
+                            if let symbols = try Symbols.resolve(from: element.offset, in: machO), let node = try _node(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes) {
+                                _ = visitedNodes.append(node)
+                                node.printSemantic(using: options)
+                            } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machO), let node = try _node(for: defaultImplementationSymbols, typeName: typeNameString, visitedNodes: visitedNodes) {
+                                _ = visitedNodes.append(node)
+                                node.printSemantic(using: options)
                             } else if !element.defaultImplementation.isNull {
                                 FunctionDeclaration(addressString(of: element.defaultImplementation.resolveDirectOffset(from: element.offset(of: \.defaultImplementation)), in: machO).insertSubFunctionPrefix)
                             } else if !resilientWitness.implementation.isNull {
@@ -151,9 +151,9 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
         }
     }
 
-    private func validNode(for symbols: Symbols, typeName: String, visitedNode: borrowing OrderedSet<Node> = []) throws -> Node? {
+    private func _node(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<Node> = []) throws -> Node? {
         for symbol in symbols {
-            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolConformanceNode = node.preorder().first(where: { $0.kind == .protocolConformance }), let symbolTypeName = protocolConformanceNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.entry(in: machO)?.primitiveType(for: typeName) == symbolTypeName {
+            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolConformanceNode = node.preorder().first(where: { $0.kind == .protocolConformance }), let symbolTypeName = protocolConformanceNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.entry(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(node) {
                 return node
             }
         }

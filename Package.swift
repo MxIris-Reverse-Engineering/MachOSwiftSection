@@ -27,6 +27,8 @@ if isSilentTest {
     testSettings.append(.define("SILENT_TEST"))
 }
 
+let MachOKitVersion: Version = "0.38.0"
+
 extension Package.Dependency {
     static let MachOKit: Package.Dependency = {
         if useSPMPrebuildVersion {
@@ -38,7 +40,7 @@ extension Package.Dependency {
 
     static let MachOKitOrigin = Package.Dependency.package(
         url: "https://github.com/p-x9/MachOKit.git",
-        from: "0.35.1"
+        from: MachOKitVersion
     )
 
     static let MachOKitMain = Package.Dependency.package(
@@ -48,7 +50,7 @@ extension Package.Dependency {
 
     static let MachOKitSPM = Package.Dependency.package(
         url: "https://github.com/p-x9/MachOKit-SPM",
-        from: "0.35.1"
+        from: MachOKitVersion
     )
 }
 
@@ -102,6 +104,10 @@ let package = Package(
         .library(
             name: "SwiftDump",
             targets: ["SwiftDump"]
+        ),
+        .library(
+            name: "SwiftInterface",
+            targets: ["SwiftInterface"]
         ),
         .executable(
             name: "swift-section",

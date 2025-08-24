@@ -160,12 +160,11 @@ extension Node {
 
 extension Node: Sequence {
     public typealias Element = Node
-    
+
     public func makeIterator() -> some IteratorProtocol<Node> {
         preorder().makeIterator()
     }
 }
-
 
 extension Sequence where Element == Node {
     public func first(of kind: Node.Kind) -> Node? {
@@ -183,19 +182,23 @@ extension Sequence where Element == Node {
     public func contains(_ kinds: Node.Kind...) -> Bool {
         contains { kinds.contains($0.kind) }
     }
-    
+
     public func all(of kind: Node.Kind) -> [Node] {
         filter { $0.kind == kind }
     }
-    
+
     public func all(of kinds: Node.Kind...) -> [Node] {
+        filter { kinds.contains($0.kind) }
+    }
+
+    public func all(of kinds: [Node.Kind]) -> [Node] {
         filter { kinds.contains($0.kind) }
     }
     
     public func filter(of kind: Node.Kind) -> some Sequence<Node> {
         filter { $0.kind == kind }
     }
-    
+
     public func filter(of kinds: Node.Kind...) -> some Sequence<Node> {
         filter { kinds.contains($0.kind) }
     }

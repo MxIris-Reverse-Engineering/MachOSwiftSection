@@ -58,6 +58,27 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
             }
         }
     }
+    
+    @SemanticStringBuilder
+    package var associatedTypes: SemanticString {
+        get throws {
+            let associatedTypes = try `protocol`.descriptor.associatedTypes(in: machO)
+
+            if !associatedTypes.isEmpty {
+                for (offset, associatedType) in associatedTypes.offsetEnumerated() {
+                    BreakLine()
+                    Indent(level: configuration.indentation)
+                    Keyword(.associatedtype)
+                    Space()
+                    TypeDeclaration(kind: .other, associatedType)
+                    if offset.isEnd {
+                        BreakLine()
+                    }
+                }
+            }
+        }
+    }
+    
 
     package var body: SemanticString {
         get throws {
@@ -67,26 +88,13 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
 
             Standard("{")
 
-            let associatedTypes = try `protocol`.descriptor.associatedTypes(in: machO)
-
-            if !associatedTypes.isEmpty {
-                for (offset, associatedType) in associatedTypes.offsetEnumerated() {
-                    BreakLine()
-                    Indent(level: 1)
-                    Keyword(.associatedtype)
-                    Space()
-                    TypeDeclaration(kind: .other, associatedType)
-                    if offset.isEnd {
-                        BreakLine()
-                    }
-                }
-            }
+            try associatedTypes
 
             var defaultImplementations: OrderedSet<Node> = []
 
             for (offset, requirement) in `protocol`.requirements.offsetEnumerated() {
                 BreakLine()
-                Indent(level: 1)
+                Indent(level: configuration.indentation)
                 if let symbols = try Symbols.resolve(from: requirement.offset, in: machO), let validNode = try validNode(for: symbols) {
                     validNode.printSemantic(using: options)
                 } else {
@@ -105,12 +113,12 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
             for (offset, defaultImplementation) in defaultImplementations.offsetEnumerated() {
                 if offset.isStart {
                     BreakLine()
-                    Indent(level: 1)
+                    Indent(level: configuration.indentation)
                     InlineComment("[Default Implementation]")
                 }
 
                 BreakLine()
-                Indent(level: 1)
+                Indent(level: configuration.indentation)
                 defaultImplementation.printSemantic(using: options)
 
                 if offset.isEnd {
@@ -134,7 +142,7 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
     private func validNode(for symbols: Symbols, visitedNode: borrowing OrderedSet<Node> = []) throws -> Node? {
         let currentInterfaceName = try _name(using: .interfaceType).string
         for symbol in symbols {
-            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolNode = node.preorder().first(where: { $0.kind == .protocol }), protocolNode.print(using: .interfaceType) == currentInterfaceName, !visitedNode.contains(node) {
+            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), protocolNode.print(using: .interfaceType) == currentInterfaceName, !visitedNode.contains(node) {
                 return node
             }
         }

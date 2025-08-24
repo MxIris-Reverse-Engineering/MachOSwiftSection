@@ -37,8 +37,10 @@ package class DyldCacheTests {
     
     package class var cacheImageName: MachOImageName { .AttributeGraph }
     
+    package class var cachePath: DyldSharedCachePath { .current }
+    
     package init() async throws {
-        self.mainCache = try DyldCache(path: .current)
+        self.mainCache = try DyldCache(path: Self.cachePath)
         self.subCache = try required(mainCache.subCaches?.first?.subcache(for: mainCache))
         self.machOFileInMainCache = try #require(mainCache.machOFile(named: Self.mainCacheImageName))
         self.machOFileInSubCache = try #require(subCache.machOFile(named: Self.subCacheImageName))

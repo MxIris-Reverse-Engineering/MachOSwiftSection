@@ -547,3 +547,30 @@ extension Node.Kind: CustomStringConvertible {
 }
 
 
+extension Sequence where Element == Node.Kind {
+    public static var requirementKinds: [Node.Kind] {
+        return [
+            .dependentGenericParamPackMarker,
+            .dependentGenericParamValueMarker,
+            .dependentGenericSameTypeRequirement,
+            .dependentGenericSameShapeRequirement,
+            .dependentGenericLayoutRequirement,
+            .dependentGenericConformanceRequirement,
+            .dependentGenericInverseConformanceRequirement
+        ]
+    }
+}
+
+extension Node {
+    package var identifier: String? {
+        if let node = first(of: .identifier) {
+            return node.text
+        } else if let node = first(of: .privateDeclName) {
+            return node.children.at(1)?.text
+        } else if let node = first(of: .prefixOperator, .postfixOperator, .infixOperator) {
+            return node.text
+        } else {
+            return nil
+        }
+    }
+}

@@ -5,10 +5,13 @@ import Semantic
 struct VariableNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, TypeNodePrintable, DependentGenericNodePrintable, FunctionTypeNodePrintable {
     let hasSetter: Bool
 
-    var target: SemanticString = ""
+    let indentation: Int
 
-    init(hasSetter: Bool) {
+    var target: SemanticString = ""
+    
+    init(hasSetter: Bool, indentation: Int) {
         self.hasSetter = hasSetter
+        self.indentation = indentation
     }
 
     enum Error: Swift.Error {
@@ -24,7 +27,7 @@ struct VariableNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, Typ
         if node.kind == .global, let first = node.children.first {
             try _printRoot(first)
         } else if node.kind == .variable {
-            printVariable(node)
+            try printVariable(node)
         } else if node.kind == .static, let first = node.children.first {
             target.write("static ")
             try _printRoot(first)
@@ -56,19 +59,34 @@ struct VariableNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, Typ
         return nil
     }
 
-    private mutating func printVariable(_ name: Node) {
-        guard let identifier = name.children.first(of: .identifier) else { return }
+    private mutating func printVariable(_ name: Node) throws {
+        let identifier: Node? = if let identifier = name.children.first(of: .identifier) {
+            identifier
+        } else if let privateDeclName = name.children.first(of: .privateDeclName) {
+            privateDeclName.children.at(1)
+        } else {
+            nil
+        }
+        guard let identifier else {
+            throw Error.onlySupportedForVariableNode
+        }
         target.write("var ")
         target.write(identifier.text ?? "", context: .context(for: identifier, state: .printIdentifier))
         target.write(": ")
         guard let type = name.children.first(of: .type) else { return }
         printName(type)
 
-        target.write(" { ")
+        target.write(" {")
+        target.write("\n")
+        target.write(String(repeating: " ", count: (indentation + 1) * 4))
+        target.write("get")
         if hasSetter {
-            target.write("set ")
+            target.write("\n")
+            target.write(String(repeating: " ", count: (indentation + 1) * 4))
+            target.write("set")
         }
-        target.write("get ")
+        target.write("\n")
+        target.write(String(repeating: " ", count: indentation * 4))
         target.write("}")
     }
 }

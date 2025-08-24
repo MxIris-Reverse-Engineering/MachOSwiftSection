@@ -3,6 +3,7 @@ extension Node: CustomStringConvertible {
     public var description: String {
         var string = ""
         printNode(output: &string, node: self)
+        string.removeLast() // Remove the last newline
         return string
     }
 

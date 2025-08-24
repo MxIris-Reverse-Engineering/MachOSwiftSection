@@ -15,7 +15,7 @@ final class NodePrinterTests: DyldCacheTests {
 
     @Test func variableNode() async throws {
         let variableNode = try demangleAsNode("_$s7SwiftUI38HostingViewTransparentBackgroundReasonVs10SetAlgebraAAsADP7isEmptySbvgTW")
-        var variableNodePrinter = VariableNodePrinter(hasSetter: true)
+        var variableNodePrinter = VariableNodePrinter(hasSetter: true, indentation: 0)
         try variableNodePrinter.printRoot(#require(variableNode.children.first)).string.print()
     }
 
