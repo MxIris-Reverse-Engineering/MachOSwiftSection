@@ -227,6 +227,8 @@ struct ExtensionDefinition: Definition {
 
     var staticFunctions: [FunctionDefinition] = []
 
+    var missingSymbolWitnesses: [ResilientWitness] = []
+    
     @SemanticStringBuilder
     func printName() -> SemanticString {
         switch kind {
@@ -247,7 +249,7 @@ struct ExtensionDefinition: Definition {
         guard let protocolConformance, !protocolConformance.resilientWitnesses.isEmpty else { return }
         func _node(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<Node> = []) throws -> Node? {
             for symbol in symbols {
-                if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolConformanceNode = node.first(of: .protocolConformance), let symbolTypeName = protocolConformanceNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.entry(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(node) {
+                if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolConformanceNode = node.first(of: .protocolConformance), let symbolTypeName = protocolConformanceNode.children.first?.print(using: .interfaceType), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.entry(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(node) {
                     return node
                 }
             }
@@ -292,11 +294,18 @@ struct ExtensionDefinition: Definition {
                         _ = visitedNodes.append(node)
                         addNode(node)
                     } else if !element.defaultImplementation.isNull {
+                        missingSymbolWitnesses.append(resilientWitness)
                     } else if !resilientWitness.implementation.isNull {
-                    } else {}
+                        missingSymbolWitnesses.append(resilientWitness)
+                    } else {
+                        missingSymbolWitnesses.append(resilientWitness)
+                    }
                 }
             } else if !resilientWitness.implementation.isNull {
-            } else {}
+                missingSymbolWitnesses.append(resilientWitness)
+            } else {
+                missingSymbolWitnesses.append(resilientWitness)
+            }
         }
 
         for (kind, memberSymbols) in memberSymbolsByKind {
@@ -832,6 +841,16 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             try dumper.records
         }
         try printDefinition(extensionDefinition, level: 1)
+        
+        for (offset, missingSymbolWitness) in extensionDefinition.missingSymbolWitnesses.offsetEnumerated() {
+            BreakLine()
+            Indent(level: 1)
+            Standard("// Missing implementation for requirement: \(missingSymbolWitness)")
+            if offset.isEnd {
+                BreakLine()
+            }
+        }
+        
         Standard("}")
     }
 
