@@ -5,6 +5,15 @@ import MachOFoundation
 import MachOMacro
 
 public enum MetadataReader {
+    public static func demangle<MachO: MachORepresentableWithCache & MachOReadable>(for mangledName: MangledName, in machO: MachO) throws -> Node {
+        let rawString = mangledName.rawString
+        if rawString.isStartWithManglePrefix {
+            return try demangle(for: mangledName, kind: .symbol, in: machO)
+        } else {
+            return try demangle(for: mangledName, kind: .type, in: machO)
+        }
+    }
+    
     public static func demangleType<MachO: MachORepresentableWithCache & MachOReadable>(for mangledName: MangledName, in machO: MachO) throws -> Node {
         return try demangle(for: mangledName, kind: .type, in: machO)
     }
@@ -29,9 +38,9 @@ public enum MetadataReader {
     private static func demangle<MachO: MachORepresentableWithCache & MachOReadable>(for mangledName: MangledName, kind: MangledNameKind, useOpaqueTypeSymbolicReferences: Bool = false, in machO: MachO) throws -> Node {
         let stringValue = switch kind {
         case .type:
-            mangledName.typeStringValue()
+            mangledName.typeString
         case .symbol:
-            mangledName.symbolStringValue()
+            mangledName.symbolString
         }
 //        var demangler = Demangler(scalars: stringValue.unicodeScalars)
         let symbolicReferenceResolver: SymbolicReferenceResolver = { kind, directness, index -> Node? in
@@ -74,16 +83,16 @@ public enum MetadataReader {
                     result = .init(kind: .accessorFunctionReference, contents: .index(address(of: RelativeDirectRawPointer(relativeOffset: relativeOffset).resolveDirectOffset(from: offset), in: machO)))
                 case .uniqueExtendedExistentialTypeShape:
                     let extendedExistentialTypeShape = try RelativeDirectPointer<ExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: offset, in: machO)
-                    let existentialType = try extendedExistentialTypeShape.existentialType(in: machO).symbolStringValue()
+                    let existentialType = try extendedExistentialTypeShape.existentialType(in: machO).symbolString
                     result = try .init(kind: .uniqueExtendedExistentialTypeShapeSymbolicReference, children: demangleAsNode(existentialType.insertManglePrefix).children)
                 case .nonUniqueExtendedExistentialTypeShape:
                     let nonUniqueExtendedExistentialTypeShape = try RelativeDirectPointer<NonUniqueExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: offset, in: machO)
-                    let existentialType = try nonUniqueExtendedExistentialTypeShape.existentialType(in: machO).symbolStringValue()
+                    let existentialType = try nonUniqueExtendedExistentialTypeShape.existentialType(in: machO).symbolString
                     result = try .init(kind: .nonUniqueExtendedExistentialTypeShapeSymbolicReference, children: demangleAsNode(existentialType.insertManglePrefix).children)
                 case .objectiveCProtocol:
                     let relativePointer = RelativeDirectPointer<RelativeObjCProtocolPrefix>(relativeOffset: relativeOffset)
                     let objcProtocol = try relativePointer.resolve(from: offset, in: machO)
-                    let name = try objcProtocol.mangledName(in: machO).symbolStringValue()
+                    let name = try objcProtocol.mangledName(in: machO).symbolString
                     result = try demangleAsNode(name).typeSymbol
                 }
                 return result
@@ -357,7 +366,7 @@ public enum MetadataReader {
                 return try buildContextManglingForSymbol(symbol, in: machO)
             case .element(let objcPrefix):
                 let mangledName = try objcPrefix.mangledName(in: machO)
-                let name = mangledName.symbolStringValue()
+                let name = mangledName.symbolString
                 if name.starts(with: "_TtP") {
                     var demangled = try demangle(for: mangledName, kind: .symbol, in: machO)
                     while demangled.kind == .global ||

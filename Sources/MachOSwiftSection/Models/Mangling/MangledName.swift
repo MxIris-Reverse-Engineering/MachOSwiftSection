@@ -64,9 +64,9 @@ public struct MangledName: Sendable {
         elements.compactMap { if case .lookup(let lookup) = $0 { lookup } else { nil } }
     }
 
-    public func symbolStringValue() -> String {
+    public var symbolString: String {
         guard !elements.isEmpty else { return "" }
-        let rawStringValue = rawStringValue()
+        let rawStringValue = rawString
         if rawStringValue.isStartWithManglePrefix {
             return rawStringValue
         } else {
@@ -74,9 +74,9 @@ public struct MangledName: Sendable {
         }
     }
 
-    public func typeStringValue() -> String {
+    public var typeString: String {
         guard !elements.isEmpty else { return "" }
-        let rawStringValue = rawStringValue()
+        let rawStringValue = rawString
         if rawStringValue.isStartWithManglePrefix {
             return rawStringValue.stripManglePrefix
         } else {
@@ -84,7 +84,7 @@ public struct MangledName: Sendable {
         }
     }
     
-    public func rawStringValue() -> String {
+    public var rawString: String {
         guard !elements.isEmpty else { return "" }
         var results: [String] = []
         for element in elements {

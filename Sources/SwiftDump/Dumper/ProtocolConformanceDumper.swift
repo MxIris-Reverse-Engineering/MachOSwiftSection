@@ -88,7 +88,11 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
                             } else if !element.defaultImplementation.isNull {
                                 FunctionDeclaration(addressString(of: element.defaultImplementation.resolveDirectOffset(from: element.offset(of: \.defaultImplementation)), in: machO).insertSubFunctionPrefix)
                             } else if !resilientWitness.implementation.isNull {
-                                FunctionDeclaration(addressString(of: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation)), in: machO).insertSubFunctionPrefix)
+//                                do {
+//                                    try MetadataReader.demangle(for: MangledName.resolve(from: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation)) - 1, in: machO), in: machO).printSemantic(using: options)
+//                                } catch {
+                                    FunctionDeclaration(addressString(of: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation)), in: machO).insertSubFunctionPrefix)
+//                                }
                             } else {
                                 Error("Symbol not found")
                             }

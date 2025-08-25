@@ -153,7 +153,7 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
 
 extension GenericRequirement {
     var isProtocolInherited: Bool {
-        paramManagledName.rawStringValue() == "x" && (flags.kind == .protocol || flags.kind == .layout || flags.kind == .baseClass)
+        paramManagledName.rawString == "x" && (flags.kind == .protocol || flags.kind == .layout || flags.kind == .baseClass)
     }
 }
 

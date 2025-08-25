@@ -77,7 +77,7 @@ extension GenericRequirementDescriptor {
             case .element(let element):
                 switch element {
                 case .objc(let objc):
-                    try TypeName(kind: .protocol, objc.mangledName(in: machO).rawStringValue())
+                    try TypeName(kind: .protocol, objc.mangledName(in: machO).rawString)
                 case .swift(let protocolDescriptor):
                     try MetadataReader.demangleContext(for: .protocol(protocolDescriptor), in: machO).printSemantic(using: options)
                 }
