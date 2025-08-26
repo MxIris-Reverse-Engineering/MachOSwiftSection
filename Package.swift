@@ -75,6 +75,10 @@ extension Target.Dependency {
         name: "SwiftSyntax",
         package: "swift-syntax"
     )
+    static let SwiftParser = Target.Dependency.product(
+        name: "SwiftParser",
+        package: "swift-syntax"
+    )
     static let SwiftSyntaxMacros = Target.Dependency.product(
         name: "SwiftSyntaxMacros",
         package: "swift-syntax"
@@ -262,6 +266,9 @@ let package = Package(
                 "SwiftDump",
                 "Semantic",
                 "Utilities",
+                .SwiftSyntax,
+                .SwiftParser,
+                .SwiftSyntaxBuilder,
             ]
         ),
 

@@ -8,7 +8,7 @@ import Semantic
 import SwiftStdlibToolbox
 
 @MemberwiseInit
-struct TypeName: Hashable {
+struct TypeName: Hashable, Sendable {
     let name: String
     let kind: TypeKind
 
@@ -29,52 +29,65 @@ struct TypeName: Hashable {
     }
 }
 
-enum TypeKind: Hashable {
+enum TypeKind: Hashable, Sendable {
     case `enum`
     case `struct`
     case `class`
 }
 
 @MemberwiseInit
-struct ProtocolName: Hashable {
+struct ProtocolName: Hashable, Sendable {
     let name: String
 }
 
-@MemberwiseInit
 final class TypeDefinition: Definition {
     let type: TypeWrapper
 
     let typeName: TypeName
 
+    @Mutex
     weak var parent: TypeDefinition?
 
+    @Mutex
     var typeChildren: [TypeDefinition] = []
 
+    @Mutex
     var protocolChildren: [ProtocolDefinition] = []
 
-    var extensionContext: ExtensionContext?
+    @Mutex
+    var extensionContext: ExtensionContext? = nil
 
+    @Mutex
     var extensions: [ExtensionDefinition] = []
 
+    @Mutex
     var fields: [TypeFieldDefinition] = []
 
+    @Mutex
     var variables: [VariableDefinition] = []
 
+    @Mutex
     var functions: [FunctionDefinition] = []
 
+    @Mutex
     var staticVariables: [VariableDefinition] = []
 
+    @Mutex
     var staticFunctions: [FunctionDefinition] = []
 
+    @Mutex
     var allocators: [FunctionDefinition] = []
 
+    @Mutex
     var hasDeallocator: Bool = false
 
     var hasMembers: Bool {
         !fields.isEmpty || !variables.isEmpty || !functions.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !allocators.isEmpty || hasDeallocator
     }
 
-    func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws {
+    init<MachO: MachOSwiftSectionRepresentableWithCache>(type: TypeWrapper, in machO: MachO) throws {
+        self.type = type
+        self.typeName = try type.typeName(in: machO)
         var fields: [TypeFieldDefinition] = []
         let typeContextDescriptor = try required(type.contextDescriptorWrapper.typeContextDescriptor)
         let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machO)
@@ -94,15 +107,17 @@ final class TypeDefinition: Definition {
 
         let fieldNames = Set(fields.map(\.name))
 
-        variables = Self.variables(for: SymbolIndexStore.shared.memberSymbols(of: .variable, for: typeName.name, in: machO).map(\.demangledNode), fieldNames: fieldNames)
-        staticVariables = Self.variables(for: SymbolIndexStore.shared.memberSymbols(of: .staticVariable, for: typeName.name, in: machO).map(\.demangledNode), fieldNames: fieldNames)
+        self.variables = DefinitionBuilder.variables(for: SymbolIndexStore.shared.memberSymbols(of: .variable, for: typeName.name, in: machO).map(\.demangledNode), fieldNames: fieldNames)
+        self.staticVariables = DefinitionBuilder.variables(for: SymbolIndexStore.shared.memberSymbols(of: .staticVariable, for: typeName.name, in: machO).map(\.demangledNode), fieldNames: fieldNames)
 
-        functions = Self.functions(for: SymbolIndexStore.shared.memberSymbols(of: .function, for: typeName.name, in: machO).map(\.demangledNode))
-        staticFunctions = Self.functions(for: SymbolIndexStore.shared.memberSymbols(of: .staticFunction, for: typeName.name, in: machO).map(\.demangledNode))
-        allocators = Self.allocators(for: SymbolIndexStore.shared.memberSymbols(of: .allocator, for: typeName.name, in: machO).map(\.demangledNode))
-        hasDeallocator = !SymbolIndexStore.shared.memberSymbols(of: .deallocator, for: typeName.name, in: machO).isEmpty
+        self.functions = DefinitionBuilder.functions(for: SymbolIndexStore.shared.memberSymbols(of: .function, for: typeName.name, in: machO).map(\.demangledNode))
+        self.staticFunctions = DefinitionBuilder.functions(for: SymbolIndexStore.shared.memberSymbols(of: .staticFunction, for: typeName.name, in: machO).map(\.demangledNode))
+        self.allocators = DefinitionBuilder.allocators(for: SymbolIndexStore.shared.memberSymbols(of: .allocator, for: typeName.name, in: machO).map(\.demangledNode))
+        self.hasDeallocator = !SymbolIndexStore.shared.memberSymbols(of: .deallocator, for: typeName.name, in: machO).isEmpty
     }
+}
 
+enum DefinitionBuilder {
     static func variables(for nodes: [Node], fieldNames: borrowing Set<String>) -> [VariableDefinition] {
         typealias NodeAndVariableKinds = (node: Node, kind: VariableKind)
         var variables: [VariableDefinition] = []
@@ -154,16 +169,16 @@ extension Node {
     }
 }
 
-protocol Definition {
-    var allocators: [FunctionDefinition] { get set }
-    var variables: [VariableDefinition] { get set }
-    var functions: [FunctionDefinition] { get set }
-    var staticVariables: [VariableDefinition] { get set }
-    var staticFunctions: [FunctionDefinition] { get set }
+protocol Definition: Sendable {
+    var allocators: [FunctionDefinition] { get }
+    var variables: [VariableDefinition] { get }
+    var functions: [FunctionDefinition] { get }
+    var staticVariables: [VariableDefinition] { get }
+    var staticFunctions: [FunctionDefinition] { get }
 }
 
 @MemberwiseInit
-struct TypeFieldDefinition {
+struct TypeFieldDefinition: Sendable {
     let node: Node
     let name: String
     let isLazy: Bool
@@ -172,14 +187,14 @@ struct TypeFieldDefinition {
     let isIndirectCase: Bool
 }
 
-enum VariableKind {
+enum VariableKind: Sendable {
     case getter
     case setter
     case modifyAccessor
 }
 
 @MemberwiseInit
-struct VariableDefinition {
+struct VariableDefinition: Sendable {
     let node: Node
     let name: String
     let hasSetter: Bool
@@ -187,8 +202,8 @@ struct VariableDefinition {
 }
 
 @MemberwiseInit
-struct FunctionDefinition {
-    enum Kind {
+struct FunctionDefinition: Sendable {
+    enum Kind: Sendable {
         case function
         case allocator
         case deallocator
@@ -311,15 +326,15 @@ struct ExtensionDefinition: Definition {
         for (kind, memberSymbols) in memberSymbolsByKind {
             switch kind {
             case .variable:
-                variables = TypeDefinition.variables(for: memberSymbols, fieldNames: [])
+                variables = DefinitionBuilder.variables(for: memberSymbols, fieldNames: [])
             case .allocator:
-                allocators = TypeDefinition.allocators(for: memberSymbols)
+                allocators = DefinitionBuilder.allocators(for: memberSymbols)
             case .function:
-                functions = TypeDefinition.functions(for: memberSymbols)
+                functions = DefinitionBuilder.functions(for: memberSymbols)
             case .staticVariable:
-                staticVariables = TypeDefinition.variables(for: memberSymbols, fieldNames: [])
+                staticVariables = DefinitionBuilder.variables(for: memberSymbols, fieldNames: [])
             case .staticFunction:
-                staticFunctions = TypeDefinition.functions(for: memberSymbols)
+                staticFunctions = DefinitionBuilder.functions(for: memberSymbols)
             default:
                 break
             }
@@ -350,21 +365,26 @@ enum ProtocolRequirementDefinition {
     }
 }
 
-@MemberwiseInit
-final class ProtocolDefinition {
+final class ProtocolDefinition: Sendable {
     let `protocol`: MachOSwiftSection.`Protocol`
 
+    @Mutex
     weak var parent: TypeDefinition?
 
-    var extensionContext: ExtensionContext?
+    @Mutex
+    var extensionContext: ExtensionContext? = nil
 
+    @Mutex
     var requirements: [ProtocolRequirementDefinition] = []
 
+    @Mutex
     var defaultImplementationRequirements: [ProtocolRequirementDefinition] = []
 
+    @Mutex
     var extensions: [ProtocolExtensionDefinition] = []
 
-    func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws {
+    init<MachO: MachOSwiftSectionRepresentableWithCache>(`protocol`: MachOSwiftSection.`Protocol`, in machO: MachO) throws {
+        self.protocol = `protocol`
         func _name() throws -> SemanticString {
             try MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO).printSemantic(using: .interfaceType).replacingTypeNameOrOtherToTypeDeclaration()
         }
@@ -523,14 +543,10 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for type in types {
             guard let isCImportedContext = try? type.contextDescriptorWrapper.contextDescriptor.isCImportedContextDescriptor(in: machO), !isCImportedContext else { continue }
 
-            guard let typeName = try? type.typeName(in: machO) else { continue }
-
-            let declaration = TypeDefinition(type: type, typeName: typeName)
-
             do {
-                try declaration.index(in: machO)
-                definitionsCache[typeName] = declaration
-                allNames.insert(typeName.name)
+                let declaration = try TypeDefinition(type: type, in: machO)
+                definitionsCache[declaration.typeName] = declaration
+                allNames.insert(declaration.typeName.name)
             } catch {
                 print(error)
             }
@@ -628,15 +644,15 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                     let nodes = memberSymbols.map(\.demangledNode)
                     switch kind {
                     case .allocatorInExtension:
-                        extensionDefinition.allocators.append(contentsOf: TypeDefinition.allocators(for: nodes))
+                        extensionDefinition.allocators.append(contentsOf: DefinitionBuilder.allocators(for: nodes))
                     case .variableInExtension:
-                        extensionDefinition.variables.append(contentsOf: TypeDefinition.variables(for: nodes, fieldNames: []))
+                        extensionDefinition.variables.append(contentsOf: DefinitionBuilder.variables(for: nodes, fieldNames: []))
                     case .functionInExtension:
-                        extensionDefinition.functions.append(contentsOf: TypeDefinition.functions(for: nodes))
+                        extensionDefinition.functions.append(contentsOf: DefinitionBuilder.functions(for: nodes))
                     case .staticVariableInExtension:
-                        extensionDefinition.staticVariables.append(contentsOf: TypeDefinition.variables(for: nodes, fieldNames: []))
+                        extensionDefinition.staticVariables.append(contentsOf: DefinitionBuilder.variables(for: nodes, fieldNames: []))
                     case .staticFunctionInExtension:
-                        extensionDefinition.staticFunctions.append(contentsOf: TypeDefinition.functions(for: nodes))
+                        extensionDefinition.staticFunctions.append(contentsOf: DefinitionBuilder.functions(for: nodes))
                     default:
                         break
                     }
@@ -693,8 +709,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         for `protocol` in protocols {
             do {
-                let protocolDefinition = ProtocolDefinition(protocol: `protocol`)
-                try protocolDefinition.index(in: machO)
+                let protocolDefinition = try ProtocolDefinition(protocol: `protocol`, in: machO)
                 let protocolName = try `protocol`.protocolName(in: machO)
                 protocolDefinitions[protocolName] = protocolDefinition
                 allNames.insert(protocolName.name)
