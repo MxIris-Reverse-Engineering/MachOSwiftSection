@@ -1,12 +1,14 @@
 import MachOKit
 import MachOFoundation
 import MachOMacro
+import Demangle
 
 @dynamicMemberLookup
 public protocol ContextDescriptorProtocol: ResolvableLocatableLayoutWrapper where Layout: ContextDescriptorLayout {
     func genericContext<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> GenericContext?
     func parent<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> SymbolOrElement<ContextDescriptorWrapper>?
     func moduleContextDesciptor<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> (any ModuleContextDescriptorProtocol)?
+    func isCImportedContextDescriptor<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> Bool
 }
 
 
@@ -40,5 +42,11 @@ extension ContextDescriptorProtocol {
         get {
             return layout[keyPath: keyPath]
         }
+    }
+    
+    public func isCImportedContextDescriptor<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> Bool {
+        guard let moduleContextDescriptor = try moduleContextDesciptor(in: machO) else { return false }
+        let moduleName = try moduleContextDescriptor.name(in: machO)
+        return moduleName == cModule || moduleName == objcModule
     }
 }
