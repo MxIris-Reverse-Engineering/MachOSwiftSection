@@ -17,7 +17,7 @@ struct FunctionNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, Typ
 
     private mutating func _printRoot(_ node: Node) throws {
         if node.kind == .global, let first = node.children.first {
-            if first.kind == .asyncFunctionPointer, let second = node.children.second {
+            if first.isKind(of: .asyncFunctionPointer, .mergedFunction), let second = node.children.second {
                 try _printRoot(second)
             } else {
                 try _printRoot(first)

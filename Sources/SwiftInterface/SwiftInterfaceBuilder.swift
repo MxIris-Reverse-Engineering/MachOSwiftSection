@@ -107,18 +107,18 @@ final class TypeDefinition: Definition {
 
         let fieldNames = Set(fields.map(\.name))
 
-        self.variables = DefinitionBuilder.variables(for: SymbolIndexStore.shared.memberSymbols(of: .variable, for: typeName.name, in: machO).map(\.demangledNode), fieldNames: fieldNames)
-        self.staticVariables = DefinitionBuilder.variables(for: SymbolIndexStore.shared.memberSymbols(of: .staticVariable, for: typeName.name, in: machO).map(\.demangledNode), fieldNames: fieldNames)
+        self.variables = DefinitionBuilder.variables(for: SymbolIndexStore.shared.memberSymbols(of: .variable, for: typeName.name, in: machO).map(\.demangledNode), fieldNames: fieldNames, isStatic: false)
+        self.staticVariables = DefinitionBuilder.variables(for: SymbolIndexStore.shared.memberSymbols(of: .staticVariable, for: typeName.name, in: machO).map(\.demangledNode), fieldNames: fieldNames, isStatic: true)
 
-        self.functions = DefinitionBuilder.functions(for: SymbolIndexStore.shared.memberSymbols(of: .function, for: typeName.name, in: machO).map(\.demangledNode))
-        self.staticFunctions = DefinitionBuilder.functions(for: SymbolIndexStore.shared.memberSymbols(of: .staticFunction, for: typeName.name, in: machO).map(\.demangledNode))
+        self.functions = DefinitionBuilder.functions(for: SymbolIndexStore.shared.memberSymbols(of: .function, for: typeName.name, in: machO).map(\.demangledNode), isStatic: false)
+        self.staticFunctions = DefinitionBuilder.functions(for: SymbolIndexStore.shared.memberSymbols(of: .staticFunction, for: typeName.name, in: machO).map(\.demangledNode), isStatic: true)
         self.allocators = DefinitionBuilder.allocators(for: SymbolIndexStore.shared.memberSymbols(of: .allocator, for: typeName.name, in: machO).map(\.demangledNode))
         self.hasDeallocator = !SymbolIndexStore.shared.memberSymbols(of: .deallocator, for: typeName.name, in: machO).isEmpty
     }
 }
 
 enum DefinitionBuilder {
-    static func variables(for nodes: [Node], fieldNames: borrowing Set<String>) -> [VariableDefinition] {
+    static func variables(for nodes: [Node], fieldNames: borrowing Set<String>, isStatic: Bool) -> [VariableDefinition] {
         typealias NodeAndVariableKinds = (node: Node, kind: VariableKind)
         var variables: [VariableDefinition] = []
         var nodeAndVariableKindsByName: [String: [NodeAndVariableKinds]] = [:]
@@ -134,7 +134,7 @@ enum DefinitionBuilder {
             let nodes = nodeAndVariableKinds.map(\.node)
             guard let node = nodes.first(where: { $0.contains(.getter) }) else { continue }
             let kinds = nodeAndVariableKinds.map(\.kind)
-            variables.append(.init(node: node, name: name, hasSetter: kinds.contains(.setter), hasModifyAccessor: kinds.contains(.modifyAccessor)))
+            variables.append(.init(node: node, name: name, hasSetter: kinds.contains(.setter), hasModifyAccessor: kinds.contains(.modifyAccessor), isStatic: isStatic))
         }
         return variables
     }
@@ -142,16 +142,16 @@ enum DefinitionBuilder {
     static func allocators(for nodes: [Node]) -> [FunctionDefinition] {
         var allocators: [FunctionDefinition] = []
         for node in nodes {
-            allocators.append(.init(node: node, name: "", kind: .allocator))
+            allocators.append(.init(node: node, name: "", kind: .allocator, isStatic: true))
         }
         return allocators
     }
 
-    static func functions(for nodes: [Node]) -> [FunctionDefinition] {
+    static func functions(for nodes: [Node], isStatic: Bool) -> [FunctionDefinition] {
         var functions: [FunctionDefinition] = []
         for node in nodes {
             guard let functionNode = node.first(of: .function), let name = functionNode.identifier else { continue }
-            functions.append(.init(node: node, name: name, kind: .function))
+            functions.append(.init(node: node, name: name, kind: .function, isStatic: isStatic))
         }
         return functions
     }
@@ -199,6 +199,7 @@ struct VariableDefinition: Sendable {
     let name: String
     let hasSetter: Bool
     let hasModifyAccessor: Bool
+    let isStatic: Bool
 }
 
 @MemberwiseInit
@@ -212,9 +213,9 @@ struct FunctionDefinition: Sendable {
     let node: Node
     let name: String
     let kind: Kind
+    let isStatic: Bool
 }
 
-@MemberwiseInit
 struct ExtensionDefinition: Definition {
     enum Kind {
         case type(TypeKind)
@@ -244,6 +245,10 @@ struct ExtensionDefinition: Definition {
 
     var missingSymbolWitnesses: [ResilientWitness] = []
 
+    var hasMembers: Bool {
+        !variables.isEmpty || !functions.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !allocators.isEmpty
+    }
+    
     @SemanticStringBuilder
     func printName() -> SemanticString {
         switch kind {
@@ -260,7 +265,12 @@ struct ExtensionDefinition: Definition {
         }
     }
 
-    mutating func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws {
+    init<MachO: MachOSwiftSectionRepresentableWithCache>(name: String, kind: Kind, genericSignature: Node?, protocolConformance: ProtocolConformance?, associatedType: AssociatedType?, in machO: MachO) throws {
+        self.name = name
+        self.kind = kind
+        self.genericSignature = genericSignature
+        self.protocolConformance = protocolConformance
+        self.associatedType = associatedType
         guard let protocolConformance, !protocolConformance.resilientWitnesses.isEmpty else { return }
         func _node(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<Node> = []) throws -> Node? {
             for symbol in symbols {
@@ -326,15 +336,15 @@ struct ExtensionDefinition: Definition {
         for (kind, memberSymbols) in memberSymbolsByKind {
             switch kind {
             case .variable:
-                variables = DefinitionBuilder.variables(for: memberSymbols, fieldNames: [])
+                variables = DefinitionBuilder.variables(for: memberSymbols, fieldNames: [], isStatic: false)
             case .allocator:
                 allocators = DefinitionBuilder.allocators(for: memberSymbols)
             case .function:
-                functions = DefinitionBuilder.functions(for: memberSymbols)
+                functions = DefinitionBuilder.functions(for: memberSymbols, isStatic: false)
             case .staticVariable:
-                staticVariables = DefinitionBuilder.variables(for: memberSymbols, fieldNames: [])
+                staticVariables = DefinitionBuilder.variables(for: memberSymbols, fieldNames: [], isStatic: true)
             case .staticFunction:
-                staticFunctions = DefinitionBuilder.functions(for: memberSymbols)
+                staticFunctions = DefinitionBuilder.functions(for: memberSymbols, isStatic: true)
             default:
                 break
             }
@@ -381,18 +391,17 @@ final class ProtocolDefinition: Sendable {
     var defaultImplementationRequirements: [ProtocolRequirementDefinition] = []
 
     @Mutex
-    var extensions: [ProtocolExtensionDefinition] = []
+    var defaultImplementationExtensions: [ExtensionDefinition] = []
 
     init<MachO: MachOSwiftSectionRepresentableWithCache>(`protocol`: MachOSwiftSection.`Protocol`, in machO: MachO) throws {
         self.protocol = `protocol`
         func _name() throws -> SemanticString {
             try MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO).printSemantic(using: .interfaceType).replacingTypeNameOrOtherToTypeDeclaration()
         }
-
+        let name = try _name().string
         func _node(for symbols: Symbols, visitedNodes: borrowing OrderedSet<Node> = []) throws -> Node? {
-            let currentInterfaceName = try _name().string
             for symbol in symbols {
-                if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), protocolNode.print(using: .interfaceType) == currentInterfaceName, !visitedNodes.contains(node) {
+                if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), protocolNode.print(using: .interfaceType) == name, !visitedNodes.contains(node) {
                     return node
                 }
             }
@@ -400,53 +409,70 @@ final class ProtocolDefinition: Sendable {
         }
         var requirements: [ProtocolRequirementDefinition] = []
         var defaultImplementationRequirements: [ProtocolRequirementDefinition] = []
-        var visitedNodes: OrderedSet<Node> = []
+        var requirementVisitedNodes: OrderedSet<Node> = []
+        var defaultImplementationVisitedNodes: OrderedSet<Node> = []
         var variableKindsByName: OrderedDictionary<String, Set<VariableKind>> = [:]
         var nodeAndRequirements: [(node: Node, requirement: ProtocolRequirement)] = []
         for requirement in `protocol`.requirements {
-            guard let symbols = try Symbols.resolve(from: requirement.offset, in: machO), let node = try? _node(for: symbols, visitedNodes: visitedNodes) else { continue }
+            guard let symbols = try Symbols.resolve(from: requirement.offset, in: machO), let node = try? _node(for: symbols, visitedNodes: requirementVisitedNodes) else { continue }
             nodeAndRequirements.append((node, requirement))
             if let variable = node.first(of: .variable), let name = variable.identifier, let variableKind = node.variableKind {
                 variableKindsByName[name, default: []].insert(variableKind)
             }
-            visitedNodes.append(node)
+            requirementVisitedNodes.append(node)
         }
         for (node, requirement) in nodeAndRequirements {
             let requirementDefinition: ProtocolRequirementDefinition
             if let variable = node.first(of: .variable), let name = variable.identifier, node.contains(.getter), let variableKinds = variableKindsByName[name] {
-                requirementDefinition = .variable(VariableDefinition(node: variable, name: name, hasSetter: variableKinds.contains(.setter), hasModifyAccessor: variableKinds.contains(.modifyAccessor)))
+                requirementDefinition = .variable(VariableDefinition(node: variable, name: name, hasSetter: variableKinds.contains(.setter), hasModifyAccessor: variableKinds.contains(.modifyAccessor), isStatic: !requirement.flags.isInstance))
             } else if node.contains(.allocator) {
-                requirementDefinition = .function(FunctionDefinition(node: node, name: "", kind: .allocator))
+                requirementDefinition = .function(FunctionDefinition(node: node, name: "", kind: .allocator, isStatic: true))
             } else if let function = node.first(of: .function), let name = function.identifier {
-                requirementDefinition = .function(FunctionDefinition(node: function, name: name, kind: .function))
+                requirementDefinition = .function(FunctionDefinition(node: function, name: name, kind: .function, isStatic: !requirement.flags.isInstance))
             } else {
                 continue
             }
             requirements.append(requirementDefinition)
-            if try requirement.defaultImplementationSymbols(in: machO) != nil {
-                defaultImplementationRequirements.append(requirementDefinition)
+            if let symbols = try requirement.defaultImplementationSymbols(in: machO), let node = try _node(for: symbols, visitedNodes: defaultImplementationVisitedNodes) {
+                switch requirementDefinition {
+                case .function(let function):
+                    defaultImplementationRequirements.append(.function(.init(node: node, name: function.name, kind: function.kind, isStatic: function.isStatic)))
+                case .variable(let variable):
+                    defaultImplementationRequirements.append(.variable(.init(node: node, name: variable.name, hasSetter: variable.hasSetter, hasModifyAccessor: variable.hasModifyAccessor, isStatic: variable.isStatic)))
+                }
+                defaultImplementationVisitedNodes.append(node)
             }
         }
         self.requirements = requirements
         self.defaultImplementationRequirements = defaultImplementationRequirements
+        var extensionDefinition = try ExtensionDefinition(name: name, kind: .protocol, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
+        for defaultImplementationRequirement in defaultImplementationRequirements {
+            switch defaultImplementationRequirement {
+            case .variable(let variableDefinition):
+                if variableDefinition.isStatic {
+                    extensionDefinition.staticVariables.append(variableDefinition)
+                } else {
+                    extensionDefinition.variables.append(variableDefinition)
+                }
+            case .function(let functionDefinition):
+                switch functionDefinition.kind {
+                case .function:
+                    if functionDefinition.isStatic {
+                        extensionDefinition.staticFunctions.append(functionDefinition)
+                    } else {
+                        extensionDefinition.functions.append(functionDefinition)
+                    }
+                case .allocator:
+                    extensionDefinition.allocators.append(functionDefinition)
+                case .deallocator:
+                    break
+                }
+            }
+        }
+        if extensionDefinition.hasMembers {
+            self.defaultImplementationExtensions = [extensionDefinition]
+        }
     }
-}
-
-@MemberwiseInit
-struct ProtocolExtensionDefinition: Definition {
-    let protocolName: ProtocolName
-
-    let genericSignature: Node?
-
-    var allocators: [FunctionDefinition] = []
-
-    var variables: [VariableDefinition] = []
-
-    var functions: [FunctionDefinition] = []
-
-    var staticVariables: [VariableDefinition] = []
-
-    var staticFunctions: [FunctionDefinition] = []
 }
 
 public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWithCache & Sendable>: Sendable {
@@ -614,8 +640,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         for (typeName, protocolConformances) in protocolConformancesByTypeName {
             for (protocolName, protocolConformance) in protocolConformances {
-                var extensionDefinition = try ExtensionDefinition(name: typeName.name, kind: .type(typeName.kind), genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO), protocolConformance: protocolConformance, associatedType: associatedTypesByTypeName[typeName]?[protocolName])
-                try extensionDefinition.index(in: machO)
+                let extensionDefinition = try ExtensionDefinition(name: typeName.name, kind: .type(typeName.kind), genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO), protocolConformance: protocolConformance, associatedType: associatedTypesByTypeName[typeName]?[protocolName], in: machO)
                 conformanceExtensionDefinitions[typeName, default: []].append(extensionDefinition)
             }
         }
@@ -638,21 +663,21 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         var typeAliasExtensionDefinitions: OrderedDictionary<String, [ExtensionDefinition]> = [:]
         for (name, memberSymbols) in memberSymbolsByName {
             guard let typeInfo = SymbolIndexStore.shared.typeInfo(for: name, in: machO) else { continue }
-            func extensionDefinition(of kind: ExtensionDefinition.Kind, for memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>, genericSignature: Node?) -> ExtensionDefinition {
-                var extensionDefinition = ExtensionDefinition(name: name, kind: kind, genericSignature: genericSignature, protocolConformance: nil, associatedType: nil)
+            func extensionDefinition(of kind: ExtensionDefinition.Kind, for memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>, genericSignature: Node?) throws -> ExtensionDefinition {
+                var extensionDefinition = try ExtensionDefinition(name: name, kind: kind, genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
                 for (kind, memberSymbols) in memberSymbolsByKind {
                     let nodes = memberSymbols.map(\.demangledNode)
                     switch kind {
                     case .allocatorInExtension:
                         extensionDefinition.allocators.append(contentsOf: DefinitionBuilder.allocators(for: nodes))
                     case .variableInExtension:
-                        extensionDefinition.variables.append(contentsOf: DefinitionBuilder.variables(for: nodes, fieldNames: []))
+                        extensionDefinition.variables.append(contentsOf: DefinitionBuilder.variables(for: nodes, fieldNames: [], isStatic: false))
                     case .functionInExtension:
-                        extensionDefinition.functions.append(contentsOf: DefinitionBuilder.functions(for: nodes))
+                        extensionDefinition.functions.append(contentsOf: DefinitionBuilder.functions(for: nodes, isStatic: false))
                     case .staticVariableInExtension:
-                        extensionDefinition.staticVariables.append(contentsOf: DefinitionBuilder.variables(for: nodes, fieldNames: []))
+                        extensionDefinition.staticVariables.append(contentsOf: DefinitionBuilder.variables(for: nodes, fieldNames: [], isStatic: true))
                     case .staticFunctionInExtension:
-                        extensionDefinition.staticFunctions.append(contentsOf: DefinitionBuilder.functions(for: nodes))
+                        extensionDefinition.staticFunctions.append(contentsOf: DefinitionBuilder.functions(for: nodes, isStatic: true))
                     default:
                         break
                     }
@@ -675,27 +700,27 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 let typeName = TypeName(name: name, kind: typeKind)
 
                 for (node, memberSymbolsByKind) in memberSymbolsByGenericSignature {
-                    typeExtensionDefinitions[typeName, default: []].append(extensionDefinition(of: .type(typeKind), for: memberSymbolsByKind, genericSignature: node))
+                    try typeExtensionDefinitions[typeName, default: []].append(extensionDefinition(of: .type(typeKind), for: memberSymbolsByKind, genericSignature: node))
                 }
                 if !memberSymbolsByKind.isEmpty {
-                    typeExtensionDefinitions[typeName, default: []].append(extensionDefinition(of: .type(typeKind), for: memberSymbolsByKind, genericSignature: nil))
+                    try typeExtensionDefinitions[typeName, default: []].append(extensionDefinition(of: .type(typeKind), for: memberSymbolsByKind, genericSignature: nil))
                 }
 
             } else if typeInfo.kind == .protocol {
                 let protocolName = ProtocolName(name: name)
 
                 for (node, memberSymbolsByKind) in memberSymbolsByGenericSignature {
-                    protocolExtensionDefinitions[protocolName, default: []].append(extensionDefinition(of: .protocol, for: memberSymbolsByKind, genericSignature: node))
+                    try protocolExtensionDefinitions[protocolName, default: []].append(extensionDefinition(of: .protocol, for: memberSymbolsByKind, genericSignature: node))
                 }
                 if !memberSymbolsByKind.isEmpty {
-                    protocolExtensionDefinitions[protocolName, default: []].append(extensionDefinition(of: .protocol, for: memberSymbolsByKind, genericSignature: nil))
+                    try protocolExtensionDefinitions[protocolName, default: []].append(extensionDefinition(of: .protocol, for: memberSymbolsByKind, genericSignature: nil))
                 }
             } else {
                 for (node, memberSymbolsByKind) in memberSymbolsByGenericSignature {
-                    typeAliasExtensionDefinitions[name, default: []].append(extensionDefinition(of: .typeAlias, for: memberSymbolsByKind, genericSignature: node))
+                    try typeAliasExtensionDefinitions[name, default: []].append(extensionDefinition(of: .typeAlias, for: memberSymbolsByKind, genericSignature: node))
                 }
                 if !memberSymbolsByKind.isEmpty {
-                    typeAliasExtensionDefinitions[name, default: []].append(extensionDefinition(of: .typeAlias, for: memberSymbolsByKind, genericSignature: nil))
+                    try typeAliasExtensionDefinitions[name, default: []].append(extensionDefinition(of: .typeAlias, for: memberSymbolsByKind, genericSignature: nil))
                 }
             }
         }
@@ -837,6 +862,13 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             }
         }
         Standard("}")
+        for (offset, extensionDefinition) in protocolDefinition.defaultImplementationExtensions.offsetEnumerated() {
+            BreakLine()
+            try printExtensionDefinition(extensionDefinition)
+            if offset.isEnd {
+                BreakLine()
+            }
+        }
     }
 
     @SemanticStringBuilder
