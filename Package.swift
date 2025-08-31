@@ -99,7 +99,7 @@ extension Target.Dependency {
 
 let package = Package(
     name: "MachOSwiftSection",
-    platforms: [.macOS(.v10_15), .iOS(.v13), .tvOS(.v13), .watchOS(.v6), .visionOS(.v1)],
+    platforms: [.macOS(.v12), .iOS(.v15), .tvOS(.v15), .watchOS(.v8), .visionOS(.v1)],
     products: [
         .library(
             name: "MachOSwiftSection",
@@ -125,10 +125,11 @@ let package = Package(
         .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
         .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
-        .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", from: "0.3.0"),
+        .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", branch: "main"),
         .package(url: "https://github.com/apple/swift-collections", from: "1.2.0"),
         .package(url: "https://github.com/MxIris-Library-Forks/swift-memberwise-init-macro", from: "0.5.3-fork"),
-        .package(url: "https://github.com/swhitty/swift-mutex", from: "0.0.6"),
+        .package(url: "https://github.com/p-x9/MachOObjCSection", from: "0.4.0"),
+        .package(url: "https://github.com/MxIris-DeveloperTool-Forks/Sylvester", branch: "main"),
     ],
     targets: [
         .target(
@@ -146,7 +147,6 @@ let package = Package(
             name: "Utilities",
             dependencies: [
                 "MachOMacro",
-                .product(name: "Mutex", package: "swift-mutex"),
                 .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
                 .product(name: "AssociatedObject", package: "AssociatedObject"),
                 .product(name: "MemberwiseInit", package: "swift-memberwise-init-macro"),
@@ -262,13 +262,16 @@ let package = Package(
             name: "SwiftInterface",
             dependencies: [
                 .MachOKit,
+                .product(name: "MachOObjCSection", package: "MachOObjCSection"),
                 "MachOSwiftSection",
                 "SwiftDump",
                 "Semantic",
                 "Utilities",
+                // Source
                 .SwiftSyntax,
                 .SwiftParser,
                 .SwiftSyntaxBuilder,
+                .product(name: "Sylvester", package: "Sylvester"),
             ]
         ),
 

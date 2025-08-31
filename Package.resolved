@@ -1,5 +1,5 @@
 {
-  "originHash" : "cd724e0d04bd63e4fa2d31f35a416be4f9f9bbed67bcdc138ebc4844a766087a",
+  "originHash" : "b18c3e3c1684c8de6dbacc6923ecbd468f8875353aa43f15610bf57bc9e5e538",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -11,12 +11,21 @@
       }
     },
     {
+      "identity" : "caseanything",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/mesqueeb/CaseAnything",
+      "state" : {
+        "revision" : "705f90ad63884871a264009a0544001d63134461",
+        "version" : "0.1.8"
+      }
+    },
+    {
       "identity" : "frameworktoolbox",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Mx-Iris/FrameworkToolbox",
       "state" : {
-        "revision" : "669c8683f82b0daecf6498f0847f16113945ae80",
-        "version" : "0.3.1"
+        "branch" : "main",
+        "revision" : "211769ddc744e74bbd3789319d962b8a556f112d"
       }
     },
     {
@@ -29,12 +38,39 @@
       }
     },
     {
+      "identity" : "machoobjcsection",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/p-x9/MachOObjCSection",
+      "state" : {
+        "revision" : "3f1bb0d9dac4fb4bd3f3ccb2eb293eac20aa8543",
+        "version" : "0.4.0"
+      }
+    },
+    {
+      "identity" : "metacodable",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/SwiftyLab/MetaCodable",
+      "state" : {
+        "revision" : "e2b09b4ceed09c972adb7f48572446d07a1c0e16",
+        "version" : "1.5.0"
+      }
+    },
+    {
       "identity" : "rainbow",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/onevcat/Rainbow",
       "state" : {
         "revision" : "16da5c62dd737258c6df2e8c430f8a3202f655a7",
         "version" : "4.2.0"
+      }
+    },
+    {
+      "identity" : "sourcekitten",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Mx-Iris/SourceKitten",
+      "state" : {
+        "branch" : "main",
+        "revision" : "c11527e57e361fbd528fc402ebe2b56d99063625"
       }
     },
     {
@@ -83,12 +119,12 @@
       }
     },
     {
-      "identity" : "swift-mutex",
+      "identity" : "swift-objc-dump",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/swhitty/swift-mutex",
+      "location" : "https://github.com/p-x9/swift-objc-dump.git",
       "state" : {
-        "revision" : "1770152df756b54c28ef1787df1e957d93cc62d5",
-        "version" : "0.0.6"
+        "revision" : "1e91dfd4c332f7015f4c46f99df8a53fbb495e20",
+        "version" : "0.7.0"
       }
     },
     {
@@ -107,6 +143,33 @@
       "state" : {
         "revision" : "f99ae8aa18f0cf0d53481901f88a0991dc3bd4a2",
         "version" : "601.0.1"
+      }
+    },
+    {
+      "identity" : "swxmlhash",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/drmohundro/SWXMLHash.git",
+      "state" : {
+        "revision" : "a853604c9e9a83ad9954c7e3d2a565273982471f",
+        "version" : "7.0.2"
+      }
+    },
+    {
+      "identity" : "sylvester",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/MxIris-DeveloperTool-Forks/Sylvester",
+      "state" : {
+        "branch" : "main",
+        "revision" : "bc3391f9341d9046e11bcb82cf865c546f773a96"
+      }
+    },
+    {
+      "identity" : "yams",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/jpsim/Yams.git",
+      "state" : {
+        "revision" : "d41ba4e7164c0838c6d48351f7575f7f762151fe",
+        "version" : "6.1.0"
       }
     }
   ],

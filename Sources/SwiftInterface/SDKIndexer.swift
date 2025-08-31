@@ -1,6 +1,10 @@
 import Foundation
 import FoundationToolbox
 
+@available(iOS, unavailable)
+@available(tvOS, unavailable)
+@available(watchOS, unavailable)
+@available(visionOS, unavailable)
 struct SwiftModule: Sendable {
     let moduleName: String
     let path: String
@@ -15,16 +19,33 @@ struct SwiftModule: Sendable {
     }
 }
 
+@available(iOS, unavailable)
+@available(tvOS, unavailable)
+@available(watchOS, unavailable)
+@available(visionOS, unavailable)
 struct SwiftInterfaceFile: Sendable {
     let moduleName: String
     let path: String
 }
 
+@available(iOS, unavailable)
+@available(tvOS, unavailable)
+@available(watchOS, unavailable)
+@available(visionOS, unavailable)
+struct SwiftInterfaceGeneratedFile: Sendable {
+    let moduleName: String
+    let contents: String
+}
+
+@available(iOS, unavailable)
+@available(tvOS, unavailable)
+@available(watchOS, unavailable)
+@available(visionOS, unavailable)
 final class SDKIndexer: Sendable {
     let sdkRoot: String
 
     @Mutex
-    var modules: [SwiftModule] = []
+    private(set) var modules: [SwiftModule] = []
 
     @Mutex
     var searchPaths: [String] = [
@@ -32,7 +53,7 @@ final class SDKIndexer: Sendable {
         "System/Library/Frameworks",
         "System/Library/PrivateFrameworks",
     ]
-
+    
     init(sdkRoot: String) {
         self.sdkRoot = sdkRoot
     }
