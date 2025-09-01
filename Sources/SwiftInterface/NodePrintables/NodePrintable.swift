@@ -14,7 +14,7 @@ extension NodePrintable {
     mutating func printNameInBase(_ name: Node) -> Bool {
         switch name.kind {
         case .module:
-            target.write(name.text ?? "", context: .context(for: name, state: .printModule))
+            printModule(name)
         case .identifier:
             printIdentifier(name)
         case .privateDeclName:
@@ -39,6 +39,14 @@ extension NodePrintable {
             return true
         }
         return true
+    }
+    
+    mutating func printModule(_ node: Node) {
+        var moduleName = node.text ?? ""
+        if moduleName == objcModule || moduleName == cModule, let identifier = node.parent?.children.at(1)?.text, let updatedModuleName = TypeDatabase.shared.moduleName(forTypeName: identifier) {
+            moduleName = updatedModuleName
+        }
+        target.write(moduleName, context: .context(for: node, state: .printModule))
     }
 
     @discardableResult

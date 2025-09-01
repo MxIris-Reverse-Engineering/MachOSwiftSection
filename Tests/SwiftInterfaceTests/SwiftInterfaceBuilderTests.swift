@@ -17,12 +17,4 @@ class SwiftInterfaceBuilderTests: DyldCacheTests {
         try await builder.prepare()
         try builder.build().string.write(to: .desktopDirectory.appending(path: "\(machO.imagePath.lastPathComponent)-Dump.swiftinterface"), atomically: true, encoding: .utf8)
     }
-    
-//    @Test func dynamicallyLinkedLibraries() async throws {
-//        for dependency in machOFileInMainCache.dependencies {
-//            print(dependency.dylib.name)
-//        }
-//        
-//        FullDyldCache(url: <#T##URL#>)
-//    }
 }

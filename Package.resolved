@@ -1,5 +1,5 @@
 {
-  "originHash" : "b18c3e3c1684c8de6dbacc6923ecbd468f8875353aa43f15610bf57bc9e5e538",
+  "originHash" : "5d9f336ebf16cb728a2441b10e9ce52d3d635c0a82d4eb38f1353779ffa91c89",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -11,12 +11,12 @@
       }
     },
     {
-      "identity" : "caseanything",
+      "identity" : "binarycodable",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/mesqueeb/CaseAnything",
+      "location" : "https://github.com/christophhagen/BinaryCodable",
       "state" : {
-        "revision" : "705f90ad63884871a264009a0544001d63134461",
-        "version" : "0.1.8"
+        "revision" : "4febea33ee5d813fd9c94c9158be6c85472480d2",
+        "version" : "3.1.0"
       }
     },
     {
@@ -47,15 +47,6 @@
       }
     },
     {
-      "identity" : "metacodable",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/SwiftyLab/MetaCodable",
-      "state" : {
-        "revision" : "e2b09b4ceed09c972adb7f48572446d07a1c0e16",
-        "version" : "1.5.0"
-      }
-    },
-    {
       "identity" : "rainbow",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/onevcat/Rainbow",
@@ -65,12 +56,12 @@
       }
     },
     {
-      "identity" : "sourcekitten",
+      "identity" : "sourcekitd",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Mx-Iris/SourceKitten",
+      "location" : "https://github.com/Mx-Iris/SourceKitD",
       "state" : {
         "branch" : "main",
-        "revision" : "c11527e57e361fbd528fc402ebe2b56d99063625"
+        "revision" : "329d4da39453f6446226261a614f852d84bdb212"
       }
     },
     {
@@ -143,33 +134,6 @@
       "state" : {
         "revision" : "f99ae8aa18f0cf0d53481901f88a0991dc3bd4a2",
         "version" : "601.0.1"
-      }
-    },
-    {
-      "identity" : "swxmlhash",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/drmohundro/SWXMLHash.git",
-      "state" : {
-        "revision" : "a853604c9e9a83ad9954c7e3d2a565273982471f",
-        "version" : "7.0.2"
-      }
-    },
-    {
-      "identity" : "sylvester",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/MxIris-DeveloperTool-Forks/Sylvester",
-      "state" : {
-        "branch" : "main",
-        "revision" : "bc3391f9341d9046e11bcb82cf865c546f773a96"
-      }
-    },
-    {
-      "identity" : "yams",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/jpsim/Yams.git",
-      "state" : {
-        "revision" : "d41ba4e7164c0838c6d48351f7575f7f762151fe",
-        "version" : "6.1.0"
       }
     }
   ],

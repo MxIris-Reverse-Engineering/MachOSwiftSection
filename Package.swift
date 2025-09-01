@@ -99,7 +99,7 @@ extension Target.Dependency {
 
 let package = Package(
     name: "MachOSwiftSection",
-    platforms: [.macOS(.v12), .iOS(.v15), .tvOS(.v15), .watchOS(.v8), .visionOS(.v1)],
+    platforms: [.macOS(.v13), .iOS(.v16), .tvOS(.v16), .watchOS(.v9), .visionOS(.v1)],
     products: [
         .library(
             name: "MachOSwiftSection",
@@ -129,7 +129,8 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-collections", from: "1.2.0"),
         .package(url: "https://github.com/MxIris-Library-Forks/swift-memberwise-init-macro", from: "0.5.3-fork"),
         .package(url: "https://github.com/p-x9/MachOObjCSection", from: "0.4.0"),
-        .package(url: "https://github.com/MxIris-DeveloperTool-Forks/Sylvester", branch: "main"),
+        .package(url: "https://github.com/Mx-Iris/SourceKitD", branch: "main"),
+        .package(url: "https://github.com/christophhagen/BinaryCodable", from: "3.1.0"),
     ],
     targets: [
         .target(
@@ -271,7 +272,8 @@ let package = Package(
                 .SwiftSyntax,
                 .SwiftParser,
                 .SwiftSyntaxBuilder,
-                .product(name: "Sylvester", package: "Sylvester"),
+                .product(name: "SourceKitD", package: "SourceKitD"),
+                .product(name: "BinaryCodable", package: "BinaryCodable"),
             ]
         ),
 

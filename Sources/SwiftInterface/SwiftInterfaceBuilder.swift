@@ -332,6 +332,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     }
 
     private func index() async throws {
+        try await TypeDatabase.shared.index()
         try await indexTypes()
         try await indexProtocols()
         try await indexConformances()
