@@ -45,7 +45,7 @@ struct SwiftModule: Sendable, Codable {
             try subModuleInterfaceFile.contents.write(to: subModuleDirectoryURL, atomically: true, encoding: .utf8)
         }
     }
-    
+
     func indexer() -> SwiftModuleIndexer {
         SwiftModuleIndexer(module: self)
     }
@@ -56,7 +56,7 @@ struct SwiftModuleIndexer {
     let path: String
     let interfaceIndexer: SwiftInterfaceIndexer
     let subModuleInterfaceIndexers: [SwiftInterfaceIndexer]
-    
+
     init(module: borrowing SwiftModule) {
         self.moduleName = module.moduleName
         self.path = module.path
@@ -64,14 +64,12 @@ struct SwiftModuleIndexer {
         self.interfaceIndexer = interfaceIndexer
         var subModuleInterfaceIndexers: [SwiftInterfaceIndexer] = []
         for subModuleInterfaceFile in module.subModuleInterfaceFiles {
-            let subModuleInterfaceIndexer =  SwiftInterfaceIndexer(file: subModuleInterfaceFile)
+            let subModuleInterfaceIndexer = SwiftInterfaceIndexer(file: subModuleInterfaceFile)
             subModuleInterfaceIndexers.append(subModuleInterfaceIndexer)
-            
         }
         self.subModuleInterfaceIndexers = subModuleInterfaceIndexers
     }
 }
-
 
 @available(iOS, unavailable)
 @available(tvOS, unavailable)
@@ -95,6 +93,15 @@ struct SwiftInterfaceGeneratedFile: Sendable, Codable {
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
 @available(visionOS, unavailable)
+struct APINotesFile: Sendable, Codable {
+    let moduleName: String
+    let path: String
+}
+
+@available(iOS, unavailable)
+@available(tvOS, unavailable)
+@available(watchOS, unavailable)
+@available(visionOS, unavailable)
 final class SDKIndexer: Sendable {
     let platform: SKPlatform
 
@@ -103,6 +110,9 @@ final class SDKIndexer: Sendable {
 
     @Mutex
     private(set) var modules: [SwiftModule] = []
+
+    @Mutex
+    private(set) var apiNotesFiles: [APINotesFile] = []
 
     @Mutex
     private(set) var searchPaths: [String] = [
@@ -120,6 +130,7 @@ final class SDKIndexer: Sendable {
     }
 
     nonisolated func index() async throws {
+        var hasModulesCache = false
         if cacheURL.appending(component: "indexComplete").isExisted {
             var modules: [SwiftModule] = []
             let indexDatas = try FileManager.default.contentsOfDirectory(at: cacheURL, includingPropertiesForKeys: nil)
@@ -132,26 +143,31 @@ final class SDKIndexer: Sendable {
                 modules.append(module)
             }
             self.modules = modules.sorted { $0.moduleName < $1.moduleName }
-        } else {
-            var moduleFetchers: [() async throws -> SwiftModule] = []
-            let sdkRoot = platform.sdkPath
-            let platform = platform
-            for searchPath in searchPaths {
-                let fullSearchPath = sdkRoot.box.appendingPathComponent(searchPath)
-                let fileManager = FileManager.default
-                guard fileManager.fileExists(atPath: fullSearchPath) else {
-                    continue
-                }
-                let enumerator = fileManager.enumerator(atPath: fullSearchPath)
-                while let element = enumerator?.nextObject() as? String {
-                    guard element.hasSuffix(".swiftmodule") else {
-                        continue
-                    }
-                    let fullPath = fullSearchPath.box.appendingPathComponent(element)
-                    let moduleName = element.lastPathComponent.deletingPathExtension
+            hasModulesCache = true
+        }
+        var moduleFetchers: [() async throws -> SwiftModule] = []
+        var apinotesFiles: [APINotesFile] = []
+        let platform = platform
+        let sdkRoot = platform.sdkPath
+        for searchPath in searchPaths {
+            let fullSearchPath = sdkRoot.box.appendingPathComponent(searchPath)
+            let fileManager = FileManager.default
+            guard fileManager.fileExists(atPath: fullSearchPath) else {
+                continue
+            }
+            let enumerator = fileManager.enumerator(atPath: fullSearchPath)
+            while let element = enumerator?.nextObject() as? String {
+                let fullPath = fullSearchPath.box.appendingPathComponent(element)
+                let moduleName = element.lastPathComponent.deletingPathExtension
+                if element.hasSuffix(".swiftmodule") {
                     moduleFetchers.append { try await SwiftModule(moduleName: moduleName, path: fullPath, platform: platform) }
+                } else if element.hasSuffix(".apinotes") {
+                    let apinodesFile = APINotesFile(moduleName: moduleName, path: fullPath)
+                    apinotesFiles.append(apinodesFile)
                 }
             }
+        }
+        if !hasModulesCache {
             var modules: [SwiftModule] = []
             for moduleFetcher in moduleFetchers {
                 if let module = try? await moduleFetcher() {
@@ -159,7 +175,6 @@ final class SDKIndexer: Sendable {
                 }
             }
             self.modules = modules.sorted { $0.moduleName < $1.moduleName }
-
             if cacheIndexes {
                 let directoryURL = cacheURL
                 try directoryURL.createDirectoryIfNeeded()
@@ -170,20 +185,8 @@ final class SDKIndexer: Sendable {
                 try "".write(to: directoryURL.appending(component: "indexComplete"), atomically: true, encoding: .utf8)
             }
         }
-//        self.modules = await withTaskGroup { group in
-//            for module in modules {
-//                group.addTask {
-//                    try? await module()
-//                }
-//            }
-//            var modules: [SwiftModule] = []
-//            for await module in group {
-//                if let module {
-//                    modules.append(module)
-//                }
-//            }
-//            return modules
-//        }
+
+        apiNotesFiles = apinotesFiles
     }
 }
 

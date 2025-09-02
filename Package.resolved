@@ -1,5 +1,5 @@
 {
-  "originHash" : "5d9f336ebf16cb728a2441b10e9ce52d3d635c0a82d4eb38f1353779ffa91c89",
+  "originHash" : "8c317547b2a7e792b3a65d66b895ec05cdd47011746bde58cd1cf221bf0f4413",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -44,6 +44,15 @@
       "state" : {
         "revision" : "3f1bb0d9dac4fb4bd3f3ccb2eb293eac20aa8543",
         "version" : "0.4.0"
+      }
+    },
+    {
+      "identity" : "metacodable",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/SwiftyLab/MetaCodable",
+      "state" : {
+        "revision" : "e2b09b4ceed09c972adb7f48572446d07a1c0e16",
+        "version" : "1.5.0"
       }
     },
     {
@@ -134,6 +143,15 @@
       "state" : {
         "revision" : "f99ae8aa18f0cf0d53481901f88a0991dc3bd4a2",
         "version" : "601.0.1"
+      }
+    },
+    {
+      "identity" : "yams",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/jpsim/Yams",
+      "state" : {
+        "revision" : "d41ba4e7164c0838c6d48351f7575f7f762151fe",
+        "version" : "6.1.0"
       }
     }
   ],

@@ -131,6 +131,9 @@ let package = Package(
         .package(url: "https://github.com/p-x9/MachOObjCSection", from: "0.4.0"),
         .package(url: "https://github.com/Mx-Iris/SourceKitD", branch: "main"),
         .package(url: "https://github.com/christophhagen/BinaryCodable", from: "3.1.0"),
+//        .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-apinotes", branch: "main"),
+        .package(path: "/Volumes/Repositories/Private/Fork/Library/swift-apinotes"),
+        .package(url: "https://github.com/jpsim/Yams", from: "6.1.0"),
     ],
     targets: [
         .target(
@@ -274,6 +277,8 @@ let package = Package(
                 .SwiftSyntaxBuilder,
                 .product(name: "SourceKitD", package: "SourceKitD"),
                 .product(name: "BinaryCodable", package: "BinaryCodable"),
+                .product(name: "APINotes", package: "swift-apinotes"),
+                .product(name: "Yams", package: "Yams"),
             ]
         ),
 

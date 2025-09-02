@@ -137,6 +137,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                     }
                 }
             }
+            self.dependencies = dependencies
         } catch {
             logger.error("\(error)")
         }
@@ -330,9 +331,13 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         self.protocolDefinitions = protocolDefinitions
     }
-
+    
+    
     private func index() async throws {
-        try await TypeDatabase.shared.index()
+        let dependencyModules = Set(dependencies.map(\.imagePath.lastPathComponent.deletingPathExtension.deletingPathExtension.strippedLibSwiftPrefix))
+        try await TypeDatabase.shared.index {
+            dependencyModules.contains($0.moduleName)
+        }
         try await indexTypes()
         try await indexProtocols()
         try await indexConformances()
@@ -349,11 +354,6 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         BreakLine()
 
         for (offset, typeDefinition) in typeDefinitions.values.offsetEnumerated() {
-            if offset.isStart {
-                BreakLine()
-                BreakLine()
-            }
-
             try printTypeDefinition(typeDefinition)
 
             if !offset.isEnd {
@@ -579,5 +579,14 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         }
 
         importedModules = usedModules
+    }
+}
+
+extension String {
+    var strippedLibSwiftPrefix: String {
+        if hasPrefix("libswift") {
+            return String(dropFirst("libswift".count))
+        }
+        return self
     }
 }

@@ -12,6 +12,8 @@ package enum MachOImageName: String {
     case HomeKit
     case Network
 
+    case libswiftCoreFoundation
+    
     var path: String {
         "/\(rawValue)"
     }

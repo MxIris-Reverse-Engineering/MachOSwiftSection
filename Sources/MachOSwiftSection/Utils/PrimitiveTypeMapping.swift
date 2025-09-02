@@ -4,7 +4,7 @@ import MachOKit
 import Demangle
 import MachOMacro
 
-package class PrimitiveTypeMapping {
+package final class PrimitiveTypeMapping {
     private var storage: [String: String] = [:]
 
     package init<MachO: MachOSwiftSectionRepresentableWithCache>(machO: MachO) throws {

@@ -12,13 +12,13 @@ final class TypeDatabase: Sendable {
     @Mutex
     private var types: [String: TypeRecord] = [:]
 
-    func index() async throws {
+    func index(_ filter: (SwiftModule) -> Bool) async throws {
         let indexer = SDKIndexer(platform: .macOS)
         indexer.cacheIndexes = true
         try await indexer.index()
-
+        let modules = indexer.modules.filter(filter)
         let typeInfos = try await withThrowingTaskGroup { group in
-            for module in indexer.modules {
+            for module in modules {
                 group.addTask {
                     var typeInfos: [SwiftInterfaceIndexer.TypeInfo] = []
                     let moduleIndexer = module.indexer()
