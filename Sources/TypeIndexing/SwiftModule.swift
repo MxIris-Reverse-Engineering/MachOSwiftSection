@@ -11,7 +11,7 @@ struct SwiftModule: Sendable, Codable {
     let interfaceFile: SwiftInterfaceGeneratedFile
     let subModuleInterfaceFiles: [SwiftInterfaceGeneratedFile]
 
-    init(moduleName: String, path: String, platform: SKPlatform) async throws {
+    init(moduleName: String, path: String, platform: SDKPlatform) async throws {
         @Dependency(\.sourceKitManager)
         var sourceKitManager
         

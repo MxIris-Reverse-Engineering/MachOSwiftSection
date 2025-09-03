@@ -33,6 +33,8 @@ private let logger = Logger(subsystem: "com.MachOSwiftSection.SwiftInterface", c
 public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWithCache & Sendable>: Sendable {
     private let machO: MachO
 
+    private let typeDatabase: TypeDatabase?
+
     private let enums: [Enum]
 
     private let structs: [Struct]
@@ -88,6 +90,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     }
 
     public init(machO: MachO) throws {
+        self.typeDatabase = machO.loadCommands.buildVersionCommand?.platform.sdkPlatform.map { .init(platform: $0) }
         self.machO = machO
         let types = try machO.swift.types
         var enums: [Enum] = []
@@ -332,12 +335,11 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         self.protocolDefinitions = protocolDefinitions
     }
-    
-    
+
     private func index() async throws {
-        let dependencyModules = Set(dependencies.map(\.imagePath.lastPathComponent.deletingPathExtension.deletingPathExtension.strippedLibSwiftPrefix))
-        try await TypeDatabase.shared.index {
-            dependencyModules.contains($0.moduleName)
+        if let typeDatabase {
+            let dependencyModules = Set(dependencies.map(\.imagePath.lastPathComponent.deletingPathExtension.deletingPathExtension.strippedLibSwiftPrefix))
+            try await typeDatabase.index { dependencyModules.contains($0) }
         }
         try await indexTypes()
         try await indexProtocols()
@@ -393,13 +395,80 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     }
 
     @SemanticStringBuilder
+    private func printGenericSignature(_ genericContext: TypeGenericContext?, @SemanticStringBuilder contentsBuilder: () throws -> SemanticString = { "" }) throws -> SemanticString {
+        if let genericContext {
+            if genericContext.currentParameters.count > 0 {
+                try genericContext.dumpGenericParameters(in: machO)
+            }
+
+            try contentsBuilder()
+
+            if genericContext.currentRequirements.count > 0 {
+                Space()
+                Keyword(.where)
+                Space()
+                try genericContext.dumpGenericRequirements(in: machO) {
+                    var printer = TypeNodePrinter(cImportedInfoProvider: typeDatabase)
+                    try printer.printRoot($0)
+                }
+            }
+        }
+    }
+
+    @SemanticStringBuilder
     private func printTypeDefinition(_ typeDefinition: TypeDefinition, level: Int = 1) throws -> SemanticString {
-        let dumper = typeDefinition.type.dumper(using: .init(demangleOptions: .interface, indentation: level, displayParentName: false), in: machO)
         if level > 1 {
             Indent(level: level - 1)
         }
 
-        try dumper.declaration
+        switch typeDefinition.type {
+        case .enum(let `enum`):
+            Keyword(.enum)
+
+            Space()
+
+            TypeDeclaration(kind: .enum, typeDefinition.typeName.currentName)
+
+            try printGenericSignature(`enum`.genericContext)
+
+        case .struct(let `struct`):
+            Keyword(.struct)
+
+            Space()
+
+            TypeDeclaration(kind: .struct, typeDefinition.typeName.currentName)
+
+            try printGenericSignature(`struct`.genericContext)
+
+        case .class(let `class`):
+            if `class`.descriptor.isActor {
+                Keyword(.actor)
+            } else {
+                Keyword(.class)
+            }
+
+            Space()
+
+            TypeDeclaration(kind: .class, typeDefinition.typeName.currentName)
+
+            try printGenericSignature(`class`.genericContext) {
+                if let superclassMangledName = try `class`.descriptor.superclassTypeMangledName(in: machO) {
+                    Standard(":")
+                    Space()
+
+                    var printer = TypeNodePrinter(cImportedInfoProvider: typeDatabase)
+                    try printer.printRoot(MetadataReader.demangleType(for: superclassMangledName, in: machO))
+                } else if let resilientSuperclass = `class`.resilientSuperclass, let kind = `class`.descriptor.resilientSuperclassReferenceKind, let superclassNode = try resilientSuperclass.dumpSuperclassNode(for: kind, in: machO) {
+                    Standard(":")
+                    Space()
+
+                    var printer = TypeNodePrinter(cImportedInfoProvider: typeDatabase)
+                    try printer.printRoot(superclassNode)
+                }
+            }
+        }
+
+//        try dumper.declaration
 
         Space()
         Standard("{")
@@ -409,12 +478,148 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             try printTypeDefinition(child, level: level + 1)
         }
 
-        let fields = try dumper.fields
+//        let fields = try dumper.fields
 
-        if fields.string.isEmpty, level == 1, !typeDefinition.typeChildren.isEmpty {
-            BreakLine()
-        } else {
-            fields
+        switch typeDefinition.type {
+        case .enum(let `enum`):
+            for (offset, fieldRecord) in try `enum`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
+                if offset.isStart, level == 1, !typeDefinition.typeChildren.isEmpty {
+                    BreakLine()
+                }
+
+                BreakLine()
+
+                Indent(level: level)
+
+                if fieldRecord.flags.contains(.isIndirectCase) {
+                    Keyword(.indirect)
+                    Space()
+                    Keyword(.case)
+                    Space()
+                } else {
+                    Keyword(.case)
+                    Space()
+                }
+
+                try MemberDeclaration("\(fieldRecord.fieldName(in: machO))")
+
+                let mangledName = try fieldRecord.mangledTypeName(in: machO)
+
+                if !mangledName.isEmpty {
+                    var printer = TypeNodePrinter(cImportedInfoProvider: typeDatabase)
+
+                    let demangledName = try printer.printRoot(MetadataReader.demangleType(for: mangledName, in: machO))
+
+                    let demangledNameString = demangledName.string
+                    if demangledNameString.hasPrefix("("), demangledNameString.hasSuffix(")") {
+                        demangledName
+                    } else {
+                        Standard("(")
+                        demangledName
+                        Standard(")")
+                    }
+                }
+
+                if offset.isEnd {
+                    BreakLine()
+                }
+            }
+        case .struct(let `struct`):
+            for (offset, fieldRecord) in try `struct`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
+                if offset.isStart, level == 1, !typeDefinition.typeChildren.isEmpty {
+                    BreakLine()
+                }
+
+                BreakLine()
+
+                Indent(level: level)
+
+                let demangledTypeNode = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machO), in: machO)
+
+                let fieldName = try fieldRecord.fieldName(in: machO)
+
+                if fieldRecord.flags.contains(.isVariadic) {
+                    if demangledTypeNode.hasWeakNode {
+                        Keyword(.weak)
+                        Space()
+                        Keyword(.var)
+                        Space()
+                    } else if fieldName.hasLazyPrefix {
+                        Keyword(.lazy)
+                        Space()
+                        Keyword(.var)
+                        Space()
+                    } else {
+                        Keyword(.var)
+                        Space()
+                    }
+                } else {
+                    Keyword(.let)
+                    Space()
+                }
+
+                MemberDeclaration(fieldName.stripLazyPrefix)
+
+                Standard(":")
+
+                Space()
+
+                var printer = TypeNodePrinter(cImportedInfoProvider: typeDatabase)
+
+                try printer.printRoot(demangledTypeNode)
+
+                if offset.isEnd {
+                    BreakLine()
+                }
+            }
+        case .class(let `class`):
+            for (offset, fieldRecord) in try `class`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
+                if offset.isStart, level == 1, !typeDefinition.typeChildren.isEmpty {
+                    BreakLine()
+                }
+
+                BreakLine()
+
+                Indent(level: level)
+
+                let demangledTypeNode = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machO), in: machO)
+
+                let fieldName = try fieldRecord.fieldName(in: machO)
+
+                if fieldRecord.flags.contains(.isVariadic) {
+                    if demangledTypeNode.contains(.weak) {
+                        Keyword(.weak)
+                        Space()
+                        Keyword(.var)
+                        Space()
+                    } else if fieldName.hasLazyPrefix {
+                        Keyword(.lazy)
+                        Space()
+                        Keyword(.var)
+                        Space()
+                    } else {
+                        Keyword(.var)
+                        Space()
+                    }
+                } else {
+                    Keyword(.let)
+                    Space()
+                }
+
+                MemberDeclaration(fieldName.stripLazyPrefix)
+
+                Standard(":")
+
+                Space()
+
+                var printer = TypeNodePrinter(cImportedInfoProvider: typeDatabase)
+
+                try printer.printRoot(demangledTypeNode)
+
+                if offset.isEnd {
+                    BreakLine()
+                }
+            }
         }
 
         try printDefinition(typeDefinition, level: level)
@@ -428,7 +633,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     private func printProtocolDefinition(_ protocolDefinition: ProtocolDefinition) throws -> SemanticString {
-        let dumper = ProtocolDumper(protocolDefinition.protocol, using: .init(demangleOptions: .interface), in: machO)
+        let dumper = ProtocolDumper(protocolDefinition.protocol, using: .init(demangleOptions: .interfaceBuilderOnly), in: machO)
         try dumper.declaration
         Space()
         Standard("{")
@@ -438,9 +643,9 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             Indent(level: 1)
             var printer: any InterfaceNodePrinter = switch requirment {
             case .function:
-                FunctionNodePrinter()
+                FunctionNodePrinter(cImportedInfoProvider: typeDatabase)
             case .variable(let variable):
-                VariableNodePrinter(hasSetter: variable.hasSetter, indentation: 1)
+                VariableNodePrinter(hasSetter: variable.hasSetter, indentation: 1, cImportedInfoProvider: typeDatabase)
             }
             try printer.printRoot(requirment.node)
 
@@ -508,7 +713,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (offset, allocator) in definition.allocators.offsetEnumerated() {
             BreakLine()
             Indent(level: level)
-            var printer = FunctionNodePrinter()
+            var printer = FunctionNodePrinter(cImportedInfoProvider: typeDatabase)
             try printer.printRoot(allocator.node)
 
             if offset.isEnd {
@@ -519,7 +724,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (offset, variable) in definition.variables.offsetEnumerated() {
             BreakLine()
             Indent(level: level)
-            var printer = VariableNodePrinter(hasSetter: variable.hasSetter, indentation: level)
+            var printer = VariableNodePrinter(hasSetter: variable.hasSetter, indentation: level, cImportedInfoProvider: typeDatabase)
             try printer.printRoot(variable.node)
 
             if offset.isEnd {
@@ -530,7 +735,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (offset, function) in definition.functions.offsetEnumerated() {
             BreakLine()
             Indent(level: level)
-            var printer = FunctionNodePrinter()
+            var printer = FunctionNodePrinter(cImportedInfoProvider: typeDatabase)
             try printer.printRoot(function.node)
 
             if offset.isEnd {
@@ -541,7 +746,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (offset, variable) in definition.staticVariables.offsetEnumerated() {
             BreakLine()
             Indent(level: level)
-            var printer = VariableNodePrinter(hasSetter: variable.hasSetter, indentation: level)
+            var printer = VariableNodePrinter(hasSetter: variable.hasSetter, indentation: level, cImportedInfoProvider: typeDatabase)
             try printer.printRoot(variable.node)
 
             if offset.isEnd {
@@ -552,7 +757,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (offset, function) in definition.staticFunctions.offsetEnumerated() {
             BreakLine()
             Indent(level: level)
-            var printer = FunctionNodePrinter()
+            var printer = FunctionNodePrinter(cImportedInfoProvider: typeDatabase)
             try printer.printRoot(function.node)
 
             if offset.isEnd {
@@ -591,3 +796,49 @@ extension String {
         return self
     }
 }
+
+extension MachOKit.Platform {
+    var sdkPlatform: SDKPlatform? {
+        switch self {
+        case .macOS,
+             .macCatalyst:
+            return .macOS
+        case .driverKit:
+            return .driverKit
+        case .iOS:
+            return .iOS
+        case .tvOS:
+            return .tvOS
+        case .watchOS:
+            return .watchOS
+        case .visionOS:
+            return .visionOS
+        case .iOSSimulator:
+            return .iOSSimulator
+        case .tvOSSimulator:
+            return .tvOSSimulator
+        case .watchOSSimulator:
+            return .watchOSSimulator
+        case .visionOSSimulator:
+            return .visionOSSimulator
+        default:
+            return nil
+        }
+    }
+}
+
+extension LoadCommandsProtocol {
+    var buildVersionCommand: BuildVersionCommand? {
+        for command in self {
+            switch command {
+            case .buildVersion(let buildVersionCommand):
+                return buildVersionCommand
+            default:
+                break
+            }
+        }
+        return nil
+    }
+}
+
+extension TypeDatabase: CImportedInfoProvider {}

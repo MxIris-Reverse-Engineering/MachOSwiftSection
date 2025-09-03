@@ -25,7 +25,7 @@ final class SourceKitManager: Sendable {
         }
     }
 
-    func interface(for moduleName: String, in platform: SKPlatform) async throws -> SwiftInterfaceGeneratedFile {
+    func interface(for moduleName: String, in platform: SDKPlatform) async throws -> SwiftInterfaceGeneratedFile {
         let keys = try await sourcekitd.keys
         let request = try await sourcekitd.dictionary([
             keys.moduleName: moduleName,

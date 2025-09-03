@@ -2,8 +2,8 @@ import Foundation
 import Demangle
 import Testing
 import MachOSymbols
-@testable import MachOTestingSupport
 @testable import SwiftInterface
+@testable import MachOTestingSupport
 
 @Suite
 final class NodePrinterTests: DyldCacheTests {

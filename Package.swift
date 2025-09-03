@@ -265,11 +265,10 @@ let package = Package(
         .target(
             name: "TypeIndexing",
             dependencies: [
-                // Source
+                "Utilities",
                 .SwiftSyntax,
                 .SwiftParser,
                 .SwiftSyntaxBuilder,
-                "Utilities",
                 .product(name: "SourceKitD", package: "SourceKitD"),
                 .product(name: "BinaryCodable", package: "BinaryCodable"),
                 .product(name: "APINotes", package: "swift-apinotes"),
@@ -349,6 +348,15 @@ let package = Package(
             name: "SwiftDumpTests",
             dependencies: [
                 "SwiftDump",
+                "MachOTestingSupport",
+            ],
+            swiftSettings: testSettings
+        ),
+
+        .testTarget(
+            name: "TypeIndexingTests",
+            dependencies: [
+                "TypeIndexing",
                 "MachOTestingSupport",
             ],
             swiftSettings: testSettings

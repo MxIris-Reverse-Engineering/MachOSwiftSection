@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import APINotes
-@testable import SwiftInterface
+@testable import TypeIndexing
 
 struct APINotesManagerTests {
     @Test func index() async throws {

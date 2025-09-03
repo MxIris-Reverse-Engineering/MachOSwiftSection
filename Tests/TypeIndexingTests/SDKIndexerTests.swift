@@ -1,8 +1,8 @@
 import Foundation
 import Testing
-@testable import SwiftInterface
 import SourceKitD
 import FoundationToolbox
+@testable import TypeIndexing
 
 final class SDKIndexerTests {
     @Test func index() async throws {

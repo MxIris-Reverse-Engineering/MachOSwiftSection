@@ -3,11 +3,15 @@ import Demangle
 import MachOExtensions
 import Semantic
 
-struct FunctionNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, TypeNodePrintable, DependentGenericNodePrintable, FunctionTypeNodePrintable {
+struct FunctionNodePrinter: InterfaceNodePrinter {
     var target: SemanticString = ""
 
-    var moduleProvider: (any CImportedModuleProvider)?
+    let cImportedInfoProvider: (any CImportedInfoProvider)?
 
+    init(cImportedInfoProvider: (any CImportedInfoProvider)? = nil) {
+        self.cImportedInfoProvider = cImportedInfoProvider
+    }
+    
     enum Error: Swift.Error {
         case onlySupportedForFunctionNode
     }

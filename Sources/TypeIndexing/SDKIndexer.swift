@@ -46,14 +46,15 @@ struct SwiftInterfaceGeneratedFile: Sendable, Codable {
 @available(watchOS, unavailable)
 @available(visionOS, unavailable)
 struct APINotesFile: Sendable, Codable {
-    let moduleName: String
     let path: String
+    let moduleName: String
     let apiNotesModule: APINotes.Module
 
-    init(moduleName: String, path: String) throws {
-        self.moduleName = moduleName
+    init(path: String) throws {
         self.path = path
-        self.apiNotesModule = try APINotes.Module(contentsOf: .init(filePath: path))
+        let apiNotesModule = try APINotes.Module(contentsOf: .init(filePath: path))
+        self.moduleName = apiNotesModule.name
+        self.apiNotesModule = apiNotesModule
     }
 }
 
@@ -64,7 +65,7 @@ extension APINotes.Module: @unchecked @retroactive Sendable {}
 @available(watchOS, unavailable)
 @available(visionOS, unavailable)
 final class SDKIndexer: Sendable {
-    let platform: SKPlatform
+    let platform: SDKPlatform
 
     struct IndexOptions: OptionSet {
         let rawValue: Int
@@ -84,6 +85,7 @@ final class SDKIndexer: Sendable {
 
     @Mutex
     private(set) var searchPaths: [String] = [
+        "usr/include",
         "usr/lib/swift",
         "System/Library/Frameworks",
         "System/Library/PrivateFrameworks",
@@ -91,7 +93,7 @@ final class SDKIndexer: Sendable {
 
     private let indexOptions: IndexOptions
 
-    init(platform: SKPlatform, options: IndexOptions = [.indexSwiftModules, .indexAPINotesFiles]) {
+    init(platform: SDKPlatform, options: IndexOptions = [.indexSwiftModules, .indexAPINotesFiles]) {
         self.platform = platform
         self.indexOptions = options
     }
@@ -129,11 +131,11 @@ final class SDKIndexer: Sendable {
             let enumerator = fileManager.enumerator(atPath: fullSearchPath)
             while let element = enumerator?.nextObject() as? String {
                 let fullPath = fullSearchPath.box.appendingPathComponent(element)
-                let moduleName = element.lastPathComponent.deletingPathExtension
                 if element.hasSuffix(".swiftmodule") {
+                    let moduleName = element.lastPathComponent.deletingPathExtension
                     moduleFetchers.append { try await SwiftModule(moduleName: moduleName, path: fullPath, platform: platform) }
                 } else if element.hasSuffix(".apinotes") {
-                    let apinodesFile = try APINotesFile(moduleName: moduleName, path: fullPath)
+                    let apinodesFile = try APINotesFile(path: fullPath)
                     apinotesFiles.append(apinodesFile)
                 }
             }

@@ -8,7 +8,7 @@ protocol TypeNodePrintable: NodePrintable {
 extension TypeNodePrintable {
     mutating func printNameInType(_ name: Node) -> Bool {
         switch name.kind {
-        case .type:
+        case .type, .weak:
             printFirstChild(name)
         case .enum,
              .structure,

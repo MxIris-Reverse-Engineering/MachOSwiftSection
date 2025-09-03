@@ -2,6 +2,7 @@ import Semantic
 import MachOKit
 import MachOSwiftSection
 import Utilities
+import Demangle
 
 extension TargetGenericContext {
     @SemanticStringBuilder
@@ -18,8 +19,13 @@ extension TargetGenericContext {
 
     @SemanticStringBuilder
     package func dumpGenericRequirements<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+        try dumpGenericRequirements(in: machO) { $0.printSemantic(using: options) }
+    }
+    
+    @SemanticStringBuilder
+    package func dumpGenericRequirements<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO, @SemanticStringBuilder builder: (Node) throws -> SemanticString) throws -> SemanticString {
         for (offset, requirement) in currentRequirements.offsetEnumerated() {
-            try requirement.dump(using: options, in: machO)
+            try requirement.dump(in: machO, builder: builder)
             if !offset.isEnd {
                 Standard(",")
                 Space()
@@ -44,7 +50,7 @@ extension TargetGenericContext {
 extension GenericRequirementDescriptor {
 
     @SemanticStringBuilder
-    package func dumpProtocolParameterName<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+    package func dumpProtocolParameterName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SemanticString {
         let node = try MetadataReader.demangleType(for: paramMangledName(in: machO), in: machO)
         
         for (offset, param) in node.filter(of: .dependentAssociatedTypeRef).compactMap({ $0.first(of: .identifier)?.contents.name }).offsetEnumerated() {
@@ -61,25 +67,44 @@ extension GenericRequirementDescriptor {
     
     @SemanticStringBuilder
     package func dumpParameterName<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+        try dumpParameterName(in: machO) { $0.printSemantic(using: options) }
+    }
+    
+    @SemanticStringBuilder
+    package func dumpParameterName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO, @SemanticStringBuilder builder: (Node) throws -> SemanticString) throws -> SemanticString {
         let node = try MetadataReader.demangleType(for: paramMangledName(in: machO), in: machO)
-        node.printSemantic(using: options)
+        try builder(node)
     }
 
     @SemanticStringBuilder
     package func dumpContent<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+        try dumpContent(in: machO) { $0.printSemantic(using: options) }
+    }
+    
+    @SemanticStringBuilder
+    package func dumpContent<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO, @SemanticStringBuilder builder: (Node) throws -> SemanticString) throws -> SemanticString {
         switch try resolvedContent(in: machO) {
         case .type(let mangledName):
-            try MetadataReader.demangleType(for: mangledName, in: machO).printSemantic(using: options)
+            try builder(MetadataReader.demangleType(for: mangledName, in: machO))
         case .protocol(let resolvableElement):
             switch resolvableElement {
             case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machO)?.printSemantic(using: options)
+                try MetadataReader.demangleType(for: unsolvedSymbol, in: machO).map { try builder($0) }
             case .element(let element):
                 switch element {
                 case .objc(let objc):
-                    try TypeName(kind: .protocol, objc.mangledName(in: machO).rawString)
+                    let objcName = try objc.mangledName(in: machO).rawString
+                    let node = Node(kind: .global) {
+                        Node(kind: .type) {
+                            Node(kind: .protocol) {
+                                Node(kind: .module, contents: .name(objcModule))
+                                Node(kind: .identifier, contents: .name(objcName))
+                            }
+                        }
+                    }
+                    try builder(node)
                 case .swift(let protocolDescriptor):
-                    try MetadataReader.demangleContext(for: .protocol(protocolDescriptor), in: machO).printSemantic(using: options)
+                    try builder(try MetadataReader.demangleContext(for: .protocol(protocolDescriptor), in: machO))
                 }
             }
         case .layout(let genericRequirementLayoutKind):
@@ -91,45 +116,17 @@ extension GenericRequirementDescriptor {
             Standard("SwiftDumpConformance")
         case .invertedProtocols /* (let invertedProtocols) */:
             Standard("SwiftDumpInvertedProtocols")
-//            if invertedProtocols.protocols.hasCopyable, invertedProtocols.protocols.hasEscapable {
-//
-//                "Copyable, Escapable"
-//            } else if invertedProtocols.protocols.hasCopyable || invertedProtocols.protocols.hasEscapable {
-//                if invertedProtocols.protocols.hasCopyable {
-//                    "Copyable"
-//                } else {
-//                    "~Copyable"
-//                }
-//                if invertedProtocols.protocols.hasEscapable {
-//                    "Escapable"
-//                } else {
-//                    "~Escapable"
-//                }
-//            } else {
-//                "~Copyable, ~Escapable"
-//            }
         }
     }
 
     @SemanticStringBuilder
     package func dump<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-        try dumpParameterName(using: options, in: machO)
-
-        if layout.flags.kind == .sameType {
-            Space()
-            Standard("==")
-            Space()
-        } else {
-            Standard(":")
-            Space()
-        }
-
-        try dumpContent(using: options, in: machO)
+        try dump(in: machO) { $0.printSemantic(using: options) }
     }
     
     @SemanticStringBuilder
-    package func dumpProtocolRequirement<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-        try dumpProtocolParameterName(using: options, in: machO)
+    package func dump<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO, @SemanticStringBuilder builder: (Node) throws -> SemanticString) throws -> SemanticString {
+        try dumpParameterName(in: machO, builder: builder)
 
         if layout.flags.kind == .sameType {
             Space()
@@ -140,7 +137,29 @@ extension GenericRequirementDescriptor {
             Space()
         }
 
-        try dumpContent(using: options, in: machO)
+        try dumpContent(in: machO, builder: builder)
+    }
+    
+    
+    @SemanticStringBuilder
+    package func dumpProtocolRequirement<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+        try dumpProtocolRequirement(in: machO) { $0.printSemantic(using: options) }
+    }
+    
+    @SemanticStringBuilder
+    package func dumpProtocolRequirement<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO, @SemanticStringBuilder builder: (Node) throws -> SemanticString) throws -> SemanticString {
+        try dumpProtocolParameterName(in: machO)
+
+        if layout.flags.kind == .sameType {
+            Space()
+            Standard("==")
+            Space()
+        } else {
+            Standard(":")
+            Space()
+        }
+
+        try dumpContent(in: machO, builder: builder)
     }
 }
 

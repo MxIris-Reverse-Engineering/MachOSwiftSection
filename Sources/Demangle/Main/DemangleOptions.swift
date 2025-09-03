@@ -24,11 +24,10 @@ public struct DemangleOptions: OptionSet, Codable, Sendable {
     public static let printForTypeName = DemangleOptions(rawValue: 1 << 19)
     public static let showClosureSignature = DemangleOptions(rawValue: 1 << 20)
     public static let showModuleInDependentMemberType = DemangleOptions(rawValue: 1 << 21)
-    
+
     package static let removeWeakPrefix = DemangleOptions(rawValue: 1 << 22)
     package static let removeBoundGeneric = DemangleOptions(rawValue: 1 << 23)
-    
-    
+
     public init(rawValue: Int) {
         self.rawValue = rawValue
     }
@@ -49,18 +48,18 @@ public struct DemangleOptions: OptionSet, Codable, Sendable {
         .displayStdlibModule,
         .displayObjCModule,
         .showClosureSignature,
-        .showModuleInDependentMemberType
+        .showModuleInDependentMemberType,
     ]
-    
+
     public static let simplified: DemangleOptions = [
         .synthesizeSugarOnTypes,
         .qualifyEntities,
         .shortenPartialApply,
         .shortenThunk,
         .shortenValueWitness,
-        .shortenArchetype
+        .shortenArchetype,
     ]
-    
+
     public static let interface: DemangleOptions = {
         var options = DemangleOptions.default
         options.remove(.displayObjCModule)
@@ -72,11 +71,22 @@ public struct DemangleOptions: OptionSet, Codable, Sendable {
         options.remove(.displayUnmangledSuffix)
         return options
     }()
-    
+
     public static let interfaceType: DemangleOptions = {
         var options = DemangleOptions.interface
         options.insert(.removeBoundGeneric)
         return options
     }()
 
+    package static let interfaceBuilderOnly: DemangleOptions = {
+        var options = DemangleOptions.interface
+        options.insert(.displayObjCModule)
+        return options
+    }()
+
+    package static let interfaceTypeBuilderOnly: DemangleOptions = {
+        var options = DemangleOptions.interfaceBuilderOnly
+        options.insert(.removeBoundGeneric)
+        return options
+    }()
 }

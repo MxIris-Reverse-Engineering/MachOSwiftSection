@@ -2,31 +2,56 @@ import Foundation
 import FoundationToolbox
 import APINotes
 
-struct TypeRecord: Sendable {
-    let name: String
-    let moduleName: String
-}
-
 package final class TypeDatabase: Sendable {
-    package static let shared = TypeDatabase()
+    package struct Record: Sendable {
+        package let moduleName: String
+        package let typeName: String
+    }
+
+    private let apiNotesManager: APINotesManager
+
+    private let sdkIndexer: SDKIndexer
+
+    package init(platform: SDKPlatform) {
+        self.apiNotesManager = .init()
+        self.sdkIndexer = .init(platform: platform)
+        sdkIndexer.cacheIndexes = true
+    }
 
     @Mutex
-    private var types: [String: TypeRecord] = [:]
+    private var types: [String: Record] = [:]
 
     package func index(_ filter: (_ moduleName: String) -> Bool) async throws {
-        let indexer = SDKIndexer(platform: .macOS)
-        indexer.cacheIndexes = true
-        try await indexer.index()
-        let modules = indexer.modules.filter { filter($0.moduleName) }
+        try await sdkIndexer.index()
+
+        let modules = sdkIndexer.modules.filter { filter($0.moduleName) }
+
         let typeInfos = try await typeInfo(of: modules)
 
-        var types: [String: TypeRecord] = [:]
+        var types: [String: Record] = [:]
+
         for (moduleName, typeInfos) in typeInfos {
             for typeInfo in typeInfos {
-                types[typeInfo.name] = .init(name: typeInfo.name, moduleName: moduleName)
+                types[typeInfo.name] = .init(moduleName: moduleName, typeName: typeInfo.name)
             }
         }
+
+        apiNotesManager.addFiles(sdkIndexer.apiNotesFiles)
+        apiNotesManager.index()
+
+        for (_, cName) in apiNotesManager.swiftNameToCName {
+            types[cName.name] = .init(moduleName: cName.moduleName, typeName: cName.name)
+        }
+
         self.types = types
+    }
+
+    package func moduleName(forTypeName typeName: String) -> String? {
+        types[typeName]?.moduleName
+    }
+    
+    package func swiftName(forCName cName: String) -> String? {
+        apiNotesManager.swiftName(forCName: cName)?.name
     }
 
     private typealias TypeInfoResults = (moduleName: String, typeInfos: [SwiftInterfaceIndexer.TypeInfo])
@@ -67,9 +92,5 @@ package final class TypeDatabase: Sendable {
             }
             return subModuleTypeInfos.flatMap { $0 }
         }
-    }
-
-    package func moduleName(forTypeName typeName: String) -> String? {
-        types[typeName]?.moduleName
     }
 }

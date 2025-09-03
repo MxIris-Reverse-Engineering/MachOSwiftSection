@@ -1,6 +1,6 @@
 import Foundation
 
-struct SKSubprocess: Codable {
+struct Subprocess: Codable {
     // MARK: - Open Stored Properties
 
     /// The URL to the receiver’s executable.
@@ -58,13 +58,13 @@ struct SKSubprocess: Codable {
     // MARK: - Subprocess Methods
 
     static func xcRun(arguments: [String]) -> String? {
-        var subprocess = SKSubprocess(executableURL: URL(fileURLWithPath: "/usr/bin/xcrun", isDirectory: false))
+        var subprocess = Subprocess(executableURL: URL(fileURLWithPath: "/usr/bin/xcrun", isDirectory: false))
         subprocess.arguments = arguments
         return launch(subprocess: subprocess)
     }
 
     static func xcodeBuild(arguments: [String], currentDirectoryURL: URL) -> String? {
-        var subprocess = SKSubprocess(executableURL: URL(fileURLWithPath: "/usr/bin/xcodebuild", isDirectory: false))
+        var subprocess = Subprocess(executableURL: URL(fileURLWithPath: "/usr/bin/xcodebuild", isDirectory: false))
         subprocess.arguments = arguments + [
             "clean",
             "build",
@@ -77,13 +77,13 @@ struct SKSubprocess: Codable {
     }
 
     static func executeBash(_ command: String, currentDirectoryURL: URL? = nil) -> String? {
-        var subprocess = SKSubprocess(executableURL: URL(fileURLWithPath: "/bin/bash", isDirectory: false))
+        var subprocess = Subprocess(executableURL: URL(fileURLWithPath: "/bin/bash", isDirectory: false))
         subprocess.arguments = ["-c", command]
         subprocess.currentDirectoryURL = currentDirectoryURL
         return launch(subprocess: subprocess)
     }
 
-    static func launch(subprocess: SKSubprocess) -> String? {
+    static func launch(subprocess: Subprocess) -> String? {
         let process = subprocess.process
 
         let pipe = Pipe()

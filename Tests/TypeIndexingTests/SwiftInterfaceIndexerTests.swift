@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 @testable import MachOTestingSupport
-@testable import SwiftInterface
+@testable import TypeIndexing
 
 class SwiftInterfaceIndexerTests: DyldCacheTests {
     @Test func index() async throws {

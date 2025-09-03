@@ -2,18 +2,19 @@ import Foundation
 import Demangle
 import Semantic
 
-struct VariableNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, TypeNodePrintable, DependentGenericNodePrintable, FunctionTypeNodePrintable {
-    let hasSetter: Bool
-
-    let indentation: Int
-
+struct VariableNodePrinter: InterfaceNodePrinter {
     var target: SemanticString = ""
 
-    var moduleProvider: (any CImportedModuleProvider)?
+    let hasSetter: Bool
     
-    init(hasSetter: Bool, indentation: Int) {
+    let indentation: Int
+
+    let cImportedInfoProvider: (any CImportedInfoProvider)?
+
+    init(hasSetter: Bool, indentation: Int, cImportedInfoProvider: (any CImportedInfoProvider)? = nil) {
         self.hasSetter = hasSetter
         self.indentation = indentation
+        self.cImportedInfoProvider = cImportedInfoProvider
     }
 
     enum Error: Swift.Error {

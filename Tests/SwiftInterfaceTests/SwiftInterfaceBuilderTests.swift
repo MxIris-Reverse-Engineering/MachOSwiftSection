@@ -1,8 +1,8 @@
 import Foundation
 import Testing
+import MachOKit
 @testable import MachOTestingSupport
 @testable import SwiftInterface
-import MachOKit
 
 class SwiftInterfaceBuilderTests: DyldCacheTests {
     @Test func build() async throws {

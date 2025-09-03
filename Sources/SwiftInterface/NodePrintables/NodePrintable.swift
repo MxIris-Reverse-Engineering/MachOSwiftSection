@@ -1,8 +1,9 @@
 import Demangle
 import Foundation
 
-protocol CImportedModuleProvider {
+protocol CImportedInfoProvider {
     func moduleName(forTypeName typeName: String) -> String?
+    func swiftName(forCName cName: String) -> String?
 }
 
 protocol NodePrintable {
@@ -10,7 +11,7 @@ protocol NodePrintable {
 
     var target: Target { set get }
 
-    var moduleProvider: CImportedModuleProvider? { get }
+    var cImportedInfoProvider: CImportedInfoProvider? { get }
 
     @discardableResult
     mutating func printName(_ name: Node, asPrefixContext: Bool) -> Node?
@@ -19,6 +20,8 @@ protocol NodePrintable {
 extension NodePrintable {
     mutating func printNameInBase(_ name: Node) -> Bool {
         switch name.kind {
+        case .global:
+            printChildren(name)
         case .module:
             printModule(name)
         case .identifier:
@@ -49,10 +52,19 @@ extension NodePrintable {
 
     mutating func printModule(_ node: Node) {
         var moduleName = node.text ?? ""
-        if moduleName == objcModule || moduleName == cModule, let identifier = node.parent?.children.at(1)?.text, let updatedModuleName = moduleProvider?.moduleName(forTypeName: identifier) {
+        if moduleName == objcModule || moduleName == cModule, let identifier = node.parent?.children.at(1)?.text, let updatedModuleName = cImportedInfoProvider?.moduleName(forTypeName: identifier) ?? cImportedInfoProvider?.moduleName(forTypeName: identifier.strippedRefSuffix) {
             moduleName = updatedModuleName
         }
         target.write(moduleName, context: .context(for: node, state: .printModule))
+    }
+
+    mutating func printIdentifier(_ node: Node) {
+        target.write(node.text ?? "", context: .context(for: node, state: .printIdentifier))
+    }
+
+    mutating func printPrivateDeclName(_ node: Node) {
+        guard let child = node.children.at(1) else { return }
+        printIdentifier(child)
     }
 
     @discardableResult
@@ -90,12 +102,14 @@ extension NodePrintable {
     mutating func printChildren(_ ofName: Node, prefix: String? = nil, suffix: String? = nil, separator: String? = nil) {
         printSequence(ofName.children, prefix: prefix, suffix: suffix, separator: separator)
     }
+}
 
-    mutating func printIdentifier(_ node: Node) {
-        target.write(node.text ?? "", context: .context(for: node, state: .printIdentifier))
-    }
 
-    mutating func printPrivateDeclName(_ node: Node) {
-        target.write(node.children.at(1)?.text ?? "", context: .context(for: node, state: .printIdentifier))
+extension String {
+    fileprivate var strippedRefSuffix: String {
+        if hasSuffix("Ref") {
+            return String(dropLast(3))
+        }
+        return self
     }
 }
