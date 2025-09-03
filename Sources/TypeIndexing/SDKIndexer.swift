@@ -1,55 +1,7 @@
 import Foundation
 import FoundationToolbox
 import BinaryCodable
-
-@available(iOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-@available(visionOS, unavailable)
-struct SwiftModule: Sendable, Codable {
-    let moduleName: String
-    let path: String
-    let interfaceFile: SwiftInterfaceGeneratedFile
-    let subModuleInterfaceFiles: [SwiftInterfaceGeneratedFile]
-
-    init(moduleName: String, path: String, platform: SKPlatform) async throws {
-        self.moduleName = moduleName
-        self.path = path
-        let interfaceFile = try await SourceKitManager.shared.interface(for: moduleName, in: platform)
-        let indexer = SwiftInterfaceIndexer(file: interfaceFile)
-        try await indexer.index()
-        self.interfaceFile = interfaceFile
-
-        let subModuleNames = indexer.subModuleNames
-        var subModuleInterfaceFiles: [SwiftInterfaceGeneratedFile] = []
-        for subModuleName in subModuleNames {
-            if let interfaceFile = try? await SourceKitManager.shared.interface(for: subModuleName, in: platform) {
-                subModuleInterfaceFiles.append(interfaceFile)
-            }
-        }
-        self.subModuleInterfaceFiles = subModuleInterfaceFiles
-    }
-
-    nonisolated func write(toDirectory directoryPath: String) async throws {
-        var directoryURL = URL(filePath: directoryPath)
-        directoryURL.append(component: moduleName)
-        if !FileManager.default.fileExists(atPath: directoryURL.path()) {
-            try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        }
-        var moduleDirectoryURL = directoryURL
-        moduleDirectoryURL.append(component: "\(moduleName).swiftinterface")
-        try interfaceFile.contents.write(to: directoryURL, atomically: true, encoding: .utf8)
-        for subModuleInterfaceFile in subModuleInterfaceFiles {
-            var subModuleDirectoryURL = directoryURL
-            subModuleDirectoryURL.append(component: "\(subModuleInterfaceFile.moduleName).swiftinterface")
-            try subModuleInterfaceFile.contents.write(to: subModuleDirectoryURL, atomically: true, encoding: .utf8)
-        }
-    }
-
-    func indexer() -> SwiftModuleIndexer {
-        SwiftModuleIndexer(module: self)
-    }
-}
+import APINotes
 
 struct SwiftModuleIndexer {
     let moduleName: String
@@ -96,7 +48,16 @@ struct SwiftInterfaceGeneratedFile: Sendable, Codable {
 struct APINotesFile: Sendable, Codable {
     let moduleName: String
     let path: String
+    let apiNotesModule: APINotes.Module
+
+    init(moduleName: String, path: String) throws {
+        self.moduleName = moduleName
+        self.path = path
+        self.apiNotesModule = try APINotes.Module(contentsOf: .init(filePath: path))
+    }
 }
+
+extension APINotes.Module: @unchecked @retroactive Sendable {}
 
 @available(iOS, unavailable)
 @available(tvOS, unavailable)
@@ -104,6 +65,13 @@ struct APINotesFile: Sendable, Codable {
 @available(visionOS, unavailable)
 final class SDKIndexer: Sendable {
     let platform: SKPlatform
+
+    struct IndexOptions: OptionSet {
+        let rawValue: Int
+
+        static let indexSwiftModules = IndexOptions(rawValue: 1 << 0)
+        static let indexAPINotesFiles = IndexOptions(rawValue: 1 << 1)
+    }
 
     @Mutex
     var cacheIndexes: Bool = false
@@ -121,8 +89,11 @@ final class SDKIndexer: Sendable {
         "System/Library/PrivateFrameworks",
     ]
 
-    init(platform: SKPlatform) {
+    private let indexOptions: IndexOptions
+
+    init(platform: SKPlatform, options: IndexOptions = [.indexSwiftModules, .indexAPINotesFiles]) {
         self.platform = platform
+        self.indexOptions = options
     }
 
     private var cacheURL: URL {
@@ -131,7 +102,7 @@ final class SDKIndexer: Sendable {
 
     nonisolated func index() async throws {
         var hasModulesCache = false
-        if cacheURL.appending(component: "indexComplete").isExisted {
+        if cacheURL.appending(component: "indexComplete").isExisted, indexOptions.contains(.indexSwiftModules) {
             var modules: [SwiftModule] = []
             let indexDatas = try FileManager.default.contentsOfDirectory(at: cacheURL, includingPropertiesForKeys: nil)
             for indexData in indexDatas {
@@ -162,12 +133,12 @@ final class SDKIndexer: Sendable {
                 if element.hasSuffix(".swiftmodule") {
                     moduleFetchers.append { try await SwiftModule(moduleName: moduleName, path: fullPath, platform: platform) }
                 } else if element.hasSuffix(".apinotes") {
-                    let apinodesFile = APINotesFile(moduleName: moduleName, path: fullPath)
+                    let apinodesFile = try APINotesFile(moduleName: moduleName, path: fullPath)
                     apinotesFiles.append(apinodesFile)
                 }
             }
         }
-        if !hasModulesCache {
+        if !hasModulesCache, indexOptions.contains(.indexSwiftModules) {
             var modules: [SwiftModule] = []
             for moduleFetcher in moduleFetchers {
                 if let module = try? await moduleFetcher() {

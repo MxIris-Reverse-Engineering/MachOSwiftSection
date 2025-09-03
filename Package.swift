@@ -131,9 +131,8 @@ let package = Package(
         .package(url: "https://github.com/p-x9/MachOObjCSection", from: "0.4.0"),
         .package(url: "https://github.com/Mx-Iris/SourceKitD", branch: "main"),
         .package(url: "https://github.com/christophhagen/BinaryCodable", from: "3.1.0"),
-//        .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-apinotes", branch: "main"),
-        .package(path: "/Volumes/Repositories/Private/Fork/Library/swift-apinotes"),
-        .package(url: "https://github.com/jpsim/Yams", from: "6.1.0"),
+        .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-apinotes", branch: "main"),
+        .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.4"),
     ],
     targets: [
         .target(
@@ -155,6 +154,7 @@ let package = Package(
                 .product(name: "AssociatedObject", package: "AssociatedObject"),
                 .product(name: "MemberwiseInit", package: "swift-memberwise-init-macro"),
                 .product(name: "OrderedCollections", package: "swift-collections"),
+                .product(name: "Dependencies", package: "swift-dependencies"),
             ]
         ),
 
@@ -263,22 +263,29 @@ let package = Package(
         ),
 
         .target(
-            name: "SwiftInterface",
+            name: "TypeIndexing",
             dependencies: [
-                .MachOKit,
-                .product(name: "MachOObjCSection", package: "MachOObjCSection"),
-                "MachOSwiftSection",
-                "SwiftDump",
-                "Semantic",
-                "Utilities",
                 // Source
                 .SwiftSyntax,
                 .SwiftParser,
                 .SwiftSyntaxBuilder,
+                "Utilities",
                 .product(name: "SourceKitD", package: "SourceKitD"),
                 .product(name: "BinaryCodable", package: "BinaryCodable"),
                 .product(name: "APINotes", package: "swift-apinotes"),
-                .product(name: "Yams", package: "Yams"),
+                .product(name: "MachOObjCSection", package: "MachOObjCSection"),
+            ]
+        ),
+
+        .target(
+            name: "SwiftInterface",
+            dependencies: [
+                .MachOKit,
+                "MachOSwiftSection",
+                "SwiftDump",
+                "Semantic",
+                "Utilities",
+                "TypeIndexing",
             ]
         ),
 
@@ -346,7 +353,7 @@ let package = Package(
             ],
             swiftSettings: testSettings
         ),
-        
+
         .testTarget(
             name: "SwiftInterfaceTests",
             dependencies: [

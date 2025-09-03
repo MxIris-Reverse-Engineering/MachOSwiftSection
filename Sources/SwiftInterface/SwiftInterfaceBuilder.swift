@@ -8,6 +8,7 @@ import Semantic
 import SwiftStdlibToolbox
 import MachOKit
 import OSLog
+import TypeIndexing
 
 @available(iOS, unavailable)
 @available(tvOS, unavailable)

@@ -6,6 +6,8 @@ import Semantic
 struct FunctionNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, TypeNodePrintable, DependentGenericNodePrintable, FunctionTypeNodePrintable {
     var target: SemanticString = ""
 
+    var moduleProvider: (any CImportedModuleProvider)?
+
     enum Error: Swift.Error {
         case onlySupportedForFunctionNode
     }
@@ -58,7 +60,7 @@ struct FunctionNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, Typ
         if let type = name.children.first(of: .type), let functionType = type.children.first {
             printLabelList(name: name, type: functionType, genericFunctionTypeList: genericFunctionTypeList)
         }
-        
+
         if let genericSignature = name.first(of: .dependentGenericSignature) {
             let nodes = genericSignature.all(of: .requirementKinds)
             for (offset, node) in nodes.offsetEnumerated() {
@@ -71,7 +73,6 @@ struct FunctionNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, Typ
                 }
             }
         }
-        
     }
 
     mutating func printName(_ name: Node, asPrefixContext: Bool) -> Node? {

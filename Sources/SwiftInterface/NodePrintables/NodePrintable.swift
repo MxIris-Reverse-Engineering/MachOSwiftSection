@@ -1,10 +1,16 @@
 import Demangle
 import Foundation
 
+protocol CImportedModuleProvider {
+    func moduleName(forTypeName typeName: String) -> String?
+}
+
 protocol NodePrintable {
     associatedtype Target: NodePrinterTarget
 
     var target: Target { set get }
+
+    var moduleProvider: CImportedModuleProvider? { get }
 
     @discardableResult
     mutating func printName(_ name: Node, asPrefixContext: Bool) -> Node?
@@ -40,10 +46,10 @@ extension NodePrintable {
         }
         return true
     }
-    
+
     mutating func printModule(_ node: Node) {
         var moduleName = node.text ?? ""
-        if moduleName == objcModule || moduleName == cModule, let identifier = node.parent?.children.at(1)?.text, let updatedModuleName = TypeDatabase.shared.moduleName(forTypeName: identifier) {
+        if moduleName == objcModule || moduleName == cModule, let identifier = node.parent?.children.at(1)?.text, let updatedModuleName = moduleProvider?.moduleName(forTypeName: identifier) {
             moduleName = updatedModuleName
         }
         target.write(moduleName, context: .context(for: node, state: .printModule))
@@ -84,11 +90,11 @@ extension NodePrintable {
     mutating func printChildren(_ ofName: Node, prefix: String? = nil, suffix: String? = nil, separator: String? = nil) {
         printSequence(ofName.children, prefix: prefix, suffix: suffix, separator: separator)
     }
-    
+
     mutating func printIdentifier(_ node: Node) {
         target.write(node.text ?? "", context: .context(for: node, state: .printIdentifier))
     }
-    
+
     mutating func printPrivateDeclName(_ node: Node) {
         target.write(node.children.at(1)?.text ?? "", context: .context(for: node, state: .printIdentifier))
     }

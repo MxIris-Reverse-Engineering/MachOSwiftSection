@@ -8,6 +8,8 @@ struct VariableNodePrinter: InterfaceNodePrinter, BoundGenericNodePrintable, Typ
     let indentation: Int
 
     var target: SemanticString = ""
+
+    var moduleProvider: (any CImportedModuleProvider)?
     
     init(hasSetter: Bool, indentation: Int) {
         self.hasSetter = hasSetter
