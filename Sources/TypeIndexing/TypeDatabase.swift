@@ -1,6 +1,7 @@
 import Foundation
 import FoundationToolbox
 import APINotes
+import MachOKit
 
 package final class TypeDatabase: Sendable {
     package struct Record: Sendable {
@@ -12,16 +13,19 @@ package final class TypeDatabase: Sendable {
 
     private let sdkIndexer: SDKIndexer
 
+    private let objcInterfaceIndexer: ObjCInterfaceIndexer<MachOFile>
+    
     package init(platform: SDKPlatform) {
         self.apiNotesManager = .init()
         self.sdkIndexer = .init(platform: platform)
+        self.objcInterfaceIndexer = .init()
         sdkIndexer.cacheIndexes = true
     }
 
     @Mutex
     private var types: [String: Record] = [:]
-
-    package func index(_ filter: (_ moduleName: String) -> Bool) async throws {
+    
+    package func index(dependencies: [MachOFile], filter: (String) -> Bool) async throws {
         try await sdkIndexer.index()
 
         let modules = sdkIndexer.modules.filter { filter($0.moduleName) }
@@ -43,6 +47,22 @@ package final class TypeDatabase: Sendable {
             types[cName.name] = .init(moduleName: cName.moduleName, typeName: cName.name)
         }
 
+        for dependency in dependencies {
+            try objcInterfaceIndexer.index(in: dependency)
+        }
+        
+        for (image, classInfos) in objcInterfaceIndexer.classInfos {
+            for classInfo in classInfos {
+                print(image, classInfo.name)
+            }
+        }
+        
+        for (image, protocolInfos) in objcInterfaceIndexer.protocolInfos {
+            for protocolInfo in protocolInfos {
+                print(image, protocolInfo.name)
+            }
+        }
+        
         self.types = types
     }
 

@@ -9,7 +9,7 @@ import MachOFoundation
 @Suite
 final class PrimitiveTypeMappingTests: DyldCacheTests {
     
-    override class var cacheImageName: MachOImageName { .AppKit }
+    override class var cacheImageName: MachOImageName { .AttributeGraph }
     
     @Test func mappingInSwiftUI() async throws {
         let mapping = try PrimitiveTypeMapping(machO: machOFileInCache)

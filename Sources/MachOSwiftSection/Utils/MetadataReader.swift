@@ -13,7 +13,7 @@ public enum MetadataReader {
             return try demangle(for: mangledName, kind: .type, in: machO)
         }
     }
-    
+
     public static func demangleType<MachO: MachORepresentableWithCache & MachOReadable>(for mangledName: MangledName, in machO: MachO) throws -> Node {
         return try demangle(for: mangledName, kind: .type, in: machO)
     }
@@ -55,11 +55,8 @@ public enum MetadataReader {
                     switch directness {
                     case .direct:
                         if let context = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset).resolve(from: offset, in: machO) {
-                            if context.opaqueTypeDescriptor != nil {
-                                // Try to preserve a reference to an OpaqueTypeDescriptor
-                                // symbolically, since we'd like to read out and resolve the type ref
-                                // to the underlying type if available.
-                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, contents: .index(context.contextDescriptor.offset.cast()))
+                            if let opaqueTypeDescriptor = context.opaqueTypeDescriptor {
+                                result = try demangle(for: OpaqueType(descriptor: opaqueTypeDescriptor, in: machO).underlyingTypeArgumentMangledNames[0], in: machO)
                             } else {
                                 result = try buildContextMangling(context: .element(context), in: machO)
                             }
@@ -67,11 +64,8 @@ public enum MetadataReader {
                     case .indirect:
                         let relativePointer = RelativeIndirectSymbolOrElementPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset)
                         if let resolvableElement = try relativePointer.resolve(from: offset, in: machO).asOptional {
-                            if case .element(let element) = resolvableElement, element.opaqueTypeDescriptor != nil {
-                                // Try to preserve a reference to an OpaqueTypeDescriptor
-                                // symbolically, since we'd like to read out and resolve the type ref
-                                // to the underlying type if available.
-                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, contents: .index(element.contextDescriptor.offset.cast()))
+                            if case .element(let element) = resolvableElement, let opaqueTypeDescriptor = element.opaqueTypeDescriptor {
+                                result = try demangle(for: OpaqueType(descriptor: opaqueTypeDescriptor, in: machO).underlyingTypeArgumentMangledNames[0], in: machO)
                             } else {
                                 result = try buildContextMangling(context: resolvableElement, in: machO)
                             }

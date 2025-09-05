@@ -1,16 +1,20 @@
 import Foundation
 import MachOObjCSection
 @preconcurrency import ObjCDump
+import FoundationToolbox
 
 final class ObjCInterfaceIndexer<MachO: MachORepresentable>: Sendable {
     enum Error: Swift.Error {
         case unsupportedMachO(MachO)
     }
 
-    let classInfos: [ObjCClassInfo]
-    let protocolInfos: [ObjCProtocolInfo]
-    
-    init(machO: MachO) throws {
+    @Mutex
+    var classInfos: [String: [ObjCClassInfo]] = [:]
+
+    @Mutex
+    var protocolInfos: [String: [ObjCProtocolInfo]] = [:]
+
+    func index(in machO: MachO) throws {
         var classInfos: [ObjCClassInfo] = []
         var protocolInfos: [ObjCProtocolInfo] = []
         if let machOFile = machO as? MachOFile {
@@ -28,6 +32,10 @@ final class ObjCInterfaceIndexer<MachO: MachORepresentable>: Sendable {
             addClassInfos(for: machOFile.objc.nonLazyClasses32)
             addProtocolInfos(for: machOFile.objc.protocols64)
             addProtocolInfos(for: machOFile.objc.protocols32)
+            let image = machOFile.imagePath.lastPathComponent.deletingPathExtension.deletingPathExtension
+            self.classInfos[image] = classInfos
+            self.protocolInfos[image] = protocolInfos
+
         } else if let machOImage = machO as? MachOImage {
             func addClassInfos(for classes: [any ObjCClassProtocol]?) {
                 guard let classes else { return }
@@ -43,10 +51,13 @@ final class ObjCInterfaceIndexer<MachO: MachORepresentable>: Sendable {
             addClassInfos(for: machOImage.objc.nonLazyClasses32)
             addProtocolInfos(for: machOImage.objc.protocols64)
             addProtocolInfos(for: machOImage.objc.protocols32)
+            if let path = machOImage.path {
+                let image = path.lastPathComponent.deletingPathExtension.deletingPathExtension
+                self.classInfos[image] = classInfos
+                self.protocolInfos[image] = protocolInfos
+            }
         } else {
             throw Error.unsupportedMachO(machO)
         }
-        self.classInfos = classInfos
-        self.protocolInfos = protocolInfos
     }
 }

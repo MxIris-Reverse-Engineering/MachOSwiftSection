@@ -42,6 +42,7 @@ final class SourceKitManager: Sendable {
 
 private enum SourceKitManagerKey: DependencyKey {
     static let liveValue: SourceKitManager = .shared
+    static let testValue: SourceKitManager = .shared
 }
 
 extension DependencyValues {

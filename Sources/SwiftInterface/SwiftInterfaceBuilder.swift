@@ -339,7 +339,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     private func index() async throws {
         if let typeDatabase {
             let dependencyModules = Set(dependencies.map(\.imagePath.lastPathComponent.deletingPathExtension.deletingPathExtension.strippedLibSwiftPrefix))
-            try await typeDatabase.index { dependencyModules.contains($0) }
+            try await typeDatabase.index(dependencies: dependencies) { dependencyModules.contains($0) }
         }
         try await indexTypes()
         try await indexProtocols()
