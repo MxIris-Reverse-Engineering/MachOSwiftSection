@@ -56,7 +56,7 @@ public enum MetadataReader {
                     case .direct:
                         if let context = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset).resolve(from: offset, in: machO) {
                             if let opaqueTypeDescriptor = context.opaqueTypeDescriptor {
-                                result = try demangle(for: OpaqueType(descriptor: opaqueTypeDescriptor, in: machO).underlyingTypeArgumentMangledNames[0], in: machO)
+                                result = .init(kind: .opaqueReturnTypeOf, child: try demangle(for: OpaqueType(descriptor: opaqueTypeDescriptor, in: machO).underlyingTypeArgumentMangledNames[0], in: machO))
                             } else {
                                 result = try buildContextMangling(context: .element(context), in: machO)
                             }
@@ -65,7 +65,7 @@ public enum MetadataReader {
                         let relativePointer = RelativeIndirectSymbolOrElementPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset)
                         if let resolvableElement = try relativePointer.resolve(from: offset, in: machO).asOptional {
                             if case .element(let element) = resolvableElement, let opaqueTypeDescriptor = element.opaqueTypeDescriptor {
-                                result = try demangle(for: OpaqueType(descriptor: opaqueTypeDescriptor, in: machO).underlyingTypeArgumentMangledNames[0], in: machO)
+                                result = .init(kind: .opaqueReturnTypeOf, child: try demangle(for: OpaqueType(descriptor: opaqueTypeDescriptor, in: machO).underlyingTypeArgumentMangledNames[0], in: machO))
                             } else {
                                 result = try buildContextMangling(context: resolvableElement, in: machO)
                             }

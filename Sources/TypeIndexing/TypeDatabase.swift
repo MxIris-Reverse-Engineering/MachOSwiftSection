@@ -47,21 +47,21 @@ package final class TypeDatabase: Sendable {
             types[cName.name] = .init(moduleName: cName.moduleName, typeName: cName.name)
         }
 
-        for dependency in dependencies {
-            try objcInterfaceIndexer.index(in: dependency)
-        }
-        
-        for (image, classInfos) in objcInterfaceIndexer.classInfos {
-            for classInfo in classInfos {
-                print(image, classInfo.name)
-            }
-        }
-        
-        for (image, protocolInfos) in objcInterfaceIndexer.protocolInfos {
-            for protocolInfo in protocolInfos {
-                print(image, protocolInfo.name)
-            }
-        }
+//        for dependency in dependencies {
+//            try objcInterfaceIndexer.index(in: dependency)
+//        }
+//        
+//        for (image, classInfos) in objcInterfaceIndexer.classInfos {
+//            for classInfo in classInfos {
+//                print(image, classInfo.name)
+//            }
+//        }
+//        
+//        for (image, protocolInfos) in objcInterfaceIndexer.protocolInfos {
+//            for protocolInfo in protocolInfos {
+//                print(image, protocolInfo.name)
+//            }
+//        }
         
         self.types = types
     }
