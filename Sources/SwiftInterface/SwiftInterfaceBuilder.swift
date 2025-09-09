@@ -668,7 +668,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         Keyword(.extension)
         Space()
         extensionDefinition.printName()
-        if let protocolConformance = extensionDefinition.protocolConformance, let protocolName = try? protocolConformance.dumpProtocolName(using: .interfaceType, in: machO) {
+        if let protocolConformance = extensionDefinition.protocolConformance, let protocolName = try? protocolConformance.dumpProtocolName(using: .interfaceTypeBuilderOnly, in: machO) {
             Standard(":")
             Space()
             protocolName
@@ -681,7 +681,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                     Keyword(.where)
                     Space()
                 }
-                node.printSemantic(using: .interface)
+                node.printSemantic(using: .interfaceBuilderOnly)
                 if !offset.isEnd {
                     Standard(",")
                     Space()
@@ -691,19 +691,35 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         Space()
         Standard("{")
         if let associatedType = extensionDefinition.associatedType {
-            let dumper = AssociatedTypeDumper(associatedType, using: .init(demangleOptions: .interface), in: machO)
+            let dumper = AssociatedTypeDumper(associatedType, using: .init(demangleOptions: .interfaceBuilderOnly), in: machO)
             try dumper.records
-        }
-        try printDefinition(extensionDefinition, level: 1)
-
-//        for (offset, missingSymbolWitness) in extensionDefinition.missingSymbolWitnesses.offsetEnumerated() {
-//            BreakLine()
-//            Indent(level: 1)
-//            Standard("// Missing implementation for requirement: \(missingSymbolWitness)")
-//            if offset.isEnd {
+//            for (offset, record) in associatedType.records.offsetEnumerated() {
 //                BreakLine()
+//
+//                Indent(level: 1)
+//
+//                Keyword(.typealias)
+//
+//                Space()
+//
+//                try TypeDeclaration(kind: .other, record.name(in: machO))
+//
+//                Space()
+//
+//                Standard("=")
+//
+//                Space()
+//
+//                var printer = TypeNodePrinter(cImportedInfoProvider: typeDatabase)
+//                try printer.printRoot(MetadataReader.demangleSymbol(for: record.substitutedTypeName(in: machO), in: machO))
+//
+//                if offset.isEnd {
+//                    BreakLine()
+//                }
 //            }
-//        }
+        }
+
+        try printDefinition(extensionDefinition, level: 1)
 
         Standard("}")
     }

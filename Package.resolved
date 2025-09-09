@@ -1,5 +1,5 @@
 {
-  "originHash" : "5734a9cc3a0286dc3cc91af6893b09e7f15be590a306647ffbf556c72873836f",
+  "originHash" : "7b602c601818b297ba0133b1ea7bb242c7685631a885ee750d5f0b758c450f60",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -98,6 +98,15 @@
       "state" : {
         "revision" : "309a47b2b1d9b5e991f36961c983ecec72275be3",
         "version" : "1.6.1"
+      }
+    },
+    {
+      "identity" : "swift-clang",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/MxIris-DeveloperTool-Forks/swift-clang",
+      "state" : {
+        "revision" : "3944b95e4458e1a1e52efcdd5ea1518fcb90a9a6",
+        "version" : "0.1.0"
       }
     },
     {

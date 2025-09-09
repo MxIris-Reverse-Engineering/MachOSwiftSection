@@ -11,7 +11,7 @@ struct FunctionNodePrinter: InterfaceNodePrinter {
     init(cImportedInfoProvider: (any CImportedInfoProvider)? = nil) {
         self.cImportedInfoProvider = cImportedInfoProvider
     }
-    
+
     enum Error: Swift.Error {
         case onlySupportedForFunctionNode
     }
@@ -99,7 +99,14 @@ struct FunctionNodePrinter: InterfaceNodePrinter {
     }
 
     private mutating func printLabelList(name: Node, type: Node, genericFunctionTypeList: Node?) {
-        let labelList = name.children.first(of: .labelList)
+        var labelList = name.children.first(of: .labelList)
+
+        if let argumentTuple = name.first(of: .argumentTuple), let tuple = argumentTuple.first(of: .tuple) {
+            if !tuple.children.isEmpty, labelList == nil || labelList!.children.isEmpty {
+                labelList = Node(kind: .labelList, children: (0 ..< tuple.children.count).map { _ in Node(kind: .firstElementMarker) })
+            }
+        }
+
         if labelList != nil || genericFunctionTypeList != nil {
             if let genericFunctionTypeList {
                 printChildren(genericFunctionTypeList, prefix: "<", suffix: ">", separator: ", ")

@@ -34,12 +34,20 @@ extension TypeNodePrintable {
             target.write("some")
         case .opaqueReturnTypeOf:
             printChildren(name)
+        case .opaqueType:
+            printOpaqueType(name)
         default:
             return false
         }
         return true
     }
 
+    mutating func printOpaqueType(_ name: Node) {
+        printFirstChild(name)
+//        target.write(".")
+//        _ = printOptional(name.children.at(1))
+    }
+    
     mutating func printType(_ name: Node) {
         if name.kind == .type, let firstChild = name.children.first {
             printType(firstChild)

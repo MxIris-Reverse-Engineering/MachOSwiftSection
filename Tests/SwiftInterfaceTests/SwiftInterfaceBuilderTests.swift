@@ -5,14 +5,17 @@ import MachOKit
 @testable import SwiftInterface
 
 class SwiftInterfaceBuilderTests: DyldCacheTests {
+    
+    override class var cacheImageName: MachOImageName { .SwiftUICore }
+    
     @Test func build() async throws {
-        let builder = try SwiftInterfaceBuilder(machO: machOFileInMainCache)
+        let builder = try SwiftInterfaceBuilder(machO: machOFileInCache)
         try await builder.prepare()
         try builder.build().string.print()
     }
     
     @Test func buildFile() async throws {
-        let machO = machOFileInMainCache
+        let machO = machOFileInCache
         let builder = try SwiftInterfaceBuilder(machO: machO)
         builder.setDependencyPaths([.usesSystemDyldSharedCache])
         try await builder.prepare()

@@ -159,7 +159,7 @@ extension FunctionTypeNodePrintable {
 
         if parameters.kind != .tuple {
             if showTypes {
-                target.write("(")
+                target.write("(_: ")
                 _ = printName(parameters)
                 target.write(")")
             } else {

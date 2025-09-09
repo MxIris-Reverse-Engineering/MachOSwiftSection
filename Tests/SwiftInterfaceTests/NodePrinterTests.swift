@@ -2,13 +2,14 @@ import Foundation
 import Demangle
 import Testing
 import MachOSymbols
+@testable import MachOSwiftSection
 @testable import SwiftInterface
 @testable import MachOTestingSupport
 
 @Suite
 final class NodePrinterTests: DyldCacheTests {
     @Test func functionNode() async throws {
-        let node = try demangleAsNode("_$s7SwiftUI33LimitedAvailabilityCommandContentV15IndirectOutputs33_345D0464CE5C92DE3AB73ADEFB278856LLV11updateValueyyF")
+        let node = try demangleAsNode("_$s7SwiftUI19NSViewRepresentableP14_layoutOptionsyAA013_PlatformViewd6LayoutF0V0C4TypeQzFZ")
         var printer = FunctionNodePrinter()
         try printer.printRoot(node.children.first!).string.print()
     }
@@ -20,7 +21,7 @@ final class NodePrinterTests: DyldCacheTests {
     }
 
     @Test func functionNodes() throws {
-        let demangledSymbols = SymbolIndexStore.shared.memberSymbols(of: .function, in: machOFileInMainCache)
+        let demangledSymbols = SymbolIndexStore.shared.memberSymbols(of: .staticFunction, in: machOFileInMainCache)
 
         for demangledSymbol in demangledSymbols {
             let node = demangledSymbol.demangledNode
@@ -33,6 +34,26 @@ final class NodePrinterTests: DyldCacheTests {
                 print("Error printing node: \(node.print(using: .default))")
             }
             print("--------------------")
+        }
+    }
+    
+    @Test func typeNodes() async throws {
+        let machO = machOFileInMainCache
+        let associatedTypes = try machO.swift.associatedTypes
+        for associatedType in associatedTypes {
+            for record in associatedType.records {
+                let substitutedTypeNameMangledName = try record.substitutedTypeName(in: machO)
+                let node = try MetadataReader.demangle(for: substitutedTypeNameMangledName, in: machO)
+                do {
+                    var printer = TypeNodePrinter()
+                    print("Demangled: \(node.print(using: .interface))")
+                    try print("Interface: \(printer.printRoot(node).string)")
+                    print("Node: \(node)")
+                } catch {
+                    print("Error printing node: \(node.print(using: .default))")
+                }
+                print("--------------------")
+            }
         }
     }
 }
