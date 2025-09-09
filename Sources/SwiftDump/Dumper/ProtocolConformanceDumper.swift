@@ -21,8 +21,8 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
         self.machO = machO
     }
 
-    private var options: DemangleOptions {
-        configuration.demangleOptions
+    private var demangleResolver: DemangleResolver {
+        configuration.demangleResolver
     }
 
     package var declaration: SemanticString {
@@ -46,7 +46,7 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
             }
 
             for conditionalRequirement in protocolConformance.conditionalRequirements {
-                try conditionalRequirement.dump(using: options, in: machO)
+                try conditionalRequirement.dump(resolver: demangleResolver, in: machO)
             }
         }
     }
@@ -73,18 +73,18 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
 
                     if let symbols = try resilientWitness.implementationSymbols(in: machO), let node = try _node(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes) {
                         _ = visitedNodes.append(node)
-                        node.printSemantic(using: options)
+                        try demangleResolver.resolve(for: node)
                     } else if let requirement = try resilientWitness.requirement(in: machO) {
                         switch requirement {
                         case .symbol(let symbol):
-                            try MetadataReader.demangleSymbol(for: symbol, in: machO)?.printSemantic(using: options)
+                            try MetadataReader.demangleSymbol(for: symbol, in: machO).map { try demangleResolver.resolve(for: $0) }
                         case .element(let element):
                             if let symbols = try Symbols.resolve(from: element.offset, in: machO), let node = try _node(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes) {
                                 _ = visitedNodes.append(node)
-                                node.printSemantic(using: options)
+                                try demangleResolver.resolve(for: node)
                             } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machO), let node = try _node(for: defaultImplementationSymbols, typeName: typeNameString, visitedNodes: visitedNodes) {
                                 _ = visitedNodes.append(node)
-                                node.printSemantic(using: options)
+                                try demangleResolver.resolve(for: node)
                             } else if !element.defaultImplementation.isNull {
                                 FunctionDeclaration(addressString(of: element.defaultImplementation.resolveDirectOffset(from: element.offset(of: \.defaultImplementation)), in: machO).insertSubFunctionPrefix)
                             } else if !resilientWitness.implementation.isNull {
@@ -145,10 +145,10 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
     package var protocolName: SemanticString {
         get throws {
             switch protocolConformance.`protocol` {
-            case .symbol(let unsolvedSymbol):
-                try MetadataReader.demangleType(for: unsolvedSymbol, in: machO)?.printSemantic(using: options)
+            case .symbol(let symbol):
+                try MetadataReader.demangleSymbol(for: symbol, in: machO).map { try demangleResolver.resolve(for: $0) }
             case .element(let element):
-                try MetadataReader.demangleContext(for: .protocol(element), in: machO).printSemantic(using: options)
+                try demangleResolver.resolve(for: MetadataReader.demangleContext(for: .protocol(element), in: machO))
             case .none:
                 Standard("")
             }

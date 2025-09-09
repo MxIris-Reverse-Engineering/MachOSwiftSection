@@ -17,18 +17,18 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
         self.machO = machO
     }
 
-    private var options: DemangleOptions {
-        configuration.demangleOptions
+    private var demangleResolver: DemangleResolver {
+        configuration.demangleResolver
     }
-    
+
     package var declaration: SemanticString {
         get throws {
             Keyword(.struct)
-            
+
             Space()
-            
+
             try name
-            
+
             if let genericContext = `struct`.genericContext {
                 if genericContext.currentParameters.count > 0 {
                     try genericContext.dumpGenericParameters(in: machO)
@@ -37,12 +37,12 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
                     Space()
                     Keyword(.where)
                     Space()
-                    try genericContext.dumpGenericRequirements(using: options, in: machO)
+                    try genericContext.dumpGenericRequirements(resolver: demangleResolver, in: machO)
                 }
             }
         }
     }
-    
+
     package var fields: SemanticString {
         get throws {
             for (offset, fieldRecord) in try `struct`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
@@ -77,7 +77,14 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
                 MemberDeclaration(fieldName.stripLazyPrefix)
                 Standard(":")
                 Space()
-                demangledTypeNode.printSemantic(using: options.union(.removeWeakPrefix))
+                try demangleResolver.modify {
+                    if case .options(let demangleOptions) = $0 {
+                        return .options(demangleOptions.union(.removeWeakPrefix))
+                    } else {
+                        return $0
+                    }
+                }
+                .resolve(for: demangledTypeNode)
 
                 if offset.isEnd {
                     BreakLine()
@@ -112,7 +119,7 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
 
                     Indent(level: 1)
 
-                    symbol.demangledNode.printSemantic(using: options)
+                    try demangleResolver.resolve(for: symbol.demangledNode)
 
                     if offset.isEnd {
                         BreakLine()
@@ -126,20 +133,20 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
 
     package var name: SemanticString {
         get throws {
-            try _name(using: options)
+            try _name(using: demangleResolver)
         }
     }
 
     private var interfaceName: SemanticString {
         get throws {
-            try _name(using: .interface)
+            try _name(using: .options(.interface))
         }
     }
 
     @SemanticStringBuilder
-    private func _name(using options: DemangleOptions) throws -> SemanticString {
+    private func _name(using resolver: DemangleResolver) throws -> SemanticString {
         if configuration.displayParentName {
-        try MetadataReader.demangleContext(for: .type(.struct(`struct`.descriptor)), in: machO).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
+            try resolver.resolve(for: MetadataReader.demangleContext(for: .type(.struct(`struct`.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
             try TypeDeclaration(kind: .struct, `struct`.descriptor.name(in: machO))
         }

@@ -26,6 +26,11 @@ public enum DependencyPath {
 @available(visionOS, unavailable)
 private let logger = Logger(subsystem: "com.MachOSwiftSection.SwiftInterface", category: "SwiftInterfaceBuilder")
 
+@MemberwiseInit(.public)
+public struct SwiftInterfaceBuilderConfiguration: Sendable {
+    public var isEnabledTypeIndexing: Bool = false
+}
+
 @available(iOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
@@ -89,9 +94,25 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         ["Swift", "_Concurrency", "_StringProcessing", "_SwiftConcurrencyShims"]
     }
 
-    public init(machO: MachO) throws {
-        self.typeDatabase = machO.loadCommands.buildVersionCommand?.platform.sdkPlatform.map { .init(platform: $0) }
+    private let typeDemangleResolver: DemangleResolver
+    
+    public let configuration: SwiftInterfaceBuilderConfiguration
+    
+    public init(configuration: SwiftInterfaceBuilderConfiguration = .init(), in machO: MachO) throws {
+        self.configuration = configuration
+
+        let typeDatabase: TypeDatabase? = if configuration.isEnabledTypeIndexing {
+            machO.loadCommands.buildVersionCommand?.platform.sdkPlatform.map { TypeDatabase(platform: $0) }
+        } else {
+            nil
+        }
+        
+        self.typeDatabase = typeDatabase
         self.machO = machO
+        self.typeDemangleResolver = .using { node in
+            var printer = TypeNodePrinter(cImportedInfoProvider: typeDatabase)
+            try printer.printRoot(node)
+        }
         let types = try machO.swift.types
         var enums: [Enum] = []
         var structs: [Struct] = []
@@ -349,7 +370,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     public func build() throws -> SemanticString {
-        for module in Self.internalModules + importedModules.sorted() {
+        for module in OrderedSet(Self.internalModules + importedModules).sorted() {
             Standard("import \(module)")
             BreakLine()
         }
@@ -633,7 +654,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     private func printProtocolDefinition(_ protocolDefinition: ProtocolDefinition) throws -> SemanticString {
-        let dumper = ProtocolDumper(protocolDefinition.protocol, using: .init(demangleOptions: .interfaceBuilderOnly), in: machO)
+        let dumper = ProtocolDumper(protocolDefinition.protocol, using: .init(demangleResolver: typeDemangleResolver), in: machO)
         try dumper.declaration
         Space()
         Standard("{")
@@ -691,32 +712,8 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         Space()
         Standard("{")
         if let associatedType = extensionDefinition.associatedType {
-            let dumper = AssociatedTypeDumper(associatedType, using: .init(demangleOptions: .interfaceBuilderOnly), in: machO)
+            let dumper = AssociatedTypeDumper(associatedType, using: .init(demangleResolver: typeDemangleResolver), in: machO)
             try dumper.records
-//            for (offset, record) in associatedType.records.offsetEnumerated() {
-//                BreakLine()
-//
-//                Indent(level: 1)
-//
-//                Keyword(.typealias)
-//
-//                Space()
-//
-//                try TypeDeclaration(kind: .other, record.name(in: machO))
-//
-//                Space()
-//
-//                Standard("=")
-//
-//                Space()
-//
-//                var printer = TypeNodePrinter(cImportedInfoProvider: typeDatabase)
-//                try printer.printRoot(MetadataReader.demangleSymbol(for: record.substitutedTypeName(in: machO), in: machO))
-//
-//                if offset.isEnd {
-//                    BreakLine()
-//                }
-//            }
         }
 
         try printDefinition(extensionDefinition, level: 1)

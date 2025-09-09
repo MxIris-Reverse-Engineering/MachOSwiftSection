@@ -19,8 +19,8 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
         self.machO = machO
     }
 
-    private var options: DemangleOptions {
-        configuration.demangleOptions
+    private var demangleResolver: DemangleResolver {
+        configuration.demangleResolver
     }
 
     package var declaration: SemanticString {
@@ -40,7 +40,7 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
                         Standard(",")
                     }
                     Space()
-                    try requirement.descriptor.dumpContent(using: options, in: machO)
+                    try requirement.descriptor.dumpContent(resolver: demangleResolver, in: machO)
                 }
                 if !requirementInSignatures.isEmpty {
                     Space()
@@ -48,7 +48,7 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
                     Space()
 
                     for (offset, requirement) in requirementInSignatures.offsetEnumerated() {
-                        try requirement.descriptor.dumpProtocolRequirement(using: options, in: machO)
+                        try requirement.descriptor.dumpProtocolRequirement(resolver: demangleResolver, in: machO)
                         if !offset.isEnd {
                             Standard(",")
                             Space()
@@ -96,7 +96,7 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
                 BreakLine()
                 Indent(level: configuration.indentation)
                 if let symbols = try Symbols.resolve(from: requirement.offset, in: machO), let validNode = try validNode(for: symbols) {
-                    validNode.printSemantic(using: options)
+                    try demangleResolver.resolve(for: validNode)
                 } else {
                     InlineComment("[Stripped Symbol]")
                 }
@@ -119,7 +119,7 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
 
                 BreakLine()
                 Indent(level: configuration.indentation)
-                defaultImplementation.printSemantic(using: options)
+                try demangleResolver.resolve(for: defaultImplementation)
 
                 if offset.isEnd {
                     BreakLine()
@@ -131,16 +131,16 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
 
     package var name: SemanticString {
         get throws {
-            try _name(using: options)
+            try _name(using: demangleResolver)
         }
     }
 
-    private func _name(using options: DemangleOptions) throws -> SemanticString {
-        try MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
+    private func _name(using resolver: DemangleResolver) throws -> SemanticString {
+        try resolver.resolve(for: MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
     }
 
     private func validNode(for symbols: Symbols, visitedNode: borrowing OrderedSet<Node> = []) throws -> Node? {
-        let currentInterfaceName = try _name(using: .interfaceType).string
+        let currentInterfaceName = try _name(using: .options(.interfaceType)).string
         for symbol in symbols {
             if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), protocolNode.print(using: .interfaceType) == currentInterfaceName, !visitedNode.contains(node) {
                 return node

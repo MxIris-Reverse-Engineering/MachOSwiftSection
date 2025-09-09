@@ -28,12 +28,12 @@ final class ProtocolDefinition: Sendable {
     init<MachO: MachOSwiftSectionRepresentableWithCache>(`protocol`: MachOSwiftSection.`Protocol`, in machO: MachO) throws {
         self.protocol = `protocol`
         func _name() throws -> SemanticString {
-            try MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO).printSemantic(using: .interfaceType).replacingTypeNameOrOtherToTypeDeclaration()
+            try MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO).printSemantic(using: .interfaceTypeBuilderOnly).replacingTypeNameOrOtherToTypeDeclaration()
         }
         let name = try _name().string
         func _node(for symbols: Symbols, visitedNodes: borrowing OrderedSet<Node> = []) throws -> Node? {
             for symbol in symbols {
-                if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), protocolNode.print(using: .interfaceType) == name, !visitedNodes.contains(node) {
+                if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), protocolNode.print(using: .interfaceTypeBuilderOnly) == name, !visitedNodes.contains(node) {
                     return node
                 }
             }
@@ -44,7 +44,9 @@ final class ProtocolDefinition: Sendable {
         var requirementVisitedNodes: OrderedSet<Node> = []
         var defaultImplementationVisitedNodes: OrderedSet<Node> = []
         var variableKindsByName: OrderedDictionary<String, Set<VariableKind>> = [:]
+        var defaultImplementationVariableKindsByName: OrderedDictionary<String, Set<VariableKind>> = [:]
         var nodeAndRequirements: [(node: Node, requirement: ProtocolRequirement)] = []
+        var defaultImplementationNodeAndRequirements: [(node: Node, requirement: ProtocolRequirement)] = []
         for requirement in `protocol`.requirements {
             guard let symbols = try Symbols.resolve(from: requirement.offset, in: machO), let node = try? _node(for: symbols, visitedNodes: requirementVisitedNodes) else { continue }
             nodeAndRequirements.append((node, requirement))
@@ -66,18 +68,34 @@ final class ProtocolDefinition: Sendable {
             }
             requirements.append(requirementDefinition)
             if let symbols = try requirement.defaultImplementationSymbols(in: machO), let node = try _node(for: symbols, visitedNodes: defaultImplementationVisitedNodes) {
-                switch requirementDefinition {
-                case .function(let function):
-                    defaultImplementationRequirements.append(.function(.init(node: node, name: function.name, kind: function.kind, isStatic: function.isStatic)))
-                case .variable(let variable):
-                    defaultImplementationRequirements.append(.variable(.init(node: node, name: variable.name, hasSetter: variable.hasSetter, hasModifyAccessor: variable.hasModifyAccessor, isStatic: variable.isStatic)))
+                if let variable = node.first(of: .variable), let name = variable.identifier, let variableKind = node.variableKind {
+                    defaultImplementationVariableKindsByName[name, default: []].insert(variableKind)
                 }
                 defaultImplementationVisitedNodes.append(node)
+                defaultImplementationNodeAndRequirements.append((node, requirement))
             }
         }
+        
         self.requirements = requirements
+        
+        for (node, requirement) in defaultImplementationNodeAndRequirements {
+            let requirementDefinition: ProtocolRequirementDefinition
+            if let variable = node.first(of: .variable), let name = variable.identifier, node.contains(.getter), let variableKinds = defaultImplementationVariableKindsByName[name] {
+                requirementDefinition = .variable(VariableDefinition(node: variable, name: name, hasSetter: variableKinds.contains(.setter), hasModifyAccessor: variableKinds.contains(.modifyAccessor), isStatic: !requirement.flags.isInstance))
+            } else if node.contains(.allocator) {
+                requirementDefinition = .function(FunctionDefinition(node: node, name: "", kind: .allocator, isStatic: true))
+            } else if let function = node.first(of: .function), let name = function.identifier {
+                requirementDefinition = .function(FunctionDefinition(node: function, name: name, kind: .function, isStatic: !requirement.flags.isInstance))
+            } else {
+                continue
+            }
+            defaultImplementationRequirements.append(requirementDefinition)
+        }
+        
         self.defaultImplementationRequirements = defaultImplementationRequirements
+        
         var extensionDefinition = try ExtensionDefinition(name: name, kind: .protocol, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
+        
         for defaultImplementationRequirement in defaultImplementationRequirements {
             switch defaultImplementationRequirement {
             case .variable(let variableDefinition):
@@ -101,6 +119,7 @@ final class ProtocolDefinition: Sendable {
                 }
             }
         }
+        
         if extensionDefinition.hasMembers {
             self.defaultImplementationExtensions = [extensionDefinition]
         }

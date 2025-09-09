@@ -17,8 +17,8 @@ package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCac
         self.machO = machO
     }
 
-    private var options: DemangleOptions {
-        configuration.demangleOptions
+    private var demangleResolver: DemangleResolver {
+        configuration.demangleResolver
     }
     
     package var declaration: SemanticString {
@@ -57,7 +57,7 @@ package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCac
 
                 Space()
 
-                try MetadataReader.demangleSymbol(for: record.substitutedTypeName(in: machO), in: machO).printSemantic(using: options)
+                try demangleResolver.resolve(for: MetadataReader.demangleSymbol(for: record.substitutedTypeName(in: machO), in: machO))
 
                 if offset.isEnd {
                     BreakLine()
@@ -82,13 +82,13 @@ package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCac
 
     package var typeName: SemanticString {
         get throws {
-            try MetadataReader.demangleSymbol(for: associatedType.conformingTypeName, in: machO).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
+            try demangleResolver.resolve(for: MetadataReader.demangleSymbol(for: associatedType.conformingTypeName, in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         }
     }
 
     package var protocolName: SemanticString {
         get throws {
-            try MetadataReader.demangleSymbol(for: associatedType.protocolTypeName, in: machO).printSemantic(using: options)
+            try demangleResolver.resolve(for: MetadataReader.demangleSymbol(for: associatedType.protocolTypeName, in: machO))
         }
     }
 }

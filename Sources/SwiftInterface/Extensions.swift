@@ -13,7 +13,7 @@ extension Node {
         switch node.kind {
         case .getter: return .getter
         case .setter: return .setter
-        case .modifyAccessor: return .modifyAccessor
+        case .modifyAccessor, .modify2Accessor: return .modifyAccessor
         default: return nil
         }
     }
@@ -40,7 +40,7 @@ extension ProtocolConformance {
                 } else {
                     return nil
                 }
-                return .init(name: node.print(using: .interfaceType), kind: kind)
+                return .init(name: node.print(using: .interfaceTypeBuilderOnly), kind: kind)
 
             case .element(let element):
                 return try element.typeContextDescriptorWrapper?.typeName(in: machO)
@@ -50,12 +50,12 @@ extension ProtocolConformance {
             }
         case .directObjCClassName,
              .indirectObjCClass:
-            return try .init(name: dumpTypeName(using: .interfaceType, in: machO).string, kind: .class)
+            return try .init(name: dumpTypeName(using: .interfaceTypeBuilderOnly, in: machO).string, kind: .class)
         }
     }
 
     func protocolName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolName? {
-        try .init(name: dumpProtocolName(using: .interfaceType, in: machO).string)
+        try .init(name: dumpProtocolName(using: .interfaceTypeBuilderOnly, in: machO).string)
     }
 }
 
@@ -72,17 +72,17 @@ extension AssociatedType {
         } else {
             return nil
         }
-        return try .init(name: dumpTypeName(using: .interfaceType, in: machO).string, kind: kind)
+        return try .init(name: dumpTypeName(using: .interfaceTypeBuilderOnly, in: machO).string, kind: kind)
     }
 
     func protocolName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolName {
-        try .init(name: dumpProtocolName(using: .interfaceType, in: machO).string)
+        try .init(name: dumpProtocolName(using: .interfaceTypeBuilderOnly, in: machO).string)
     }
 }
 
 extension MachOSwiftSection.`Protocol` {
     func protocolName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolName {
-        try .init(name: dumpName(using: .interfaceType, in: machO).string)
+        try .init(name: dumpName(using: .interfaceTypeBuilderOnly, in: machO).string)
     }
 }
 
@@ -105,7 +105,7 @@ extension TypeContextDescriptorWrapper {
     }
 
     func typeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeName {
-        return try .init(name: ContextDescriptorWrapper.type(self).dumpName(using: .interfaceType, in: machO).string, kind: kind)
+        return try .init(name: ContextDescriptorWrapper.type(self).dumpName(using: .interfaceTypeBuilderOnly, in: machO).string, kind: kind)
     }
 }
 
@@ -115,7 +115,7 @@ extension FieldRecord {
     }
 
     func demangledTypeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SemanticString {
-        try demangledTypeNode(in: machO).printSemantic(using: .interface)
+        try demangledTypeNode(in: machO).printSemantic(using: .interfaceBuilderOnly)
     }
 }
 

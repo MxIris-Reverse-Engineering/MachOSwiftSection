@@ -4,6 +4,16 @@ import Semantic
 import Demangle
 
 extension ResilientSuperclass {
+    
+    package func dumpSuperclass<MachO: MachOSwiftSectionRepresentableWithCache>(resolver: DemangleResolver, for kind: TypeReferenceKind, in machO: MachO) throws -> SemanticString? {
+        switch resolver {
+        case .options(let demangleOptions):
+            return try dumpSuperclass(using: demangleOptions, for: kind, in: machO)
+        case .builder(let builder):
+            return try dumpSuperclassNode(for: kind, in: machO).map { try builder($0) }
+        }
+    }
+    
     package func dumpSuperclass<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, for kind: TypeReferenceKind, in machO: MachO) throws -> SemanticString? {
         try dumpSuperclassNode(for: kind, in: machO)?.printSemantic(using: options)
     }

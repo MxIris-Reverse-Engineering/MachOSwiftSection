@@ -157,7 +157,7 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
                 Node(kind: .type, child: typeNode)
             }
 
-            let typeName = globalTypeNode.print(using: .interfaceType)
+            let typeName = globalTypeNode.print(using: .interfaceTypeBuilderOnly)
 
             if let typeKind = typeNode.kind.typeKind {
                 typeInfoByName[typeName] = .init(name: typeName, kind: typeKind)

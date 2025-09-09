@@ -145,7 +145,7 @@ final actor DumpCommand: AsyncParsableCommand {
             dumpedString.append(semanticString.string)
             dumpedString.append("\n")
         } else {
-            print(semanticString.components.map { $0.string.withColor(for: $0.type, colorScheme: colorScheme) }.joined())
+            semanticString.printColorfully(using: colorScheme)
         }
     }
 
@@ -156,5 +156,11 @@ final actor DumpCommand: AsyncParsableCommand {
         } else {
             print(string)
         }
+    }
+}
+
+extension SemanticString {
+    func printColorfully(using colorScheme: SemanticColorScheme) {
+        print(components.map { $0.string.withColor(for: $0.type, colorScheme: colorScheme) }.joined())
     }
 }

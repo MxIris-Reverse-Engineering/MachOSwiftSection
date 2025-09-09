@@ -4,13 +4,7 @@ import MachOSwiftSection
 import Semantic
 import Utilities
 import MemberwiseInit
-
-@MemberwiseInit(.package)
-package struct DumperConfiguration {
-    package var demangleOptions: DemangleOptions
-    package var indentation: Int = 1
-    package var displayParentName: Bool = true
-}
+import Demangle
 
 package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
     private let `enum`: Enum
@@ -25,8 +19,8 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
         self.machO = machO
     }
 
-    private var options: DemangleOptions {
-        configuration.demangleOptions
+    private var demangleResolver: DemangleResolver {
+        configuration.demangleResolver
     }
 
     package var declaration: SemanticString {
@@ -45,7 +39,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
                     Space()
                     Keyword(.where)
                     Space()
-                    try genericContext.dumpGenericRequirements(using: options, in: machO)
+                    try genericContext.dumpGenericRequirements(resolver: demangleResolver, in: machO)
                 }
             }
         }
@@ -73,7 +67,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
                 let mangledName = try fieldRecord.mangledTypeName(in: machO)
 
                 if !mangledName.isEmpty {
-                    let demangledName = try MetadataReader.demangleType(for: mangledName, in: machO).printSemantic(using: options)
+                    let demangledName = try demangleResolver.resolve(for: MetadataReader.demangleType(for: mangledName, in: machO))
                     let demangledNameString = demangledName.string
                     if demangledNameString.hasPrefix("("), demangledNameString.hasSuffix(")") {
                         demangledName
@@ -117,7 +111,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
 
                     Indent(level: 1)
 
-                    symbol.demangledNode.printSemantic(using: options)
+                    try demangleResolver.resolve(for: symbol.demangledNode)
 
                     if offset.isEnd {
                         BreakLine()
@@ -131,20 +125,20 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
 
     package var name: SemanticString {
         get throws {
-            try _name(using: options)
+            try _name(using: demangleResolver)
         }
     }
 
     private var interfaceName: SemanticString {
         get throws {
-            try _name(using: .interface)
+            try _name(using: .options(.interface))
         }
     }
 
     @SemanticStringBuilder
-    private func _name(using options: DemangleOptions) throws -> SemanticString {
+    private func _name(using resolver: DemangleResolver) throws -> SemanticString {
         if configuration.displayParentName {
-            try MetadataReader.demangleContext(for: .type(.enum(`enum`.descriptor)), in: machO).printSemantic(using: options).replacingTypeNameOrOtherToTypeDeclaration()
+            try resolver.resolve(for: MetadataReader.demangleContext(for: .type(.enum(`enum`.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
             try TypeDeclaration(kind: .enum, `enum`.descriptor.name(in: machO))
         }
