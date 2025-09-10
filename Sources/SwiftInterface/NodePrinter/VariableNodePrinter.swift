@@ -18,7 +18,7 @@ struct VariableNodePrinter: InterfaceNodePrinter {
     }
 
     enum Error: Swift.Error {
-        case onlySupportedForVariableNode
+        case onlySupportedForVariableNode(Node)
     }
 
     mutating func printRoot(_ node: Node) throws -> SemanticString {
@@ -34,12 +34,14 @@ struct VariableNodePrinter: InterfaceNodePrinter {
         } else if node.kind == .static, let first = node.children.first {
             target.write("static ")
             try _printRoot(first)
+        } else if node.kind == .methodDescriptor, let first = node.children.first {
+            try _printRoot(first)
         } else if node.kind == .protocolWitness, let second = node.children.second {
             try _printRoot(second)
         } else if node.kind == .getter || node.kind == .setter, let first = node.children.first {
             try _printRoot(first)
         } else {
-            throw Error.onlySupportedForVariableNode
+            throw Error.onlySupportedForVariableNode(node)
         }
     }
 
@@ -71,7 +73,7 @@ struct VariableNodePrinter: InterfaceNodePrinter {
             nil
         }
         guard let identifier else {
-            throw Error.onlySupportedForVariableNode
+            throw Error.onlySupportedForVariableNode(name)
         }
         target.write("var ")
         target.write(identifier.text ?? "", context: .context(for: identifier, state: .printIdentifier))

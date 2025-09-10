@@ -13,7 +13,7 @@ struct FunctionNodePrinter: InterfaceNodePrinter {
     }
 
     enum Error: Swift.Error {
-        case onlySupportedForFunctionNode
+        case onlySupportedForFunctionNode(Node)
     }
 
     mutating func printRoot(_ node: Node) throws -> SemanticString {
@@ -38,7 +38,7 @@ struct FunctionNodePrinter: InterfaceNodePrinter {
         } else if node.kind == .protocolWitness, let second = node.children.second {
             try _printRoot(second)
         } else {
-            throw Error.onlySupportedForFunctionNode
+            throw Error.onlySupportedForFunctionNode(node)
         }
     }
 
