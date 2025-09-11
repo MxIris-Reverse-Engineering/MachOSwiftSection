@@ -3,7 +3,7 @@ import FoundationToolbox
 import APINotes
 import MachOKit
 
-package final class TypeDatabase: Sendable {
+package final class TypeDatabase<MachO: MachORepresentable>: Sendable {
     package struct Record: Sendable {
         package let moduleName: String
         package let typeName: String
@@ -13,7 +13,7 @@ package final class TypeDatabase: Sendable {
 
     private let sdkIndexer: SDKIndexer
 
-    private let objcInterfaceIndexer: ObjCInterfaceIndexer<MachOFile>
+    private let objcInterfaceIndexer: ObjCInterfaceIndexer<MachO>
     
     package init(platform: SDKPlatform) {
         self.apiNotesManager = .init()
@@ -25,7 +25,7 @@ package final class TypeDatabase: Sendable {
     @Mutex
     private var types: [String: Record] = [:]
     
-    package func index(dependencies: [MachOFile], filter: (String) -> Bool) async throws {
+    package func index(dependencies: [MachO], filter: (String) -> Bool) async throws {
         try await sdkIndexer.index()
 
         let modules = sdkIndexer.modules.filter { filter($0.moduleName) }

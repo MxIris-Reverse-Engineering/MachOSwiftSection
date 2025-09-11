@@ -38,7 +38,7 @@ public struct SwiftInterfaceBuilderConfiguration: Sendable {
 public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWithCache & Sendable>: Sendable {
     private let machO: MachO
 
-    private let typeDatabase: TypeDatabase?
+    private let typeDatabase: TypeDatabase<MachO>?
 
     private let enums: [Enum]
 
@@ -95,18 +95,18 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     }
 
     private let typeDemangleResolver: DemangleResolver
-    
+
     public let configuration: SwiftInterfaceBuilderConfiguration
-    
+
     public init(configuration: SwiftInterfaceBuilderConfiguration = .init(), in machO: MachO) throws {
         self.configuration = configuration
 
-        let typeDatabase: TypeDatabase? = if configuration.isEnabledTypeIndexing {
+        let typeDatabase: TypeDatabase<MachO>? = if configuration.isEnabledTypeIndexing {
             machO.loadCommands.buildVersionCommand?.platform.sdkPlatform.map { TypeDatabase(platform: $0) }
         } else {
             nil
         }
-        
+
         self.typeDatabase = typeDatabase
         self.machO = machO
         self.typeDemangleResolver = .using { node in
@@ -137,36 +137,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     }
 
     @Mutex
-    private var dependencies: [MachOFile] = []
-
-    public func setDependencyPaths(_ paths: [DependencyPath]) {
-        do {
-            var dependencies: [MachOFile] = []
-            let dependencyPaths = Set(machO.dependencies.map(\.dylib.name))
-            for searchPath in paths {
-                switch searchPath {
-                case .machO(let path):
-                    if let machOFile = try File.loadFromFile(url: .init(fileURLWithPath: path)).machOFiles.first {
-                        dependencies.append(machOFile)
-                    }
-                case .dyldSharedCache(let path):
-                    let fullDyldCache = try FullDyldCache(url: .init(fileURLWithPath: path))
-                    for machOFile in fullDyldCache.machOFiles() where dependencyPaths.contains(machOFile.imagePath) {
-                        dependencies.append(machOFile)
-                    }
-                case .usesSystemDyldSharedCache:
-                    if let hostDyldCache = FullDyldCache.host {
-                        for machOFile in hostDyldCache.machOFiles() where dependencyPaths.contains(machOFile.imagePath) {
-                            dependencies.append(machOFile)
-                        }
-                    }
-                }
-            }
-            self.dependencies = dependencies
-        } catch {
-            logger.error("\(error)")
-        }
-    }
+    private var dependencies: [MachO] = []
 
     public nonisolated func prepare() async throws {
         try await index()
@@ -438,58 +409,12 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     private func printTypeDefinition(_ typeDefinition: TypeDefinition, level: Int = 1) throws -> SemanticString {
+        let dumper = typeDefinition.type.dumper(using: .init(demangleResolver: typeDemangleResolver, indentation: level), in: machO)
         if level > 1 {
             Indent(level: level - 1)
         }
 
-        switch typeDefinition.type {
-        case .enum(let `enum`):
-            Keyword(.enum)
-
-            Space()
-
-            TypeDeclaration(kind: .enum, typeDefinition.typeName.currentName)
-
-            try printGenericSignature(`enum`.genericContext)
-
-        case .struct(let `struct`):
-            Keyword(.struct)
-
-            Space()
-
-            TypeDeclaration(kind: .struct, typeDefinition.typeName.currentName)
-
-            try printGenericSignature(`struct`.genericContext)
-
-        case .class(let `class`):
-            if `class`.descriptor.isActor {
-                Keyword(.actor)
-            } else {
-                Keyword(.class)
-            }
-
-            Space()
-
-            TypeDeclaration(kind: .class, typeDefinition.typeName.currentName)
-
-            try printGenericSignature(`class`.genericContext) {
-                if let superclassMangledName = try `class`.descriptor.superclassTypeMangledName(in: machO) {
-                    Standard(":")
-                    Space()
-
-                    var printer = TypeNodePrinter(cImportedInfoProvider: typeDatabase)
-                    try printer.printRoot(MetadataReader.demangleType(for: superclassMangledName, in: machO))
-                } else if let resilientSuperclass = `class`.resilientSuperclass, let kind = `class`.descriptor.resilientSuperclassReferenceKind, let superclassNode = try resilientSuperclass.dumpSuperclassNode(for: kind, in: machO) {
-                    Standard(":")
-                    Space()
-
-                    var printer = TypeNodePrinter(cImportedInfoProvider: typeDatabase)
-                    try printer.printRoot(superclassNode)
-                }
-            }
-        }
-
-//        try dumper.declaration
+        try dumper.declaration
 
         Space()
         Standard("{")
@@ -499,149 +424,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             try printTypeDefinition(child, level: level + 1)
         }
 
-//        let fields = try dumper.fields
-
-        switch typeDefinition.type {
-        case .enum(let `enum`):
-            for (offset, fieldRecord) in try `enum`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
-                if offset.isStart, level == 1, !typeDefinition.typeChildren.isEmpty {
-                    BreakLine()
-                }
-
-                BreakLine()
-
-                Indent(level: level)
-
-                if fieldRecord.flags.contains(.isIndirectCase) {
-                    Keyword(.indirect)
-                    Space()
-                    Keyword(.case)
-                    Space()
-                } else {
-                    Keyword(.case)
-                    Space()
-                }
-
-                try MemberDeclaration("\(fieldRecord.fieldName(in: machO))")
-
-                let mangledName = try fieldRecord.mangledTypeName(in: machO)
-
-                if !mangledName.isEmpty {
-                    var printer = TypeNodePrinter(cImportedInfoProvider: typeDatabase)
-
-                    let demangledName = try printer.printRoot(MetadataReader.demangleType(for: mangledName, in: machO))
-
-                    let demangledNameString = demangledName.string
-                    if demangledNameString.hasPrefix("("), demangledNameString.hasSuffix(")") {
-                        demangledName
-                    } else {
-                        Standard("(")
-                        demangledName
-                        Standard(")")
-                    }
-                }
-
-                if offset.isEnd {
-                    BreakLine()
-                }
-            }
-        case .struct(let `struct`):
-            for (offset, fieldRecord) in try `struct`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
-                if offset.isStart, level == 1, !typeDefinition.typeChildren.isEmpty {
-                    BreakLine()
-                }
-
-                BreakLine()
-
-                Indent(level: level)
-
-                let demangledTypeNode = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machO), in: machO)
-
-                let fieldName = try fieldRecord.fieldName(in: machO)
-
-                if fieldRecord.flags.contains(.isVariadic) {
-                    if demangledTypeNode.hasWeakNode {
-                        Keyword(.weak)
-                        Space()
-                        Keyword(.var)
-                        Space()
-                    } else if fieldName.hasLazyPrefix {
-                        Keyword(.lazy)
-                        Space()
-                        Keyword(.var)
-                        Space()
-                    } else {
-                        Keyword(.var)
-                        Space()
-                    }
-                } else {
-                    Keyword(.let)
-                    Space()
-                }
-
-                MemberDeclaration(fieldName.stripLazyPrefix)
-
-                Standard(":")
-
-                Space()
-
-                var printer = TypeNodePrinter(cImportedInfoProvider: typeDatabase)
-
-                try printer.printRoot(demangledTypeNode)
-
-                if offset.isEnd {
-                    BreakLine()
-                }
-            }
-        case .class(let `class`):
-            for (offset, fieldRecord) in try `class`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
-                if offset.isStart, level == 1, !typeDefinition.typeChildren.isEmpty {
-                    BreakLine()
-                }
-
-                BreakLine()
-
-                Indent(level: level)
-
-                let demangledTypeNode = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machO), in: machO)
-
-                let fieldName = try fieldRecord.fieldName(in: machO)
-
-                if fieldRecord.flags.contains(.isVariadic) {
-                    if demangledTypeNode.contains(.weak) {
-                        Keyword(.weak)
-                        Space()
-                        Keyword(.var)
-                        Space()
-                    } else if fieldName.hasLazyPrefix {
-                        Keyword(.lazy)
-                        Space()
-                        Keyword(.var)
-                        Space()
-                    } else {
-                        Keyword(.var)
-                        Space()
-                    }
-                } else {
-                    Keyword(.let)
-                    Space()
-                }
-
-                MemberDeclaration(fieldName.stripLazyPrefix)
-
-                Standard(":")
-
-                Space()
-
-                var printer = TypeNodePrinter(cImportedInfoProvider: typeDatabase)
-
-                try printer.printRoot(demangledTypeNode)
-
-                if offset.isEnd {
-                    BreakLine()
-                }
-            }
-        }
+        try dumper.fields
 
         try printDefinition(typeDefinition, level: level)
 
@@ -798,6 +581,37 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         }
 
         importedModules = usedModules
+    }
+}
+
+extension SwiftInterfaceBuilder<MachOFile> {
+    public func setDependencyPaths(_ paths: [DependencyPath]) {
+        do {
+            var dependencies: [MachOFile] = []
+            let dependencyPaths = Set(machO.dependencies.map(\.dylib.name))
+            for searchPath in paths {
+                switch searchPath {
+                case .machO(let path):
+                    if let machOFile = try File.loadFromFile(url: .init(fileURLWithPath: path)).machOFiles.first {
+                        dependencies.append(machOFile)
+                    }
+                case .dyldSharedCache(let path):
+                    let fullDyldCache = try FullDyldCache(url: .init(fileURLWithPath: path))
+                    for machOFile in fullDyldCache.machOFiles() where dependencyPaths.contains(machOFile.imagePath) {
+                        dependencies.append(machOFile)
+                    }
+                case .usesSystemDyldSharedCache:
+                    if let hostDyldCache = FullDyldCache.host {
+                        for machOFile in hostDyldCache.machOFiles() where dependencyPaths.contains(machOFile.imagePath) {
+                            dependencies.append(machOFile)
+                        }
+                    }
+                }
+            }
+            self.dependencies = dependencies
+        } catch {
+            logger.error("\(error)")
+        }
     }
 }
 
