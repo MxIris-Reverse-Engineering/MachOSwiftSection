@@ -6,9 +6,20 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
 @testable import MachOTestingSupport
+#if os(macOS)
+import AppKit
+#elseif os(iOS) || os(tvOS) || os(visionOS)
+import UIKit
+#elseif os(watchOS)
+import WatchKit
+#endif
+import SwiftUI
 
 @Suite(.serialized)
-final class MachOImageDumpTests: MachOImageTests, DumpableTests {}
+final class MachOImageDumpTests: MachOImageTests, DumpableTests {
+    
+    override class var imageName: MachOImageName { .AppKit }
+}
 
 extension MachOImageDumpTests {
     @Test func typesInImage() async throws {
@@ -25,5 +36,12 @@ extension MachOImageDumpTests {
 
     @Test func associatedTypesInImage() async throws {
         try await dumpAssociatedTypes(for: machOImage)
+    }
+    
+    @Test func symbols() async throws {
+        let symbols = SymbolIndexStore.shared.allSymbols(in: machOImage)
+        for symbol in symbols {
+            print(symbol.offset, symbol.name)
+        }
     }
 }

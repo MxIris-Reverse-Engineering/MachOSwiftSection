@@ -75,6 +75,10 @@ Swift Interface definitions can be dump from Enum/Struct/Class/Protocol/Protocol
 
 First, you need to import `SwiftDump` module.
 
+#### Generate Complete Swift Interface
+
+For generating complete Swift interface files, you can use the `SwiftInterface` library which provides a more comprehensive interface generation capability.
+
 Options can customize the print content, such as using syntactic sugar types or strip the ObjC Module.
 
 ```swift
@@ -144,7 +148,7 @@ You can get the swift-section CLI tool in three ways:
 
 ### Usage
 
-The swift-section CLI tool provides two main subcommands: `dump` and `demangle`.
+The swift-section CLI tool provides three main subcommands: `dump`, `demangle`, and `interface`.
 
 #### dump - Dump Swift Information
 
@@ -196,6 +200,29 @@ swift-section demangle /path/to/binary --mangled-name '$s...' --file-offset 0x10
 
 # Use simplified demangle options
 swift-section demangle /path/to/binary --mangled-name '$s...' --demangle-options simplified
+```
+
+#### interface - Generate Swift Interface
+
+Generate a complete Swift interface file from a Mach-O file, similar to Swift's generated interfaces.
+
+```bash
+swift-section interface [options] [file-path]
+```
+
+**Basic usage:**
+```bash
+# Generate Swift interface from a Mach-O file
+swift-section interface /path/to/binary
+
+# Save interface to file
+swift-section interface --output-path interface.swift /path/to/binary
+
+# Enable type indexing for better interface generation
+swift-section interface --enable-type-indexing /path/to/binary
+
+# Use color scheme for console output
+swift-section interface --color-scheme light /path/to/binary
 ```
 
 ## License

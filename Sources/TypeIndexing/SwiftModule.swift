@@ -22,7 +22,7 @@ struct SwiftModule: Sendable, Codable {
         try await indexer.index()
         self.interfaceFile = interfaceFile
 
-        let subModuleNames = indexer.subModuleNames
+        let subModuleNames = await indexer.subModuleNames
         var subModuleInterfaceFiles: [SwiftInterfaceGeneratedFile] = []
         for subModuleName in subModuleNames {
             if let interfaceFile = try? await sourceKitManager.interface(for: subModuleName, in: platform) {
@@ -32,7 +32,8 @@ struct SwiftModule: Sendable, Codable {
         self.subModuleInterfaceFiles = subModuleInterfaceFiles
     }
 
-    nonisolated func write(toDirectory directoryPath: String) async throws {
+    @concurrent
+    func write(toDirectory directoryPath: String) async throws {
         var directoryURL = URL(filePath: directoryPath)
         directoryURL.append(component: moduleName)
         if !FileManager.default.fileExists(atPath: directoryURL.path()) {

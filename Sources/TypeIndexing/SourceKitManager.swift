@@ -7,11 +7,10 @@ import Dependencies
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
 @available(visionOS, unavailable)
-final class SourceKitManager: Sendable {
+actor SourceKitManager {
     fileprivate static let shared = SourceKitManager()
 
-    @Mutex
-    private var _sourcekitd: SourceKitD? = nil
+    private var _sourcekitd: SourceKitD?
 
     private var sourcekitd: SourceKitD {
         get async throws {
@@ -26,11 +25,15 @@ final class SourceKitManager: Sendable {
     }
 
     func interface(for moduleName: String, in platform: SDKPlatform) async throws -> SwiftInterfaceGeneratedFile {
-        let keys = try await sourcekitd.keys
-        let request = try await sourcekitd.dictionary([
+        let sourcekitd = try await sourcekitd
+        let keys = sourcekitd.keys
+        let request = sourcekitd.dictionary([
             keys.moduleName: moduleName,
             keys.name: UUID().uuidString,
-            keys.compilerArgs: ["-sdk", platform.sdkPath],
+            keys.compilerArgs: [
+                "-sdk", platform.sdkPath,
+                "-target", try platform.targetTriple,
+            ],
         ])
         let response = try await sourcekitd.send(\.editorOpenInterface, request, timeout: .seconds(60), restartTimeout: .seconds(60), documentUrl: nil, fileContents: nil)
         guard let sourceText: String = response[keys.sourceText] else {

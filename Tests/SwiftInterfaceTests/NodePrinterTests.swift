@@ -8,6 +8,9 @@ import MachOSymbols
 
 @Suite
 final class NodePrinterTests: DyldCacheTests {
+    
+    override class var cacheImageName: MachOImageName { .SwiftUICore }
+    
     @Test func functionNode() async throws {
         let node = try demangleAsNode("_$s7SwiftUI19NSViewRepresentableP14_layoutOptionsyAA013_PlatformViewd6LayoutF0V0C4TypeQzFZ")
         var printer = FunctionNodePrinter()
@@ -21,7 +24,7 @@ final class NodePrinterTests: DyldCacheTests {
     }
 
     @Test func functionNodes() throws {
-        let demangledSymbols = SymbolIndexStore.shared.memberSymbols(of: .staticFunction, in: machOFileInMainCache)
+        let demangledSymbols = SymbolIndexStore.shared.memberSymbols(of: .staticFunctionInExtension, in: machOFileInCache)
 
         for demangledSymbol in demangledSymbols {
             let node = demangledSymbol.demangledNode

@@ -23,12 +23,15 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(name: .customLong("enable-type-indexing"), help: "Enable type indexing for the generated Swift interface.")
     var isEnabledTypeIndexing: Bool = false
     
+    @Flag(help: "Show imported C types in the generated Swift interface.")
+    var showCImportedTypes: Bool = false
+    
     func run() async throws {
         let machOFile = try MachOFile.load(options: machOOptions)
         
-        let configuration = SwiftInterfaceBuilderConfiguration(isEnabledTypeIndexing: isEnabledTypeIndexing)
+        let configuration = SwiftInterfaceBuilderConfiguration(isEnabledTypeIndexing: isEnabledTypeIndexing, showCImportedTypes: showCImportedTypes)
         
-        let builder = try SwiftInterfaceBuilder(configuration: configuration, in: machOFile)
+        let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [OSLogEventHandler()], in: machOFile)
         
         print("Preparing to build Swift interface...")
         

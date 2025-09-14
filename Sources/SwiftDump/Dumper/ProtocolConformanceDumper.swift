@@ -89,9 +89,9 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
                                 FunctionDeclaration(addressString(of: element.defaultImplementation.resolveDirectOffset(from: element.offset(of: \.defaultImplementation)), in: machO).insertSubFunctionPrefix)
                             } else if !resilientWitness.implementation.isNull {
 //                                do {
-//                                    try MetadataReader.demangle(for: MangledName.resolve(from: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation)) - 1, in: machO), in: machO).printSemantic(using: options)
+//                                try demangleResolver.resolve(for: MetadataReader.demangle(for: MangledName.resolve(from: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation)) - 1, in: machO), in: machO))
 //                                } catch {
-                                    FunctionDeclaration(addressString(of: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation)), in: machO).insertSubFunctionPrefix)
+                                FunctionDeclaration(addressString(of: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation)), in: machO).insertSubFunctionPrefix)
 //                                }
                             } else {
                                 Error("Symbol not found")
@@ -146,7 +146,7 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
         get throws {
             switch protocolConformance.`protocol` {
             case .symbol(let symbol):
-                try MetadataReader.demangleSymbol(for: symbol, in: machO).map { try demangleResolver.resolve(for: $0) }
+                try MetadataReader.demangleSymbol(for: symbol, in: machO)?.first(of: .type).map { try demangleResolver.resolve(for: $0) }
             case .element(let element):
                 try demangleResolver.resolve(for: MetadataReader.demangleContext(for: .protocol(element), in: machO))
             case .none:

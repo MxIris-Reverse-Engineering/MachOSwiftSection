@@ -8,17 +8,15 @@ import OrderedCollections
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
 @available(visionOS, unavailable)
-final class SwiftInterfaceIndexer: Sendable {
+actor SwiftInterfaceIndexer {
 
     let moduleName: String
     
     let sourceFileSyntax: SourceFileSyntax
 
-    @Mutex
-    var typeInfos: [TypeInfo] = []
+    private(set) var typeInfos: [TypeInfo] = []
 
-    @Mutex
-    var importInfos: [ImportInfo] = []
+    private(set) var importInfos: [ImportInfo] = []
     
     var subModuleNames: OrderedSet<String> {
         var results: OrderedSet<String> = []
@@ -43,7 +41,7 @@ final class SwiftInterfaceIndexer: Sendable {
         self.sourceFileSyntax = .parse(from: &parser)
     }
 
-    nonisolated func index() async throws {
+    func index() async throws {
         let visitor = IndexerVisitor(viewMode: .sourceAccurate)
         visitor.walk(sourceFileSyntax)
         typeInfos = visitor.typeInfos

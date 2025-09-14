@@ -14,7 +14,10 @@ package final class TypeDatabase<MachO: MachORepresentable>: Sendable {
     private let sdkIndexer: SDKIndexer
 
     private let objcInterfaceIndexer: ObjCInterfaceIndexer<MachO>
-    
+
+    @Mutex
+    private var types: [String: Record] = [:]
+
     package init(platform: SDKPlatform) {
         self.apiNotesManager = .init()
         self.sdkIndexer = .init(platform: platform)
@@ -22,9 +25,6 @@ package final class TypeDatabase<MachO: MachORepresentable>: Sendable {
         sdkIndexer.cacheIndexes = true
     }
 
-    @Mutex
-    private var types: [String: Record] = [:]
-    
     package func index(dependencies: [MachO], filter: (String) -> Bool) async throws {
         try await sdkIndexer.index()
 
@@ -50,26 +50,26 @@ package final class TypeDatabase<MachO: MachORepresentable>: Sendable {
 //        for dependency in dependencies {
 //            try objcInterfaceIndexer.index(in: dependency)
 //        }
-//        
+//
 //        for (image, classInfos) in objcInterfaceIndexer.classInfos {
 //            for classInfo in classInfos {
 //                print(image, classInfo.name)
 //            }
 //        }
-//        
+//
 //        for (image, protocolInfos) in objcInterfaceIndexer.protocolInfos {
 //            for protocolInfo in protocolInfos {
 //                print(image, protocolInfo.name)
 //            }
 //        }
-        
+
         self.types = types
     }
 
     package func moduleName(forTypeName typeName: String) -> String? {
         types[typeName]?.moduleName
     }
-    
+
     package func swiftName(forCName cName: String) -> String? {
         apiNotesManager.swiftName(forCName: cName)?.name
     }
@@ -83,7 +83,7 @@ package final class TypeDatabase<MachO: MachORepresentable>: Sendable {
                     var typeInfos: [SwiftInterfaceIndexer.TypeInfo] = []
                     let moduleIndexer = module.indexer()
                     try await moduleIndexer.interfaceIndexer.index()
-                    typeInfos.append(contentsOf: moduleIndexer.interfaceIndexer.typeInfos)
+                    await typeInfos.append(contentsOf: moduleIndexer.interfaceIndexer.typeInfos)
                     try await typeInfos.append(contentsOf: self.subModuleTypeInfos(of: moduleIndexer))
                     return (module.moduleName, typeInfos)
                 }
@@ -102,7 +102,7 @@ package final class TypeDatabase<MachO: MachORepresentable>: Sendable {
                 innerGroup.addTask {
                     var typeInfos: [SwiftInterfaceIndexer.TypeInfo] = []
                     try await subModuleInterfaceIndexer.index()
-                    typeInfos.append(contentsOf: subModuleInterfaceIndexer.typeInfos)
+                    await typeInfos.append(contentsOf: subModuleInterfaceIndexer.typeInfos)
                     return typeInfos
                 }
             }
