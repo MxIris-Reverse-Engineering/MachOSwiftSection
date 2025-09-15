@@ -157,7 +157,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             eventDispatcher.dispatch(.extractionCompleted(result: SwiftInterfaceBuilderEvents.ExtractionResult(section: .swiftTypes, count: types.count)))
         } catch {
             eventDispatcher.dispatch(.extractionFailed(section: .swiftTypes, error: error))
-            throw error
+            self.types = []
         }
 
         do {
@@ -166,7 +166,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             eventDispatcher.dispatch(.extractionCompleted(result: SwiftInterfaceBuilderEvents.ExtractionResult(section: .swiftProtocols, count: protocols.count)))
         } catch {
             eventDispatcher.dispatch(.extractionFailed(section: .swiftProtocols, error: error))
-            throw error
+            self.protocols = []
         }
 
         do {
@@ -175,7 +175,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             eventDispatcher.dispatch(.extractionCompleted(result: SwiftInterfaceBuilderEvents.ExtractionResult(section: .protocolConformances, count: protocolConformances.count)))
         } catch {
             eventDispatcher.dispatch(.extractionFailed(section: .protocolConformances, error: error))
-            throw error
+            self.protocolConformances = []
         }
 
         do {
@@ -184,7 +184,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             eventDispatcher.dispatch(.extractionCompleted(result: SwiftInterfaceBuilderEvents.ExtractionResult(section: .associatedTypes, count: associatedTypes.count)))
         } catch {
             eventDispatcher.dispatch(.extractionFailed(section: .associatedTypes, error: error))
-            throw error
+            self.associatedTypes = []
         }
     }
 

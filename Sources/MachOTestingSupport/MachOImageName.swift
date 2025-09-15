@@ -11,7 +11,10 @@ package enum MachOImageName: String {
     case UIKitCore
     case HomeKit
     case Network
-
+    case ScreenContinuityServices
+    case Sharing
+    case FeatureFlags
+    case ScreenSharingKit
     case libswiftCoreFoundation
     
     var path: String {

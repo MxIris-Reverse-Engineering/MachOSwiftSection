@@ -1,5 +1,5 @@
 {
-  "originHash" : "10314d2387ee4464b47b24965ff08f8499b37ddc87ac22819b2308b5b73f977c",
+  "originHash" : "c76c1b397cf195f6786116d68696f357558a9a04eef8a9966827b57adf450153",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -34,7 +34,7 @@
       "location" : "https://github.com/Mx-Iris/FrameworkToolbox",
       "state" : {
         "branch" : "main",
-        "revision" : "211769ddc744e74bbd3789319d962b8a556f112d"
+        "revision" : "3c5631ed83d3315aec54c7a1a0a5b7f17ec832af"
       }
     },
     {
