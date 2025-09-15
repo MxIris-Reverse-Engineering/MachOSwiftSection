@@ -28,7 +28,11 @@ struct VariableNodePrinter: InterfaceNodePrinter {
 
     private mutating func _printRoot(_ node: Node) throws {
         if node.kind == .global, let first = node.children.first {
-            try _printRoot(first)
+            if first.isKind(of: .asyncFunctionPointer, .mergedFunction), let second = node.children.second {
+                try _printRoot(second)
+            } else {
+                try _printRoot(first)
+            }
         } else if node.kind == .variable {
             try printVariable(node)
         } else if node.kind == .static, let first = node.children.first {

@@ -112,6 +112,8 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
                     processMemberSymbols(for: firstChild, in: &entry.methodDescriptorMemberSymbolsByKind, typeInfoByName: &entry.typeInfoByName)
                 } else if node.kind == .protocolWitness, let firstChild = node.children.first {
                     processMemberSymbols(for: firstChild, in: &entry.protocolWitnessMemberSymbolsByKind, typeInfoByName: &entry.typeInfoByName)
+                } else if node.kind == .mergedFunction, let secondChild = globalNode.children.second {
+                    processMemberSymbols(for: secondChild, in: &entry.memberSymbolsByKind, typeInfoByName: &entry.typeInfoByName)
                 } else {
                     processMemberSymbols(for: node, in: &entry.memberSymbolsByKind, typeInfoByName: &entry.typeInfoByName)
                 }
