@@ -74,13 +74,13 @@ package final class TypeDatabase<MachO: MachORepresentable>: Sendable {
         apiNotesManager.swiftName(forCName: cName)?.name
     }
 
-    private typealias TypeInfoResults = (moduleName: String, typeInfos: [SwiftInterfaceIndexer.TypeInfo])
+    private typealias TypeInfoResults = (moduleName: String, typeInfos: [SwiftInterfaceParser.TypeInfo])
 
     private func typeInfo(of modules: [SwiftModule]) async throws -> [TypeInfoResults] {
         try await withThrowingTaskGroup { group in
             for module in modules {
                 group.addTask {
-                    var typeInfos: [SwiftInterfaceIndexer.TypeInfo] = []
+                    var typeInfos: [SwiftInterfaceParser.TypeInfo] = []
                     let moduleIndexer = module.indexer()
                     try await moduleIndexer.interfaceIndexer.index()
                     await typeInfos.append(contentsOf: moduleIndexer.interfaceIndexer.typeInfos)
@@ -96,17 +96,17 @@ package final class TypeDatabase<MachO: MachORepresentable>: Sendable {
         }
     }
 
-    private func subModuleTypeInfos(of indexer: SwiftModuleIndexer) async throws -> [SwiftInterfaceIndexer.TypeInfo] {
+    private func subModuleTypeInfos(of indexer: SwiftModuleIndexer) async throws -> [SwiftInterfaceParser.TypeInfo] {
         try await withThrowingTaskGroup { innerGroup in
             for subModuleInterfaceIndexer in indexer.subModuleInterfaceIndexers {
                 innerGroup.addTask {
-                    var typeInfos: [SwiftInterfaceIndexer.TypeInfo] = []
+                    var typeInfos: [SwiftInterfaceParser.TypeInfo] = []
                     try await subModuleInterfaceIndexer.index()
                     await typeInfos.append(contentsOf: subModuleInterfaceIndexer.typeInfos)
                     return typeInfos
                 }
             }
-            var subModuleTypeInfos: [[SwiftInterfaceIndexer.TypeInfo]] = []
+            var subModuleTypeInfos: [[SwiftInterfaceParser.TypeInfo]] = []
             for try await result in innerGroup {
                 subModuleTypeInfos.append(result)
             }

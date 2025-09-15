@@ -42,11 +42,6 @@ import TypeIndexing
 /// let interface = try builder.build()
 /// ```
 ///
-/// - Note: This class is only available on macOS as it requires access to Mach-O binaries and dyld caches.
-@available(iOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-@available(visionOS, unavailable)
 public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWithCache & Sendable>: Sendable {
     /// Swift standard library and internal modules that should not be explicitly imported
     private static var internalModules: [String] {

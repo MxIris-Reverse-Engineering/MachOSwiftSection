@@ -8,7 +8,7 @@ import OrderedCollections
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
 @available(visionOS, unavailable)
-actor SwiftInterfaceIndexer {
+actor SwiftInterfaceParser {
 
     let moduleName: String
     

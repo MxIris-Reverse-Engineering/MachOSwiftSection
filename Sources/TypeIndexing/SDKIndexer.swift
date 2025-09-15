@@ -7,8 +7,8 @@ import os
 struct SwiftModuleIndexer {
     let moduleName: String
     let path: String
-    let interfaceIndexer: SwiftInterfaceIndexer
-    let subModuleInterfaceIndexers: [SwiftInterfaceIndexer]
+    let interfaceIndexer: SwiftInterfaceParser
+    let subModuleInterfaceIndexers: [SwiftInterfaceParser]
 
     private static let logger = Logger(subsystem: "com.MxIris.MachOSwiftSection.TypeIndexing", category: "SwiftModuleIndexer")
 
@@ -19,15 +19,15 @@ struct SwiftModuleIndexer {
         self.path = module.path
 
         Self.logger.debug("Creating interface indexer for module: \(module.moduleName)")
-        let interfaceIndexer = SwiftInterfaceIndexer(file: module.interfaceFile)
+        let interfaceIndexer = SwiftInterfaceParser(file: module.interfaceFile)
         self.interfaceIndexer = interfaceIndexer
 
-        var subModuleInterfaceIndexers: [SwiftInterfaceIndexer] = []
+        var subModuleInterfaceIndexers: [SwiftInterfaceParser] = []
         Self.logger.debug("Processing \(module.subModuleInterfaceFiles.count) sub-module interface files for module: \(module.moduleName)")
 
         for subModuleInterfaceFile in module.subModuleInterfaceFiles {
             Self.logger.debug("Creating sub-module interface indexer for module: \(subModuleInterfaceFile.moduleName)")
-            let subModuleInterfaceIndexer = SwiftInterfaceIndexer(file: subModuleInterfaceFile)
+            let subModuleInterfaceIndexer = SwiftInterfaceParser(file: subModuleInterfaceFile)
             subModuleInterfaceIndexers.append(subModuleInterfaceIndexer)
         }
         self.subModuleInterfaceIndexers = subModuleInterfaceIndexers

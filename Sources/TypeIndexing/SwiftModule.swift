@@ -18,7 +18,7 @@ struct SwiftModule: Sendable, Codable {
         self.moduleName = moduleName
         self.path = path
         let interfaceFile = try await sourceKitManager.interface(for: moduleName, in: platform)
-        let indexer = SwiftInterfaceIndexer(file: interfaceFile)
+        let indexer = SwiftInterfaceParser(file: interfaceFile)
         try await indexer.index()
         self.interfaceFile = interfaceFile
 
