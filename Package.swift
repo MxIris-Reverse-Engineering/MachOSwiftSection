@@ -133,6 +133,7 @@ let package = Package(
         .package(url: "https://github.com/christophhagen/BinaryCodable", from: "3.1.0"),
         .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-apinotes", branch: "main"),
         .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.4"),
+        .package(url: "https://github.com/brightdigit/SyntaxKit", branch: "main"),
 //        .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-clang", from: "0.1.0"),
     ],
     targets: [

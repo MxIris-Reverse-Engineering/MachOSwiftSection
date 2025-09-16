@@ -24,6 +24,10 @@ struct ExtensionDefinition: Definition {
 
     let associatedType: AssociatedType?
 
+    var types: [TypeDefinition] = []
+    
+    var protocols: [ProtocolDefinition] = []
+    
     var allocators: [FunctionDefinition] = []
 
     var variables: [VariableDefinition] = []

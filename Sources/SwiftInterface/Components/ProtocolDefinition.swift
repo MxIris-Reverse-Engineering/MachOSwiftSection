@@ -25,6 +25,13 @@ final class ProtocolDefinition: Sendable {
     @Mutex
     var defaultImplementationExtensions: [ExtensionDefinition] = []
 
+    @Mutex
+    var associatedTypes: [String] = []
+    
+    var hasMembers: Bool {
+        !requirements.isEmpty || !associatedTypes.isEmpty
+    }
+    
     init<MachO: MachOSwiftSectionRepresentableWithCache>(`protocol`: MachOSwiftSection.`Protocol`, in machO: MachO) throws {
         self.protocol = `protocol`
         func _name() throws -> SemanticString {
@@ -39,6 +46,7 @@ final class ProtocolDefinition: Sendable {
             }
             return nil
         }
+        self.associatedTypes = try `protocol`.descriptor.associatedTypes(in: machO)
         var requirements: [ProtocolRequirementDefinition] = []
         var defaultImplementationRequirements: [ProtocolRequirementDefinition] = []
         var requirementVisitedNodes: OrderedSet<Node> = []

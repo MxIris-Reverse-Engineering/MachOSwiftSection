@@ -133,3 +133,24 @@ extension SymbolIndexStore.TypeInfo.Kind {
         }
     }
 }
+
+extension Node {
+    var typeKind: TypeKind? {
+        func findKind(_ node: Node) -> TypeKind? {
+            if node.contains(.enum) || node.contains(.boundGenericEnum) {
+                return .enum
+            } else if node.contains(.structure) || node.contains(.boundGenericStructure) {
+                return .struct
+            } else if node.contains(.class) || node.contains(.boundGenericClass) {
+                return .class
+            } else {
+                return nil
+            }
+        }
+        if let node = first(of: .type) {
+            return findKind(node)
+        } else {
+            return findKind(self)
+        }
+    }
+}

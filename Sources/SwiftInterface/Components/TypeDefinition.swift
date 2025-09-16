@@ -54,7 +54,8 @@ final class TypeDefinition: Definition {
 
     init<MachO: MachOSwiftSectionRepresentableWithCache>(type: TypeWrapper, in machO: MachO) throws {
         self.type = type
-        self.typeName = try type.typeName(in: machO)
+        let typeName = try type.typeName(in: machO)
+        self.typeName = typeName
         var fields: [TypeFieldDefinition] = []
         let typeContextDescriptor = try required(type.contextDescriptorWrapper.typeContextDescriptor)
         let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machO)
