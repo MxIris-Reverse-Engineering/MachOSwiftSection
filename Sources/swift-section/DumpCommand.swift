@@ -24,6 +24,9 @@ final actor DumpCommand: AsyncParsableCommand {
     @Option(name: .shortAndLong, parsing: .upToNextOption, help: "The sections to dump. If not specified, all sections will be dumped.")
     var sections: [SwiftSection] = SwiftSection.allCases
 
+    @Flag(name: .customLong("emit-offsets"), help: "Enable emitting detailed offset information for data fields, virtual functions, and protocol witnesses.")
+    var emitOffsets: Bool = false
+
 //    @Flag(inversion: .prefixedEnableDisable, help: "Enable searching for metadata.")
     private var searchMetadata: Bool = false
 
@@ -38,18 +41,20 @@ final actor DumpCommand: AsyncParsableCommand {
     func run() async throws {
         let machOFile = try MachOFile.load(options: machOOptions)
 
-        if searchMetadata {
+        if searchMetadata || emitOffsets {
             metadataFinder = MetadataFinder(machO: machOFile)
         }
 
         let demangleOptions = demangleOptions.buildSwiftDumpDemangleOptions()
 
+        let shouldEmitOffsets = emitOffsets
+
         for section in sections {
             switch section {
             case .types:
-                try await dumpTypes(using: demangleOptions, in: machOFile)
+                try await dumpTypes(using: demangleOptions, shouldEmitOffsets: shouldEmitOffsets, in: machOFile)
             case .protocols:
-                try await dumpProtocols(using: demangleOptions, in: machOFile)
+                try await dumpProtocols(using: demangleOptions, shouldEmitOffsets: shouldEmitOffsets, in: machOFile)
             case .protocolConformances:
                 try await dumpProtocolConformances(using: demangleOptions, in: machOFile)
             case .associatedTypes:
@@ -64,7 +69,7 @@ final actor DumpCommand: AsyncParsableCommand {
     }
 
     @MainActor
-    private func dumpTypes(using options: DemangleOptions, in machO: MachOFile) async throws {
+    private func dumpTypes(using options: DemangleOptions, shouldEmitOffsets: Bool, in machO: MachOFile) async throws {
         let typeContextDescriptors = try machO.swift.typeContextDescriptors
 
         for typeContextDescriptor in typeContextDescriptors {
@@ -80,9 +85,11 @@ final actor DumpCommand: AsyncParsableCommand {
                         try Struct(descriptor: structDescriptor, in: machO).dump(using: options, in: machO)
                     }
 
-                    if let metadata: StructMetadata = try await metadataFinder?.metadata(for: structDescriptor) {
-                        await performDump {
-                            try metadata.fieldOffsets(for: structDescriptor, in: machO)
+                    if shouldEmitOffsets {
+                        if let metadata: StructMetadata = try await metadataFinder?.metadata(for: structDescriptor) {
+                            await performDump {
+                                try await dumpStructFieldOffsets(metadata: metadata, descriptor: structDescriptor, in: machO)
+                            }
                         }
                     }
                 case .class(let classDescriptor):
@@ -90,9 +97,14 @@ final actor DumpCommand: AsyncParsableCommand {
                         try Class(descriptor: classDescriptor, in: machO).dump(using: options, in: machO)
                     }
 
-                    if let metadata = try await metadataFinder?.metadata(for: classDescriptor) as ClassMetadataObjCInterop? {
-                        await performDump {
-                            try metadata.fieldOffsets(for: classDescriptor, in: machO)
+                    if shouldEmitOffsets {
+                        if let metadata = try await metadataFinder?.metadata(for: classDescriptor) as ClassMetadataObjCInterop? {
+                            await performDump {
+                                try await dumpClassFieldOffsets(metadata: metadata, descriptor: classDescriptor, in: machO)
+                            }
+                            await performDump {
+                                try await dumpClassVTableOffsets(metadata: metadata, classDescriptor: classDescriptor, in: machO)
+                            }
                         }
                     }
                 }
@@ -113,11 +125,17 @@ final actor DumpCommand: AsyncParsableCommand {
     }
 
     @MainActor
-    private func dumpProtocols(using options: DemangleOptions, in machO: MachOFile) async throws {
+    private func dumpProtocols(using options: DemangleOptions, shouldEmitOffsets: Bool, in machO: MachOFile) async throws {
         let protocolDescriptors = try machO.swift.protocolDescriptors
+
         for protocolDescriptor in protocolDescriptors {
             await performDump {
                 try Protocol(descriptor: protocolDescriptor, in: machO).dump(using: options, in: machO)
+            }
+            if shouldEmitOffsets {
+                await performDump {
+                    try await dumpProtocolWitnessOffsets(descriptor: protocolDescriptor, in: machO)
+                }
             }
         }
     }
@@ -161,5 +179,113 @@ final actor DumpCommand: AsyncParsableCommand {
         } else {
             print(string)
         }
+    }
+
+    // MARK: - Offset Dumping Methods
+
+    private func dumpStructFieldOffsets<MachO: MachORepresentableWithCache & MachOReadable>(
+        metadata: StructMetadata,
+        descriptor: StructDescriptor,
+        in machO: MachO
+    ) async throws -> SemanticString {
+        let offsets = try metadata.fieldOffsets(for: descriptor, in: machO)
+        var components: [any SemanticStringComponent] = []
+
+        components.append(Comment("Data Field Offsets:"))
+        for (index, offset) in offsets.enumerated() {
+            components.append(Comment("  Field \(index): 0x\(String(offset, radix: 16))"))
+        }
+
+        return SemanticString(components: components)
+    }
+
+    private func dumpClassFieldOffsets<MachO: MachORepresentableWithCache & MachOReadable>(
+        metadata: ClassMetadataObjCInterop,
+        descriptor: ClassDescriptor,
+        in machO: MachO
+    ) async throws -> SemanticString {
+        let offsets = try metadata.fieldOffsets(for: descriptor, in: machO)
+        var components: [any SemanticStringComponent] = []
+
+        components.append(Comment("Data Field Offsets:"))
+        for (index, offset) in offsets.enumerated() {
+            components.append(Comment("  Field \(index): 0x\(String(offset, radix: 16))"))
+        }
+
+        return SemanticString(components: components)
+    }
+
+    private func dumpClassVTableOffsets<MachO: MachORepresentableWithCache & MachOReadable>(
+        metadata: ClassMetadataObjCInterop,
+        classDescriptor: ClassDescriptor,
+        in machO: MachO
+    ) async throws -> SemanticString {
+        var components: [any SemanticStringComponent] = []
+
+        components.append(Comment("Virtual Function Offsets:"))
+
+        // Create Class object to access vtable information
+        do {
+            let classType = try Class(descriptor: classDescriptor, in: machO)
+            if let vTableDescriptorHeader = classType.vTableDescriptorHeader {
+                let vTableOffset = vTableDescriptorHeader.layout.vTableOffset
+                let vTableSize = vTableDescriptorHeader.layout.vTableSize
+
+                components.append(Comment("  VTable Offset: 0x\(String(vTableOffset, radix: 16))"))
+                components.append(Comment("  VTable Size: \(vTableSize) entries"))
+
+                // Calculate individual method offsets
+                for i in 0..<vTableSize {
+                    let methodOffset = vTableOffset + (i * UInt32(MemoryLayout<UInt64>.size))
+                    components.append(Comment("  Method \(i): 0x\(String(methodOffset, radix: 16))"))
+                }
+            } else {
+                components.append(Comment("  VTable information not available"))
+            }
+        } catch {
+            components.append(Comment("  Error accessing class information: \(error.localizedDescription)"))
+        }
+
+        return SemanticString(components: components)
+    }
+
+    private func dumpProtocolWitnessOffsets(
+        descriptor: ProtocolDescriptor,
+        in machO: MachOFile
+    ) async throws -> SemanticString {
+        var components: [any SemanticStringComponent] = []
+
+        components.append(Comment("Protocol Witness Offsets:"))
+
+        // Look for protocol conformances that implement this protocol
+        let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
+        let relatedConformances = protocolConformanceDescriptors.compactMap { conformance -> ProtocolConformanceDescriptor? in
+            // Check if this conformance is for our protocol
+            do {
+                if let protocolSymbol = try conformance.protocolDescriptor(in: machO),
+                   let conformanceProtocol = protocolSymbol.resolved {
+                    return conformanceProtocol.offset == descriptor.offset ? conformance : nil
+                } else {
+                    return nil
+                }
+            } catch {
+                return nil
+            }
+        }
+
+        if relatedConformances.isEmpty {
+            components.append(Comment("  No conformances found"))
+        } else {
+            for (index, conformance) in relatedConformances.enumerated() {
+                components.append(Comment("  Conformance \(index): 0x\(String(conformance.offset, radix: 16))"))
+
+                // Try to get witness table information
+                if let witnessTablePattern = try? conformance.witnessTablePattern(in: machO) {
+                    components.append(Comment("    Witness Table: 0x\(String(witnessTablePattern.offset, radix: 16))"))
+                }
+            }
+        }
+
+        return SemanticString(components: components)
     }
 }
