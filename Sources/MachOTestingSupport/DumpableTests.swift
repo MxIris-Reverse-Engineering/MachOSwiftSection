@@ -9,6 +9,18 @@ package protocol DumpableTests {
     var isEnabledSearchMetadata: Bool { get }
 }
 
+package struct DumpableTypeOptions: OptionSet {
+    package let rawValue: Int
+
+    package init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+    
+    package static let `enum` = DumpableTypeOptions(rawValue: 1 << 0)
+    package static let `struct` = DumpableTypeOptions(rawValue: 1 << 1)
+    package static let `class` = DumpableTypeOptions(rawValue: 1 << 2)
+}
+
 extension DumpableTests {
     package var isEnabledSearchMetadata: Bool { false }
 
@@ -30,7 +42,7 @@ extension DumpableTests {
     }
 
     @MainActor
-    package func dumpTypes<MachO: MachOSwiftSectionRepresentableWithCache & MachOOffsetConverter>(for machO: MachO, isDetail: Bool = true) async throws {
+    package func dumpTypes<MachO: MachOSwiftSectionRepresentableWithCache & MachOOffsetConverter>(for machO: MachO, isDetail: Bool = true, options: DumpableTypeOptions = [.enum, .struct, .class]) async throws {
         let typeContextDescriptors = try machO.swift.typeContextDescriptors
         var metadataFinder: MetadataFinder<MachO>?
         if isEnabledSearchMetadata {
@@ -38,7 +50,8 @@ extension DumpableTests {
         }
         for typeContextDescriptor in typeContextDescriptors {
             switch typeContextDescriptor {
-            case let .enum(enumDescriptor):
+            case .enum(let enumDescriptor):
+                guard options.contains(.enum) else { continue }
                 do {
                     if isDetail {
                         let enumType = try Enum(descriptor: enumDescriptor, in: machO)
@@ -49,7 +62,8 @@ extension DumpableTests {
                 } catch {
                     error.print()
                 }
-            case let .struct(structDescriptor):
+            case .struct(let structDescriptor):
+                guard options.contains(.struct) else { continue }
                 do {
                     if isDetail {
                         let structType = try Struct(descriptor: structDescriptor, in: machO)
@@ -63,7 +77,8 @@ extension DumpableTests {
                 } catch {
                     error.print()
                 }
-            case let .class(classDescriptor):
+            case .class(let classDescriptor):
+                guard options.contains(.class) else { continue }
                 do {
                     if isDetail {
                         let classType = try Class(descriptor: classDescriptor, in: machO)
@@ -86,7 +101,7 @@ extension DumpableTests {
         let symbols = SymbolIndexStore.shared.symbols(of: .opaqueTypeDescriptor, in: machO)
         for symbol in symbols where symbol.offset != 0 {
             var offset = symbol.offset
-            
+
             if let cache = machO.cache {
                 offset -= cache.mainCacheHeader.sharedRegionStart.cast()
             }

@@ -20,7 +20,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
     private var demangleResolver: DemangleResolver {
         configuration.demangleResolver
     }
-    
+
     package var declaration: SemanticString {
         get throws {
             if `class`.descriptor.isActor {
@@ -95,7 +95,6 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
                 Space()
 
-                
                 try demangleResolver.modify {
                     if case .options(let demangleOptions) = $0 {
                         return .options(demangleOptions.union(.removeWeakPrefix))
@@ -142,8 +141,20 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                 BreakLine()
 
                 Indent(level: 1)
-
-                if let methodDescriptor = try descriptor.methodDescriptor(in: machO) {
+                
+                let methodDescriptor = try descriptor.methodDescriptor(in: machO)
+                
+                if let symbol = try? descriptor.implementationSymbol(in: machO) {
+                    dumpMethodKind(for: methodDescriptor?.resolved)
+                    Keyword(.override)
+                    Space()
+                    try MetadataReader.demangleSymbol(for: symbol, in: machO).map { try demangleResolver.resolve(for: $0) }
+                } else if !descriptor.implementation.isNull {
+                    dumpMethodKind(for: methodDescriptor?.resolved)
+                    Keyword(.override)
+                    Space()
+                    FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machO).insertSubFunctionPrefix)
+                } else if let methodDescriptor {
                     switch methodDescriptor {
                     case .symbol(let symbol):
                         Keyword(.override)
@@ -157,15 +168,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                         try? dumpMethodDeclaration(for: element)
                     }
                 } else {
-                    Keyword(.override)
-                    Space()
-                    if let symbol = try? descriptor.implementationSymbol(in: machO) {
-                        try MetadataReader.demangleSymbol(for: symbol, in: machO).map { try demangleResolver.resolve(for: $0) }
-                    } else if !descriptor.implementation.isNull {
-                        FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machO).insertSubFunctionPrefix)
-                    } else {
-                        Error("Symbol not found")
-                    }
+                    Error("Symbol not found")
                 }
 
                 if offset.isEnd {
@@ -267,10 +270,12 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
     }
 
     @SemanticStringBuilder
-    private func dumpMethodKind(for descriptor: MethodDescriptor) -> SemanticString {
-        InlineComment("[\(descriptor.flags.kind)]")
+    private func dumpMethodKind(for descriptor: MethodDescriptor?) -> SemanticString? {
+        if let descriptor {
+            InlineComment("[\(descriptor.flags.kind)]")
 
-        Space()
+            Space()
+        }
     }
 
     @SemanticStringBuilder

@@ -20,7 +20,7 @@ extension DyldCacheDumpTests {
     }
 
     @Test func typesInMainCacheFile() async throws {
-        try await dumpTypes(for: machOFileInMainCache)
+        try await dumpTypes(for: machOFileInMainCache, options: .class)
     }
 
     @Test func typesInSubCacheFile() async throws {
