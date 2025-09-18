@@ -37,9 +37,9 @@ final class DyldCacheSymbolDemangleTests: DyldCacheTests {
 
     #if !SILENT_TEST
     @MainActor
-    @Test func writeSwiftUISymbolsToDesktop() async throws {
+    @Test func writeSymbolsToDesktop() async throws {
         var string = ""
-        let imageName: MachOImageName = .SwiftUI
+        let imageName: MachOImageName = .SwiftUICore
         let symbols = try symbols(for: imageName)
         for symbol in symbols {
             let node = try demangleAsNode(symbol.stringValue)
@@ -56,7 +56,7 @@ final class DyldCacheSymbolDemangleTests: DyldCacheTests {
             string += "\n"
             string += "\n"
         }
-        try string.write(to: .desktopDirectory.appendingPathComponent("\(imageName.rawValue)-SwiftSymbolsExpand.txt"), atomically: true, encoding: .utf8)
+        try string.write(to: .desktopDirectory.appending(components: "\(imageName.rawValue)-SwiftSymbolsExpand.txt"), atomically: true, encoding: .utf8)
     }
 
     @Test func demangle() async throws {

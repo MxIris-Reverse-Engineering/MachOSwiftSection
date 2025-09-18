@@ -6,7 +6,7 @@ struct VariableNodePrinter: InterfaceNodePrinter {
     var target: SemanticString = ""
 
     let hasSetter: Bool
-    
+
     let indentation: Int
 
     let cImportedInfoProvider: (any CImportedInfoProvider)?
@@ -47,25 +47,6 @@ struct VariableNodePrinter: InterfaceNodePrinter {
         } else {
             throw Error.onlySupportedForVariableNode(node)
         }
-    }
-
-    mutating func printName(_ name: Node, asPrefixContext: Bool) -> Node? {
-        if printNameInBase(name) {
-            return nil
-        }
-        if printNameInBoundGeneric(name) {
-            return nil
-        }
-        if printNameInType(name) {
-            return nil
-        }
-        if printNameInDependentGeneric(name) {
-            return nil
-        }
-        if printNameInFunction(name) {
-            return nil
-        }
-        return nil
     }
 
     private mutating func printVariable(_ name: Node) throws {
