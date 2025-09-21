@@ -5,13 +5,16 @@ import Semantic
 struct VariableNodePrinter: InterfaceNodePrinter {
     var target: SemanticString = ""
 
+    let isStored: Bool
+    
     let hasSetter: Bool
 
     let indentation: Int
 
     let cImportedInfoProvider: (any CImportedInfoProvider)?
 
-    init(hasSetter: Bool, indentation: Int, cImportedInfoProvider: (any CImportedInfoProvider)? = nil) {
+    init(isStored: Bool, hasSetter: Bool, indentation: Int, cImportedInfoProvider: (any CImportedInfoProvider)? = nil) {
+        self.isStored = isStored
         self.hasSetter = hasSetter
         self.indentation = indentation
         self.cImportedInfoProvider = cImportedInfoProvider
@@ -60,12 +63,18 @@ struct VariableNodePrinter: InterfaceNodePrinter {
         guard let identifier else {
             throw Error.onlySupportedForVariableNode(name)
         }
-        target.write("var ")
+        
+        if isStored, !hasSetter {
+            target.write("let ")
+        } else {
+            target.write("var ")
+        }
+        
         target.write(identifier.text ?? "", context: .context(for: identifier, state: .printIdentifier))
         target.write(": ")
         guard let type = name.children.first(of: .type) else { return }
         printName(type)
-
+        guard !isStored else { return }
         target.write(" {")
         target.write("\n")
         target.write(String(repeating: " ", count: (indentation + 1) * 4))

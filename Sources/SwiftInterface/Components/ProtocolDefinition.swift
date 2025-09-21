@@ -27,11 +27,11 @@ final class ProtocolDefinition: Sendable {
 
     @Mutex
     var associatedTypes: [String] = []
-    
+
     var hasMembers: Bool {
         !requirements.isEmpty || !associatedTypes.isEmpty
     }
-    
+
     init<MachO: MachOSwiftSectionRepresentableWithCache>(`protocol`: MachOSwiftSection.`Protocol`, in machO: MachO) throws {
         self.protocol = `protocol`
         func _name() throws -> SemanticString {
@@ -47,67 +47,92 @@ final class ProtocolDefinition: Sendable {
             return nil
         }
         self.associatedTypes = try `protocol`.descriptor.associatedTypes(in: machO)
+        
         var requirements: [ProtocolRequirementDefinition] = []
         var defaultImplementationRequirements: [ProtocolRequirementDefinition] = []
+        
         var requirementVisitedNodes: OrderedSet<Node> = []
         var defaultImplementationVisitedNodes: OrderedSet<Node> = []
-        var variableKindsByName: OrderedDictionary<String, Set<VariableKind>> = [:]
-        var defaultImplementationVariableKindsByName: OrderedDictionary<String, Set<VariableKind>> = [:]
+        
+        var variableKindsByName: OrderedDictionary<String, Set<AccessorKind>> = [:]
+        var defaultImplementationVariableKindsByName: OrderedDictionary<String, Set<AccessorKind>> = [:]
+        
+        var subscriptKindsByName: OrderedDictionary<Node, Set<AccessorKind>> = [:]
+        var defaultImplementationSubscriptKindsByName: OrderedDictionary<Node, Set<AccessorKind>> = [:]
+        
         var nodeAndRequirements: [(node: Node, requirement: ProtocolRequirement)] = []
         var defaultImplementationNodeAndRequirements: [(node: Node, requirement: ProtocolRequirement)] = []
+        
         for requirement in `protocol`.requirements {
             guard let symbols = try Symbols.resolve(from: requirement.offset, in: machO), let node = try? _node(for: symbols, visitedNodes: requirementVisitedNodes) else { continue }
             nodeAndRequirements.append((node, requirement))
-            if let variable = node.first(of: .variable), let name = variable.identifier, let variableKind = node.variableKind {
-                variableKindsByName[name, default: []].insert(variableKind)
+            if let variable = node.first(of: .variable), let name = variable.identifier, let kind = node.accessorKind {
+                variableKindsByName[name, default: []].insert(kind)
+            } else if let `subscript` = node.first(of: .subscript), let kind = node.accessorKind {
+                subscriptKindsByName[`subscript`, default: []].insert(kind)
             }
             requirementVisitedNodes.append(node)
         }
         for (node, requirement) in nodeAndRequirements {
             let requirementDefinition: ProtocolRequirementDefinition
-            if let variable = node.first(of: .variable), let name = variable.identifier, node.contains(.getter), let variableKinds = variableKindsByName[name] {
-                requirementDefinition = .variable(VariableDefinition(node: variable, name: name, hasSetter: variableKinds.contains(.setter), hasModifyAccessor: variableKinds.contains(.modifyAccessor), isStatic: !requirement.flags.isInstance))
+            let isStatic = !requirement.flags.isInstance
+            if let variable = node.first(of: .variable), let name = variable.identifier, node.contains(.getter), let kinds = variableKindsByName[name] {
+                requirementDefinition = .variable(VariableDefinition(node: node, name: name, hasSetter: kinds.contains(.setter), hasModifyAccessor: kinds.contains(.modifyAccessor), isGlobalOrStatic: isStatic, isStored: false))
+            } else if let `subscript` = node.first(of: .subscript), node.contains(.getter), let kinds = subscriptKindsByName[`subscript`] {
+                requirementDefinition = .subscript(SubscriptDefinition(node: node, hasSetter: kinds.contains(.setter), hasReadAccessor: kinds.contains(.readAccessor), hasModifyAccessor: kinds.contains(.modifyAccessor), isStatic: isStatic))
             } else if node.contains(.allocator) {
-                requirementDefinition = .function(FunctionDefinition(node: node, name: "", kind: .allocator, isStatic: true))
+                requirementDefinition = .function(FunctionDefinition(node: node, name: "", kind: .allocator, isGlobalOrStatic: true))
             } else if let function = node.first(of: .function), let name = function.identifier {
-                requirementDefinition = .function(FunctionDefinition(node: function, name: name, kind: .function, isStatic: !requirement.flags.isInstance))
+                requirementDefinition = .function(FunctionDefinition(node: node, name: name, kind: .function, isGlobalOrStatic: isStatic))
             } else {
                 continue
             }
             requirements.append(requirementDefinition)
             if let symbols = try requirement.defaultImplementationSymbols(in: machO), let node = try _node(for: symbols, visitedNodes: defaultImplementationVisitedNodes) {
-                if let variable = node.first(of: .variable), let name = variable.identifier, let variableKind = node.variableKind {
-                    defaultImplementationVariableKindsByName[name, default: []].insert(variableKind)
+                if let variable = node.first(of: .variable), let name = variable.identifier, let kind = node.accessorKind {
+                    defaultImplementationVariableKindsByName[name, default: []].insert(kind)
+                } else if let `subscript` = node.first(of: .subscript), let kind = node.accessorKind {
+                    defaultImplementationSubscriptKindsByName[`subscript`, default: []].insert(kind)
                 }
+                
                 defaultImplementationVisitedNodes.append(node)
                 defaultImplementationNodeAndRequirements.append((node, requirement))
             }
         }
-        
+
         self.requirements = requirements
-        
+
         for (node, requirement) in defaultImplementationNodeAndRequirements {
             let requirementDefinition: ProtocolRequirementDefinition
+            let isStatic = !requirement.flags.isInstance
             if let variable = node.first(of: .variable), let name = variable.identifier, node.contains(.getter), let variableKinds = defaultImplementationVariableKindsByName[name] {
-                requirementDefinition = .variable(VariableDefinition(node: variable, name: name, hasSetter: variableKinds.contains(.setter), hasModifyAccessor: variableKinds.contains(.modifyAccessor), isStatic: !requirement.flags.isInstance))
+                requirementDefinition = .variable(VariableDefinition(node: node, name: name, hasSetter: variableKinds.contains(.setter), hasModifyAccessor: variableKinds.contains(.modifyAccessor), isGlobalOrStatic: isStatic, isStored: false))
+            } else if let `subscript` = node.first(of: .subscript), let kinds = defaultImplementationSubscriptKindsByName[`subscript`] {
+                requirementDefinition = .subscript(SubscriptDefinition(node: node, hasSetter: kinds.contains(.setter), hasReadAccessor: kinds.contains(.readAccessor), hasModifyAccessor: kinds.contains(.modifyAccessor), isStatic: isStatic))
             } else if node.contains(.allocator) {
-                requirementDefinition = .function(FunctionDefinition(node: node, name: "", kind: .allocator, isStatic: true))
+                requirementDefinition = .function(FunctionDefinition(node: node, name: "", kind: .allocator, isGlobalOrStatic: true))
             } else if let function = node.first(of: .function), let name = function.identifier {
-                requirementDefinition = .function(FunctionDefinition(node: function, name: name, kind: .function, isStatic: !requirement.flags.isInstance))
+                requirementDefinition = .function(FunctionDefinition(node: node, name: name, kind: .function, isGlobalOrStatic: isStatic))
             } else {
                 continue
             }
             defaultImplementationRequirements.append(requirementDefinition)
         }
-        
+
         self.defaultImplementationRequirements = defaultImplementationRequirements
-        
+
         var extensionDefinition = try ExtensionDefinition(name: name, kind: .protocol, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
-        
+
         for defaultImplementationRequirement in defaultImplementationRequirements {
             switch defaultImplementationRequirement {
+            case .subscript(let subscriptDefinition):
+                if subscriptDefinition.isStatic {
+                    extensionDefinition.staticSubscripts.append(subscriptDefinition)
+                } else {
+                    extensionDefinition.subscripts.append(subscriptDefinition)
+                }
             case .variable(let variableDefinition):
-                if variableDefinition.isStatic {
+                if variableDefinition.isGlobalOrStatic {
                     extensionDefinition.staticVariables.append(variableDefinition)
                 } else {
                     extensionDefinition.variables.append(variableDefinition)
@@ -115,19 +140,19 @@ final class ProtocolDefinition: Sendable {
             case .function(let functionDefinition):
                 switch functionDefinition.kind {
                 case .function:
-                    if functionDefinition.isStatic {
+                    if functionDefinition.isGlobalOrStatic {
                         extensionDefinition.staticFunctions.append(functionDefinition)
                     } else {
                         extensionDefinition.functions.append(functionDefinition)
                     }
                 case .allocator:
                     extensionDefinition.allocators.append(functionDefinition)
-                case .deallocator:
-                    break
+                case .constructor:
+                    extensionDefinition.constructors.append(functionDefinition)
                 }
             }
         }
-        
+
         if extensionDefinition.hasMembers {
             self.defaultImplementationExtensions = [extensionDefinition]
         }

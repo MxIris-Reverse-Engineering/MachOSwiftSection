@@ -26,6 +26,10 @@ extension DependentGenericNodePrintable {
             printDependentMemberType(name)
         case .dependentGenericSignature:
             printGenericSignature(name)
+        case .dependentGenericInverseConformanceRequirement:
+            printDependentGenericInverseConformanceRequirement(name)
+        case .dependentGenericParamPackMarker:
+            break
         default:
             return false
         }
@@ -226,5 +230,14 @@ extension DependentGenericNodePrintable {
         printFirstChild(name)
         target.write(".")
         _ = printOptional(name.children.at(1))
+    }
+    
+    mutating func printDependentGenericInverseConformanceRequirement(_ name: Node) {
+        printFirstChild(name, suffix: ": ~")
+        switch name.children.at(1)?.index {
+        case 0: target.write("Swift.Copyable")
+        case 1: target.write("Swift.Escapable")
+        default: target.write("Swift.<bit \(name.children.at(1)?.index ?? 0)>")
+        }
     }
 }

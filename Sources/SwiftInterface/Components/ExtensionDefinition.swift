@@ -25,23 +25,29 @@ struct ExtensionDefinition: Definition {
     let associatedType: AssociatedType?
 
     var types: [TypeDefinition] = []
-    
+
     var protocols: [ProtocolDefinition] = []
-    
+
     var allocators: [FunctionDefinition] = []
 
+    var constructors: [FunctionDefinition] = []
+    
     var variables: [VariableDefinition] = []
 
     var functions: [FunctionDefinition] = []
 
+    var subscripts: [SubscriptDefinition] = []
+    
     var staticVariables: [VariableDefinition] = []
 
     var staticFunctions: [FunctionDefinition] = []
 
+    var staticSubscripts: [SubscriptDefinition] = []
+    
     var missingSymbolWitnesses: [ResilientWitness] = []
 
     var hasMembers: Bool {
-        !variables.isEmpty || !functions.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !allocators.isEmpty
+        !variables.isEmpty || !functions.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !allocators.isEmpty || !constructors.isEmpty || !staticSubscripts.isEmpty || !subscripts.isEmpty
     }
 
     @SemanticStringBuilder
@@ -81,17 +87,27 @@ struct ExtensionDefinition: Definition {
         func addNode(_ node: Node) {
             if node.contains(.variable) {
                 if node.contains(.static) {
-                    memberSymbolsByKind[.staticVariable, default: []].append(node)
+                    if node.isStoredVariable {
+                        memberSymbolsByKind[.variable(inExtension: true, isStatic: true, isStorage: true), default: []].append(node)
+                    } else {
+                        memberSymbolsByKind[.variable(inExtension: true, isStatic: true, isStorage: false), default: []].append(node)
+                    }
                 } else {
-                    memberSymbolsByKind[.variable, default: []].append(node)
+                    memberSymbolsByKind[.variable(inExtension: true, isStatic: false, isStorage: false), default: []].append(node)
                 }
             } else if node.contains(.allocator) {
-                memberSymbolsByKind[.allocator, default: []].append(node)
+                memberSymbolsByKind[.allocator(inExtension: true), default: []].append(node)
             } else if node.contains(.function) {
                 if node.contains(.static) {
-                    memberSymbolsByKind[.staticFunction, default: []].append(node)
+                    memberSymbolsByKind[.function(inExtension: true, isStatic: true), default: []].append(node)
                 } else {
-                    memberSymbolsByKind[.function, default: []].append(node)
+                    memberSymbolsByKind[.function(inExtension: true, isStatic: false), default: []].append(node)
+                }
+            } else if node.contains(.subscript) {
+                if node.contains(.static) {
+                    memberSymbolsByKind[.subscript(inExtension: true, isStatic: true), default: []].append(node)
+                } else {
+                    memberSymbolsByKind[.subscript(inExtension: true, isStatic: false), default: []].append(node)
                 }
             }
         }
@@ -102,11 +118,11 @@ struct ExtensionDefinition: Definition {
                 addNode(node)
             } else if let requirement = try resilientWitness.requirement(in: machO) {
                 switch requirement {
-                case .symbol(let symbol):
+                case let .symbol(symbol):
                     if let demangledNode = try? MetadataReader.demangleSymbol(for: symbol, in: machO) {
                         addNode(demangledNode)
                     }
-                case .element(let element):
+                case let .element(element):
                     if let symbols = try Symbols.resolve(from: element.offset, in: machO), let node = try _node(for: symbols, typeName: name, visitedNodes: visitedNodes) {
                         _ = visitedNodes.append(node)
                         addNode(node)
@@ -130,16 +146,26 @@ struct ExtensionDefinition: Definition {
 
         for (kind, memberSymbols) in memberSymbolsByKind {
             switch kind {
-            case .variable:
-                self.variables = DefinitionBuilder.variables(for: memberSymbols, fieldNames: [], isStatic: false)
+            case let .variable(true, isStatic, false):
+                if isStatic {
+                    self.staticVariables = DefinitionBuilder.variables(for: memberSymbols, fieldNames: [], isGlobalOrStatic: true)
+                } else {
+                    self.variables = DefinitionBuilder.variables(for: memberSymbols, fieldNames: [], isGlobalOrStatic: false)
+                }
             case .allocator:
                 self.allocators = DefinitionBuilder.allocators(for: memberSymbols)
-            case .function:
-                self.functions = DefinitionBuilder.functions(for: memberSymbols, isStatic: false)
-            case .staticVariable:
-                self.staticVariables = DefinitionBuilder.variables(for: memberSymbols, fieldNames: [], isStatic: true)
-            case .staticFunction:
-                self.staticFunctions = DefinitionBuilder.functions(for: memberSymbols, isStatic: true)
+            case let .function(true, isStatic):
+                if isStatic {
+                    self.staticFunctions = DefinitionBuilder.functions(for: memberSymbols, isGlobalOrStatic: true)
+                } else {
+                    self.functions = DefinitionBuilder.functions(for: memberSymbols, isGlobalOrStatic: false)
+                }
+            case let .subscript(true, isStatic):
+                if isStatic {
+                    self.staticSubscripts = DefinitionBuilder.subscripts(for: memberSymbols, isStatic: true)
+                } else {
+                    self.subscripts = DefinitionBuilder.subscripts(for: memberSymbols, isStatic: false)
+                }
             default:
                 break
             }

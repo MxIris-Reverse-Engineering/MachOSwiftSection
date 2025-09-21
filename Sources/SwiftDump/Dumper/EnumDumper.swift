@@ -5,6 +5,7 @@ import Semantic
 import Utilities
 import MemberwiseInit
 import Demangle
+import Dependencies
 
 package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
     private let `enum`: Enum
@@ -12,6 +13,9 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
     private let configuration: DumperConfiguration
 
     private let machO: MachO
+
+    @Dependency(\.symbolIndexStore)
+    private var symbolIndexStore
 
     package init(_ dumped: Enum, using configuration: DumperConfiguration, in machO: MachO) {
         self.enum = dumped
@@ -98,7 +102,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
             let interfaceNameString = try interfaceName.string
 
             for kind in SymbolIndexStore.MemberKind.allCases {
-                for (offset, symbol) in SymbolIndexStore.shared.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
+                for (offset, symbol) in symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
                     if offset.isStart {
                         BreakLine()
 

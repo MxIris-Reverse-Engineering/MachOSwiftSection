@@ -3,6 +3,7 @@ import Demangle
 import MachOKit
 import MachOSwiftSection
 import Utilities
+import Dependencies
 
 package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
     private let `class`: Class
@@ -11,6 +12,9 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
     private let machO: MachO
 
+    @Dependency(\.symbolIndexStore)
+    private var symbolIndexStore
+    
     package init(_ dumped: Class, using configuration: DumperConfiguration, in machO: MachO) {
         self.class = dumped
         self.configuration = configuration
@@ -201,7 +205,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
             let interfaceNameString = try interfaceName.string
 
             for kind in SymbolIndexStore.MemberKind.allCases {
-                for (offset, symbol) in SymbolIndexStore.shared.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
+                for (offset, symbol) in symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
                     if offset.isStart {
                         BreakLine()
 
@@ -223,7 +227,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
             }
 
             for kind in SymbolIndexStore.MemberKind.allCases {
-                for (offset, symbol) in SymbolIndexStore.shared.methodDescriptorMemberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
+                for (offset, symbol) in symbolIndexStore.methodDescriptorMemberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
                     if offset.isStart {
                         BreakLine()
 

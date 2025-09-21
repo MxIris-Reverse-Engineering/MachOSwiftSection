@@ -2,7 +2,7 @@ import MemberwiseInit
 import Demangle
 
 @MemberwiseInit
-struct TypeFieldDefinition: Sendable {
+struct FieldDefinition: Sendable {
     let node: Node
     let name: String
     let isLazy: Bool

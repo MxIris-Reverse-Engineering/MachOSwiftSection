@@ -7,6 +7,7 @@ import Semantic
 import SwiftStdlibToolbox
 import MachOKit
 import TypeIndexing
+import Dependencies
 
 /// A comprehensive Swift interface builder that generates human-readable Swift interface files from Mach-O binaries.
 ///
@@ -126,6 +127,12 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     @Mutex
     private var dependencies: [MachO] = []
 
+    @Mutex
+    private var globalVariableDefinitions: [VariableDefinition] = []
+
+    @Mutex
+    private var globalFunctionDefinitions: [FunctionDefinition] = []
+
     /// Creates a new Swift interface builder for the given Mach-O binary.
     ///
     /// - Parameters:
@@ -135,7 +142,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     /// - Throws: An error if the binary cannot be read or if required Swift sections are missing.
     public init(configuration: SwiftInterfaceBuilderConfiguration = .init(), eventHandlers: [SwiftInterfaceBuilderEvents.Handler] = [], in machO: MachO) throws {
         self.eventDispatcher = .init()
-        self.eventDispatcher.addHandlers(eventHandlers)
+        eventDispatcher.addHandlers(eventHandlers)
         eventDispatcher.dispatch(.initialization(config: SwiftInterfaceBuilderEvents.InitializationConfig(isTypeIndexingEnabled: configuration.isEnabledTypeIndexing, showCImportedTypes: configuration.showCImportedTypes)))
 
         self.configuration = configuration
@@ -168,38 +175,38 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         do {
             eventDispatcher.dispatch(.extractionStarted(section: .swiftTypes))
-            self.types = try machO.swift.types
+            types = try machO.swift.types
             eventDispatcher.dispatch(.extractionCompleted(result: SwiftInterfaceBuilderEvents.ExtractionResult(section: .swiftTypes, count: types.count)))
         } catch {
             eventDispatcher.dispatch(.extractionFailed(section: .swiftTypes, error: error))
-            self.types = []
+            types = []
         }
 
         do {
             eventDispatcher.dispatch(.extractionStarted(section: .swiftProtocols))
-            self.protocols = try machO.swift.protocols
+            protocols = try machO.swift.protocols
             eventDispatcher.dispatch(.extractionCompleted(result: SwiftInterfaceBuilderEvents.ExtractionResult(section: .swiftProtocols, count: protocols.count)))
         } catch {
             eventDispatcher.dispatch(.extractionFailed(section: .swiftProtocols, error: error))
-            self.protocols = []
+            protocols = []
         }
 
         do {
             eventDispatcher.dispatch(.extractionStarted(section: .protocolConformances))
-            self.protocolConformances = try machO.swift.protocolConformances
+            protocolConformances = try machO.swift.protocolConformances
             eventDispatcher.dispatch(.extractionCompleted(result: SwiftInterfaceBuilderEvents.ExtractionResult(section: .protocolConformances, count: protocolConformances.count)))
         } catch {
             eventDispatcher.dispatch(.extractionFailed(section: .protocolConformances, error: error))
-            self.protocolConformances = []
+            protocolConformances = []
         }
 
         do {
             eventDispatcher.dispatch(.extractionStarted(section: .associatedTypes))
-            self.associatedTypes = try machO.swift.associatedTypes
+            associatedTypes = try machO.swift.associatedTypes
             eventDispatcher.dispatch(.extractionCompleted(result: SwiftInterfaceBuilderEvents.ExtractionResult(section: .associatedTypes, count: associatedTypes.count)))
         } catch {
             eventDispatcher.dispatch(.extractionFailed(section: .associatedTypes, error: error))
-            self.associatedTypes = []
+            associatedTypes = []
         }
 
         do {
@@ -261,14 +268,14 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             var parentContext = try ContextWrapper.type(type).parent(in: machO)?.resolved
 
             while let currentContext = parentContext {
-                if case let .type(typeContext) = currentContext, let parentTypeName = try? typeContext.typeName(in: machO) {
+                if case .type(let typeContext) = currentContext, let parentTypeName = try? typeContext.typeName(in: machO) {
                     if let parentDefinition = allTypeDefinitions[parentTypeName] {
                         childDefinition.parent = parentDefinition
                         parentDefinition.typeChildren.append(childDefinition)
                     }
                     nestedTypeCount += 1
                     break
-                } else if case let .extension(extensionContext) = currentContext {
+                } else if case .extension(let extensionContext) = currentContext {
                     childDefinition.extensionContext = extensionContext
                     extensionTypeCount += 1
                     break
@@ -284,15 +291,15 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 rootTypeDefinitions[typeName] = typeDefinition
             } else if let extensionContext = typeDefinition.extensionContext, let extendedContextMangledName = extensionContext.extendedContextMangledName {
                 let typeNode = try MetadataReader.demangle(for: extendedContextMangledName, in: machO)
-                
+
                 guard let typeKind = typeNode.typeKind else { continue }
-                
+
                 let name = typeNode.print(using: .interfaceTypeBuilderOnly)
-                
+
                 let typeName = TypeName(name: name, kind: typeKind)
-                
+
                 var genericSignature: Node?
-                
+
                 if let currentRequirements = extensionContext.genericContext?.currentRequirements, !currentRequirements.isEmpty {
                     genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO)
                 }
@@ -327,14 +334,14 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                     var parentContext = try ContextWrapper.protocol(proto).parent(in: machO)?.resolved
                     var isRoot = true
                     while let currentContext = parentContext {
-                        if case let .type(typeContext) = currentContext, let parentTypeName = try? typeContext.typeName(in: machO) {
+                        if case .type(let typeContext) = currentContext, let parentTypeName = try? typeContext.typeName(in: machO) {
                             if let parentDefinition = allTypeDefinitions[parentTypeName] {
                                 protocolDefinition.parent = parentDefinition
                                 parentDefinition.protocolChildren.append(protocolDefinition)
                                 isRoot = false
                             }
                             break
-                        } else if case let .extension(extensionContext) = currentContext {
+                        } else if case .extension(let extensionContext) = currentContext {
                             protocolDefinition.extensionContext = extensionContext
                             isRoot = false
                             break
@@ -372,7 +379,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             }
         }
 
-        self.rootProtocolDefinitions = protocolDefinitions
+        rootProtocolDefinitions = protocolDefinitions
         eventDispatcher.dispatch(.protocolIndexingCompleted(result: SwiftInterfaceBuilderEvents.ProtocolIndexingResult(totalProcessed: protocols.count, successful: successfulCount, failed: failedCount)))
     }
 
@@ -459,12 +466,18 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     private func indexExtensions() async throws {
         eventDispatcher.dispatch(.extensionIndexingStarted)
 
-        let memberSymbolsByName = SymbolIndexStore.shared.memberSymbols(
-            of: .allocatorInExtension,
-            .variableInExtension,
-            .functionInExtension,
-            .staticVariableInExtension,
-            .staticFunctionInExtension,
+        @Dependency(\.symbolIndexStore)
+        var symbolIndexStore
+
+        let memberSymbolsByName = symbolIndexStore.memberSymbols(
+            of: .allocator(inExtension: true),
+            .variable(inExtension: true, isStatic: false, isStorage: false),
+            .variable(inExtension: true, isStatic: true, isStorage: false),
+            .variable(inExtension: true, isStatic: true, isStorage: true),
+            .function(inExtension: true, isStatic: false),
+            .function(inExtension: true, isStatic: true),
+            .subscript(inExtension: true, isStatic: false),
+            .subscript(inExtension: true, isStatic: true),
             excluding: [],
             in: machO
         )
@@ -478,7 +491,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         var failedExtensions = 0
 
         for (name, memberSymbols) in memberSymbolsByName {
-            guard let typeInfo = SymbolIndexStore.shared.typeInfo(for: name, in: machO) else {
+            guard let typeInfo = symbolIndexStore.typeInfo(for: name, in: machO) else {
                 eventDispatcher.dispatch(.extensionTargetNotFound(targetName: name))
                 continue
             }
@@ -490,26 +503,34 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 for (kind, memberSymbols) in memberSymbolsByKind {
                     let nodes = memberSymbols.map(\.demangledNode)
                     switch kind {
-                    case .allocatorInExtension:
+                    case .allocator(inExtension: true):
                         let allocators = DefinitionBuilder.allocators(for: nodes)
                         extensionDefinition.allocators.append(contentsOf: allocators)
                         memberCount += allocators.count
-                    case .variableInExtension:
-                        let variables = DefinitionBuilder.variables(for: nodes, fieldNames: [], isStatic: false)
+                    case .variable(inExtension: true, isStatic: false, isStorage: false):
+                        let variables = DefinitionBuilder.variables(for: nodes, fieldNames: [], isGlobalOrStatic: false)
                         extensionDefinition.variables.append(contentsOf: variables)
                         memberCount += variables.count
-                    case .functionInExtension:
-                        let functions = DefinitionBuilder.functions(for: nodes, isStatic: false)
+                    case .function(inExtension: true, isStatic: false):
+                        let functions = DefinitionBuilder.functions(for: nodes, isGlobalOrStatic: false)
                         extensionDefinition.functions.append(contentsOf: functions)
                         memberCount += functions.count
-                    case .staticVariableInExtension:
-                        let staticVariables = DefinitionBuilder.variables(for: nodes, fieldNames: [], isStatic: true)
+                    case .variable(inExtension: true, isStatic: true, _):
+                        let staticVariables = DefinitionBuilder.variables(for: nodes, fieldNames: [], isGlobalOrStatic: true)
                         extensionDefinition.staticVariables.append(contentsOf: staticVariables)
                         memberCount += staticVariables.count
-                    case .staticFunctionInExtension:
-                        let staticFunctions = DefinitionBuilder.functions(for: nodes, isStatic: true)
+                    case .function(inExtension: true, isStatic: true):
+                        let staticFunctions = DefinitionBuilder.functions(for: nodes, isGlobalOrStatic: true)
                         extensionDefinition.staticFunctions.append(contentsOf: staticFunctions)
                         memberCount += staticFunctions.count
+                    case .subscript(inExtension: true, isStatic: false):
+                        let subscripts = DefinitionBuilder.subscripts(for: nodes, isStatic: false)
+                        extensionDefinition.subscripts.append(contentsOf: subscripts)
+                        memberCount += subscripts.count
+                    case .subscript(inExtension: true, isStatic: true):
+                        let staticSubscripts = DefinitionBuilder.subscripts(for: nodes, isStatic: true)
+                        extensionDefinition.staticSubscripts.append(contentsOf: staticSubscripts)
+                        memberCount += staticSubscripts.count
                     default:
                         break
                     }
@@ -524,7 +545,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
             for (kind, memberSymbols) in memberSymbols {
                 for memberSymbol in memberSymbols {
-                    if let genericSignature = memberSymbol.demangledNode.first(of: .dependentGenericSignature), kind == .variableInExtension || kind == .staticVariableInExtension {
+                    if let genericSignature = memberSymbol.demangledNode.first(of: .dependentGenericSignature), case .variable = kind {
                         memberSymbolsByGenericSignature[genericSignature, default: [:]][kind, default: []].append(memberSymbol)
                     } else {
                         memberSymbolsByKind[kind, default: []].append(memberSymbol)
@@ -585,6 +606,14 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         eventDispatcher.dispatch(.extensionIndexingCompleted(result: SwiftInterfaceBuilderEvents.ExtensionIndexingResult(typeExtensions: typeExtensionCount, protocolExtensions: protocolExtensionCount, typeAliasExtensions: typeAliasExtensionCount, failed: failedExtensions)))
     }
 
+    private func indexGlobals() {
+        @Dependency(\.symbolIndexStore)
+        var symbolIndexStore
+
+        globalVariableDefinitions = DefinitionBuilder.variables(for: symbolIndexStore.globalSymbols(of: .variable(isStorage: false), .variable(isStorage: true), in: machO).map(\.demangledNode), fieldNames: [], isGlobalOrStatic: true)
+        globalFunctionDefinitions = DefinitionBuilder.functions(for: symbolIndexStore.globalSymbols(of: .function, in: machO).map(\.demangledNode), isGlobalOrStatic: true)
+    }
+
     /// Performs complete indexing of the Mach-O binary.
     /// This method coordinates all indexing operations in the correct order
     /// to build a complete picture of the Swift API.
@@ -642,6 +671,8 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             throw error
         }
 
+        indexGlobals()
+
         eventDispatcher.dispatch(.phaseTransition(phase: .indexing, state: .completed))
     }
 
@@ -653,7 +684,27 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         }
 
         BreakLine()
+        
+        for (offset, variable) in globalVariableDefinitions.offsetEnumerated() {
+            BreakLine()
+            var printer = VariableNodePrinter(isStored: variable.isStored, hasSetter: variable.hasSetter, indentation: 0, cImportedInfoProvider: typeDatabase)
+            try printer.printRoot(variable.node)
 
+            if offset.isEnd {
+                BreakLine()
+            }
+        }
+
+        for (offset, function) in globalFunctionDefinitions.offsetEnumerated() {
+            BreakLine()
+            var printer = FunctionNodePrinter(cImportedInfoProvider: typeDatabase)
+            try printer.printRoot(function.node)
+
+            if offset.isEnd {
+                BreakLine()
+            }
+        }
+        
         for (offset, typeDefinition) in rootTypeDefinitions.values.offsetEnumerated() {
             try printTypeDefinition(typeDefinition)
 
@@ -779,8 +830,10 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             var printer: any InterfaceNodePrinter = switch requirment {
             case .function:
                 FunctionNodePrinter(cImportedInfoProvider: typeDatabase)
-            case let .variable(variable):
-                VariableNodePrinter(hasSetter: variable.hasSetter, indentation: level, cImportedInfoProvider: typeDatabase)
+            case .variable(let variable):
+                VariableNodePrinter(isStored: variable.isStored, hasSetter: variable.hasSetter, indentation: level, cImportedInfoProvider: typeDatabase)
+            case .`subscript`(let `subscript`):
+                SubscriptNodePrinter(hasSetter: `subscript`.hasSetter, indentation: level, cImportedInfoProvider: typeDatabase)
             }
             try printer.printRoot(requirment.node)
 
@@ -876,7 +929,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (offset, variable) in definition.variables.offsetEnumerated() {
             BreakLine()
             Indent(level: level)
-            var printer = VariableNodePrinter(hasSetter: variable.hasSetter, indentation: level, cImportedInfoProvider: typeDatabase)
+            var printer = VariableNodePrinter(isStored: variable.isStored, hasSetter: variable.hasSetter, indentation: level, cImportedInfoProvider: typeDatabase)
             try printer.printRoot(variable.node)
 
             if offset.isEnd {
@@ -895,10 +948,21 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             }
         }
 
+        for (offset, `subscript`) in definition.subscripts.offsetEnumerated() {
+            BreakLine()
+            Indent(level: level)
+            var printer = SubscriptNodePrinter(hasSetter: `subscript`.hasSetter, indentation: level, cImportedInfoProvider: typeDatabase)
+            try printer.printRoot(`subscript`.node)
+
+            if offset.isEnd {
+                BreakLine()
+            }
+        }
+
         for (offset, variable) in definition.staticVariables.offsetEnumerated() {
             BreakLine()
             Indent(level: level)
-            var printer = VariableNodePrinter(hasSetter: variable.hasSetter, indentation: level, cImportedInfoProvider: typeDatabase)
+            var printer = VariableNodePrinter(isStored: variable.isStored, hasSetter: variable.hasSetter, indentation: level, cImportedInfoProvider: typeDatabase)
             try printer.printRoot(variable.node)
 
             if offset.isEnd {
@@ -916,15 +980,29 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 BreakLine()
             }
         }
+
+        for (offset, `subscript`) in definition.staticSubscripts.offsetEnumerated() {
+            BreakLine()
+            Indent(level: level)
+            var printer = SubscriptNodePrinter(hasSetter: `subscript`.hasSetter, indentation: level, cImportedInfoProvider: typeDatabase)
+            try printer.printRoot(`subscript`.node)
+
+            if offset.isEnd {
+                BreakLine()
+            }
+        }
     }
 
     /// Collects all modules that need to be imported for the interface.
     /// Scans all symbols to find module references and builds the import list.
     private func collectModules() async throws {
         eventDispatcher.dispatch(.moduleCollectionStarted)
+        @Dependency(\.symbolIndexStore)
+        var symbolIndexStore
+
         var usedModules: OrderedSet<String> = []
         let filterModules: Set<String> = [cModule, objcModule, stdlibName]
-        let allSymbols = SymbolIndexStore.shared.allSymbols(in: machO)
+        let allSymbols = symbolIndexStore.allSymbols(in: machO)
 
         eventDispatcher.dispatch(.symbolScanStarted(context: SwiftInterfaceBuilderEvents.SymbolScanContext(totalSymbols: allSymbols.count, filterModules: Array(filterModules.sorted()))))
 
@@ -943,7 +1021,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     }
 }
 
-public extension SwiftInterfaceBuilder<MachOFile> {
+extension SwiftInterfaceBuilder<MachOFile> {
     /// Sets the dependency paths for loading related Mach-O files and dyld caches.
     /// This improves type resolution by providing access to types from dependencies.
     ///
@@ -958,14 +1036,14 @@ public extension SwiftInterfaceBuilder<MachOFile> {
     ///     .usesSystemDyldSharedCache
     /// ])
     /// ```
-    func setDependencyPaths(_ paths: [DependencyPath]) {
+    public func setDependencyPaths(_ paths: [DependencyPath]) {
         eventDispatcher.dispatch(.dependencyLoadingStarted(input: SwiftInterfaceBuilderEvents.DependencyLoadingInput(paths: paths.count)))
         var dependencies: [MachOFile] = []
         let dependencyPaths = Set(machO.dependencies.map(\.dylib.name))
 
         for searchPath in paths {
             switch searchPath {
-            case let .machO(path):
+            case .machO(let path):
                 do {
                     if let machOFile = try File.loadFromFile(url: .init(fileURLWithPath: path)).machOFiles.first {
                         dependencies.append(machOFile)
@@ -976,7 +1054,7 @@ public extension SwiftInterfaceBuilder<MachOFile> {
                 } catch {
                     eventDispatcher.dispatch(.dependencyLoadingFailed(failure: SwiftInterfaceBuilderEvents.DependencyLoadingFailure(path: path, error: error)))
                 }
-            case let .dyldSharedCache(path):
+            case .dyldSharedCache(let path):
                 do {
                     let fullDyldCache = try FullDyldCache(url: .init(fileURLWithPath: path))
                     var foundCount = 0
@@ -1050,7 +1128,7 @@ extension LoadCommandsProtocol {
     var buildVersionCommand: BuildVersionCommand? {
         for command in self {
             switch command {
-            case let .buildVersion(buildVersionCommand):
+            case .buildVersion(let buildVersionCommand):
                 return buildVersionCommand
             default:
                 break

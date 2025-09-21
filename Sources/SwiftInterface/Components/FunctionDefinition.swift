@@ -6,11 +6,11 @@ struct FunctionDefinition: Sendable {
     enum Kind: Sendable {
         case function
         case allocator
-        case deallocator
+        case constructor
     }
 
     let node: Node
     let name: String
     let kind: Kind
-    let isStatic: Bool
+    let isGlobalOrStatic: Bool
 }

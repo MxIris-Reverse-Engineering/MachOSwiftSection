@@ -6,14 +6,19 @@ import MachOFoundation
 import Demangle
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
+import Dependencies
 
 @Suite
-final class MetadataFinderTests: DyldCacheTests {
+final class MetadataFinderTests: DyldCacheTests, @unchecked Sendable {
 
     override class var cacheImageName: MachOImageName { .AppKit }
+
+    @Dependency(\.symbolIndexStore)
+    private var symbolIndexStore
+    
     
     @Test func dumpMetadatasInAppKit() async throws {
-        let symbols = SymbolIndexStore.shared.symbols(of: .typeMetadata, in: machOFileInCache)
+        let symbols = symbolIndexStore.symbols(of: .typeMetadata, in: machOFileInCache)
         for symbol in symbols {
             let metadata = try Metadata.resolve(from: symbol.offset, in: machOFileInCache)
             print(try demangleAsNode(symbol.stringValue).print(using: .default), terminator: " ")

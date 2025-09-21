@@ -4,6 +4,7 @@ import MachOMacro
 import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
+import Dependencies
 
 package protocol DumpableTests {
     var isEnabledSearchMetadata: Bool { get }
@@ -98,7 +99,9 @@ extension DumpableTests {
 
     @MainActor
     package func dumpOpaqueTypes<MachO: MachOSwiftSectionRepresentableWithCache & MachOOffsetConverter>(for machO: MachO) async throws {
-        let symbols = SymbolIndexStore.shared.symbols(of: .opaqueTypeDescriptor, in: machO)
+        @Dependency(\.symbolIndexStore)
+        var symbolIndexStore
+        let symbols = symbolIndexStore.symbols(of: .opaqueTypeDescriptor, in: machO)
         for symbol in symbols where symbol.offset != 0 {
             var offset = symbol.offset
 

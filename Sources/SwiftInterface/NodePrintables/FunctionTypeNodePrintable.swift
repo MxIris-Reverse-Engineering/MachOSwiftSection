@@ -43,6 +43,9 @@ extension FunctionTypeNodePrintable {
             target.write("sending ")
         case .clangType:
             target.write(name.text ?? "")
+        case .packElement: printFirstChild(name, prefix: "each ")
+        case .packElementLevel: break
+        case .packExpansion: printFirstChild(name, prefix: "repeat ")
         default:
             return false
         }
@@ -248,6 +251,39 @@ extension FunctionTypeNodePrintable {
         case "r": target.write("(reverse)")
         case "l": target.write("(_linear)")
         default: break
+        }
+    }
+    
+    mutating func printLabelList(name: Node, type: Node, genericFunctionTypeList: Node?) {
+        var labelList = name.children.first(of: .labelList)
+
+        if let argumentTuple = name.first(of: .argumentTuple), let tuple = argumentTuple.first(of: .tuple) {
+            if !tuple.children.isEmpty, labelList == nil || labelList!.children.isEmpty {
+                labelList = Node(kind: .labelList, children: (0 ..< tuple.children.count).map { _ in Node(kind: .firstElementMarker) })
+            }
+        }
+
+        if labelList != nil || genericFunctionTypeList != nil {
+            if let genericFunctionTypeList {
+                printChildren(genericFunctionTypeList, prefix: "<", suffix: ">", separator: ", ")
+            }
+            var functionType = type
+            if type.kind == .dependentGenericType {
+                if genericFunctionTypeList == nil {
+                    printOptional(type.children.first)
+                }
+                if let dt = type.children.at(1) {
+                    if dt.needSpaceBeforeType {
+                        target.write(" ")
+                    }
+                    if let first = dt.children.first {
+                        functionType = first
+                    }
+                }
+            }
+            printFunctionType(functionType, labelList: labelList, isAllocator: name.kind == .allocator, isBlockOrClosure: false)
+        } else {
+            printFunctionType(type, labelList: labelList, isAllocator: name.kind == .allocator, isBlockOrClosure: false)
         }
     }
 }

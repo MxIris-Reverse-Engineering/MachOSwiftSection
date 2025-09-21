@@ -28,7 +28,7 @@ struct FunctionNodePrinter: InterfaceNodePrinter {
             } else {
                 try _printRoot(first)
             }
-        } else if node.kind == .function || node.kind == .boundGenericFunction || node.kind == .allocator {
+        } else if node.isKind(of: .function, .boundGenericFunction, .allocator, .constructor) {
             printFunction(node)
         } else if node.kind == .static, let first = node.children.first {
             target.write("static ")
@@ -76,58 +76,6 @@ struct FunctionNodePrinter: InterfaceNodePrinter {
                     target.write(", ")
                 }
             }
-        }
-    }
-
-    mutating func printName(_ name: Node, asPrefixContext: Bool) -> Node? {
-        if printNameInBase(name) {
-            return nil
-        }
-        if printNameInBoundGeneric(name) {
-            return nil
-        }
-        if printNameInType(name) {
-            return nil
-        }
-        if printNameInDependentGeneric(name) {
-            return nil
-        }
-        if printNameInFunction(name) {
-            return nil
-        }
-        return nil
-    }
-
-    private mutating func printLabelList(name: Node, type: Node, genericFunctionTypeList: Node?) {
-        var labelList = name.children.first(of: .labelList)
-
-        if let argumentTuple = name.first(of: .argumentTuple), let tuple = argumentTuple.first(of: .tuple) {
-            if !tuple.children.isEmpty, labelList == nil || labelList!.children.isEmpty {
-                labelList = Node(kind: .labelList, children: (0 ..< tuple.children.count).map { _ in Node(kind: .firstElementMarker) })
-            }
-        }
-
-        if labelList != nil || genericFunctionTypeList != nil {
-            if let genericFunctionTypeList {
-                printChildren(genericFunctionTypeList, prefix: "<", suffix: ">", separator: ", ")
-            }
-            var functionType = type
-            if type.kind == .dependentGenericType {
-                if genericFunctionTypeList == nil {
-                    printOptional(type.children.first)
-                }
-                if let dt = type.children.at(1) {
-                    if dt.needSpaceBeforeType {
-                        target.write(" ")
-                    }
-                    if let first = dt.children.first {
-                        functionType = first
-                    }
-                }
-            }
-            printFunctionType(functionType, labelList: labelList, isAllocator: name.kind == .allocator, isBlockOrClosure: false)
-        } else {
-            printFunctionType(type, labelList: labelList, isAllocator: name.kind == .allocator, isBlockOrClosure: false)
         }
     }
 }

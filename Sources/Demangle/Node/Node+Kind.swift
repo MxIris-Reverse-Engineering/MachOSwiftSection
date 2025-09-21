@@ -550,8 +550,8 @@ extension Node.Kind: CustomStringConvertible {
 extension Sequence where Element == Node.Kind {
     public static var requirementKinds: [Node.Kind] {
         return [
-            .dependentGenericParamPackMarker,
-            .dependentGenericParamValueMarker,
+//            .dependentGenericParamPackMarker,
+//            .dependentGenericParamValueMarker,
             .dependentGenericSameTypeRequirement,
             .dependentGenericSameShapeRequirement,
             .dependentGenericLayoutRequirement,

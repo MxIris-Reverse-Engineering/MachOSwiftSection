@@ -6,6 +6,8 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
 @testable import MachOTestingSupport
+import Dependencies
+
 #if os(macOS)
 import AppKit
 #elseif os(iOS) || os(tvOS) || os(visionOS)
@@ -39,7 +41,11 @@ extension MachOImageDumpTests {
     }
     
     @Test func symbols() async throws {
-        let symbols = SymbolIndexStore.shared.allSymbols(in: machOImage)
+        
+        @Dependency(\.symbolIndexStore)
+        var symbolIndexStore
+        
+        let symbols = symbolIndexStore.allSymbols(in: machOImage)
         for symbol in symbols {
             print(symbol.offset, symbol.name)
         }

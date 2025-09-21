@@ -3,6 +3,7 @@ import MachOKit
 import MachOSwiftSection
 import Semantic
 import Utilities
+import Dependencies
 
 package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
     private let `struct`: Struct
@@ -10,7 +11,10 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
     private let configuration: DumperConfiguration
 
     private let machO: MachO
-
+    
+    @Dependency(\.symbolIndexStore)
+    private var symbolIndexStore
+    
     package init(_ dumped: Struct, using configuration: DumperConfiguration, in machO: MachO) {
         self.struct = dumped
         self.configuration = configuration
@@ -106,7 +110,7 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
             let interfaceNameString = try interfaceName.string
 
             for kind in SymbolIndexStore.MemberKind.allCases {
-                for (offset, symbol) in SymbolIndexStore.shared.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
+                for (offset, symbol) in symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
                     if offset.isStart {
                         BreakLine()
 

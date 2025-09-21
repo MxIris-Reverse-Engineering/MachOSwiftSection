@@ -8,7 +8,7 @@ import Semantic
 import SwiftStdlibToolbox
 
 extension Node {
-    var variableKind: VariableKind? {
+    var accessorKind: AccessorKind? {
         guard let node = first(of: .getter, .setter, .modifyAccessor) else { return nil }
         switch node.kind {
         case .getter: return .getter
