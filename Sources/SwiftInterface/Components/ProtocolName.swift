@@ -1,6 +1,6 @@
 import MemberwiseInit
 
-@MemberwiseInit
-struct ProtocolName: Hashable, Sendable {
-    let name: String
+@MemberwiseInit(.public)
+public struct ProtocolName: Hashable, Sendable {
+    public let name: String
 }

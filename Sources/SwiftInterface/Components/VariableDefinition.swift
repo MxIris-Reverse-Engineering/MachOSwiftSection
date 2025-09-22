@@ -1,12 +1,12 @@
 import MemberwiseInit
 import Demangle
 
-@MemberwiseInit
-struct VariableDefinition: Sendable {
-    let node: Node
-    let name: String
-    let hasSetter: Bool
-    let hasModifyAccessor: Bool
-    let isGlobalOrStatic: Bool
-    let isStored: Bool
+@MemberwiseInit(.public)
+public struct VariableDefinition: Sendable {
+    public let node: Node
+    public let name: String
+    public let hasSetter: Bool
+    public let hasModifyAccessor: Bool
+    public let isGlobalOrStatic: Bool
+    public let isStored: Bool
 }

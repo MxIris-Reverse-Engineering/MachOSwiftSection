@@ -1,11 +1,11 @@
 import Demangle
 
-enum ProtocolRequirementDefinition {
+public enum ProtocolRequirementDefinition {
     case variable(VariableDefinition)
     case function(FunctionDefinition)
     case `subscript`(SubscriptDefinition)
     
-    var node: Node {
+    public var node: Node {
         switch self {
         case .variable(let variable):
             return variable.node
@@ -16,7 +16,7 @@ enum ProtocolRequirementDefinition {
         }
     }
 
-    var name: String? {
+    public var name: String? {
         switch self {
         case .variable(let variable):
             return variable.name

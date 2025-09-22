@@ -2,17 +2,17 @@ import MemberwiseInit
 import Demangle
 import Semantic
 
-@MemberwiseInit
-struct TypeName: Hashable, Sendable {
-    let name: String
-    let kind: TypeKind
+@MemberwiseInit(.public)
+public struct TypeName: Hashable, Sendable {
+    public let name: String
+    public let kind: TypeKind
 
-    var currentName: String {
+    public var currentName: String {
         name.components(separatedBy: ".").last ?? name
     }
 
     @SemanticStringBuilder
-    func print() -> SemanticString {
+    public func print() -> SemanticString {
         switch kind {
         case .enum:
             TypeDeclaration(kind: .enum, name)

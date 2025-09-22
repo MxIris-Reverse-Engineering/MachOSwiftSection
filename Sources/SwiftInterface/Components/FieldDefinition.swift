@@ -1,12 +1,12 @@
 import MemberwiseInit
 import Demangle
 
-@MemberwiseInit
-struct FieldDefinition: Sendable {
-    let node: Node
-    let name: String
-    let isLazy: Bool
-    let isWeak: Bool
-    let isVar: Bool
-    let isIndirectCase: Bool
+@MemberwiseInit(.public)
+public struct FieldDefinition: Sendable {
+    public let node: Node
+    public let name: String
+    public let isLazy: Bool
+    public let isWeak: Bool
+    public let isVar: Bool
+    public let isIndirectCase: Bool
 }

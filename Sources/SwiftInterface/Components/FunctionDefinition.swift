@@ -1,16 +1,16 @@
 import MemberwiseInit
 import Demangle
 
-@MemberwiseInit
-struct FunctionDefinition: Sendable {
-    enum Kind: Sendable {
+@MemberwiseInit(.public)
+public struct FunctionDefinition: Sendable {
+    public enum Kind: Sendable {
         case function
         case allocator
         case constructor
     }
 
-    let node: Node
-    let name: String
-    let kind: Kind
-    let isGlobalOrStatic: Bool
+    public let node: Node
+    public let name: String
+    public let kind: Kind
+    public let isGlobalOrStatic: Bool
 }

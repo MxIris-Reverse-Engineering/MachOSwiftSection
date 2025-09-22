@@ -8,65 +8,65 @@ import Semantic
 import SwiftStdlibToolbox
 import Dependencies
 
-final class TypeDefinition: Definition {
-    let type: TypeWrapper
+public final class TypeDefinition: Definition {
+    public let type: TypeWrapper
 
-    let typeName: TypeName
-
-    @Mutex
-    weak var parent: TypeDefinition?
+    public let typeName: TypeName
 
     @Mutex
-    var typeChildren: [TypeDefinition] = []
+    public weak var parent: TypeDefinition?
 
     @Mutex
-    var protocolChildren: [ProtocolDefinition] = []
+    public var typeChildren: [TypeDefinition] = []
 
     @Mutex
-    var extensionContext: ExtensionContext? = nil
+    public var protocolChildren: [ProtocolDefinition] = []
 
     @Mutex
-    var extensions: [ExtensionDefinition] = []
+    public var extensionContext: ExtensionContext? = nil
 
     @Mutex
-    var fields: [FieldDefinition] = []
+    public var extensions: [ExtensionDefinition] = []
 
     @Mutex
-    var variables: [VariableDefinition] = []
+    public var fields: [FieldDefinition] = []
 
     @Mutex
-    var functions: [FunctionDefinition] = []
+    public var variables: [VariableDefinition] = []
 
     @Mutex
-    var subscripts: [SubscriptDefinition] = []
+    public var functions: [FunctionDefinition] = []
+
+    @Mutex
+    public var subscripts: [SubscriptDefinition] = []
     
     @Mutex
-    var staticVariables: [VariableDefinition] = []
+    public var staticVariables: [VariableDefinition] = []
 
     @Mutex
-    var staticFunctions: [FunctionDefinition] = []
+    public var staticFunctions: [FunctionDefinition] = []
 
     @Mutex
-    var staticSubscripts: [SubscriptDefinition] = []
+    public var staticSubscripts: [SubscriptDefinition] = []
     
     @Mutex
-    var allocators: [FunctionDefinition] = []
+    public var allocators: [FunctionDefinition] = []
 
     @Mutex
-    var constructors: [FunctionDefinition] = []
+    public var constructors: [FunctionDefinition] = []
     
     @Mutex
-    var hasDeallocator: Bool = false
+    public var hasDeallocator: Bool = false
 
     @Mutex
-    var hasDestructor: Bool = false
+    public var hasDestructor: Bool = false
     
-    var hasMembers: Bool {
+    public var hasMembers: Bool {
         !fields.isEmpty || !variables.isEmpty || !functions.isEmpty ||
         !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty || hasDeallocator || hasDestructor
     }
 
-    init<MachO: MachOSwiftSectionRepresentableWithCache>(type: TypeWrapper, in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(type: TypeWrapper, in machO: MachO) throws {
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 

@@ -7,51 +7,51 @@ import Demangle
 import Semantic
 import SwiftStdlibToolbox
 
-struct ExtensionDefinition: Definition {
-    enum Kind {
+public struct ExtensionDefinition: Definition {
+    public enum Kind: Sendable {
         case type(TypeKind)
         case `protocol`
         case typeAlias
     }
 
-    let name: String
+    public let name: String
 
-    let kind: Kind
+    public let kind: Kind
 
-    let genericSignature: Node?
+    public let genericSignature: Node?
 
-    let protocolConformance: ProtocolConformance?
+    public let protocolConformance: ProtocolConformance?
 
-    let associatedType: AssociatedType?
+    public let associatedType: AssociatedType?
 
-    var types: [TypeDefinition] = []
+    public var types: [TypeDefinition] = []
 
-    var protocols: [ProtocolDefinition] = []
+    public var protocols: [ProtocolDefinition] = []
 
-    var allocators: [FunctionDefinition] = []
+    public var allocators: [FunctionDefinition] = []
 
-    var constructors: [FunctionDefinition] = []
+    public var constructors: [FunctionDefinition] = []
     
-    var variables: [VariableDefinition] = []
+    public var variables: [VariableDefinition] = []
 
-    var functions: [FunctionDefinition] = []
+    public var functions: [FunctionDefinition] = []
 
-    var subscripts: [SubscriptDefinition] = []
+    public var subscripts: [SubscriptDefinition] = []
     
-    var staticVariables: [VariableDefinition] = []
+    public var staticVariables: [VariableDefinition] = []
 
-    var staticFunctions: [FunctionDefinition] = []
+    public var staticFunctions: [FunctionDefinition] = []
 
-    var staticSubscripts: [SubscriptDefinition] = []
+    public var staticSubscripts: [SubscriptDefinition] = []
     
-    var missingSymbolWitnesses: [ResilientWitness] = []
+    public var missingSymbolWitnesses: [ResilientWitness] = []
 
-    var hasMembers: Bool {
+    public var hasMembers: Bool {
         !variables.isEmpty || !functions.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !allocators.isEmpty || !constructors.isEmpty || !staticSubscripts.isEmpty || !subscripts.isEmpty
     }
 
     @SemanticStringBuilder
-    func printName() -> SemanticString {
+    public func printName() -> SemanticString {
         switch kind {
         case .type(.enum):
             TypeDeclaration(kind: .enum, name)
@@ -66,7 +66,7 @@ struct ExtensionDefinition: Definition {
         }
     }
 
-    init<MachO: MachOSwiftSectionRepresentableWithCache>(name: String, kind: Kind, genericSignature: Node?, protocolConformance: ProtocolConformance?, associatedType: AssociatedType?, in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(name: String, kind: Kind, genericSignature: Node?, protocolConformance: ProtocolConformance?, associatedType: AssociatedType?, in machO: MachO) throws {
         self.name = name
         self.kind = kind
         self.genericSignature = genericSignature

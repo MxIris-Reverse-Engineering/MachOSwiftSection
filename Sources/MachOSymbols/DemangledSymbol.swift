@@ -1,21 +1,21 @@
 import Demangle
 
 @dynamicMemberLookup
-package struct DemangledSymbol {
-    package let symbol: Symbol
+public struct DemangledSymbol {
+    public let symbol: Symbol
 
-    package let demangledNode: Node
+    public let demangledNode: Node
 
-    package init(symbol: Symbol, demangledNode: Node) {
+    public init(symbol: Symbol, demangledNode: Node) {
         self.symbol = symbol
         self.demangledNode = demangledNode
     }
     
-    package subscript<Value>(dynamicMember keyPath: KeyPath<Symbol, Value>) -> Value {
+    public subscript<Value>(dynamicMember keyPath: KeyPath<Symbol, Value>) -> Value {
         return symbol[keyPath: keyPath]
     }
     
-    package subscript<Value>(dynamicMember keyPath: KeyPath<Node, Value>) -> Value {
+    public subscript<Value>(dynamicMember keyPath: KeyPath<Node, Value>) -> Value {
         return demangledNode[keyPath: keyPath]
     }
 }

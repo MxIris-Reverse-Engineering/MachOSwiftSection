@@ -1,4 +1,4 @@
-protocol Definition: Sendable {
+public protocol Definition: Sendable {
     var allocators: [FunctionDefinition] { get }
     var constructors: [FunctionDefinition] { get }
     var variables: [VariableDefinition] { get }

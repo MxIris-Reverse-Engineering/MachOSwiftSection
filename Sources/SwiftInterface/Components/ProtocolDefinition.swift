@@ -7,32 +7,32 @@ import Demangle
 import Semantic
 import SwiftStdlibToolbox
 
-final class ProtocolDefinition: Sendable {
-    let `protocol`: MachOSwiftSection.`Protocol`
+public final class ProtocolDefinition: Sendable {
+    public let `protocol`: MachOSwiftSection.`Protocol`
 
     @Mutex
-    weak var parent: TypeDefinition?
+    public weak var parent: TypeDefinition?
 
     @Mutex
-    var extensionContext: ExtensionContext? = nil
+    public var extensionContext: ExtensionContext? = nil
 
     @Mutex
-    var requirements: [ProtocolRequirementDefinition] = []
+    public var requirements: [ProtocolRequirementDefinition] = []
 
     @Mutex
-    var defaultImplementationRequirements: [ProtocolRequirementDefinition] = []
+    public var defaultImplementationRequirements: [ProtocolRequirementDefinition] = []
 
     @Mutex
-    var defaultImplementationExtensions: [ExtensionDefinition] = []
+    public var defaultImplementationExtensions: [ExtensionDefinition] = []
 
     @Mutex
-    var associatedTypes: [String] = []
+    public var associatedTypes: [String] = []
 
-    var hasMembers: Bool {
+    public var hasMembers: Bool {
         !requirements.isEmpty || !associatedTypes.isEmpty
     }
 
-    init<MachO: MachOSwiftSectionRepresentableWithCache>(`protocol`: MachOSwiftSection.`Protocol`, in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(`protocol`: MachOSwiftSection.`Protocol`, in machO: MachO) throws {
         self.protocol = `protocol`
         func _name() throws -> SemanticString {
             try MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO).printSemantic(using: .interfaceTypeBuilderOnly).replacingTypeNameOrOtherToTypeDeclaration()
