@@ -60,7 +60,7 @@ final class DyldCacheSymbolDemangleTests: DyldCacheTests {
     }
 
     @Test func demangle() async throws {
-        var demangler = Demangler(scalars: "_$s6Charts10ChartProxyV5value2at2asx_q_tSgSo7CGPointV_x_q_tmtAA9PlottableRzAaJR_r0_lF".unicodeScalars)
+        var demangler = Demangler(scalars: "_$ss11InlineArrayVsRi__rlE8_storagexq_BVvr".unicodeScalars)
         let node = try demangler.demangleSymbol()
         node.print().print()
     }
@@ -69,7 +69,7 @@ final class DyldCacheSymbolDemangleTests: DyldCacheTests {
     private func symbols(for machOImageNames: MachOImageName...) throws -> [MachOSwiftSymbol] {
         var symbols: [MachOSwiftSymbol] = []
         for machOImageName in machOImageNames {
-            let machOFile = try required(mainCache.machOFile(named: machOImageName))
+            let machOFile = try #require(fullCache.machOFile(named: machOImageName))
             for symbol in machOFile.symbols where symbol.name.isSwiftSymbol {
                 symbols.append(MachOSwiftSymbol(imagePath: machOFile.imagePath, offset: symbol.offset, stringValue: symbol.name))
             }
@@ -85,7 +85,7 @@ final class DyldCacheSymbolDemangleTests: DyldCacheTests {
 
     private func allSymbols() throws -> [MachOSwiftSymbol] {
         var symbols: [MachOSwiftSymbol] = []
-        for machOFile in Array(mainCache.machOFiles()) + Array(subCache.machOFiles()) {
+        for machOFile in fullCache.machOFiles() {
             for symbol in machOFile.symbols where symbol.name.isSwiftSymbol {
                 symbols.append(MachOSwiftSymbol(imagePath: machOFile.imagePath, offset: symbol.offset, stringValue: symbol.name))
             }

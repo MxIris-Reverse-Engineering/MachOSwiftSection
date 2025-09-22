@@ -14,6 +14,16 @@ extension MachOImage {
     }
 }
 
+extension FullDyldCache {
+    package convenience init(path: DyldSharedCachePath) throws {
+        try self.init(url: URL(fileURLWithPath: path.rawValue))
+    }
+
+    package func machOFile(named: MachOImageName) -> MachOFile? {
+        machOFile(by: .name(named.rawValue))
+    }
+}
+
 extension DyldCache {
     package convenience init(path: DyldSharedCachePath) throws {
         try self.init(url: URL(fileURLWithPath: path.rawValue))
