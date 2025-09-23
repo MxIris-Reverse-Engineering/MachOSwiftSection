@@ -6,6 +6,7 @@ import Utilities
 @_spi(Private) import MachOCaches
 
 package final class SymbolCache: MachOCache<SymbolCache.Entry> {
+    
     package static let shared = SymbolCache()
 
     private override init() { super.init() }

@@ -27,9 +27,6 @@ final actor DumpCommand: AsyncParsableCommand {
 //    @Flag(inversion: .prefixedEnableDisable, help: "Enable searching for metadata.")
     private var searchMetadata: Bool = false
 
-    @IgnoreCoding
-    private var metadataFinder: MetadataFinder<MachOFile>?
-
     private var dumpedString = ""
 
     @Option(name: .shortAndLong, help: "The color scheme for the output.")
@@ -37,10 +34,6 @@ final actor DumpCommand: AsyncParsableCommand {
 
     func run() async throws {
         let machOFile = try MachOFile.load(options: machOOptions)
-
-        if searchMetadata {
-            metadataFinder = MetadataFinder(machO: machOFile)
-        }
 
         let demangleOptions = demangleOptions.buildSwiftDumpDemangleOptions()
 
@@ -69,29 +62,19 @@ final actor DumpCommand: AsyncParsableCommand {
 
         for typeContextDescriptor in typeContextDescriptors {
             switch typeContextDescriptor {
-            case let .enum(enumDescriptor):
+            case .enum(let enumDescriptor):
                 await performDump {
                     try Enum(descriptor: enumDescriptor, in: machO).dump(using: options, in: machO)
                 }
-            case let .struct(structDescriptor):
+
+            case .struct(let structDescriptor):
                 await performDump {
                     try Struct(descriptor: structDescriptor, in: machO).dump(using: options, in: machO)
                 }
 
-                if let metadata: StructMetadata = try await metadataFinder?.metadata(for: structDescriptor) {
-                    await performDump {
-                        try metadata.fieldOffsets(for: structDescriptor, in: machO)
-                    }
-                }
-            case let .class(classDescriptor):
+            case .class(let classDescriptor):
                 await performDump {
                     try Class(descriptor: classDescriptor, in: machO).dump(using: options, in: machO)
-                }
-
-                if let metadata = try await metadataFinder?.metadata(for: classDescriptor) as ClassMetadataObjCInterop? {
-                    await performDump {
-                        try metadata.fieldOffsets(for: classDescriptor, in: machO)
-                    }
                 }
             }
         }

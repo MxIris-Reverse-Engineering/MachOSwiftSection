@@ -1,5 +1,5 @@
 {
-  "originHash" : "344fd6e88fb4f172a80586a203a4d1f93d601e162aecefcc623f6bf0f79c1519",
+  "originHash" : "1942a41db96c0505591a9e91a64f5222f5e102af2e6caa389fd7e43e79e8f7aa",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -42,8 +42,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/MachOKit.git",
       "state" : {
-        "revision" : "954f8ad0b5abb8ebcacb36238765559cde10caa2",
-        "version" : "0.38.0"
+        "revision" : "fc1f2646220b3ce9db2e415b6b8848f5a89ed865",
+        "version" : "0.39.0"
       }
     },
     {
@@ -132,8 +132,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-dependencies",
       "state" : {
-        "revision" : "a501eebe552fd23691c560adf474fca2169ad8aa",
-        "version" : "1.9.4"
+        "revision" : "a10f9feeb214bc72b5337b6ef6d5a029360db4cc",
+        "version" : "1.10.0"
       }
     },
     {

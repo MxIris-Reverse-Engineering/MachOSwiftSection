@@ -20,5 +20,4 @@ package final class PrimitiveTypeMappingCache: MachOCache<PrimitiveTypeMapping> 
     package override func entry<MachO>(in machO: MachO) -> PrimitiveTypeMapping? where MachO : MachORepresentableWithCache {
         super.entry(in: machO)
     }
-    
 }
