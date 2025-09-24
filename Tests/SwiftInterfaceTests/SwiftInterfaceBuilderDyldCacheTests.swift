@@ -8,7 +8,7 @@ class SwiftInterfaceBuilderDyldCacheTests: DyldCacheTests {
     
     override class var platform: Platform { .macOS }
     
-    override class var cacheImageName: MachOImageName { .SwiftUICore }
+    override class var cacheImageName: MachOImageName { .SwiftUI }
 
     override class var cachePath: DyldSharedCachePath { .current }
     

@@ -28,6 +28,8 @@ extension SemanticString: NodePrinterTarget {
             write(content, type: semanticType)
         case .printModule:
             write(content, type: .other)
+        case .printKeyword:
+            write(content, type: .keyword)
         }
     }
 }

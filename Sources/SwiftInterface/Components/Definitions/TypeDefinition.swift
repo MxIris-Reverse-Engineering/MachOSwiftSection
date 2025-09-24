@@ -9,6 +9,12 @@ import SwiftStdlibToolbox
 import Dependencies
 
 public final class TypeDefinition: Definition {
+    public enum ParentContext {
+        case `extension`(ExtensionContext)
+        case type(TypeWrapper)
+        case symbol(Symbol)
+    }
+
     public let type: TypeWrapper
 
     public let typeName: TypeName
@@ -23,7 +29,7 @@ public final class TypeDefinition: Definition {
     public var protocolChildren: [ProtocolDefinition] = []
 
     @Mutex
-    public var extensionContext: ExtensionContext? = nil
+    public var parentContext: ParentContext? = nil
 
     @Mutex
     public var extensions: [ExtensionDefinition] = []
@@ -39,7 +45,7 @@ public final class TypeDefinition: Definition {
 
     @Mutex
     public var subscripts: [SubscriptDefinition] = []
-    
+
     @Mutex
     public var staticVariables: [VariableDefinition] = []
 
@@ -48,22 +54,22 @@ public final class TypeDefinition: Definition {
 
     @Mutex
     public var staticSubscripts: [SubscriptDefinition] = []
-    
+
     @Mutex
     public var allocators: [FunctionDefinition] = []
 
     @Mutex
     public var constructors: [FunctionDefinition] = []
-    
+
     @Mutex
     public var hasDeallocator: Bool = false
 
     @Mutex
     public var hasDestructor: Bool = false
-    
+
     public var hasMembers: Bool {
         !fields.isEmpty || !variables.isEmpty || !functions.isEmpty ||
-        !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty || hasDeallocator || hasDestructor
+            !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty || hasDeallocator || hasDestructor
     }
 
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(type: TypeWrapper, in machO: MachO) throws {

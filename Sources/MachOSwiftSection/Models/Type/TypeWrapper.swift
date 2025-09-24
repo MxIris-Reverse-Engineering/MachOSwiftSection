@@ -1,4 +1,5 @@
 import Foundation
+import MachOSymbols
 
 public enum TypeWrapper: Sendable {
     case `enum`(Enum)

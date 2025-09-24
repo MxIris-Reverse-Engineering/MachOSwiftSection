@@ -15,7 +15,7 @@ package enum MachOImageName: String {
     case Sharing
     case FeatureFlags
     case ScreenSharingKit
-    case libswiftCoreFoundation
+    case DesignLibrary
     
     var path: String {
         "/\(rawValue)"

@@ -236,7 +236,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     private func indexTypes() async throws {
         eventDispatcher.dispatch(.typeIndexingStarted(totalTypes: types.count))
         var allNames: Set<String> = []
-        var allTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
+        var currentModuleTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
         var cImportedCount = 0
         var successfulCount = 0
         var failedCount = 0
@@ -249,7 +249,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
             do {
                 let declaration = try TypeDefinition(type: type, in: machO)
-                allTypeDefinitions[declaration.typeName] = declaration
+                currentModuleTypeDefinitions[declaration.typeName] = declaration
                 allNames.insert(declaration.typeName.name)
                 successfulCount += 1
             } catch {
@@ -261,58 +261,77 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         var extensionTypeCount = 0
 
         for type in types {
-            guard let typeName = try? type.typeName(in: machO), let childDefinition = allTypeDefinitions[typeName] else {
+            guard let typeName = try? type.typeName(in: machO), let childDefinition = currentModuleTypeDefinitions[typeName] else {
                 continue
             }
 
-            var parentContext = try ContextWrapper.type(type).parent(in: machO)?.resolved
+            var parentContext = try ContextWrapper.type(type).parent(in: machO)
 
-            while let currentContext = parentContext {
-                if case .type(let typeContext) = currentContext, let parentTypeName = try? typeContext.typeName(in: machO) {
-                    if let parentDefinition = allTypeDefinitions[parentTypeName] {
-                        childDefinition.parent = parentDefinition
-                        parentDefinition.typeChildren.append(childDefinition)
+            parentLoop: while let currentContextOrSymbol = parentContext {
+                switch currentContextOrSymbol {
+                case .symbol(let symbol):
+                    childDefinition.parentContext = .symbol(symbol)
+                    break parentLoop
+                case .element(let currentContext):
+                    if case .type(let typeContext) = currentContext, let parentTypeName = try? typeContext.typeName(in: machO) {
+                        if let parentDefinition = currentModuleTypeDefinitions[parentTypeName] {
+                            childDefinition.parent = parentDefinition
+                            parentDefinition.typeChildren.append(childDefinition)
+                        } else {
+                            childDefinition.parentContext = .type(typeContext)
+                        }
+                        nestedTypeCount += 1
+                        break parentLoop
+                    } else if case .extension(let extensionContext) = currentContext {
+                        childDefinition.parentContext = .extension(extensionContext)
+                        extensionTypeCount += 1
+                        break parentLoop
                     }
-                    nestedTypeCount += 1
-                    break
-                } else if case .extension(let extensionContext) = currentContext {
-                    childDefinition.extensionContext = extensionContext
-                    extensionTypeCount += 1
-                    break
+                    parentContext = try currentContext.parent(in: machO)
                 }
-                parentContext = try currentContext.parent(in: machO)?.resolved
             }
         }
 
         var rootTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
 
-        for (typeName, typeDefinition) in allTypeDefinitions {
-            if typeDefinition.parent == nil, typeDefinition.extensionContext == nil {
+        for (typeName, typeDefinition) in currentModuleTypeDefinitions {
+            if typeDefinition.parent == nil, typeDefinition.parentContext == nil {
                 rootTypeDefinitions[typeName] = typeDefinition
-            } else if let extensionContext = typeDefinition.extensionContext, let extendedContextMangledName = extensionContext.extendedContextMangledName {
-                let typeNode = try MetadataReader.demangle(for: extendedContextMangledName, in: machO)
+            } else if let parentContext = typeDefinition.parentContext {
+                switch parentContext {
+                case .extension(let extensionContext):
+                    guard let extendedContextMangledName = extensionContext.extendedContextMangledName else { continue }
+                    let typeNode = try MetadataReader.demangle(for: extendedContextMangledName, in: machO)
 
-                guard let typeKind = typeNode.typeKind else { continue }
+                    guard let typeKind = typeNode.typeKind else { continue }
 
-                let name = typeNode.print(using: .interfaceTypeBuilderOnly)
+                    let name = typeNode.print(using: .interfaceTypeBuilderOnly)
 
-                let typeName = TypeName(name: name, kind: typeKind)
+                    let typeName = TypeName(name: name, kind: typeKind)
 
-                var genericSignature: Node?
+                    var genericSignature: Node?
 
-                if let currentRequirements = extensionContext.genericContext?.currentRequirements, !currentRequirements.isEmpty {
-                    genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO)
+                    if let currentRequirements = extensionContext.genericContext?.currentRequirements, !currentRequirements.isEmpty {
+                        genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO)
+                    }
+
+                    var extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
+                    extensionDefinition.types = [typeDefinition]
+                    typeExtensionDefinitions[typeName, default: []].append(extensionDefinition)
+                case .type(let type):
+                    let typeName = try type.typeName(in: machO)
+                    var extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
+                    extensionDefinition.types = [typeDefinition]
+                    typeExtensionDefinitions[typeName, default: []].append(extensionDefinition)
+                case .symbol(let symbol):
+                    break
                 }
-
-                var extensionDefinition = try ExtensionDefinition(name: name, kind: .type(typeKind), genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
-                extensionDefinition.types = [typeDefinition]
-                typeExtensionDefinitions[typeName, default: []].append(extensionDefinition)
             }
         }
 
         self.allNames = allNames
         self.rootTypeDefinitions = rootTypeDefinitions
-        self.allTypeDefinitions = allTypeDefinitions
+        allTypeDefinitions = currentModuleTypeDefinitions
 
         eventDispatcher.dispatch(.typeIndexingCompleted(result: SwiftInterfaceBuilderEvents.TypeIndexingResult(totalProcessed: types.count, successful: successfulCount, failed: failedCount, cImportedSkipped: cImportedCount, nestedTypes: nestedTypeCount, extensionTypes: extensionTypeCount)))
     }
@@ -360,7 +379,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                         if let currentRequirements = extensionContext.genericContext?.currentRequirements, !currentRequirements.isEmpty {
                             genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO)
                         }
-                        var extensionDefinition = try ExtensionDefinition(name: name, kind: .type(typeKind), genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
+                        var extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
                         extensionDefinition.protocols = [protocolDefinition]
                         typeExtensionDefinitions[typeName, default: []].append(extensionDefinition)
                     }
@@ -445,7 +464,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (typeName, protocolConformances) in protocolConformancesByTypeName {
             for (protocolName, protocolConformance) in protocolConformances {
                 do {
-                    let extensionDefinition = try ExtensionDefinition(name: typeName.name, kind: .type(typeName.kind), genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO), protocolConformance: protocolConformance, associatedType: associatedTypesByTypeName[typeName]?[protocolName], in: machO)
+                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO), protocolConformance: protocolConformance, associatedType: associatedTypesByTypeName[typeName]?[protocolName], in: machO)
                     conformanceExtensionDefinitions[typeName, default: []].append(extensionDefinition)
                     extensionCount += 1
                     eventDispatcher.dispatch(.conformanceExtensionCreated(context: SwiftInterfaceBuilderEvents.ConformanceContext(typeName: typeName.name, protocolName: protocolName.name)))
@@ -496,8 +515,8 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 continue
             }
 
-            func extensionDefinition(of kind: ExtensionDefinition.Kind, for memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>, genericSignature: Node?) throws -> ExtensionDefinition {
-                var extensionDefinition = try ExtensionDefinition(name: name, kind: kind, genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
+            func extensionDefinition(of kind: ExtensionKind, for memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>, genericSignature: Node?) throws -> ExtensionDefinition {
+                var extensionDefinition = try ExtensionDefinition(extensionName: .init(name: name, kind: kind), genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
                 var memberCount = 0
 
                 for (kind, memberSymbols) in memberSymbolsByKind {
@@ -684,7 +703,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         }
 
         BreakLine()
-        
+
         for (offset, variable) in globalVariableDefinitions.offsetEnumerated() {
             BreakLine()
             var printer = VariableNodePrinter(isStored: variable.isStored, hasSetter: variable.hasSetter, indentation: 0, cImportedInfoProvider: typeDatabase)
@@ -704,7 +723,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 BreakLine()
             }
         }
-        
+
         for (offset, typeDefinition) in rootTypeDefinitions.values.offsetEnumerated() {
             try printTypeDefinition(typeDefinition)
 
@@ -863,7 +882,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     private func printExtensionDefinition(_ extensionDefinition: ExtensionDefinition, level: Int = 1) throws -> SemanticString {
         Keyword(.extension)
         Space()
-        extensionDefinition.printName()
+        extensionDefinition.extensionName.print()
         if let protocolConformance = extensionDefinition.protocolConformance, let protocolName = try? protocolConformance.dumpProtocolName(using: .interfaceTypeBuilderOnly, in: machO) {
             Standard(":")
             Space()

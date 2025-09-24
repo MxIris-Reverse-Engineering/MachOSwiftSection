@@ -10,6 +10,8 @@ import SwiftStdlibToolbox
 public final class ProtocolDefinition: Sendable {
     public let `protocol`: MachOSwiftSection.`Protocol`
 
+    public let protocolName: ProtocolName
+    
     @Mutex
     public weak var parent: TypeDefinition?
 
@@ -38,6 +40,7 @@ public final class ProtocolDefinition: Sendable {
             try MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO).printSemantic(using: .interfaceTypeBuilderOnly).replacingTypeNameOrOtherToTypeDeclaration()
         }
         let name = try _name().string
+        self.protocolName = .init(name: name)
         func _node(for symbols: Symbols, visitedNodes: borrowing OrderedSet<Node> = []) throws -> Node? {
             for symbol in symbols {
                 if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), protocolNode.print(using: .interfaceTypeBuilderOnly) == name, !visitedNodes.contains(node) {
@@ -121,7 +124,7 @@ public final class ProtocolDefinition: Sendable {
 
         self.defaultImplementationRequirements = defaultImplementationRequirements
 
-        var extensionDefinition = try ExtensionDefinition(name: name, kind: .protocol, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
+        var extensionDefinition = try ExtensionDefinition(extensionName: protocolName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
 
         for defaultImplementationRequirement in defaultImplementationRequirements {
             switch defaultImplementationRequirement {

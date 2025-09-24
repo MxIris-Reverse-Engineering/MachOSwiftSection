@@ -3,21 +3,27 @@ import Testing
 import Demangle
 @testable import MachOTestingSupport
 import MachOSwiftSection
+@testable import SwiftDump
 
-final class OpaqueTypeTests: DyldCacheTests {
+final class OpaqueTypeTests: MachOFileTests {
+    override class var fileName: MachOFileName { .SymbolTestsCore }
+
     @Test func opaqueTypes() async throws {
-        for contextDescriptor in try machOFileInSubCache.swift.contextDescriptors {
-            switch contextDescriptor {
-            case let .opaqueType(opaqueTypeDescriptor):
-                let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machOFileInSubCache)
-                for underlyingTypeArgumentMangledName in opaqueType.underlyingTypeArgumentMangledNames {
-                    let node = try MetadataReader.demangleType(for: underlyingTypeArgumentMangledName, in: machOFileInSubCache)
-                    node.print(using: .interface).print()
+        let machO = machOFile
+        let symbols = SymbolIndexStore.shared.symbols(of: .opaqueTypeDescriptor, in: machO)
+        for symbol in symbols {
+            let opaqueTypeDescriptor = try OpaqueTypeDescriptor.resolve(from: symbol.offset, in: machO)
+            let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
+            if let genericContext = opaqueType.genericContext {
+                for requirement in genericContext.requirements {
+                    try requirement.dump(using: .default, in: machO).string.print()
                 }
-                print("--------------------")
-            default:
-                break
             }
+            for underlyingTypeArgumentMangledName in opaqueType.underlyingTypeArgumentMangledNames {
+                let node = try MetadataReader.demangleType(for: underlyingTypeArgumentMangledName, in: machO)
+                node.print(using: .interface).print()
+            }
+            print("--------------------")
         }
     }
 }

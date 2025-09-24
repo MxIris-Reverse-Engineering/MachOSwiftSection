@@ -343,6 +343,7 @@ let package = Package(
             dependencies: [
                 "MachOSwiftSection",
                 "MachOTestingSupport",
+                "SwiftDump",
             ],
             swiftSettings: testSettings
         ),

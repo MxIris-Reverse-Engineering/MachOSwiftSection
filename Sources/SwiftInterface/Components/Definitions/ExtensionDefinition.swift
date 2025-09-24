@@ -8,15 +8,7 @@ import Semantic
 import SwiftStdlibToolbox
 
 public struct ExtensionDefinition: Definition {
-    public enum Kind: Sendable {
-        case type(TypeKind)
-        case `protocol`
-        case typeAlias
-    }
-
-    public let name: String
-
-    public let kind: Kind
+    public let extensionName: ExtensionName
 
     public let genericSignature: Node?
 
@@ -31,44 +23,27 @@ public struct ExtensionDefinition: Definition {
     public var allocators: [FunctionDefinition] = []
 
     public var constructors: [FunctionDefinition] = []
-    
+
     public var variables: [VariableDefinition] = []
 
     public var functions: [FunctionDefinition] = []
 
     public var subscripts: [SubscriptDefinition] = []
-    
+
     public var staticVariables: [VariableDefinition] = []
 
     public var staticFunctions: [FunctionDefinition] = []
 
     public var staticSubscripts: [SubscriptDefinition] = []
-    
+
     public var missingSymbolWitnesses: [ResilientWitness] = []
 
     public var hasMembers: Bool {
         !variables.isEmpty || !functions.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !allocators.isEmpty || !constructors.isEmpty || !staticSubscripts.isEmpty || !subscripts.isEmpty
     }
 
-    @SemanticStringBuilder
-    public func printName() -> SemanticString {
-        switch kind {
-        case .type(.enum):
-            TypeDeclaration(kind: .enum, name)
-        case .type(.struct):
-            TypeDeclaration(kind: .struct, name)
-        case .type(.class):
-            TypeDeclaration(kind: .class, name)
-        case .protocol:
-            TypeDeclaration(kind: .protocol, name)
-        case .typeAlias:
-            TypeDeclaration(kind: .other, name)
-        }
-    }
-
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(name: String, kind: Kind, genericSignature: Node?, protocolConformance: ProtocolConformance?, associatedType: AssociatedType?, in machO: MachO) throws {
-        self.name = name
-        self.kind = kind
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(extensionName: ExtensionName, genericSignature: Node?, protocolConformance: ProtocolConformance?, associatedType: AssociatedType?, in machO: MachO) throws {
+        self.extensionName = extensionName
         self.genericSignature = genericSignature
         self.protocolConformance = protocolConformance
         self.associatedType = associatedType
@@ -113,20 +88,20 @@ public struct ExtensionDefinition: Definition {
         }
 
         for resilientWitness in protocolConformance.resilientWitnesses {
-            if let symbols = try resilientWitness.implementationSymbols(in: machO), let node = try _node(for: symbols, typeName: name, visitedNodes: visitedNodes) {
+            if let symbols = try resilientWitness.implementationSymbols(in: machO), let node = try _node(for: symbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
                 _ = visitedNodes.append(node)
                 addNode(node)
             } else if let requirement = try resilientWitness.requirement(in: machO) {
                 switch requirement {
-                case let .symbol(symbol):
+                case .symbol(let symbol):
                     if let demangledNode = try? MetadataReader.demangleSymbol(for: symbol, in: machO) {
                         addNode(demangledNode)
                     }
-                case let .element(element):
-                    if let symbols = try Symbols.resolve(from: element.offset, in: machO), let node = try _node(for: symbols, typeName: name, visitedNodes: visitedNodes) {
+                case .element(let element):
+                    if let symbols = try Symbols.resolve(from: element.offset, in: machO), let node = try _node(for: symbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
                         _ = visitedNodes.append(node)
                         addNode(node)
-                    } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machO), let node = try _node(for: defaultImplementationSymbols, typeName: name, visitedNodes: visitedNodes) {
+                    } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machO), let node = try _node(for: defaultImplementationSymbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
                         _ = visitedNodes.append(node)
                         addNode(node)
                     } else if !element.defaultImplementation.isNull {
@@ -146,7 +121,7 @@ public struct ExtensionDefinition: Definition {
 
         for (kind, memberSymbols) in memberSymbolsByKind {
             switch kind {
-            case let .variable(true, isStatic, false):
+            case .variable(true, let isStatic, false):
                 if isStatic {
                     self.staticVariables = DefinitionBuilder.variables(for: memberSymbols, fieldNames: [], isGlobalOrStatic: true)
                 } else {
@@ -154,13 +129,13 @@ public struct ExtensionDefinition: Definition {
                 }
             case .allocator:
                 self.allocators = DefinitionBuilder.allocators(for: memberSymbols)
-            case let .function(true, isStatic):
+            case .function(true, let isStatic):
                 if isStatic {
                     self.staticFunctions = DefinitionBuilder.functions(for: memberSymbols, isGlobalOrStatic: true)
                 } else {
                     self.functions = DefinitionBuilder.functions(for: memberSymbols, isGlobalOrStatic: false)
                 }
-            case let .subscript(true, isStatic):
+            case .subscript(true, let isStatic):
                 if isStatic {
                     self.staticSubscripts = DefinitionBuilder.subscripts(for: memberSymbols, isStatic: true)
                 } else {
