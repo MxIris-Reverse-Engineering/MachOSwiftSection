@@ -4,6 +4,40 @@ import MachOSwiftSection
 import Utilities
 import Demangle
 
+private func genericParameterName(depth: Int, index: Int) throws -> String {
+    var charIndex = index
+    var name = ""
+    repeat {
+        try name.unicodeScalars.append(required(UnicodeScalar(UnicodeScalar("A").value + UInt32(charIndex % 26))))
+        charIndex /= 26
+    } while charIndex != 0
+    if depth != 0 {
+        name = "\(name)\(depth)"
+    }
+    return name
+}
+
+//extension GenericParamDescriptor {
+//    @SemanticStringBuilder
+//    package func dump<MachO: MachOSwiftSectionRepresentableWithCache>(resolver: DemangleResolver, in machO: MachO) throws -> SemanticString {
+//        switch resolver {
+//        case .options(let demangleOptions):
+//            try dump(using: demangleOptions, in: machO)
+//        case .builder(let builder):
+//            try dump(in: machO, builder: builder)
+//        }
+//    }
+//
+//    @SemanticStringBuilder
+//    package func dump<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+//        try dump(in: machO) { $0.printSemantic(using: options) }
+//    }
+//
+//    @SemanticStringBuilder
+//    package func dump<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO, @SemanticStringBuilder builder: (Node) throws -> SemanticString) throws -> SemanticString {
+//    }
+//}
+
 extension TargetGenericContext {
     @SemanticStringBuilder
     package func dumpGenericParameters<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SemanticString {
@@ -15,19 +49,6 @@ extension TargetGenericContext {
             }
         }
         Standard(">")
-    }
-
-    private func genericParameterName(depth: Int, index: Int) throws -> String {
-        var charIndex = index
-        var name = ""
-        repeat {
-            try name.unicodeScalars.append(required(UnicodeScalar(UnicodeScalar("A").value + UInt32(charIndex % 26))))
-            charIndex /= 26
-        } while charIndex != 0
-        if depth != 0 {
-            name = "\(name)\(depth)"
-        }
-        return name
     }
 
     @SemanticStringBuilder

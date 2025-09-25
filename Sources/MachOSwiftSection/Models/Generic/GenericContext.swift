@@ -21,10 +21,10 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
     public let valueHeader: GenericValueHeader?
     public let values: [GenericValueDescriptor]
     
-    public let parentParameters: [GenericParamDescriptor]
-    public let parentRequirements: [GenericRequirementDescriptor]
-    public let parentTypePacks: [GenericPackShapeDescriptor]
-    public let parentValues: [GenericValueDescriptor]
+    public let parentParameters: [[GenericParamDescriptor]]
+    public let parentRequirements: [[GenericRequirementDescriptor]]
+    public let parentTypePacks: [[GenericPackShapeDescriptor]]
+    public let parentValues: [[GenericValueDescriptor]]
     
     public let conditionalInvertibleProtocolSet: InvertibleProtocolSet?
     public let conditionalInvertibleProtocolsRequirementsCount: InvertibleProtocolsRequirementCount?
@@ -33,19 +33,19 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
     public let depth: Int
     
     public var currentParameters: [GenericParamDescriptor] {
-        .init(parameters.dropFirst(parentParameters.count))
+        .init(parameters.dropFirst(parentParameters.flatMap { $0 }.count))
     }
     
     public var currentRequirements: [GenericRequirementDescriptor] {
-        .init(requirements.dropFirst(parentRequirements.count))
+        .init(requirements.dropFirst(parentRequirements.flatMap { $0 }.count))
     }
     
     public var currentTypePacks: [GenericPackShapeDescriptor] {
-        .init(typePacks.dropFirst(parentTypePacks.count))
+        .init(typePacks.dropFirst(parentTypePacks.flatMap { $0 }.count))
     }
     
     public var currentValues: [GenericValueDescriptor] {
-        .init(values.dropFirst(parentValues.count))
+        .init(values.dropFirst(parentValues.flatMap { $0 }.count))
     }
     
     
@@ -151,16 +151,16 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         self.size = currentOffset - genericContextOffset
         var depth = 0
         var parent = try contextDescriptor.parent(in: machO)?.resolved
-        var parentParameters: [GenericParamDescriptor] = []
-        var parentRequirements: [GenericRequirementDescriptor] = []
-        var parentTypePacks: [GenericPackShapeDescriptor] = []
-        var parentValues: [GenericValueDescriptor] = []
+        var parentParameters: [[GenericParamDescriptor]] = []
+        var parentRequirements: [[GenericRequirementDescriptor]] = []
+        var parentTypePacks: [[GenericPackShapeDescriptor]] = []
+        var parentValues: [[GenericValueDescriptor]] = []
         while let currentParent = parent {
-            if let genericContext = try currentParent.typeContextDescriptor?.genericContext(in: machO) {
-                parentParameters.append(contentsOf: genericContext.parameters)
-                parentRequirements.append(contentsOf: genericContext.requirements)
-                parentTypePacks.append(contentsOf: genericContext.typePacks)
-                parentValues.append(contentsOf: genericContext.values)
+            if let genericContext = try currentParent.contextDescriptor.genericContext(in: machO) {
+                parentParameters.append(genericContext.parameters)
+                parentRequirements.append(genericContext.requirements)
+                parentTypePacks.append(genericContext.typePacks)
+                parentValues.append(genericContext.values)
                 depth += 1
             }
             parent = try currentParent.parent(in: machO)?.resolved

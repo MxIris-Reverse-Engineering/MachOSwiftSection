@@ -1,3 +1,5 @@
+import Demangle
+
 extension String {
     var countedString: String {
         guard !isEmpty else { return "" }
@@ -12,18 +14,9 @@ extension String {
         replacingOccurrences(of: "Mn", with: "")
     }
 
-    var stripManglePrefix: String {
-        guard isStartWithManglePrefix else { return self }
-        return replacingOccurrences(of: "_$s", with: "")
-    }
-
     var insertManglePrefix: String {
-        guard !isStartWithManglePrefix else { return self }
+        guard !isSwiftSymbol else { return self }
         return "_$s" + self
-    }
-
-    var isStartWithManglePrefix: Bool {
-        hasPrefix("_$s") || hasPrefix("$s")
     }
 
     var stripProtocolMangleType: String {

@@ -67,7 +67,7 @@ public struct MangledName: Sendable {
     public var symbolString: String {
         guard !elements.isEmpty else { return "" }
         let rawStringValue = rawString
-        if rawStringValue.isStartWithManglePrefix {
+        if rawStringValue.isSwiftSymbol {
             return rawStringValue
         } else {
             return rawStringValue.insertManglePrefix
@@ -77,7 +77,7 @@ public struct MangledName: Sendable {
     public var typeString: String {
         guard !elements.isEmpty else { return "" }
         let rawStringValue = rawString
-        if rawStringValue.isStartWithManglePrefix {
+        if rawStringValue.isSwiftSymbol {
             return rawStringValue.stripManglePrefix
         } else {
             return rawStringValue

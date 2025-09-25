@@ -7,7 +7,7 @@ import MachOMacro
 public enum MetadataReader {
     public static func demangle<MachO: MachORepresentableWithCache & MachOReadable>(for mangledName: MangledName, in machO: MachO) throws -> Node {
         let rawString = mangledName.rawString
-        if rawString.isStartWithManglePrefix {
+        if rawString.isSwiftSymbol {
             return try demangle(for: mangledName, kind: .symbol, in: machO)
         } else {
             return try demangle(for: mangledName, kind: .type, in: machO)
@@ -22,13 +22,13 @@ public enum MetadataReader {
         return try demangle(for: mangledName, kind: .symbol, in: machO)
     }
 
-    public static func demangleType<MachO: MachORepresentableWithCache & MachOReadable>(for unsolvedSymbol: Symbol, in machO: MachO) throws -> Node? {
-        return try buildContextManglingForSymbol(unsolvedSymbol, in: machO)
+    public static func demangleType<MachO: MachORepresentableWithCache & MachOReadable>(for symbol: Symbol, in machO: MachO) throws -> Node? {
+        return try buildContextManglingForSymbol(symbol, in: machO)
     }
 
-    public static func demangleSymbol<MachO: MachORepresentableWithCache & MachOReadable>(for unsolvedSymbol: Symbol, in machO: MachO) throws -> Node? {
+    public static func demangleSymbol<MachO: MachORepresentableWithCache & MachOReadable>(for symbol: Symbol, in machO: MachO) throws -> Node? {
 //        return try demangle(for: .init(unsolvedSymbol: unsolvedSymbol), kind: .symbol, in: machOFile)
-        return SymbolCache.shared.demangledNode(for: unsolvedSymbol, in: machO)
+        return SymbolCache.shared.demangledNode(for: symbol, in: machO)
     }
 
     public static func demangleContext<MachO: MachORepresentableWithCache & MachOReadable>(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
@@ -42,7 +42,6 @@ public enum MetadataReader {
         case .symbol:
             mangledName.symbolString
         }
-//        var demangler = Demangler(scalars: stringValue.unicodeScalars)
         let symbolicReferenceResolver: SymbolicReferenceResolver = { kind, directness, index -> Node? in
             do {
                 var result: Node?
@@ -56,7 +55,11 @@ public enum MetadataReader {
                     case .direct:
                         if let context = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset).resolve(from: offset, in: machO) {
                             if let opaqueTypeDescriptor = context.opaqueTypeDescriptor {
-                                result = .init(kind: .opaqueReturnTypeOf, child: try demangle(for: OpaqueType(descriptor: opaqueTypeDescriptor, in: machO).underlyingTypeArgumentMangledNames[0], in: machO))
+                                let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
+//                                for underlyingTypeArgumentMangledName in opaqueType.underlyingTypeArgumentMangledNames {
+//                                    print(#function, underlyingTypeArgumentMangledName)
+//                                }
+                                result = .init(kind: .opaqueReturnTypeOf, child: try demangle(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO))
                             } else {
                                 result = try buildContextMangling(context: .element(context), in: machO)
                             }
@@ -65,7 +68,11 @@ public enum MetadataReader {
                         let relativePointer = RelativeIndirectSymbolOrElementPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset)
                         if let resolvableElement = try relativePointer.resolve(from: offset, in: machO).asOptional {
                             if case .element(let element) = resolvableElement, let opaqueTypeDescriptor = element.opaqueTypeDescriptor {
-                                result = .init(kind: .opaqueReturnTypeOf, child: try demangle(for: OpaqueType(descriptor: opaqueTypeDescriptor, in: machO).underlyingTypeArgumentMangledNames[0], in: machO))
+                                let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
+//                                for underlyingTypeArgumentMangledName in opaqueType.underlyingTypeArgumentMangledNames {
+//                                    print(#function, underlyingTypeArgumentMangledName)
+//                                }
+                                result = .init(kind: .opaqueReturnTypeOf, child: try demangle(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO))
                             } else {
                                 result = try buildContextMangling(context: resolvableElement, in: machO)
                             }

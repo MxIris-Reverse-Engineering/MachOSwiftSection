@@ -2,6 +2,11 @@ extension String {
     package var isSwiftSymbol: Bool {
         Demangler.getManglingPrefixLength(unicodeScalars) > 0
     }
+    
+    package var stripManglePrefix: String {
+        guard isSwiftSymbol else { return self }
+        return String(dropFirst(Demangler.getManglingPrefixLength(unicodeScalars)))
+    }
 }
 
 extension Array {

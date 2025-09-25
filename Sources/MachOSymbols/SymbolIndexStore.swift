@@ -128,10 +128,10 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
 
         for symbol in machO.symbols where symbol.name.isSwiftSymbol {
             var offset = symbol.offset
-            if let cache = machO.cache {
+            if let cache = machO.cache, offset != 0, machO is MachOFile {
                 offset -= cache.mainCacheHeader.sharedRegionStart.cast()
             }
-            symbols[symbol.name] = .init(offset: symbol.offset, stringValue: symbol.name)
+            symbols[symbol.name] = .init(offset: offset, stringValue: symbol.name)
         }
 
         for exportedSymbol in machO.exportedSymbols where exportedSymbol.name.isSwiftSymbol {
