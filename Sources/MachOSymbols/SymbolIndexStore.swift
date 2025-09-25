@@ -113,6 +113,7 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         fileprivate var protocolWitnessMemberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
         fileprivate var globalSymbolsByKind: OrderedDictionary<GlobalKind, [DemangledSymbol]> = [:]
         fileprivate var typeInfoByName: [String: TypeInfo] = [:]
+        fileprivate var opaqueTypeDescriptorSymbolByNode: OrderedDictionary<Node, DemangledSymbol> = [:]
     }
 
     package typealias MemberSymbols = OrderedDictionary<String, [DemangledSymbol]>
@@ -158,6 +159,8 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
                         processMemberSymbol(symbol, node: firstChild, rootNode: rootNode, in: &entry.protocolWitnessMemberSymbolsByKind, typeInfoByName: &entry.typeInfoByName)
                     } else if node.kind == .mergedFunction, let secondChild = rootNode.children.second {
                         processMemberSymbol(symbol, node: secondChild, rootNode: rootNode, in: &entry.memberSymbolsByKind, typeInfoByName: &entry.typeInfoByName)
+                    } else if node.kind == .opaqueTypeDescriptor, let firstChild = node.children.first, firstChild.kind == .opaqueReturnTypeOf, let memberSymbol = firstChild.children.first {
+                        processOpaqueTypeDescriptorSymbol(symbol, node: memberSymbol, rootNode: rootNode, in: &entry.opaqueTypeDescriptorSymbolByNode)
                     } else {
                         processMemberSymbol(symbol, node: node, rootNode: rootNode, in: &entry.memberSymbolsByKind, typeInfoByName: &entry.typeInfoByName)
                     }
@@ -169,6 +172,10 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         return entry
     }
 
+    private func processOpaqueTypeDescriptorSymbol(_ symbol: Symbol, node: Node, rootNode: Node, in entry: inout OrderedDictionary<Node, DemangledSymbol>) {
+        entry[node] = .init(symbol: symbol, demangledNode: rootNode)
+    }
+    
     private func processGlobalSymbol(_ symbol: Symbol, node: Node, rootNode: Node, in entry: inout OrderedDictionary<GlobalKind, [DemangledSymbol]>) {
         switch node.kind {
         case .function:
@@ -332,6 +339,10 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
 
     package func globalSymbols<MachO: MachORepresentableWithCache>(of kinds: GlobalKind..., in machO: MachO) -> [DemangledSymbol] {
         return kinds.map { entry(in: machO)?.globalSymbolsByKind[$0] ?? [] }.reduce(into: []) { $0 += $1 }
+    }
+    
+    package func opaqueTypeDescriptorSymbol<MachO: MachORepresentableWithCache>(for node: Node, in machO: MachO) -> DemangledSymbol? {
+        return entry(in: machO)?.opaqueTypeDescriptorSymbolByNode[node]
     }
 }
 

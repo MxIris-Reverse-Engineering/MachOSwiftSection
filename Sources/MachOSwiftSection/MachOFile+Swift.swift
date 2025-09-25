@@ -127,3 +127,5 @@ extension MachOFile.Swift {
         return data.compactMap { try? $0.layout.resolve(from: $0.offset, in: machO) }
     }
 }
+
+extension RelativeDirectPointer: LayoutProtocol {}

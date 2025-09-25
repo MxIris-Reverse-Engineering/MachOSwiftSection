@@ -2,7 +2,7 @@ import Foundation
 import MachOFoundation
 
 public struct ForeignMetadataInitialization: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let completionFunction: RelativeDirectRawPointer
     }
 

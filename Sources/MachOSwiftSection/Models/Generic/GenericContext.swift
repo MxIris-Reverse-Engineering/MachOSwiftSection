@@ -32,12 +32,19 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
 
     public let depth: Int
     
-    public var currentParameters: [GenericParamDescriptor] {
+    public func currentParameters<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) -> [GenericParamDescriptor] {
         .init(parameters.dropFirst(parentParameters.flatMap { $0 }.count))
     }
     
-    public var currentRequirements: [GenericRequirementDescriptor] {
-        .init(requirements.dropFirst(parentRequirements.flatMap { $0 }.count))
+    public func currentRequirements<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) -> [GenericRequirementDescriptor] {
+        let parentRequirements = parentRequirements.flatMap { $0 }
+        var currentRequirements: [GenericRequirementDescriptor] = []
+        for requirement in requirements {
+            if !parentRequirements.contains(where: { $0.isContentEqual(to: requirement, in: machO) }) {
+                currentRequirements.append(requirement)
+            }
+        }
+        return currentRequirements
     }
     
     public var currentTypePacks: [GenericPackShapeDescriptor] {
@@ -156,7 +163,7 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         var parentTypePacks: [[GenericPackShapeDescriptor]] = []
         var parentValues: [[GenericValueDescriptor]] = []
         while let currentParent = parent {
-            if let genericContext = try currentParent.contextDescriptor.genericContext(in: machO) {
+            if let genericContext = try currentParent.validParentGenericContextDescriptor?.genericContext(in: machO) {
                 parentParameters.append(genericContext.parameters)
                 parentRequirements.append(genericContext.requirements)
                 parentTypePacks.append(genericContext.typePacks)
@@ -173,4 +180,15 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
     }
 }
 
-
+extension ContextDescriptorWrapper {
+    fileprivate var validParentGenericContextDescriptor: (any ContextDescriptorProtocol)? {
+        switch self {
+        case .type:
+            return typeContextDescriptor
+        case .extension(let extensionContextDescriptor):
+            return extensionContextDescriptor
+        default:
+            return nil
+        }
+    }
+}

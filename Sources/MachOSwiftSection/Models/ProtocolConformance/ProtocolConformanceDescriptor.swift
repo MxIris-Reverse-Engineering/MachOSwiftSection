@@ -4,7 +4,7 @@ import MachOMacro
 import MachOFoundation
 
 public struct ProtocolConformanceDescriptor: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let protocolDescriptor: RelativeSymbolOrElementPointer<ProtocolDescriptor?>
         public let typeReference: RelativeOffset
         public let witnessTablePattern: RelativeDirectPointer<ProtocolWitnessTable>

@@ -42,7 +42,7 @@ extension TargetGenericContext {
     @SemanticStringBuilder
     package func dumpGenericParameters<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SemanticString {
         Standard("<")
-        for (offset, _) in currentParameters.offsetEnumerated() {
+        for (offset, _) in currentParameters(in: machO).offsetEnumerated() {
             try Standard(genericParameterName(depth: depth, index: offset.index))
             if !offset.isEnd {
                 Standard(", ")
@@ -68,7 +68,7 @@ extension TargetGenericContext {
 
     @SemanticStringBuilder
     package func dumpGenericRequirements<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO, @SemanticStringBuilder builder: (Node) throws -> SemanticString) throws -> SemanticString {
-        for (offset, requirement) in currentRequirements.offsetEnumerated() {
+        for (offset, requirement) in currentRequirements(in: machO).offsetEnumerated() {
             try requirement.dump(in: machO, builder: builder)
             if !offset.isEnd {
                 Standard(",")

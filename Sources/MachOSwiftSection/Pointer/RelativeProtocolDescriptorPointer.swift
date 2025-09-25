@@ -2,7 +2,7 @@ import MachOKit
 import MachOMacro
 import MachOFoundation
 
-public enum RelativeProtocolDescriptorPointer: Sendable {
+public enum RelativeProtocolDescriptorPointer: Sendable, Equatable {
     case objcPointer(RelativeSymbolOrElementPointerIntPair<ObjCProtocolPrefix, Bool>)
     case swiftPointer(RelativeSymbolOrElementPointerIntPair<ProtocolDescriptor, Bool>)
 

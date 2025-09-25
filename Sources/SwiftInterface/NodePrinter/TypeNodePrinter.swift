@@ -5,10 +5,10 @@ import Semantic
 struct TypeNodePrinter: InterfaceNodePrinter {
     var target: SemanticString = ""
 
-    let cImportedInfoProvider: (any CImportedInfoProvider)?
+    weak var delegate: (any InterfaceNodePrinterDelegate)?
 
-    init(cImportedInfoProvider: (any CImportedInfoProvider)? = nil) {
-        self.cImportedInfoProvider = cImportedInfoProvider
+    init(delegate: (any InterfaceNodePrinterDelegate)? = nil) {
+        self.delegate = delegate
     }
 
     mutating func printRoot(_ node: Node) throws -> SemanticString {

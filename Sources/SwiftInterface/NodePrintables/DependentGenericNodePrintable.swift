@@ -45,41 +45,6 @@ extension DependentGenericNodePrintable {
         target.write(name.text ?? "")
     }
 
-    static func genericParameterName(depth: UInt64, index: UInt64) -> String {
-        var name = ""
-        var index = index
-        repeat {
-            if let scalar = UnicodeScalar(UnicodeScalar("A").value + UInt32(index % 26)) {
-                name.unicodeScalars.append(scalar)
-            }
-            index /= 26
-        } while index != 0
-        if depth != 0 {
-            name.append("\(depth)")
-        }
-        return name
-    }
-
-    private func findGenericParamsDepth(_ name: Node) -> [Int: Int]? {
-        guard let _: Int = name.children.first(of: .dependentGenericParamCount)?.index?.cast(), let parent = name.parent else { return nil }
-
-        var depths: [Int: Int] = [:]
-
-        for child in parent.preorder() {
-            guard child.kind == .dependentGenericParamType else { continue }
-            guard let depth: Int = child.children.at(0)?.index?.cast() else { continue }
-            guard let index: Int = child.children.at(1)?.index?.cast() else { continue }
-
-            if let currentDepth = depths[index] {
-                depths[index] = max(currentDepth, depth)
-            } else {
-                depths[index] = depth
-            }
-        }
-
-        return depths
-    }
-
     mutating func printGenericSignature(_ name: Node) {
         target.write("<")
         var numGenericParams = 0
@@ -139,7 +104,7 @@ extension DependentGenericNodePrintable {
             return nil
         }
 
-        let depths = findGenericParamsDepth(name)
+        let depths = name.parent?.findGenericParamsDepth()
 
         for gpDepth in 0 ..< numGenericParams {
             if gpDepth != 0 {
@@ -169,7 +134,7 @@ extension DependentGenericNodePrintable {
                     target.write("let ")
                 }
 
-                target.write(Self.genericParameterName(depth: UInt64(depths?[index.cast()] ?? gpDepth), index: UInt64(index)))
+                target.write(genericParameterName(depth: depths?[index.cast()] ?? gpDepth.cast(), index: index.cast()))
 
                 if let value {
                     target.write(": ")
@@ -231,7 +196,7 @@ extension DependentGenericNodePrintable {
         target.write(".")
         _ = printOptional(name.children.at(1))
     }
-    
+
     mutating func printDependentGenericInverseConformanceRequirement(_ name: Node) {
         printFirstChild(name, suffix: ": ~")
         switch name.children.at(1)?.index {

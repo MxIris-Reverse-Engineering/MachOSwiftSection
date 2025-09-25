@@ -1,5 +1,7 @@
+import MachOFoundation
+
 public struct GenericParamDescriptor: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let rawValue: UInt8
     }
 

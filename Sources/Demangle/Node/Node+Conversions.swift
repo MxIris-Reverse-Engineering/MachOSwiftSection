@@ -97,3 +97,25 @@ extension Node {
         return kind == .module && text == stdlibName
     }
 }
+
+extension Node {
+    package func findGenericParamsDepth() -> [UInt64: UInt64]? {
+        guard kind == .dependentGenericType, first(of: .dependentGenericParamCount) != nil else { return nil }
+
+        var depths: [UInt64: UInt64] = [:]
+
+        for child in self {
+            guard child.kind == .dependentGenericParamType else { continue }
+            guard let depth = child.children.at(0)?.index else { continue }
+            guard let index = child.children.at(1)?.index else { continue }
+
+            if let currentDepth = depths[index] {
+                depths[index] = Swift.max(currentDepth, depth)
+            } else {
+                depths[index] = depth
+            }
+        }
+
+        return depths
+    }
+}

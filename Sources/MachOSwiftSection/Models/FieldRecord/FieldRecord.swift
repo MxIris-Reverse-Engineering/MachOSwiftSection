@@ -4,7 +4,7 @@ import MachOMacro
 import MachOFoundation
 
 public struct FieldRecord: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let flags: FieldRecordFlags
         public let mangledTypeName: RelativeDirectPointer<MangledName>
         public let fieldName: RelativeDirectPointer<String>

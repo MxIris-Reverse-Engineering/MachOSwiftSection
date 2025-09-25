@@ -1,3 +1,3 @@
-public enum GenericRequirementLayoutKind: UInt32, Sendable {
+public enum GenericRequirementLayoutKind: UInt32, Hashable, CaseIterable, Sendable {
     case `class`
 }

@@ -9,12 +9,12 @@ struct SubscriptNodePrinter: InterfaceNodePrinter {
 
     let indentation: Int
     
-    let cImportedInfoProvider: (any CImportedInfoProvider)?
+    weak var delegate: (any InterfaceNodePrinterDelegate)?
 
-    init(hasSetter: Bool, indentation: Int, cImportedInfoProvider: (any CImportedInfoProvider)? = nil) {
+    init(hasSetter: Bool, indentation: Int, delegate: (any InterfaceNodePrinterDelegate)? = nil) {
         self.hasSetter = hasSetter
         self.indentation = indentation
-        self.cImportedInfoProvider = cImportedInfoProvider
+        self.delegate = delegate
     }
     
     enum Error: Swift.Error {

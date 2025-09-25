@@ -1,17 +1,12 @@
 import Demangle
 import Foundation
 
-protocol CImportedInfoProvider {
-    func moduleName(forTypeName typeName: String) -> String?
-    func swiftName(forCName cName: String) -> String?
-}
-
 protocol NodePrintable {
     associatedtype Target: NodePrinterTarget
 
     var target: Target { set get }
 
-    var cImportedInfoProvider: CImportedInfoProvider? { get }
+    var delegate: InterfaceNodePrinterDelegate? { get }
 
     @discardableResult
     mutating func printName(_ name: Node, asPrefixContext: Bool) -> Node?
@@ -52,7 +47,7 @@ extension NodePrintable {
 
     mutating func printModule(_ node: Node) {
         var moduleName = node.text ?? ""
-        if moduleName == objcModule || moduleName == cModule, let identifier = node.parent?.children.at(1)?.text, let updatedModuleName = cImportedInfoProvider?.moduleName(forTypeName: identifier) ?? cImportedInfoProvider?.moduleName(forTypeName: identifier.strippedRefSuffix) {
+        if moduleName == objcModule || moduleName == cModule, let identifier = node.parent?.children.at(1)?.text, let updatedModuleName = delegate?.moduleName(forTypeName: identifier) ?? delegate?.moduleName(forTypeName: identifier.strippedRefSuffix) {
             moduleName = updatedModuleName
         }
         target.write(moduleName, context: .context(for: node, state: .printModule))
@@ -103,7 +98,6 @@ extension NodePrintable {
         printSequence(ofName.children, prefix: prefix, suffix: suffix, separator: separator)
     }
 }
-
 
 extension String {
     fileprivate var strippedRefSuffix: String {

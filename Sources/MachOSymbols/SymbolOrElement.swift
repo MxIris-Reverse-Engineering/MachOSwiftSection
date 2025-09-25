@@ -96,3 +96,7 @@ extension SymbolOrElement where Element: OptionalProtocol, Element.Wrapped: Reso
         }
     }
 }
+
+extension SymbolOrElement: Equatable where Element: Equatable {}
+
+extension SymbolOrElement: Hashable where Element: Hashable {}

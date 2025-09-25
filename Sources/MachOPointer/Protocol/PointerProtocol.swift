@@ -4,7 +4,7 @@ import MachOReading
 import MachOResolving
 import MachOExtensions
 
-public protocol PointerProtocol<Pointee>: Resolvable, Sendable {
+public protocol PointerProtocol<Pointee>: Resolvable, Sendable, Equatable {
     associatedtype Pointee: Resolvable
 
     var address: UInt64 { get }

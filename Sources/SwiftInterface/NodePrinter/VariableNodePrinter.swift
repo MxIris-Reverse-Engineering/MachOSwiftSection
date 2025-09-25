@@ -11,13 +11,13 @@ struct VariableNodePrinter: InterfaceNodePrinter {
 
     let indentation: Int
 
-    let cImportedInfoProvider: (any CImportedInfoProvider)?
+    weak var delegate: (any InterfaceNodePrinterDelegate)?
 
-    init(isStored: Bool, hasSetter: Bool, indentation: Int, cImportedInfoProvider: (any CImportedInfoProvider)? = nil) {
+    init(isStored: Bool, hasSetter: Bool, indentation: Int, delegate: (any InterfaceNodePrinterDelegate)? = nil) {
         self.isStored = isStored
         self.hasSetter = hasSetter
         self.indentation = indentation
-        self.cImportedInfoProvider = cImportedInfoProvider
+        self.delegate = delegate
     }
 
     enum Error: Swift.Error {
@@ -52,16 +52,16 @@ struct VariableNodePrinter: InterfaceNodePrinter {
         }
     }
 
-    private mutating func printVariable(_ name: Node) throws {
-        let identifier: Node? = if let identifier = name.children.first(of: .identifier) {
+    private mutating func printVariable(_ node: Node) throws {
+        let identifier: Node? = if let identifier = node.children.first(of: .identifier) {
             identifier
-        } else if let privateDeclName = name.children.first(of: .privateDeclName) {
+        } else if let privateDeclName = node.children.first(of: .privateDeclName) {
             privateDeclName.children.at(1)
         } else {
             nil
         }
         guard let identifier else {
-            throw Error.onlySupportedForVariableNode(name)
+            throw Error.onlySupportedForVariableNode(node)
         }
         
         if isStored, !hasSetter {
@@ -72,9 +72,15 @@ struct VariableNodePrinter: InterfaceNodePrinter {
         
         target.write(identifier.text ?? "", context: .context(for: identifier, state: .printIdentifier))
         target.write(": ")
-        guard let type = name.children.first(of: .type) else { return }
+        guard let type = node.children.first(of: .type) else { return }
         printName(type)
         guard !isStored else { return }
+        
+        if node.first(of: .opaqueReturnType) != nil, let opaqueType = delegate?.opaqueType(forNode: node) {
+            target.writeSpace()
+            target.write(opaqueType)
+        }
+        
         target.write(" {")
         target.write("\n")
         target.write(String(repeating: " ", count: (indentation + 1) * 4))

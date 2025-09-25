@@ -38,7 +38,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
             try name
 
             if let genericContext = `class`.genericContext {
-                if genericContext.currentParameters.count > 0 {
+                if genericContext.currentParameters(in: machO).count > 0 {
                     try genericContext.dumpGenericParameters(in: machO)
                 }
             }
@@ -53,7 +53,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                 superclass
             }
 
-            if let genericContext = `class`.genericContext, genericContext.currentRequirements.count > 0 {
+            if let genericContext = `class`.genericContext, genericContext.currentRequirements(in: machO).count > 0 {
                 Space()
                 Keyword(.where)
                 Space()

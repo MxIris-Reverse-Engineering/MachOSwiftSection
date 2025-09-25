@@ -4,7 +4,7 @@ import MachOFoundation
 import MachOMacro
 
 public struct AssociatedTypeDescriptor: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let conformingTypeName: RelativeDirectPointer<MangledName>
         public let protocolTypeName: RelativeDirectPointer<MangledName>
         public let numAssociatedTypes: UInt32

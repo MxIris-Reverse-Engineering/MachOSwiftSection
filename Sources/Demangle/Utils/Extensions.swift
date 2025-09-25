@@ -100,3 +100,18 @@ extension String {
         self = self.capitalizingFirstLetter
     }
 }
+
+package func genericParameterName(depth: UInt64, index: UInt64) -> String {
+    var name = ""
+    var index = index
+    repeat {
+        if let scalar = UnicodeScalar(UnicodeScalar("A").value + UInt32(index % 26)) {
+            name.unicodeScalars.append(scalar)
+        }
+        index /= 26
+    } while index != 0
+    if depth != 0 {
+        name.append("\(depth)")
+    }
+    return name
+}

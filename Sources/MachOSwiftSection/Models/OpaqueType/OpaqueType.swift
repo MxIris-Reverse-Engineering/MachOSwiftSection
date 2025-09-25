@@ -2,6 +2,7 @@ import Foundation
 import MachOKit
 import MachOMacro
 import MachOFoundation
+import Demangle
 
 public struct OpaqueType: TopLevelType, ContextProtocol {
     public let descriptor: OpaqueTypeDescriptor
@@ -41,5 +42,37 @@ public struct OpaqueType: TopLevelType, ContextProtocol {
         } else {
             self.invertedProtocols = nil
         }
+    }
+    
+    public func requirements(in machO: some MachORepresentableWithCache & MachOReadable) throws -> [GenericRequirementDescriptor] {
+        guard let genericContext else { return [] }
+        
+        var usedGenericParams = Set<String>()
+        
+        if let symbol = try Symbol.resolve(from: descriptor.offset, in: machO), let node = try? symbol.demangledNode, let dependentGenericType = node.first(of: .dependentGenericType) {
+            let numberOfGenericParams = dependentGenericType.all(of: .dependentGenericParamCount).count
+            let depthByIndex = dependentGenericType.findGenericParamsDepth()
+            
+            for index in 0..<numberOfGenericParams {
+                let index = UInt64(index)
+                if let depth = depthByIndex?[index] {
+                    usedGenericParams.insert(genericParameterName(depth: depth, index: index))
+                } else {
+                    usedGenericParams.insert(genericParameterName(depth: 0, index: index))
+                }
+            }
+        }
+        
+        let currentRequirements = genericContext.currentRequirements(in: machO)
+        var results: [GenericRequirementDescriptor] = []
+        for currentRequirement in currentRequirements {
+            let paramMangledName = try currentRequirement.paramMangledName(in: machO)
+            let paramString = try MetadataReader.demangle(for: paramMangledName, in: machO).print()
+            
+            if !usedGenericParams.contains(paramString) {
+                results.append(currentRequirement)
+            }
+        }
+        return results
     }
 }

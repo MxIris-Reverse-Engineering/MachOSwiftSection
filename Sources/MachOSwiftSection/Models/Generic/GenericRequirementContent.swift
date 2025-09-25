@@ -1,7 +1,7 @@
 import MachOFoundation
 
-public enum GenericRequirementContent: Sendable {
-    public struct InvertedProtocols: Sendable {
+public enum GenericRequirementContent: Sendable, Equatable {
+    public struct InvertedProtocols: Sendable, Equatable {
         public let genericParamIndex: UInt16
         public let protocols: InvertibleProtocolSet
     }
@@ -13,7 +13,7 @@ public enum GenericRequirementContent: Sendable {
     case invertedProtocols(GenericRequirementContent.InvertedProtocols)
 }
 
-public enum ResolvedGenericRequirementContent: Sendable {
+public enum ResolvedGenericRequirementContent: Sendable, Equatable {
     case type(MangledName)
     case `protocol`(SymbolOrElement<ProtocolDescriptorWithObjCInterop>)
     case layout(GenericRequirementLayoutKind)

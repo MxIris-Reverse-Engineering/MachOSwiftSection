@@ -59,7 +59,8 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     private let typeDatabase: TypeDatabase<MachO>?
 
     /// Resolver for demangling type names using the configured type database
-    private let typeDemangleResolver: DemangleResolver
+    @Mutex
+    private var typeDemangleResolver: DemangleResolver = .using(options: .default)
 
     /// Event dispatcher for handling logging and progress events
     private let eventDispatcher: SwiftInterfaceBuilderEvents.Dispatcher
@@ -155,9 +156,11 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         self.typeDatabase = typeDatabase
         self.machO = machO
-        self.typeDemangleResolver = .using { node in
-            var printer = TypeNodePrinter(cImportedInfoProvider: typeDatabase)
-            try printer.printRoot(node)
+        self.typeDemangleResolver = .using { [weak self] node in
+            if let self {
+                var printer = TypeNodePrinter(delegate: self)
+                try printer.printRoot(node)
+            }
         }
     }
 
@@ -311,7 +314,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
                     var genericSignature: Node?
 
-                    if let currentRequirements = extensionContext.genericContext?.currentRequirements, !currentRequirements.isEmpty {
+                    if let currentRequirements = extensionContext.genericContext?.currentRequirements(in: machO), !currentRequirements.isEmpty {
                         genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO)
                     }
 
@@ -376,7 +379,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                         let name = typeNode.print(using: .interfaceTypeBuilderOnly)
                         let typeName = TypeName(name: name, kind: typeKind)
                         var genericSignature: Node?
-                        if let currentRequirements = extensionContext.genericContext?.currentRequirements, !currentRequirements.isEmpty {
+                        if let currentRequirements = extensionContext.genericContext?.currentRequirements(in: machO), !currentRequirements.isEmpty {
                             genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO)
                         }
                         var extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
@@ -706,8 +709,8 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         for (offset, variable) in globalVariableDefinitions.offsetEnumerated() {
             BreakLine()
-            var printer = VariableNodePrinter(isStored: variable.isStored, hasSetter: variable.hasSetter, indentation: 0, cImportedInfoProvider: typeDatabase)
-            try printer.printRoot(variable.node)
+
+            try printVariable(variable, level: 0)
 
             if offset.isEnd {
                 BreakLine()
@@ -716,8 +719,8 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         for (offset, function) in globalFunctionDefinitions.offsetEnumerated() {
             BreakLine()
-            var printer = FunctionNodePrinter(cImportedInfoProvider: typeDatabase)
-            try printer.printRoot(function.node)
+
+            try printFunction(function)
 
             if offset.isEnd {
                 BreakLine()
@@ -768,27 +771,6 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             if !offset.isEnd {
                 BreakLine()
                 BreakLine()
-            }
-        }
-    }
-
-    @SemanticStringBuilder
-    private func printGenericSignature(_ genericContext: TypeGenericContext?, @SemanticStringBuilder contentsBuilder: () throws -> SemanticString = { "" }) throws -> SemanticString {
-        if let genericContext {
-            if genericContext.currentParameters.count > 0 {
-                try genericContext.dumpGenericParameters(in: machO)
-            }
-
-            try contentsBuilder()
-
-            if genericContext.currentRequirements.count > 0 {
-                Space()
-                Keyword(.where)
-                Space()
-                try genericContext.dumpGenericRequirements(in: machO) {
-                    var printer = TypeNodePrinter(cImportedInfoProvider: typeDatabase)
-                    try printer.printRoot($0)
-                }
             }
         }
     }
@@ -846,15 +828,15 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (offset, requirment) in protocolDefinition.requirements.offsetEnumerated() {
             BreakLine()
             Indent(level: level)
-            var printer: any InterfaceNodePrinter = switch requirment {
-            case .function:
-                FunctionNodePrinter(cImportedInfoProvider: typeDatabase)
+
+            switch requirment {
+            case .function(let function):
+                try printFunction(function)
             case .variable(let variable):
-                VariableNodePrinter(isStored: variable.isStored, hasSetter: variable.hasSetter, indentation: level, cImportedInfoProvider: typeDatabase)
-            case .`subscript`(let `subscript`):
-                SubscriptNodePrinter(hasSetter: `subscript`.hasSetter, indentation: level, cImportedInfoProvider: typeDatabase)
+                try printVariable(variable, level: level)
+            case .subscript(let `subscript`):
+                try printSubscript(`subscript`, level: level)
             }
-            try printer.printRoot(requirment.node)
 
             if offset.isEnd {
                 BreakLine()
@@ -937,8 +919,8 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (offset, allocator) in definition.allocators.offsetEnumerated() {
             BreakLine()
             Indent(level: level)
-            var printer = FunctionNodePrinter(cImportedInfoProvider: typeDatabase)
-            try printer.printRoot(allocator.node)
+
+            try printFunction(allocator)
 
             if offset.isEnd {
                 BreakLine()
@@ -948,8 +930,8 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (offset, variable) in definition.variables.offsetEnumerated() {
             BreakLine()
             Indent(level: level)
-            var printer = VariableNodePrinter(isStored: variable.isStored, hasSetter: variable.hasSetter, indentation: level, cImportedInfoProvider: typeDatabase)
-            try printer.printRoot(variable.node)
+
+            try printVariable(variable, level: level)
 
             if offset.isEnd {
                 BreakLine()
@@ -959,8 +941,8 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (offset, function) in definition.functions.offsetEnumerated() {
             BreakLine()
             Indent(level: level)
-            var printer = FunctionNodePrinter(cImportedInfoProvider: typeDatabase)
-            try printer.printRoot(function.node)
+
+            try printFunction(function)
 
             if offset.isEnd {
                 BreakLine()
@@ -970,8 +952,8 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (offset, `subscript`) in definition.subscripts.offsetEnumerated() {
             BreakLine()
             Indent(level: level)
-            var printer = SubscriptNodePrinter(hasSetter: `subscript`.hasSetter, indentation: level, cImportedInfoProvider: typeDatabase)
-            try printer.printRoot(`subscript`.node)
+
+            try printSubscript(`subscript`, level: level)
 
             if offset.isEnd {
                 BreakLine()
@@ -981,8 +963,8 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (offset, variable) in definition.staticVariables.offsetEnumerated() {
             BreakLine()
             Indent(level: level)
-            var printer = VariableNodePrinter(isStored: variable.isStored, hasSetter: variable.hasSetter, indentation: level, cImportedInfoProvider: typeDatabase)
-            try printer.printRoot(variable.node)
+
+            try printVariable(variable, level: level)
 
             if offset.isEnd {
                 BreakLine()
@@ -992,8 +974,8 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (offset, function) in definition.staticFunctions.offsetEnumerated() {
             BreakLine()
             Indent(level: level)
-            var printer = FunctionNodePrinter(cImportedInfoProvider: typeDatabase)
-            try printer.printRoot(function.node)
+
+            try printFunction(function)
 
             if offset.isEnd {
                 BreakLine()
@@ -1003,13 +985,31 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (offset, `subscript`) in definition.staticSubscripts.offsetEnumerated() {
             BreakLine()
             Indent(level: level)
-            var printer = SubscriptNodePrinter(hasSetter: `subscript`.hasSetter, indentation: level, cImportedInfoProvider: typeDatabase)
-            try printer.printRoot(`subscript`.node)
+
+            try printSubscript(`subscript`, level: level)
 
             if offset.isEnd {
                 BreakLine()
             }
         }
+    }
+
+    @SemanticStringBuilder
+    private func printVariable(_ variable: VariableDefinition, level: Int) throws -> SemanticString {
+        var printer = VariableNodePrinter(isStored: variable.isStored, hasSetter: variable.hasSetter, indentation: level, delegate: self)
+        try printer.printRoot(variable.node)
+    }
+
+    @SemanticStringBuilder
+    private func printFunction(_ function: FunctionDefinition) throws -> SemanticString {
+        var printer = FunctionNodePrinter(delegate: self)
+        try printer.printRoot(function.node)
+    }
+
+    @SemanticStringBuilder
+    private func printSubscript(_ `subscript`: SubscriptDefinition, level: Int) throws -> SemanticString {
+        var printer = SubscriptNodePrinter(hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
+        try printer.printRoot(`subscript`.node)
     }
 
     /// Collects all modules that need to be imported for the interface.
@@ -1104,6 +1104,32 @@ extension SwiftInterfaceBuilder<MachOFile> {
     }
 }
 
+extension SwiftInterfaceBuilder: InterfaceNodePrinterDelegate {
+    func moduleName(forTypeName typeName: String) -> String? {
+        typeDatabase?.moduleName(forTypeName: typeName)
+    }
+
+    func swiftName(forCName cName: String) -> String? {
+        typeDatabase?.swiftName(forCName: cName)
+    }
+
+    func opaqueType(forNode node: Node) -> String? {
+        do {
+            @Dependency(\.symbolIndexStore)
+            var symbolIndexStore
+
+            guard let opaqueTypeDescriptorSymbol = symbolIndexStore.opaqueTypeDescriptorSymbol(for: node, in: machO) else { return nil }
+
+            let opaqueType = try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(from: opaqueTypeDescriptorSymbol.offset, in: machO), in: machO)
+            let requirements = try opaqueType.requirements(in: machO)
+
+            return try requirements.map { try $0.dumpContent(using: .interfaceTypeBuilderOnly, in: machO).string }.joined(separator: " & ")
+        } catch {
+            return nil
+        }
+    }
+}
+
 extension String {
     var strippedLibSwiftPrefix: String {
         if hasPrefix("libswift") {
@@ -1156,8 +1182,6 @@ extension LoadCommandsProtocol {
         return nil
     }
 }
-
-extension TypeDatabase: CImportedInfoProvider {}
 
 extension Sequence {
     func filterNonNil<T>(_ filter: (Element) throws -> T?) rethrows -> [Element] {

@@ -4,7 +4,7 @@ import MachOMacro
 import MachOFoundation
 
 public struct ObjCProtocolPrefix: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let isa: RawPointer
         public let name: Pointer<String>
     }

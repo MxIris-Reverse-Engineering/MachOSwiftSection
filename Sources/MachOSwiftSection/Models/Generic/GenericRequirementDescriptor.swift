@@ -4,7 +4,7 @@ import MachOFoundation
 import MachOMacro
 
 public struct GenericRequirementDescriptor: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable, Equatable {
+    public struct Layout: LayoutProtocol {
         public let flags: GenericRequirementFlags
         public let param: RelativeDirectPointer<MangledName>
         public let content: RelativeOffset
@@ -21,6 +21,12 @@ public struct GenericRequirementDescriptor: ResolvableLocatableLayoutWrapper {
 }
 
 extension GenericRequirementDescriptor {
+    
+    public func isContentEqual<MachO: MachORepresentableWithCache & MachOReadable>(to other: GenericRequirementDescriptor, in machO: MachO) -> Bool {
+        guard let lhsResolvedParam = try? paramMangledName(in: machO), let rhsResolvedParam = try? other.paramMangledName(in: machO) else { return false }
+        guard let lhsResolvedContent = try? resolvedContent(in: machO), let rhsResolvedContent = try? other.resolvedContent(in: machO) else { return false }
+        return layout.flags == other.flags && lhsResolvedParam == rhsResolvedParam && lhsResolvedContent == rhsResolvedContent
+    }
     
     public func paramMangledName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
         return try layout.param.resolve(from: offset(of: \.param), in: machO)

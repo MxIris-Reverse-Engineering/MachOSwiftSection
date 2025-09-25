@@ -4,7 +4,7 @@ import MachOMacro
 import MachOFoundation
 
 public struct RelativeObjCProtocolPrefix: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let isa: RelativeDirectRawPointer
         public let mangledName: RelativeDirectPointer<MangledName>
     }

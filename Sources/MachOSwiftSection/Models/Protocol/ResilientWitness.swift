@@ -4,7 +4,7 @@ import MachOMacro
 import MachOFoundation
 
 public struct ResilientWitness: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let requirement: RelativeProtocolRequirementPointer
         public let implementation: RelativeDirectPointer<Symbols?>
     }

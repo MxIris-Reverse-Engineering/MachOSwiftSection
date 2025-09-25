@@ -4,7 +4,7 @@ import MachOFoundation
 import MachOMacro
 
 public struct NonUniqueExtendedExistentialTypeShape: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let uniqueCache: RelativeDirectPointer<Pointer<ExtendedExistentialTypeShape>>
         public let localCopy: ExtendedExistentialTypeShape.Layout
     }
