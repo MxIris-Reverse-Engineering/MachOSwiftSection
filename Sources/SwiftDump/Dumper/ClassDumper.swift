@@ -38,11 +38,18 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
             try name
 
             if let genericContext = `class`.genericContext {
-                if genericContext.currentParameters(in: machO).count > 0 {
-                    try genericContext.dumpGenericParameters(in: machO)
+                try genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO) {
+                    try superclass
                 }
+            } else {
+                try superclass
             }
+        }
+    }
 
+    @SemanticStringBuilder
+    package var superclass: SemanticString {
+        get throws {
             if let superclassMangledName = try `class`.descriptor.superclassTypeMangledName(in: machO) {
                 Standard(":")
                 Space()
@@ -52,16 +59,10 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                 Space()
                 superclass
             }
-
-            if let genericContext = `class`.genericContext, genericContext.currentRequirements(in: machO).count > 0 {
-                Space()
-                Keyword(.where)
-                Space()
-                try genericContext.dumpGenericRequirements(resolver: demangleResolver, in: machO)
-            }
         }
     }
-
+    
+    
     package var fields: SemanticString {
         get throws {
             for (offset, fieldRecord) in try `class`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {

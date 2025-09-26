@@ -47,7 +47,7 @@ public struct Class: TopLevelType, ContextProtocol {
     public let methodDefaultOverrideTableHeader: MethodDefaultOverrideTableHeader?
     public let methodDefaultOverrideDescriptors: [MethodDefaultOverrideDescriptor]
 
-    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: ClassDescriptor, in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: ClassDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
         let genericContext = try descriptor.typeGenericContext(in: machO)
         self.genericContext = genericContext

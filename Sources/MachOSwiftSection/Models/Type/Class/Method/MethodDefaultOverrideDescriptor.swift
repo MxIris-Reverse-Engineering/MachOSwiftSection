@@ -21,7 +21,7 @@ public struct MethodDefaultOverrideDescriptor: ResolvableLocatableLayoutWrapper 
 }
 
 extension MethodDefaultOverrideDescriptor {
-    public func implementationSymbol<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> Symbol? {
+    public func implementationSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Symbol? {
         return try layout.implementation.resolve(from: offset(of: \.implementation), in: machO)
     }
 }

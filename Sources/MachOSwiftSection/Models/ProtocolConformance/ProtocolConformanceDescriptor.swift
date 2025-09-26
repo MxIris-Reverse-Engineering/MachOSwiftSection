@@ -22,7 +22,7 @@ public struct ProtocolConformanceDescriptor: ResolvableLocatableLayoutWrapper {
 }
 
 extension ProtocolConformanceDescriptor {
-    public func protocolDescriptor<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> SymbolOrElement<ProtocolDescriptor>? {
+    public func protocolDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<ProtocolDescriptor>? {
         try layout.protocolDescriptor.resolve(from: offset(of: \.protocolDescriptor), in: machO).asOptional
     }
 
@@ -30,12 +30,12 @@ extension ProtocolConformanceDescriptor {
         return .forKind(layout.flags.typeReferenceKind, at: layout.typeReference)
     }
 
-    public func resolvedTypeReference<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> ResolvedTypeReference {
+    public func resolvedTypeReference<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ResolvedTypeReference {
         let offset = offset(of: \.typeReference)
         return try typeReference.resolve(at: offset, in: machO)
     }
 
-    public func witnessTablePattern<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> ProtocolWitnessTable? {
+    public func witnessTablePattern<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolWitnessTable? {
         try layout.witnessTablePattern.resolve(from: offset(of: \.witnessTablePattern), in: machO)
     }
 }

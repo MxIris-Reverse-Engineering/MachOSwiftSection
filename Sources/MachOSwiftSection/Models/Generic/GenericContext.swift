@@ -32,11 +32,11 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
 
     public let depth: Int
     
-    public func currentParameters<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) -> [GenericParamDescriptor] {
+    public func currentParameters<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) -> [GenericParamDescriptor] {
         .init(parameters.dropFirst(parentParameters.flatMap { $0 }.count))
     }
     
-    public func currentRequirements<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) -> [GenericRequirementDescriptor] {
+    public func currentRequirements<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) -> [GenericRequirementDescriptor] {
         let parentRequirements = parentRequirements.flatMap { $0 }
         var currentRequirements: [GenericRequirementDescriptor] = []
         for requirement in requirements {
@@ -86,7 +86,7 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         )
     }
 
-    public init<MachO: MachORepresentableWithCache & MachOReadable>(contextDescriptor: any ContextDescriptorProtocol, in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(contextDescriptor: any ContextDescriptorProtocol, in machO: MachO) throws {
         var currentOffset = contextDescriptor.offset + contextDescriptor.layoutSize
         let genericContextOffset = currentOffset
 

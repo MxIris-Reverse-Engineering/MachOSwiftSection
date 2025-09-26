@@ -33,7 +33,7 @@ public struct ClassMetadataObjCInterop: TypeMetadataProtocol {
 }
 
 extension ClassMetadataObjCInterop {
-    public func fieldOffsets<MachO: MachORepresentableWithCache & MachOReadable>(for descriptor: ClassDescriptor? = nil, in machO: MachO) throws -> [StoredPointer] {
+    public func fieldOffsets<MachO: MachOSwiftSectionRepresentableWithCache>(for descriptor: ClassDescriptor? = nil, in machO: MachO) throws -> [StoredPointer] {
         let descriptor = try descriptor ?? layout.descriptor.resolve(in: machO)
         guard descriptor.fieldOffsetVectorOffset != .zero else { return [] }
         let offset = offset + descriptor.fieldOffsetVectorOffset.cast() * MemoryLayout<StoredPointer>.size

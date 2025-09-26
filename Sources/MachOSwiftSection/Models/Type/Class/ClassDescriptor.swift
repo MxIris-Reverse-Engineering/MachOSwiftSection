@@ -81,7 +81,7 @@ extension ClassDescriptor {
         return ExtraClassDescriptorFlags(rawValue: layout.metadataPositiveSizeInWordsOrExtraClassFlags).hasObjCResilientClassStub
     }
     
-    public func superclassTypeMangledName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName? {
+    public func superclassTypeMangledName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName? {
         try layout.superclassType.resolve(from: offset(of: \.superclassType), in: machO)
     }
 }

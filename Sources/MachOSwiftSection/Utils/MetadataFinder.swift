@@ -36,7 +36,7 @@ package protocol TypeMetadataProtocol: MetadataProtocol {
     static var descriptorOffset: Int { get }
 }
 
-package final class MetadataFinder<MachO: MachORepresentableWithCache & MachOReadable & MachOOffsetConverter> {
+package final class MetadataFinder<MachO: MachOSwiftSectionRepresentableWithCache & MachOOffsetConverter> {
     package let machO: MachO
 
     private var metadataOffsetByDescriptorOffset: [Int: Int] = [:]

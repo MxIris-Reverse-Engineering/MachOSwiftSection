@@ -36,15 +36,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
             try name
 
             if let genericContext = `enum`.genericContext {
-                if genericContext.currentParameters(in: machO).count > 0 {
-                    try genericContext.dumpGenericParameters(in: machO)
-                }
-                if genericContext.currentRequirements(in: machO).count > 0 {
-                    Space()
-                    Keyword(.where)
-                    Space()
-                    try genericContext.dumpGenericRequirements(resolver: demangleResolver, in: machO)
-                }
+                try genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO)
             }
         }
     }

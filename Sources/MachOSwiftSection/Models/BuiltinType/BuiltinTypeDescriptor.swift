@@ -23,7 +23,7 @@ public struct BuiltinTypeDescriptor: ResolvableLocatableLayoutWrapper, TopLevelD
 }
 
 extension BuiltinTypeDescriptor {
-    public func typeName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName? {
+    public func typeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName? {
         return try layout.typeName.resolve(from: offset(of: \.typeName), in: machO)
     }
 

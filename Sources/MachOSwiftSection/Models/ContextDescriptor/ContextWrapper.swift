@@ -39,7 +39,7 @@ public enum ContextWrapper: Resolvable {
     }
     
     
-    public static func forContextDescriptorWrapper(_ contextDescriptorWrapper: ContextDescriptorWrapper, in machO: some MachORepresentableWithCache & MachOReadable) throws -> Self {
+    public static func forContextDescriptorWrapper(_ contextDescriptorWrapper: ContextDescriptorWrapper, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Self {
         switch contextDescriptorWrapper {
         case .type(let typeContextDescriptorWrapper):
             switch typeContextDescriptorWrapper {
@@ -63,7 +63,7 @@ public enum ContextWrapper: Resolvable {
         }
     }
 
-    public func parent(in machO: some MachORepresentableWithCache & MachOReadable) throws -> SymbolOrElement<ContextWrapper>? {
+    public func parent(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<ContextWrapper>? {
         switch self {
         case .type(let typeWrapper):
             switch typeWrapper {

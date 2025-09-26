@@ -21,11 +21,11 @@ public struct MethodOverrideDescriptor: ResolvableLocatableLayoutWrapper {
 }
 
 extension MethodOverrideDescriptor {
-    public func methodDescriptor<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> SymbolOrElement<MethodDescriptor>? {
+    public func methodDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<MethodDescriptor>? {
         return try layout.method.resolve(from: offset(of: \.method), in: machO).asOptional
     }
 
-    public func implementationSymbol<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> Symbol? {
+    public func implementationSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Symbol? {
         return try layout.implementation.resolve(from: offset(of: \.implementation), in: machO)
     }
 }

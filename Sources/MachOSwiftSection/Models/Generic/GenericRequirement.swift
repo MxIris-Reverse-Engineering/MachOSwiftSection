@@ -12,7 +12,7 @@ public struct GenericRequirement: Sendable {
 
     public let content: ResolvedGenericRequirementContent
 
-    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: GenericRequirementDescriptor, in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: GenericRequirementDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
         self.paramManagledName = try descriptor.paramMangledName(in: machO)
         self.content = try descriptor.resolvedContent(in: machO)

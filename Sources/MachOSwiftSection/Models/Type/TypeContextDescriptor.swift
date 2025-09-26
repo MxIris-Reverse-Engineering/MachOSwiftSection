@@ -23,17 +23,17 @@ public struct TypeContextDescriptor: TypeContextDescriptorProtocol {
 }
 
 extension TypeContextDescriptor {
-    public func enumDescriptor<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> EnumDescriptor? {
+    public func enumDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> EnumDescriptor? {
         guard layout.flags.kind == .enum else { return nil }
         return try machO.readWrapperElement(offset: offset) as EnumDescriptor
     }
 
-    public func structDescriptor<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> StructDescriptor? {
+    public func structDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> StructDescriptor? {
         guard layout.flags.kind == .struct else { return nil }
         return try machO.readWrapperElement(offset: offset) as StructDescriptor
     }
 
-    public func classDescriptor<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> ClassDescriptor? {
+    public func classDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ClassDescriptor? {
         guard layout.flags.kind == .class else { return nil }
         return try machO.readWrapperElement(offset: offset) as ClassDescriptor
     }

@@ -21,15 +21,15 @@ public struct AssociatedTypeDescriptor: ResolvableLocatableLayoutWrapper {
 }
 
 extension AssociatedTypeDescriptor {
-    public func conformingTypeName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+    public func conformingTypeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
         return try layout.conformingTypeName.resolve(from: offset(of: \.conformingTypeName), in: machO)
     }
 
-    public func protocolTypeName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+    public func protocolTypeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
         return try layout.protocolTypeName.resolve(from: offset(of: \.protocolTypeName), in: machO)
     }
 
-    public func associatedTypeRecords<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> [AssociatedTypeRecord] {
+    public func associatedTypeRecords<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> [AssociatedTypeRecord] {
         return try machO.readWrapperElements(offset: offset + layoutSize, numberOfElements: layout.numAssociatedTypes.cast())
     }
 }

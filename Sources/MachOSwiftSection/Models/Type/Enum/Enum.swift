@@ -29,7 +29,7 @@ public struct Enum: TopLevelType, ContextProtocol {
     public let invertibleProtocolSet: InvertibleProtocolSet?
     public let singletonMetadataPointer: SingletonMetadataPointer?
 
-    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: EnumDescriptor, in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: EnumDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
 
         var currentOffset = descriptor.offset + descriptor.layoutSize

@@ -26,11 +26,11 @@ extension FieldDescriptor {
     
     public var kind: FieldDescriptorKind { .init(rawValue: layout.kind)! }
     
-    public func mangledTypeName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+    public func mangledTypeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
         return try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machO)
     }
 
-    public func records<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> [FieldRecord] {
+    public func records<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> [FieldRecord] {
         guard layout.fieldRecordSize != 0 else { return [] }
         let offset = offset + MemoryLayout<FieldDescriptor.Layout>.size
         return try machO.readWrapperElements(offset: offset, numberOfElements: layout.numFields.cast())

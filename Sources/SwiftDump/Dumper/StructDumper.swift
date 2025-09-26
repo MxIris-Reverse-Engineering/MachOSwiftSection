@@ -34,15 +34,7 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
             try name
 
             if let genericContext = `struct`.genericContext {
-                if genericContext.currentParameters(in: machO).count > 0 {
-                    try genericContext.dumpGenericParameters(in: machO)
-                }
-                if genericContext.currentRequirements(in: machO).count > 0 {
-                    Space()
-                    Keyword(.where)
-                    Space()
-                    try genericContext.dumpGenericRequirements(resolver: demangleResolver, in: machO)
-                }
+                try genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO)
             }
         }
     }

@@ -6,7 +6,7 @@ public protocol AnonymousContextDescriptorProtocol: ContextDescriptorProtocol wh
 
 
 extension AnonymousContextDescriptorProtocol {
-    public func mangledName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName? {
+    public func mangledName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName? {
         guard hasMangledName else {
             return nil
         }

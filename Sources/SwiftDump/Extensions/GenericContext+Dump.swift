@@ -17,38 +17,35 @@ private func genericParameterName(depth: Int, index: Int) throws -> String {
     return name
 }
 
-//extension GenericParamDescriptor {
-//    @SemanticStringBuilder
-//    package func dump<MachO: MachOSwiftSectionRepresentableWithCache>(resolver: DemangleResolver, in machO: MachO) throws -> SemanticString {
-//        switch resolver {
-//        case .options(let demangleOptions):
-//            try dump(using: demangleOptions, in: machO)
-//        case .builder(let builder):
-//            try dump(in: machO, builder: builder)
-//        }
-//    }
-//
-//    @SemanticStringBuilder
-//    package func dump<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-//        try dump(in: machO) { $0.printSemantic(using: options) }
-//    }
-//
-//    @SemanticStringBuilder
-//    package func dump<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO, @SemanticStringBuilder builder: (Node) throws -> SemanticString) throws -> SemanticString {
-//    }
-//}
+extension TargetGenericContext {
+    @SemanticStringBuilder
+    package func dumpGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(resolver: DemangleResolver, in machO: MachO, @SemanticStringBuilder conformancesBuilder: () throws -> SemanticString = { "" }) throws -> SemanticString {
+        if currentParameters(in: machO).count > 0 {
+            Standard("<")
+            try dumpGenericParameters(in: machO)
+            Standard(">")
+        }
+
+        try conformancesBuilder()
+
+        if currentRequirements(in: machO).count > 0 {
+            Space()
+            Keyword(.where)
+            Space()
+            try dumpGenericRequirements(resolver: resolver, in: machO)
+        }
+    }
+}
 
 extension TargetGenericContext {
     @SemanticStringBuilder
     package func dumpGenericParameters<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SemanticString {
-        Standard("<")
         for (offset, _) in currentParameters(in: machO).offsetEnumerated() {
             try Standard(genericParameterName(depth: depth, index: offset.index))
             if !offset.isEnd {
                 Standard(", ")
             }
         }
-        Standard(">")
     }
 
     @SemanticStringBuilder

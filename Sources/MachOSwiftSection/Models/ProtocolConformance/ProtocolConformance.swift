@@ -43,7 +43,7 @@ public struct ProtocolConformance: TopLevelType {
 
     public let genericWitnessTable: GenericWitnessTable?
     
-    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: ProtocolConformanceDescriptor, in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: ProtocolConformanceDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
 
         self.protocol = try descriptor.protocolDescriptor(in: machO)

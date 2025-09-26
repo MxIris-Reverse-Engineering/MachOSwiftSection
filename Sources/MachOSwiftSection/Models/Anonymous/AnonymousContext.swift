@@ -8,7 +8,7 @@ public struct AnonymousContext: TopLevelType, ContextProtocol {
     public let genericContext: GenericContext?
     public let mangledName: MangledName?
 
-    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: AnonymousContextDescriptor, in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: AnonymousContextDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
         var currentOffset = descriptor.offset + descriptor.layoutSize
 

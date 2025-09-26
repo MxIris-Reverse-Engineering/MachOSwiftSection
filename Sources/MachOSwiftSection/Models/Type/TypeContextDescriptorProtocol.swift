@@ -5,21 +5,21 @@ import MachOFoundation
 public protocol TypeContextDescriptorProtocol: NamedContextDescriptorProtocol where Layout: TypeContextDescriptorLayout {}
 
 extension TypeContextDescriptorProtocol {
-    public func accessFunction<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> Symbol? {
+    public func accessFunction<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Symbol? {
         let ptr = RelativeDirectPointer<Symbol?>(relativeOffset: layout.accessFunctionPtr)
         return try ptr.resolve(from: offset + layout.offset(of: .accessFunctionPtr), in: machO)
     }
 
-    public func fieldDescriptor<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> FieldDescriptor {
+    public func fieldDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> FieldDescriptor {
         try layout.fieldDescriptor.resolve(from: offset + layout.offset(of: .fieldDescriptor), in: machO)
     }
 
-    public func genericContext<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> GenericContext? {
+    public func genericContext<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> GenericContext? {
         guard layout.flags.isGeneric else { return nil }
         return try typeGenericContext(in: machO)?.asGenericContext()
     }
 
-    public func typeGenericContext<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> TypeGenericContext? {
+    public func typeGenericContext<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeGenericContext? {
         guard layout.flags.isGeneric else { return nil }
         return try .init(contextDescriptor: self, in: machO)
     }

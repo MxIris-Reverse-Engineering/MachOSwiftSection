@@ -21,7 +21,7 @@ public struct ExtendedExistentialTypeShape: ResolvableLocatableLayoutWrapper {
 }
 
 extension ExtendedExistentialTypeShape {
-    public func existentialType<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+    public func existentialType<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
         try layout.existentialType.resolve(from: offset(of: \.existentialType), in: machO)
     }
 }

@@ -20,7 +20,7 @@ public struct RelativeObjCProtocolPrefix: ResolvableLocatableLayoutWrapper {
 }
 
 extension RelativeObjCProtocolPrefix {
-    func mangledName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+    func mangledName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
         return try layout.mangledName.resolve(from: offset(of: \.mangledName), in: machO)
     }
 }

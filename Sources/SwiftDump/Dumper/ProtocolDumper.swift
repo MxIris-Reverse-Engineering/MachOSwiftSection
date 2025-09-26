@@ -135,8 +135,13 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
         }
     }
 
+    @SemanticStringBuilder
     private func _name(using resolver: DemangleResolver) throws -> SemanticString {
-        try resolver.resolve(for: MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+        if configuration.displayParentName {
+            try resolver.resolve(for: MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+        } else {
+            try TypeDeclaration(kind: .protocol, `protocol`.descriptor.name(in: machO))
+        }
     }
 
     private func validNode(for symbols: Symbols, visitedNode: borrowing OrderedSet<Node> = []) throws -> Node? {

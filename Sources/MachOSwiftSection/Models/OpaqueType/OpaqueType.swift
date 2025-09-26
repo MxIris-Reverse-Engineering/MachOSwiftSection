@@ -13,7 +13,7 @@ public struct OpaqueType: TopLevelType, ContextProtocol {
 
     public let invertedProtocols: InvertibleProtocolSet?
 
-    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: OpaqueTypeDescriptor, in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: OpaqueTypeDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
         var currentOffset = descriptor.offset + descriptor.layoutSize
         
@@ -44,7 +44,7 @@ public struct OpaqueType: TopLevelType, ContextProtocol {
         }
     }
     
-    public func requirements(in machO: some MachORepresentableWithCache & MachOReadable) throws -> [GenericRequirementDescriptor] {
+    public func requirements(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [GenericRequirementDescriptor] {
         guard let genericContext else { return [] }
         
         var usedGenericParams = Set<String>()

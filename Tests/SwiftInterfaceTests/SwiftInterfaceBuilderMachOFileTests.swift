@@ -5,7 +5,7 @@ import MachOKit
 @testable import SwiftInterface
 
 class SwiftInterfaceBuilderMachOFileTests: MachOFileTests {
-    override class var fileName: MachOFileName { .iOS_18_5_Simulator_SwiftUI }
+    override class var fileName: MachOFileName { .SymbolTestsCore }
 
     @Test func buildFile() async throws {
         let machO = machOFile

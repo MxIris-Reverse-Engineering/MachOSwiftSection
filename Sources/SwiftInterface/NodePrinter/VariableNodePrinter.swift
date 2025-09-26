@@ -4,7 +4,9 @@ import Semantic
 
 struct VariableNodePrinter: InterfaceNodePrinter {
     var target: SemanticString = ""
-
+    
+    var isStatic: Bool = false
+    
     let isStored: Bool
     
     let hasSetter: Bool
@@ -40,6 +42,7 @@ struct VariableNodePrinter: InterfaceNodePrinter {
             try printVariable(node)
         } else if node.kind == .static, let first = node.children.first {
             target.write("static ")
+            isStatic = true
             try _printRoot(first)
         } else if node.kind == .methodDescriptor, let first = node.children.first {
             try _printRoot(first)
@@ -76,9 +79,15 @@ struct VariableNodePrinter: InterfaceNodePrinter {
         printName(type)
         guard !isStored else { return }
         
-        if node.first(of: .opaqueReturnType) != nil, let opaqueType = delegate?.opaqueType(forNode: node) {
-            target.writeSpace()
-            target.write(opaqueType)
+        if node.first(of: .opaqueReturnType) != nil {
+            var opaqueReturnTypeOf = node
+            if isStatic {
+                opaqueReturnTypeOf = Node(kind: .static, child: opaqueReturnTypeOf)
+            }
+            if let opaqueType = delegate?.opaqueType(forNode: opaqueReturnTypeOf) {
+                target.writeSpace()
+                target.write(opaqueType)
+            }
         }
         
         target.write(" {")

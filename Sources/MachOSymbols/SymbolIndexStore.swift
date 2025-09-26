@@ -173,6 +173,7 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
     }
 
     private func processOpaqueTypeDescriptorSymbol(_ symbol: Symbol, node: Node, rootNode: Node, in entry: inout OrderedDictionary<Node, DemangledSymbol>) {
+        guard symbol.offset > 0 else { return }
         entry[node] = .init(symbol: symbol, demangledNode: rootNode)
     }
     

@@ -22,7 +22,7 @@ public enum TypeReference: Sendable {
     }
 
     
-    public func resolve<MachO: MachORepresentableWithCache & MachOReadable>(at offset: Int, in machO: MachO) throws -> ResolvedTypeReference {
+    public func resolve<MachO: MachOSwiftSectionRepresentableWithCache>(at offset: Int, in machO: MachO) throws -> ResolvedTypeReference {
         switch self {
         case let .directTypeDescriptor(relativeDirectPointer):
             return try .directTypeDescriptor(relativeDirectPointer.resolve(from: offset, in: machO))

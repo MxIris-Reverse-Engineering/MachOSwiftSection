@@ -32,7 +32,7 @@ public struct `Protocol`: TopLevelType, ContextProtocol {
         descriptor.numRequirementsInSignature.cast()
     }
 
-    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: ProtocolDescriptor, in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: ProtocolDescriptor, in machO: MachO) throws {
         guard let protocolFlags = descriptor.flags.kindSpecificFlags?.protocolFlags else {
             throw Error.invalidProtocolDescriptor
         }

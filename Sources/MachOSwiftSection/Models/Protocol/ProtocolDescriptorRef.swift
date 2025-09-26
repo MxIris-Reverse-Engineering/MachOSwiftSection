@@ -18,11 +18,11 @@ public struct ProtocolDescriptorRef {
         }
     }
 
-    public func swiftProtocol<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> ProtocolDescriptor {
+    public func swiftProtocol<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolDescriptor {
         try Pointer<ProtocolDescriptor>(address: storage).resolve(in: machO)
     }
 
-    public func objcProtocol<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> ObjCProtocolPrefix {
+    public func objcProtocol<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ObjCProtocolPrefix {
         try Pointer<ObjCProtocolPrefix>(address: storage & ~Bits.isObjC).resolve(in: machO)
     }
 
@@ -30,7 +30,7 @@ public struct ProtocolDescriptorRef {
         storage & Bits.isObjC != 0
     }
 
-    public func name<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> String {
+    public func name<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> String {
         if isObjC {
             return try objcProtocol(in: machO).name(in: machO)
         } else {

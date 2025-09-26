@@ -4,7 +4,13 @@ import MachOExtensions
 import UniformTypeIdentifiers
 
 package func loadFromFile(named: MachOFileName) throws -> File {
-    let url = URL(fileURLWithPath: named.rawValue)
+    let url: URL
+    let filePath = named.rawValue
+    if filePath.starts(with: "../") || filePath.starts(with: "./") {
+        url = URL(filePath: filePath, relativeTo: URL(filePath: #filePath))
+    } else {
+        url = URL(filePath: filePath)
+    }
     return try File.loadFromFile(url: url)
 }
 

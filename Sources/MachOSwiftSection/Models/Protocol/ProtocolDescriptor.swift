@@ -36,7 +36,7 @@ public struct ProtocolDescriptor: ProtocolDescriptorProtocol {
 }
 
 extension ProtocolDescriptor {
-    public func associatedTypes<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> [String] {
+    public func associatedTypes<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> [String] {
         guard layout.associatedTypes.isValid else { return [] }
         return try layout.associatedTypes.resolve(from: offset(of: \.associatedTypes), in: machO).components(separatedBy: " ")
     }
