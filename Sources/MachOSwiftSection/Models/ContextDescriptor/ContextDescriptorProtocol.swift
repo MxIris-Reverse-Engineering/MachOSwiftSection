@@ -14,7 +14,7 @@ public protocol ContextDescriptorProtocol: ResolvableLocatableLayoutWrapper wher
 
 extension ContextDescriptorProtocol {
     public func parent<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
-        guard layout.flags.kind != .module else { return nil }
+        guard layout.flags.kind != .module, layout.parent.isValid else { return nil }
         return try layout.parent.resolve(from: offset + layout.offset(of: .parent), in: machO).asOptional
     }
 

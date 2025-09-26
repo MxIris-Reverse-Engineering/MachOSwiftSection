@@ -24,11 +24,11 @@ extension Never: Test {
 
 public struct GenericTest<T: Test>: Test {
     public var _content: T
-    
+
     public init(_content: T) {
         self._content = _content
     }
-    
+
     public var body: some Test {
         _content
     }
@@ -36,16 +36,16 @@ public struct GenericTest<T: Test>: Test {
 
 extension GenericTest: RawRepresentable where T: RawRepresentable {
     public typealias RawValue = T
-    
+
     public var rawValue: T { _content }
-    
+
     public init?(rawValue: T) {
         self._content = rawValue
     }
 }
 
 extension GenericTest: Equatable where T: Equatable {
-    public static func ==(lhs: Self, rhs: Self) -> Bool {
+    public static func == (lhs: Self, rhs: Self) -> Bool {
         lhs._content == rhs._content
     }
 }
@@ -56,4 +56,12 @@ extension GenericTest {
 
 extension Test {
     public static func test(lhs: Body, rhs: Self) -> Bool { false }
+}
+
+public struct GenericPackTest<each T: Test> {
+    var _content: (repeat each T)
+
+    public var body: some Test {
+        fatalError()
+    }
 }

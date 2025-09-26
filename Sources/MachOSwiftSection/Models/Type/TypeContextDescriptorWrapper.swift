@@ -68,7 +68,7 @@ extension TypeContextDescriptorWrapper: Resolvable {
         }
     }
     
-    public static func resolve<MachO: MachOSwiftSectionRepresentableWithCache>(from offset: Int, in machO: MachO) throws -> Self? {
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self? {
         do {
             return try resolve(from: offset, in: machO) as Self
         } catch {

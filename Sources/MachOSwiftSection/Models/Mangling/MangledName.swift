@@ -109,7 +109,7 @@ public struct MangledName: Sendable, Equatable {
 }
 
 extension MangledName: Resolvable {
-    public static func resolve<MachO: MachOSwiftSectionRepresentableWithCache>(from offset: Int, in machO: MachO) throws -> MangledName {
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> MangledName {
         var elements: [MangledName.Element] = []
         var currentOffset = offset
         var currentString = ""
