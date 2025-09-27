@@ -21,7 +21,7 @@ final class MetadataFinderTests: DyldCacheTests, @unchecked Sendable {
         let symbols = symbolIndexStore.symbols(of: .typeMetadata, in: machOFileInCache)
         for symbol in symbols {
             let metadata = try Metadata.resolve(from: symbol.offset, in: machOFileInCache)
-            print(try demangleAsNode(symbol.stringValue).print(using: .default), terminator: " ")
+            print(try demangleAsNode(symbol.name).print(using: .default), terminator: " ")
             print(metadata.kind)
         }
     }

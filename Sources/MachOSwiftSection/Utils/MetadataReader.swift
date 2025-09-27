@@ -188,7 +188,7 @@ public enum MetadataReader {
                 signatureNode.addChild(requirementNode)
             case .layout(let genericRequirementLayoutKind):
                 if genericRequirementLayoutKind == .class {
-                    let requirementNode = Node(kind: .dependentGenericLayoutRequirement, children: [subject, .init(kind: .identifier, contents: .name("C"))])
+                    let requirementNode = Node(kind: .dependentGenericLayoutRequirement, children: [subject, .init(kind: .identifier, contents: .text("C"))])
                     signatureNode.addChild(requirementNode)
                 } else {
                     failed = true
@@ -231,7 +231,7 @@ public enum MetadataReader {
             if nameNode != nil {
                 return true
             } else if let namedContext = context.namedContextDescriptor {
-                nameNode = try .init(kind: .identifier, contents: .name(namedContext.name(in: machO)))
+                nameNode = try .init(kind: .identifier, contents: .text(namedContext.name(in: machO)))
                 return true
             } else {
                 return false
@@ -274,7 +274,7 @@ public enum MetadataReader {
                 return nil
             }
             guard let moduleContext = context.moduleContextDescriptor else { return nil }
-            return try .init(kind: .module, contents: .name(moduleContext.name(in: machO)))
+            return try .init(kind: .module, contents: .text(moduleContext.name(in: machO)))
         case .opaqueType:
             guard let parentDescriptorResult else { return nil }
             if parentDemangling?.kind == .anonymousContext {
@@ -307,7 +307,7 @@ public enum MetadataReader {
     }
 
     private static func buildContextManglingForSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(_ symbol: Symbol, in machO: MachO) throws -> Node? {
-        var demangledSymbol = try demangleAsNode(symbol.stringValue)
+        var demangledSymbol = try demangleAsNode(symbol.name)
         if demangledSymbol.kind == .global {
             demangledSymbol = demangledSymbol.children[0]
         }
@@ -341,10 +341,10 @@ public enum MetadataReader {
 
         let identifierNode = nameChild.children[1]
 
-        guard identifierNode.kind == .identifier, identifierNode.contents.hasName else { return nil }
+        guard identifierNode.kind == .identifier, identifierNode.contents.hasText else { return nil }
 
         guard let namedContext = context.namedContextDescriptor else { return nil }
-        guard try namedContext.name(in: machO) == identifierNode.contents.name else { return nil }
+        guard try namedContext.name(in: machO) == identifierNode.contents.text else { return nil }
 
         parentContextRef = try parentContext.parent(in: machO)
 
@@ -383,7 +383,7 @@ public enum MetadataReader {
                     }
                     return demangled
                 } else {
-                    return Node(kind: .protocol, children: [.init(kind: .module, contents: .name(objcModule)), .init(kind: .identifier, contents: .name(name))])
+                    return Node(kind: .protocol, children: [.init(kind: .module, contents: .text(objcModule)), .init(kind: .identifier, contents: .text(name))])
                 }
             }
         case .swiftPointer(let swiftPointer):

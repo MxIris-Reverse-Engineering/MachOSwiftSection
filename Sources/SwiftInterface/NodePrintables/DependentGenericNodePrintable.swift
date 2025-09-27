@@ -1,10 +1,18 @@
 import Demangle
 
 protocol DependentGenericNodePrintable: NodePrintable {
+    var isProtocol: Bool { get }
     mutating func printNameInDependentGeneric(_ name: Node) -> Bool
     mutating func printGenericSignature(_ name: Node)
     mutating func printDependentGenericConformanceRequirement(_ name: Node)
     mutating func printDependentGenericLayoutRequirement(_ name: Node)
+    mutating func printDependentAssociatedTypeRef(_ name: Node)
+    mutating func printDependentGenericParamType(_ name: Node)
+    mutating func printDependentGenericSameTypeRequirement(_ name: Node)
+    mutating func printDependentGenericType(_ name: Node)
+    mutating func printDependentMemberType(_ name: Node)
+    mutating func printDependentGenericInverseConformanceRequirement(_ name: Node)
+    mutating func printDependentGenericParamName(_ name: String)
 }
 
 extension DependentGenericNodePrintable {
@@ -42,9 +50,17 @@ extension DependentGenericNodePrintable {
     }
 
     mutating func printDependentGenericParamType(_ name: Node) {
-        target.write(name.text ?? "")
+        printDependentGenericParamName(name.text ?? "")
     }
 
+    mutating func printDependentGenericParamName(_ name: String) {
+        if isProtocol, name == "A" {
+            target.write("Self")
+        } else {
+            target.write(name)
+        }
+    }
+    
     mutating func printGenericSignature(_ name: Node) {
         target.write("<")
         var numGenericParams = 0
@@ -134,7 +150,7 @@ extension DependentGenericNodePrintable {
                     target.write("let ")
                 }
 
-                target.write(genericParameterName(depth: depths?[index.cast()] ?? gpDepth.cast(), index: index.cast()))
+                printDependentGenericParamName(genericParameterName(depth: depths?[index.cast()] ?? gpDepth.cast(), index: index.cast()))
 
                 if let value {
                     target.write(": ")

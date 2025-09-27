@@ -14,19 +14,19 @@ public final class Node: Sendable {
     public enum Contents: Hashable, Sendable {
         case none
         case index(UInt64)
-        case name(String)
+        case text(String)
 
-        public var hasName: Bool {
-            name != nil
+        public var hasText: Bool {
+            text != nil
         }
 
-        public var name: String? {
+        public var text: String? {
             switch self {
             case .none:
                 return nil
             case .index:
                 return nil
-            case .name(let string):
+            case .text(let string):
                 return string
             }
         }
@@ -44,7 +44,27 @@ public final class Node: Sendable {
     package convenience init(kind: Kind, child: Node) {
         self.init(kind: kind, contents: .none, children: [child])
     }
-
+    
+    package convenience init(kind: Kind, children: [Node] = []) {
+        self.init(kind: kind, contents: .none, children: children)
+    }
+    
+    package convenience init(kind: Kind, text: String, child: Node) {
+        self.init(kind: kind, contents: .text(text), children: [child])
+    }
+    
+    package convenience init(kind: Kind, text: String, children: [Node] = []) {
+        self.init(kind: kind, contents: .text(text), children: children)
+    }
+    
+    package convenience init(kind: Kind, index: UInt64, child: Node) {
+        self.init(kind: kind, contents: .index(index), children: [child])
+    }
+    
+    package convenience init(kind: Kind, index: UInt64, children: [Node] = []) {
+        self.init(kind: kind, contents: .index(index), children: children)
+    }
+    
     package convenience init(typeWithChildKind: Kind, childChild: Node) {
         self.init(kind: .type, contents: .none, children: [Node(kind: typeWithChildKind, children: [childChild])])
     }
@@ -55,13 +75,17 @@ public final class Node: Sendable {
 
     package convenience init(swiftStdlibTypeKind: Kind, name: String) {
         self.init(kind: .type, contents: .none, children: [Node(kind: swiftStdlibTypeKind, children: [
-            Node(kind: .module, contents: .name(stdlibName)),
-            Node(kind: .identifier, contents: .name(name)),
+            Node(kind: .module, contents: .text(stdlibName)),
+            Node(kind: .identifier, contents: .text(name)),
         ])])
     }
 
     package convenience init(swiftBuiltinType: Kind, name: String) {
-        self.init(kind: .type, children: [Node(kind: swiftBuiltinType, contents: .name(name))])
+        self.init(kind: .type, children: [Node(kind: swiftBuiltinType, contents: .text(name))])
+    }
+    
+    package subscript(index: Int) -> Node? {
+        get { children[safe: index] }
     }
 }
 
@@ -79,8 +103,8 @@ extension Node {
     }
 
     package func changeKind(_ newKind: Kind, additionalChildren: [Node] = []) -> Node {
-        if case .name(let text) = contents {
-            return Node(kind: newKind, contents: .name(text), children: children + additionalChildren)
+        if case .text(let text) = contents {
+            return Node(kind: newKind, contents: .text(text), children: children + additionalChildren)
         } else if case .index(let i) = contents {
             return Node(kind: newKind, contents: .index(i), children: children + additionalChildren)
         } else {

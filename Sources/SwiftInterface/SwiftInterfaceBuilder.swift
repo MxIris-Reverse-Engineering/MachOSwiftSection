@@ -326,7 +326,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                     var extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
                     extensionDefinition.types = [typeDefinition]
                     typeExtensionDefinitions[typeName, default: []].append(extensionDefinition)
-                case .symbol(let symbol):
+                case .symbol/*(let symbol)*/:
                     break
                 }
             }
@@ -705,8 +705,6 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             BreakLine()
         }
 
-        BreakLine()
-
         for (offset, variable) in globalVariableDefinitions.offsetEnumerated() {
             BreakLine()
 
@@ -728,24 +726,21 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         }
 
         for (offset, typeDefinition) in rootTypeDefinitions.values.offsetEnumerated() {
+            BreakLine()
+
             try printTypeDefinition(typeDefinition)
 
-            if !offset.isEnd {
-                BreakLine()
+            if offset.isEnd {
                 BreakLine()
             }
         }
 
         for (offset, protocolDefinition) in rootProtocolDefinitions.values.offsetEnumerated() {
-            if offset.isStart {
-                BreakLine()
-                BreakLine()
-            }
+            BreakLine()
 
             try printProtocolDefinition(protocolDefinition)
 
-            if !offset.isEnd {
-                BreakLine()
+            if offset.isEnd {
                 BreakLine()
             }
         }
@@ -753,7 +748,9 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for protocolDefinition in rootProtocolDefinitions.values.filterNonNil(\.parent) {
             for (offset, extensionDefinition) in protocolDefinition.defaultImplementationExtensions.offsetEnumerated() {
                 BreakLine()
+
                 try printExtensionDefinition(extensionDefinition)
+
                 if offset.isEnd {
                     BreakLine()
                 }
@@ -761,15 +758,11 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         }
 
         for (offset, extensionDefinition) in (typeExtensionDefinitions.values.flatMap { $0 } + protocolExtensionDefinitions.values.flatMap { $0 } + typeAliasExtensionDefinitions.values.flatMap { $0 } + conformanceExtensionDefinitions.values.flatMap { $0 }).offsetEnumerated() {
-            if offset.isStart {
-                BreakLine()
-                BreakLine()
-            }
+            BreakLine()
 
             try printExtensionDefinition(extensionDefinition)
 
-            if !offset.isEnd {
-                BreakLine()
+            if offset.isEnd {
                 BreakLine()
             }
         }
@@ -888,20 +881,24 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         Space()
         Standard("{")
 
-        for typeDefinition in extensionDefinition.types {
+        for (offset, typeDefinition) in extensionDefinition.types.offsetEnumerated() {
             BreakLine()
 
             try printTypeDefinition(typeDefinition, level: level + 1)
 
-            BreakLine()
+            if offset.isEnd {
+                BreakLine()
+            }
         }
 
-        for protocolDefinition in extensionDefinition.protocols {
+        for (offset, protocolDefinition) in extensionDefinition.protocols.offsetEnumerated() {
             BreakLine()
 
             try printProtocolDefinition(protocolDefinition, level: level + 1)
 
-            BreakLine()
+            if offset.isEnd {
+                BreakLine()
+            }
         }
 
         if let associatedType = extensionDefinition.associatedType {
@@ -918,6 +915,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     private func printDefinition(_ definition: some Definition, level: Int = 1) throws -> SemanticString {
         for (offset, allocator) in definition.allocators.offsetEnumerated() {
             BreakLine()
+
             Indent(level: level)
 
             try printFunction(allocator)
@@ -940,6 +938,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         for (offset, function) in definition.functions.offsetEnumerated() {
             BreakLine()
+
             Indent(level: level)
 
             try printFunction(function)
@@ -984,6 +983,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         for (offset, `subscript`) in definition.staticSubscripts.offsetEnumerated() {
             BreakLine()
+
             Indent(level: level)
 
             try printSubscript(`subscript`, level: level)

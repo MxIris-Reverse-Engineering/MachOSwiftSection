@@ -12,56 +12,71 @@ public protocol Test<Body> {
     var body: Body { get }
 }
 
-public struct ModuleTest: Test {
-    public var body: some Test {
-        fatalError()
-    }
-}
-
-extension Never: Test {
-    public var body: some Test { fatalError() }
-}
-
-public struct GenericTest<T: Test>: Test {
-    public var _content: T
-
-    public init(_content: T) {
-        self._content = _content
-    }
-
-    public var body: some Test {
-        _content
-    }
-}
-
-extension GenericTest: RawRepresentable where T: RawRepresentable {
-    public typealias RawValue = T
-
-    public var rawValue: T { _content }
-
-    public init?(rawValue: T) {
-        self._content = rawValue
-    }
-}
-
-extension GenericTest: Equatable where T: Equatable {
-    public static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs._content == rhs._content
-    }
-}
-
-extension GenericTest {
-    public static func test(lhs: T, rhs: Self) -> Bool { false }
-}
-
 extension Test {
     public static func test(lhs: Body, rhs: Self) -> Bool { false }
 }
 
-public struct GenericPackTest<each T: Test> {
-    var _content: (repeat each T)
+extension Never: Test {
+    public var body: some Test { self }
+}
 
+public struct NormalTest: Test {
     public var body: some Test {
         fatalError()
     }
+}
+
+public struct GenericRequirementTest<T: Test>: Test {
+    public private(set) var content: T
+
+    public init(content: T) {
+        self.content = content
+    }
+
+    public var body: some Test {
+        content
+    }
+}
+
+extension GenericRequirementTest: RawRepresentable where T: RawRepresentable {
+    public typealias RawValue = T
+
+    public var rawValue: T { content }
+
+    public init?(rawValue: T) {
+        self.content = rawValue
+    }
+}
+
+extension GenericRequirementTest: Equatable where T: Equatable {
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.content == rhs.content
+    }
+}
+
+extension GenericRequirementTest {
+    public static func test(lhs: T, rhs: Self) -> Bool { false }
+}
+
+public struct GenericPackTest<V, each T, S>: Test where repeat each T: Test {
+    var _content: (repeat each T)
+
+    public var body: Never {
+        fatalError()
+    }
+}
+
+public struct GenericValueTest<A, let count: Int, C>: Test {
+    public var content: C
+    
+    
+    public var body: Never {
+        fatalError()
+    }
+    
+    public func function(value: C) -> Bool { false }
+}
+
+public class ClassTest {
+    public func returnSelf() -> Self { self }
 }

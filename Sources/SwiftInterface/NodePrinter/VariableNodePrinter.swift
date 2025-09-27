@@ -4,16 +4,18 @@ import Semantic
 
 struct VariableNodePrinter: InterfaceNodePrinter {
     var target: SemanticString = ""
-    
+
     var isStatic: Bool = false
-    
+
     let isStored: Bool
-    
+
     let hasSetter: Bool
 
     let indentation: Int
 
     weak var delegate: (any InterfaceNodePrinterDelegate)?
+
+    private(set) var isProtocol: Bool = false
 
     init(isStored: Bool, hasSetter: Bool, indentation: Int, delegate: (any InterfaceNodePrinterDelegate)? = nil) {
         self.isStored = isStored
@@ -66,19 +68,25 @@ struct VariableNodePrinter: InterfaceNodePrinter {
         guard let identifier else {
             throw Error.onlySupportedForVariableNode(node)
         }
-        
+        if let first = node.children.first {
+            if first.isKind(of: .extension) {
+                isProtocol = first.children.at(1)?.isKind(of: .protocol) ?? false
+            } else if first.isKind(of: .protocol) {
+                isProtocol = true
+            }
+        }
         if isStored, !hasSetter {
             target.write("let ")
         } else {
             target.write("var ")
         }
-        
+
         target.write(identifier.text ?? "", context: .context(for: identifier, state: .printIdentifier))
         target.write(": ")
         guard let type = node.children.first(of: .type) else { return }
         printName(type)
         guard !isStored else { return }
-        
+
         if node.first(of: .opaqueReturnType) != nil {
             var opaqueReturnTypeOf = node
             if isStatic {
@@ -89,7 +97,7 @@ struct VariableNodePrinter: InterfaceNodePrinter {
                 target.write(opaqueType)
             }
         }
-        
+
         target.write(" {")
         target.write("\n")
         target.write(String(repeating: " ", count: (indentation + 1) * 4))

@@ -15,3 +15,9 @@ public struct GenericPackShapeDescriptor: ResolvableLocatableLayoutWrapper {
         self.layout = layout
     }
 }
+
+extension GenericPackShapeDescriptor {
+    public var kind: GenericPackKind {
+        .init(rawValue: layout.kind)!
+    }
+}

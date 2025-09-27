@@ -4,21 +4,23 @@ import Semantic
 
 struct SubscriptNodePrinter: InterfaceNodePrinter {
     var target: SemanticString = ""
-    
+
     var isStatic: Bool = false
-    
+
     let hasSetter: Bool
 
     let indentation: Int
-    
+
     weak var delegate: (any InterfaceNodePrinterDelegate)?
+
+    private(set) var isProtocol: Bool = false
 
     init(hasSetter: Bool, indentation: Int, delegate: (any InterfaceNodePrinterDelegate)? = nil) {
         self.hasSetter = hasSetter
         self.indentation = indentation
         self.delegate = delegate
     }
-    
+
     enum Error: Swift.Error {
         case onlySupportedForSubscriptNode(Node)
     }
@@ -51,7 +53,7 @@ struct SubscriptNodePrinter: InterfaceNodePrinter {
             throw Error.onlySupportedForSubscriptNode(node)
         }
     }
-    
+
     private mutating func printSubscript(_ node: Node) {
         var genericFunctionTypeList: Node?
         var node = node
@@ -60,11 +62,17 @@ struct SubscriptNodePrinter: InterfaceNodePrinter {
             genericFunctionTypeList = second
         }
         target.write("subscript")
-        
+        if let first = node.children.first {
+            if first.isKind(of: .extension) {
+                isProtocol = first.children.at(1)?.isKind(of: .protocol) ?? false
+            } else if first.isKind(of: .protocol) {
+                isProtocol = true
+            }
+        }
         if node.children.at(1)?.isKind(of: .labelList) == false {
             node.insertChild(Node(kind: .labelList), at: 1)
         }
-        
+
         if let type = node.children.first(of: .type), let functionType = type.children.first {
             printLabelList(name: node, type: functionType, genericFunctionTypeList: genericFunctionTypeList)
         }
@@ -90,7 +98,7 @@ struct SubscriptNodePrinter: InterfaceNodePrinter {
                 }
             }
         }
-        
+
         target.write(" {")
         target.write("\n")
         target.write(String(repeating: " ", count: (indentation + 1) * 4))

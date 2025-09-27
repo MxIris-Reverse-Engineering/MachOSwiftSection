@@ -13,3 +13,9 @@ public struct GenericValueDescriptor: ResolvableLocatableLayoutWrapper {
         self.layout = layout
     }
 }
+
+extension GenericValueDescriptor {
+    public var type: GenericValueType {
+        .init(rawValue: layout.type)!
+    }
+}

@@ -42,7 +42,7 @@ public enum SymbolOrElementPointer<Context: Resolvable>: RelativeIndirectType {
     public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self {
         if let machOFile = machO as? MachOFile {
             if let symbol = machOFile.resolveBind(fileOffset: offset) {
-                return .symbol(.init(offset: offset, stringValue: symbol))
+                return .symbol(.init(offset: offset, name: symbol))
             } else {
                 let resolvedFileOffset = offset
                 if let rebase = machOFile.resolveRebase(fileOffset: resolvedFileOffset) {

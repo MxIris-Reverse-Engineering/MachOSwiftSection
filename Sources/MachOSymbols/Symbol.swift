@@ -5,16 +5,17 @@ import MachOResolving
 import MachOExtensions
 import Demangle
 
-public struct Symbol: Resolvable, Hashable, SymbolProtocol {
+public struct Symbol: Resolvable, SymbolProtocol, Hashable {
     public let offset: Int
 
-    public let stringValue: String
-
-    public var name: String { stringValue }
+    public let name: String
     
-    public init(offset: Int, stringValue: String) {
+    public let nlist: (any NlistProtocol)?
+    
+    public init(offset: Int, name: String, nlist: (any NlistProtocol)? = nil) {
         self.offset = offset
-        self.stringValue = stringValue
+        self.name = name
+        self.nlist = nlist
     }
 
     public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self {
@@ -26,6 +27,15 @@ public struct Symbol: Resolvable, Hashable, SymbolProtocol {
             return symbol
         }
         return nil
+    }
+    
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(offset)
+        hasher.combine(name)
+    }
+    
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        return lhs.offset == rhs.offset && lhs.name == rhs.name
     }
 }
 

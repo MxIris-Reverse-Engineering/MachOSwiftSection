@@ -27,7 +27,7 @@ extension ProtocolConformance {
         case .indirectTypeDescriptor(let descriptorOrSymbol):
             switch descriptorOrSymbol {
             case .symbol(let symbol):
-                let node = try demangleAsNode(symbol.stringValue)
+                let node = try demangleAsNode(symbol.name)
                 let allChildren = node.map { $0 }
                 let kind: TypeKind
                 if allChildren.contains(.enum) || allChildren.contains(.boundGenericEnum) {

@@ -22,6 +22,8 @@ extension Keyword {
         case `indirect`
         case `protocol`
         case `Self`
+        case `each`
+        case `repeat`
     }
     
     package init(_ keyword: Swift) {

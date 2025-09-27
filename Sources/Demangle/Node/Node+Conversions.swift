@@ -1,7 +1,7 @@
 extension Node {
     public var text: String? {
         switch contents {
-        case .name(let s): return s
+        case .text(let s): return s
         default: return nil
         }
     }

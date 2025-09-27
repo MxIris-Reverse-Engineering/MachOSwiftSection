@@ -38,8 +38,8 @@ extension ResilientSuperclass {
             return Node(kind: .global) {
                 Node(kind: .type) {
                     Node(kind: .class) {
-                        Node(kind: .module, contents: .name(objcModule))
-                        Node(kind: .identifier, contents: .name(string))
+                        Node(kind: .module, contents: .text(objcModule))
+                        Node(kind: .identifier, contents: .text(string))
                     }
                 }
             }

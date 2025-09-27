@@ -7,7 +7,7 @@ protocol NodePrintable {
     var target: Target { set get }
 
     var delegate: InterfaceNodePrinterDelegate? { get }
-
+    
     @discardableResult
     mutating func printName(_ name: Node, asPrefixContext: Bool) -> Node?
 }
@@ -27,8 +27,12 @@ extension NodePrintable {
             printFirstChild(name, prefix: "inout ")
         case .owned:
             printFirstChild(name, prefix: "__owned ")
-        case .isolated: printFirstChild(name, prefix: "isolated ")
-        case .isolatedAnyFunctionType: target.write("@isolated(any) ")
+        case .isolated:
+            printFirstChild(name, prefix: "isolated ")
+        case .isolatedAnyFunctionType:
+            target.write("@isolated(any) ")
+        case .dynamicSelf:
+            target.write("Self")
         default:
             return false
         }

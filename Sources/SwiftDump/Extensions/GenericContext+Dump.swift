@@ -17,10 +17,23 @@ private func genericParameterName(depth: Int, index: Int) throws -> String {
     return name
 }
 
+private func genericValueName(depth: Int, index: Int) throws -> String {
+    var charIndex = index
+    var name = ""
+    repeat {
+        try name.unicodeScalars.append(required(UnicodeScalar(UnicodeScalar("a").value + UInt32(charIndex % 26))))
+        charIndex /= 26
+    } while charIndex != 0
+    if depth != 0 {
+        name = "\(name)\(depth)"
+    }
+    return name
+}
+
 extension TargetGenericContext {
     @SemanticStringBuilder
     package func dumpGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(resolver: DemangleResolver, in machO: MachO, @SemanticStringBuilder conformancesBuilder: () throws -> SemanticString = { "" }) throws -> SemanticString {
-        if currentParameters(in: machO).count > 0 {
+        if currentParameters.count > 0 {
             Standard("<")
             try dumpGenericParameters(in: machO)
             Standard(">")
@@ -40,8 +53,49 @@ extension TargetGenericContext {
 extension TargetGenericContext {
     @SemanticStringBuilder
     package func dumpGenericParameters<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SemanticString {
-        for (offset, _) in currentParameters(in: machO).offsetEnumerated() {
-            try Standard(genericParameterName(depth: depth, index: offset.index))
+        var currentValueIndex: Int = 0
+        for (offset, parameter) in currentParameters.offsetEnumerated() {
+            if parameter.kind == .typePack {
+                Keyword(.each)
+                Space()
+            } else if parameter.kind == .value {
+                Keyword(.let)
+                Space()
+            }
+            
+            switch parameter.kind {
+            case .type, .typePack:
+                try Standard(genericParameterName(depth: depth, index: offset.index))
+            case .value:
+                try Standard(genericValueName(depth: depth, index: offset.index))
+                Standard(": ")
+                switch currentValues[currentValueIndex].type {
+                case .int:
+                    TypeName(kind: .other, "Int")
+                }
+                currentValueIndex += 1
+            default:
+                Standard("")
+            }
+            
+            if !offset.isEnd {
+                Standard(", ")
+            }
+        }
+    }
+
+    @SemanticStringBuilder
+    package func dumpGenericValues<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SemanticString {
+        for (offset, value) in currentValues.offsetEnumerated() {
+            Keyword(.let)
+            Space()
+            try Standard(genericValueName(depth: depth, index: offset.index))
+            Standard(":")
+            Space()
+            switch value.type {
+            case .int:
+                TypeName(kind: .other, "Int")
+            }
             if !offset.isEnd {
                 Standard(", ")
             }
@@ -80,7 +134,7 @@ extension GenericRequirementDescriptor {
     package func dumpProtocolParameterName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SemanticString {
         let node = try MetadataReader.demangleType(for: paramMangledName(in: machO), in: machO)
 
-        for (offset, param) in node.filter(of: .dependentAssociatedTypeRef).compactMap({ $0.first(of: .identifier)?.contents.name }).offsetEnumerated() {
+        for (offset, param) in node.filter(of: .dependentAssociatedTypeRef).compactMap({ $0.first(of: .identifier)?.contents.text }).offsetEnumerated() {
             if offset.isStart {
                 Keyword(.Self)
                 Standard(".")
@@ -93,7 +147,9 @@ extension GenericRequirementDescriptor {
     }
 
     @SemanticStringBuilder
-    package func dumpParameterName<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {}
+    package func dumpParameterName<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
+        try dumpParameterName(in: machO) { $0.printSemantic(using: options) }
+    }
 
     @SemanticStringBuilder
     package func dumpParameterName<MachO: MachOSwiftSectionRepresentableWithCache>(resolver: DemangleResolver, in machO: MachO) throws -> SemanticString {
@@ -107,6 +163,13 @@ extension GenericRequirementDescriptor {
 
     @SemanticStringBuilder
     package func dumpParameterName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO, @SemanticStringBuilder builder: (Node) throws -> SemanticString) throws -> SemanticString {
+        if layout.flags.contains(.isPackRequirement) {
+            Keyword(.repeat)
+            Space()
+            Keyword(.each)
+            Space()
+        }
+
         let node = try MetadataReader.demangleType(for: paramMangledName(in: machO), in: machO)
         try builder(node)
     }
@@ -142,8 +205,8 @@ extension GenericRequirementDescriptor {
                     let node = Node(kind: .global) {
                         Node(kind: .type) {
                             Node(kind: .protocol) {
-                                Node(kind: .module, contents: .name(objcModule))
-                                Node(kind: .identifier, contents: .name(objcName))
+                                Node(kind: .module, contents: .text(objcModule))
+                                Node(kind: .identifier, contents: .text(objcName))
                             }
                         }
                     }

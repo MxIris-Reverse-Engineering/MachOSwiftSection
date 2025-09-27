@@ -33,7 +33,7 @@ final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {
             let node = demangledSymbol.demangledNode
             do {
                 var printer = FunctionNodePrinter()
-                print("Mangled  : \(demangledSymbol.symbol.stringValue)")
+                print("Mangled  : \(demangledSymbol.symbol.name)")
                 print("Demangled: \(node.print(using: .interface))")
                 try print("Interface: \(printer.printRoot(#require(node.children.first)).string)")
             } catch {
@@ -76,7 +76,7 @@ final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {
             let node = demangledSymbol.demangledNode
             do {
                 var printer = SubscriptNodePrinter(hasSetter: false, indentation: 1)
-                print("Mangled  : \(demangledSymbol.symbol.stringValue)")
+                print("Mangled  : \(demangledSymbol.symbol.name)")
                 print("Demangled: \(node.print(using: .interface))")
                 try print("Interface: \(printer.printRoot(node).string)")
             } catch {

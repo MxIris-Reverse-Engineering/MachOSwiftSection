@@ -32,7 +32,7 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
 
     public let depth: Int
     
-    public func currentParameters<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) -> [GenericParamDescriptor] {
+    public var currentParameters: [GenericParamDescriptor] {
         .init(parameters.dropFirst(parentParameters.flatMap { $0 }.count))
     }
     

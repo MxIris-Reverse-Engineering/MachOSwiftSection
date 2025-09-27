@@ -5,10 +5,12 @@ import Semantic
 
 struct FunctionNodePrinter: InterfaceNodePrinter {
     var target: SemanticString = ""
-    
-    var isStatic: Bool = false
-    
-    weak var delegate: (any InterfaceNodePrinterDelegate)?
+
+    private var isStatic: Bool = false
+
+    private(set) weak var delegate: (any InterfaceNodePrinterDelegate)?
+
+    private(set) var isProtocol: Bool = false
 
     init(delegate: (any InterfaceNodePrinterDelegate)? = nil) {
         self.delegate = delegate
@@ -45,31 +47,41 @@ struct FunctionNodePrinter: InterfaceNodePrinter {
         }
     }
 
-    private mutating func printFunction(_ node: Node) {
+    private mutating func printFunction(_ function: Node) {
         var genericFunctionTypeList: Node?
-        var node = node
-        if node.kind == .boundGenericFunction, let first = node.children.at(0), let second = node.children.at(1) {
-            node = first
+        var function = function
+        if function.kind == .boundGenericFunction, let first = function.children.at(0), let second = function.children.at(1) {
+            function = first
             genericFunctionTypeList = second
         }
-        if node.kind != .allocator {
+        if let first = function.children.first {
+            if first.isKind(of: .extension) {
+                isProtocol = first.children.at(1)?.isKind(of: .protocol) ?? false
+            } else if first.isKind(of: .protocol) {
+                isProtocol = true
+            }
+        }
+        if function.kind != .allocator {
             target.write("func ")
-            if let identifier = node.children.first(of: .identifier) {
+            if let identifier = function.children.first(of: .identifier) {
                 printIdentifier(identifier)
-            } else if let privateDeclName = node.children.first(of: .privateDeclName) {
+            } else if let privateDeclName = function.children.first(of: .privateDeclName) {
                 printPrivateDeclName(privateDeclName)
-            } else if let `operator` = node.children.first(of: .prefixOperator, .infixOperator, .postfixOperator), let text = `operator`.text {
+            } else if let `operator` = function.children.first(of: .prefixOperator, .infixOperator, .postfixOperator), let text = `operator`.text {
                 target.write(text + " ")
             }
-        } else if node.kind == .allocator {
+        } else if function.kind == .allocator {
             target.write("init")
+            if function.isReturnOptional {
+                target.write("?")
+            }
         }
-        if let type = node.children.first(of: .type), let functionType = type.children.first {
-            printLabelList(name: node, type: functionType, genericFunctionTypeList: genericFunctionTypeList)
+        if let type = function.children.first(of: .type), let functionType = type.children.first {
+            printLabelList(name: function, type: functionType, genericFunctionTypeList: genericFunctionTypeList)
         }
 
-        if node.first(of: .opaqueReturnType) != nil {
-            var opaqueReturnTypeOf = node
+        if function.first(of: .opaqueReturnType) != nil {
+            var opaqueReturnTypeOf = function
             if isStatic {
                 opaqueReturnTypeOf = Node(kind: .static, child: opaqueReturnTypeOf)
             }
@@ -78,8 +90,8 @@ struct FunctionNodePrinter: InterfaceNodePrinter {
                 target.write(opaqueType)
             }
         }
-        
-        if let genericSignature = node.first(of: .dependentGenericSignature) {
+
+        if let genericSignature = function.first(of: .dependentGenericSignature) {
             let nodes = genericSignature.all(of: .requirementKinds)
             for (offset, node) in nodes.offsetEnumerated() {
                 if offset.isStart {
@@ -90,6 +102,20 @@ struct FunctionNodePrinter: InterfaceNodePrinter {
                     target.write(", ")
                 }
             }
+        }
+    }
+
+}
+
+extension Node {
+    var isReturnOptional: Bool {
+        if let returnType = first(of: .returnType), let type = returnType.children.first, let boundGenericEnum = type.children.first, boundGenericEnum.isKind(of: .boundGenericEnum), let first = boundGenericEnum.children.first?.children.first {
+            return first == Node(kind: .enum) {
+                Node(kind: .module, contents: .text("Swift"))
+                Node(kind: .identifier, contents: .text("Optional"))
+            }
+        } else {
+            return false
         }
     }
 }

@@ -132,26 +132,28 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
             if let cache = machO.cache, offset != 0, machO is MachOFile {
                 offset -= cache.mainCacheHeader.sharedRegionStart.cast()
             }
-            symbols[symbol.name] = .init(offset: offset, stringValue: symbol.name)
+            symbols[symbol.name] = .init(offset: offset, name: symbol.name, nlist: symbol.nlist)
         }
 
         for exportedSymbol in machO.exportedSymbols where exportedSymbol.name.isSwiftSymbol {
             if var offset = exportedSymbol.offset, symbols[exportedSymbol.name] == nil {
                 offset += machO.startOffset
-                symbols[exportedSymbol.name] = .init(offset: offset, stringValue: exportedSymbol.name)
+                symbols[exportedSymbol.name] = .init(offset: offset, name: exportedSymbol.name)
             }
         }
 
         for symbol in symbols.values {
             do {
-                let rootNode = try demangleAsNode(symbol.stringValue)
+                let rootNode = try demangleAsNode(symbol.name)
 
                 guard rootNode.isKind(of: .global), let node = rootNode.children.first else { continue }
 
                 entry.symbolsByKind[node.kind, default: []].append(.init(symbol: symbol, demangledNode: rootNode))
 
                 if rootNode.isGlobal {
-                    processGlobalSymbol(symbol, node: node, rootNode: rootNode, in: &entry.globalSymbolsByKind)
+                    if !symbol.isExternal {
+                        processGlobalSymbol(symbol, node: node, rootNode: rootNode, in: &entry.globalSymbolsByKind)
+                    }
                 } else {
                     if node.kind == .methodDescriptor, let firstChild = node.children.first {
                         processMemberSymbol(symbol, node: firstChild, rootNode: rootNode, in: &entry.methodDescriptorMemberSymbolsByKind, typeInfoByName: &entry.typeInfoByName)
@@ -417,5 +419,12 @@ extension Node {
 
     package var hasAccessor: Bool {
         return contains { $0.isAccessor }
+    }
+}
+
+extension Symbol {
+    package var isExternal: Bool {
+        guard let nlist, let flags = nlist.flags, let type = flags.type else { return false }
+        return flags.contains(.ext) && type == .undf
     }
 }

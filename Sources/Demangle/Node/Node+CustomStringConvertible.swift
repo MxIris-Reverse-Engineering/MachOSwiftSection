@@ -25,7 +25,7 @@ extension Node: CustomStringConvertible {
             break
         case .index(let index):
             output.append(", index=\(index)")
-        case .name(let name):
+        case .text(let name):
             output.append(", name=\(name)")
         }
         output.append("\n")

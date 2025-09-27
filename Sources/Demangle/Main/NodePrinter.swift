@@ -1305,7 +1305,7 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
     }
 
     private mutating func printImplCoroutineKind(_ name: Node) {
-        guard case .name(let value) = name.contents, !value.isEmpty else { return }
+        guard case .text(let value) = name.contents, !value.isEmpty else { return }
         target.write("@\(value)")
     }
 
@@ -1322,7 +1322,7 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
     }
 
     private mutating func printImplParameterName(_ name: Node) {
-        guard case .name(let value) = name.contents, !value.isEmpty else { return }
+        guard case .text(let value) = name.contents, !value.isEmpty else { return }
         target.write("\(value) ")
     }
 
