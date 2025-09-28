@@ -17,25 +17,9 @@ package class DyldCacheTests {
 
     package let machOFileInCache: MachOFile
 
-    package class var platform: MachOKit.Platform {
-        return .macOS
-    }
+    package class var platform: MachOKit.Platform { .macOS }
     
     package class var mainCacheImageName: MachOImageName { .SwiftUI }
-    
-    package class var subCacheImageName: MachOImageName {
-        if platform == .macOS {
-            if #available(macOS 15.5, *) {
-                return .CodableSwiftUI
-            } else {
-                return .UIKitCore
-            }
-        } else if platform == .iOS {
-            return .Network
-        } else {
-            return .Foundation
-        }
-    }
     
     package class var cacheImageName: MachOImageName { .AttributeGraph }
     
@@ -43,7 +27,7 @@ package class DyldCacheTests {
     
     package init() async throws {
         self.mainCache = try DyldCache(path: Self.cachePath)
-        self.subCache = try required(mainCache.subCaches?.first?.subcache(for: mainCache))
+        self.subCache = try #require(mainCache.subCaches?.first?.subcache(for: mainCache))
         self.fullCache = try FullDyldCache(path: Self.cachePath)
         self.machOFileInCache = try #require(mainCache.machOFile(named: Self.cacheImageName))
         self.machOFileInMainCache = try #require(mainCache.machOFile(named: Self.mainCacheImageName))
