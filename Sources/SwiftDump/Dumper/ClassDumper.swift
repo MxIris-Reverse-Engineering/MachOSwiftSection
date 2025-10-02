@@ -4,6 +4,7 @@ import MachOKit
 import MachOSwiftSection
 import Utilities
 import Dependencies
+import OrderedCollections
 
 package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
     private let `class`: Class
@@ -126,6 +127,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
             try fields
 
+            var methodVisitedNodes: OrderedSet<Node> = []
             for (offset, descriptor) in `class`.methodDescriptors.offsetEnumerated() {
                 BreakLine()
 
@@ -135,13 +137,14 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
                 dumpMethodKeyword(for: descriptor)
 
-                try dumpMethodDeclaration(for: descriptor)
+                try dumpMethodDeclaration(for: descriptor, visitedNodes: &methodVisitedNodes)
 
                 if offset.isEnd {
                     BreakLine()
                 }
             }
 
+            var methodOverrideVisitedNodes: OrderedSet<Node> = []
             for (offset, descriptor) in `class`.methodOverrideDescriptors.offsetEnumerated() {
                 BreakLine()
 
@@ -149,11 +152,12 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                 
                 let methodDescriptor = try descriptor.methodDescriptor(in: machO)
                 
-                if let symbol = try? descriptor.implementationSymbol(in: machO) {
+                if let symbols = try? descriptor.implementationSymbols(in: machO), let node = try validNode(for: symbols, visitedNodes: methodOverrideVisitedNodes) {
                     dumpMethodKind(for: methodDescriptor?.resolved)
                     Keyword(.override)
                     Space()
-                    try MetadataReader.demangleSymbol(for: symbol, in: machO).map { try demangleResolver.resolve(for: $0) }
+                    try demangleResolver.resolve(for: node)
+                    _ = methodOverrideVisitedNodes.append(node)
                 } else if !descriptor.implementation.isNull {
                     dumpMethodKind(for: methodDescriptor?.resolved)
                     Keyword(.override)
@@ -170,7 +174,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                         Keyword(.override)
                         Space()
                         dumpMethodKeyword(for: element)
-                        try? dumpMethodDeclaration(for: element)
+                        try? dumpMethodDeclaration(for: element, visitedNodes: &methodOverrideVisitedNodes)
                     }
                 } else {
                     Error("Symbol not found")
@@ -181,6 +185,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                 }
             }
 
+            var methodDefaultOverrideVisitedNodes: OrderedSet<Node> = []
             for (offset, descriptor) in `class`.methodDefaultOverrideDescriptors.offsetEnumerated() {
                 BreakLine()
 
@@ -190,8 +195,9 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
                 Space()
 
-                if let symbol = try? descriptor.implementationSymbol(in: machO) {
-                    try MetadataReader.demangleSymbol(for: symbol, in: machO).map { try demangleResolver.resolve(for: $0) }
+                if let symbols = try? descriptor.implementationSymbols(in: machO), let node = try validNode(for: symbols, visitedNodes: methodDefaultOverrideVisitedNodes) {
+                    try demangleResolver.resolve(for: node)
+                    _ = methodDefaultOverrideVisitedNodes.append(node)
                 } else if !descriptor.implementation.isNull {
                     FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machO).insertSubFunctionPrefix)
                 } else {
@@ -302,13 +308,24 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
     }
 
     @SemanticStringBuilder
-    private func dumpMethodDeclaration(for descriptor: MethodDescriptor) throws -> SemanticString {
-        if let symbol = try? descriptor.implementationSymbol(in: machO) {
-            try MetadataReader.demangleSymbol(for: symbol, in: machO).map { try demangleResolver.resolve(for: $0) }
+    private func dumpMethodDeclaration(for descriptor: MethodDescriptor, visitedNodes: inout OrderedSet<Node>) throws -> SemanticString {
+        if let symbols = try? descriptor.implementationSymbols(in: machO), let node = try validNode(for: symbols, visitedNodes: visitedNodes) {
+            try demangleResolver.resolve(for: node)
+            _ = visitedNodes.append(node)
         } else if !descriptor.implementation.isNull {
             FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machO).insertSubFunctionPrefix)
         } else {
             Error("Symbol not found")
         }
+    }
+    
+    package func validNode(for symbols: Symbols, visitedNodes: borrowing OrderedSet<Node> = []) throws -> Node? {
+        let currentInterfaceName = try _name(using: .options(.interfaceType)).string
+        for symbol in symbols {
+            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let classNode = node.first(of: .class), classNode.print(using: .interfaceType) == currentInterfaceName, !visitedNodes.contains(node) {
+                return node
+            }
+        }
+        return nil
     }
 }

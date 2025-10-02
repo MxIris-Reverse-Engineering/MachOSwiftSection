@@ -1,6 +1,9 @@
 import Foundation
 
 public struct Metadata: MetadataProtocol {
+    
+    public typealias HeaderType = TypeMetadataHeader
+    
     public struct Layout: MetadataLayout {
         /// The kind. Only valid for non-class metadata
         public let kind: StoredPointer

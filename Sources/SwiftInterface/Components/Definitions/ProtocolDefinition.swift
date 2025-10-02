@@ -7,7 +7,7 @@ import Demangle
 import Semantic
 import SwiftStdlibToolbox
 
-public final class ProtocolDefinition: Sendable {
+public final class ProtocolDefinition: Definition, MutableDefinition {
     public let `protocol`: MachOSwiftSection.`Protocol`
 
     public let protocolName: ProtocolName
@@ -19,19 +19,38 @@ public final class ProtocolDefinition: Sendable {
     public var extensionContext: ExtensionContext? = nil
 
     @Mutex
-    public var requirements: [ProtocolRequirementDefinition] = []
-
-    @Mutex
-    public var defaultImplementationRequirements: [ProtocolRequirementDefinition] = []
-
-    @Mutex
     public var defaultImplementationExtensions: [ExtensionDefinition] = []
 
     @Mutex
     public var associatedTypes: [String] = []
+    
+    @Mutex
+    public var allocators: [FunctionDefinition] = []
+
+    @Mutex
+    public var constructors: [FunctionDefinition] = []
+
+    @Mutex
+    public var variables: [VariableDefinition] = []
+
+    @Mutex
+    public var functions: [FunctionDefinition] = []
+
+    @Mutex
+    public var subscripts: [SubscriptDefinition] = []
+
+    @Mutex
+    public var staticVariables: [VariableDefinition] = []
+
+    @Mutex
+    public var staticFunctions: [FunctionDefinition] = []
+
+    @Mutex
+    public var staticSubscripts: [SubscriptDefinition] = []
 
     public var hasMembers: Bool {
-        !requirements.isEmpty || !associatedTypes.isEmpty
+        !associatedTypes.isEmpty || !variables.isEmpty || !functions.isEmpty ||
+        !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty
     }
 
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(`protocol`: MachOSwiftSection.`Protocol`, in machO: MachO) throws {
@@ -41,120 +60,37 @@ public final class ProtocolDefinition: Sendable {
         }
         let name = try _name().string
         self.protocolName = .init(name: name)
-        func _node(for symbols: Symbols, visitedNodes: borrowing OrderedSet<Node> = []) throws -> Node? {
+        func _symbol(for symbols: Symbols, visitedNodes: borrowing OrderedSet<Node> = []) throws -> DemangledSymbol? {
             for symbol in symbols {
                 if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), protocolNode.print(using: .interfaceTypeBuilderOnly) == name, !visitedNodes.contains(node) {
-                    return node
+                    return .init(symbol: symbol, demangledNode: node)
                 }
             }
             return nil
         }
         self.associatedTypes = try `protocol`.descriptor.associatedTypes(in: machO)
         
-        var requirements: [ProtocolRequirementDefinition] = []
-        var defaultImplementationRequirements: [ProtocolRequirementDefinition] = []
-        
+        var requirementMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]> = [:]
+        var defaultImplementationMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]> = [:]
+
         var requirementVisitedNodes: OrderedSet<Node> = []
         var defaultImplementationVisitedNodes: OrderedSet<Node> = []
         
-        var variableKindsByName: OrderedDictionary<String, Set<AccessorKind>> = [:]
-        var defaultImplementationVariableKindsByName: OrderedDictionary<String, Set<AccessorKind>> = [:]
-        
-        var subscriptKindsByName: OrderedDictionary<Node, Set<AccessorKind>> = [:]
-        var defaultImplementationSubscriptKindsByName: OrderedDictionary<Node, Set<AccessorKind>> = [:]
-        
-        var nodeAndRequirements: [(node: Node, requirement: ProtocolRequirement)] = []
-        var defaultImplementationNodeAndRequirements: [(node: Node, requirement: ProtocolRequirement)] = []
-        
         for requirement in `protocol`.requirements {
-            guard let symbols = try Symbols.resolve(from: requirement.offset, in: machO), let node = try? _node(for: symbols, visitedNodes: requirementVisitedNodes) else { continue }
-            nodeAndRequirements.append((node, requirement))
-            if let variable = node.first(of: .variable), let name = variable.identifier, let kind = node.accessorKind {
-                variableKindsByName[name, default: []].insert(kind)
-            } else if let `subscript` = node.first(of: .subscript), let kind = node.accessorKind {
-                subscriptKindsByName[`subscript`, default: []].insert(kind)
-            }
-            requirementVisitedNodes.append(node)
-        }
-        for (node, requirement) in nodeAndRequirements {
-            let requirementDefinition: ProtocolRequirementDefinition
-            let isStatic = !requirement.flags.isInstance
-            if let variable = node.first(of: .variable), let name = variable.identifier, node.contains(.getter), let kinds = variableKindsByName[name] {
-                requirementDefinition = .variable(VariableDefinition(node: node, name: name, hasSetter: kinds.contains(.setter), hasModifyAccessor: kinds.contains(.modifyAccessor), isGlobalOrStatic: isStatic, isStored: false))
-            } else if let `subscript` = node.first(of: .subscript), node.contains(.getter), let kinds = subscriptKindsByName[`subscript`] {
-                requirementDefinition = .subscript(SubscriptDefinition(node: node, hasSetter: kinds.contains(.setter), hasReadAccessor: kinds.contains(.readAccessor), hasModifyAccessor: kinds.contains(.modifyAccessor), isStatic: isStatic))
-            } else if node.contains(.allocator) {
-                requirementDefinition = .function(FunctionDefinition(node: node, name: "", kind: .allocator, isGlobalOrStatic: true))
-            } else if let function = node.first(of: .function), let name = function.identifier {
-                requirementDefinition = .function(FunctionDefinition(node: node, name: name, kind: .function, isGlobalOrStatic: isStatic))
-            } else {
-                continue
-            }
-            requirements.append(requirementDefinition)
-            if let symbols = try requirement.defaultImplementationSymbols(in: machO), let node = try _node(for: symbols, visitedNodes: defaultImplementationVisitedNodes) {
-                if let variable = node.first(of: .variable), let name = variable.identifier, let kind = node.accessorKind {
-                    defaultImplementationVariableKindsByName[name, default: []].insert(kind)
-                } else if let `subscript` = node.first(of: .subscript), let kind = node.accessorKind {
-                    defaultImplementationSubscriptKindsByName[`subscript`, default: []].insert(kind)
-                }
-                
-                defaultImplementationVisitedNodes.append(node)
-                defaultImplementationNodeAndRequirements.append((node, requirement))
+            guard let symbols = try Symbols.resolve(from: requirement.offset, in: machO), let symbol = try? _symbol(for: symbols, visitedNodes: requirementVisitedNodes) else { continue }
+            requirementVisitedNodes.append(symbol.demangledNode)
+            addSymbol(symbol, memberSymbolsByKind: &requirementMemberSymbolsByKind, inExtension: false)
+            if let symbols = try requirement.defaultImplementationSymbols(in: machO), let defaultImplementationSymbol = try _symbol(for: symbols, visitedNodes: defaultImplementationVisitedNodes) {
+                defaultImplementationVisitedNodes.append(defaultImplementationSymbol.demangledNode)
+                addSymbol(defaultImplementationSymbol, memberSymbolsByKind: &defaultImplementationMemberSymbolsByKind, inExtension: true)
             }
         }
 
-        self.requirements = requirements
+        setDefintions(for: requirementMemberSymbolsByKind, inExtension: false)
+        
+        let extensionDefinition = try ExtensionDefinition(extensionName: protocolName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
 
-        for (node, requirement) in defaultImplementationNodeAndRequirements {
-            let requirementDefinition: ProtocolRequirementDefinition
-            let isStatic = !requirement.flags.isInstance
-            if let variable = node.first(of: .variable), let name = variable.identifier, node.contains(.getter), let variableKinds = defaultImplementationVariableKindsByName[name] {
-                requirementDefinition = .variable(VariableDefinition(node: node, name: name, hasSetter: variableKinds.contains(.setter), hasModifyAccessor: variableKinds.contains(.modifyAccessor), isGlobalOrStatic: isStatic, isStored: false))
-            } else if let `subscript` = node.first(of: .subscript), let kinds = defaultImplementationSubscriptKindsByName[`subscript`] {
-                requirementDefinition = .subscript(SubscriptDefinition(node: node, hasSetter: kinds.contains(.setter), hasReadAccessor: kinds.contains(.readAccessor), hasModifyAccessor: kinds.contains(.modifyAccessor), isStatic: isStatic))
-            } else if node.contains(.allocator) {
-                requirementDefinition = .function(FunctionDefinition(node: node, name: "", kind: .allocator, isGlobalOrStatic: true))
-            } else if let function = node.first(of: .function), let name = function.identifier {
-                requirementDefinition = .function(FunctionDefinition(node: node, name: name, kind: .function, isGlobalOrStatic: isStatic))
-            } else {
-                continue
-            }
-            defaultImplementationRequirements.append(requirementDefinition)
-        }
-
-        self.defaultImplementationRequirements = defaultImplementationRequirements
-
-        var extensionDefinition = try ExtensionDefinition(extensionName: protocolName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
-
-        for defaultImplementationRequirement in defaultImplementationRequirements {
-            switch defaultImplementationRequirement {
-            case .subscript(let subscriptDefinition):
-                if subscriptDefinition.isStatic {
-                    extensionDefinition.staticSubscripts.append(subscriptDefinition)
-                } else {
-                    extensionDefinition.subscripts.append(subscriptDefinition)
-                }
-            case .variable(let variableDefinition):
-                if variableDefinition.isGlobalOrStatic {
-                    extensionDefinition.staticVariables.append(variableDefinition)
-                } else {
-                    extensionDefinition.variables.append(variableDefinition)
-                }
-            case .function(let functionDefinition):
-                switch functionDefinition.kind {
-                case .function:
-                    if functionDefinition.isGlobalOrStatic {
-                        extensionDefinition.staticFunctions.append(functionDefinition)
-                    } else {
-                        extensionDefinition.functions.append(functionDefinition)
-                    }
-                case .allocator:
-                    extensionDefinition.allocators.append(functionDefinition)
-                case .constructor:
-                    extensionDefinition.constructors.append(functionDefinition)
-                }
-            }
-        }
+        extensionDefinition.setDefintions(for: defaultImplementationMemberSymbolsByKind, inExtension: true)
 
         if extensionDefinition.hasMembers {
             self.defaultImplementationExtensions = [extensionDefinition]

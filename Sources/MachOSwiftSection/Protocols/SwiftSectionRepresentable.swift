@@ -1,5 +1,5 @@
 public protocol SwiftSectionRepresentable {
-    var types: [TypeWrapper] { get throws }
+    var types: [TypeContextWrapper] { get throws }
     var protocols: [`Protocol`] { get throws }
     var protocolConformances: [ProtocolConformance] { get throws }
     var associatedTypes: [AssociatedType] { get throws }

@@ -161,3 +161,8 @@ public struct Class: TopLevelType, ContextProtocol {
         }
     }
 }
+
+
+//extension Class {
+//    package func method
+//}

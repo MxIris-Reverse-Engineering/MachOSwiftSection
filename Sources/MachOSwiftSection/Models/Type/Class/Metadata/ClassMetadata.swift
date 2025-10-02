@@ -2,8 +2,8 @@ import MachOKit
 import MachOFoundation
 import MachOMacro
 
-public struct ClassMetadata: TypeMetadataProtocol {
-    public struct Layout: ClassMetadataLayout {
+public struct ClassMetadata: ClassMetadataProtocol, TypeMetadataProtocol {
+    public struct Layout: ClassMetadataLayout, ClassMetadataLayoutWithDescriptor {
         public let kind: StoredPointer
         public let superclass: StoredPointer
         public let flags: UInt32

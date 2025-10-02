@@ -26,7 +26,7 @@ extension Node: CustomStringConvertible {
         case .index(let index):
             output.append(", index=\(index)")
         case .text(let name):
-            output.append(", name=\(name)")
+            output.append(", text=\(name)")
         }
         output.append("\n")
         for child in node.children {

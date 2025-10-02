@@ -2,7 +2,7 @@ import Demangle
 
 protocol DependentGenericNodePrintable: NodePrintable {
     var isProtocol: Bool { get }
-    mutating func printNameInDependentGeneric(_ name: Node) -> Bool
+    mutating func printNameInDependentGeneric(_ name: Node, context: Context?) -> Bool
     mutating func printGenericSignature(_ name: Node)
     mutating func printDependentGenericConformanceRequirement(_ name: Node)
     mutating func printDependentGenericLayoutRequirement(_ name: Node)
@@ -16,7 +16,7 @@ protocol DependentGenericNodePrintable: NodePrintable {
 }
 
 extension DependentGenericNodePrintable {
-    mutating func printNameInDependentGeneric(_ name: Node) -> Bool {
+    mutating func printNameInDependentGeneric(_ name: Node, context: Context?) -> Bool {
         switch name.kind {
         case .dependentGenericParamType:
             printDependentGenericParamType(name)

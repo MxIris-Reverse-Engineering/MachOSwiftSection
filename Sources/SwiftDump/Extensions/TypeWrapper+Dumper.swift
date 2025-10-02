@@ -1,7 +1,7 @@
 import Foundation
 import MachOSwiftSection
 
-extension TypeWrapper {
+extension TypeContextWrapper {
     package func dumper<MachO: MachOSwiftSectionRepresentableWithCache>(using configuration: DumperConfiguration, in machO: MachO) -> any TypedDumper {
         switch self {
         case .enum(let `enum`):

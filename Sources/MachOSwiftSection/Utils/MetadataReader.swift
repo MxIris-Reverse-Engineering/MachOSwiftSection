@@ -56,9 +56,6 @@ public enum MetadataReader {
                         if let context = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset).resolve(from: offset, in: machO) {
                             if let opaqueTypeDescriptor = context.opaqueTypeDescriptor {
                                 let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
-//                                for underlyingTypeArgumentMangledName in opaqueType.underlyingTypeArgumentMangledNames {
-//                                    print(#function, underlyingTypeArgumentMangledName)
-//                                }
                                 result = .init(kind: .opaqueReturnTypeOf, child: try demangle(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO))
                             } else {
                                 result = try buildContextMangling(context: .element(context), in: machO)
@@ -69,9 +66,6 @@ public enum MetadataReader {
                         if let resolvableElement = try relativePointer.resolve(from: offset, in: machO).asOptional {
                             if case .element(let element) = resolvableElement, let opaqueTypeDescriptor = element.opaqueTypeDescriptor {
                                 let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
-//                                for underlyingTypeArgumentMangledName in opaqueType.underlyingTypeArgumentMangledNames {
-//                                    print(#function, underlyingTypeArgumentMangledName)
-//                                }
                                 result = .init(kind: .opaqueReturnTypeOf, child: try demangle(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO))
                             } else {
                                 result = try buildContextMangling(context: resolvableElement, in: machO)
@@ -152,6 +146,14 @@ public enum MetadataReader {
         }
     }
 
+    package static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirement: GenericRequirementDescriptor, in machO: MachO) throws -> Node? {
+        try buildGenericSignature(for: [requirement], in: machO)
+    }
+    
+    package static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirements: GenericRequirementDescriptor..., in machO: MachO) throws -> Node? {
+        try buildGenericSignature(for: requirements, in: machO)
+    }
+    
     package static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirements: [GenericRequirementDescriptor], in machO: MachO) throws -> Node? {
         guard !requirements.isEmpty else { return nil }
         let signatureNode = Node(kind: .dependentGenericSignature)
@@ -262,13 +264,16 @@ public enum MetadataReader {
             }
             return demangling
         case .anonymous:
-//            var anonNode = SwiftSymbol(kind: .anonymousContext)
-//            anonNode.children.append(.init(kind: .identifier, contents: .name(context.offset.description)))
-//            if let parentDemangling {
-//                anonNode.children.append(parentDemangling)
-//            }
-//            return anonNode
-            return parentDemangling
+            let anonNode = Node(kind: .anonymousContext)
+            if let symbol = try? Symbol.resolve(from: context.contextDescriptor.offset, in: machO), let privateDeclName = try? symbol.demangledNode.first(of: .privateDeclName), let privateDeclNameIdentifier = privateDeclName.children.first {
+                anonNode.addChild(privateDeclNameIdentifier)
+            } else {
+                anonNode.addChild(.init(kind: .identifier, contents: .text(context.contextDescriptor.offset.description)))
+            }
+            if let parentDemangling {
+                anonNode.addChild(parentDemangling)
+            }
+            return anonNode
         case .module:
             if parentDemangling != nil {
                 return nil
@@ -295,11 +300,16 @@ public enum MetadataReader {
         default:
             return nil
         }
-        guard let parentDemangling, let nameNode else { return nil }
+        guard var parentDemangling, var nameNode else { return nil }
         if parentDemangling.kind == .anonymousContext, nameNode.kind == .identifier {
             if parentDemangling.children.count < 2 {
                 return nil
             }
+            let privateDeclName = Node(kind: .privateDeclName)
+            privateDeclName.addChild(parentDemangling.children[0])
+            privateDeclName.addChild(nameNode)
+            nameNode = privateDeclName
+            parentDemangling = parentDemangling.children[1]
         }
         let demangling = Node(kind: kind, children: [parentDemangling, nameNode])
 

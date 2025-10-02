@@ -1,5 +1,5 @@
 {
-  "originHash" : "1942a41db96c0505591a9e91a64f5222f5e102af2e6caa389fd7e43e79e8f7aa",
+  "originHash" : "f49292b76545513d64fbafd51e1eb9af09249402c8f1753ec3ba5695c02cba15",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/christophhagen/BinaryCodable",
       "state" : {
-        "revision" : "4febea33ee5d813fd9c94c9158be6c85472480d2",
-        "version" : "3.1.0"
+        "revision" : "53f057050f3c78a1997ed0218337fd92d2eba2b5",
+        "version" : "3.1.1"
       }
     },
     {

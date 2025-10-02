@@ -12,4 +12,8 @@ extension LocatableLayoutWrapper {
     package func offset<T>(of keyPath: KeyPath<Layout, T>) -> Int {
         return offset + MemoryLayout<Layout>.offset(of: keyPath)!
     }
+    
+    package func pointer(in machO: MachOImage) -> UnsafeRawPointer {
+        return machO.ptr + UnsafeRawPointer.Stride(offset)
+    }
 }

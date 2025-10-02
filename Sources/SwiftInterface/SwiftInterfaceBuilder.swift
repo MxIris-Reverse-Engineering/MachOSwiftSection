@@ -8,6 +8,7 @@ import SwiftStdlibToolbox
 import MachOKit
 import TypeIndexing
 import Dependencies
+import Utilities
 
 /// A comprehensive Swift interface builder that generates human-readable Swift interface files from Mach-O binaries.
 ///
@@ -67,7 +68,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     /// All type wrappers (unified representation of enums, structs, and classes)
     @Mutex
-    private var types: [TypeWrapper] = []
+    private var types: [TypeContextWrapper] = []
 
     /// All protocol definitions found in the binary
     @Mutex
@@ -304,13 +305,13 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 switch parentContext {
                 case .extension(let extensionContext):
                     guard let extendedContextMangledName = extensionContext.extendedContextMangledName else { continue }
-                    let typeNode = try MetadataReader.demangle(for: extendedContextMangledName, in: machO)
+                    let extensionTypeNode = try MetadataReader.demangle(for: extendedContextMangledName, in: machO)
 
-                    guard let typeKind = typeNode.typeKind else { continue }
+                    guard let extensionTypeKind = extensionTypeNode.typeKind else { continue }
 
-                    let name = typeNode.print(using: .interfaceTypeBuilderOnly)
+                    let name = extensionTypeNode.print(using: .interfaceTypeBuilderOnly)
 
-                    let typeName = TypeName(name: name, kind: typeKind)
+                    let extensionTypeName = TypeName(name: name, kind: extensionTypeKind)
 
                     var genericSignature: Node?
 
@@ -318,16 +319,32 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                         genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO)
                     }
 
-                    var extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
+                    let extensionDefinition = try ExtensionDefinition(extensionName: extensionTypeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
                     extensionDefinition.types = [typeDefinition]
-                    typeExtensionDefinitions[typeName, default: []].append(extensionDefinition)
-                case .type(let type):
-                    let typeName = try type.typeName(in: machO)
-                    var extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
+                    typeExtensionDefinitions[extensionTypeName, default: []].append(extensionDefinition)
+                case .type(let parentType):
+                    let parentTypeName = try parentType.typeName(in: machO)
+                    let extensionDefinition = try ExtensionDefinition(extensionName: parentTypeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
                     extensionDefinition.types = [typeDefinition]
-                    typeExtensionDefinitions[typeName, default: []].append(extensionDefinition)
-                case .symbol/*(let symbol)*/:
-                    break
+                    typeExtensionDefinitions[parentTypeName, default: []].append(extensionDefinition)
+                case .symbol(let symbol):
+                    guard let type = try MetadataReader.demangleType(for: symbol, in: machO)?.children.first else { continue }
+                    let kind: TypeKind? = switch type.kind {
+                    case .enum:
+                        .enum
+                    case .structure:
+                        .struct
+                    case .class:
+                        .class
+                    default:
+                        nil
+                    }
+                    guard let kind else { continue }
+                    let name = type.print(using: .interfaceTypeBuilderOnly)
+                    let parentTypeName = TypeName(name: name, kind: kind)
+                    let extensionDefinition = try ExtensionDefinition(extensionName: parentTypeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
+                    extensionDefinition.types = [typeDefinition]
+                    typeExtensionDefinitions[parentTypeName, default: []].append(extensionDefinition)
                 }
             }
         }
@@ -382,7 +399,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                         if let currentRequirements = extensionContext.genericContext?.currentRequirements(in: machO), !currentRequirements.isEmpty {
                             genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO)
                         }
-                        var extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
+                        let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
                         extensionDefinition.protocols = [protocolDefinition]
                         typeExtensionDefinitions[typeName, default: []].append(extensionDefinition)
                     }
@@ -391,7 +408,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
                     successfulCount += 1
 
-                    eventDispatcher.dispatch(.protocolProcessed(context: SwiftInterfaceBuilderEvents.ProtocolContext(protocolName: protocolName.name, requirementCount: protocolDefinition.requirements.count)))
+                    eventDispatcher.dispatch(.protocolProcessed(context: SwiftInterfaceBuilderEvents.ProtocolContext(protocolName: protocolName.name, requirementCount: protocolDefinition.protocol.requirements.count)))
                 } else {
                     failedCount += 1
                 }
@@ -519,38 +536,37 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             }
 
             func extensionDefinition(of kind: ExtensionKind, for memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>, genericSignature: Node?) throws -> ExtensionDefinition {
-                var extensionDefinition = try ExtensionDefinition(extensionName: .init(name: name, kind: kind), genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
+                let extensionDefinition = try ExtensionDefinition(extensionName: .init(name: name, kind: kind), genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
                 var memberCount = 0
 
                 for (kind, memberSymbols) in memberSymbolsByKind {
-                    let nodes = memberSymbols.map(\.demangledNode)
                     switch kind {
                     case .allocator(inExtension: true):
-                        let allocators = DefinitionBuilder.allocators(for: nodes)
+                        let allocators = DefinitionBuilder.allocators(for: memberSymbols)
                         extensionDefinition.allocators.append(contentsOf: allocators)
                         memberCount += allocators.count
                     case .variable(inExtension: true, isStatic: false, isStorage: false):
-                        let variables = DefinitionBuilder.variables(for: nodes, fieldNames: [], isGlobalOrStatic: false)
+                        let variables = DefinitionBuilder.variables(for: memberSymbols, fieldNames: [], isGlobalOrStatic: false)
                         extensionDefinition.variables.append(contentsOf: variables)
                         memberCount += variables.count
                     case .function(inExtension: true, isStatic: false):
-                        let functions = DefinitionBuilder.functions(for: nodes, isGlobalOrStatic: false)
+                        let functions = DefinitionBuilder.functions(for: memberSymbols, isGlobalOrStatic: false)
                         extensionDefinition.functions.append(contentsOf: functions)
                         memberCount += functions.count
                     case .variable(inExtension: true, isStatic: true, _):
-                        let staticVariables = DefinitionBuilder.variables(for: nodes, fieldNames: [], isGlobalOrStatic: true)
+                        let staticVariables = DefinitionBuilder.variables(for: memberSymbols, fieldNames: [], isGlobalOrStatic: true)
                         extensionDefinition.staticVariables.append(contentsOf: staticVariables)
                         memberCount += staticVariables.count
                     case .function(inExtension: true, isStatic: true):
-                        let staticFunctions = DefinitionBuilder.functions(for: nodes, isGlobalOrStatic: true)
+                        let staticFunctions = DefinitionBuilder.functions(for: memberSymbols, isGlobalOrStatic: true)
                         extensionDefinition.staticFunctions.append(contentsOf: staticFunctions)
                         memberCount += staticFunctions.count
                     case .subscript(inExtension: true, isStatic: false):
-                        let subscripts = DefinitionBuilder.subscripts(for: nodes, isStatic: false)
+                        let subscripts = DefinitionBuilder.subscripts(for: memberSymbols, isStatic: false)
                         extensionDefinition.subscripts.append(contentsOf: subscripts)
                         memberCount += subscripts.count
                     case .subscript(inExtension: true, isStatic: true):
-                        let staticSubscripts = DefinitionBuilder.subscripts(for: nodes, isStatic: true)
+                        let staticSubscripts = DefinitionBuilder.subscripts(for: memberSymbols, isStatic: true)
                         extensionDefinition.staticSubscripts.append(contentsOf: staticSubscripts)
                         memberCount += staticSubscripts.count
                     default:
@@ -632,8 +648,8 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
-        globalVariableDefinitions = DefinitionBuilder.variables(for: symbolIndexStore.globalSymbols(of: .variable(isStorage: false), .variable(isStorage: true), in: machO).map(\.demangledNode), fieldNames: [], isGlobalOrStatic: true)
-        globalFunctionDefinitions = DefinitionBuilder.functions(for: symbolIndexStore.globalSymbols(of: .function, in: machO).map(\.demangledNode), isGlobalOrStatic: true)
+        globalVariableDefinitions = DefinitionBuilder.variables(for: symbolIndexStore.globalSymbols(of: .variable(isStorage: false), .variable(isStorage: true), in: machO), fieldNames: [], isGlobalOrStatic: true)
+        globalFunctionDefinitions = DefinitionBuilder.functions(for: symbolIndexStore.globalSymbols(of: .function, in: machO), isGlobalOrStatic: true)
     }
 
     /// Performs complete indexing of the Mach-O binary.
@@ -795,7 +811,10 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         try printDefinition(typeDefinition, level: level)
 
-        if level > 1, typeDefinition.hasMembers {
+        if level > 1, typeDefinition.hasMembers || typeDefinition.typeChildren.count > 0 || typeDefinition.protocolChildren.count > 0 {
+            if !typeDefinition.hasMembers {
+                BreakLine()
+            }
             Indent(level: level - 1)
         }
 
@@ -818,23 +837,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         try dumper.associatedTypes
 
-        for (offset, requirment) in protocolDefinition.requirements.offsetEnumerated() {
-            BreakLine()
-            Indent(level: level)
-
-            switch requirment {
-            case .function(let function):
-                try printFunction(function)
-            case .variable(let variable):
-                try printVariable(variable, level: level)
-            case .subscript(let `subscript`):
-                try printSubscript(`subscript`, level: level)
-            }
-
-            if offset.isEnd {
-                BreakLine()
-            }
-        }
+        try printDefinition(protocolDefinition, level: level)
 
         if level > 1, protocolDefinition.hasMembers {
             Indent(level: level - 1)
@@ -1104,7 +1107,22 @@ extension SwiftInterfaceBuilder<MachOFile> {
     }
 }
 
-extension SwiftInterfaceBuilder: InterfaceNodePrinterDelegate {
+extension SwiftInterfaceBuilder<MachOImage> {
+    public func setupDependencies() {
+        var dependencies: [MachO] = []
+        let dependencyPaths = machO.dependencies.map(\.dylib.name)
+
+        for dependencyPath in dependencyPaths {
+            if let machO = MachOImage(name: dependencyPath) {
+                dependencies.append(machO)
+            }
+        }
+
+        self.dependencies = dependencies
+    }
+}
+
+extension SwiftInterfaceBuilder: NodePrintableDelegate {
     func moduleName(forTypeName typeName: String) -> String? {
         typeDatabase?.moduleName(forTypeName: typeName)
     }
@@ -1113,7 +1131,7 @@ extension SwiftInterfaceBuilder: InterfaceNodePrinterDelegate {
         typeDatabase?.swiftName(forCName: cName)
     }
 
-    func opaqueType(forNode node: Node) -> String? {
+    func opaqueType(forNode node: Node, index: Int?) -> String? {
         do {
             @Dependency(\.symbolIndexStore)
             var symbolIndexStore
@@ -1122,8 +1140,65 @@ extension SwiftInterfaceBuilder: InterfaceNodePrinterDelegate {
 
             let opaqueType = try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(from: opaqueTypeDescriptorSymbol.offset, in: machO), in: machO)
             let requirements = try opaqueType.requirements(in: machO)
+            var protocolRequirementsByParamType: OrderedDictionary<String, [GenericRequirementDescriptor]> = [:]
+            var protocolRequirements = requirements.filter(\.content.isProtocol)
+            for protocolRequirement in protocolRequirements {
+                let param = try protocolRequirement.dumpParameterName(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO).string
+                protocolRequirementsByParamType[param, default: []].append(protocolRequirement)
+            }
+            if let index {
+                protocolRequirements = protocolRequirementsByParamType.elements[index + 1].value
+            } else {
+                protocolRequirements = protocolRequirementsByParamType.elements[0].value
+            }
+            let typeRequirements = requirements.filter(\.content.isType)
+            let typeRequirementNodes = try typeRequirements.compactMap { try MetadataReader.buildGenericSignature(for: $0, in: machO) }
+            var substitutionMap: SubstitutionMap<Node> = .init()
+            var associatedTypeByParamType: [String: [Node]] = [:]
+            var witnessTypeByParamType: [String: [Node]] = [:]
+            for typeRequirementNode in typeRequirementNodes {
+                guard let sameTypeRequirementNode = typeRequirementNode.first(of: .dependentGenericSameTypeRequirement) else { continue }
+                guard let firstType = sameTypeRequirementNode.children.at(0), let secondType = sameTypeRequirementNode.children.at(1) else { continue }
+                if secondType.children.first?.isKind(of: .dependentMemberType) ?? false {
+                    substitutionMap.add(original: firstType, substitution: secondType)
+                    if let paramTypeNode = secondType.first(of: .dependentGenericParamType), let paramType = paramTypeNode.text {
+                        associatedTypeByParamType[paramType, default: []].append(secondType)
+                    }
+                } else if let paramTypeNode = firstType.first(of: .dependentGenericParamType), let paramType = paramTypeNode.text {
+                    witnessTypeByParamType[paramType, default: []].append(secondType)
+                }
+            }
 
-            return try requirements.map { try $0.dumpContent(using: .interfaceTypeBuilderOnly, in: machO).string }.joined(separator: " & ")
+            var results: [String] = []
+            for protocolRequirement in protocolRequirements {
+                var result = ""
+                let param = try protocolRequirement.dumpParameterName(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO).string
+                let proto = try protocolRequirement.dumpContent(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO).string
+                result.write(proto)
+                var primaryAssociatedTypes: [String] = []
+                if let associatedTypes = associatedTypeByParamType[param] {
+                    for associatedType in associatedTypes {
+                        let primaryAssociatedTypeNode = substitutionMap.rootOriginal(for: associatedType)
+                        primaryAssociatedTypes.append(primaryAssociatedTypeNode.print(using: .opaqueTypeBuilderOnly))
+                    }
+                }
+                
+                if let witnessTypes = witnessTypeByParamType[param] {
+                    for witnessType in witnessTypes {
+                        primaryAssociatedTypes.append(witnessType.print(using: .opaqueTypeBuilderOnly))
+                    }
+                }
+                
+                if !primaryAssociatedTypes.isEmpty {
+                    result.write("<")
+                    result.write(primaryAssociatedTypes.joined(separator: ", "))
+                    result.write(">")
+                }
+                
+                results.append(result)
+            }
+
+            return results.joined(separator: " & ")
         } catch {
             return nil
         }

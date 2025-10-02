@@ -17,10 +17,10 @@ extension BinaryInteger {
     }
 
     package func offseting<T>(of type: T.Type, numbersOfElements: Int = 1) -> Self {
-        return self * numericCast(MemoryLayout<T>.size * numbersOfElements)
+        return self + numericCast(MemoryLayout<T>.size * numbersOfElements)
     }
     
     package func offseting<T: LayoutWrapper>(of type: T.Type, numbersOfElements: Int = 1) -> Self {
-        return self * numericCast(T.layoutSize * numbersOfElements)
+        return self + numericCast(T.layoutSize * numbersOfElements)
     }
 }

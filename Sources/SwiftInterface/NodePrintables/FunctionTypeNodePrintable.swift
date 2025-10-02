@@ -1,12 +1,18 @@
 import Demangle
 
-protocol FunctionTypeNodePrintable: NodePrintable {
-    mutating func printNameInFunction(_ name: Node) -> Bool
+protocol FunctionTypeNodePrintableContext {
+    var isAllocator: Bool { set get }
+    var isBlockOrClosure: Bool { set get }
+    init()
+}
+
+protocol FunctionTypeNodePrintable: NodePrintable where Context: FunctionTypeNodePrintableContext {
+    mutating func printNameInFunction(_ name: Node, context: Context?) -> Bool
     mutating func printFunctionType(_ functionType: Node, labelList: Node?, isAllocator: Bool, isBlockOrClosure: Bool)
 }
 
 extension FunctionTypeNodePrintable {
-    mutating func printNameInFunction(_ name: Node) -> Bool {
+    mutating func printNameInFunction(_ name: Node, context: Context?) -> Bool {
         switch name.kind {
         case .returnType:
             printReturnType(name)
@@ -21,7 +27,7 @@ extension FunctionTypeNodePrintable {
              .functionType,
              .escapingObjCBlock,
              .uncurriedFunctionType:
-            printFunctionType(name, labelList: nil, isAllocator: false, isBlockOrClosure: true)
+            printFunctionType(name, labelList: nil, isAllocator: context?.isAllocator ?? false, isBlockOrClosure: context?.isBlockOrClosure ?? true)
         case .throwsAnnotation:
             target.write(" throws")
         case .asyncAnnotation:
@@ -283,7 +289,10 @@ extension FunctionTypeNodePrintable {
             }
             printFunctionType(functionType, labelList: labelList, isAllocator: name.kind == .allocator, isBlockOrClosure: false)
         } else {
-            printFunctionType(type, labelList: labelList, isAllocator: name.kind == .allocator, isBlockOrClosure: false)
+            var context = Context()
+            context.isAllocator = name.kind == .allocator
+            context.isBlockOrClosure = false
+            printName(type, context: context)
         }
     }
 }

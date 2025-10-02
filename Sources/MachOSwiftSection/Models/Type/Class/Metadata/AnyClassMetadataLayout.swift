@@ -3,6 +3,6 @@ import MachOFoundation
 import MachOMacro
 
 @Layout
-public protocol AnyClassMetadataLayout: MetadataLayout {
+public protocol AnyClassMetadataLayout: HeapMetadataLayout {
     var superclass: StoredPointer { get }
 }

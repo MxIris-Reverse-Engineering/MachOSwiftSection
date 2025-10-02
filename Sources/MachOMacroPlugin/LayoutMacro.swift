@@ -76,13 +76,17 @@ public struct LayoutMacro: PeerMacro, MemberMacro, ExtensionMacro {
                 }
             }
         }
-
+        let isDirectFieldsEmpty = directFields.isEmpty
         // 1. Generate the ProtocolNameField enum
         var enumCases: [String] = []
         for field in directFields {
             enumCases.append("case \(field.name)")
         }
 
+        if isDirectFieldsEmpty {
+            enumCases.append("case __empty")
+        }
+        
         // Determine the starting offset. If inheriting, use parent's size.
         var baseOffsetInitialization = "var currentOffset = 0"
         if let inheritanceClause = protocolDecl.inheritanceClause {

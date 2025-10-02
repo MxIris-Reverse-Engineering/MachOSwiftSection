@@ -1,4 +1,4 @@
-// swift-tools-version: 6.1
+// swift-tools-version: 6.2
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 @preconcurrency import PackageDescription
@@ -27,7 +27,7 @@ if isSilentTest {
     testSettings.append(.define("SILENT_TEST"))
 }
 
-let MachOKitVersion: Version = "0.38.0"
+let MachOKitVersion: Version = "0.39.0"
 
 extension Package.Dependency {
     static let MachOKit: Package.Dependency = {
@@ -335,9 +335,17 @@ let package = Package(
             name: "DemangleTests",
             dependencies: [
                 "Demangle",
-            ]
+            ],
+            swiftSettings: testSettings
         ),
-
+        .testTarget(
+            name: "MachOSymbolsTests",
+            dependencies: [
+                "MachOSymbols",
+                "MachOTestingSupport",
+            ],
+            swiftSettings: testSettings
+        ),
         .testTarget(
             name: "MachOSwiftSectionTests",
             dependencies: [

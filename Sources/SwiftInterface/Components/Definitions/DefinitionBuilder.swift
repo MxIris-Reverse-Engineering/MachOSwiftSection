@@ -1,60 +1,56 @@
 import Demangle
+import MachOSymbols
 
 enum DefinitionBuilder {
-    private typealias NodeAndKinds = (node: Node, kind: AccessorKind?)
-    
-    static func variables(for nodes: [Node], fieldNames: borrowing Set<String>, isGlobalOrStatic: Bool) -> [VariableDefinition] {
+    static func variables(for demangledSymbols: [DemangledSymbol], fieldNames: borrowing Set<String>, isGlobalOrStatic: Bool) -> [VariableDefinition] {
         var variables: [VariableDefinition] = []
-        var nodeAndKindsByName: [String: [NodeAndKinds]] = [:]
-        for node in nodes {
-            guard let variableNode = node.first(of: .variable) else { continue }
+        var accessorsByName: [String: [Accessor]] = [:]
+        for demangledSymbol in demangledSymbols {
+            guard let variableNode = demangledSymbol.demangledNode.first(of: .variable) else { continue }
             guard let name = variableNode.identifier else { continue }
-            let kind = node.accessorKind
-            nodeAndKindsByName[name, default: []].append((node, kind))
+            let kind = demangledSymbol.accessorKind
+            accessorsByName[name, default: []].append(.init(kind: kind, symbol: demangledSymbol))
         }
 
-        for (name, nodeAndVariableKinds) in nodeAndKindsByName {
+        for (name, accessors) in accessorsByName {
             guard !fieldNames.contains(name) else { continue }
-            let nodes = nodeAndVariableKinds.map(\.node)
+            let nodes = accessors.map(\.symbol.demangledNode)
             guard let node = nodes.first(where: { $0.contains(.getter) || !$0.hasAccessor }) else { continue }
-            let kinds = nodeAndVariableKinds.map(\.kind)
-            variables.append(.init(node: node, name: name, hasSetter: kinds.contains(.setter), hasModifyAccessor: kinds.contains(.modifyAccessor), isGlobalOrStatic: isGlobalOrStatic, isStored: kinds.contains(nil)))
+            variables.append(.init(node: node, name: name, accessors: accessors, isGlobalOrStatic: isGlobalOrStatic))
         }
         return variables
     }
 
-    static func subscripts(for nodes: [Node], isStatic: Bool) -> [SubscriptDefinition] {
+    static func subscripts(for demangledSymbols: [DemangledSymbol], isStatic: Bool) -> [SubscriptDefinition] {
         var subscripts: [SubscriptDefinition] = []
-        var nodeAndKindsByName: [Node: [NodeAndKinds]] = [:]
-        for node in nodes {
-            guard let subscriptNode = node.first(of: .subscript) else { continue }
-            guard let kind = node.accessorKind else { continue }
-            nodeAndKindsByName[subscriptNode, default: []].append((node, kind))
+        var accessorsByNode: [Node: [Accessor]] = [:]
+        for demangledSymbol in demangledSymbols {
+            guard let subscriptNode = demangledSymbol.demangledNode.first(of: .subscript) else { continue }
+            let kind = demangledSymbol.accessorKind
+            accessorsByNode[subscriptNode, default: []].append(.init(kind: kind, symbol: demangledSymbol))
         }
 
-        for (_, nodeAndVariableKinds) in nodeAndKindsByName {
-            let nodes = nodeAndVariableKinds.map(\.node)
+        for (_, accessors) in accessorsByNode {
+            let nodes = accessors.map(\.symbol.demangledNode)
             guard let node = nodes.first(where: { $0.contains(.getter) }) else { continue }
-            let kinds = nodeAndVariableKinds.map(\.kind)
-            subscripts.append(.init(node: node, hasSetter: kinds.contains(.setter), hasReadAccessor: kinds.contains(.readAccessor), hasModifyAccessor: kinds.contains(.modifyAccessor), isStatic: isStatic))
+            subscripts.append(.init(node: node, accessors: accessors, isStatic: isStatic))
         }
         return subscripts
     }
-    
-    
-    static func allocators(for nodes: [Node]) -> [FunctionDefinition] {
+
+    static func allocators(for demangledSymbols: [DemangledSymbol]) -> [FunctionDefinition] {
         var allocators: [FunctionDefinition] = []
-        for node in nodes {
-            allocators.append(.init(node: node, name: "", kind: .allocator, isGlobalOrStatic: true))
+        for demangledSymbol in demangledSymbols {
+            allocators.append(.init(node: demangledSymbol.demangledNode, name: "", kind: .allocator, symbol: demangledSymbol, isGlobalOrStatic: true, methodDescriptor: nil))
         }
         return allocators
     }
 
-    static func functions(for nodes: [Node], isGlobalOrStatic: Bool) -> [FunctionDefinition] {
+    static func functions(for demangledSymbols: [DemangledSymbol], isGlobalOrStatic: Bool) -> [FunctionDefinition] {
         var functions: [FunctionDefinition] = []
-        for node in nodes {
-            guard let functionNode = node.first(of: .function), let name = functionNode.identifier else { continue }
-            functions.append(.init(node: node, name: name, kind: .function, isGlobalOrStatic: isGlobalOrStatic))
+        for demangledSymbol in demangledSymbols {
+            guard let functionNode = demangledSymbol.demangledNode.first(of: .function), let name = functionNode.identifier else { continue }
+            functions.append(.init(node: demangledSymbol.demangledNode, name: name, kind: .function, symbol: demangledSymbol, isGlobalOrStatic: isGlobalOrStatic, methodDescriptor: nil))
         }
         return functions
     }

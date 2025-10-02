@@ -3,4 +3,5 @@ public enum AccessorKind: Sendable {
     case setter
     case modifyAccessor
     case readAccessor
+    case none
 }

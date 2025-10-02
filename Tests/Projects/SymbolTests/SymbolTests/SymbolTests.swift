@@ -102,3 +102,4 @@ extension TestsValues {
 extension TestsObjects {
     public final class NestedClass {}
 }
+

@@ -1410,6 +1410,9 @@ extension Demangler {
             return opaqueType
         case "r":
             return Node(typeWithChildKind: .opaqueReturnType, childChildren: [])
+        case "R":
+            let index = try demangleIndex()
+            return Node(typeWithChildKind: .opaqueReturnType, childChildren: [Node(kind: .opaqueReturnTypeIndex, index: index)])
         case "x":
             let t = try demangleAssociatedTypeSimple(index: nil)
             substitutions.append(t)

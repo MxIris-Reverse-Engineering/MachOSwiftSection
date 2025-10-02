@@ -7,7 +7,7 @@ public struct MethodDefaultOverrideDescriptor: ResolvableLocatableLayoutWrapper 
     public struct Layout: LayoutProtocol {
         public let replacement: RelativeMethodDescriptorPointer
         public let original: RelativeMethodDescriptorPointer
-        public let implementation: RelativeDirectPointer<Symbol?>
+        public let implementation: RelativeDirectPointer<Symbols?>
     }
 
     public var layout: Layout
@@ -21,7 +21,7 @@ public struct MethodDefaultOverrideDescriptor: ResolvableLocatableLayoutWrapper 
 }
 
 extension MethodDefaultOverrideDescriptor {
-    public func implementationSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Symbol? {
+    public func implementationSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Symbols? {
         return try layout.implementation.resolve(from: offset(of: \.implementation), in: machO)
     }
 }

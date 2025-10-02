@@ -1,13 +1,13 @@
 import Demangle
 
 protocol BoundGenericNodePrintable: NodePrintable {
-    mutating func printNameInBoundGeneric(_ name: Node) -> Bool
+    mutating func printNameInBoundGeneric(_ name: Node, context: Context?) -> Bool
     mutating func printBoundGeneric(_ name: Node)
     mutating func printBoundGenericNoSugar(_ name: Node)
 }
 
 extension BoundGenericNodePrintable {
-    mutating func printNameInBoundGeneric(_ name: Node) -> Bool {
+    mutating func printNameInBoundGeneric(_ name: Node, context: Context?) -> Bool {
         switch name.kind {
         case .boundGenericClass,
              .boundGenericStructure,

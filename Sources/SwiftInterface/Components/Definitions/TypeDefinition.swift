@@ -11,11 +11,11 @@ import Dependencies
 public final class TypeDefinition: Definition {
     public enum ParentContext {
         case `extension`(ExtensionContext)
-        case type(TypeWrapper)
+        case type(TypeContextWrapper)
         case symbol(Symbol)
     }
 
-    public let type: TypeWrapper
+    public let type: TypeContextWrapper
 
     public let typeName: TypeName
 
@@ -72,7 +72,7 @@ public final class TypeDefinition: Definition {
             !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty || hasDeallocator || hasDestructor
     }
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(type: TypeWrapper, in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(type: TypeContextWrapper, in machO: MachO) throws {
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
@@ -97,15 +97,22 @@ public final class TypeDefinition: Definition {
         self.fields = fields
 
         let fieldNames = Set(fields.map(\.name))
-
-        self.allocators = DefinitionBuilder.allocators(for: symbolIndexStore.memberSymbols(of: .allocator(inExtension: false), for: typeName.name, in: machO).map(\.demangledNode))
+        
+        var methodDescriptorByNode: [Node: MethodDescriptorWrapper] = [:]
+        
+        if case let .class(cls) = type {
+            cls.methodDescriptors
+        }
+        
+        
+        self.allocators = DefinitionBuilder.allocators(for: symbolIndexStore.memberSymbols(of: .allocator(inExtension: false), for: typeName.name, in: machO))
         self.hasDeallocator = !symbolIndexStore.memberSymbols(of: .deallocator, for: typeName.name, in: machO).isEmpty
-        self.variables = DefinitionBuilder.variables(for: symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: typeName.name, in: machO).map(\.demangledNode), fieldNames: fieldNames, isGlobalOrStatic: false)
-        self.staticVariables = DefinitionBuilder.variables(for: symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: true, isStorage: false), .variable(inExtension: false, isStatic: true, isStorage: true), for: typeName.name, in: machO).map(\.demangledNode), fieldNames: fieldNames, isGlobalOrStatic: true)
+        self.variables = DefinitionBuilder.variables(for: symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: typeName.name, in: machO), fieldNames: fieldNames, isGlobalOrStatic: false)
+        self.staticVariables = DefinitionBuilder.variables(for: symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: true, isStorage: false), .variable(inExtension: false, isStatic: true, isStorage: true), for: typeName.name, in: machO), fieldNames: fieldNames, isGlobalOrStatic: true)
 
-        self.functions = DefinitionBuilder.functions(for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: false), for: typeName.name, in: machO).map(\.demangledNode), isGlobalOrStatic: false)
-        self.staticFunctions = DefinitionBuilder.functions(for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: true), for: typeName.name, in: machO).map(\.demangledNode), isGlobalOrStatic: true)
-        self.subscripts = DefinitionBuilder.subscripts(for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: false), for: typeName.name, in: machO).map(\.demangledNode), isStatic: false)
-        self.staticSubscripts = DefinitionBuilder.subscripts(for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: true), for: typeName.name, in: machO).map(\.demangledNode), isStatic: true)
+        self.functions = DefinitionBuilder.functions(for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: false), for: typeName.name, in: machO), isGlobalOrStatic: false)
+        self.staticFunctions = DefinitionBuilder.functions(for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: true), for: typeName.name, in: machO), isGlobalOrStatic: true)
+        self.subscripts = DefinitionBuilder.subscripts(for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: false), for: typeName.name, in: machO), isStatic: false)
+        self.staticSubscripts = DefinitionBuilder.subscripts(for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: true), for: typeName.name, in: machO), isStatic: true)
     }
 }

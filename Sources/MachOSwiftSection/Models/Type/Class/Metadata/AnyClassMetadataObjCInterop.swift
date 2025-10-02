@@ -1,7 +1,7 @@
 import Foundation
 import MachOFoundation
 
-public struct AnyClassMetadataObjCInterop: MetadataProtocol {
+public struct AnyClassMetadataObjCInterop: HeapMetadataProtocol {
     public struct Layout: AnyClassMetadataObjCInteropLayout {
         public let kind: StoredPointer
         public let superclass: StoredPointer

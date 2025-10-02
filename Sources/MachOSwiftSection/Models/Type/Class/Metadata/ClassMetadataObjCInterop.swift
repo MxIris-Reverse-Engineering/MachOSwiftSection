@@ -2,8 +2,8 @@ import MachOKit
 import MachOFoundation
 import MachOMacro
 
-public struct ClassMetadataObjCInterop: TypeMetadataProtocol {
-    public struct Layout: ClassMetadataObjCInteropLayout {
+public struct ClassMetadataObjCInterop: ClassMetadataProtocol, TypeMetadataProtocol {
+    public struct Layout: ClassMetadataObjCInteropLayout, ClassMetadataLayoutWithDescriptor {
         public let kind: StoredPointer
         public let superclass: StoredPointer
         public let cache: RawPointer
@@ -30,13 +30,4 @@ public struct ClassMetadataObjCInterop: TypeMetadataProtocol {
     }
 
     public static var descriptorOffset: Int { Layout.offset(of: .descriptor) }
-}
-
-extension ClassMetadataObjCInterop {
-    public func fieldOffsets<MachO: MachOSwiftSectionRepresentableWithCache>(for descriptor: ClassDescriptor? = nil, in machO: MachO) throws -> [StoredPointer] {
-        let descriptor = try descriptor ?? layout.descriptor.resolve(in: machO)
-        guard descriptor.fieldOffsetVectorOffset != .zero else { return [] }
-        let offset = offset + descriptor.fieldOffsetVectorOffset.cast() * MemoryLayout<StoredPointer>.size
-        return try machO.readElements(offset: offset, numberOfElements: descriptor.numFields.cast())
-    }
 }

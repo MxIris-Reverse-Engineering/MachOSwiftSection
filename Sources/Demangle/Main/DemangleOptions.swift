@@ -89,4 +89,10 @@ public struct DemangleOptions: OptionSet, Codable, Sendable {
         options.insert(.removeBoundGeneric)
         return options
     }()
+    
+    package static let opaqueTypeBuilderOnly: DemangleOptions = {
+        var options = DemangleOptions.interfaceTypeBuilderOnly
+        options.insert(.showModuleInDependentMemberType)
+        return options
+    }()
 }

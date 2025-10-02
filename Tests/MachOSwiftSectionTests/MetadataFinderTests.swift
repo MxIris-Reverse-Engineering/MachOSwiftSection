@@ -43,13 +43,13 @@ final class MetadataFinderTests: DyldCacheTests, @unchecked Sendable {
                 guard let metadata = try finder.metadata(for: structDescriptor) as StructMetadata? else {
                     continue
                 }
-//                try Struct(descriptor: structDescriptor, in: machO).dump(using: .test, in: machO).string.print()
+                try Struct(descriptor: structDescriptor, in: machO).dump(using: .test, in: machO).string.print()
                 try metadata.fieldOffsets(for: structDescriptor, in: machO).print()
             case .class(let classDescriptor):
                 guard let metadata = try finder.metadata(for: classDescriptor) as ClassMetadataObjCInterop? else {
                     continue
                 }
-//                try Class(descriptor: classDescriptor, in: machO).dump(using: .test, in: machO).string.print()
+                try Class(descriptor: classDescriptor, in: machO).dump(using: .test, in: machO).string.print()
                 try metadata.fieldOffsets(for: classDescriptor, in: machO).print()
             }
         }

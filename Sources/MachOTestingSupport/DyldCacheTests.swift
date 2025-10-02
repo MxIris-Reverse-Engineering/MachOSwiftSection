@@ -27,7 +27,7 @@ package class DyldCacheTests {
     
     package init() async throws {
         self.mainCache = try DyldCache(path: Self.cachePath)
-        self.subCache = try #require(mainCache.subCaches?.first?.subcache(for: mainCache))
+        self.subCache = try required(mainCache.subCaches?.first?.subcache(for: mainCache))
         self.fullCache = try FullDyldCache(path: Self.cachePath)
         self.machOFileInCache = try #require(mainCache.machOFile(named: Self.cacheImageName))
         self.machOFileInMainCache = try #require(mainCache.machOFile(named: Self.mainCacheImageName))

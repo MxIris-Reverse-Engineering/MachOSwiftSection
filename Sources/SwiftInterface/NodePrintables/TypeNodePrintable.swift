@@ -1,12 +1,12 @@
 import Demangle
 
 protocol TypeNodePrintable: NodePrintable {
-    mutating func printNameInType(_ name: Node) -> Bool
+    mutating func printNameInType(_ name: Node, context: Context?) -> Bool
     mutating func printType(_ name: Node)
 }
 
 extension TypeNodePrintable {
-    mutating func printNameInType(_ name: Node) -> Bool {
+    mutating func printNameInType(_ name: Node, context: Context?) -> Bool {
         switch name.kind {
         case .type, .weak:
             printFirstChild(name)
@@ -31,7 +31,7 @@ extension TypeNodePrintable {
         case .existentialMetatype:
             printExistentialMetatype(name)
         case .opaqueReturnType:
-            target.write("some")
+            printOpaqueReturnType(name)
         case .opaqueReturnTypeOf:
             printChildren(name)
         case .opaqueType:
@@ -41,11 +41,17 @@ extension TypeNodePrintable {
         }
         return true
     }
+    
+    mutating func printOpaqueReturnType(_ node: Node) {
+        target.write("some")
+        if let targetNode, let opaqueType = delegate?.opaqueType(forNode: targetNode, index: node.first(of: .opaqueReturnTypeIndex)?.index?.int) {
+            target.writeSpace()
+            target.write(opaqueType)
+        }
+    }
 
     mutating func printOpaqueType(_ name: Node) {
         printFirstChild(name)
-//        target.write(".")
-//        _ = printOptional(name.children.at(1))
     }
     
     mutating func printType(_ name: Node) {

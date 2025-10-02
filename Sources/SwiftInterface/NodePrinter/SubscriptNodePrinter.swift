@@ -2,20 +2,24 @@ import Foundation
 import Demangle
 import Semantic
 
-struct SubscriptNodePrinter: InterfaceNodePrinter {
+struct SubscriptNodePrinter: InterfaceNodePrintable {
+    typealias Context = InterfaceNodePrinterContext
+    
     var target: SemanticString = ""
 
-    var isStatic: Bool = false
+    private var isStatic: Bool = false
 
-    let hasSetter: Bool
+    private let hasSetter: Bool
 
-    let indentation: Int
+    private let indentation: Int
 
-    weak var delegate: (any InterfaceNodePrinterDelegate)?
+    private(set) weak var delegate: (any NodePrintableDelegate)?
 
     private(set) var isProtocol: Bool = false
 
-    init(hasSetter: Bool, indentation: Int, delegate: (any InterfaceNodePrinterDelegate)? = nil) {
+    private(set) var targetNode: Node?
+    
+    init(hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
         self.hasSetter = hasSetter
         self.indentation = indentation
         self.delegate = delegate
@@ -55,6 +59,13 @@ struct SubscriptNodePrinter: InterfaceNodePrinter {
     }
 
     private mutating func printSubscript(_ node: Node) {
+        // Setup target node for opaque return type lookup
+        var targetNode = node
+        if isStatic {
+            targetNode = Node(kind: .static, child: targetNode)
+        }
+        self.targetNode = targetNode
+        
         var genericFunctionTypeList: Node?
         var node = node
         if node.kind == .boundGenericFunction, let first = node.children.at(0), let second = node.children.at(1) {
@@ -75,16 +86,6 @@ struct SubscriptNodePrinter: InterfaceNodePrinter {
 
         if let type = node.children.first(of: .type), let functionType = type.children.first {
             printLabelList(name: node, type: functionType, genericFunctionTypeList: genericFunctionTypeList)
-        }
-        if node.first(of: .opaqueReturnType) != nil {
-            var opaqueReturnTypeOf = node
-            if isStatic {
-                opaqueReturnTypeOf = Node(kind: .static, child: opaqueReturnTypeOf)
-            }
-            if let opaqueType = delegate?.opaqueType(forNode: opaqueReturnTypeOf) {
-                target.writeSpace()
-                target.write(opaqueType)
-            }
         }
         if let genericSignature = node.first(of: .dependentGenericSignature) {
             let nodes = genericSignature.all(of: .requirementKinds)

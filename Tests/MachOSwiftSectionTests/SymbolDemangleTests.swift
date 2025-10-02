@@ -6,6 +6,7 @@ import MachOMacro
 import MachOFoundation
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
+import Dependencies
 
 @Suite(.serialized)
 final class DyldCacheSymbolDemangleTests: DyldCacheTests {
@@ -56,11 +57,15 @@ final class DyldCacheSymbolDemangleTests: DyldCacheTests {
             string += "\n"
             string += "\n"
         }
-        try string.write(to: .desktopDirectory.appending(components: "\(imageName.rawValue)-SwiftSymbolsExpand.txt"), atomically: true, encoding: .utf8)
+
+        let directoryURL = URL.documentsDirectory.appending(component: "SwiftSymbolExpanded")
+        try directoryURL.createDirectoryIfNeeded()
+
+        try string.write(to: directoryURL.appending(components: "\(imageName.rawValue).txt"), atomically: true, encoding: .utf8)
     }
 
     @Test func demangle() async throws {
-        var demangler = Demangler(scalars: "_$ss11InlineArrayVsRi__rlE8_storagexq_BVvr".unicodeScalars)
+        var demangler = Demangler(scalars: "_$s15SymbolTestsCore20OpaqueReturnTypeTestV13functionWhereQr_QR_SgtSgyAA08ProtocolG0Rzs5NeverO4BodyRtzlFMXX".unicodeScalars)
         let node = try demangler.demangleSymbol()
         node.print().print()
     }
@@ -145,3 +150,26 @@ final class XcodeMachOFilesSymbolDemangleTests {
     }
 }
 #endif
+
+extension URL {
+    func createDirectoryIfNeeded(withIntermediateDirectories createIntermediates: Bool = true) throws {
+        @Dependency(\.fileManager)
+        var fileManager
+        if fileManager.fileExists(atPath: path(percentEncoded: false)) { return }
+        try fileManager.createDirectory(at: self, withIntermediateDirectories: createIntermediates)
+    }
+}
+
+extension DependencyValues {
+    var fileManager: FileManager {
+        set { self[FileManagerKey.self] = newValue }
+        get { self[FileManagerKey.self] }
+    }
+}
+
+private enum FileManagerKey: DependencyKey, @unchecked Sendable {
+    public static let liveValue: FileManager = .default
+    public static let testValue: FileManager = .default
+}
+
+extension FileManager: @retroactive @unchecked Sendable {}

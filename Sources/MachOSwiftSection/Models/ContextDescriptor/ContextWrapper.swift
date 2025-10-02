@@ -6,7 +6,7 @@ import MachOFoundation
 @CaseCheckable(.public)
 @AssociatedValue(.public)
 public enum ContextWrapper: Resolvable {
-    case type(TypeWrapper)
+    case type(TypeContextWrapper)
     case `protocol`(`Protocol`)
     case anonymous(AnonymousContext)
     case `extension`(ExtensionContext)

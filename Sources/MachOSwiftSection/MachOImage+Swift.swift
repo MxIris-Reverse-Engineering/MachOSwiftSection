@@ -17,9 +17,9 @@ extension MachOImage {
 }
 
 extension MachOImage.Swift: SwiftSectionRepresentable {
-    public var types: [TypeWrapper] {
+    public var types: [TypeContextWrapper] {
         get throws {
-            var results: [TypeWrapper] = []
+            var results: [TypeContextWrapper] = []
             let typeContextDescriptors = try typeContextDescriptors
             for typeContextDescriptor in typeContextDescriptors {
                 switch typeContextDescriptor {

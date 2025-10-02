@@ -32,6 +32,12 @@ public final class Node: Sendable {
         }
     }
 
+    package func copy() -> Node {
+        let copy = Node(kind: kind, contents: contents, children: children.map { $0.copy() })
+        copy.parent = parent
+        return copy
+    }
+    
     public init(kind: Kind, contents: Contents = .none, children: [Node] = []) {
         self.kind = kind
         self.contents = contents

@@ -3,16 +3,20 @@ import Demangle
 import MachOExtensions
 import Semantic
 
-struct FunctionNodePrinter: InterfaceNodePrinter {
+struct FunctionNodePrinter: InterfaceNodePrintable {
+    typealias Context = InterfaceNodePrinterContext
+    
     var target: SemanticString = ""
 
     private var isStatic: Bool = false
 
-    private(set) weak var delegate: (any InterfaceNodePrinterDelegate)?
+    private(set) weak var delegate: (any NodePrintableDelegate)?
 
     private(set) var isProtocol: Bool = false
 
-    init(delegate: (any InterfaceNodePrinterDelegate)? = nil) {
+    private(set) var targetNode: Node?
+
+    init(delegate: (any NodePrintableDelegate)? = nil) {
         self.delegate = delegate
     }
 
@@ -48,6 +52,12 @@ struct FunctionNodePrinter: InterfaceNodePrinter {
     }
 
     private mutating func printFunction(_ function: Node) {
+        var targetNode = function
+        if isStatic {
+            targetNode = Node(kind: .static, child: targetNode)
+        }
+        self.targetNode = targetNode
+
         var genericFunctionTypeList: Node?
         var function = function
         if function.kind == .boundGenericFunction, let first = function.children.at(0), let second = function.children.at(1) {
@@ -80,17 +90,6 @@ struct FunctionNodePrinter: InterfaceNodePrinter {
             printLabelList(name: function, type: functionType, genericFunctionTypeList: genericFunctionTypeList)
         }
 
-        if function.first(of: .opaqueReturnType) != nil {
-            var opaqueReturnTypeOf = function
-            if isStatic {
-                opaqueReturnTypeOf = Node(kind: .static, child: opaqueReturnTypeOf)
-            }
-            if let opaqueType = delegate?.opaqueType(forNode: opaqueReturnTypeOf) {
-                target.writeSpace()
-                target.write(opaqueType)
-            }
-        }
-
         if let genericSignature = function.first(of: .dependentGenericSignature) {
             let nodes = genericSignature.all(of: .requirementKinds)
             for (offset, node) in nodes.offsetEnumerated() {
@@ -104,7 +103,6 @@ struct FunctionNodePrinter: InterfaceNodePrinter {
             }
         }
     }
-
 }
 
 extension Node {

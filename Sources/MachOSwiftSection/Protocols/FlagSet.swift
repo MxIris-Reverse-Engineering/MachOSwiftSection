@@ -1,11 +1,11 @@
 public protocol FlagSet: Equatable, RawRepresentable, Sendable where RawValue: FixedWidthInteger {
     func flag(bit: Int) -> Bool
 
-    func field<FieldType: FixedWidthInteger>(
+    func field<Field: FixedWidthInteger>(
         firstBit: Int,
         bitWidth: Int,
-        fieldType: FieldType.Type
-    ) -> FieldType where FieldType.Magnitude == FieldType
+        fieldType: Field.Type
+    ) -> Field
 }
 
 extension FlagSet {
@@ -37,19 +37,19 @@ extension FlagSet {
     }
 
     @inline(__always)
-    public func field<FieldType: FixedWidthInteger>(
+    public func field<Field: FixedWidthInteger>(
         firstBit: Int,
         bitWidth: Int,
-        fieldType: FieldType.Type = FieldType.self
-    ) -> FieldType where FieldType.Magnitude == FieldType {
+        fieldType: Field.Type = Field.self
+    ) -> Field {
         precondition(bitWidth > 0, "Bit width must be positive.")
         precondition(firstBit >= 0 && (firstBit + bitWidth) <= RawValue.bitWidth, "Field range is out of bounds for the storage type.")
-        precondition(FieldType.bitWidth >= bitWidth, "The requested FieldType is too small to represent a value of the specified bitWidth.")
+        precondition(Field.bitWidth >= bitWidth, "The requested FieldType is too small to represent a value of the specified bitWidth.")
 
         let mask = Self.lowMask(forBitWidth: bitWidth)
         let shiftedValue = rawValue >> firstBit
         let isolatedValue = shiftedValue & mask
-        return FieldType(truncatingIfNeeded: isolatedValue)
+        return Field(truncatingIfNeeded: isolatedValue)
     }
 
     public static func == (lhs: Self, rhs: Self) -> Bool {

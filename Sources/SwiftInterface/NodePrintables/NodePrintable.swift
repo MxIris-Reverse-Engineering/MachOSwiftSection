@@ -1,19 +1,25 @@
 import Demangle
 import Foundation
 
+protocol NodePrintableContext {}
+
 protocol NodePrintable {
     associatedtype Target: NodePrinterTarget
-
+    
+    associatedtype Context: NodePrintableContext
+    
     var target: Target { set get }
-
-    var delegate: InterfaceNodePrinterDelegate? { get }
+    
+    var delegate: NodePrintableDelegate? { get }
+    
+    var targetNode: Node? { get }
     
     @discardableResult
-    mutating func printName(_ name: Node, asPrefixContext: Bool) -> Node?
+    mutating func printName(_ name: Node, asPrefixContext: Bool, context: Context?) -> Node?
 }
 
 extension NodePrintable {
-    mutating func printNameInBase(_ name: Node) -> Bool {
+    mutating func printNameInBase(_ name: Node, context: Context?) -> Bool {
         switch name.kind {
         case .global:
             printChildren(name)
@@ -68,7 +74,17 @@ extension NodePrintable {
 
     @discardableResult
     mutating func printName(_ name: Node) -> Node? {
-        printName(name, asPrefixContext: false)
+        printName(name, asPrefixContext: false, context: nil)
+    }
+
+    @discardableResult
+    mutating func printName(_ name: Node, asPrefixContext: Bool) -> Node? {
+        printName(name, asPrefixContext: asPrefixContext, context: nil)
+    }
+    
+    @discardableResult
+    mutating func printName(_ name: Node, context: Context?) -> Node? {
+        printName(name, asPrefixContext: false, context: context)
     }
 
     @discardableResult

@@ -1,7 +1,7 @@
 import Foundation
 import MachOSymbols
 
-public enum TypeWrapper: Sendable {
+public enum TypeContextWrapper: Sendable {
     case `enum`(Enum)
     case `struct`(Struct)
     case `class`(Class)

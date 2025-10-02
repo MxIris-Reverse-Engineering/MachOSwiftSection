@@ -2,22 +2,26 @@ import Foundation
 import Demangle
 import Semantic
 
-struct VariableNodePrinter: InterfaceNodePrinter {
+struct VariableNodePrinter: InterfaceNodePrintable {
+    typealias Context = InterfaceNodePrinterContext
+    
     var target: SemanticString = ""
 
-    var isStatic: Bool = false
+    private var isStatic: Bool = false
 
-    let isStored: Bool
+    private let isStored: Bool
 
-    let hasSetter: Bool
+    private let hasSetter: Bool
 
-    let indentation: Int
+    private let indentation: Int
 
-    weak var delegate: (any InterfaceNodePrinterDelegate)?
+    private(set) weak var delegate: (any NodePrintableDelegate)?
 
+    private(set) var targetNode: Node?
+    
     private(set) var isProtocol: Bool = false
-
-    init(isStored: Bool, hasSetter: Bool, indentation: Int, delegate: (any InterfaceNodePrinterDelegate)? = nil) {
+    
+    init(isStored: Bool, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
         self.isStored = isStored
         self.hasSetter = hasSetter
         self.indentation = indentation
@@ -68,6 +72,13 @@ struct VariableNodePrinter: InterfaceNodePrinter {
         guard let identifier else {
             throw Error.onlySupportedForVariableNode(node)
         }
+        
+        var targetNode = node
+        if isStatic {
+            targetNode = Node(kind: .static, child: targetNode)
+        }
+        self.targetNode = targetNode
+        
         if let first = node.children.first {
             if first.isKind(of: .extension) {
                 isProtocol = first.children.at(1)?.isKind(of: .protocol) ?? false
@@ -83,20 +94,12 @@ struct VariableNodePrinter: InterfaceNodePrinter {
 
         target.write(identifier.text ?? "", context: .context(for: identifier, state: .printIdentifier))
         target.write(": ")
+        
         guard let type = node.children.first(of: .type) else { return }
+        
         printName(type)
+        
         guard !isStored else { return }
-
-        if node.first(of: .opaqueReturnType) != nil {
-            var opaqueReturnTypeOf = node
-            if isStatic {
-                opaqueReturnTypeOf = Node(kind: .static, child: opaqueReturnTypeOf)
-            }
-            if let opaqueType = delegate?.opaqueType(forNode: opaqueReturnTypeOf) {
-                target.writeSpace()
-                target.write(opaqueType)
-            }
-        }
 
         target.write(" {")
         target.write("\n")

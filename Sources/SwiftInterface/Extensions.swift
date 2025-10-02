@@ -8,13 +8,14 @@ import Semantic
 import SwiftStdlibToolbox
 
 extension Node {
-    var accessorKind: AccessorKind? {
-        guard let node = first(of: .getter, .setter, .modifyAccessor) else { return nil }
+    var accessorKind: AccessorKind {
+        guard let node = first(of: .getter, .setter, .modifyAccessor, .modify2Accessor, .readAccessor, .read2Accessor) else { return .none }
         switch node.kind {
         case .getter: return .getter
         case .setter: return .setter
         case .modifyAccessor, .modify2Accessor: return .modifyAccessor
-        default: return nil
+        case .readAccessor, .read2Accessor: return .readAccessor
+        default: return .none
         }
     }
 }
@@ -27,7 +28,7 @@ extension ProtocolConformance {
         case .indirectTypeDescriptor(let descriptorOrSymbol):
             switch descriptorOrSymbol {
             case .symbol(let symbol):
-                let node = try demangleAsNode(symbol.name)
+                guard let node = try MetadataReader.demangleType(for: symbol, in: machO) else { return nil }
                 let allChildren = node.map { $0 }
                 let kind: TypeKind
                 if allChildren.contains(.enum) || allChildren.contains(.boundGenericEnum) {
@@ -85,7 +86,7 @@ extension MachOSwiftSection.`Protocol` {
     }
 }
 
-extension TypeWrapper {
+extension TypeContextWrapper {
     func typeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeName {
         try typeContextDescriptorWrapper.typeName(in: machO)
     }

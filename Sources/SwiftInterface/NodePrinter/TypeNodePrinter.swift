@@ -2,14 +2,18 @@ import Foundation
 import Demangle
 import Semantic
 
-struct TypeNodePrinter: InterfaceNodePrinter {
+struct TypeNodePrinter: InterfaceNodePrintable {
+    typealias Context = InterfaceNodePrinterContext
+
     var target: SemanticString = ""
 
-    weak var delegate: (any InterfaceNodePrinterDelegate)?
+    var targetNode: Node? { nil }
 
-    let isProtocol: Bool = false
-    
-    init(delegate: (any InterfaceNodePrinterDelegate)? = nil) {
+    var isProtocol: Bool { false }
+
+    private(set) weak var delegate: (any NodePrintableDelegate)?
+
+    init(delegate: (any NodePrintableDelegate)? = nil) {
         self.delegate = delegate
     }
 

@@ -424,7 +424,13 @@ extension Node {
 
 extension Symbol {
     package var isExternal: Bool {
-        guard let nlist, let flags = nlist.flags, let type = flags.type else { return false }
+        nlist?.isExternal ?? false
+    }
+}
+
+extension NlistProtocol {
+    package var isExternal: Bool {
+        guard let flags = flags, let type = flags.type else { return false }
         return flags.contains(.ext) && type == .undf
     }
 }

@@ -6,7 +6,7 @@ import MachOFoundation
 public struct MethodDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let flags: MethodDescriptorFlags
-        public let implementation: RelativeDirectPointer<Symbol?>
+        public let implementation: RelativeDirectPointer<Symbols?>
     }
     
     public var layout: Layout
@@ -20,7 +20,7 @@ public struct MethodDescriptor: ResolvableLocatableLayoutWrapper {
 }
 
 extension MethodDescriptor {
-    public func implementationSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Symbol? {
+    public func implementationSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Symbols? {
         return try layout.implementation.resolve(from: offset(of: \.implementation), in: machO)
     }
 }

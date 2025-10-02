@@ -8,7 +8,7 @@ public struct TypeContextDescriptor: TypeContextDescriptorProtocol {
         public let flags: ContextDescriptorFlags
         public let parent: RelativeContextPointer
         public let name: RelativeDirectPointer<String>
-        public let accessFunctionPtr: RelativeOffset
+        public let accessFunctionPtr: RelativeDirectPointer<MetadataAccessor>
         public let fieldDescriptor: RelativeDirectPointer<FieldDescriptor>
     }
 

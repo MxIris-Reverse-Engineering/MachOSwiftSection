@@ -6,39 +6,50 @@ public struct TestsValues {}
 
 public final class TestsObjects {}
 
-public protocol Test<Body> {
-    associatedtype Body: Test
+public protocol ProtocolTest<Body> {
+    associatedtype Body: ProtocolTest
 
     var body: Body { get }
 }
 
-extension Test {
+extension ProtocolTest {
     public static func test(lhs: Body, rhs: Self) -> Bool { false }
 }
 
-extension Never: Test {
-    public var body: some Test { self }
-}
-
-public struct NormalTest: Test {
-    public var body: some Test {
+public struct StructTest: ProtocolTest {
+    public var body: Never {
         fatalError()
     }
 }
 
-public struct GenericRequirementTest<T: Test>: Test {
+public class ClassTest {
+    public func returnSelf() -> Self { self }
+    public dynamic func dynamicMethod() {}
+}
+
+public class SubclassTest: ClassTest {
+    public override func returnSelf() -> Self { self }
+}
+
+public final class FinalClassTest: SubclassTest {
+    public override func returnSelf() -> Self { self }
+}
+
+public struct GenericRequirementTest<T: ProtocolTest>: ProtocolTest {
     public private(set) var content: T
 
     public init(content: T) {
         self.content = content
     }
 
-    public var body: some Test {
+    public var body: T {
         content
     }
 }
 
 extension GenericRequirementTest: RawRepresentable where T: RawRepresentable {
+    public struct RawRepresentableNestedStruct {}
+
     public typealias RawValue = T
 
     public var rawValue: T { content }
@@ -58,7 +69,13 @@ extension GenericRequirementTest {
     public static func test(lhs: T, rhs: Self) -> Bool { false }
 }
 
-public struct GenericPackTest<V, each T, S>: Test where repeat each T: Test {
+extension GenericRequirementTest.RawRepresentableNestedStruct {
+    public struct NestedStruct {}
+}
+
+extension GenericRequirementTest.RawRepresentableNestedStruct.NestedStruct {}
+
+public struct GenericPackTest<V, each T, S>: ProtocolTest where repeat each T: ProtocolTest {
     var _content: (repeat each T)
 
     public var body: Never {
@@ -66,17 +83,139 @@ public struct GenericPackTest<V, each T, S>: Test where repeat each T: Test {
     }
 }
 
-public struct GenericValueTest<A, let count: Int, C>: Test {
+public struct GenericValueTest < A, let count: Int, C>: ProtocolTest {
     public var content: C
-    
-    
+
     public var body: Never {
         fatalError()
     }
-    
+
     public func function(value: C) -> Bool { false }
 }
 
-public class ClassTest {
-    public func returnSelf() -> Self { self }
+public protocol TestCollection<Element> {
+    associatedtype Element
+}
+
+extension Array: TestCollection {}
+
+public struct OpaqueReturnTypeTest {
+    public struct AnyProtocolTest<A: ProtocolTest, B: ProtocolTest>: ProtocolTest where A.Body == GenericRequirementTest<B>, A.Body.Body.Body == B {
+        public var body: A { fatalError() }
+    }
+
+    public var variable: some Sequence<any Equatable> { [] }
+
+    public func function<A: ProtocolTest>() -> some Sequence<A> { [] }
+
+    public func functionOptional<A: ProtocolTest>() -> (some Sequence<A>)? { [] }
+
+    public func functionTuple<A: ProtocolTest>() -> (some Sequence<A>, A?) { ([], nil) }
+
+    public func functionWhere<A: ProtocolTest, B: ProtocolTest>() -> (some Sequence<A>, (some ProtocolTest<A>)?, some Collection<A>)? where A.Body == GenericRequirementTest<B>, A.Body.Body.Body == B { ([], AnyProtocolTest<A, B>(), []) }
+    
+    public func functionNested<A: ProtocolTest & Equatable, B: ProtocolTest & Equatable>(_: A, _: B) -> (some Sequence<[A]> & Equatable, (some ProtocolTest<A>)?, some Collection<[A]> & TestCollection<[A]> & Equatable)? where A.Body == GenericRequirementTest<B>, A.Body.Body.Body == B { ([], AnyProtocolTest<A, B>(), []) }
+}
+
+public protocol ProtocolPrimaryAssociatedTypeTest<First, Second> {
+    associatedtype First: ProtocolTest
+    associatedtype Second: ProtocolTest where Second.Body.Body.Body.Body.Body.Body == First.Body.Body.Body.Body.Body.Body
+}
+
+public enum ProtocolPrimaryAssociatedTypeFirst: ProtocolTest {
+    public var body: ProtocolPrimaryAssociatedTypeFirst { fatalError() }
+}
+
+public enum ProtocolPrimaryAssociatedTypeSecond: ProtocolTest {
+    public var body: ProtocolPrimaryAssociatedTypeFirst { fatalError() }
+}
+
+public enum UnderlyingPrimaryAssociatedTypeTest<First: ProtocolTest, Second: ProtocolTest>: ProtocolPrimaryAssociatedTypeTest where Second.Body.Body.Body.Body.Body.Body == First.Body.Body.Body.Body.Body.Body {
+    case none
+}
+
+public struct OpaquePrimaryAssociatedTypeReturnTypeTest {
+    public var body: some ProtocolPrimaryAssociatedTypeTest<ProtocolPrimaryAssociatedTypeFirst, ProtocolPrimaryAssociatedTypeSecond> {
+        UnderlyingPrimaryAssociatedTypeTest<ProtocolPrimaryAssociatedTypeFirst, ProtocolPrimaryAssociatedTypeSecond>.none
+    }
+}
+
+extension Never: ProtocolTest {
+    public typealias Body = Never
+    public var body: Body { fatalError() }
+}
+
+extension Never: @retroactive IteratorProtocol {
+    public typealias Element = Never
+    public mutating func next() -> Element? {
+        fatalError()
+    }
+}
+
+extension Never: @retroactive Sequence {
+    public typealias Iterator = Never
+
+    public func makeIterator() -> Iterator {
+        fatalError()
+    }
+}
+
+public struct GenericStructNonRequirement<A> {
+    public var field1: Double
+    public var field2: A
+    public var field3: Int
+}
+
+public struct GenericStructLayoutRequirement<A: AnyObject> {
+    public var field1: Double
+    public var field2: A
+    public var field3: Int
+}
+
+public class GenericClassNonRequirement<A> {
+    public var field1: Double
+    public var field2: A
+    public var field3: Int
+    
+    public init(field1: Double, field2: A, field3: Int) {
+        self.field1 = field1
+        self.field2 = field2
+        self.field3 = field3
+    }
+}
+
+public class GenericClassLayoutRequirement<A: AnyObject> {
+    public var field1: Double
+    public var field2: A
+    public var field3: Int
+    
+    public init(field1: Double, field2: A, field3: Int) {
+        self.field1 = field1
+        self.field2 = field2
+        self.field3 = field3
+    }
+}
+
+public class GenericClassNonRequirementInheritNSObject<A>: NSObject {
+    public var field1: Double
+    public var field2: A
+    public var field3: Int
+    
+    public init(field1: Double, field2: A, field3: Int) {
+        self.field1 = field1
+        self.field2 = field2
+        self.field3 = field3
+    }
+}
+
+public class GenericClassLayoutRequirementInheritNSObject<A: AnyObject>: NSObject {
+    public var field1: Double
+    public var field2: A
+    public var field3: Int
+    
+    public init(field1: Double, field2: A, field3: Int) {
+        self.field1 = field1
+        self.field2 = field2
+        self.field3 = field3
+    }
 }

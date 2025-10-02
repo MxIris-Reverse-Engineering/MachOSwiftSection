@@ -119,8 +119,8 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
                 try descriptor?.dumpName(using: typeNameOptions, in: machO).replacingTypeNameOrOtherToTypeDeclaration()
             case .indirectTypeDescriptor(let descriptor):
                 switch descriptor {
-                case .symbol(let unsolvedSymbol):
-                    try MetadataReader.demangleType(for: unsolvedSymbol, in: machO)?.printSemantic(using: typeNameOptions).replacingTypeNameOrOtherToTypeDeclaration()
+                case .symbol(let symbol):
+                    try MetadataReader.demangleType(for: symbol, in: machO)?.printSemantic(using: typeNameOptions).replacingTypeNameOrOtherToTypeDeclaration()
                 case .element(let element):
                     try element.dumpName(using: typeNameOptions, in: machO).replacingTypeNameOrOtherToTypeDeclaration()
                 case nil:
@@ -163,4 +163,13 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
         }
         return nil
     }
+}
+
+package func demangledSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(of kind: Node.Kind, for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<Node> = [], in machO: MachO) throws -> DemangledSymbol? {
+    for symbol in symbols {
+        if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let targetNode = node.first(of: kind), let symbolTypeName = targetNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.entry(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(node) {
+            return .init(symbol: symbol, demangledNode: node)
+        }
+    }
+    return nil
 }
