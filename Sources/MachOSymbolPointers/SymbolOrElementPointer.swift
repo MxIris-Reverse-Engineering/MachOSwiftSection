@@ -1,6 +1,6 @@
 import MachOKit
 import MachOReading
-import MachOPointer
+import MachOPointers
 import MachOSymbols
 import MachOResolving
 import MachOExtensions

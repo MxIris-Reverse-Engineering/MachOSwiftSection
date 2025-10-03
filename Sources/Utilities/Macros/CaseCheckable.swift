@@ -2,6 +2,6 @@
 public macro CaseCheckable(
     _ access: AccessLevel? = nil
 ) = #externalMacro(
-    module: "MachOMacroPlugin",
+    module: "MachOMacros",
     type: "CaseCheckableMacro"
 )

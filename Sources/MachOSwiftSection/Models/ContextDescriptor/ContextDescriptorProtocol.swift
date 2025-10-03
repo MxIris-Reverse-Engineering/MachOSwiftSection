@@ -1,6 +1,6 @@
 import MachOKit
 import MachOFoundation
-import MachOMacro
+
 import Demangle
 
 @dynamicMemberLookup

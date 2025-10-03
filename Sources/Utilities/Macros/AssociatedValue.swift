@@ -36,6 +36,6 @@ public macro AssociatedValue(
     prefix: String? = nil,
     suffix: String? = nil
 ) = #externalMacro(
-    module: "MachOMacroPlugin",
+    module: "MachOMacros",
     type: "AssociatedValueMacro"
 )

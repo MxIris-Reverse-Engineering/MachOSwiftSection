@@ -4,7 +4,11 @@ import MachOKit
 
 public struct MetadataAccessor: Resolvable, @unchecked Sendable {
     private var raw: UnsafeRawPointer
-
+    
+    package init(raw: UnsafeRawPointer) {
+        self.raw = raw
+    }
+    
     public func perform(request: MetadataRequest) -> MetadataResponse {
         unsafeBitCast(raw, to: (@convention(thin) (Int) -> MetadataResponse).self)(request.rawValue)
     }

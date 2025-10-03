@@ -9,6 +9,7 @@ import MachOKit
 import TypeIndexing
 import Dependencies
 import Utilities
+@_spi(Internal) import MachOSymbols
 
 /// A comprehensive Swift interface builder that generates human-readable Swift interface files from Mach-O binaries.
 ///

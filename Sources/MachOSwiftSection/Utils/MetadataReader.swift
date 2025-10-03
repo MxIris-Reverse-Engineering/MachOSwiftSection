@@ -2,7 +2,7 @@ import Foundation
 import MachOKit
 import Demangle
 import MachOFoundation
-import MachOMacro
+
 
 public enum MetadataReader {
     public static func demangle<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {

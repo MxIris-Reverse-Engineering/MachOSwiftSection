@@ -9,8 +9,12 @@ public struct MetadataRequest: MutableFlagSet {
         self.rawValue = rawValue
     }
 
-    public init(state: MetadataState, isBlocking: Bool) {
+    public init() {
         self.init(rawValue: 0)
+    }
+
+    public init(state: MetadataState, isBlocking: Bool) {
+        self.init()
         self.state = state
         self.isBlocking = isBlocking
     }

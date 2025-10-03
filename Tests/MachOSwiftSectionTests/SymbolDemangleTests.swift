@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Demangle
 import MachOKit
-import MachOMacro
+
 import MachOFoundation
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
@@ -136,7 +136,7 @@ final class XcodeMachOFilesSymbolDemangleTests {
     private func allSymbols() throws -> [MachOSwiftSymbol] {
         guard FileManager.default.fileExists(atPath: "/Applications/Xcode.app") else { return [] }
         var symbols: [MachOSwiftSymbol] = []
-        for machOFile in try XcodeMachOFileName.allCases.compactMap({ try File.loadFromFile(url: .init(fileURLWithPath: $0.path)).machOFiles.first }) {
+        for machOFile in try XcodeMachOFileName.allCases.compactMap({ try File.loadFromFile(url: $0.url).machOFiles.first }) {
             for symbol in machOFile.symbols where symbol.name.isSwiftSymbol {
                 symbols.append(MachOSwiftSymbol(imagePath: machOFile.imagePath, offset: symbol.offset, stringValue: symbol.name))
             }
@@ -151,25 +151,3 @@ final class XcodeMachOFilesSymbolDemangleTests {
 }
 #endif
 
-extension URL {
-    func createDirectoryIfNeeded(withIntermediateDirectories createIntermediates: Bool = true) throws {
-        @Dependency(\.fileManager)
-        var fileManager
-        if fileManager.fileExists(atPath: path(percentEncoded: false)) { return }
-        try fileManager.createDirectory(at: self, withIntermediateDirectories: createIntermediates)
-    }
-}
-
-extension DependencyValues {
-    var fileManager: FileManager {
-        set { self[FileManagerKey.self] = newValue }
-        get { self[FileManagerKey.self] }
-    }
-}
-
-private enum FileManagerKey: DependencyKey, @unchecked Sendable {
-    public static let liveValue: FileManager = .default
-    public static let testValue: FileManager = .default
-}
-
-extension FileManager: @retroactive @unchecked Sendable {}

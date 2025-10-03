@@ -6,6 +6,7 @@ import SwiftDump
 import Demangle
 import Semantic
 import SwiftStdlibToolbox
+@_spi(Internal) import MachOSymbols
 
 public final class ProtocolDefinition: Definition, MutableDefinition {
     public let `protocol`: MachOSwiftSection.`Protocol`

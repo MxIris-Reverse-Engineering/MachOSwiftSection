@@ -23,8 +23,12 @@ public struct EnumDescriptor: TypeContextDescriptorProtocol {
 }
 
 extension EnumDescriptor {
+    public var hasPayloadSizeOffset: Bool {
+        payloadSizeOffset != 0
+    }
+    
     public var payloadSizeOffset: Int {
-        .init((layout.numPayloadCasesAndPayloadSizeOffset & 0xFF00000) >> 24)
+        .init((layout.numPayloadCasesAndPayloadSizeOffset & 0xFF000000) >> 24)
     }
     
     public var numberOfPayloadCases: UInt32 {

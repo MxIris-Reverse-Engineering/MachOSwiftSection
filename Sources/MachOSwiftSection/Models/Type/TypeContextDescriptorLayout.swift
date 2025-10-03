@@ -1,4 +1,4 @@
-import MachOMacro
+
 import MachOFoundation
 
 @Layout

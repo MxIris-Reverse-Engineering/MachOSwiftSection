@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import MachOKit
-import MachOMacro
+
 import MachOFoundation
 
 package class MachOImageTests {

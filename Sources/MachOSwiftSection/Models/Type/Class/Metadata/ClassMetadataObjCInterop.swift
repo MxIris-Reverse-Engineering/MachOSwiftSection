@@ -1,6 +1,6 @@
 import MachOKit
 import MachOFoundation
-import MachOMacro
+
 
 public struct ClassMetadataObjCInterop: ClassMetadataProtocol, TypeMetadataProtocol {
     public struct Layout: ClassMetadataObjCInteropLayout, ClassMetadataLayoutWithDescriptor {

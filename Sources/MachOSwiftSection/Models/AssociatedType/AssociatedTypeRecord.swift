@@ -1,7 +1,7 @@
 import Foundation
 import MachOKit
 import MachOFoundation
-import MachOMacro
+
 
 public struct AssociatedTypeRecord: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {

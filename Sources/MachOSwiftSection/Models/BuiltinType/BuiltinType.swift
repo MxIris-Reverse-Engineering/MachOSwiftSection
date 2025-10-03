@@ -1,7 +1,7 @@
 import Foundation
 import MachOSymbols
 import MachOKit
-import MachOMacro
+
 import MachOFoundation
 
 public struct BuiltinType: TopLevelType {

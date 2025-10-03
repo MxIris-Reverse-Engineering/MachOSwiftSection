@@ -4,20 +4,22 @@ import MachOExtensions
 import Demangle
 import OrderedCollections
 import Utilities
-@_spi(Private) import MachOCaches
 import Dependencies
+@_spi(Internal) import MachOCaches
 
-package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
-    package enum MemberKind: Hashable, CaseIterable, CustomStringConvertible {
-        package struct Traits: OptionSet, Hashable {
-            package let rawValue: Int
-            package init(rawValue: Int) {
+@_spi(ForSymbolViewer)
+@_spi(Internal)
+public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
+    public enum MemberKind: Hashable, CaseIterable, CustomStringConvertible {
+        fileprivate struct Traits: OptionSet, Hashable {
+            fileprivate let rawValue: Int
+            fileprivate init(rawValue: Int) {
                 self.rawValue = rawValue
             }
 
-            package static let isStatic = Traits(rawValue: 1 << 0)
-            package static let isStorage = Traits(rawValue: 1 << 1)
-            package static let inExtension = Traits(rawValue: 1 << 2)
+            fileprivate static let isStatic = Traits(rawValue: 1 << 0)
+            fileprivate static let isStorage = Traits(rawValue: 1 << 1)
+            fileprivate static let inExtension = Traits(rawValue: 1 << 2)
         }
 
         case allocator(inExtension: Bool)
@@ -28,7 +30,7 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         case variable(inExtension: Bool, isStatic: Bool, isStorage: Bool)
         case function(inExtension: Bool, isStatic: Bool)
 
-        package static let allCases: [SymbolIndexStore.MemberKind] = [
+        public static let allCases: [SymbolIndexStore.MemberKind] = [
             .allocator(inExtension: false),
             .allocator(inExtension: true),
             .deallocator,
@@ -53,7 +55,7 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
             .function(inExtension: true, isStatic: true),
         ]
 
-        package var description: String {
+        public var description: String {
             switch self {
             case .allocator(inExtension: let inExtension):
                 return "Allocator" + (inExtension ? " (In Extension)" : "")
@@ -73,17 +75,17 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         }
     }
 
-    package enum GlobalKind: Hashable, CaseIterable, CustomStringConvertible {
+    public enum GlobalKind: Hashable, CaseIterable, CustomStringConvertible {
         case variable(isStorage: Bool)
         case function
 
-        package static let allCases: [SymbolIndexStore.GlobalKind] = [
+        public static let allCases: [SymbolIndexStore.GlobalKind] = [
             .variable(isStorage: false),
             .variable(isStorage: true),
             .function,
         ]
 
-        package var description: String {
+        public var description: String {
             switch self {
             case .variable(isStorage: let isStorage):
                 return (isStorage ? "Stored " : "") + "Global Variable"
@@ -93,8 +95,8 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         }
     }
 
-    package struct TypeInfo {
-        package enum Kind {
+    public struct TypeInfo {
+        public enum Kind {
             case `enum`
             case `struct`
             case `class`
@@ -102,11 +104,11 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
             case typeAlias
         }
 
-        package let name: String
-        package let kind: Kind
+        public let name: String
+        public let kind: Kind
     }
 
-    package struct Entry {
+    public struct Entry {
         fileprivate var symbolsByKind: OrderedDictionary<Node.Kind, [DemangledSymbol]> = [:]
         fileprivate var memberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
         fileprivate var methodDescriptorMemberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
@@ -116,13 +118,13 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         fileprivate var opaqueTypeDescriptorSymbolByNode: OrderedDictionary<Node, DemangledSymbol> = [:]
     }
 
-    package typealias MemberSymbols = OrderedDictionary<String, [DemangledSymbol]>
+    fileprivate typealias MemberSymbols = OrderedDictionary<String, [DemangledSymbol]>
 
-    package static let shared = SymbolIndexStore()
+    public static let shared = SymbolIndexStore()
 
     private override init() { super.init() }
 
-    package override func buildEntry<MachO>(for machO: MachO) -> Entry? where MachO: MachORepresentableWithCache {
+    public override func buildEntry<MachO>(for machO: MachO) -> Entry? where MachO: MachORepresentableWithCache {
         var entry = Entry()
 
         var symbols: OrderedDictionary<String, Symbol> = [:]
@@ -281,7 +283,7 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         }
     }
 
-    package func allSymbols<MachO: MachORepresentableWithCache>(in machO: MachO) -> [DemangledSymbol] {
+    public func allSymbols<MachO: MachORepresentableWithCache>(in machO: MachO) -> [DemangledSymbol] {
         if let symbols = entry(in: machO)?.symbolsByKind.values.flatMap({ $0 }) {
             return symbols
         } else {
@@ -289,23 +291,23 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         }
     }
 
-    package func typeInfo<MachO: MachORepresentableWithCache>(for name: String, in machO: MachO) -> TypeInfo? {
+    public func typeInfo<MachO: MachORepresentableWithCache>(for name: String, in machO: MachO) -> TypeInfo? {
         return entry(in: machO)?.typeInfoByName[name]
     }
 
-    package func symbols<MachO: MachORepresentableWithCache>(of kinds: Node.Kind..., in machO: MachO) -> [DemangledSymbol] {
+    public func symbols<MachO: MachORepresentableWithCache>(of kinds: Node.Kind..., in machO: MachO) -> [DemangledSymbol] {
         return kinds.map { entry(in: machO)?.symbolsByKind[$0] ?? [] }.reduce(into: []) { $0 += $1 }
     }
 
-    package func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
+    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
         return kinds.map { entry(in: machO)?.memberSymbolsByKind[$0]?.values.flatMap { $0 } ?? [] }.reduce(into: []) { $0 += $1 }
     }
 
-    package func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) -> [DemangledSymbol] {
+    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) -> [DemangledSymbol] {
         return kinds.map { entry(in: machO)?.memberSymbolsByKind[$0]?[name] ?? [] }.reduce(into: []) { $0 += $1 }
     }
 
-    package func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., excluding names: borrowing Set<String>, in machO: MachO) -> OrderedDictionary<String, OrderedDictionary<MemberKind, [DemangledSymbol]>> {
+    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., excluding names: borrowing Set<String>, in machO: MachO) -> OrderedDictionary<String, OrderedDictionary<MemberKind, [DemangledSymbol]>> {
         let filtered = kinds.reduce(into: [:]) { $0[$1] = entry(in: machO)?.memberSymbolsByKind[$1]?.filter { !names.contains($0.key) } ?? [:] }
         var result: OrderedDictionary<String, OrderedDictionary<MemberKind, [DemangledSymbol]>> = [:]
         for (kind, memberSymbols) in filtered {
@@ -316,35 +318,35 @@ package final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         return result
     }
 
-    package func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
+    public func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
         return kinds.map { entry(in: machO)?.methodDescriptorMemberSymbolsByKind[$0]?.values.flatMap { $0 } ?? [] }.reduce(into: []) { $0 += $1 }
     }
 
-    package func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) -> [DemangledSymbol] {
+    public func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) -> [DemangledSymbol] {
         return kinds.map { entry(in: machO)?.methodDescriptorMemberSymbolsByKind[$0]?[name] ?? [] }.reduce(into: []) { $0 += $1 }
     }
 
-    package func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., excluding names: borrowing Set<String>, in machO: MachO) -> OrderedDictionary<String, [DemangledSymbol]> {
+    public func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., excluding names: borrowing Set<String>, in machO: MachO) -> OrderedDictionary<String, [DemangledSymbol]> {
         return kinds.map { entry(in: machO)?.methodDescriptorMemberSymbolsByKind[$0]?.filter { !names.contains($0.key) } ?? [:] }.reduce(into: [:]) { $0.merge($1) { $0 + $1 } }
     }
 
-    package func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
+    public func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
         return kinds.map { entry(in: machO)?.protocolWitnessMemberSymbolsByKind[$0]?.values.flatMap { $0 } ?? [] }.reduce(into: []) { $0 += $1 }
     }
 
-    package func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) -> [DemangledSymbol] {
+    public func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) -> [DemangledSymbol] {
         return kinds.map { entry(in: machO)?.protocolWitnessMemberSymbolsByKind[$0]?[name] ?? [] }.reduce(into: []) { $0 += $1 }
     }
 
-    package func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., excluding names: borrowing Set<String>, in machO: MachO) -> OrderedDictionary<String, [DemangledSymbol]> {
+    public func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., excluding names: borrowing Set<String>, in machO: MachO) -> OrderedDictionary<String, [DemangledSymbol]> {
         return kinds.map { entry(in: machO)?.protocolWitnessMemberSymbolsByKind[$0]?.filter { !names.contains($0.key) } ?? [:] }.reduce(into: [:]) { $0.merge($1) { $0 + $1 } }
     }
 
-    package func globalSymbols<MachO: MachORepresentableWithCache>(of kinds: GlobalKind..., in machO: MachO) -> [DemangledSymbol] {
+    public func globalSymbols<MachO: MachORepresentableWithCache>(of kinds: GlobalKind..., in machO: MachO) -> [DemangledSymbol] {
         return kinds.map { entry(in: machO)?.globalSymbolsByKind[$0] ?? [] }.reduce(into: []) { $0 += $1 }
     }
     
-    package func opaqueTypeDescriptorSymbol<MachO: MachORepresentableWithCache>(for node: Node, in machO: MachO) -> DemangledSymbol? {
+    public func opaqueTypeDescriptorSymbol<MachO: MachORepresentableWithCache>(for node: Node, in machO: MachO) -> DemangledSymbol? {
         return entry(in: machO)?.opaqueTypeDescriptorSymbolByNode[node]
     }
 }
@@ -395,8 +397,10 @@ private enum SymbolIndexStoreKey: DependencyKey {
     static let testValue: SymbolIndexStore = .shared
 }
 
+@_spi(ForSymbolViewer)
+@_spi(Internal)
 extension DependencyValues {
-    package var symbolIndexStore: SymbolIndexStore {
+    public var symbolIndexStore: SymbolIndexStore {
         get { self[SymbolIndexStoreKey.self] }
         set { self[SymbolIndexStoreKey.self] = newValue }
     }

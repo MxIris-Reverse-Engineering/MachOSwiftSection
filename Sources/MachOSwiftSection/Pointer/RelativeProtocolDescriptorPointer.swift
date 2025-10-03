@@ -1,5 +1,5 @@
 import MachOKit
-import MachOMacro
+
 import MachOFoundation
 
 public enum RelativeProtocolDescriptorPointer: Sendable, Equatable {

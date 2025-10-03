@@ -1,8 +1,8 @@
 import Foundation
 import MachOFoundation
-import MachOMacro
 
-public struct ExistentialTypeFlags: OptionSet {
+
+public struct ExistentialTypeFlags: OptionSet, Sendable {
     public typealias RawValue = UInt32
     public let rawValue: RawValue
     public init(rawValue: RawValue) {

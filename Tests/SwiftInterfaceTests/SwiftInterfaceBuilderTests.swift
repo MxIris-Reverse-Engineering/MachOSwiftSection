@@ -8,11 +8,17 @@ import MachOKit
 protocol SwiftInterfaceBuilderTests {}
 
 extension SwiftInterfaceBuilderTests {
+    
+    var rootDirectory: URL {
+        .documentsDirectory.appending(path: "SwiftInterfaceTests")
+    }
+    
     func buildFile(in machO: MachOFile) async throws {
         let builder = try SwiftInterfaceBuilder(configuration: .init(isEnabledTypeIndexing: false), eventHandlers: [OSLogEventHandler()], in: machO)
         builder.setDependencyPaths([.usesSystemDyldSharedCache])
         try await builder.prepare()
         let result = try builder.build()
+        try rootDirectory.createDirectoryIfNeeded()
         try result.string.write(to: .desktopDirectory.appending(path: "\(machO.imagePath.lastPathComponent)-FileDump.swiftinterface"), atomically: true, encoding: .utf8)
     }
 
@@ -21,6 +27,7 @@ extension SwiftInterfaceBuilderTests {
         builder.setupDependencies()
         try await builder.prepare()
         let result = try builder.build()
+        try rootDirectory.createDirectoryIfNeeded()
         try result.string.write(to: .desktopDirectory.appending(path: "\(machO.imagePath.lastPathComponent)-ImageDump.swiftinterface"), atomically: true, encoding: .utf8)
     }
 }
@@ -56,7 +63,7 @@ enum SwiftInterfaceBuilderTestSuite {
     }
 
     class XcodeMachOFileTests: MachOTestingSupport.XcodeMachOFileTests, SwiftInterfaceBuilderTests {
-        override class var fileName: XcodeMachOFileName { .sharedFrameworks(.CombineXPC) }
+        override class var fileName: XcodeMachOFileName { .frameworks(.IDEKit) }
 
         @Test func buildFile() async throws {
             try await buildFile(in: machOFile)

@@ -2,7 +2,6 @@ import Foundation
 import MachOKit
 import MachOExtensions
 import MachOReading
-import MachOMacro
 
 public protocol MetadataProtocol: ResolvableLocatableLayoutWrapper where Layout: MetadataLayout {
     associatedtype HeaderType: ResolvableLocatableLayoutWrapper = TypeMetadataHeader
@@ -24,7 +23,3 @@ extension MetadataProtocol where HeaderType: TypeMetadataHeaderBaseProtocol {
         return try fullMetadata.layout.header.valueWitnesses.resolve(in: machO)
     }
 }
-
-
-
-

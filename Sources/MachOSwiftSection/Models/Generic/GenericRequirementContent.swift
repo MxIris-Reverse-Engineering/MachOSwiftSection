@@ -1,5 +1,5 @@
 import MachOFoundation
-import MachOMacro
+
 
 @CaseCheckable(.public)
 @AssociatedValue(.public)

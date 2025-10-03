@@ -14,17 +14,18 @@ final class MetadataAccessorTests: MachOImageTests {
         for typeContextDescriptorWrapper in try machO.swift.typeContextDescriptors {
             guard !typeContextDescriptorWrapper.typeContextDescriptor.layout.flags.isGeneric else { continue }
             if let metadataAccessor = try typeContextDescriptorWrapper.typeContextDescriptor.metadataAccessor(in: machO) {
-                let metadataResponse = metadataAccessor.perform(request: .init(state: .complete, isBlocking: false))
+                let metadataResponse = metadataAccessor.perform(request: .init())
                 print(metadataResponse.state)
-                switch try metadataResponse.value.resolve(in: machO).kind {
-                case .struct:
-                    print("Struct")
-                    let structMetadata = try metadataAccessor.perform(request: .init(state: .complete, isBlocking: false)).value.resolveAny(in: machO) as StructMetadata
-                    print(try structMetadata.fieldOffsets(in: machO))
-                case .class:
-                    print("Class")
-                    let classMetadata = try metadataAccessor.perform(request: .init(state: .complete, isBlocking: false)).value.resolveAny(in: machO) as ClassMetadataObjCInterop
-                    print(try classMetadata.fieldOffsets(in: machO))
+                let metadata = try metadataResponse.value.resolve(in: machO)
+                switch metadata {
+                case .class(let classMetadata):
+                    try print(classMetadata.fieldOffsets(in: machO))
+                case .struct(let structMetadata):
+                    try print(structMetadata.fieldOffsets(in: machO))
+                case .enum(let enumMetadata):
+                    try print(enumMetadata.payloadSize(in: machO) ?? 0)
+                case .optional(let enumMetadata):
+                    try print(enumMetadata.payloadSize(in: machO) ?? 0)
                 default:
                     continue
                 }

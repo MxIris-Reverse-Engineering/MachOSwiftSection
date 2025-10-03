@@ -1,6 +1,6 @@
 import MachOKit
 import MachOFoundation
-import MachOMacro
+
 
 public enum ContextDescriptorWrapper {
     case type(TypeContextDescriptorWrapper)

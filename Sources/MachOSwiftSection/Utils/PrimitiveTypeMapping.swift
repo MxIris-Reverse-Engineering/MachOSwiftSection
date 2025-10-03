@@ -2,7 +2,7 @@ import Foundation
 import MachOFoundation
 import MachOKit
 import Demangle
-import MachOMacro
+
 
 package final class PrimitiveTypeMapping {
     private var storage: [String: String] = [:]

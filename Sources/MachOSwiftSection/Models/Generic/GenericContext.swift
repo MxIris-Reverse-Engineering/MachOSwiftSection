@@ -1,7 +1,7 @@
 import Foundation
 import MachOKit
 import MachOFoundation
-import MachOMacro
+
 import MemberwiseInit
 
 public typealias GenericContext = TargetGenericContext<GenericContextDescriptorHeader>

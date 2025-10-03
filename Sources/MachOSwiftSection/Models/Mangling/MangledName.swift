@@ -1,7 +1,7 @@
 import Foundation
 import MachOKit
 import MachOFoundation
-import MachOMacro
+
 
 public struct MangledName: Sendable, Equatable {
     package enum Element: Sendable, Equatable {

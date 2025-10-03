@@ -1,6 +1,6 @@
 import MachOKit
 import MachOFoundation
-import MachOMacro
+
 
 public protocol AnonymousContextDescriptorProtocol: ContextDescriptorProtocol where Layout: AnonymousContextDescriptorLayout {}
 

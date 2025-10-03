@@ -4,7 +4,7 @@ import MachOExtensions
 import Utilities
 
 // Internal use only.
-@_spi(Private)
+@_spi(Internal)
 open class MachOCache<Entry> {
     private let memoryPressureMonitor = MemoryPressureMonitor()
 

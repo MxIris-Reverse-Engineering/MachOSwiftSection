@@ -34,6 +34,8 @@ public enum MetadataKind: UInt32 {
     case fixedArray = 0x308
     /// 0 | Self.isNonType
     case heapLocalVariable = 0x400
+    /// 0 | Self.isNonType | Self.isRuntimePrivate
+    case heapGenericLocalVariable = 0x500
     /// 1 | Self.isNonType | Self.isRuntimePrivate
     case errorObject = 0x501
     /// 2 | Self.isNonType | Self.isRuntimePrivate

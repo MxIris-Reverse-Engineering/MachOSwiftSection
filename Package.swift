@@ -151,7 +151,7 @@ let package = Package(
         .target(
             name: "Utilities",
             dependencies: [
-                "MachOMacro",
+                "MachOMacros",
                 .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
                 .product(name: "AssociatedObject", package: "AssociatedObject"),
                 .product(name: "MemberwiseInit", package: "swift-memberwise-init-macro"),
@@ -209,7 +209,7 @@ let package = Package(
         ),
 
         .target(
-            name: "MachOPointer",
+            name: "MachOPointers",
             dependencies: [
                 .MachOKit,
                 "MachOReading",
@@ -219,12 +219,12 @@ let package = Package(
         ),
 
         .target(
-            name: "MachOSymbolPointer",
+            name: "MachOSymbolPointers",
             dependencies: [
                 .MachOKit,
                 "MachOReading",
                 "MachOResolving",
-                "MachOPointer",
+                "MachOPointers",
                 "MachOSymbols",
                 "Utilities",
             ]
@@ -236,10 +236,10 @@ let package = Package(
                 .MachOKit,
                 "MachOReading",
                 "MachOExtensions",
-                "MachOPointer",
+                "MachOPointers",
                 "MachOSymbols",
                 "MachOResolving",
-                "MachOSymbolPointer",
+                "MachOSymbolPointers",
                 "Utilities",
             ]
         ),
@@ -251,7 +251,7 @@ let package = Package(
                 "MachOFoundation",
                 "Demangle",
                 "Utilities",
-            ]
+            ],
         ),
 
         .target(
@@ -302,15 +302,8 @@ let package = Package(
 
         // MARK: - Macros
 
-        .target(
-            name: "MachOMacro",
-            dependencies: [
-                "MachOMacroPlugin",
-            ]
-        ),
-
         .macro(
-            name: "MachOMacroPlugin",
+            name: "MachOMacros",
             dependencies: [
                 .SwiftSyntax,
                 .SwiftSyntaxMacros,

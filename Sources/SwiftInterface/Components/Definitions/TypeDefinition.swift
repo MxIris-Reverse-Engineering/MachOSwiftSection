@@ -7,6 +7,7 @@ import Demangle
 import Semantic
 import SwiftStdlibToolbox
 import Dependencies
+@_spi(Internal) import MachOSymbols
 
 public final class TypeDefinition: Definition {
     public enum ParentContext {
