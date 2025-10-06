@@ -4,6 +4,7 @@ import Demangle
 @testable import MachOTestingSupport
 import MachOSwiftSection
 @testable import SwiftDump
+@_spi(Internal) import MachOSymbols
 
 protocol OpaqueTypeTests {}
 

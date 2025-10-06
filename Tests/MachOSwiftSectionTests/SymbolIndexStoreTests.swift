@@ -3,6 +3,7 @@ import Testing
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
 import Dependencies
+@_spi(Internal) import MachOSymbols
 
 final class SymbolIndexStoreTests: DyldCacheTests, @unchecked Sendable {
     

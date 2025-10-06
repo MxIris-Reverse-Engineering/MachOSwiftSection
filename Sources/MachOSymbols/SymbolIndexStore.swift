@@ -290,6 +290,14 @@ public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
             return []
         }
     }
+    
+    public func symbolsByKind<MachO: MachORepresentableWithCache>(in machO: MachO) -> OrderedDictionary<Node.Kind, [DemangledSymbol]> {
+        if let symbols = entry(in: machO)?.symbolsByKind {
+            return symbols
+        } else {
+            return [:]
+        }
+    }
 
     public func typeInfo<MachO: MachORepresentableWithCache>(for name: String, in machO: MachO) -> TypeInfo? {
         return entry(in: machO)?.typeInfoByName[name]

@@ -6,6 +6,7 @@ import MachOSymbols
 @testable import SwiftInterface
 @testable import MachOTestingSupport
 import Dependencies
+@_spi(Internal) import MachOSymbols
 
 @Suite
 final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {

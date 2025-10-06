@@ -1,10 +1,10 @@
 import Foundation
 import MachOKit
-
 import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
 import Dependencies
+@_spi(Internal) import MachOSymbols
 
 package protocol DumpableTests {
     var isEnabledSearchMetadata: Bool { get }
@@ -16,7 +16,7 @@ package struct DumpableTypeOptions: OptionSet {
     package init(rawValue: Int) {
         self.rawValue = rawValue
     }
-    
+
     package static let `enum` = DumpableTypeOptions(rawValue: 1 << 0)
     package static let `struct` = DumpableTypeOptions(rawValue: 1 << 1)
     package static let `class` = DumpableTypeOptions(rawValue: 1 << 2)

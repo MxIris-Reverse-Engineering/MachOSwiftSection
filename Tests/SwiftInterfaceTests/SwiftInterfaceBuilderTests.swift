@@ -19,7 +19,7 @@ extension SwiftInterfaceBuilderTests {
         try await builder.prepare()
         let result = try builder.build()
         try rootDirectory.createDirectoryIfNeeded()
-        try result.string.write(to: .desktopDirectory.appending(path: "\(machO.imagePath.lastPathComponent)-FileDump.swiftinterface"), atomically: true, encoding: .utf8)
+        try result.string.write(to: rootDirectory.appending(path: "\(machO.imagePath.lastPathComponent)-FileDump.swiftinterface"), atomically: true, encoding: .utf8)
     }
 
     func buildFile(in machO: MachOImage) async throws {
@@ -28,7 +28,7 @@ extension SwiftInterfaceBuilderTests {
         try await builder.prepare()
         let result = try builder.build()
         try rootDirectory.createDirectoryIfNeeded()
-        try result.string.write(to: .desktopDirectory.appending(path: "\(machO.imagePath.lastPathComponent)-ImageDump.swiftinterface"), atomically: true, encoding: .utf8)
+        try result.string.write(to: rootDirectory.appending(path: "\(machO.imagePath.lastPathComponent)-ImageDump.swiftinterface"), atomically: true, encoding: .utf8)
     }
 }
 
@@ -37,7 +37,7 @@ enum SwiftInterfaceBuilderTestSuite {
     class DyldCacheTests: MachOTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests {
         override class var platform: Platform { .macOS }
 
-        override class var cacheImageName: MachOImageName { .SwiftUICore }
+        override class var cacheImageName: MachOImageName { .SFSymbols }
 
         override class var cachePath: DyldSharedCachePath { .current }
 
