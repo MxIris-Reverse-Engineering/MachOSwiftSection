@@ -43,7 +43,7 @@ extension TypeNodePrintable {
     }
     
     mutating func printOpaqueReturnType(_ node: Node) {
-        target.write("some")
+        target.write("some", context: .context(for: node, state: .printKeyword))
         if let targetNode, let opaqueType = delegate?.opaqueType(forNode: targetNode, index: node.first(of: .opaqueReturnTypeIndex)?.index?.int) {
             target.writeSpace()
             target.write(opaqueType)

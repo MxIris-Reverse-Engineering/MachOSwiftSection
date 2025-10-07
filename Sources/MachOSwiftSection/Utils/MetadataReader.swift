@@ -3,7 +3,6 @@ import MachOKit
 import Demangle
 import MachOFoundation
 
-
 public enum MetadataReader {
     public static func demangle<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
         let rawString = mangledName.rawString
@@ -56,7 +55,7 @@ public enum MetadataReader {
                         if let context = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset).resolve(from: offset, in: machO) {
                             if let opaqueTypeDescriptor = context.opaqueTypeDescriptor {
                                 let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
-                                result = .init(kind: .opaqueReturnTypeOf, child: try demangle(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO))
+                                result = try .init(kind: .opaqueReturnTypeOf, child: demangle(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO))
                             } else {
                                 result = try buildContextMangling(context: .element(context), in: machO)
                             }
@@ -66,7 +65,7 @@ public enum MetadataReader {
                         if let resolvableElement = try relativePointer.resolve(from: offset, in: machO).asOptional {
                             if case .element(let element) = resolvableElement, let opaqueTypeDescriptor = element.opaqueTypeDescriptor {
                                 let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
-                                result = .init(kind: .opaqueReturnTypeOf, child: try demangle(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO))
+                                result = try .init(kind: .opaqueReturnTypeOf, child: demangle(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO))
                             } else {
                                 result = try buildContextMangling(context: resolvableElement, in: machO)
                             }
@@ -149,11 +148,11 @@ public enum MetadataReader {
     package static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirement: GenericRequirementDescriptor, in machO: MachO) throws -> Node? {
         try buildGenericSignature(for: [requirement], in: machO)
     }
-    
+
     package static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirements: GenericRequirementDescriptor..., in machO: MachO) throws -> Node? {
         try buildGenericSignature(for: requirements, in: machO)
     }
-    
+
     package static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirements: [GenericRequirementDescriptor], in machO: MachO) throws -> Node? {
         guard !requirements.isEmpty else { return nil }
         let signatureNode = Node(kind: .dependentGenericSignature)
@@ -264,12 +263,9 @@ public enum MetadataReader {
             }
             return demangling
         case .anonymous:
+            guard let symbol = try? Symbol.resolve(from: context.contextDescriptor.offset, in: machO), let privateDeclName = try? symbol.demangledNode.first(of: .privateDeclName), let privateDeclNameIdentifier = privateDeclName.children.first else { return parentDemangling }
             let anonNode = Node(kind: .anonymousContext)
-            if let symbol = try? Symbol.resolve(from: context.contextDescriptor.offset, in: machO), let privateDeclName = try? symbol.demangledNode.first(of: .privateDeclName), let privateDeclNameIdentifier = privateDeclName.children.first {
-                anonNode.addChild(privateDeclNameIdentifier)
-            } else {
-                anonNode.addChild(.init(kind: .identifier, contents: .text(context.contextDescriptor.offset.description)))
-            }
+            anonNode.addChild(privateDeclNameIdentifier)
             if let parentDemangling {
                 anonNode.addChild(parentDemangling)
             }

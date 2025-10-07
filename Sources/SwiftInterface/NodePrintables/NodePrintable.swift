@@ -38,7 +38,7 @@ extension NodePrintable {
         case .isolatedAnyFunctionType:
             target.write("@isolated(any) ")
         case .dynamicSelf:
-            target.write("Self")
+            target.write("Self", context: .context(for: name, state: .printKeyword))
         default:
             return false
         }

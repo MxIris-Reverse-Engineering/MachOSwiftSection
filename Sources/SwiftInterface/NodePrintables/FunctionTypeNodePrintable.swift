@@ -29,29 +29,39 @@ extension FunctionTypeNodePrintable {
              .uncurriedFunctionType:
             printFunctionType(name, labelList: nil, isAllocator: context?.isAllocator ?? false, isBlockOrClosure: context?.isBlockOrClosure ?? true)
         case .throwsAnnotation:
-            target.write(" throws")
+            target.writeSpace()
+            target.write("throws", context: .context(for: name, state: .printKeyword))
         case .asyncAnnotation:
-            target.write(" async")
+            target.writeSpace()
+            target.write("async", context: .context(for: name, state: .printKeyword))
         case .typedThrowsAnnotation:
             printTypeThrowsAnnotation(name)
         case .concurrentFunctionType:
-            target.write("@Sendable ")
+            target.write("@Sendable", context: .context(for: name, state: .printKeyword))
+            target.writeSpace()
         case .globalActorFunctionType:
             printGlobalActorFunctionType(name)
         case .differentiableFunctionType:
             printDifferentiableFunctionType(name)
-        case .nonIsolatedCallerFunctionType: target.write("nonisolated(nonsending) ")
+        case .nonIsolatedCallerFunctionType:
+            target.write("nonisolated(nonsending)", context: .context(for: name, state: .printKeyword))
+            target.writeSpace()
         case .isolatedAnyFunctionType:
-            target.write("@isolated(any) ")
+            target.write("@isolated(any)", context: .context(for: name, state: .printKeyword))
+            target.writeSpace()
         case .sending:
             printFirstChild(name, prefix: "sending ")
         case .sendingResultFunctionType:
-            target.write("sending ")
+            target.write("sending", context: .context(for: name, state: .printKeyword))
+            target.writeSpace()
         case .clangType:
             target.write(name.text ?? "")
-        case .packElement: printFirstChild(name, prefix: "each ")
-        case .packElementLevel: break
-        case .packExpansion: printFirstChild(name, prefix: "repeat ")
+        case .packElement:
+            printFirstChild(name, prefix: "each ")
+        case .packElementLevel:
+            break
+        case .packExpansion:
+            printFirstChild(name, prefix: "repeat ")
         default:
             return false
         }
@@ -61,12 +71,17 @@ extension FunctionTypeNodePrintable {
     mutating func printFunctionType(_ functionType: Node, labelList: Node?, isAllocator: Bool, isBlockOrClosure: Bool) {
         switch functionType.kind {
         case .autoClosureType,
-             .escapingAutoClosureType: target.write("@autoclosure ")
-        case .thinFunctionType: target.write("@convention(thin) ")
+             .escapingAutoClosureType:
+            target.write("@autoclosure", context: .context(for: functionType, state: .printKeyword))
+            target.writeSpace()
+        case .thinFunctionType:
+            target.write("@convention(thin)", context: .context(for: functionType, state: .printKeyword))
+            target.writeSpace()
         case .cFunctionPointer:
             printConventionWithMangledCType(functionType, label: "c")
         case .escapingObjCBlock:
-            target.write("@escaping ")
+            target.write("@escaping", context: .context(for: functionType, state: .printKeyword))
+            target.writeSpace()
             fallthrough
         case .objCBlock:
             printConventionWithMangledCType(functionType, label: "block")
