@@ -29,7 +29,7 @@ extension ProtocolConformance {
         case .indirectTypeDescriptor(let descriptorOrSymbol):
             switch descriptorOrSymbol {
             case .symbol(let symbol):
-                guard let node = try MetadataReader.demangleType(for: symbol, in: machO) else { return nil }
+                guard let node = try MetadataReader.demangleType(for: symbol, in: machO), let typeNode = node.first(of: .type) else { return nil }
                 let allChildren = node.map { $0 }
                 let kind: TypeKind
                 if allChildren.contains(.enum) || allChildren.contains(.boundGenericEnum) {
@@ -41,7 +41,7 @@ extension ProtocolConformance {
                 } else {
                     return nil
                 }
-                return .init(name: node.print(using: .interfaceTypeBuilderOnly), kind: kind)
+                return .init(node: typeNode, kind: kind)
 
             case .element(let element):
                 return try element.typeContextDescriptorWrapper?.typeName(in: machO)
@@ -51,12 +51,14 @@ extension ProtocolConformance {
             }
         case .directObjCClassName,
              .indirectObjCClass:
-            return try .init(name: dumpTypeName(using: .interfaceTypeBuilderOnly, in: machO).string, kind: .class)
+            guard let node = try typeNode(in: machO) else { return nil }
+            return .init(node: node, kind: .class)
         }
     }
 
     func protocolName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolName? {
-        try .init(name: dumpProtocolName(using: .interfaceTypeBuilderOnly, in: machO).string)
+        guard let node = try protocolNode(in: machO) else { return nil }
+        return .init(node: node)
     }
 }
 
@@ -73,17 +75,17 @@ extension AssociatedType {
         } else {
             return nil
         }
-        return try .init(name: dumpTypeName(using: .interfaceTypeBuilderOnly, in: machO).string, kind: kind)
+        return .init(node: node, kind: kind)
     }
 
     func protocolName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolName {
-        try .init(name: dumpProtocolName(using: .interfaceTypeBuilderOnly, in: machO).string)
+        try .init(node: MetadataReader.demangleType(for: protocolTypeName, in: machO))
     }
 }
 
 extension MachOSwiftSection.`Protocol` {
     func protocolName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolName {
-        try .init(name: dumpName(using: .interfaceTypeBuilderOnly, in: machO).string)
+        try .init(node: MetadataReader.demangleContext(for: .protocol(descriptor), in: machO))
     }
 }
 
@@ -106,7 +108,7 @@ extension TypeContextDescriptorWrapper {
     }
 
     func typeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeName {
-        return try .init(name: ContextDescriptorWrapper.type(self).dumpName(using: .interfaceTypeBuilderOnly, in: machO).string, kind: kind)
+        return try .init(node: MetadataReader.demangleContext(for: .type(self), in: machO), kind: kind)
     }
 }
 
@@ -116,7 +118,7 @@ extension FieldRecord {
     }
 
     func demangledTypeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SemanticString {
-        try demangledTypeNode(in: machO).printSemantic(using: .interfaceBuilderOnly)
+        try demangledTypeNode(in: machO).printSemantic(using: .interfaceTypeBuilderOnly)
     }
 }
 

@@ -99,11 +99,11 @@ public final class TypeDefinition: Definition {
 
         let fieldNames = Set(fields.map(\.name))
         
-        var methodDescriptorByNode: [Node: MethodDescriptorWrapper] = [:]
-        
-        if case let .class(cls) = type {
-            cls.methodDescriptors
-        }
+//        var methodDescriptorByNode: [Node: MethodDescriptorWrapper] = [:]
+//        
+//        if case let .class(cls) = type {
+//            cls.methodDescriptors
+//        }
         
         
         self.allocators = DefinitionBuilder.allocators(for: symbolIndexStore.memberSymbols(of: .allocator(inExtension: false), for: typeName.name, in: machO))

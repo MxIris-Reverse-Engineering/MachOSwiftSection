@@ -1,9 +1,10 @@
 import MemberwiseInit
 import Semantic
+import Demangle
 
 @MemberwiseInit(.public)
 public struct ProtocolName: DefinitionName, Hashable, Sendable {
-    public let name: String
+    public let node: Node
     
     @SemanticStringBuilder
     public func print() -> SemanticString {
@@ -13,6 +14,6 @@ public struct ProtocolName: DefinitionName, Hashable, Sendable {
 
 extension ProtocolName {
     public var extensionName: ExtensionName {
-        ExtensionName(name: name, kind: .protocol)
+        ExtensionName(node: node, kind: .protocol)
     }
 }

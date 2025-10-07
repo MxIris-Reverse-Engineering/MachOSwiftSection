@@ -1,9 +1,10 @@
 import MemberwiseInit
 import Semantic
+import Demangle
 
 @MemberwiseInit(.public)
 public struct ExtensionName: DefinitionName, Hashable, Sendable {
-    public let name: String
+    public let node: Node
     
     public let kind: ExtensionKind
 

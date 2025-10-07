@@ -580,7 +580,7 @@ extension Node {
 }
 
 extension Node {
-    package func isKind(of kinds: Node.Kind...) -> Bool {
+    public func isKind(of kinds: Node.Kind...) -> Bool {
         return kinds.contains(kind)
     }
 }

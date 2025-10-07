@@ -22,6 +22,6 @@ struct NodeTests {
                 }
             }
         }
-        print(node.print())
+        print(node.first(of: .type))
     }
 }

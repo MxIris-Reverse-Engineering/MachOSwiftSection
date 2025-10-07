@@ -165,11 +165,56 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
     }
 }
 
-package func demangledSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(of kind: Node.Kind, for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<Node> = [], in machO: MachO) throws -> DemangledSymbol? {
+package func protocolConformanceDemangledSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<Node> = [], in machO: MachO) throws -> DemangledSymbol? {
     for symbol in symbols {
-        if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let targetNode = node.first(of: kind), let symbolTypeName = targetNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.entry(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(node) {
+        if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let targetNode = node.first(of: .protocolConformance), let symbolTypeName = targetNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.entry(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(node) {
             return .init(symbol: symbol, demangledNode: node)
         }
     }
     return nil
+}
+
+extension ProtocolConformance {
+    package func typeNode<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Node? {
+        switch typeReference {
+        case .directTypeDescriptor(let descriptor):
+            return try descriptor?.dumpNameNode(in: machO)
+        case .indirectTypeDescriptor(let descriptor):
+            switch descriptor {
+            case .symbol(let symbol):
+                return try MetadataReader.demangleType(for: symbol, in: machO)
+            case .element(let element):
+                return try element.dumpNameNode(in: machO)
+            case nil:
+                return nil
+            }
+        case .directObjCClassName(let objcClassName):
+            return Node(kind: .type) {
+                Node(kind: .class) {
+                    Node(kind: .module, text: objcModule)
+                    Node(kind: .identifier, text: objcClassName.valueOrEmpty)
+                }
+            }
+        case .indirectObjCClass(let objcClass):
+            switch objcClass {
+            case .symbol(let symbol):
+                return try MetadataReader.demangleType(for: symbol, in: machO)
+            case .element(let element):
+                return try ContextDescriptorWrapper.type(.class(element.descriptor.resolve(in: machO))).dumpNameNode(in: machO)
+            case nil:
+                return nil
+            }
+        }
+    }
+    
+    package func protocolNode<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Node? {
+        switch `protocol` {
+        case .symbol(let symbol):
+            return try MetadataReader.demangleType(for: symbol, in: machO)
+        case .element(let element):
+            return try MetadataReader.demangleContext(for: .protocol(element), in: machO)
+        case .none:
+            return nil
+        }
+    }
 }

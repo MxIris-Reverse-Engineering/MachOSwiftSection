@@ -1,10 +1,15 @@
 import Foundation
+import Demangle
 
 public protocol DefinitionName {
-    var name: String { get }
+    var node: Node { get }
 }
 
 extension DefinitionName {
+    public var name: String {
+        node.print(using: .interfaceTypeBuilderOnly)
+    }
+    
     public var currentName: String {
         name.components(separatedBy: ".").last ?? name
     }

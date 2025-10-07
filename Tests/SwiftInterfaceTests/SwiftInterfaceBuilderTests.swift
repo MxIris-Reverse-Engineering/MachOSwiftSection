@@ -14,7 +14,7 @@ extension SwiftInterfaceBuilderTests {
     }
     
     func buildFile(in machO: MachOFile) async throws {
-        let builder = try SwiftInterfaceBuilder(configuration: .init(isEnabledTypeIndexing: false), eventHandlers: [OSLogEventHandler()], in: machO)
+        let builder = try SwiftInterfaceBuilder(configuration: .init(isEnabledTypeIndexing: false), eventHandlers: [], in: machO)
         builder.setDependencyPaths([.usesSystemDyldSharedCache])
         try await builder.prepare()
         let result = try builder.build()
@@ -37,7 +37,7 @@ enum SwiftInterfaceBuilderTestSuite {
     class DyldCacheTests: MachOTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests {
         override class var platform: Platform { .macOS }
 
-        override class var cacheImageName: MachOImageName { .SFSymbols }
+        override class var cacheImageName: MachOImageName { .SwiftUICore }
 
         override class var cachePath: DyldSharedCachePath { .current }
 

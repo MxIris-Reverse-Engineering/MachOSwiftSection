@@ -56,11 +56,10 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
 
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(`protocol`: MachOSwiftSection.`Protocol`, in machO: MachO) throws {
         self.protocol = `protocol`
-        func _name() throws -> SemanticString {
-            try MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO).printSemantic(using: .interfaceTypeBuilderOnly).replacingTypeNameOrOtherToTypeDeclaration()
-        }
-        let name = try _name().string
-        self.protocolName = .init(name: name)
+        let node = try MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO)
+        let protocolName = ProtocolName(node: node)
+        let name = protocolName.name
+        self.protocolName = protocolName
         func _symbol(for symbols: Symbols, visitedNodes: borrowing OrderedSet<Node> = []) throws -> DemangledSymbol? {
             for symbol in symbols {
                 if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), protocolNode.print(using: .interfaceTypeBuilderOnly) == name, !visitedNodes.contains(node) {

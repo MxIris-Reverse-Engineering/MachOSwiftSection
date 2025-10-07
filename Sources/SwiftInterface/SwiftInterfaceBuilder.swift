@@ -306,13 +306,10 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 switch parentContext {
                 case .extension(let extensionContext):
                     guard let extendedContextMangledName = extensionContext.extendedContextMangledName else { continue }
-                    let extensionTypeNode = try MetadataReader.demangle(for: extendedContextMangledName, in: machO)
-
+                    guard let extensionTypeNode = try MetadataReader.demangle(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
                     guard let extensionTypeKind = extensionTypeNode.typeKind else { continue }
 
-                    let name = extensionTypeNode.print(using: .interfaceTypeBuilderOnly)
-
-                    let extensionTypeName = TypeName(name: name, kind: extensionTypeKind)
+                    let extensionTypeName = TypeName(node: extensionTypeNode, kind: extensionTypeKind)
 
                     var genericSignature: Node?
 
@@ -329,7 +326,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                     extensionDefinition.types = [typeDefinition]
                     typeExtensionDefinitions[parentTypeName, default: []].append(extensionDefinition)
                 case .symbol(let symbol):
-                    guard let type = try MetadataReader.demangleType(for: symbol, in: machO)?.children.first else { continue }
+                    guard let type = try MetadataReader.demangleType(for: symbol, in: machO)?.first(of: .type) else { continue }
                     let kind: TypeKind? = switch type.kind {
                     case .enum:
                         .enum
@@ -341,8 +338,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                         nil
                     }
                     guard let kind else { continue }
-                    let name = type.print(using: .interfaceTypeBuilderOnly)
-                    let parentTypeName = TypeName(name: name, kind: kind)
+                    let parentTypeName = TypeName(node: type, kind: kind)
                     let extensionDefinition = try ExtensionDefinition(extensionName: parentTypeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
                     extensionDefinition.types = [typeDefinition]
                     typeExtensionDefinitions[parentTypeName, default: []].append(extensionDefinition)
@@ -392,10 +388,9 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                     if isRoot {
                         protocolDefinitions[protocolName] = protocolDefinition
                     } else if let extensionContext = protocolDefinition.extensionContext, let extendedContextMangledName = extensionContext.extendedContextMangledName {
-                        let typeNode = try MetadataReader.demangle(for: extendedContextMangledName, in: machO)
+                        guard let typeNode = try MetadataReader.demangle(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
                         guard let typeKind = typeNode.typeKind else { continue }
-                        let name = typeNode.print(using: .interfaceTypeBuilderOnly)
-                        let typeName = TypeName(name: name, kind: typeKind)
+                        let typeName = TypeName(node: typeNode, kind: typeKind)
                         var genericSignature: Node?
                         if let currentRequirements = extensionContext.genericContext?.currentRequirements(in: machO), !currentRequirements.isEmpty {
                             genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO)
@@ -530,14 +525,15 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         var typeAliasExtensionCount = 0
         var failedExtensions = 0
 
-        for (name, memberSymbols) in memberSymbolsByName {
+        for (node, memberSymbols) in memberSymbolsByName {
+            let name = node.print(using: .interfaceTypeBuilderOnly)
             guard let typeInfo = symbolIndexStore.typeInfo(for: name, in: machO) else {
                 eventDispatcher.dispatch(.extensionTargetNotFound(targetName: name))
                 continue
             }
 
             func extensionDefinition(of kind: ExtensionKind, for memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>, genericSignature: Node?) throws -> ExtensionDefinition {
-                let extensionDefinition = try ExtensionDefinition(extensionName: .init(name: name, kind: kind), genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
+                let extensionDefinition = try ExtensionDefinition(extensionName: .init(node: node, kind: kind), genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
                 var memberCount = 0
 
                 for (kind, memberSymbols) in memberSymbolsByKind {
@@ -594,7 +590,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
             do {
                 if let typeKind = typeInfo.kind.typeKind {
-                    let typeName = TypeName(name: name, kind: typeKind)
+                    let typeName = TypeName(node: node, kind: typeKind)
 
                     for (node, memberSymbolsByKind) in memberSymbolsByGenericSignature {
                         try typeExtensionDefinitions[typeName, default: []].append(extensionDefinition(of: .type(typeKind), for: memberSymbolsByKind, genericSignature: node))
@@ -606,7 +602,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                     }
 
                 } else if typeInfo.kind == .protocol {
-                    let protocolName = ProtocolName(name: name)
+                    let protocolName = ProtocolName(node: node)
 
                     for (node, memberSymbolsByKind) in memberSymbolsByGenericSignature {
                         try protocolExtensionDefinitions[protocolName, default: []].append(extensionDefinition(of: .protocol, for: memberSymbolsByKind, genericSignature: node))

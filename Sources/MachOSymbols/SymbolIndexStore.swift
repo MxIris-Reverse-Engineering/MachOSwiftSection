@@ -118,7 +118,7 @@ public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         fileprivate var opaqueTypeDescriptorSymbolByNode: OrderedDictionary<Node, DemangledSymbol> = [:]
     }
 
-    fileprivate typealias MemberSymbols = OrderedDictionary<String, [DemangledSymbol]>
+    fileprivate typealias MemberSymbols = OrderedDictionary<String, OrderedDictionary<Node, [DemangledSymbol]>>
 
     public static let shared = SymbolIndexStore()
 
@@ -264,15 +264,11 @@ public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
     }
 
     private func processMemberSymbol(_ symbol: Symbol, node: Node, rootNode: Node, memberKind: MemberKind, in entry: inout OrderedDictionary<MemberKind, MemberSymbols>, typeInfoByName: inout [String: TypeInfo]) {
-        let globalTypeNode = Node(kind: .global) {
-            Node(kind: .type, child: node)
-        }
-
-        let typeName = globalTypeNode.print(using: .interfaceTypeBuilderOnly)
-
+        let typeNode = Node(kind: .type, child: node)
+        let typeName = typeNode.print(using: .interfaceTypeBuilderOnly)
         if let typeKind = node.kind.typeKind {
             typeInfoByName[typeName] = .init(name: typeName, kind: typeKind)
-            entry[memberKind, default: [:]][typeName, default: []].append(.init(symbol: symbol, demangledNode: rootNode))
+            entry[memberKind, default: [:]][typeName, default: [:]][typeNode, default: []].append(.init(symbol: symbol, demangledNode: rootNode))
         } else {
 //                print(#function)
 //                print(globalTypeNode)
@@ -308,46 +304,42 @@ public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
     }
 
     public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
-        return kinds.map { entry(in: machO)?.memberSymbolsByKind[$0]?.values.flatMap { $0 } ?? [] }.reduce(into: []) { $0 += $1 }
+        return kinds.map { entry(in: machO)?.memberSymbolsByKind[$0]?.values.flatMap { $0.values.flatMap { $0 } } ?? [] }.reduce(into: []) { $0 += $1 }
     }
 
     public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) -> [DemangledSymbol] {
-        return kinds.map { entry(in: machO)?.memberSymbolsByKind[$0]?[name] ?? [] }.reduce(into: []) { $0 += $1 }
+        return kinds.map { entry(in: machO)?.memberSymbolsByKind[$0]?[name]?.values.flatMap { $0 } ?? [] }.reduce(into: []) { $0 += $1 }
     }
 
-    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., excluding names: borrowing Set<String>, in machO: MachO) -> OrderedDictionary<String, OrderedDictionary<MemberKind, [DemangledSymbol]>> {
+    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., excluding names: borrowing Set<String>, in machO: MachO) -> OrderedDictionary<Node, OrderedDictionary<MemberKind, [DemangledSymbol]>> {
         let filtered = kinds.reduce(into: [:]) { $0[$1] = entry(in: machO)?.memberSymbolsByKind[$1]?.filter { !names.contains($0.key) } ?? [:] }
-        var result: OrderedDictionary<String, OrderedDictionary<MemberKind, [DemangledSymbol]>> = [:]
+        
+        var result: OrderedDictionary<Node, OrderedDictionary<MemberKind, [DemangledSymbol]>> = [:]
         for (kind, memberSymbols) in filtered {
             for (name, symbols) in memberSymbols {
-                result[name, default: [:]][kind] = symbols
+                for (node, symbols) in symbols {
+                    result[node, default: [:]][kind, default: []].append(contentsOf: symbols)
+                }
             }
         }
         return result
     }
 
     public func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
-        return kinds.map { entry(in: machO)?.methodDescriptorMemberSymbolsByKind[$0]?.values.flatMap { $0 } ?? [] }.reduce(into: []) { $0 += $1 }
+        return kinds.map { entry(in: machO)?.methodDescriptorMemberSymbolsByKind[$0]?.values.flatMap { $0.values.flatMap { $0 } } ?? [] }.reduce(into: []) { $0 += $1 }
     }
 
     public func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) -> [DemangledSymbol] {
-        return kinds.map { entry(in: machO)?.methodDescriptorMemberSymbolsByKind[$0]?[name] ?? [] }.reduce(into: []) { $0 += $1 }
+        return kinds.map { entry(in: machO)?.methodDescriptorMemberSymbolsByKind[$0]?[name]?.values.flatMap { $0 } ?? [] }.reduce(into: []) { $0 += $1 }
     }
 
-    public func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., excluding names: borrowing Set<String>, in machO: MachO) -> OrderedDictionary<String, [DemangledSymbol]> {
-        return kinds.map { entry(in: machO)?.methodDescriptorMemberSymbolsByKind[$0]?.filter { !names.contains($0.key) } ?? [:] }.reduce(into: [:]) { $0.merge($1) { $0 + $1 } }
-    }
 
     public func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
-        return kinds.map { entry(in: machO)?.protocolWitnessMemberSymbolsByKind[$0]?.values.flatMap { $0 } ?? [] }.reduce(into: []) { $0 += $1 }
+        return kinds.map { entry(in: machO)?.protocolWitnessMemberSymbolsByKind[$0]?.values.flatMap { $0.values.flatMap { $0 } } ?? [] }.reduce(into: []) { $0 += $1 }
     }
 
     public func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) -> [DemangledSymbol] {
-        return kinds.map { entry(in: machO)?.protocolWitnessMemberSymbolsByKind[$0]?[name] ?? [] }.reduce(into: []) { $0 += $1 }
-    }
-
-    public func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., excluding names: borrowing Set<String>, in machO: MachO) -> OrderedDictionary<String, [DemangledSymbol]> {
-        return kinds.map { entry(in: machO)?.protocolWitnessMemberSymbolsByKind[$0]?.filter { !names.contains($0.key) } ?? [:] }.reduce(into: [:]) { $0.merge($1) { $0 + $1 } }
+        return kinds.map { entry(in: machO)?.protocolWitnessMemberSymbolsByKind[$0]?[name]?.values.flatMap { $0 } ?? [] }.reduce(into: []) { $0 += $1 }
     }
 
     public func globalSymbols<MachO: MachORepresentableWithCache>(of kinds: GlobalKind..., in machO: MachO) -> [DemangledSymbol] {

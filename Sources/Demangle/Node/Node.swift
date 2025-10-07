@@ -47,51 +47,47 @@ public final class Node: Sendable {
         }
     }
 
-    package convenience init(kind: Kind, child: Node) {
+    public convenience init(kind: Kind, child: Node) {
         self.init(kind: kind, contents: .none, children: [child])
     }
     
-    package convenience init(kind: Kind, children: [Node] = []) {
+    public convenience init(kind: Kind, children: [Node] = []) {
         self.init(kind: kind, contents: .none, children: children)
     }
     
-    package convenience init(kind: Kind, text: String, child: Node) {
+    public convenience init(kind: Kind, text: String, child: Node) {
         self.init(kind: kind, contents: .text(text), children: [child])
     }
     
-    package convenience init(kind: Kind, text: String, children: [Node] = []) {
+    public convenience init(kind: Kind, text: String, children: [Node] = []) {
         self.init(kind: kind, contents: .text(text), children: children)
     }
     
-    package convenience init(kind: Kind, index: UInt64, child: Node) {
+    public convenience init(kind: Kind, index: UInt64, child: Node) {
         self.init(kind: kind, contents: .index(index), children: [child])
     }
     
-    package convenience init(kind: Kind, index: UInt64, children: [Node] = []) {
+    public convenience init(kind: Kind, index: UInt64, children: [Node] = []) {
         self.init(kind: kind, contents: .index(index), children: children)
     }
     
-    package convenience init(typeWithChildKind: Kind, childChild: Node) {
+    convenience init(typeWithChildKind: Kind, childChild: Node) {
         self.init(kind: .type, contents: .none, children: [Node(kind: typeWithChildKind, children: [childChild])])
     }
 
-    package convenience init(typeWithChildKind: Kind, childChildren: [Node]) {
+    convenience init(typeWithChildKind: Kind, childChildren: [Node]) {
         self.init(kind: .type, contents: .none, children: [Node(kind: typeWithChildKind, children: childChildren)])
     }
 
-    package convenience init(swiftStdlibTypeKind: Kind, name: String) {
+    convenience init(swiftStdlibTypeKind: Kind, name: String) {
         self.init(kind: .type, contents: .none, children: [Node(kind: swiftStdlibTypeKind, children: [
             Node(kind: .module, contents: .text(stdlibName)),
             Node(kind: .identifier, contents: .text(name)),
         ])])
     }
 
-    package convenience init(swiftBuiltinType: Kind, name: String) {
+    convenience init(swiftBuiltinType: Kind, name: String) {
         self.init(kind: .type, children: [Node(kind: swiftBuiltinType, contents: .text(name))])
-    }
-    
-    package subscript(index: Int) -> Node? {
-        get { children[safe: index] }
     }
 }
 
