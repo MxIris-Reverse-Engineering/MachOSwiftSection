@@ -10,13 +10,16 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
 
     private var isStatic: Bool = false
 
+    private let isOverride: Bool
+    
     private(set) weak var delegate: (any NodePrintableDelegate)?
 
     private(set) var isProtocol: Bool = false
 
     private(set) var targetNode: Node?
 
-    init(delegate: (any NodePrintableDelegate)? = nil) {
+    init(isOverride: Bool, delegate: (any NodePrintableDelegate)? = nil) {
+        self.isOverride = isOverride
         self.delegate = delegate
     }
 
@@ -25,6 +28,10 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
     }
 
     mutating func printRoot(_ node: Node) throws -> SemanticString {
+        if isOverride {
+            target.write("override", context: .context(for: node, state: .printKeyword))
+            target.writeSpace()
+        }
         try _printRoot(node)
         return target
     }

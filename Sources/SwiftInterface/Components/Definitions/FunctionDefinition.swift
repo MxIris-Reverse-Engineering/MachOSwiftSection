@@ -15,5 +15,5 @@ public struct FunctionDefinition: Sendable {
     public let kind: FunctionKind
     public let symbol: DemangledSymbol
     public let isGlobalOrStatic: Bool
-    public let methodDescriptor: MethodDescriptorWrapper?
+    public let isOverride: Bool
 }

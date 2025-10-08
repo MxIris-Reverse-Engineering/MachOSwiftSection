@@ -205,6 +205,9 @@ let package = Package(
                 "Demangle",
                 "Utilities",
                 "MachOCaches",
+            ],
+            swiftSettings: [
+                .unsafeFlags(["-Xfrontend", "-enable-private-imports"]),
             ]
         ),
 

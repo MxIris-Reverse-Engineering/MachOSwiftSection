@@ -326,18 +326,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                     extensionDefinition.types = [typeDefinition]
                     typeExtensionDefinitions[parentTypeName, default: []].append(extensionDefinition)
                 case .symbol(let symbol):
-                    guard let type = try MetadataReader.demangleType(for: symbol, in: machO)?.first(of: .type) else { continue }
-                    let kind: TypeKind? = switch type.kind {
-                    case .enum:
-                        .enum
-                    case .structure:
-                        .struct
-                    case .class:
-                        .class
-                    default:
-                        nil
-                    }
-                    guard let kind else { continue }
+                    guard let type = try MetadataReader.demangleType(for: symbol, in: machO)?.first(of: .type), let kind = type.typeKind else { continue }
                     let parentTypeName = TypeName(node: type, kind: kind)
                     let extensionDefinition = try ExtensionDefinition(extensionName: parentTypeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
                     extensionDefinition.types = [typeDefinition]
@@ -472,6 +461,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             }
         }
         self.associatedTypesByTypeName = associatedTypesByTypeName
+        var associatedTypesByTypeNameCopy = associatedTypesByTypeName
 
         var conformanceExtensionDefinitions: OrderedDictionary<TypeName, [ExtensionDefinition]> = [:]
         var extensionCount = 0
@@ -480,7 +470,15 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (typeName, protocolConformances) in protocolConformancesByTypeName {
             for (protocolName, protocolConformance) in protocolConformances {
                 do {
-                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO), protocolConformance: protocolConformance, associatedType: associatedTypesByTypeName[typeName]?[protocolName], in: machO)
+                    let associatedType = associatedTypesByTypeNameCopy[typeName]?[protocolName]
+                    if associatedType != nil {
+                        associatedTypesByTypeNameCopy[typeName]?.removeValue(forKey: protocolName)
+                        if associatedTypesByTypeNameCopy[typeName]?.isEmpty == true {
+                            associatedTypesByTypeNameCopy.removeValue(forKey: typeName)
+                        }
+                    }
+                    
+                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO), protocolConformance: protocolConformance, associatedType: associatedType, in: machO)
                     conformanceExtensionDefinitions[typeName, default: []].append(extensionDefinition)
                     extensionCount += 1
                     eventDispatcher.dispatch(.conformanceExtensionCreated(context: SwiftInterfaceBuilderEvents.ConformanceContext(typeName: typeName.name, protocolName: protocolName.name)))
@@ -491,6 +489,13 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 }
             }
         }
+        for (remainingTypeName, remainingAssociatedTypeByProtocolName) in associatedTypesByTypeNameCopy {
+            for (_, remainingAssociatedType) in remainingAssociatedTypeByProtocolName {
+                let extensionDefinition = try ExtensionDefinition(extensionName: remainingTypeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: remainingAssociatedType, in: machO)
+                conformanceExtensionDefinitions[remainingTypeName, default: []].append(extensionDefinition)
+            }
+        }
+        
         self.conformanceExtensionDefinitions = conformanceExtensionDefinitions
         eventDispatcher.dispatch(.conformanceIndexingCompleted(result: SwiftInterfaceBuilderEvents.ConformanceIndexingResult(conformedTypes: protocolConformancesByTypeName.count, associatedTypeCount: associatedTypesByTypeName.count, extensionCount: extensionCount, failedConformances: failedConformances, failedAssociatedTypes: failedAssociatedTypes, failedExtensions: failedExtensions)))
     }
@@ -1002,7 +1007,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     private func printFunction(_ function: FunctionDefinition) throws -> SemanticString {
-        var printer = FunctionNodePrinter(delegate: self)
+        var printer = FunctionNodePrinter(isOverride: function.isOverride, delegate: self)
         try printer.printRoot(function.node)
     }
 

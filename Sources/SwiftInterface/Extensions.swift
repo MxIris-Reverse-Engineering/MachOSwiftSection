@@ -29,7 +29,7 @@ extension ProtocolConformance {
         case .indirectTypeDescriptor(let descriptorOrSymbol):
             switch descriptorOrSymbol {
             case .symbol(let symbol):
-                guard let node = try MetadataReader.demangleType(for: symbol, in: machO), let typeNode = node.first(of: .type) else { return nil }
+                guard let node = try MetadataReader.demangleType(for: symbol, in: machO)?.first(of: .type) else { return nil }
                 let allChildren = node.map { $0 }
                 let kind: TypeKind
                 if allChildren.contains(.enum) || allChildren.contains(.boundGenericEnum) {
@@ -41,7 +41,7 @@ extension ProtocolConformance {
                 } else {
                     return nil
                 }
-                return .init(node: typeNode, kind: kind)
+                return TypeName(node: node, kind: kind)
 
             case .element(let element):
                 return try element.typeContextDescriptorWrapper?.typeName(in: machO)
@@ -52,19 +52,19 @@ extension ProtocolConformance {
         case .directObjCClassName,
              .indirectObjCClass:
             guard let node = try typeNode(in: machO) else { return nil }
-            return .init(node: node, kind: .class)
+            return TypeName(node: node, kind: .class)
         }
     }
 
     func protocolName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolName? {
         guard let node = try protocolNode(in: machO) else { return nil }
-        return .init(node: node)
+        return ProtocolName(node: node)
     }
 }
 
 extension AssociatedType {
     func typeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeName? {
-        let node = try MetadataReader.demangleSymbol(for: conformingTypeName, in: machO)
+        let node = try MetadataReader.demangleType(for: conformingTypeName, in: machO)
         let kind: TypeKind
         if node.contains(.enum) || node.contains(.boundGenericEnum) {
             kind = .enum
@@ -75,17 +75,17 @@ extension AssociatedType {
         } else {
             return nil
         }
-        return .init(node: node, kind: kind)
+        return TypeName(node: node, kind: kind)
     }
 
     func protocolName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolName {
-        try .init(node: MetadataReader.demangleType(for: protocolTypeName, in: machO))
+        try ProtocolName(node: MetadataReader.demangleType(for: protocolTypeName, in: machO))
     }
 }
 
 extension MachOSwiftSection.`Protocol` {
     func protocolName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolName {
-        try .init(node: MetadataReader.demangleContext(for: .protocol(descriptor), in: machO))
+        try ProtocolName(node: MetadataReader.demangleContext(for: .protocol(descriptor), in: machO))
     }
 }
 
@@ -108,7 +108,7 @@ extension TypeContextDescriptorWrapper {
     }
 
     func typeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeName {
-        return try .init(node: MetadataReader.demangleContext(for: .type(self), in: machO), kind: kind)
+        return try TypeName(node: MetadataReader.demangleContext(for: .type(self), in: machO), kind: kind)
     }
 }
 

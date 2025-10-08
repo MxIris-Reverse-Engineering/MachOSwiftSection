@@ -4,15 +4,17 @@ import MachOKit
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
 @testable import SwiftInterface
+import Dependencies
+@_private(sourceFile: "SymbolIndexStore.swift") @_spi(Internal) import MachOSymbols
+@_spi(Internal) import MachOCaches
 
 protocol SwiftInterfaceBuilderTests {}
 
 extension SwiftInterfaceBuilderTests {
-    
     var rootDirectory: URL {
         .documentsDirectory.appending(path: "SwiftInterfaceTests")
     }
-    
+
     func buildFile(in machO: MachOFile) async throws {
         let builder = try SwiftInterfaceBuilder(configuration: .init(isEnabledTypeIndexing: false), eventHandlers: [], in: machO)
         builder.setDependencyPaths([.usesSystemDyldSharedCache])
@@ -20,6 +22,8 @@ extension SwiftInterfaceBuilderTests {
         let result = try builder.build()
         try rootDirectory.createDirectoryIfNeeded()
         try result.string.write(to: rootDirectory.appending(path: "\(machO.imagePath.lastPathComponent)-FileDump.swiftinterface"), atomically: true, encoding: .utf8)
+
+        printNonConsumedSymbols(in: machO)
     }
 
     func buildFile(in machO: MachOImage) async throws {
@@ -29,6 +33,30 @@ extension SwiftInterfaceBuilderTests {
         let result = try builder.build()
         try rootDirectory.createDirectoryIfNeeded()
         try result.string.write(to: rootDirectory.appending(path: "\(machO.imagePath.lastPathComponent)-ImageDump.swiftinterface"), atomically: true, encoding: .utf8)
+
+        printNonConsumedSymbols(in: machO)
+    }
+
+    func printNonConsumedSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) {
+        @Dependency(\.symbolIndexStore)
+        var symbolIndexStore
+
+        if let memberSymbolsByKind = symbolIndexStore.entry(in: machO)?.memberSymbolsByKind {
+            for (kind, memberSymbolsByName) in memberSymbolsByKind {
+                for (name, memberSymbolsByNode) in memberSymbolsByName {
+                    for (node, memberSymbols) in memberSymbolsByNode {
+                        for memberSymbol in memberSymbols where !memberSymbol.isConsumed {
+                            print("Kind:", kind)
+                            print("Name:", name)
+                            print("Node:", node.print())
+                            print(memberSymbol.wrappedValue.demangledNode)
+                            print(memberSymbol.wrappedValue.demangledNode.print())
+                            print("---------------------")
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

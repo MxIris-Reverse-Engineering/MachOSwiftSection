@@ -17,7 +17,7 @@ final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {
 
     @Test func functionNode() async throws {
         let node = try demangleAsNode("_$s7SwiftUI19AnyStyleContextTypeV07acceptsC0ySbxmxQpRvzAA0dE0RzlF")
-        var printer = FunctionNodePrinter()
+        var printer = FunctionNodePrinter(isOverride: false)
         try printer.printRoot(node).string.print()
     }
 
@@ -33,7 +33,7 @@ final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {
         for demangledSymbol in demangledSymbols {
             let node = demangledSymbol.demangledNode
             do {
-                var printer = FunctionNodePrinter()
+                var printer = FunctionNodePrinter(isOverride: false)
                 print("Mangled  : \(demangledSymbol.symbol.name)")
                 print("Demangled: \(node.print(using: .interface))")
                 try print("Interface: \(printer.printRoot(#require(node.children.first)).string)")

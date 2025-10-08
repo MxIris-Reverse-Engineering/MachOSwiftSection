@@ -3,7 +3,8 @@ import Testing
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
 import Dependencies
-@_spi(Internal) import MachOSymbols
+@_private(sourceFile: "SymbolIndexStore.swift") @_spi(Internal) import MachOSymbols
+@_spi(Internal) import MachOCaches
 
 final class SymbolIndexStoreTests: DyldCacheTests, @unchecked Sendable {
     
@@ -43,6 +44,26 @@ final class SymbolIndexStoreTests: DyldCacheTests, @unchecked Sendable {
             symbol.demangledNode.print(using: .default).print()
             symbol.demangledNode.description.print()
             print("----------------------------")
+        }
+    }
+    
+    @Test func symbols() async throws {
+        let machO = machOFileInCache
+        let _ = symbolIndexStore.allSymbols(in: machO)
+        guard let memberSymbolsByKind = symbolIndexStore.entry(in: machO)?.memberSymbolsByKind else {
+            return
+        }
+        for (kind, memberSymbolsByName) in memberSymbolsByKind {
+            print("Kind: ", kind.description)
+            for (name, memberSymbolsByNode) in memberSymbolsByName {
+                print("Name: ", name)
+                for (node, _) in memberSymbolsByNode {
+                    print("Node: ")
+                    print(node)
+                    print(node.print())
+                }
+            }
+            print("---------------------")
         }
     }
 }

@@ -178,21 +178,22 @@ extension ProtocolConformance {
     package func typeNode<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Node? {
         switch typeReference {
         case .directTypeDescriptor(let descriptor):
-            return try descriptor?.dumpNameNode(in: machO)
+            return try descriptor.map { try MetadataReader.demangleContext(for: $0, in: machO) }
         case .indirectTypeDescriptor(let descriptor):
             switch descriptor {
             case .symbol(let symbol):
                 return try MetadataReader.demangleType(for: symbol, in: machO)
             case .element(let element):
-                return try element.dumpNameNode(in: machO)
+                return try MetadataReader.demangleContext(for: element, in: machO)
             case nil:
                 return nil
             }
         case .directObjCClassName(let objcClassName):
+            guard let objcClassName, !objcClassName.isEmpty else { return nil }
             return Node(kind: .type) {
                 Node(kind: .class) {
                     Node(kind: .module, text: objcModule)
-                    Node(kind: .identifier, text: objcClassName.valueOrEmpty)
+                    Node(kind: .identifier, text: objcClassName)
                 }
             }
         case .indirectObjCClass(let objcClass):
@@ -200,7 +201,7 @@ extension ProtocolConformance {
             case .symbol(let symbol):
                 return try MetadataReader.demangleType(for: symbol, in: machO)
             case .element(let element):
-                return try ContextDescriptorWrapper.type(.class(element.descriptor.resolve(in: machO))).dumpNameNode(in: machO)
+                return try MetadataReader.demangleContext(for: .type(.class(element.descriptor.resolve(in: machO))), in: machO)
             case nil:
                 return nil
             }

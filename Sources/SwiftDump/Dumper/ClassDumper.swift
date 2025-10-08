@@ -330,3 +330,12 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
         return nil
     }
 }
+
+package func classDemangledSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(for symbols: Symbols, typeNode: Node, visitedNodes: borrowing OrderedSet<Node> = [], in machO: MachO) throws -> DemangledSymbol? {
+    for symbol in symbols {
+        if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let classNode = node.first(of: .class), classNode == typeNode.first(of: .class), !visitedNodes.contains(node) {
+            return .init(symbol: symbol, demangledNode: node)
+        }
+    }
+    return nil
+}

@@ -38,19 +38,19 @@ enum DefinitionBuilder {
         return subscripts
     }
 
-    static func allocators(for demangledSymbols: [DemangledSymbol]) -> [FunctionDefinition] {
+    static func allocators(for demangledSymbols: [DemangledSymbol], overrideNodes: Set<Node> = []) -> [FunctionDefinition] {
         var allocators: [FunctionDefinition] = []
         for demangledSymbol in demangledSymbols {
-            allocators.append(.init(node: demangledSymbol.demangledNode, name: "", kind: .allocator, symbol: demangledSymbol, isGlobalOrStatic: true, methodDescriptor: nil))
+            allocators.append(.init(node: demangledSymbol.demangledNode, name: "", kind: .allocator, symbol: demangledSymbol, isGlobalOrStatic: true, isOverride: overrideNodes.contains(demangledSymbol.demangledNode)))
         }
         return allocators
     }
 
-    static func functions(for demangledSymbols: [DemangledSymbol], isGlobalOrStatic: Bool) -> [FunctionDefinition] {
+    static func functions(for demangledSymbols: [DemangledSymbol], overrideNodes: Set<Node> = [], isGlobalOrStatic: Bool) -> [FunctionDefinition] {
         var functions: [FunctionDefinition] = []
         for demangledSymbol in demangledSymbols {
             guard let functionNode = demangledSymbol.demangledNode.first(of: .function), let name = functionNode.identifier else { continue }
-            functions.append(.init(node: demangledSymbol.demangledNode, name: name, kind: .function, symbol: demangledSymbol, isGlobalOrStatic: isGlobalOrStatic, methodDescriptor: nil))
+            functions.append(.init(node: demangledSymbol.demangledNode, name: name, kind: .function, symbol: demangledSymbol, isGlobalOrStatic: isGlobalOrStatic, isOverride: overrideNodes.contains(demangledSymbol.demangledNode)))
         }
         return functions
     }
