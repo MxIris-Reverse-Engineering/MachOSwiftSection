@@ -65,7 +65,7 @@ enum SwiftInterfaceBuilderTestSuite {
     class DyldCacheTests: MachOTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests {
         override class var platform: Platform { .macOS }
 
-        override class var cacheImageName: MachOImageName { .SwiftUICore }
+        override class var cacheImageName: MachOImageName { .SwiftUI }
 
         override class var cachePath: DyldSharedCachePath { .current }
 

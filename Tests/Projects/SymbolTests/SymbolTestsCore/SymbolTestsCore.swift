@@ -1,4 +1,5 @@
 import Foundation
+import SymbolTestsHelper
 
 @available(macOS 15.0, *)
 @_originallyDefinedIn(module: "SymbolTests", macOS 26.0)
@@ -20,19 +21,65 @@ public struct StructTest: ProtocolTest {
     public var body: Never {
         fatalError()
     }
+
+    public static var body: Never {
+        fatalError()
+    }
+}
+
+public class ExternalSwiftSubclassTest: Object {
+    public override func instanceMethod() -> String {
+        "xxxxxxxxxxxxx"
+    }
+}
+
+public class ExternalObjCSubclassTest: NSObject {
+    public override func isKind(of aClass: AnyClass) -> Bool {
+        return true
+    }
 }
 
 public class ClassTest {
-    public func returnSelf() -> Self { self }
+    public var instanceVariable: Bool {
+        set {}
+        get { false }
+    }
+
+    public func instanceMethod() -> Self { self }
+
+    public dynamic var dynamicVariable: Bool {
+        set {}
+        get { false }
+    }
+
     public dynamic func dynamicMethod() {}
 }
 
 public class SubclassTest: ClassTest {
-    public override func returnSelf() -> Self { self }
+    public override final var instanceVariable: Bool {
+        set {}
+        get { true }
+    }
+
+    public override func instanceMethod() -> Self { self }
+
+    public override var dynamicVariable: Bool {
+        set {}
+        get { true }
+    }
+
+    public override func dynamicMethod() {}
 }
 
 public final class FinalClassTest: SubclassTest {
-    public override func returnSelf() -> Self { self }
+    public override func instanceMethod() -> Self { self }
+
+    public override var dynamicVariable: Bool {
+        set {}
+        get { true }
+    }
+
+    public override func dynamicMethod() {}
 }
 
 public struct GenericRequirementTest<T: ProtocolTest>: ProtocolTest {
@@ -113,7 +160,7 @@ public struct OpaqueReturnTypeTest {
     public func functionTuple<A: ProtocolTest>() -> (some Sequence<A>, A?) { ([], nil) }
 
     public func functionWhere<A: ProtocolTest, B: ProtocolTest>() -> (some Sequence<A>, (some ProtocolTest<A>)?, some Collection<A>)? where A.Body == GenericRequirementTest<B>, A.Body.Body.Body == B { ([], AnyProtocolTest<A, B>(), []) }
-    
+
     public func functionNested<A: ProtocolTest & Equatable, B: ProtocolTest & Equatable>(_: A, _: B) -> (some Sequence<[A]> & Equatable, (some ProtocolTest<A>)?, some Collection<[A]> & TestCollection<[A]> & Equatable)? where A.Body == GenericRequirementTest<B>, A.Body.Body.Body == B { ([], AnyProtocolTest<A, B>(), []) }
 }
 
@@ -176,7 +223,7 @@ public class GenericClassNonRequirement<A> {
     public var field1: Double
     public var field2: A
     public var field3: Int
-    
+
     public init(field1: Double, field2: A, field3: Int) {
         self.field1 = field1
         self.field2 = field2
@@ -188,7 +235,7 @@ public class GenericClassLayoutRequirement<A: AnyObject> {
     public var field1: Double
     public var field2: A
     public var field3: Int
-    
+
     public init(field1: Double, field2: A, field3: Int) {
         self.field1 = field1
         self.field2 = field2
@@ -200,7 +247,7 @@ public class GenericClassNonRequirementInheritNSObject<A>: NSObject {
     public var field1: Double
     public var field2: A
     public var field3: Int
-    
+
     public init(field1: Double, field2: A, field3: Int) {
         self.field1 = field1
         self.field2 = field2
@@ -212,7 +259,7 @@ public class GenericClassLayoutRequirementInheritNSObject<A: AnyObject>: NSObjec
     public var field1: Double
     public var field2: A
     public var field3: Int
-    
+
     public init(field1: Double, field2: A, field3: Int) {
         self.field1 = field1
         self.field2 = field2

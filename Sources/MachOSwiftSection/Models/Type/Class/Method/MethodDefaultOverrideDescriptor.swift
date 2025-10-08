@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-
 import MachOFoundation
 
 public struct MethodDefaultOverrideDescriptor: ResolvableLocatableLayoutWrapper {
@@ -21,6 +20,14 @@ public struct MethodDefaultOverrideDescriptor: ResolvableLocatableLayoutWrapper 
 }
 
 extension MethodDefaultOverrideDescriptor {
+    public func originalMethodDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<MethodDescriptor>? {
+        return try layout.original.resolve(from: offset(of: \.original), in: machO).asOptional
+    }
+
+    public func replacementMethodDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<MethodDescriptor>? {
+        return try layout.replacement.resolve(from: offset(of: \.original), in: machO).asOptional
+    }
+
     public func implementationSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Symbols? {
         return try layout.implementation.resolve(from: offset(of: \.implementation), in: machO)
     }

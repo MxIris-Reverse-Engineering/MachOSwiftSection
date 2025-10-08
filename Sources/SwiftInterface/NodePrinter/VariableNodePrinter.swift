@@ -10,6 +10,8 @@ struct VariableNodePrinter: InterfaceNodePrintable {
     private var isStatic: Bool = false
 
     private let isStored: Bool
+    
+    private let isOverride: Bool
 
     private let hasSetter: Bool
 
@@ -21,8 +23,9 @@ struct VariableNodePrinter: InterfaceNodePrintable {
     
     private(set) var isProtocol: Bool = false
     
-    init(isStored: Bool, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
+    init(isStored: Bool, isOverride: Bool, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
         self.isStored = isStored
+        self.isOverride = isOverride
         self.hasSetter = hasSetter
         self.indentation = indentation
         self.delegate = delegate
@@ -33,6 +36,10 @@ struct VariableNodePrinter: InterfaceNodePrintable {
     }
 
     mutating func printRoot(_ node: Node) throws -> SemanticString {
+        if isOverride {
+            target.write("override", context: .context(for: node, state: .printKeyword))
+            target.writeSpace()
+        }
         try _printRoot(node)
         return target
     }

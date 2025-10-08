@@ -1,7 +1,6 @@
 import MachOKit
 import MachOFoundation
 
-
 public struct ClassMetadataObjCInterop: ClassMetadataProtocol, TypeMetadataProtocol {
     public struct Layout: ClassMetadataObjCInteropLayout, ClassMetadataLayoutWithDescriptor {
         public let kind: StoredPointer
@@ -16,7 +15,7 @@ public struct ClassMetadataObjCInterop: ClassMetadataProtocol, TypeMetadataProto
         public let reserved: UInt16
         public let classSize: UInt32
         public let classAddressPoint: UInt32
-        public let descriptor: Pointer<ClassDescriptor>
+        public let descriptor: Pointer<ClassDescriptor?>
         public let iVarDestroyer: RawPointer
     }
 

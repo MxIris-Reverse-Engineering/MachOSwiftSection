@@ -9,7 +9,7 @@ import MachOFoundation
 
 @Suite(.serialized)
 final class MachOFileDumpTests: MachOFileTests, DumpableTests {
-    override class var fileName: MachOFileName { .Dock }
+    override class var fileName: MachOFileName { .SymbolTestsCore }
 }
 
 extension MachOFileDumpTests {

@@ -1,7 +1,6 @@
 import MachOKit
 import MachOFoundation
 
-
 @Layout
 public protocol ClassMetadataObjCInteropLayout: AnyClassMetadataObjCInteropLayout {
     var flags: UInt32 { get }
@@ -11,6 +10,6 @@ public protocol ClassMetadataObjCInteropLayout: AnyClassMetadataObjCInteropLayou
     var reserved: UInt16 { get }
     var classSize: UInt32 { get }
     var classAddressPoint: UInt32 { get }
-    var descriptor: Pointer<ClassDescriptor> { get }
+    var descriptor: Pointer<ClassDescriptor?> { get }
     var iVarDestroyer: RawPointer { get }
 }

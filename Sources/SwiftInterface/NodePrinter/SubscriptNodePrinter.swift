@@ -9,6 +9,8 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
 
     private var isStatic: Bool = false
 
+    private let isOverride: Bool
+    
     private let hasSetter: Bool
 
     private let indentation: Int
@@ -19,7 +21,8 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
 
     private(set) var targetNode: Node?
     
-    init(hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
+    init(isOverride: Bool, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
+        self.isOverride = isOverride
         self.hasSetter = hasSetter
         self.indentation = indentation
         self.delegate = delegate
@@ -30,6 +33,10 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
     }
 
     mutating func printRoot(_ node: Node) throws -> SemanticString {
+        if isOverride {
+            target.write("override", context: .context(for: node, state: .printKeyword))
+            target.writeSpace()
+        }
         try _printRoot(node)
         return target
     }

@@ -1001,7 +1001,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     private func printVariable(_ variable: VariableDefinition, level: Int) throws -> SemanticString {
-        var printer = VariableNodePrinter(isStored: variable.isStored, hasSetter: variable.hasSetter, indentation: level, delegate: self)
+        var printer = VariableNodePrinter(isStored: variable.isStored, isOverride: variable.isOverride, hasSetter: variable.hasSetter, indentation: level, delegate: self)
         try printer.printRoot(variable.node)
     }
 
@@ -1013,7 +1013,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     private func printSubscript(_ `subscript`: SubscriptDefinition, level: Int) throws -> SemanticString {
-        var printer = SubscriptNodePrinter(hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
+        var printer = SubscriptNodePrinter(isOverride: `subscript`.isOverride, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
         try printer.printRoot(`subscript`.node)
     }
 
