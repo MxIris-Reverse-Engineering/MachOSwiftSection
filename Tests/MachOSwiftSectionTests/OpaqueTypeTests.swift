@@ -4,7 +4,7 @@ import Demangle
 @testable import MachOTestingSupport
 import MachOSwiftSection
 @testable import SwiftDump
-@_spi(Internal) import MachOSymbols
+@_spi(Internals) import MachOSymbols
 
 protocol OpaqueTypeTests {}
 
@@ -28,7 +28,7 @@ extension OpaqueTypeTests {
             }
             print("Underlying Types:")
             for underlyingTypeArgumentMangledName in opaqueType.underlyingTypeArgumentMangledNames {
-                let node = try MetadataReader.demangle(for: underlyingTypeArgumentMangledName, in: machO)
+                let node = try MetadataReader.demangleType(for: underlyingTypeArgumentMangledName, in: machO)
                 node.print(using: .default).print()
             }
             print("--------------------")

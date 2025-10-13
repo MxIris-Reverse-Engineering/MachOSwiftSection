@@ -4,7 +4,7 @@ import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
 import Dependencies
-@_spi(Internal) import MachOSymbols
+@_spi(Internals) import MachOSymbols
 
 package protocol DumpableTests {
     var isEnabledSearchMetadata: Bool { get }

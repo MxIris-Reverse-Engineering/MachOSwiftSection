@@ -127,7 +127,7 @@ extension MachOFile {
     /// - Returns: The resolved symbol name as a `String`, or `nil` if the bind operation cannot be resolved.
 
     @AssociatedObject(.retain(.nonatomic))
-    private var _resolveBindCache: [Int: String] = [:]
+    private var _resolveBindCache: [UInt64: String] = [:]
 
     public func resolveBind(fileOffset: Int) -> String? {
         guard !isLoadedFromDyldCache else { return nil }
@@ -135,13 +135,13 @@ extension MachOFile {
 
         let offset: UInt64 = numericCast(fileOffset)
 
-        if let cached = _resolveBindCache[fileOffset] {
+        if let cached = _resolveBindCache[offset] {
             return cached
         }
 
         guard let resolved = resolveBind(at: offset) else { return nil }
         let result = fixup.symbolName(for: resolved.0.info.nameOffset)
-        _resolveBindCache[fileOffset] = result
+        _resolveBindCache[offset] = result
         return result
     }
 

@@ -7,7 +7,7 @@ import Demangle
 import Semantic
 import SwiftStdlibToolbox
 import Dependencies
-@_spi(Internal) import MachOSymbols
+@_spi(Internals) import MachOSymbols
 
 public final class TypeDefinition: Definition {
     public enum ParentContext {
@@ -85,13 +85,22 @@ public final class TypeDefinition: Definition {
         let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machO)
         let records = try fieldDescriptor.records(in: machO)
         for record in records {
-            let node = try record.demangledTypeNode(in: machO)
+            let typeNode = try record.demangledTypeNode(in: machO)
             let name = try record.fieldName(in: machO)
-            let isLazy = name.hasLazyPrefix
-            let isWeak = node.contains(.weak)
-            let isVar = record.flags.contains(.isVariadic)
-            let isIndirectCase = record.flags.contains(.isIndirectCase)
-            let field = FieldDefinition(node: node, name: name.stripLazyPrefix, isLazy: isLazy, isWeak: isWeak, isVar: isVar, isIndirectCase: isIndirectCase)
+            var fieldFlags = FieldFlags()
+            if name.hasLazyPrefix {
+                fieldFlags.insert(.isLazy)
+            }
+            if typeNode.contains(.weak) {
+                fieldFlags.insert(.isWeak)
+            }
+            if record.flags.contains(.isVariadic) {
+                fieldFlags.insert(.isVariable)
+            }
+            if record.flags.contains(.isIndirectCase) {
+                fieldFlags.insert(.isIndirectCase)
+            }
+            let field = FieldDefinition(name: name.stripLazyPrefix, typeNode: typeNode, flags: fieldFlags)
             fields.append(field)
         }
 

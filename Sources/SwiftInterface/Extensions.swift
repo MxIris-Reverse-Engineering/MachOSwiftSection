@@ -6,7 +6,7 @@ import SwiftDump
 import Demangle
 import Semantic
 import SwiftStdlibToolbox
-@_spi(Internal) import MachOSymbols
+@_spi(Internals) import MachOSymbols
 
 extension Node {
     var accessorKind: AccessorKind {

@@ -2,39 +2,89 @@ import Foundation
 import MachOKit
 import Demangle
 import MachOFoundation
+@_spi(Internals) import MachOCaches
 
-public enum MetadataReader {
-    public static func demangle<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
-        let rawString = mangledName.rawString
-        if rawString.isSwiftSymbol {
-            return try demangle(for: mangledName, kind: .symbol, in: machO)
-        } else {
-            return try demangle(for: mangledName, kind: .type, in: machO)
+private final class MetadataReaderCache: MachOCache<MetadataReaderCache.Entry> {
+    fileprivate static let shared = MetadataReaderCache()
+    
+    private override init() {}
+    
+    fileprivate struct MangledNameBox: Hashable {
+        let wrappedValue: MangledName
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(wrappedValue.elements)
+        }
+
+        static func == (lhs: Self, rhs: Self) -> Bool {
+            lhs.wrappedValue.elements == rhs.wrappedValue.elements
+        }
+
+        init(_ wrappedValue: MangledName) {
+            self.wrappedValue = wrappedValue
         }
     }
 
-    public static func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
+    final class Entry {
+        fileprivate var nodeForMangledNameBox: [MangledNameBox: Node] = [:]
+    }
+
+    override func buildEntry<MachO>(for machO: MachO) -> Entry? where MachO: MachORepresentableWithCache {
+        Entry()
+    }
+
+    override func entry<MachO>(in machO: MachO) -> Entry? where MachO : MachORepresentableWithCache {
+        super.entry(in: machO)
+    }
+    
+    func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
+        if let node = entry(in: machO)?.nodeForMangledNameBox[MangledNameBox(mangledName)] {
+            return node
+        } else {
+            let node = try MetadataReader._demangleType(for: mangledName, in: machO)
+            entry(in: machO)?.nodeForMangledNameBox[MangledNameBox(mangledName)] = node
+            return node
+        }
+    }
+}
+
+public enum MetadataReader<MachO: MachOSwiftSectionRepresentableWithCache> {
+//    public static func demangle(for mangledName: MangledName, in machO: MachO) throws -> Node {
+//        let rawString = mangledName.rawString
+//        if rawString.isSwiftSymbol {
+//            return try demangle(for: mangledName, kind: .symbol, in: machO)
+//        } else {
+//            return try demangleType(for: mangledName, in: machO)
+//        }
+//    }
+
+    fileprivate static func _demangleType(for mangledName: MangledName, in machO: MachO) throws -> Node {
         return try demangle(for: mangledName, kind: .type, in: machO)
     }
-
-    public static func demangleSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
-        return try demangle(for: mangledName, kind: .symbol, in: machO)
+    
+    public static func demangleType(for mangledName: MangledName, in machO: MachO) throws -> Node {
+//        return try demangle(for: mangledName, kind: .type, in: machO)
+        try MetadataReaderCache.shared.demangleType(for: mangledName, in: machO)
     }
 
-    public static func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for symbol: Symbol, in machO: MachO) throws -> Node? {
+//    public static func demangleSymbol(for mangledName: MangledName, in machO: MachO) throws -> Node {
+//        return try demangle(for: mangledName, kind: .symbol, in: machO)
+//    }
+
+    public static func demangleType(for symbol: Symbol, in machO: MachO) throws -> Node? {
         return try buildContextManglingForSymbol(symbol, in: machO)
     }
 
-    public static func demangleSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(for symbol: Symbol, in machO: MachO) throws -> Node? {
+    public static func demangleSymbol(for symbol: Symbol, in machO: MachO) throws -> Node? {
 //        return try demangle(for: .init(unsolvedSymbol: unsolvedSymbol), kind: .symbol, in: machOFile)
         return SymbolCache.shared.demangledNode(for: symbol, in: machO)
     }
 
-    public static func demangleContext<MachO: MachOSwiftSectionRepresentableWithCache>(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
+    public static func demangleContext(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
         return try required(buildContextMangling(context: context, in: machO))
     }
 
-    private static func demangle<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, kind: MangledNameKind, useOpaqueTypeSymbolicReferences: Bool = false, in machO: MachO) throws -> Node {
+    private static func demangle(for mangledName: MangledName, kind: MangledNameKind, useOpaqueTypeSymbolicReferences: Bool = false, in machO: MachO) throws -> Node {
         let stringValue = switch kind {
         case .type:
             mangledName.typeString
@@ -55,7 +105,7 @@ public enum MetadataReader {
                         if let context = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset).resolve(from: offset, in: machO) {
                             if let opaqueTypeDescriptor = context.opaqueTypeDescriptor {
                                 let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
-                                result = try .init(kind: .opaqueReturnTypeOf, child: demangle(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO))
+                                result = try .init(kind: .opaqueReturnTypeOf, child: demangleType(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO))
                             } else {
                                 result = try buildContextMangling(context: .element(context), in: machO)
                             }
@@ -65,7 +115,7 @@ public enum MetadataReader {
                         if let resolvableElement = try relativePointer.resolve(from: offset, in: machO).asOptional {
                             if case .element(let element) = resolvableElement, let opaqueTypeDescriptor = element.opaqueTypeDescriptor {
                                 let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
-                                result = try .init(kind: .opaqueReturnTypeOf, child: demangle(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO))
+                                result = try .init(kind: .opaqueReturnTypeOf, child: demangleType(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO))
                             } else {
                                 result = try buildContextMangling(context: resolvableElement, in: machO)
                             }
@@ -104,7 +154,7 @@ public enum MetadataReader {
         return result
     }
 
-    private static func buildContextMangling<MachO: MachOSwiftSectionRepresentableWithCache>(context: SymbolOrElement<ContextDescriptorWrapper>, in machO: MachO) throws -> Node? {
+    private static func buildContextMangling(context: SymbolOrElement<ContextDescriptorWrapper>, in machO: MachO) throws -> Node? {
         switch context {
         case .symbol(let symbol):
             return try buildContextManglingForSymbol(symbol, in: machO)
@@ -113,7 +163,7 @@ public enum MetadataReader {
         }
     }
 
-    private static func buildContextMangling<MachO: MachOSwiftSectionRepresentableWithCache>(context: ContextDescriptorWrapper, in machO: MachO) throws -> Node? {
+    private static func buildContextMangling(context: ContextDescriptorWrapper, in machO: MachO) throws -> Node? {
         guard let demangling = try buildContextDescriptorMangling(context: context, recursionLimit: 50, in: machO) else {
             return nil
         }
@@ -130,7 +180,7 @@ public enum MetadataReader {
         return top
     }
 
-    private static func buildContextDescriptorMangling<MachO: MachOSwiftSectionRepresentableWithCache>(context: SymbolOrElement<ContextDescriptorWrapper>, recursionLimit: Int, in machO: MachO) throws -> Node? {
+    private static func buildContextDescriptorMangling(context: SymbolOrElement<ContextDescriptorWrapper>, recursionLimit: Int, in machO: MachO) throws -> Node? {
         guard recursionLimit > 0 else { return nil }
         switch context {
         case .symbol(let symbol):
@@ -145,15 +195,15 @@ public enum MetadataReader {
         }
     }
 
-    package static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirement: GenericRequirementDescriptor, in machO: MachO) throws -> Node? {
+    package static func buildGenericSignature(for requirement: GenericRequirementDescriptor, in machO: MachO) throws -> Node? {
         try buildGenericSignature(for: [requirement], in: machO)
     }
 
-    package static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirements: GenericRequirementDescriptor..., in machO: MachO) throws -> Node? {
+    package static func buildGenericSignature(for requirements: GenericRequirementDescriptor..., in machO: MachO) throws -> Node? {
         try buildGenericSignature(for: requirements, in: machO)
     }
 
-    package static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirements: [GenericRequirementDescriptor], in machO: MachO) throws -> Node? {
+    package static func buildGenericSignature(for requirements: [GenericRequirementDescriptor], in machO: MachO) throws -> Node? {
         guard !requirements.isEmpty else { return nil }
         let signatureNode = Node(kind: .dependentGenericSignature)
         var failed = false
@@ -207,7 +257,7 @@ public enum MetadataReader {
         }
     }
 
-    private static func buildContextDescriptorMangling<MachO: MachOSwiftSectionRepresentableWithCache>(context: ContextDescriptorWrapper, recursionLimit: Int, in machO: MachO) throws -> Node? {
+    private static func buildContextDescriptorMangling(context: ContextDescriptorWrapper, recursionLimit: Int, in machO: MachO) throws -> Node? {
         guard recursionLimit > 0 else { return nil }
         var parentDescriptorResult = try context.parent(in: machO)
         var demangledParentNode: Node?
@@ -312,7 +362,7 @@ public enum MetadataReader {
         return demangling
     }
 
-    private static func buildContextManglingForSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(_ symbol: Symbol, in machO: MachO) throws -> Node? {
+    private static func buildContextManglingForSymbol(_ symbol: Symbol, in machO: MachO) throws -> Node? {
         var demangledSymbol = try demangleAsNode(symbol.name)
         if demangledSymbol.kind == .global {
             demangledSymbol = demangledSymbol.children[0]
@@ -329,7 +379,7 @@ public enum MetadataReader {
         return demangledSymbol
     }
 
-    private static func adoptAnonymousContextName<MachO: MachOSwiftSectionRepresentableWithCache>(context: ContextDescriptorWrapper, parentContextRef: inout SymbolOrElement<ContextDescriptorWrapper>?, outSymbol: inout Node?, in machO: MachO) throws -> Node? {
+    private static func adoptAnonymousContextName(context: ContextDescriptorWrapper, parentContextRef: inout SymbolOrElement<ContextDescriptorWrapper>?, outSymbol: inout Node?, in machO: MachO) throws -> Node? {
         outSymbol = nil
         guard let parentContextLocalRef = parentContextRef else { return nil }
         guard case .element(let parentContext) = parentContextRef else { return nil }
@@ -359,12 +409,12 @@ public enum MetadataReader {
         return nameChild
     }
 
-    private static func demangleAnonymousContextName<MachO: MachOSwiftSectionRepresentableWithCache>(context: SymbolOrElement<ContextDescriptorWrapper>, in machO: MachO) throws -> Node? {
+    private static func demangleAnonymousContextName(context: SymbolOrElement<ContextDescriptorWrapper>, in machO: MachO) throws -> Node? {
         guard case .element(.anonymous(let context)) = context, let mangledName = try context.mangledName(in: machO) else { return nil }
         return try demangle(for: mangledName, kind: .symbol, in: machO)
     }
 
-    private static func readProtocol<MachO: MachOSwiftSectionRepresentableWithCache>(offset: Int, pointer: RelativeProtocolDescriptorPointer, in machO: MachO) throws -> Node? {
+    private static func readProtocol(offset: Int, pointer: RelativeProtocolDescriptorPointer, in machO: MachO) throws -> Node? {
         switch pointer {
         case .objcPointer(let objcPointer):
             let objcPrefixElement = try objcPointer.resolve(from: offset, in: machO)

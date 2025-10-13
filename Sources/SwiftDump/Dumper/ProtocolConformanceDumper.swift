@@ -113,45 +113,15 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     package var typeName: SemanticString {
-        get throws {
-            switch protocolConformance.typeReference {
-            case .directTypeDescriptor(let descriptor):
-                try descriptor?.dumpName(using: typeNameOptions, in: machO).replacingTypeNameOrOtherToTypeDeclaration()
-            case .indirectTypeDescriptor(let descriptor):
-                switch descriptor {
-                case .symbol(let symbol):
-                    try MetadataReader.demangleType(for: symbol, in: machO)?.printSemantic(using: typeNameOptions).replacingTypeNameOrOtherToTypeDeclaration()
-                case .element(let element):
-                    try element.dumpName(using: typeNameOptions, in: machO).replacingTypeNameOrOtherToTypeDeclaration()
-                case nil:
-                    Standard("")
-                }
-            case .directObjCClassName(let objcClassName):
-                TypeDeclaration(kind: .class, objcClassName.valueOrEmpty)
-            case .indirectObjCClass(let objcClass):
-                switch objcClass {
-                case .symbol(let unsolvedSymbol):
-                    try MetadataReader.demangleType(for: unsolvedSymbol, in: machO)?.printSemantic(using: typeNameOptions).replacingTypeNameOrOtherToTypeDeclaration()
-                case .element(let element):
-                    try MetadataReader.demangleContext(for: .type(.class(element.descriptor.resolve(in: machO))), in: machO).printSemantic(using: typeNameOptions).replacingTypeNameOrOtherToTypeDeclaration()
-                case nil:
-                    Standard("")
-                }
-            }
+        get throws {            
+            try protocolConformance.typeNode(in: machO)?.printSemantic(using: typeNameOptions).replacingTypeNameOrOtherToTypeDeclaration()
         }
     }
 
     @SemanticStringBuilder
     package var protocolName: SemanticString {
         get throws {
-            switch protocolConformance.`protocol` {
-            case .symbol(let symbol):
-                try MetadataReader.demangleSymbol(for: symbol, in: machO)?.first(of: .type).map { try demangleResolver.resolve(for: $0) }
-            case .element(let element):
-                try demangleResolver.resolve(for: MetadataReader.demangleContext(for: .protocol(element), in: machO))
-            case .none:
-                Standard("")
-            }
+            try protocolConformance.protocolNode(in: machO).map { try demangleResolver.resolve(for: $0) }
         }
     }
 
@@ -174,9 +144,9 @@ package func protocolConformanceDemangledSymbol<MachO: MachOSwiftSectionRepresen
     return nil
 }
 
-extension ProtocolConformance {
-    package func typeNode<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Node? {
-        switch typeReference {
+extension ResolvedTypeReference {
+    package func node<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Node? {
+        switch self {
         case .directTypeDescriptor(let descriptor):
             return try descriptor.map { try MetadataReader.demangleContext(for: $0, in: machO) }
         case .indirectTypeDescriptor(let descriptor):
@@ -201,11 +171,18 @@ extension ProtocolConformance {
             case .symbol(let symbol):
                 return try MetadataReader.demangleType(for: symbol, in: machO)
             case .element(let element):
-                return try MetadataReader.demangleContext(for: .type(.class(element.descriptor.resolve(in: machO))), in: machO)
+                guard let classDescriptor = try element.descriptor.resolve(in: machO) else { return nil }
+                return try MetadataReader.demangleContext(for: .type(.class(classDescriptor)), in: machO)
             case nil:
                 return nil
             }
         }
+    }
+}
+
+extension ProtocolConformance {
+    package func typeNode<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Node? {
+        return try typeReference.node(in: machO)
     }
     
     package func protocolNode<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Node? {

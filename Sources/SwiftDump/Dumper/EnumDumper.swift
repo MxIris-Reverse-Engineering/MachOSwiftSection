@@ -6,7 +6,7 @@ import Utilities
 import MemberwiseInit
 import Demangle
 import Dependencies
-@_spi(Internal) import MachOSymbols
+@_spi(Internals) import MachOSymbols
 
 package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
     private let `enum`: Enum

@@ -1,5 +1,6 @@
 import Demangle
 import MachOSymbols
+import MachOSwiftSection
 
 enum DefinitionBuilder {
     static func variables(for demangledSymbols: [DemangledSymbol], fieldNames: borrowing Set<String> = [], methodDescriptorLookup: [Node: MethodDescriptorWrapper] = [:], isGlobalOrStatic: Bool) -> [VariableDefinition] {

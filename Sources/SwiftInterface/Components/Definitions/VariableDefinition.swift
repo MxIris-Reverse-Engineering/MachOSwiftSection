@@ -1,6 +1,7 @@
 import MemberwiseInit
 import Demangle
 import MachOSymbols
+import MachOSwiftSection
 
 public protocol AccessorRepresentable: Sendable {
     var accessors: [Accessor] { get }

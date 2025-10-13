@@ -1,5 +1,5 @@
 import Foundation
-@_spi(Internal) import MachOCaches
+@_spi(Internals) import MachOCaches
 import MachOSwiftSection
 
 package final class PrimitiveTypeMappingCache: MachOCache<PrimitiveTypeMapping> {

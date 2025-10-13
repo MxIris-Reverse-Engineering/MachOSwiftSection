@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import MachOKit
-@_spi(Internal) import MachOSymbols
+@_spi(Internals) import MachOSymbols
 import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump

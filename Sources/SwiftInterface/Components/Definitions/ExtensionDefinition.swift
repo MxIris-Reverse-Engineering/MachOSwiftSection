@@ -6,7 +6,7 @@ import SwiftDump
 import Demangle
 import Semantic
 import SwiftStdlibToolbox
-@_spi(Internal) import MachOSymbols
+@_spi(Internals) import MachOSymbols
 
 public final class ExtensionDefinition: Definition, MutableDefinition {
     public let extensionName: ExtensionName
@@ -16,37 +16,37 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
     public let protocolConformance: ProtocolConformance?
 
     public let associatedType: AssociatedType?
-    
+
     @Mutex
     public var types: [TypeDefinition] = []
-    
+
     @Mutex
     public var protocols: [ProtocolDefinition] = []
-    
+
     @Mutex
     public var allocators: [FunctionDefinition] = []
-    
+
     @Mutex
     public var constructors: [FunctionDefinition] = []
-    
+
     @Mutex
     public var variables: [VariableDefinition] = []
-    
+
     @Mutex
     public var functions: [FunctionDefinition] = []
-    
+
     @Mutex
     public var subscripts: [SubscriptDefinition] = []
-    
+
     @Mutex
     public var staticVariables: [VariableDefinition] = []
-    
+
     @Mutex
     public var staticFunctions: [FunctionDefinition] = []
-    
+
     @Mutex
     public var staticSubscripts: [SubscriptDefinition] = []
-    
+
     @Mutex
     public var missingSymbolWitnesses: [ResilientWitness] = []
 
@@ -70,8 +70,6 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
         }
         var visitedNodes: OrderedSet<Node> = []
         var memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]> = [:]
-
-        
 
         for resilientWitness in protocolConformance.resilientWitnesses {
             if let symbols = try resilientWitness.implementationSymbols(in: machO), let symbol = try _symbol(for: symbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
@@ -106,67 +104,5 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
         }
 
         setDefintions(for: memberSymbolsByKind, inExtension: true)
-    }
-}
-
-extension MutableDefinition {
-    func setDefintions(for memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>, inExtension: Bool) {
-        for (kind, memberSymbols) in memberSymbolsByKind {
-            switch kind {
-            case .variable(inExtension, let isStatic, false):
-                if isStatic {
-                    self.staticVariables = DefinitionBuilder.variables(for: memberSymbols, fieldNames: [], isGlobalOrStatic: true)
-                } else {
-                    self.variables = DefinitionBuilder.variables(for: memberSymbols, fieldNames: [], isGlobalOrStatic: false)
-                }
-            case .allocator:
-                self.allocators = DefinitionBuilder.allocators(for: memberSymbols)
-            case .function(inExtension, let isStatic):
-                if isStatic {
-                    self.staticFunctions = DefinitionBuilder.functions(for: memberSymbols, isGlobalOrStatic: true)
-                } else {
-                    self.functions = DefinitionBuilder.functions(for: memberSymbols, isGlobalOrStatic: false)
-                }
-            case .subscript(inExtension, let isStatic):
-                if isStatic {
-                    self.staticSubscripts = DefinitionBuilder.subscripts(for: memberSymbols, isStatic: true)
-                } else {
-                    self.subscripts = DefinitionBuilder.subscripts(for: memberSymbols, isStatic: false)
-                }
-            default:
-                break
-            }
-        }
-    }
-}
-
-extension Definition {
-    func addSymbol(_ symbol: DemangledSymbol, memberSymbolsByKind: inout OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>, inExtension: Bool) {
-        let node = symbol.demangledNode
-        if node.contains(.variable) {
-            if node.contains(.static) {
-                if node.isStoredVariable {
-                    memberSymbolsByKind[.variable(inExtension: inExtension, isStatic: true, isStorage: true), default: []].append(symbol)
-                } else {
-                    memberSymbolsByKind[.variable(inExtension: inExtension, isStatic: true, isStorage: false), default: []].append(symbol)
-                }
-            } else {
-                memberSymbolsByKind[.variable(inExtension: inExtension, isStatic: false, isStorage: false), default: []].append(symbol)
-            }
-        } else if node.contains(.allocator) {
-            memberSymbolsByKind[.allocator(inExtension: inExtension), default: []].append(symbol)
-        } else if node.contains(.function) {
-            if node.contains(.static) {
-                memberSymbolsByKind[.function(inExtension: inExtension, isStatic: true), default: []].append(symbol)
-            } else {
-                memberSymbolsByKind[.function(inExtension: inExtension, isStatic: false), default: []].append(symbol)
-            }
-        } else if node.contains(.subscript) {
-            if node.contains(.static) {
-                memberSymbolsByKind[.subscript(inExtension: inExtension, isStatic: true), default: []].append(symbol)
-            } else {
-                memberSymbolsByKind[.subscript(inExtension: inExtension, isStatic: false), default: []].append(symbol)
-            }
-        }
     }
 }

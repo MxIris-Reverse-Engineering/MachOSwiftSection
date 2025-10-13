@@ -6,10 +6,10 @@ import OrderedCollections
 import Utilities
 import Dependencies
 import MemberwiseInit
-@_spi(Internal) import MachOCaches
+@_spi(Internals) import MachOCaches
 
 @_spi(ForSymbolViewer)
-@_spi(Internal)
+@_spi(Internals)
 public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
     public enum MemberKind: Hashable, CaseIterable, CustomStringConvertible {
         fileprivate struct Traits: OptionSet, Hashable {
@@ -417,7 +417,7 @@ private enum SymbolIndexStoreKey: DependencyKey {
 }
 
 @_spi(ForSymbolViewer)
-@_spi(Internal)
+@_spi(Internals)
 extension DependencyValues {
     public var symbolIndexStore: SymbolIndexStore {
         get { self[SymbolIndexStoreKey.self] }

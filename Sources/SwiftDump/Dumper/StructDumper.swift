@@ -4,7 +4,7 @@ import MachOSwiftSection
 import Semantic
 import Utilities
 import Dependencies
-@_spi(Internal) import MachOSymbols
+@_spi(Internals) import MachOSymbols
 
 package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
     private let `struct`: Struct

@@ -5,8 +5,8 @@ import MachOKit
 @testable import MachOTestingSupport
 @testable import SwiftInterface
 import Dependencies
-@_private(sourceFile: "SymbolIndexStore.swift") @_spi(Internal) import MachOSymbols
-@_spi(Internal) import MachOCaches
+@_private(sourceFile: "SymbolIndexStore.swift") @_spi(Internals) import MachOSymbols
+@_spi(Internals) import MachOCaches
 
 protocol SwiftInterfaceBuilderTests {}
 
@@ -91,7 +91,7 @@ enum SwiftInterfaceBuilderTestSuite {
     }
 
     class XcodeMachOFileTests: MachOTestingSupport.XcodeMachOFileTests, SwiftInterfaceBuilderTests {
-        override class var fileName: XcodeMachOFileName { .frameworks(.IDEKit) }
+        override class var fileName: XcodeMachOFileName { .sharedFrameworks(.SourceEditor) }
 
         @Test func buildFile() async throws {
             try await buildFile(in: machOFile)

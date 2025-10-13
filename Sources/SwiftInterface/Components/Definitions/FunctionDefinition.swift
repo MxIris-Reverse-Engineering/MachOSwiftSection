@@ -3,13 +3,7 @@ import Demangle
 import MachOSwiftSection
 import Utilities
 
-@AssociatedValue(.public)
-@CaseCheckable(.public)
-public enum MethodDescriptorWrapper: Sendable {
-    case method(MethodDescriptor)
-    case methodOverride(MethodOverrideDescriptor)
-    case methodDefaultOverride(MethodDefaultOverrideDescriptor)
-}
+
 
 @MemberwiseInit(.public)
 public struct FunctionDefinition: Sendable {

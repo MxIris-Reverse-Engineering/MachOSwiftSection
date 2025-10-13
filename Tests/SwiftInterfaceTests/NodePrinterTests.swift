@@ -6,7 +6,7 @@ import MachOSymbols
 @testable import SwiftInterface
 @testable import MachOTestingSupport
 import Dependencies
-@_spi(Internal) import MachOSymbols
+@_spi(Internals) import MachOSymbols
 
 @Suite
 final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {
@@ -50,7 +50,7 @@ final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {
         for associatedType in associatedTypes {
             for record in associatedType.records {
                 let substitutedTypeNameMangledName = try record.substitutedTypeName(in: machO)
-                let node = try MetadataReader.demangle(for: substitutedTypeNameMangledName, in: machO)
+                let node = try MetadataReader.demangleType(for: substitutedTypeNameMangledName, in: machO)
                 do {
                     var printer = TypeNodePrinter()
                     print("Demangled: \(node.print(using: .interface))")

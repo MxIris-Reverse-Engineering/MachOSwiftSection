@@ -2,16 +2,15 @@ import Foundation
 import MachOKit
 import MachOFoundation
 
-
-public struct MangledName: Sendable, Equatable {
-    package enum Element: Sendable, Equatable {
-        package struct Lookup: CustomStringConvertible, Sendable, Equatable {
-            package enum Reference: Equatable, Sendable {
+public struct MangledName: Sendable, Hashable {
+    package enum Element: Sendable, Hashable {
+        package struct Lookup: CustomStringConvertible, Sendable, Hashable {
+            package enum Reference: Hashable, Sendable {
                 case relative(RelativeReference)
                 case absolute(AbsoluteReference)
             }
 
-            package struct RelativeReference: CustomStringConvertible, Sendable, Equatable {
+            package struct RelativeReference: CustomStringConvertible, Sendable, Hashable {
                 package let kind: UInt8
                 package let relativeOffset: RelativeOffset
                 package var description: String {
@@ -21,7 +20,7 @@ public struct MangledName: Sendable, Equatable {
                 }
             }
 
-            package struct AbsoluteReference: CustomStringConvertible, Sendable, Equatable {
+            package struct AbsoluteReference: CustomStringConvertible, Sendable, Hashable {
                 package let kind: UInt8
                 package let reference: UInt64
                 package var description: String {
@@ -83,7 +82,7 @@ public struct MangledName: Sendable, Equatable {
             return rawStringValue
         }
     }
-    
+
     public var rawString: String {
         guard !elements.isEmpty else { return "" }
         var results: [String] = []
@@ -105,6 +104,10 @@ public struct MangledName: Sendable, Equatable {
 
     public var isEmpty: Bool {
         return elements.isEmpty
+    }
+
+    package func isContentsEqual(to otherMangledName: MangledName) -> Bool {
+        elements == otherMangledName.elements
     }
 }
 
@@ -169,5 +172,3 @@ extension MangledName: CustomStringConvertible {
         return lines.joined(separator: "\n")
     }
 }
-
-

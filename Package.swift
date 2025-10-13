@@ -282,6 +282,18 @@ let package = Package(
         ),
 
         .target(
+            name: "SwiftIndex",
+            dependencies: [
+                .MachOKit,
+                "MachOSwiftSection",
+                "SwiftDump",
+                "Semantic",
+                "Utilities",
+                "TypeIndexing",
+            ]
+        ),
+
+        .target(
             name: "SwiftInterface",
             dependencies: [
                 .MachOKit,

@@ -9,7 +9,7 @@ import MachOKit
 import TypeIndexing
 import Dependencies
 import Utilities
-@_spi(Internal) import MachOSymbols
+@_spi(Internals) import MachOSymbols
 
 /// A comprehensive Swift interface builder that generates human-readable Swift interface files from Mach-O binaries.
 ///
@@ -306,7 +306,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 switch parentContext {
                 case .extension(let extensionContext):
                     guard let extendedContextMangledName = extensionContext.extendedContextMangledName else { continue }
-                    guard let extensionTypeNode = try MetadataReader.demangle(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
+                    guard let extensionTypeNode = try MetadataReader.demangleType(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
                     guard let extensionTypeKind = extensionTypeNode.typeKind else { continue }
 
                     let extensionTypeName = TypeName(node: extensionTypeNode, kind: extensionTypeKind)
@@ -377,7 +377,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                     if isRoot {
                         protocolDefinitions[protocolName] = protocolDefinition
                     } else if let extensionContext = protocolDefinition.extensionContext, let extendedContextMangledName = extensionContext.extendedContextMangledName {
-                        guard let typeNode = try MetadataReader.demangle(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
+                        guard let typeNode = try MetadataReader.demangleType(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
                         guard let typeKind = typeNode.typeKind else { continue }
                         let typeName = TypeName(node: typeNode, kind: typeKind)
                         var genericSignature: Node?
