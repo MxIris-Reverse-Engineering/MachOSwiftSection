@@ -60,12 +60,12 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     /// Optional type database for enhanced type resolution when indexing is enabled
     private let typeDatabase: TypeDatabase<MachO>?
 
+    /// Event dispatcher for handling logging and progress events
+    private let eventDispatcher: SwiftInterfaceBuilderEvents.Dispatcher
+
     /// Resolver for demangling type names using the configured type database
     @Mutex
     private var typeDemangleResolver: DemangleResolver = .using(options: .default)
-
-    /// Event dispatcher for handling logging and progress events
-    private let eventDispatcher: SwiftInterfaceBuilderEvents.Dispatcher
 
     /// All type wrappers (unified representation of enums, structs, and classes)
     @Mutex
@@ -91,37 +91,6 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     @Mutex
     private var associatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, AssociatedType>> = [:]
 
-    /// Set of all imported modules required for the interface
-    @Mutex
-    private var importedModules: OrderedSet<String> = []
-
-    /// Main type definitions indexed by type name
-    @Mutex
-    private var rootTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
-
-    @Mutex
-    private var allTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
-
-    /// Protocol definitions indexed by protocol name
-    @Mutex
-    private var rootProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> = [:]
-
-    /// Extension definitions for types (not including conformance extensions)
-    @Mutex
-    private var typeExtensionDefinitions: OrderedDictionary<TypeName, [ExtensionDefinition]> = [:]
-
-    /// Extension definitions for protocols
-    @Mutex
-    private var protocolExtensionDefinitions: OrderedDictionary<ProtocolName, [ExtensionDefinition]> = [:]
-
-    /// Extension definitions for type aliases
-    @Mutex
-    private var typeAliasExtensionDefinitions: OrderedDictionary<String, [ExtensionDefinition]> = [:]
-
-    /// Extension definitions that add protocol conformances to types
-    @Mutex
-    private var conformanceExtensionDefinitions: OrderedDictionary<TypeName, [ExtensionDefinition]> = [:]
-
     /// Set of all names encountered during analysis (for conflict resolution)
     @Mutex
     private var allNames: Set<String> = []
@@ -130,11 +99,42 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     @Mutex
     private var dependencies: [MachO] = []
 
+    /// Set of all imported modules required for the interface
     @Mutex
-    private var globalVariableDefinitions: [VariableDefinition] = []
+    public private(set) var importedModules: OrderedSet<String> = []
+
+    /// Main type definitions indexed by type name
+    @Mutex
+    public private(set) var rootTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
 
     @Mutex
-    private var globalFunctionDefinitions: [FunctionDefinition] = []
+    public private(set) var allTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
+
+    /// Protocol definitions indexed by protocol name
+    @Mutex
+    public private(set) var rootProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> = [:]
+
+    /// Extension definitions for types (not including conformance extensions)
+    @Mutex
+    public private(set) var typeExtensionDefinitions: OrderedDictionary<TypeName, [ExtensionDefinition]> = [:]
+
+    /// Extension definitions for protocols
+    @Mutex
+    public private(set) var protocolExtensionDefinitions: OrderedDictionary<ProtocolName, [ExtensionDefinition]> = [:]
+
+    /// Extension definitions for type aliases
+    @Mutex
+    public private(set) var typeAliasExtensionDefinitions: OrderedDictionary<String, [ExtensionDefinition]> = [:]
+
+    /// Extension definitions that add protocol conformances to types
+    @Mutex
+    public private(set) var conformanceExtensionDefinitions: OrderedDictionary<TypeName, [ExtensionDefinition]> = [:]
+
+    @Mutex
+    public private(set) var globalVariableDefinitions: [VariableDefinition] = []
+
+    @Mutex
+    public private(set) var globalFunctionDefinitions: [FunctionDefinition] = []
 
     /// Creates a new Swift interface builder for the given Mach-O binary.
     ///
@@ -477,7 +477,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                             associatedTypesByTypeNameCopy.removeValue(forKey: typeName)
                         }
                     }
-                    
+
                     let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO), protocolConformance: protocolConformance, associatedType: associatedType, in: machO)
                     conformanceExtensionDefinitions[typeName, default: []].append(extensionDefinition)
                     extensionCount += 1
@@ -495,7 +495,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 conformanceExtensionDefinitions[remainingTypeName, default: []].append(extensionDefinition)
             }
         }
-        
+
         self.conformanceExtensionDefinitions = conformanceExtensionDefinitions
         eventDispatcher.dispatch(.conformanceIndexingCompleted(result: SwiftInterfaceBuilderEvents.ConformanceIndexingResult(conformedTypes: protocolConformancesByTypeName.count, associatedTypeCount: associatedTypesByTypeName.count, extensionCount: extensionCount, failedConformances: failedConformances, failedAssociatedTypes: failedAssociatedTypes, failedExtensions: failedExtensions)))
     }
@@ -1184,19 +1184,19 @@ extension SwiftInterfaceBuilder: NodePrintableDelegate {
                         primaryAssociatedTypes.append(primaryAssociatedTypeNode.print(using: .opaqueTypeBuilderOnly))
                     }
                 }
-                
+
                 if let witnessTypes = witnessTypeByParamType[param] {
                     for witnessType in witnessTypes {
                         primaryAssociatedTypes.append(witnessType.print(using: .opaqueTypeBuilderOnly))
                     }
                 }
-                
+
                 if !primaryAssociatedTypes.isEmpty {
                     result.write("<")
                     result.write(primaryAssociatedTypes.joined(separator: ", "))
                     result.write(">")
                 }
-                
+
                 results.append(result)
             }
 
