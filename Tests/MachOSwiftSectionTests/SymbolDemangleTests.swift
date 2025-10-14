@@ -31,7 +31,7 @@ final class DyldCacheSymbolDemangleTests: DyldCacheTests {
                 #if !SILENT_TEST
                 print(symbol)
                 #endif
-                error.print()
+                Issue.record(error)
             }
         }
     }

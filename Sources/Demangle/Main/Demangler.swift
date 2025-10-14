@@ -154,6 +154,7 @@ extension Demangler {
         case "t": return try Node(typeWithChildKind: .compileTimeConst, childChild: require(popTypeAndGetChild()))
         case "T": return Node(kind: .sendingResultFunctionType)
         case "u": return try Node(typeWithChildKind: .sending, childChild: require(popTypeAndGetChild()))
+        case "g": return try Node(typeWithChildKind: .constValue, childChild: require(popTypeAndGetChild()))
         default: throw failure
         }
     }
@@ -188,6 +189,7 @@ extension Demangler {
             case "C": return try demangleConcreteProtocolConformance()
             case "D": return try demangleDependentProtocolConformanceRoot()
             case "I": return try demangleDependentProtocolConformanceInherited()
+            case "O": return try demangleDependentProtocolConformanceOpaque()
             case "P": return try Node(kind: .protocolConformanceRefInTypeModule, child: popProtocol())
             case "p": return try Node(kind: .protocolConformanceRefInProtocolModule, child: popProtocol())
             case "X": return try Node(kind: .packProtocolConformance, child: popAnyProtocolConformanceList())
@@ -600,6 +602,12 @@ extension Demangler {
         return Node(kind: .index, contents: .index(index - 2))
     }
 
+    private mutating func demangleDependentProtocolConformanceOpaque() throws -> Node {
+        let type = try require(pop(kind: .type))
+        let conformance = try require(popDependentProtocolConformance())
+        return Node(kind: .dependentProtocolConformanceOpaque, children: [conformance, type])
+    }
+    
     private mutating func popModule() -> Node? {
         if let ident = pop(kind: .identifier) {
             return ident.changeKind(.module)
@@ -1178,6 +1186,16 @@ extension Demangler {
         return Node(kind: .implParameterSending, contents: .text("sending"))
     }
 
+    private mutating func demangleImplParameterIsolated() -> Node? {
+        guard scanner.conditional(scalar: "I") else { return nil }
+        return Node(kind: .implParameterIsolated, contents: .text("isolated"))
+    }
+    
+    private mutating func demangleImplParameterImplicitLeading() -> Node? {
+        guard scanner.conditional(scalar: "L") else { return nil }
+        return Node(kind: .implParameterIsolated, contents: .text("sil_implicit_leading_param"))
+    }
+    
     private mutating func demangleImplResultDifferentiability() -> Node {
         return Node(kind: .implParameterResultDifferentiability, contents: .text(scanner.conditional(scalar: "w") ? "@noDerivative" : ""))
     }
@@ -1292,9 +1310,18 @@ extension Demangler {
         var numTypesToAdd = 0
         while let param = try demangleImplParamConvention(kind: .implParameter) {
             param.addChild(demangleImplResultDifferentiability())
-            if let diff = demangleImplParameterSending() {
-                param.addChild(diff)
+            if let sending = demangleImplParameterSending() {
+                param.addChild(sending)
             }
+            
+            if let sending = demangleImplParameterIsolated() {
+                param.addChild(sending)
+            }
+            
+            if let sending = demangleImplParameterImplicitLeading() {
+                param.addChild(sending)
+            }
+            
             typeChildren.append(param)
             numTypesToAdd += 1
         }
@@ -1680,6 +1707,8 @@ extension Demangler {
             switch try scanner.readScalar() {
             case "b": return Node(kind: .backDeploymentThunk)
             case "B": return Node(kind: .backDeploymentFallback)
+            case "c": return Node(kind: .coroFunctionPointer)
+            case "d": return Node(kind: .defaultOverride)
             case "S": return Node(kind: .hasSymbolQuery)
             default: throw failure
             }
@@ -2020,6 +2049,13 @@ extension Demangler {
             let type = try require(pop(kind: .type))
             var children: [Node] = sig.map { [type, $0] } ?? [type]
             switch try scanner.readScalar() {
+            case "B":
+                let type = try require(pop(kind: .type))
+                if let sig = pop(kind: .dependentGenericSignature) {
+                    return Node(kind: .outlinedInitializeWithTakeNoValueWitness, children: [type, sig])
+                } else {
+                    return Node(kind: .outlinedInitializeWithTakeNoValueWitness, children: [type])
+                }
             case "C": return Node(kind: .outlinedInitializeWithCopyNoValueWitness, children: children)
             case "D": return Node(kind: .outlinedAssignWithTakeNoValueWitness, children: children)
             case "F": return Node(kind: .outlinedAssignWithCopyNoValueWitness, children: children)
@@ -2168,8 +2204,15 @@ extension Demangler {
             switch try scanner.readScalar() {
             case "q": return Node(kind: .type, child: Node(kind: .sugaredOptional))
             case "a": return Node(kind: .type, child: Node(kind: .sugaredArray))
-            case "D": return Node(kind: .type, child: Node(kind: .sugaredDictionary))
+            case "D":
+                let value = try require(pop(kind: .type))
+                let key = try require(pop(kind: .type))
+                return Node(kind: .type, child: Node(kind: .sugaredDictionary, children: [key, value]))
             case "p": return Node(kind: .type, child: Node(kind: .sugaredParen))
+            case "A":
+                let element = try require(pop(kind: .type))
+                let count = try require(pop(kind: .type))
+                return Node(kind: .type, child: Node(kind: .sugaredInlineArray, children: [count, element]))
             default: throw failure
             }
         default: throw failure
@@ -2519,8 +2562,8 @@ extension Demangler {
         let context = try pop(where: { $0.isMacroExpansion }) ?? popContext()
         let discriminator = try demangleIndexAsName()
         var result: Node
-        if isAttached {
-            result = try Node(kind: kind, children: [context, require(attachedName), macroName, discriminator])
+        if isAttached, let attachedName {
+            result = Node(kind: kind, children: [context, attachedName, macroName, discriminator])
         } else {
             result = Node(kind: kind, children: [context, macroName, discriminator])
         }

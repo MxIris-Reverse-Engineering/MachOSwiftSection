@@ -62,6 +62,7 @@ extension Node {
         case .sugaredArray: fallthrough
         case .sugaredDictionary: fallthrough
         case .sugaredOptional: fallthrough
+        case .sugaredInlineArray: fallthrough
         case .sugaredParen: return true
         case .tuple: fallthrough
         case .tupleElementName: fallthrough

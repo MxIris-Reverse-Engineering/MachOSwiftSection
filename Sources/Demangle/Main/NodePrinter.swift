@@ -118,6 +118,7 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
              .typeAlias: return printEntity(name, asPrefixContext: asPrefixContext, typePrinting: .noType, hasName: true)
         case .classMetadataBaseOffset: printFirstChild(name, prefix: "class metadata base offset for ")
         case .compileTimeConst: printFirstChild(name, prefix: "_const ")
+        case .constValue: printFirstChild(name, prefix: "@const ")
         case .concreteProtocolConformance: printConcreteProtocolConformance(name)
         case .concurrentFunctionType: target.write("@Sendable ")
         case .conformanceAttachedMacroExpansion: return printMacro(name: name, asPrefixContext: asPrefixContext, label: "conformance")
@@ -148,6 +149,7 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
         case .dependentProtocolConformanceAssociated: printDependentProtocolConformanceAssociated(name)
         case .dependentProtocolConformanceInherited: printDependentProtocolConformanceInherited(name)
         case .dependentProtocolConformanceRoot: printDependentProtocolConformanceRoot(name)
+        case .dependentProtocolConformanceOpaque: printDependentProtocolConformanceOpaque(name)
         case .dependentPseudogenericSignature,
              .dependentGenericSignature: printGenericSignature(name)
         case .destructor: return printEntity(name, asPrefixContext: asPrefixContext, typePrinting: .noType, hasName: false, extraName: "deinit")
@@ -236,7 +238,7 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
         case .implicitClosure: return printEntity(name, asPrefixContext: asPrefixContext, typePrinting: options.contains(.showFunctionArgumentTypes) ? .functionStyle : .noType, hasName: false, extraName: "implicit closure #", extraIndex: (name.children.at(1)?.index ?? 0) + 1)
         case .implInvocationSubstitutions: printImplInvocationSubstitutions(name)
         case .implParameterResultDifferentiability: printImplParameterName(name)
-        case .implParameterSending: printImplParameterName(name)
+        case .implParameterSending, .implParameterIsolated, .implParameterImplicitLeading: printImplParameterName(name)
         case .implPatternSubstitutions: printImplPatternSubstitutions(name)
         case .implSendingResult: target.write("sending")
         case .implYield: printChildren(name, prefix: "@yields ", separator: " ")
@@ -337,7 +339,7 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
         case .outlinedEnumTagStore: printFirstChild(name, prefix: "outlined enum tag store of ")
         case .outlinedInitializeWithCopy,
              .outlinedInitializeWithCopyNoValueWitness: printFirstChild(name, prefix: "outlined init with copy of ")
-        case .outlinedInitializeWithTake: printFirstChild(name, prefix: "outlined init with take of ")
+        case .outlinedInitializeWithTake, .outlinedInitializeWithTakeNoValueWitness: printFirstChild(name, prefix: "outlined init with take of ")
         case .outlinedReadOnlyObject: target.write("outlined read-only object #\(name.index ?? 0) of ")
         case .outlinedRelease: printFirstChild(name, prefix: "outlined release of ")
         case .outlinedRetain: printFirstChild(name, prefix: "outlined retain of ")
@@ -411,6 +413,7 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
         case .subscript: return printEntity(name, asPrefixContext: asPrefixContext, typePrinting: .functionStyle, hasName: true, overwriteName: "subscript")
         case .suffix: printSuffix(name)
         case .sugaredArray: printFirstChild(name, prefix: "[", suffix: "]")
+        case .sugaredInlineArray: printChildren(name, prefix: "[", suffix: "]", separator: " of ")
         case .sugaredDictionary: printSugaredDictionary(name)
         case .sugaredOptional: printSugaredOptional(name)
         case .sugaredParen: printFirstChild(name, prefix: "(", suffix: ")")
@@ -450,6 +453,11 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
         case .weak: printFirstChild(name, prefix: options.contains(.removeWeakPrefix) ? "" : "weak ")
         case .willSet: return printAbstractStorage(name.children.first, asPrefixContext: asPrefixContext, extraName: "willset")
         case .nonIsolatedCallerFunctionType: target.write("nonisolated(nonsending) ")
+        case .coroFunctionPointer:
+            target.write("coro function pointer to ")
+        case .defaultOverride:
+            target.write("default override of ")
+        
         }
 
         return nil
@@ -701,7 +709,14 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
     }
 
     private mutating func printKeyPathAccessorThunkHelper(_ name: Node) {
-        printFirstChild(name, prefix: "key path \(name.kind == .keyPathGetterThunkHelper ? "getter" : "setter") for ", suffix: " : ")
+        let prefix = switch name.kind {
+        case .keyPathGetterThunkHelper: "getter for "
+        case .keyPathSetterThunkHelper: "setter for "
+        case .keyPathUnappliedMethodThunkHelper: "unapplied method "
+        case .keyPathAppliedMethodThunkHelper: "applied method "
+        default: ""
+        }
+        printFirstChild(name, prefix: "key path \(prefix)", suffix: " : ")
         for child in name.children.dropFirst() {
             if child.kind == .isSerialized {
                 target.write(", ")
@@ -884,6 +899,13 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
         }
         printFirstChild(name)
         target.write(" to ")
+        _ = printOptional(name.children.at(1))
+    }
+    
+    private mutating func printDependentProtocolConformanceOpaque(_ name: Node) {
+        target.write("dependent result conformance ")
+        printFirstChild(name)
+        target.write(" of ")
         _ = printOptional(name.children.at(1))
     }
 

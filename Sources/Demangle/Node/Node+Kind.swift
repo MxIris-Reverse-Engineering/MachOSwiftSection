@@ -81,6 +81,7 @@ extension Node {
         case dependentProtocolConformanceAssociated
         case dependentProtocolConformanceInherited
         case dependentProtocolConformanceRoot
+        case dependentProtocolConformanceOpaque
         case dependentPseudogenericSignature
         case destructor
         case didSet
@@ -149,6 +150,8 @@ extension Node {
         case implSendingResult
         case implParameterResultDifferentiability
         case implParameterSending
+        case implParameterIsolated
+        case implParameterImplicitLeading
         case implFunctionAttribute
         case implFunctionConvention
         case implFunctionConventionName
@@ -249,6 +252,7 @@ extension Node {
         case outlinedEnumTagStore
         case outlinedInitializeWithCopy
         case outlinedInitializeWithCopyNoValueWitness
+        case outlinedInitializeWithTakeNoValueWitness
         case outlinedInitializeWithTake
         case outlinedRelease
         case outlinedRetain
@@ -329,6 +333,7 @@ extension Node {
         case sugaredArray
         case sugaredDictionary
         case sugaredParen
+        case sugaredInlineArray
         case symbolicExtendedExistentialType
         case typeSymbolicReference
         case thinFunctionType
@@ -365,6 +370,9 @@ extension Node {
         case vTableThunk
         case weak
         case willSet
+        case coroFunctionPointer
+        case defaultOverride
+        case constValue
     }
 }
 
@@ -506,8 +514,13 @@ extension Node.Kind {
         case .accessibleFunctionRecord,
              .backDeploymentThunk,
              .backDeploymentFallback: fallthrough
-        case .hasSymbolQuery: return true
-        default: return false
+        case .hasSymbolQuery:
+            return true
+        case .coroFunctionPointer,
+             .defaultOverride:
+            return true
+        default:
+            return false
         }
     }
 }
