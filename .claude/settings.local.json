@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(swift build:*)",
+      "Bash(xcodebuild:*)",
+      "Bash(find:*)",
+      "Bash(swiftly use:*)",
+      "Read(//usr/bin/**)",
+      "Bash(swiftly list:*)",
+      "Bash(/usr/bin/swift build:*)",
+      "Bash(/usr/bin/swift test:*)",
+      "Bash(/usr/bin/swift run:*)",
+      "Bash(cat:*)",
+      "Bash(echo \"_$sSaySiGD\")",
+      "Bash(/usr/bin/swift:*)",
+      "Read(//tmp/**)",
+      "Bash(swift test)",
+      "Bash(swift test --filter DemangleTests)",
+      "Bash(swift test --filter RemanglerTests)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

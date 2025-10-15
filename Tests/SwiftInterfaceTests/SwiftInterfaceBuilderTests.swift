@@ -46,12 +46,12 @@ extension SwiftInterfaceBuilderTests {
                 for (name, memberSymbolsByNode) in memberSymbolsByName {
                     for (node, memberSymbols) in memberSymbolsByNode {
                         for memberSymbol in memberSymbols where !memberSymbol.isConsumed {
-                            print("Kind:", kind)
-                            print("Name:", name)
-                            print("Node:", node.print())
-                            print(memberSymbol.wrappedValue.demangledNode)
-                            print(memberSymbol.wrappedValue.demangledNode.print())
-                            print("---------------------")
+                            "Kind: \(kind.print())".print()
+                            "Name: \(name.print())".print()
+                            "Node: \(node.print())".print()
+                            memberSymbol.wrappedValue.demangledNode.print().print()
+                            memberSymbol.wrappedValue.demangledNode.description.print()
+                            "---------------------".print()
                         }
                     }
                 }

@@ -34,13 +34,13 @@ final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {
             let node = demangledSymbol.demangledNode
             do {
                 var printer = FunctionNodePrinter(isOverride: false)
-                print("Mangled  : \(demangledSymbol.symbol.name)")
-                print("Demangled: \(node.print(using: .interface))")
-                try print("Interface: \(printer.printRoot(#require(node.children.first)).string)")
+                "Mangled  : \(demangledSymbol.symbol.name)".print()
+                "Demangled: \(node.print(using: .interface))".print()
+                try "Interface: \(printer.printRoot(#require(node.children.first)).string)".print()
             } catch {
-                print("Error printing node: \(node.print(using: .default))")
+                "Error printing node: \(node.print(using: .default))".print()
             }
-            print("--------------------")
+            "--------------------".print()
         }
     }
 
@@ -53,13 +53,13 @@ final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {
                 let node = try MetadataReader.demangleType(for: substitutedTypeNameMangledName, in: machO)
                 do {
                     var printer = TypeNodePrinter()
-                    print("Demangled: \(node.print(using: .interface))")
-                    try print("Interface: \(printer.printRoot(node).string)")
-                    print("Node: \(node)")
+                    "Demangled: \(node.print(using: .interface))".print()
+                    try "Interface: \(printer.printRoot(node).string)".print()
+                    "Node: \(node)".print()
                 } catch {
-                    print("Error printing node: \(node.print(using: .default))")
+                    "Error printing node: \(node.print(using: .default))".print()
                 }
-                print("--------------------")
+                "--------------------".print()
             }
         }
     }
@@ -77,13 +77,13 @@ final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {
             let node = demangledSymbol.demangledNode
             do {
                 var printer = SubscriptNodePrinter(isOverride: false, hasSetter: false, indentation: 1)
-                print("Mangled  : \(demangledSymbol.symbol.name)")
-                print("Demangled: \(node.print(using: .interface))")
-                try print("Interface: \(printer.printRoot(node).string)")
+                "Mangled  : \(demangledSymbol.symbol.name)".print()
+                "Demangled: \(node.print(using: .interface))".print()
+                try "Interface: \(printer.printRoot(node).string)".print()
             } catch {
-                print("Error printing node: \(node.print(using: .default))")
+                "Error printing node: \(node.print(using: .default))".print()
             }
-            print("--------------------")
+            "--------------------".print()
         }
     }
 }
