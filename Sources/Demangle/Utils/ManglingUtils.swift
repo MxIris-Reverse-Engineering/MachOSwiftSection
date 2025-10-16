@@ -19,10 +19,34 @@ enum Mangle {
         return ch >= "0" && ch <= "9"
     }
 
+    /// Returns true if the character is a hex digit (0-9, a-f, A-F)
+    @inline(__always)
+    static func isHexDigit(_ ch: Character) -> Bool {
+        return isDigit(ch) || (ch >= "a" && ch <= "f") || (ch >= "A" && ch <= "F")
+    }
+
     /// Returns true if the character is a letter (a-z or A-Z)
     @inline(__always)
     static func isLetter(_ ch: Character) -> Bool {
         return isLowerLetter(ch) || isUpperLetter(ch)
+    }
+
+    /// Returns true if the character is a letter or an underscore
+    @inline(__always)
+    static func isAlpha(_ ch: Character) -> Bool {
+        return isLetter(ch) || ch == "_"
+    }
+
+    /// Returns true if the character can be part of an identifier
+    @inline(__always)
+    static func isIdentifierChar(_ ch: Character) -> Bool {
+        return isAlpha(ch) || isDigit(ch)
+    }
+
+    /// Returns true if the character can be the first character of an identifier
+    @inline(__always)
+    static func isStartOfIdentifier(_ ch: Character) -> Bool {
+        return isAlpha(ch)
     }
 
     /// Returns true if the character defines the begin of a substitution word
@@ -513,7 +537,7 @@ enum Mangle {
 
             // Handle word substitution
             if repl.wordIdx >= 0 {
-                assert(repl.wordIdx <= wordsInBufferMutable)
+                assert(repl.wordIdx < mangler.words.count, "Word index \(repl.wordIdx) out of range (words.count = \(mangler.words.count))")
                 pos += mangler.words[repl.wordIdx].length
 
                 if idx < mangler.substWordsInIdent.count - 2 {

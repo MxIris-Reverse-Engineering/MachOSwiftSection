@@ -17,14 +17,20 @@ final class Remangler: RemanglerBase {
     var symbolicReferenceResolver: SymbolicReferenceResolver?
 
     /// Whether to use Punycode encoding for non-ASCII identifiers
-    let usePunycode: Bool
+    private let _usePunycode: Bool
+
+    override var usePunycode: Bool {
+        return _usePunycode
+    }
 
     let substMerging: Mangle.SubstitutionMerging
+
+    let flavor = ManglingFlavor.default
 
     // MARK: - Initialization
 
     init(usePunycode: Bool = true) {
-        self.usePunycode = usePunycode
+        self._usePunycode = usePunycode
         self.substMerging = Mangle.SubstitutionMerging()
         super.init()
     }
@@ -172,7 +178,7 @@ final class Remangler: RemanglerBase {
         case .number:
             return mangleNumber(node, depth: depth)
         case .index:
-            return mangleIndexNode(node, depth: depth)
+            return mangleIndex(node, depth: depth)
         case .variable:
             return mangleVariable(node, depth: depth)
         case .subscript:

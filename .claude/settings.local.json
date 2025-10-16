@@ -27,7 +27,19 @@
       "Bash(do echo \"$line\")",
       "Bash(done)",
       "Bash(xargs cat:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Read(//Users/JH/**)",
+      "Bash(for dir in ~/swift-source ~/Developer ~/dev ~/swift ~/source ~/Developer/swift)",
+      "Bash(do if [ -d \"$dir\" ])",
+      "Bash(then find \"$dir\" -name \"Remangler.cpp\" -type f)",
+      "Bash(fi)",
+      "Bash(mdfind:*)",
+      "Read(//Volumes/Repositories/OpenSource/AppleOSS/Swift-Stable/swift/lib/Demangling/**)",
+      "Read(//Volumes/Repositories/OpenSource/AppleOSS/Swift-Stable/swift/include/**)",
+      "Read(//Volumes/Repositories/OpenSource/AppleOSS/Swift-Stable/swift/**)",
+      "Bash(tee:*)",
+      "Bash(awk:*)",
+      "Bash(paste:*)"
     ],
     "deny": [],
     "ask": []

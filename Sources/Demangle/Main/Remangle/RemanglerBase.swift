@@ -28,30 +28,24 @@ class RemanglerBase: Mangle.Mangler {
     private var inlineSubstitutions: [SubstitutionEntry] = []
 
     /// Overflow storage for substitutions beyond inline capacity
-    private var overflowSubstitutions: [SubstitutionEntry: Int] = [:]
+    private var overflowSubstitutions: [SubstitutionEntry: UInt64] = [:]
 
     // MARK: - Word Substitution Support
 
-    /// A word in an identifier (for word substitution optimization)
-    struct SubstitutionWord {
-        var start: Int    // Start position in buffer
-        var length: Int   // Length of the word
-    }
-
-    /// A word replacement in the current identifier
-    struct WordReplacement {
-        var stringPos: Int  // Position in the identifier string
-        var wordIdx: Int    // Index in Words array, or -1 for dummy
+    /// Whether to use Punycode encoding for non-ASCII identifiers
+    /// Subclasses can override this
+    var usePunycode: Bool {
+        return true
     }
 
     /// Maximum number of words to track (matches C++ MaxNumWords = 26)
     private static let maxNumWords = 26
 
     /// List of all words seen so far in the mangled string
-    var words: [SubstitutionWord] = []
+    var words: [Mangle.SubstitutionWord] = []
 
     /// List of word replacements in the current identifier
-    var substWordsInIdent: [WordReplacement] = []
+    var substWordsInIdent: [Mangle.WordReplacement] = []
 
     // MARK: - Initialization
 
@@ -72,7 +66,7 @@ class RemanglerBase: Mangle.Mangler {
     }
 
     /// Append an integer to the output buffer
-    func append(_ value: Int) {
+    func append(_ value: UInt64) {
         buffer.append(String(value))
     }
 
@@ -220,10 +214,10 @@ class RemanglerBase: Mangle.Mangler {
     // MARK: - Substitution Management
 
     /// Find a substitution and return its index, or nil if not found
-    func findSubstitution(_ entry: SubstitutionEntry) -> Int? {
+    func findSubstitution(_ entry: SubstitutionEntry) -> UInt64? {
         // First search in inline substitutions (fast path)
         if let index = inlineSubstitutions.firstIndex(of: entry) {
-            return index
+            return UInt64(index)
         }
 
         // Then search in overflow substitutions
@@ -247,7 +241,7 @@ class RemanglerBase: Mangle.Mangler {
         } else {
             // Need to use overflow storage
             let index = overflowSubstitutions.count + Self.inlineSubstCapacity
-            overflowSubstitutions[entry] = index
+            overflowSubstitutions[entry] = UInt64(index)
         }
     }
 
@@ -287,11 +281,11 @@ class RemanglerBase: Mangle.Mangler {
     /// Indices are mangled as:
     /// - 0 -> '_'
     /// - n -> '(n-1)_'
-    func mangleIndex(_ value: Int) {
+    func mangleIndex(_ value: UInt64) {
         if value == 0 {
             append("_")
         } else {
-            append(value - 1)
+            append(value &- 1)
             append("_")
         }
     }
@@ -330,12 +324,12 @@ class RemanglerBase: Mangle.Mangler {
     }
 
     /// Add a word to the words list
-    func addWord(_ word: SubstitutionWord) {
+    func addWord(_ word: Mangle.SubstitutionWord) {
         words.append(word)
     }
 
     /// Add a word replacement to the current identifier
-    func addSubstWordInIdent(_ repl: WordReplacement) {
+    func addSubstWordInIdent(_ repl: Mangle.WordReplacement) {
         substWordsInIdent.append(repl)
     }
 
@@ -347,5 +341,20 @@ class RemanglerBase: Mangle.Mangler {
     /// Get the current buffer as a string (for word lookup)
     func getBufferStr() -> String {
         return buffer
+    }
+}
+
+// MARK: - IdentifierMangler Conformance
+extension RemanglerBase: Mangle.IdentifierMangler {
+    var maxNumWords: Int {
+        return Self.maxNumWords
+    }
+
+    func appendToBuffer(_ str: String) {
+        append(str)
+    }
+
+    func addSubstWord(_ repl: Mangle.WordReplacement) {
+        addSubstWordInIdent(repl)
     }
 }

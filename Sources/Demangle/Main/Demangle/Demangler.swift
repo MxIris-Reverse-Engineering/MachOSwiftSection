@@ -8,7 +8,7 @@ struct Demangler<C>: Sendable where C: Collection, C.Iterator.Element == Unicode
     private var flavor: ManglingFlavor = .default
     private var symbolicReferenceIndex: Int = 0
 
-    var symbolicReferenceResolver: SymbolicReferenceResolver? = nil
+    var symbolicReferenceResolver: SymbolicReferenceResolver?
 
     init(scalars: C) {
         self.scanner = ScalarScanner(scalars: scalars)
@@ -457,7 +457,7 @@ extension Demangler {
                 if let variadicMarker = pop(kind: .variadicMarker) {
                     tupleElement.addChild(variadicMarker)
                 }
-                if let ident = pop(kind: .identifier), case let .text(text) = ident.contents {
+                if let ident = pop(kind: .identifier), case .text(let text) = ident.contents {
                     tupleElement.addChild(Node(kind: .tupleElementName, contents: .text(text)))
                 }
                 try tupleElement.addChild(require(pop(kind: .type)))
@@ -607,7 +607,7 @@ extension Demangler {
         let conformance = try require(popDependentProtocolConformance())
         return Node(kind: .dependentProtocolConformanceOpaque, children: [conformance, type])
     }
-    
+
     private mutating func popModule() -> Node? {
         if let ident = pop(kind: .identifier) {
             return ident.changeKind(.module)
@@ -982,11 +982,6 @@ extension Demangler {
         }
     }
 
-    private enum ManglingFlavor {
-        case `default`
-        case embedded
-    }
-
     private func getParentId(parent: Node, flavor: ManglingFlavor) -> String {
         return "{ParentId}"
     }
@@ -1190,12 +1185,12 @@ extension Demangler {
         guard scanner.conditional(scalar: "I") else { return nil }
         return Node(kind: .implParameterIsolated, contents: .text("isolated"))
     }
-    
+
     private mutating func demangleImplParameterImplicitLeading() -> Node? {
         guard scanner.conditional(scalar: "L") else { return nil }
         return Node(kind: .implParameterIsolated, contents: .text("sil_implicit_leading_param"))
     }
-    
+
     private mutating func demangleImplResultDifferentiability() -> Node {
         return Node(kind: .implParameterResultDifferentiability, contents: .text(scanner.conditional(scalar: "w") ? "@noDerivative" : ""))
     }
@@ -1313,15 +1308,15 @@ extension Demangler {
             if let sending = demangleImplParameterSending() {
                 param.addChild(sending)
             }
-            
+
             if let sending = demangleImplParameterIsolated() {
                 param.addChild(sending)
             }
-            
+
             if let sending = demangleImplParameterImplicitLeading() {
                 param.addChild(sending)
             }
-            
+
             typeChildren.append(param)
             numTypesToAdd += 1
         }
@@ -1877,7 +1872,7 @@ extension Demangler {
             let param = paramIndexPair.element
             guard param.kind == .functionSignatureSpecializationParam else { continue }
             guard let kindName = param.children.first else { continue }
-            guard kindName.kind == .functionSignatureSpecializationParamKind, case let .index(i) = kindName.contents else { throw failure }
+            guard kindName.kind == .functionSignatureSpecializationParamKind, case .index(let i) = kindName.contents else { throw failure }
             let paramKind = FunctionSigSpecializationParamKind(rawValue: UInt64(i))
             switch paramKind {
             case .constantPropFunction,

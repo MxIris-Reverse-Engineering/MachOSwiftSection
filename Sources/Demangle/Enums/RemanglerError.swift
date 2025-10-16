@@ -36,6 +36,12 @@ public enum RemanglerError: Error, CustomStringConvertible {
     /// Symbolic reference resolver not provided when needed
     case missingSymbolicResolver(Node?)
 
+    /// Unexpected builtin type encountered
+    case unexpectedBuiltinType(Node?)
+
+    /// Unexpected builtin vector type encountered
+    case unexpectedBuiltinVectorType(Node?)
+
     /// Generic error with message
     case genericError(String)
 
@@ -72,6 +78,10 @@ public enum RemanglerError: Error, CustomStringConvertible {
             return "Invalid node structure: \(message)\(nodeInfo(node))"
         case .missingSymbolicResolver(let node):
             return "Symbolic reference resolver not provided\(nodeInfo(node))"
+        case .unexpectedBuiltinType(let node):
+            return "Unexpected builtin type\(nodeInfo(node))"
+        case .unexpectedBuiltinVectorType(let node):
+            return "Unexpected builtin vector type\(nodeInfo(node))"
         case .genericError(let message):
             return "Error: \(message)"
         }
