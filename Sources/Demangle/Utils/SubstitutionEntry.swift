@@ -121,7 +121,6 @@ struct SubstitutionEntry: Hashable {
 
         return true
     }
-
 }
 
 // MARK: - Node Extensions
@@ -130,7 +129,9 @@ extension Node.Kind {
     /// Check if this node kind represents an operator
     var isOperatorKind: Bool {
         switch self {
-        case .infixOperator, .prefixOperator, .postfixOperator:
+        case .infixOperator,
+             .prefixOperator,
+             .postfixOperator:
             return true
         default:
             return false
@@ -144,12 +145,12 @@ extension Node {
     /// Similarity means same kind and same text/index, but not necessarily same children.
     func isSimilar(to other: Node) -> Bool {
         // Kind must match
-        guard self.kind == other.kind else {
+        guard kind == other.kind else {
             return false
         }
 
         // Check text
-        if let selfText = self.text {
+        if let selfText = text {
             if selfText != other.text {
                 return false
             }
@@ -158,7 +159,7 @@ extension Node {
         }
 
         // Check index
-        if let selfIndex = self.index {
+        if let selfIndex = index {
             if selfIndex != other.index {
                 return false
             }

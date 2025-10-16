@@ -4,7 +4,7 @@
 /// - Hash-based substitution lookup cache
 /// - Two-level substitution storage (inline + overflow)
 /// - Output buffer management
-public class RemanglerBase: Mangle.Mangler {
+class RemanglerBase: Mangle.Mangler {
     // MARK: - Constants
 
     /// Capacity of the hash-based node hash cache (must be power of 2)
@@ -30,26 +30,49 @@ public class RemanglerBase: Mangle.Mangler {
     /// Overflow storage for substitutions beyond inline capacity
     private var overflowSubstitutions: [SubstitutionEntry: Int] = [:]
 
+    // MARK: - Word Substitution Support
+
+    /// A word in an identifier (for word substitution optimization)
+    struct SubstitutionWord {
+        var start: Int    // Start position in buffer
+        var length: Int   // Length of the word
+    }
+
+    /// A word replacement in the current identifier
+    struct WordReplacement {
+        var stringPos: Int  // Position in the identifier string
+        var wordIdx: Int    // Index in Words array, or -1 for dummy
+    }
+
+    /// Maximum number of words to track (matches C++ MaxNumWords = 26)
+    private static let maxNumWords = 26
+
+    /// List of all words seen so far in the mangled string
+    var words: [SubstitutionWord] = []
+
+    /// List of word replacements in the current identifier
+    var substWordsInIdent: [WordReplacement] = []
+
     // MARK: - Initialization
 
-    public init() {
-        self.inlineSubstitutions.reserveCapacity(Self.inlineSubstCapacity)
+    init() {
+        inlineSubstitutions.reserveCapacity(Self.inlineSubstCapacity)
     }
 
     // MARK: - Buffer Management
 
     /// Append a string to the output buffer
-    public func append(_ string: String) {
+    func append(_ string: String) {
         buffer.append(string)
     }
 
     /// Append a character to the output buffer
-    public func append(_ char: Character) {
+    func append(_ char: Character) {
         buffer.append(char)
     }
 
     /// Append an integer to the output buffer
-    public func append(_ value: Int) {
+    func append(_ value: Int) {
         buffer.append(String(value))
     }
 
@@ -156,7 +179,7 @@ public class RemanglerBase: Mangle.Mangler {
         let nodeHash = nodePointerHash(node) &+ ident
 
         // Linear probing with limited attempts
-        for probe in 0..<Self.hashHashMaxProbes {
+        for probe in 0 ..< Self.hashHashMaxProbes {
             let index = (nodeHash &+ probe) & (Self.hashHashCapacity - 1)
 
             if let cachedEntry = hashHash[index] {
@@ -213,7 +236,10 @@ public class RemanglerBase: Mangle.Mangler {
 
     /// Add a substitution to the table
     func addSubstitution(_ entry: SubstitutionEntry) {
-        assert(findSubstitution(entry) == nil, "Substitution already exists")
+        // Don't add duplicate substitutions
+        if findSubstitution(entry) != nil {
+            return
+        }
 
         if inlineSubstitutions.count < Self.inlineSubstCapacity {
             // Still room in inline storage
@@ -230,6 +256,30 @@ public class RemanglerBase: Mangle.Mangler {
         return inlineSubstitutions.count + overflowSubstitutions.count
     }
 
+    /// Try to use an existing substitution for a node
+    ///
+    /// - Parameters:
+    ///   - entry: The substitution entry to check
+    /// - Returns: true if substitution was found and used, false otherwise
+    func trySubstitution(_ entry: SubstitutionEntry) -> Bool {
+        guard let index = findSubstitution(entry) else {
+            return false
+        }
+
+        // Mangle the substitution reference
+        if index >= 26 {
+            // Large index: "A" + mangleIndex(index - 26)
+            append("A")
+            mangleIndex(index - 26)
+        } else {
+            // Small index: "A" + character
+            append("A")
+            let char = Character(UnicodeScalar(UInt8(ascii: "A") + UInt8(index)))
+            append(char)
+        }
+        return true
+    }
+
     // MARK: - Helper Methods
 
     /// Mangle an index value
@@ -237,7 +287,7 @@ public class RemanglerBase: Mangle.Mangler {
     /// Indices are mangled as:
     /// - 0 -> '_'
     /// - n -> '(n-1)_'
-    public func mangleIndex(_ value: Int) {
+    func mangleIndex(_ value: Int) {
         if value == 0 {
             append("_")
         } else {
@@ -247,7 +297,7 @@ public class RemanglerBase: Mangle.Mangler {
     }
 
     /// Mangle a list separator
-    public func mangleListSeparator(_ isFirstItem: inout Bool) {
+    func mangleListSeparator(_ isFirstItem: inout Bool) {
         if isFirstItem {
             append("_")
             isFirstItem = false
@@ -255,9 +305,47 @@ public class RemanglerBase: Mangle.Mangler {
     }
 
     /// Mangle end of list
-    public func mangleEndOfList(_ isFirstItem: Bool) {
+    func mangleEndOfList(_ isFirstItem: Bool) {
         if isFirstItem {
             append("y")
         }
+    }
+
+    // MARK: - Word Substitution Helpers
+
+    /// Check if a character can start a word
+    func isWordStart(_ ch: Character) -> Bool {
+        return !ch.isNumber && ch != "_" && ch != "\0"
+    }
+
+    /// Check if a character (following prevCh) defines the end of a word
+    func isWordEnd(_ ch: Character, _ prevCh: Character) -> Bool {
+        if ch == "_" || ch == "\0" {
+            return true
+        }
+        if !prevCh.isUppercase && ch.isUppercase {
+            return true
+        }
+        return false
+    }
+
+    /// Add a word to the words list
+    func addWord(_ word: SubstitutionWord) {
+        words.append(word)
+    }
+
+    /// Add a word replacement to the current identifier
+    func addSubstWordInIdent(_ repl: WordReplacement) {
+        substWordsInIdent.append(repl)
+    }
+
+    /// Clear word replacements for the current identifier
+    func clearSubstWordsInIdent() {
+        substWordsInIdent.removeAll(keepingCapacity: true)
+    }
+
+    /// Get the current buffer as a string (for word lookup)
+    func getBufferStr() -> String {
+        return buffer
     }
 }

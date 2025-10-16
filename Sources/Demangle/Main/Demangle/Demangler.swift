@@ -845,7 +845,7 @@ extension Demangler {
             }
             let text = try scanner.readScalars(count: Int(numChars))
             if isPunycoded {
-                try identifier.append(decodeSwiftPunycode(text))
+                try identifier.append(Punycode.decodeSwiftPunycode(text))
             } else {
                 identifier.append(text)
                 var word: String?
@@ -2526,7 +2526,10 @@ extension Demangler {
     private mutating func demangleValueWitness() throws -> Node {
         let code = try scanner.readScalars(count: 2)
         let kind = try require(ValueWitnessKind(code: code))
-        return try Node(kind: .valueWitness, contents: .index(kind.rawValue), children: [require(pop(kind: .type))])
+        // ValueWitness node should have 2 children: Index node and Type node
+        let indexNode = Node(kind: .index, contents: .index(kind.rawValue))
+        let typeNode = try require(pop(kind: .type))
+        return Node(kind: .valueWitness, children: [indexNode, typeNode])
     }
 }
 

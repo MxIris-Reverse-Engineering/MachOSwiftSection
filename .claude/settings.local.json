@@ -16,7 +16,18 @@
       "Read(//tmp/**)",
       "Bash(swift test)",
       "Bash(swift test --filter DemangleTests)",
-      "Bash(swift test --filter RemanglerTests)"
+      "Bash(swift test --filter RemanglerTests)",
+      "Bash(swift test:*)",
+      "Bash(comm:*)",
+      "Bash(.build/debug/swift-demangle:*)",
+      "Bash(swift run:*)",
+      "Bash(xcrun swift-demangle:*)",
+      "Bash(swift:*)",
+      "Bash(while read line)",
+      "Bash(do echo \"$line\")",
+      "Bash(done)",
+      "Bash(xargs cat:*)",
+      "Bash(python3:*)"
     ],
     "deny": [],
     "ask": []

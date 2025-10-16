@@ -1,7 +1,7 @@
-/// Public interface functions for remangling Swift symbols
-///
-/// These convenience functions provide a simple API for remangling demangled nodes
-/// back into mangled symbol strings.
+// Public interface functions for remangling Swift symbols
+//
+// These convenience functions provide a simple API for remangling demangled nodes
+// back into mangled symbol strings.
 
 /// Remangle a node tree into a mangled string
 ///
@@ -129,7 +129,7 @@ public func remangleConcurrent(_ nodes: [Node]) async -> [String?] {
             }
         }
 
-        var results = Array<String?>(repeating: nil, count: nodes.count)
+        var results = [String?](repeating: nil, count: nodes.count)
         for await (index, result) in group {
             results[index] = result
         }

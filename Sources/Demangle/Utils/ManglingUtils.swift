@@ -1,8 +1,3 @@
-/// Utilities for Swift name mangling
-///
-/// This file provides utility functions and types used by the mangling system,
-/// including character classification, operator translation, and word substitution.
-
 // MARK: - Character Classification
 
 enum Mangle {
@@ -66,7 +61,7 @@ enum Mangle {
     // MARK: - Punycode Support
 
     /// Returns true if the string contains any non-ASCII character
-    public static func isNonAscii(_ str: String) -> Bool {
+    static func isNonAscii(_ str: String) -> Bool {
         for scalar in str.unicodeScalars {
             if scalar.value >= 0x80 {
                 return true
@@ -77,7 +72,7 @@ enum Mangle {
 
     /// Returns true if the string contains any character which may not appear in a
     /// mangled symbol string and therefore must be punycode encoded
-    public static func needsPunycodeEncoding(_ str: String) -> Bool {
+    static func needsPunycodeEncoding(_ str: String) -> Bool {
         if str.isEmpty {
             return false
         }
@@ -101,58 +96,58 @@ enum Mangle {
     /// Translate the given operator character into its mangled form.
     ///
     /// Current operator characters: @/=-+*%<>!&|^~ and the special operator '..'
-    public static func translateOperatorChar(_ op: Character) -> Character {
+    static func translateOperatorChar(_ op: Character) -> Character {
         switch op {
-        case "&": return "a"  // 'and'
-        case "@": return "c"  // 'commercial at sign'
-        case "/": return "d"  // 'divide'
-        case "=": return "e"  // 'equal'
-        case ">": return "g"  // 'greater'
-        case "<": return "l"  // 'less'
-        case "*": return "m"  // 'multiply'
-        case "!": return "n"  // 'negate'
-        case "|": return "o"  // 'or'
-        case "+": return "p"  // 'plus'
-        case "?": return "q"  // 'question'
-        case "%": return "r"  // 'remainder'
-        case "-": return "s"  // 'subtract'
-        case "~": return "t"  // 'tilde'
-        case "^": return "x"  // 'xor'
-        case ".": return "z"  // 'zperiod' (the z is silent)
+        case "&": return "a" // 'and'
+        case "@": return "c" // 'commercial at sign'
+        case "/": return "d" // 'divide'
+        case "=": return "e" // 'equal'
+        case ">": return "g" // 'greater'
+        case "<": return "l" // 'less'
+        case "*": return "m" // 'multiply'
+        case "!": return "n" // 'negate'
+        case "|": return "o" // 'or'
+        case "+": return "p" // 'plus'
+        case "?": return "q" // 'question'
+        case "%": return "r" // 'remainder'
+        case "-": return "s" // 'subtract'
+        case "~": return "t" // 'tilde'
+        case "^": return "x" // 'xor'
+        case ".": return "z" // 'zperiod' (the z is silent)
         default: return op
         }
     }
 
     /// Returns a string where all characters of the operator are translated to their mangled form
-    public static func translateOperator(_ op: String) -> String {
+    static func translateOperator(_ op: String) -> String {
         return String(op.map { translateOperatorChar($0) })
     }
 
     // MARK: - Word Substitution
 
     /// Describes a word in a mangled identifier
-    public struct SubstitutionWord {
+    struct SubstitutionWord {
         /// The position of the first word character in the mangled string
-        public var start: Int
+        var start: Int
 
         /// The length of the word
-        public var length: Int
+        var length: Int
 
-        public init(start: Int, length: Int) {
+        init(start: Int, length: Int) {
             self.start = start
             self.length = length
         }
     }
 
     /// Helper struct which represents a word replacement
-    public struct WordReplacement {
+    struct WordReplacement {
         /// The position in the identifier where the word is substituted
-        public var stringPos: Int
+        var stringPos: Int
 
         /// The index into the mangler's Words array (-1 if invalid)
-        public var wordIdx: Int
+        var wordIdx: Int
 
-        public init(stringPos: Int, wordIdx: Int) {
+        init(stringPos: Int, wordIdx: Int) {
             self.stringPos = stringPos
             self.wordIdx = wordIdx
         }
@@ -171,11 +166,11 @@ enum Mangle {
     ///   - allowConcurrencyManglings: When true, allows the standard substitutions
     ///     for types in the _Concurrency module that were introduced in Swift 5.5
     /// - Returns: The substitution string if this is a standard type, nil otherwise
-    public static func getStandardTypeSubst(_ typeName: String, allowConcurrencyManglings: Bool = true) -> String? {
+    static func getStandardTypeSubst(_ typeName: String, allowConcurrencyManglings: Bool = true) -> String? {
         // Standard types (Structure, Enum, Protocol)
         switch typeName {
         // Structures
-        case "AutoreleasingUnsafeMutablePointer": return "A"  // ObjC interop
+        case "AutoreleasingUnsafeMutablePointer": return "A" // ObjC interop
         case "Array": return "a"
         case "Bool": return "b"
         case "Dictionary": return "D"
@@ -199,10 +194,8 @@ enum Mangle {
         case "UnsafeMutableRawPointer": return "v"
         case "UnsafeRawBufferPointer": return "W"
         case "UnsafeMutableRawBufferPointer": return "w"
-
         // Enums
         case "Optional": return "q"
-
         // Protocols
         case "BinaryFloatingPoint": return "B"
         case "Encodable": return "E"
@@ -227,7 +220,6 @@ enum Mangle {
         case "StringProtocol": return "y"
         case "SignedInteger": return "Z"
         case "BinaryInteger": return "z"
-
         default:
             // Concurrency types (Swift 5.5+)
             // These use 'c' prefix: Sc<MANGLING>
@@ -259,7 +251,7 @@ enum Mangle {
             return nil
         }
     }
-    
+
     protocol Mangler {
         var buffer: String { get }
         func resetBuffer(to position: Int)
@@ -272,7 +264,7 @@ enum Mangle {
     ///
     /// Used in the Mangler and Remangler to optimize repeated substitutions.
     /// For example: 'AB' can be merged to 'A2B', 'AB' to 'AbC', etc.
-    public class SubstitutionMerging {
+    class SubstitutionMerging {
         /// The position of the last substitution mangling
         /// e.g. 3 for 'AabC' and 'Aab4C'
         private var lastSubstPosition: Int = 0
@@ -291,12 +283,12 @@ enum Mangle {
 
         /// Maximum number of repeated substitutions
         /// This limit prevents the demangler from blowing up on bogus substitutions
-        public static let maxRepeatCount = 2048
+        static let maxRepeatCount = 2048
 
-        public init() {}
+        init() {}
 
         /// Clear the state
-        public func clear() {
+        func clear() {
             lastNumSubsts = 0
         }
 
@@ -313,7 +305,7 @@ enum Mangle {
         ///   - appendToBuffer: Callback to append string to buffer
         ///   - getBuffer: Callback to get current buffer content
         /// - Returns: True if merge was successful
-        public func tryMergeSubst<M: Mangler>(
+        func tryMergeSubst<M: Mangler>(
             _ mangler: M,
             subst: String,
             isStandardSubst: Bool
@@ -325,7 +317,6 @@ enum Mangle {
             if lastNumSubsts > 0 && lastNumSubsts < Self.maxRepeatCount
                 && bufferStr.count == lastSubstPosition + lastSubstSize
                 && lastSubstIsStandardSubst == isStandardSubst {
-
                 // The last mangled thing is a substitution
                 assert(lastSubstPosition > 0 && lastSubstPosition < bufferStr.count)
                 assert(lastSubstSize > 0)
@@ -383,7 +374,7 @@ enum Mangle {
     // MARK: - Identifier Mangling with Word Substitution
 
     /// Protocol that manglers must implement to use mangleIdentifier
-    public protocol IdentifierMangler {
+    protocol IdentifierMangler {
         var words: [SubstitutionWord] { get set }
         var substWordsInIdent: [WordReplacement] { get set }
         var usePunycode: Bool { get }
@@ -405,16 +396,16 @@ enum Mangle {
     /// - Parameters:
     ///   - mangler: The mangler instance implementing IdentifierMangler protocol
     ///   - ident: The identifier to mangle
-    public static func mangleIdentifier<M: IdentifierMangler>(_ mangler: inout M, _ ident: String) {
+    static func mangleIdentifier<M: IdentifierMangler>(_ mangler: inout M, _ ident: String) {
         let wordsInBuffer = mangler.words.count
         assert(mangler.substWordsInIdent.isEmpty)
 
         // Handle Punycode encoding for non-ASCII identifiers
-        if mangler.usePunycode && needsPunycodeEncoding(ident) {
+        if mangler.usePunycode, needsPunycodeEncoding(ident) {
             if let encoded = Punycode.encodePunycode(ident, mapNonSymbolChars: true) {
                 let pcIdent = encoded
                 mangler.appendToBuffer("00\(pcIdent.count)")
-                if let first = pcIdent.first, (isDigit(first) || first == "_") {
+                if let first = pcIdent.first, isDigit(first) || first == "_" {
                     mangler.appendToBuffer("_")
                 }
                 mangler.appendToBuffer(pcIdent)
@@ -426,24 +417,24 @@ enum Mangle {
         let notInsideWord = -1
         var wordStartPos = notInsideWord
 
-        for pos in 0...ident.count {
+        for pos in 0 ... ident.count {
             let ch: Character = pos < ident.count ? ident[ident.index(ident.startIndex, offsetBy: pos)] : "\0"
 
-            if wordStartPos != notInsideWord && isWordEnd(ch, pos > 0 ? ident[ident.index(ident.startIndex, offsetBy: pos - 1)] : "\0") {
+            if wordStartPos != notInsideWord, isWordEnd(ch, pos > 0 ? ident[ident.index(ident.startIndex, offsetBy: pos - 1)] : "\0") {
                 // End of a word
                 assert(pos > wordStartPos)
                 let wordLen = pos - wordStartPos
                 let wordStart = ident.index(ident.startIndex, offsetBy: wordStartPos)
                 let wordEnd = ident.index(wordStart, offsetBy: wordLen)
-                let word = String(ident[wordStart..<wordEnd])
+                let word = String(ident[wordStart ..< wordEnd])
 
                 // Look up word in buffer and existing words
                 func lookupWord(in str: String, from: Int, to: Int) -> Int? {
-                    for idx in from..<to {
+                    for idx in from ..< to {
                         let w = mangler.words[idx]
                         let existingWordStart = str.index(str.startIndex, offsetBy: w.start)
                         let existingWordEnd = str.index(existingWordStart, offsetBy: w.length)
-                        let existingWord = String(str[existingWordStart..<existingWordEnd])
+                        let existingWord = String(str[existingWordStart ..< existingWordEnd])
                         if word == existingWord {
                             return idx
                         }
@@ -463,7 +454,7 @@ enum Mangle {
                     // Found word substitution
                     assert(idx < 26)
                     mangler.addSubstWord(WordReplacement(stringPos: wordStartPos, wordIdx: idx))
-                } else if wordLen >= 2 && mangler.words.count < mangler.maxNumWords {
+                } else if wordLen >= 2, mangler.words.count < mangler.maxNumWords {
                     // New word
                     mangler.addWord(SubstitutionWord(start: wordStartPos, length: wordLen))
                 }
@@ -471,7 +462,7 @@ enum Mangle {
                 wordStartPos = notInsideWord
             }
 
-            if wordStartPos == notInsideWord && isWordStart(ch) {
+            if wordStartPos == notInsideWord, isWordStart(ch) {
                 // Begin of a word
                 wordStartPos = pos
             }
@@ -488,7 +479,7 @@ enum Mangle {
         // Add dummy word at end
         mangler.addSubstWord(WordReplacement(stringPos: ident.count, wordIdx: -1))
 
-        for idx in 0..<mangler.substWordsInIdent.count {
+        for idx in 0 ..< mangler.substWordsInIdent.count {
             let repl = mangler.substWordsInIdent[idx]
 
             if pos < repl.stringPos {
@@ -498,8 +489,8 @@ enum Mangle {
 
                 while pos < repl.stringPos {
                     // Update start position of new words
-                    if wordsInBufferMutable < mangler.words.count
-                        && mangler.words[wordsInBufferMutable].start == pos {
+                    if wordsInBufferMutable < mangler.words.count,
+                       mangler.words[wordsInBufferMutable].start == pos {
                         var word = mangler.words[wordsInBufferMutable]
                         word.start = mangler.getBufferStr().count
                         mangler.words[wordsInBufferMutable] = word
@@ -509,7 +500,7 @@ enum Mangle {
                     let ch = ident[ident.index(ident.startIndex, offsetBy: pos)]
 
                     // Error recovery for invalid identifiers
-                    if first && isDigit(ch) {
+                    if first, isDigit(ch) {
                         mangler.appendToBuffer("X")
                     } else {
                         mangler.appendToBuffer(String(ch))

@@ -54,6 +54,35 @@ enum ValueWitnessKind: UInt64, CaseIterable, CustomStringConvertible, Sendable {
         }
     }
 
+    var code: String {
+        switch self {
+        case .allocateBuffer: return "al"
+        case .assignWithCopy: return "ca"
+        case .assignWithTake: return "ta"
+        case .deallocateBuffer: return "de"
+        case .destroy: return "xx"
+        case .destroyBuffer: return "XX"
+        case .destroyArray: return "Xx"
+        case .initializeBufferWithCopyOfBuffer: return "CP"
+        case .initializeBufferWithCopy: return "Cp"
+        case .initializeWithCopy: return "cp"
+        case .initializeBufferWithTake: return "Tk"
+        case .initializeWithTake: return "tk"
+        case .projectBuffer: return "pr"
+        case .initializeBufferWithTakeOfBuffer: return "TK"
+        case .initializeArrayWithCopy: return "Cc"
+        case .initializeArrayWithTakeFrontToBack: return "Tt"
+        case .initializeArrayWithTakeBackToFront: return "tT"
+        case .storeExtraInhabitant: return "xs"
+        case .getExtraInhabitantIndex: return "xg"
+        case .getEnumTag: return "ug"
+        case .destructiveProjectEnumData: return "up"
+        case .destructiveInjectEnumTag: return "ui"
+        case .getEnumTagSinglePayload: return "et"
+        case .storeEnumTagSinglePayload: return "st"
+        }
+    }
+
     var description: String {
         switch self {
         case .allocateBuffer: return "allocateBuffer"
