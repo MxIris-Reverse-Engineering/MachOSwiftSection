@@ -11,6 +11,8 @@ public final class Node: Sendable {
     @Mutex
     public private(set) var children: [Node] = []
 
+    public var numberOfChildren: Int { children.count }
+    
     public enum Contents: Hashable, Sendable {
         case none
         case index(UInt64)
@@ -88,6 +90,14 @@ public final class Node: Sendable {
 
     convenience init(swiftBuiltinType: Kind, name: String) {
         self.init(kind: .type, children: [Node(kind: swiftBuiltinType, contents: .text(name))])
+    }
+    
+    subscript(child childIndex: Int) -> Node {
+        self.children[childIndex]
+    }
+    
+    subscript(safeChild childIndex: Int) -> Node? {
+        self.children[safe: childIndex]
     }
 }
 

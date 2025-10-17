@@ -51,7 +51,9 @@
       "Bash(chmod:*)",
       "Bash(/tmp/quick_compare.sh)",
       "Bash(git stash:*)",
-      "Bash(/tmp/check_each_method.sh)"
+      "Bash(/tmp/check_each_method.sh)",
+      "Bash(swift-demangle:*)",
+      "Bash(tr:*)"
     ],
     "deny": [],
     "ask": []

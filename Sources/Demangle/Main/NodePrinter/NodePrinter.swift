@@ -776,9 +776,12 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
     }
 
     private mutating func printValueWitness(_ name: Node) {
-        target.write(ValueWitnessKind(rawValue: name.index ?? 0)?.description ?? "")
+        // ValueWitness node structure: first child is Index node with the witness kind
+        let witnessIndex = name.children.first?.index ?? 0
+        target.write(ValueWitnessKind(rawValue: witnessIndex)?.description ?? "")
         target.write(options.contains(.shortenValueWitness) ? " for " : " value witness for ")
-        printFirstChild(name)
+        // Print the type (second child, at index 1)
+        _ = printOptional(name.children.at(1))
     }
 
     private mutating func printConcreteProtocolConformance(_ name: Node) {

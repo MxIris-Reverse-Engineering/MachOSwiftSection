@@ -19,7 +19,7 @@ final class DyldCacheSymbolRemangleTests: DyldCacheSymbolTests {
                 let node = try demangleAsNode(symbol.stringValue)
                 let swiftSectionDemanlgedName = node.print()
                 #expect(swiftStdlibDemangledName == swiftSectionDemanlgedName, "\(symbol.stringValue)")
-                let remangledString = try remangleThrows(node)
+                let remangledString = try remangle(node)
                 #expect(remangledString == symbol.stringValue)
             } catch {
                 symbol.stringValue.print()

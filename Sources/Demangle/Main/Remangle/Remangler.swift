@@ -38,822 +38,802 @@ final class Remangler: RemanglerBase {
     // MARK: - Public API
 
     /// Remangle a node tree into a mangled string
-    func mangle(_ node: Node) -> RemanglerResult<String> {
+    func mangle(_ node: Node) throws(RemanglerError) -> String {
         clearBuffer()
-
-        let error = mangleNode(node, depth: 0)
-
-        if error.isSuccess {
-            return .success(buffer)
-        } else {
-            return .failure(error)
-        }
-    }
-
-    /// Remangle a node tree into a mangled string (throwing version)
-    func mangleThrows(_ node: Node) throws -> String {
-        let result = mangle(node)
-        return try result.get()
+        try mangleNode(node, depth: 0)
+        return buffer
     }
 
     // MARK: - Core Mangling
-    
+
     /// Main entry point for mangling a single node
-    func mangleNode(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleNode(_ node: Node, depth: Int) throws(RemanglerError) {
         // Check recursion depth
         if depth > Self.maxDepth {
-            return .tooComplex(node)
+            throw .tooComplex(node)
         }
 
         // Dispatch to specific handler based on node kind
         switch node.kind {
         case .global:
-            return mangleGlobal(node, depth: depth)
+            try mangleGlobal(node, depth: depth)
         case .suffix:
-            return mangleSuffix(node, depth: depth)
+            try mangleSuffix(node, depth: depth)
         case .type:
-            return mangleType(node, depth: depth)
+            try mangleType(node, depth: depth)
         case .typeMangling:
-            return mangleTypeMangling(node, depth: depth)
+            try mangleTypeMangling(node, depth: depth)
         case .typeList:
-            return mangleTypeList(node, depth: depth)
+            try mangleTypeList(node, depth: depth)
         case .structure:
-            return mangleStructure(node, depth: depth)
+            try mangleStructure(node, depth: depth)
         case .class:
-            return mangleClass(node, depth: depth)
+            try mangleClass(node, depth: depth)
         case .enum:
-            return mangleEnum(node, depth: depth)
+            try mangleEnum(node, depth: depth)
         case .protocol:
-            return mangleProtocol(node, depth: depth)
+            try mangleProtocol(node, depth: depth)
         case .typeAlias:
-            return mangleTypeAlias(node, depth: depth)
+            try mangleTypeAlias(node, depth: depth)
         case .otherNominalType:
-            return mangleOtherNominalType(node, depth: depth)
+            try mangleOtherNominalType(node, depth: depth)
         case .functionType:
-            return mangleFunctionType(node, depth: depth)
+            try mangleFunctionType(node, depth: depth)
         case .argumentTuple:
-            return mangleArgumentTuple(node, depth: depth)
+            try mangleArgumentTuple(node, depth: depth)
         case .returnType:
-            return mangleReturnType(node, depth: depth)
+            try mangleReturnType(node, depth: depth)
         case .labelList:
-            return mangleLabelList(node, depth: depth)
+            try mangleLabelList(node, depth: depth)
         case .boundGenericStructure:
-            return mangleBoundGenericStructure(node, depth: depth)
+            try mangleBoundGenericStructure(node, depth: depth)
         case .boundGenericClass:
-            return mangleBoundGenericClass(node, depth: depth)
+            try mangleBoundGenericClass(node, depth: depth)
         case .boundGenericEnum:
-            return mangleBoundGenericEnum(node, depth: depth)
+            try mangleBoundGenericEnum(node, depth: depth)
         case .boundGenericProtocol:
-            return mangleBoundGenericProtocol(node, depth: depth)
+            try mangleBoundGenericProtocol(node, depth: depth)
         case .boundGenericTypeAlias:
-            return mangleBoundGenericTypeAlias(node, depth: depth)
+            try mangleBoundGenericTypeAlias(node, depth: depth)
         case .identifier:
-            return mangleIdentifier(node, depth: depth)
+            try mangleIdentifier(node, depth: depth)
         case .privateDeclName:
-            return manglePrivateDeclName(node, depth: depth)
+            try manglePrivateDeclName(node, depth: depth)
         case .localDeclName:
-            return mangleLocalDeclName(node, depth: depth)
+            try mangleLocalDeclName(node, depth: depth)
         case .module:
-            return mangleModule(node, depth: depth)
+            try mangleModule(node, depth: depth)
         case .extension:
-            return mangleExtension(node, depth: depth)
+            try mangleExtension(node, depth: depth)
         case .declContext:
-            return mangleDeclContext(node, depth: depth)
+            try mangleDeclContext(node, depth: depth)
         case .anonymousContext:
-            return mangleAnonymousContext(node, depth: depth)
+            try mangleAnonymousContext(node, depth: depth)
         case .function:
-            return mangleFunction(node, depth: depth)
+            try mangleFunction(node, depth: depth)
         case .allocator:
-            return mangleAllocator(node, depth: depth)
+            try mangleAllocator(node, depth: depth)
         case .constructor:
-            return mangleConstructor(node, depth: depth)
+            try mangleConstructor(node, depth: depth)
         case .destructor:
-            return mangleDestructor(node, depth: depth)
+            try mangleDestructor(node, depth: depth)
         case .getter:
-            return mangleGetter(node, depth: depth)
+            try mangleGetter(node, depth: depth)
         case .setter:
-            return mangleSetter(node, depth: depth)
+            try mangleSetter(node, depth: depth)
         case .explicitClosure:
-            return mangleExplicitClosure(node, depth: depth)
+            try mangleExplicitClosure(node, depth: depth)
         case .implicitClosure:
-            return mangleImplicitClosure(node, depth: depth)
+            try mangleImplicitClosure(node, depth: depth)
         case .builtinTypeName:
-            return mangleBuiltinTypeName(node, depth: depth)
+            try mangleBuiltinTypeName(node, depth: depth)
         case .dynamicSelf:
-            return mangleDynamicSelf(node, depth: depth)
+            try mangleDynamicSelf(node, depth: depth)
         case .errorType:
-            return mangleErrorType(node, depth: depth)
+            try mangleErrorType(node, depth: depth)
         case .tuple:
-            return mangleTuple(node, depth: depth)
+            try mangleTuple(node, depth: depth)
         case .tupleElement:
-            return mangleTupleElement(node, depth: depth)
+            try mangleTupleElement(node, depth: depth)
         case .tupleElementName:
-            return mangleTupleElementName(node, depth: depth)
+            try mangleTupleElementName(node, depth: depth)
         case .dependentGenericParamType:
-            return mangleDependentGenericParamType(node, depth: depth)
+            try mangleDependentGenericParamType(node, depth: depth)
         case .dependentMemberType:
-            return mangleDependentMemberType(node, depth: depth)
+            try mangleDependentMemberType(node, depth: depth)
         case .protocolList:
-            return mangleProtocolList(node, depth: depth)
+            try mangleProtocolList(node, depth: depth)
         case .protocolListWithClass:
-            return mangleProtocolListWithClass(node, depth: depth)
+            try mangleProtocolListWithClass(node, depth: depth)
         case .protocolListWithAnyObject:
-            return mangleProtocolListWithAnyObject(node, depth: depth)
+            try mangleProtocolListWithAnyObject(node, depth: depth)
         case .metatype:
-            return mangleMetatype(node, depth: depth)
+            try mangleMetatype(node, depth: depth)
         case .existentialMetatype:
-            return mangleExistentialMetatype(node, depth: depth)
+            try mangleExistentialMetatype(node, depth: depth)
         case .shared:
-            return mangleShared(node, depth: depth)
+            try mangleShared(node, depth: depth)
         case .owned:
-            return mangleOwned(node, depth: depth)
+            try mangleOwned(node, depth: depth)
         case .weak:
-            return mangleWeak(node, depth: depth)
+            try mangleWeak(node, depth: depth)
         case .unowned:
-            return mangleUnowned(node, depth: depth)
+            try mangleUnowned(node, depth: depth)
         case .unmanaged:
-            return mangleUnmanaged(node, depth: depth)
+            try mangleUnmanaged(node, depth: depth)
         case .inOut:
-            return mangleInOut(node, depth: depth)
+            try mangleInOut(node, depth: depth)
         case .number:
-            return mangleNumber(node, depth: depth)
+            try mangleNumber(node, depth: depth)
         case .index:
-            return mangleIndex(node, depth: depth)
+            try mangleIndex(node, depth: depth)
         case .variable:
-            return mangleVariable(node, depth: depth)
+            try mangleVariable(node, depth: depth)
         case .subscript:
-            return mangleSubscript(node, depth: depth)
+            try mangleSubscript(node, depth: depth)
         case .didSet:
-            return mangleDidSet(node, depth: depth)
+            try mangleDidSet(node, depth: depth)
         case .willSet:
-            return mangleWillSet(node, depth: depth)
+            try mangleWillSet(node, depth: depth)
         case .readAccessor:
-            return mangleReadAccessor(node, depth: depth)
+            try mangleReadAccessor(node, depth: depth)
         case .modifyAccessor:
-            return mangleModifyAccessor(node, depth: depth)
+            try mangleModifyAccessor(node, depth: depth)
         case .thinFunctionType:
-            return mangleThinFunctionType(node, depth: depth)
+            try mangleThinFunctionType(node, depth: depth)
         case .noEscapeFunctionType:
-            return mangleNoEscapeFunctionType(node, depth: depth)
+            try mangleNoEscapeFunctionType(node, depth: depth)
         case .autoClosureType:
-            return mangleAutoClosureType(node, depth: depth)
+            try mangleAutoClosureType(node, depth: depth)
         case .escapingAutoClosureType:
-            return mangleEscapingAutoClosureType(node, depth: depth)
+            try mangleEscapingAutoClosureType(node, depth: depth)
         case .uncurriedFunctionType:
-            return mangleUncurriedFunctionType(node, depth: depth)
+            try mangleUncurriedFunctionType(node, depth: depth)
         case .protocolWitness:
-            return mangleProtocolWitness(node, depth: depth)
+            try mangleProtocolWitness(node, depth: depth)
         case .protocolWitnessTable:
-            return mangleProtocolWitnessTable(node, depth: depth)
+            try mangleProtocolWitnessTable(node, depth: depth)
         case .protocolWitnessTableAccessor:
-            return mangleProtocolWitnessTableAccessor(node, depth: depth)
+            try mangleProtocolWitnessTableAccessor(node, depth: depth)
         case .valueWitness:
-            return mangleValueWitness(node, depth: depth)
+            try mangleValueWitness(node, depth: depth)
         case .valueWitnessTable:
-            return mangleValueWitnessTable(node, depth: depth)
+            try mangleValueWitnessTable(node, depth: depth)
         case .typeMetadata:
-            return mangleTypeMetadata(node, depth: depth)
+            try mangleTypeMetadata(node, depth: depth)
         case .typeMetadataAccessFunction:
-            return mangleTypeMetadataAccessFunction(node, depth: depth)
+            try mangleTypeMetadataAccessFunction(node, depth: depth)
         case .fullTypeMetadata:
-            return mangleFullTypeMetadata(node, depth: depth)
+            try mangleFullTypeMetadata(node, depth: depth)
         case .metaclass:
-            return mangleMetaclass(node, depth: depth)
+            try mangleMetaclass(node, depth: depth)
         case .static:
-            return mangleStatic(node, depth: depth)
+            try mangleStatic(node, depth: depth)
         case .initializer:
-            return mangleInitializer(node, depth: depth)
+            try mangleInitializer(node, depth: depth)
         case .prefixOperator:
-            return manglePrefixOperator(node, depth: depth)
+            try manglePrefixOperator(node, depth: depth)
         case .postfixOperator:
-            return manglePostfixOperator(node, depth: depth)
+            try manglePostfixOperator(node, depth: depth)
         case .infixOperator:
-            return mangleInfixOperator(node, depth: depth)
+            try mangleInfixOperator(node, depth: depth)
         case .dependentGenericSignature:
-            return mangleDependentGenericSignature(node, depth: depth)
+            try mangleDependentGenericSignature(node, depth: depth)
         case .dependentGenericType:
-            return mangleDependentGenericType(node, depth: depth)
+            try mangleDependentGenericType(node, depth: depth)
         case .throwsAnnotation:
-            return mangleThrowsAnnotation(node, depth: depth)
+            try mangleThrowsAnnotation(node, depth: depth)
         case .asyncAnnotation:
-            return mangleAsyncAnnotation(node, depth: depth)
+            try mangleAsyncAnnotation(node, depth: depth)
         case .emptyList:
-            return mangleEmptyList(node, depth: depth)
+            try mangleEmptyList(node, depth: depth)
         case .firstElementMarker:
-            return mangleFirstElementMarker(node, depth: depth)
+            try mangleFirstElementMarker(node, depth: depth)
         case .variadicMarker:
-            return mangleVariadicMarker(node, depth: depth)
+            try mangleVariadicMarker(node, depth: depth)
         case .enumCase:
-            return mangleEnumCase(node, depth: depth)
+            try mangleEnumCase(node, depth: depth)
         case .fieldOffset:
-            return mangleFieldOffset(node, depth: depth)
+            try mangleFieldOffset(node, depth: depth)
         case .boundGenericFunction:
-            return mangleBoundGenericFunction(node, depth: depth)
+            try mangleBoundGenericFunction(node, depth: depth)
         case .boundGenericOtherNominalType:
-            return mangleBoundGenericOtherNominalType(node, depth: depth)
+            try mangleBoundGenericOtherNominalType(node, depth: depth)
         case .associatedType:
-            return mangleAssociatedType(node, depth: depth)
+            try mangleAssociatedType(node, depth: depth)
         case .associatedTypeRef:
-            return mangleAssociatedTypeRef(node, depth: depth)
+            try mangleAssociatedTypeRef(node, depth: depth)
         case .associatedTypeDescriptor:
-            return mangleAssociatedTypeDescriptor(node, depth: depth)
+            try mangleAssociatedTypeDescriptor(node, depth: depth)
         case .associatedConformanceDescriptor:
-            return mangleAssociatedConformanceDescriptor(node, depth: depth)
+            try mangleAssociatedConformanceDescriptor(node, depth: depth)
         case .associatedTypeMetadataAccessor:
-            return mangleAssociatedTypeMetadataAccessor(node, depth: depth)
+            try mangleAssociatedTypeMetadataAccessor(node, depth: depth)
         case .assocTypePath:
-            return mangleAssocTypePath(node, depth: depth)
+            try mangleAssocTypePath(node, depth: depth)
         case .associatedTypeGenericParamRef:
-            return mangleAssociatedTypeGenericParamRef(node, depth: depth)
+            try mangleAssociatedTypeGenericParamRef(node, depth: depth)
         case .protocolConformance:
-            return mangleProtocolConformance(node, depth: depth)
+            try mangleProtocolConformance(node, depth: depth)
         case .concreteProtocolConformance:
-            return mangleConcreteProtocolConformance(node, depth: depth)
+            try mangleConcreteProtocolConformance(node, depth: depth)
         case .protocolConformanceDescriptor:
-            return mangleProtocolConformanceDescriptor(node, depth: depth)
+            try mangleProtocolConformanceDescriptor(node, depth: depth)
         case .baseConformanceDescriptor:
-            return mangleBaseConformanceDescriptor(node, depth: depth)
+            try mangleBaseConformanceDescriptor(node, depth: depth)
         case .dependentAssociatedConformance:
-            return mangleDependentAssociatedConformance(node, depth: depth)
+            try mangleDependentAssociatedConformance(node, depth: depth)
         case .retroactiveConformance:
-            return mangleRetroactiveConformance(node, depth: depth)
+            try mangleRetroactiveConformance(node, depth: depth)
         case .nominalTypeDescriptor:
-            return mangleNominalTypeDescriptor(node, depth: depth)
+            try mangleNominalTypeDescriptor(node, depth: depth)
         case .nominalTypeDescriptorRecord:
-            return mangleNominalTypeDescriptorRecord(node, depth: depth)
+            try mangleNominalTypeDescriptorRecord(node, depth: depth)
         case .protocolDescriptor:
-            return mangleProtocolDescriptor(node, depth: depth)
+            try mangleProtocolDescriptor(node, depth: depth)
         case .protocolDescriptorRecord:
-            return mangleProtocolDescriptorRecord(node, depth: depth)
+            try mangleProtocolDescriptorRecord(node, depth: depth)
         case .typeMetadataCompletionFunction:
-            return mangleTypeMetadataCompletionFunction(node, depth: depth)
+            try mangleTypeMetadataCompletionFunction(node, depth: depth)
         case .typeMetadataDemanglingCache:
-            return mangleTypeMetadataDemanglingCache(node, depth: depth)
+            try mangleTypeMetadataDemanglingCache(node, depth: depth)
         case .typeMetadataInstantiationCache:
-            return mangleTypeMetadataInstantiationCache(node, depth: depth)
+            try mangleTypeMetadataInstantiationCache(node, depth: depth)
         case .typeMetadataLazyCache:
-            return mangleTypeMetadataLazyCache(node, depth: depth)
+            try mangleTypeMetadataLazyCache(node, depth: depth)
         case .classMetadataBaseOffset:
-            return mangleClassMetadataBaseOffset(node, depth: depth)
+            try mangleClassMetadataBaseOffset(node, depth: depth)
         case .genericTypeMetadataPattern:
-            return mangleGenericTypeMetadataPattern(node, depth: depth)
+            try mangleGenericTypeMetadataPattern(node, depth: depth)
         case .protocolWitnessTablePattern:
-            return mangleProtocolWitnessTablePattern(node, depth: depth)
+            try mangleProtocolWitnessTablePattern(node, depth: depth)
         case .genericProtocolWitnessTable:
-            return mangleGenericProtocolWitnessTable(node, depth: depth)
+            try mangleGenericProtocolWitnessTable(node, depth: depth)
         case .genericProtocolWitnessTableInstantiationFunction:
-            return mangleGenericProtocolWitnessTableInstantiationFunction(node, depth: depth)
+            try mangleGenericProtocolWitnessTableInstantiationFunction(node, depth: depth)
         case .resilientProtocolWitnessTable:
-            return mangleResilientProtocolWitnessTable(node, depth: depth)
+            try mangleResilientProtocolWitnessTable(node, depth: depth)
         case .protocolSelfConformanceWitness:
-            return mangleProtocolSelfConformanceWitness(node, depth: depth)
+            try mangleProtocolSelfConformanceWitness(node, depth: depth)
         case .baseWitnessTableAccessor:
-            return mangleBaseWitnessTableAccessor(node, depth: depth)
+            try mangleBaseWitnessTableAccessor(node, depth: depth)
         case .outlinedCopy:
-            return mangleOutlinedCopy(node, depth: depth)
+            try mangleOutlinedCopy(node, depth: depth)
         case .outlinedConsume:
-            return mangleOutlinedConsume(node, depth: depth)
+            try mangleOutlinedConsume(node, depth: depth)
         case .outlinedRetain:
-            return mangleOutlinedRetain(node, depth: depth)
+            try mangleOutlinedRetain(node, depth: depth)
         case .outlinedRelease:
-            return mangleOutlinedRelease(node, depth: depth)
+            try mangleOutlinedRelease(node, depth: depth)
         case .outlinedDestroy:
-            return mangleOutlinedDestroy(node, depth: depth)
+            try mangleOutlinedDestroy(node, depth: depth)
         case .outlinedInitializeWithTake:
-            return mangleOutlinedInitializeWithTake(node, depth: depth)
+            try mangleOutlinedInitializeWithTake(node, depth: depth)
         case .outlinedInitializeWithCopy:
-            return mangleOutlinedInitializeWithCopy(node, depth: depth)
+            try mangleOutlinedInitializeWithCopy(node, depth: depth)
         case .outlinedAssignWithTake:
-            return mangleOutlinedAssignWithTake(node, depth: depth)
+            try mangleOutlinedAssignWithTake(node, depth: depth)
         case .outlinedAssignWithCopy:
-            return mangleOutlinedAssignWithCopy(node, depth: depth)
+            try mangleOutlinedAssignWithCopy(node, depth: depth)
         case .outlinedVariable:
-            return mangleOutlinedVariable(node, depth: depth)
+            try mangleOutlinedVariable(node, depth: depth)
         case .outlinedBridgedMethod:
-            return mangleOutlinedBridgedMethod(node, depth: depth)
+            try mangleOutlinedBridgedMethod(node, depth: depth)
         case .pack:
-            return manglePack(node, depth: depth)
+            try manglePack(node, depth: depth)
         case .packElement:
-            return manglePackElement(node, depth: depth)
+            try manglePackElement(node, depth: depth)
         case .packElementLevel:
-            return manglePackElementLevel(node, depth: depth)
+            try manglePackElementLevel(node, depth: depth)
         case .packExpansion:
-            return manglePackExpansion(node, depth: depth)
+            try manglePackExpansion(node, depth: depth)
         case .silPackDirect:
-            return mangleSILPackDirect(node, depth: depth)
+            try mangleSILPackDirect(node, depth: depth)
         case .silPackIndirect:
-            return mangleSILPackIndirect(node, depth: depth)
+            try mangleSILPackIndirect(node, depth: depth)
         case .genericSpecialization:
-            return mangleGenericSpecialization(node, depth: depth)
+            try mangleGenericSpecialization(node, depth: depth)
         case .genericPartialSpecialization:
-            return mangleGenericPartialSpecialization(node, depth: depth)
+            try mangleGenericPartialSpecialization(node, depth: depth)
         case .genericSpecializationParam:
-            return mangleGenericSpecializationParam(node, depth: depth)
+            try mangleGenericSpecializationParam(node, depth: depth)
         case .functionSignatureSpecialization:
-            return mangleFunctionSignatureSpecialization(node, depth: depth)
+            try mangleFunctionSignatureSpecialization(node, depth: depth)
         case .genericTypeParamDecl:
-            return mangleGenericTypeParamDecl(node, depth: depth)
+            try mangleGenericTypeParamDecl(node, depth: depth)
         case .dependentGenericParamCount:
-            return mangleDependentGenericParamCount(node, depth: depth)
+            try mangleDependentGenericParamCount(node, depth: depth)
         case .dependentGenericParamPackMarker:
-            return mangleDependentGenericParamPackMarker(node, depth: depth)
+            try mangleDependentGenericParamPackMarker(node, depth: depth)
         case .implFunctionType:
-            return mangleImplFunctionType(node, depth: depth)
+            try mangleImplFunctionType(node, depth: depth)
         case .implParameter:
-            return mangleImplParameter(node, depth: depth)
+            try mangleImplParameter(node, depth: depth)
         case .implResult:
-            return mangleImplResult(node, depth: depth)
+            try mangleImplResult(node, depth: depth)
         case .implYield:
-            return mangleImplYield(node, depth: depth)
+            try mangleImplYield(node, depth: depth)
         case .implErrorResult:
-            return mangleImplErrorResult(node, depth: depth)
+            try mangleImplErrorResult(node, depth: depth)
         case .implConvention:
-            return mangleImplConvention(node, depth: depth)
+            try mangleImplConvention(node, depth: depth)
         case .implFunctionConvention:
-            return mangleImplFunctionConvention(node, depth: depth)
+            try mangleImplFunctionConvention(node, depth: depth)
         case .implFunctionAttribute:
-            return mangleImplFunctionAttribute(node, depth: depth)
+            try mangleImplFunctionAttribute(node, depth: depth)
         case .implEscaping:
-            return mangleImplEscaping(node, depth: depth)
+            try mangleImplEscaping(node, depth: depth)
         case .implDifferentiabilityKind:
-            return mangleImplDifferentiabilityKind(node, depth: depth)
+            try mangleImplDifferentiabilityKind(node, depth: depth)
         case .implCoroutineKind:
-            return mangleImplCoroutineKind(node, depth: depth)
+            try mangleImplCoroutineKind(node, depth: depth)
         case .implParameterIsolated:
-            return mangleImplParameterIsolated(node, depth: depth)
+            try mangleImplParameterIsolated(node, depth: depth)
         case .implParameterSending:
-            return mangleImplParameterSending(node, depth: depth)
+            try mangleImplParameterSending(node, depth: depth)
         case .implSendingResult:
-            return mangleImplSendingResult(node, depth: depth)
+            try mangleImplSendingResult(node, depth: depth)
         case .implPatternSubstitutions:
-            return mangleImplPatternSubstitutions(node, depth: depth)
+            try mangleImplPatternSubstitutions(node, depth: depth)
         case .implInvocationSubstitutions:
-            return mangleImplInvocationSubstitutions(node, depth: depth)
+            try mangleImplInvocationSubstitutions(node, depth: depth)
         case .accessibleFunctionRecord:
-            return mangleAccessibleFunctionRecord(node, depth: depth)
+            try mangleAccessibleFunctionRecord(node, depth: depth)
         case .anonymousDescriptor:
-            return mangleAnonymousDescriptor(node, depth: depth)
+            try mangleAnonymousDescriptor(node, depth: depth)
         case .extensionDescriptor:
-            return mangleExtensionDescriptor(node, depth: depth)
+            try mangleExtensionDescriptor(node, depth: depth)
         case .methodDescriptor:
-            return mangleMethodDescriptor(node, depth: depth)
+            try mangleMethodDescriptor(node, depth: depth)
         case .moduleDescriptor:
-            return mangleModuleDescriptor(node, depth: depth)
+            try mangleModuleDescriptor(node, depth: depth)
         case .propertyDescriptor:
-            return manglePropertyDescriptor(node, depth: depth)
+            try manglePropertyDescriptor(node, depth: depth)
         case .protocolConformanceDescriptorRecord:
-            return mangleProtocolConformanceDescriptorRecord(node, depth: depth)
+            try mangleProtocolConformanceDescriptorRecord(node, depth: depth)
         case .protocolRequirementsBaseDescriptor:
-            return mangleProtocolRequirementsBaseDescriptor(node, depth: depth)
+            try mangleProtocolRequirementsBaseDescriptor(node, depth: depth)
         case .protocolSelfConformanceDescriptor:
-            return mangleProtocolSelfConformanceDescriptor(node, depth: depth)
+            try mangleProtocolSelfConformanceDescriptor(node, depth: depth)
         case .protocolSelfConformanceWitnessTable:
-            return mangleProtocolSelfConformanceWitnessTable(node, depth: depth)
+            try mangleProtocolSelfConformanceWitnessTable(node, depth: depth)
         case .protocolSymbolicReference:
-            return mangleProtocolSymbolicReference(node, depth: depth)
+            try mangleProtocolSymbolicReference(node, depth: depth)
         case .typeSymbolicReference:
-            return mangleTypeSymbolicReference(node, depth: depth)
+            try mangleTypeSymbolicReference(node, depth: depth)
         case .objectiveCProtocolSymbolicReference:
-            return mangleObjectiveCProtocolSymbolicReference(node, depth: depth)
+            try mangleObjectiveCProtocolSymbolicReference(node, depth: depth)
         case .opaqueType:
-            return mangleOpaqueType(node, depth: depth)
+            try mangleOpaqueType(node, depth: depth)
         case .opaqueReturnType:
-            return mangleOpaqueReturnType(node, depth: depth)
+            try mangleOpaqueReturnType(node, depth: depth)
         case .opaqueReturnTypeOf:
-            return mangleOpaqueReturnTypeOf(node, depth: depth)
+            try mangleOpaqueReturnTypeOf(node, depth: depth)
         case .opaqueReturnTypeIndex:
-            return mangleOpaqueReturnTypeIndex(node, depth: depth)
+            try mangleOpaqueReturnTypeIndex(node, depth: depth)
         case .opaqueReturnTypeParent:
-            return mangleOpaqueReturnTypeParent(node, depth: depth)
+            try mangleOpaqueReturnTypeParent(node, depth: depth)
         case .opaqueTypeDescriptor:
-            return mangleOpaqueTypeDescriptor(node, depth: depth)
+            try mangleOpaqueTypeDescriptor(node, depth: depth)
         case .opaqueTypeDescriptorAccessor:
-            return mangleOpaqueTypeDescriptorAccessor(node, depth: depth)
+            try mangleOpaqueTypeDescriptorAccessor(node, depth: depth)
         case .opaqueTypeDescriptorAccessorImpl:
-            return mangleOpaqueTypeDescriptorAccessorImpl(node, depth: depth)
+            try mangleOpaqueTypeDescriptorAccessorImpl(node, depth: depth)
         case .opaqueTypeDescriptorAccessorKey:
-            return mangleOpaqueTypeDescriptorAccessorKey(node, depth: depth)
+            try mangleOpaqueTypeDescriptorAccessorKey(node, depth: depth)
         case .opaqueTypeDescriptorAccessorVar:
-            return mangleOpaqueTypeDescriptorAccessorVar(node, depth: depth)
+            try mangleOpaqueTypeDescriptorAccessorVar(node, depth: depth)
         case .opaqueTypeDescriptorRecord:
-            return mangleOpaqueTypeDescriptorRecord(node, depth: depth)
+            try mangleOpaqueTypeDescriptorRecord(node, depth: depth)
         case .opaqueTypeDescriptorSymbolicReference:
-            return mangleOpaqueTypeDescriptorSymbolicReference(node, depth: depth)
+            try mangleOpaqueTypeDescriptorSymbolicReference(node, depth: depth)
         case .propertyWrapperBackingInitializer:
-            return manglePropertyWrapperBackingInitializer(node, depth: depth)
+            try manglePropertyWrapperBackingInitializer(node, depth: depth)
         case .propertyWrapperInitFromProjectedValue:
-            return manglePropertyWrapperInitFromProjectedValue(node, depth: depth)
+            try manglePropertyWrapperInitFromProjectedValue(node, depth: depth)
         case .curryThunk:
-            return mangleCurryThunk(node, depth: depth)
+            try mangleCurryThunk(node, depth: depth)
         case .dispatchThunk:
-            return mangleDispatchThunk(node, depth: depth)
+            try mangleDispatchThunk(node, depth: depth)
         case .reabstractionThunk:
-            return mangleReabstractionThunk(node, depth: depth)
+            try mangleReabstractionThunk(node, depth: depth)
         case .reabstractionThunkHelper:
-            return mangleReabstractionThunkHelper(node, depth: depth)
+            try mangleReabstractionThunkHelper(node, depth: depth)
         case .reabstractionThunkHelperWithSelf:
-            return mangleReabstractionThunkHelperWithSelf(node, depth: depth)
+            try mangleReabstractionThunkHelperWithSelf(node, depth: depth)
         case .reabstractionThunkHelperWithGlobalActor:
-            return mangleReabstractionThunkHelperWithGlobalActor(node, depth: depth)
+            try mangleReabstractionThunkHelperWithGlobalActor(node, depth: depth)
         case .partialApplyForwarder:
-            return manglePartialApplyForwarder(node, depth: depth)
+            try manglePartialApplyForwarder(node, depth: depth)
         case .partialApplyObjCForwarder:
-            return manglePartialApplyObjCForwarder(node, depth: depth)
+            try manglePartialApplyObjCForwarder(node, depth: depth)
         case .macro:
-            return mangleMacro(node, depth: depth)
+            try mangleMacro(node, depth: depth)
         case .macroExpansionLoc:
-            return mangleMacroExpansionLoc(node, depth: depth)
+            try mangleMacroExpansionLoc(node, depth: depth)
         case .macroExpansionUniqueName:
-            return mangleMacroExpansionUniqueName(node, depth: depth)
+            try mangleMacroExpansionUniqueName(node, depth: depth)
         case .freestandingMacroExpansion:
-            return mangleFreestandingMacroExpansion(node, depth: depth)
+            try mangleFreestandingMacroExpansion(node, depth: depth)
         case .accessorAttachedMacroExpansion:
-            return mangleAccessorAttachedMacroExpansion(node, depth: depth)
+            try mangleAccessorAttachedMacroExpansion(node, depth: depth)
         case .memberAttributeAttachedMacroExpansion:
-            return mangleMemberAttributeAttachedMacroExpansion(node, depth: depth)
+            try mangleMemberAttributeAttachedMacroExpansion(node, depth: depth)
         case .memberAttachedMacroExpansion:
-            return mangleMemberAttachedMacroExpansion(node, depth: depth)
+            try mangleMemberAttachedMacroExpansion(node, depth: depth)
         case .peerAttachedMacroExpansion:
-            return manglePeerAttachedMacroExpansion(node, depth: depth)
+            try manglePeerAttachedMacroExpansion(node, depth: depth)
         case .conformanceAttachedMacroExpansion:
-            return mangleConformanceAttachedMacroExpansion(node, depth: depth)
+            try mangleConformanceAttachedMacroExpansion(node, depth: depth)
         case .extensionAttachedMacroExpansion:
-            return mangleExtensionAttachedMacroExpansion(node, depth: depth)
+            try mangleExtensionAttachedMacroExpansion(node, depth: depth)
         case .bodyAttachedMacroExpansion:
-            return mangleBodyAttachedMacroExpansion(node, depth: depth)
+            try mangleBodyAttachedMacroExpansion(node, depth: depth)
         case .asyncFunctionPointer:
-            return mangleAsyncFunctionPointer(node, depth: depth)
+            try mangleAsyncFunctionPointer(node, depth: depth)
         case .asyncRemoved:
-            return mangleAsyncRemoved(node, depth: depth)
+            try mangleAsyncRemoved(node, depth: depth)
         case .asyncAwaitResumePartialFunction:
-            return mangleAsyncAwaitResumePartialFunction(node, depth: depth)
+            try mangleAsyncAwaitResumePartialFunction(node, depth: depth)
         case .asyncSuspendResumePartialFunction:
-            return mangleAsyncSuspendResumePartialFunction(node, depth: depth)
+            try mangleAsyncSuspendResumePartialFunction(node, depth: depth)
         case .backDeploymentFallback:
-            return mangleBackDeploymentFallback(node, depth: depth)
+            try mangleBackDeploymentFallback(node, depth: depth)
         case .backDeploymentThunk:
-            return mangleBackDeploymentThunk(node, depth: depth)
+            try mangleBackDeploymentThunk(node, depth: depth)
         case .builtinTupleType:
-            return mangleBuiltinTupleType(node, depth: depth)
+            try mangleBuiltinTupleType(node, depth: depth)
         case .builtinFixedArray:
-            return mangleBuiltinFixedArray(node, depth: depth)
+            try mangleBuiltinFixedArray(node, depth: depth)
         case .cFunctionPointer:
-            return mangleCFunctionPointer(node, depth: depth)
+            try mangleCFunctionPointer(node, depth: depth)
         case .clangType:
-            return mangleClangType(node, depth: depth)
+            try mangleClangType(node, depth: depth)
         case .objCBlock:
-            return mangleObjCBlock(node, depth: depth)
+            try mangleObjCBlock(node, depth: depth)
         case .escapingObjCBlock:
-            return mangleEscapingObjCBlock(node, depth: depth)
+            try mangleEscapingObjCBlock(node, depth: depth)
         case .objCAttribute:
-            return mangleObjCAttribute(node, depth: depth)
+            try mangleObjCAttribute(node, depth: depth)
         case .objCAsyncCompletionHandlerImpl:
-            return mangleObjCAsyncCompletionHandlerImpl(node, depth: depth)
+            try mangleObjCAsyncCompletionHandlerImpl(node, depth: depth)
         case .objCMetadataUpdateFunction:
-            return mangleObjCMetadataUpdateFunction(node, depth: depth)
+            try mangleObjCMetadataUpdateFunction(node, depth: depth)
         case .objCResilientClassStub:
-            return mangleObjCResilientClassStub(node, depth: depth)
+            try mangleObjCResilientClassStub(node, depth: depth)
         case .fullObjCResilientClassStub:
-            return mangleFullObjCResilientClassStub(node, depth: depth)
+            try mangleFullObjCResilientClassStub(node, depth: depth)
         case .compileTimeConst:
-            return mangleCompileTimeConst(node, depth: depth)
+            try mangleCompileTimeConst(node, depth: depth)
         case .constValue:
-            return mangleConstValue(node, depth: depth)
+            try mangleConstValue(node, depth: depth)
         case .concurrentFunctionType:
-            return mangleConcurrentFunctionType(node, depth: depth)
+            try mangleConcurrentFunctionType(node, depth: depth)
         case .globalActorFunctionType:
-            return mangleGlobalActorFunctionType(node, depth: depth)
+            try mangleGlobalActorFunctionType(node, depth: depth)
         case .isolatedAnyFunctionType:
-            return mangleIsolatedAnyFunctionType(node, depth: depth)
+            try mangleIsolatedAnyFunctionType(node, depth: depth)
         case .nonIsolatedCallerFunctionType:
-            return mangleNonIsolatedCallerFunctionType(node, depth: depth)
+            try mangleNonIsolatedCallerFunctionType(node, depth: depth)
         case .sendingResultFunctionType:
-            return mangleSendingResultFunctionType(node, depth: depth)
+            try mangleSendingResultFunctionType(node, depth: depth)
         case .constrainedExistential:
-            return mangleConstrainedExistential(node, depth: depth)
+            try mangleConstrainedExistential(node, depth: depth)
         case .constrainedExistentialSelf:
-            return mangleConstrainedExistentialSelf(node, depth: depth)
+            try mangleConstrainedExistentialSelf(node, depth: depth)
         case .extendedExistentialTypeShape:
-            return mangleExtendedExistentialTypeShape(node, depth: depth)
+            try mangleExtendedExistentialTypeShape(node, depth: depth)
         case .symbolicExtendedExistentialType:
-            return mangleSymbolicExtendedExistentialType(node, depth: depth)
+            try mangleSymbolicExtendedExistentialType(node, depth: depth)
         case .coroFunctionPointer:
-            return mangleCoroFunctionPointer(node, depth: depth)
+            try mangleCoroFunctionPointer(node, depth: depth)
         case .coroutineContinuationPrototype:
-            return mangleCoroutineContinuationPrototype(node, depth: depth)
+            try mangleCoroutineContinuationPrototype(node, depth: depth)
         case .deallocator:
-            return mangleDeallocator(node, depth: depth)
+            try mangleDeallocator(node, depth: depth)
         case .isolatedDeallocator:
-            return mangleIsolatedDeallocator(node, depth: depth)
+            try mangleIsolatedDeallocator(node, depth: depth)
         case .defaultArgumentInitializer:
-            return mangleDefaultArgumentInitializer(node, depth: depth)
+            try mangleDefaultArgumentInitializer(node, depth: depth)
         case .defaultOverride:
-            return mangleDefaultOverride(node, depth: depth)
+            try mangleDefaultOverride(node, depth: depth)
         case .dependentAssociatedTypeRef:
-            return mangleDependentAssociatedTypeRef(node, depth: depth)
+            try mangleDependentAssociatedTypeRef(node, depth: depth)
         case .dependentGenericInverseConformanceRequirement:
-            return mangleDependentGenericInverseConformanceRequirement(node, depth: depth)
+            try mangleDependentGenericInverseConformanceRequirement(node, depth: depth)
         case .dependentProtocolConformanceOpaque:
-            return mangleDependentProtocolConformanceOpaque(node, depth: depth)
+            try mangleDependentProtocolConformanceOpaque(node, depth: depth)
         case .dependentProtocolConformanceRoot:
-            return mangleDependentProtocolConformanceRoot(node, depth: depth)
+            try mangleDependentProtocolConformanceRoot(node, depth: depth)
         case .dependentProtocolConformanceInherited:
-            return mangleDependentProtocolConformanceInherited(node, depth: depth)
+            try mangleDependentProtocolConformanceInherited(node, depth: depth)
         case .dependentProtocolConformanceAssociated:
-            return mangleDependentProtocolConformanceAssociated(node, depth: depth)
+            try mangleDependentProtocolConformanceAssociated(node, depth: depth)
         case .dependentPseudogenericSignature:
-            return mangleDependentPseudogenericSignature(node, depth: depth)
+            try mangleDependentPseudogenericSignature(node, depth: depth)
         case .dependentGenericParamValueMarker:
-            return mangleDependentGenericParamValueMarker(node, depth: depth)
+            try mangleDependentGenericParamValueMarker(node, depth: depth)
         case .autoDiffFunction:
-            return mangleAutoDiffFunction(node, depth: depth)
+            try mangleAutoDiffFunction(node, depth: depth)
         case .autoDiffDerivativeVTableThunk:
-            return mangleAutoDiffDerivativeVTableThunk(node, depth: depth)
+            try mangleAutoDiffDerivativeVTableThunk(node, depth: depth)
         case .autoDiffFunctionKind:
-            return mangleAutoDiffFunctionKind(node, depth: depth)
+            try mangleAutoDiffFunctionKind(node, depth: depth)
         case .autoDiffSubsetParametersThunk:
-            return mangleAutoDiffSubsetParametersThunk(node, depth: depth)
+            try mangleAutoDiffSubsetParametersThunk(node, depth: depth)
         case .differentiabilityWitness:
-            return mangleDifferentiabilityWitness(node, depth: depth)
+            try mangleDifferentiabilityWitness(node, depth: depth)
         case .differentiableFunctionType:
-            return mangleDifferentiableFunctionType(node, depth: depth)
+            try mangleDifferentiableFunctionType(node, depth: depth)
         case .noDerivative:
-            return mangleNoDerivative(node, depth: depth)
+            try mangleNoDerivative(node, depth: depth)
         case .directMethodReferenceAttribute:
-            return mangleDirectMethodReferenceAttribute(node, depth: depth)
+            try mangleDirectMethodReferenceAttribute(node, depth: depth)
         case .directness:
-            return mangleDirectness(node, depth: depth)
+            try mangleDirectness(node, depth: depth)
         case .droppedArgument:
-            return mangleDroppedArgument(node, depth: depth)
+            try mangleDroppedArgument(node, depth: depth)
         case .dynamicAttribute:
-            return mangleDynamicAttribute(node, depth: depth)
+            try mangleDynamicAttribute(node, depth: depth)
         case .nonObjCAttribute:
-            return mangleNonObjCAttribute(node, depth: depth)
+            try mangleNonObjCAttribute(node, depth: depth)
         case .distributedAccessor:
-            return mangleDistributedAccessor(node, depth: depth)
+            try mangleDistributedAccessor(node, depth: depth)
         case .distributedThunk:
-            return mangleDistributedThunk(node, depth: depth)
+            try mangleDistributedThunk(node, depth: depth)
         case .dynamicallyReplaceableFunctionImpl:
-            return mangleDynamicallyReplaceableFunctionImpl(node, depth: depth)
+            try mangleDynamicallyReplaceableFunctionImpl(node, depth: depth)
         case .dynamicallyReplaceableFunctionKey:
-            return mangleDynamicallyReplaceableFunctionKey(node, depth: depth)
+            try mangleDynamicallyReplaceableFunctionKey(node, depth: depth)
         case .dynamicallyReplaceableFunctionVar:
-            return mangleDynamicallyReplaceableFunctionVar(node, depth: depth)
+            try mangleDynamicallyReplaceableFunctionVar(node, depth: depth)
         case .globalGetter:
-            return mangleGlobalGetter(node, depth: depth)
+            try mangleGlobalGetter(node, depth: depth)
         case .globalVariableOnceDeclList:
-            return mangleGlobalVariableOnceDeclList(node, depth: depth)
+            try mangleGlobalVariableOnceDeclList(node, depth: depth)
         case .globalVariableOnceFunction:
-            return mangleGlobalVariableOnceFunction(node, depth: depth)
+            try mangleGlobalVariableOnceFunction(node, depth: depth)
         case .globalVariableOnceToken:
-            return mangleGlobalVariableOnceToken(node, depth: depth)
+            try mangleGlobalVariableOnceToken(node, depth: depth)
         case .hasSymbolQuery:
-            return mangleHasSymbolQuery(node, depth: depth)
+            try mangleHasSymbolQuery(node, depth: depth)
         case .iVarDestroyer:
-            return mangleIVarDestroyer(node, depth: depth)
+            try mangleIVarDestroyer(node, depth: depth)
         case .iVarInitializer:
-            return mangleIVarInitializer(node, depth: depth)
+            try mangleIVarInitializer(node, depth: depth)
         case .implErasedIsolation:
-            return mangleImplErasedIsolation(node, depth: depth)
+            try mangleImplErasedIsolation(node, depth: depth)
         case .implParameterImplicitLeading:
-            return mangleImplParameterImplicitLeading(node, depth: depth)
+            try mangleImplParameterImplicitLeading(node, depth: depth)
         case .implFunctionConventionName:
-            return mangleImplFunctionConventionName(node, depth: depth)
+            try mangleImplFunctionConventionName(node, depth: depth)
         case .implParameterResultDifferentiability:
-            return mangleImplParameterResultDifferentiability(node, depth: depth)
+            try mangleImplParameterResultDifferentiability(node, depth: depth)
         case .indexSubset:
-            return mangleIndexSubset(node, depth: depth)
+            try mangleIndexSubset(node, depth: depth)
         case .integer:
-            return mangleInteger(node, depth: depth)
+            try mangleInteger(node, depth: depth)
         case .negativeInteger:
-            return mangleNegativeInteger(node, depth: depth)
+            try mangleNegativeInteger(node, depth: depth)
         case .unknownIndex:
-            return mangleUnknownIndex(node, depth: depth)
+            try mangleUnknownIndex(node, depth: depth)
         case .initAccessor:
-            return mangleInitAccessor(node, depth: depth)
+            try mangleInitAccessor(node, depth: depth)
         case .modify2Accessor:
-            return mangleModify2Accessor(node, depth: depth)
+            try mangleModify2Accessor(node, depth: depth)
         case .read2Accessor:
-            return mangleRead2Accessor(node, depth: depth)
+            try mangleRead2Accessor(node, depth: depth)
         case .materializeForSet:
-            return mangleMaterializeForSet(node, depth: depth)
+            try mangleMaterializeForSet(node, depth: depth)
         case .nativeOwningAddressor:
-            return mangleNativeOwningAddressor(node, depth: depth)
+            try mangleNativeOwningAddressor(node, depth: depth)
         case .nativeOwningMutableAddressor:
-            return mangleNativeOwningMutableAddressor(node, depth: depth)
+            try mangleNativeOwningMutableAddressor(node, depth: depth)
         case .nativePinningAddressor:
-            return mangleNativePinningAddressor(node, depth: depth)
+            try mangleNativePinningAddressor(node, depth: depth)
         case .nativePinningMutableAddressor:
-            return mangleNativePinningMutableAddressor(node, depth: depth)
+            try mangleNativePinningMutableAddressor(node, depth: depth)
         case .owningAddressor:
-            return mangleOwningAddressor(node, depth: depth)
+            try mangleOwningAddressor(node, depth: depth)
         case .owningMutableAddressor:
-            return mangleOwningMutableAddressor(node, depth: depth)
+            try mangleOwningMutableAddressor(node, depth: depth)
         case .unsafeAddressor:
-            return mangleUnsafeAddressor(node, depth: depth)
+            try mangleUnsafeAddressor(node, depth: depth)
         case .unsafeMutableAddressor:
-            return mangleUnsafeMutableAddressor(node, depth: depth)
+            try mangleUnsafeMutableAddressor(node, depth: depth)
         case .inlinedGenericFunction:
-            return mangleInlinedGenericFunction(node, depth: depth)
+            try mangleInlinedGenericFunction(node, depth: depth)
         case .genericPartialSpecializationNotReAbstracted:
-            return mangleGenericPartialSpecializationNotReAbstracted(node, depth: depth)
+            try mangleGenericPartialSpecializationNotReAbstracted(node, depth: depth)
         case .genericSpecializationInResilienceDomain:
-            return mangleGenericSpecializationInResilienceDomain(node, depth: depth)
+            try mangleGenericSpecializationInResilienceDomain(node, depth: depth)
         case .genericSpecializationNotReAbstracted:
-            return mangleGenericSpecializationNotReAbstracted(node, depth: depth)
+            try mangleGenericSpecializationNotReAbstracted(node, depth: depth)
         case .genericSpecializationPrespecialized:
-            return mangleGenericSpecializationPrespecialized(node, depth: depth)
+            try mangleGenericSpecializationPrespecialized(node, depth: depth)
         case .specializationPassID:
-            return mangleSpecializationPassID(node, depth: depth)
+            try mangleSpecializationPassID(node, depth: depth)
         case .isSerialized:
-            return mangleIsSerialized(node, depth: depth)
+            try mangleIsSerialized(node, depth: depth)
         case .isolated:
-            return mangleIsolated(node, depth: depth)
+            try mangleIsolated(node, depth: depth)
         case .sending:
-            return mangleSending(node, depth: depth)
+            try mangleSending(node, depth: depth)
         case .keyPathGetterThunkHelper:
-            return mangleKeyPathGetterThunkHelper(node, depth: depth)
+            try mangleKeyPathGetterThunkHelper(node, depth: depth)
         case .keyPathSetterThunkHelper:
-            return mangleKeyPathSetterThunkHelper(node, depth: depth)
+            try mangleKeyPathSetterThunkHelper(node, depth: depth)
         case .keyPathEqualsThunkHelper:
-            return mangleKeyPathEqualsThunkHelper(node, depth: depth)
+            try mangleKeyPathEqualsThunkHelper(node, depth: depth)
         case .keyPathHashThunkHelper:
-            return mangleKeyPathHashThunkHelper(node, depth: depth)
+            try mangleKeyPathHashThunkHelper(node, depth: depth)
         case .keyPathAppliedMethodThunkHelper:
-            return mangleKeyPathAppliedMethodThunkHelper(node, depth: depth)
+            try mangleKeyPathAppliedMethodThunkHelper(node, depth: depth)
         case .metadataInstantiationCache:
-            return mangleMetadataInstantiationCache(node, depth: depth)
+            try mangleMetadataInstantiationCache(node, depth: depth)
         case .metatypeRepresentation:
-            return mangleMetatypeRepresentation(node, depth: depth)
+            try mangleMetatypeRepresentation(node, depth: depth)
         case .methodLookupFunction:
-            return mangleMethodLookupFunction(node, depth: depth)
+            try mangleMethodLookupFunction(node, depth: depth)
         case .mergedFunction:
-            return mangleMergedFunction(node, depth: depth)
+            try mangleMergedFunction(node, depth: depth)
         case .noncanonicalSpecializedGenericTypeMetadataCache:
-            return mangleNoncanonicalSpecializedGenericTypeMetadataCache(node, depth: depth)
+            try mangleNoncanonicalSpecializedGenericTypeMetadataCache(node, depth: depth)
         case .relatedEntityDeclName:
-            return mangleRelatedEntityDeclName(node, depth: depth)
+            try mangleRelatedEntityDeclName(node, depth: depth)
         case .silBoxType:
-            return mangleSILBoxType(node, depth: depth)
+            try mangleSILBoxType(node, depth: depth)
         case .silBoxTypeWithLayout:
-            return mangleSILBoxTypeWithLayout(node, depth: depth)
+            try mangleSILBoxTypeWithLayout(node, depth: depth)
         case .silBoxLayout:
-            return mangleSILBoxLayout(node, depth: depth)
+            try mangleSILBoxLayout(node, depth: depth)
         case .silBoxImmutableField:
-            return mangleSILBoxImmutableField(node, depth: depth)
+            try mangleSILBoxImmutableField(node, depth: depth)
         case .silBoxMutableField:
-            return mangleSILBoxMutableField(node, depth: depth)
+            try mangleSILBoxMutableField(node, depth: depth)
         case .silThunkIdentity:
-            return mangleSILThunkIdentity(node, depth: depth)
+            try mangleSILThunkIdentity(node, depth: depth)
         case .sugaredArray:
-            return mangleSugaredArray(node, depth: depth)
+            try mangleSugaredArray(node, depth: depth)
         case .sugaredDictionary:
-            return mangleSugaredDictionary(node, depth: depth)
+            try mangleSugaredDictionary(node, depth: depth)
         case .sugaredOptional:
-            return mangleSugaredOptional(node, depth: depth)
+            try mangleSugaredOptional(node, depth: depth)
         case .sugaredParen:
-            return mangleSugaredParen(node, depth: depth)
+            try mangleSugaredParen(node, depth: depth)
         case .typedThrowsAnnotation:
-            return mangleTypedThrowsAnnotation(node, depth: depth)
+            try mangleTypedThrowsAnnotation(node, depth: depth)
         case .uniquable:
-            return mangleUniquable(node, depth: depth)
+            try mangleUniquable(node, depth: depth)
         case .vTableAttribute:
-            return mangleVTableAttribute(node, depth: depth)
+            try mangleVTableAttribute(node, depth: depth)
         case .vTableThunk:
-            return mangleVTableThunk(node, depth: depth)
+            try mangleVTableThunk(node, depth: depth)
         case .outlinedEnumGetTag:
-            return mangleOutlinedEnumGetTag(node, depth: depth)
+            try mangleOutlinedEnumGetTag(node, depth: depth)
         case .outlinedEnumProjectDataForLoad:
-            return mangleOutlinedEnumProjectDataForLoad(node, depth: depth)
+            try mangleOutlinedEnumProjectDataForLoad(node, depth: depth)
         case .outlinedEnumTagStore:
-            return mangleOutlinedEnumTagStore(node, depth: depth)
+            try mangleOutlinedEnumTagStore(node, depth: depth)
         case .outlinedReadOnlyObject:
-            return mangleOutlinedReadOnlyObject(node, depth: depth)
+            try mangleOutlinedReadOnlyObject(node, depth: depth)
         case .outlinedDestroyNoValueWitness:
-            return mangleOutlinedDestroyNoValueWitness(node, depth: depth)
+            try mangleOutlinedDestroyNoValueWitness(node, depth: depth)
         case .outlinedInitializeWithCopyNoValueWitness:
-            return mangleOutlinedInitializeWithCopyNoValueWitness(node, depth: depth)
+            try mangleOutlinedInitializeWithCopyNoValueWitness(node, depth: depth)
         case .outlinedAssignWithTakeNoValueWitness:
-            return mangleOutlinedAssignWithTakeNoValueWitness(node, depth: depth)
+            try mangleOutlinedAssignWithTakeNoValueWitness(node, depth: depth)
         case .outlinedAssignWithCopyNoValueWitness:
-            return mangleOutlinedAssignWithCopyNoValueWitness(node, depth: depth)
+            try mangleOutlinedAssignWithCopyNoValueWitness(node, depth: depth)
         case .packProtocolConformance:
-            return manglePackProtocolConformance(node, depth: depth)
+            try manglePackProtocolConformance(node, depth: depth)
         case .accessorFunctionReference:
-            return mangleAccessorFunctionReference(node, depth: depth)
+            try mangleAccessorFunctionReference(node, depth: depth)
         case .anyProtocolConformanceList:
-            return mangleAnyProtocolConformanceList(node, depth: depth)
+            try mangleAnyProtocolConformanceList(node, depth: depth)
         case .associatedTypeWitnessTableAccessor:
-            return mangleAssociatedTypeWitnessTableAccessor(node, depth: depth)
+            try mangleAssociatedTypeWitnessTableAccessor(node, depth: depth)
         case .autoDiffSelfReorderingReabstractionThunk:
-            return mangleAutoDiffSelfReorderingReabstractionThunk(node, depth: depth)
+            try mangleAutoDiffSelfReorderingReabstractionThunk(node, depth: depth)
         case .canonicalPrespecializedGenericTypeCachingOnceToken:
-            return mangleCanonicalPrespecializedGenericTypeCachingOnceToken(node, depth: depth)
+            try mangleCanonicalPrespecializedGenericTypeCachingOnceToken(node, depth: depth)
         case .canonicalSpecializedGenericMetaclass:
-            return mangleCanonicalSpecializedGenericMetaclass(node, depth: depth)
+            try mangleCanonicalSpecializedGenericMetaclass(node, depth: depth)
         case .canonicalSpecializedGenericTypeMetadataAccessFunction:
-            return mangleCanonicalSpecializedGenericTypeMetadataAccessFunction(node, depth: depth)
+            try mangleCanonicalSpecializedGenericTypeMetadataAccessFunction(node, depth: depth)
         case .constrainedExistentialRequirementList:
-            return mangleConstrainedExistentialRequirementList(node, depth: depth)
+            try mangleConstrainedExistentialRequirementList(node, depth: depth)
         case .defaultAssociatedConformanceAccessor:
-            return mangleDefaultAssociatedConformanceAccessor(node, depth: depth)
+            try mangleDefaultAssociatedConformanceAccessor(node, depth: depth)
         case .defaultAssociatedTypeMetadataAccessor:
-            return mangleDefaultAssociatedTypeMetadataAccessor(node, depth: depth)
+            try mangleDefaultAssociatedTypeMetadataAccessor(node, depth: depth)
         case .dependentGenericConformanceRequirement:
-            return mangleDependentGenericConformanceRequirement(node, depth: depth)
+            try mangleDependentGenericConformanceRequirement(node, depth: depth)
         case .dependentGenericLayoutRequirement:
-            return mangleDependentGenericLayoutRequirement(node, depth: depth)
+            try mangleDependentGenericLayoutRequirement(node, depth: depth)
         case .dependentGenericSameShapeRequirement:
-            return mangleDependentGenericSameShapeRequirement(node, depth: depth)
+            try mangleDependentGenericSameShapeRequirement(node, depth: depth)
         case .dependentGenericSameTypeRequirement:
-            return mangleDependentGenericSameTypeRequirement(node, depth: depth)
+            try mangleDependentGenericSameTypeRequirement(node, depth: depth)
         case .functionSignatureSpecializationParam:
-            return mangleFunctionSignatureSpecializationParam(node, depth: depth)
+            try mangleFunctionSignatureSpecializationParam(node, depth: depth)
         case .functionSignatureSpecializationReturn:
-            return mangleFunctionSignatureSpecializationReturn(node, depth: depth)
+            try mangleFunctionSignatureSpecializationReturn(node, depth: depth)
         case .functionSignatureSpecializationParamKind:
-            return mangleFunctionSignatureSpecializationParamKind(node, depth: depth)
+            try mangleFunctionSignatureSpecializationParamKind(node, depth: depth)
         case .functionSignatureSpecializationParamPayload:
-            return mangleFunctionSignatureSpecializationParamPayload(node, depth: depth)
+            try mangleFunctionSignatureSpecializationParamPayload(node, depth: depth)
         case .keyPathUnappliedMethodThunkHelper:
-            return mangleKeyPathUnappliedMethodThunkHelper(node, depth: depth)
+            try mangleKeyPathUnappliedMethodThunkHelper(node, depth: depth)
         case .lazyProtocolWitnessTableAccessor:
-            return mangleLazyProtocolWitnessTableAccessor(node, depth: depth)
+            try mangleLazyProtocolWitnessTableAccessor(node, depth: depth)
         case .lazyProtocolWitnessTableCacheVariable:
-            return mangleLazyProtocolWitnessTableCacheVariable(node, depth: depth)
+            try mangleLazyProtocolWitnessTableCacheVariable(node, depth: depth)
         case .noncanonicalSpecializedGenericTypeMetadata:
-            return mangleNoncanonicalSpecializedGenericTypeMetadata(node, depth: depth)
+            try mangleNoncanonicalSpecializedGenericTypeMetadata(node, depth: depth)
         case .nonUniqueExtendedExistentialTypeShapeSymbolicReference:
-            return mangleNonUniqueExtendedExistentialTypeShapeSymbolicReference(node, depth: depth)
+            try mangleNonUniqueExtendedExistentialTypeShapeSymbolicReference(node, depth: depth)
         case .outlinedInitializeWithTakeNoValueWitness:
-            return mangleOutlinedInitializeWithTakeNoValueWitness(node, depth: depth)
+            try mangleOutlinedInitializeWithTakeNoValueWitness(node, depth: depth)
         case .predefinedObjCAsyncCompletionHandlerImpl:
-            return manglePredefinedObjCAsyncCompletionHandlerImpl(node, depth: depth)
+            try manglePredefinedObjCAsyncCompletionHandlerImpl(node, depth: depth)
         case .protocolConformanceRefInTypeModule:
-            return mangleProtocolConformanceRefInTypeModule(node, depth: depth)
+            try mangleProtocolConformanceRefInTypeModule(node, depth: depth)
         case .protocolConformanceRefInProtocolModule:
-            return mangleProtocolConformanceRefInProtocolModule(node, depth: depth)
+            try mangleProtocolConformanceRefInProtocolModule(node, depth: depth)
         case .protocolConformanceRefInOtherModule:
-            return mangleProtocolConformanceRefInOtherModule(node, depth: depth)
+            try mangleProtocolConformanceRefInOtherModule(node, depth: depth)
         case .reflectionMetadataAssocTypeDescriptor:
-            return mangleReflectionMetadataAssocTypeDescriptor(node, depth: depth)
+            try mangleReflectionMetadataAssocTypeDescriptor(node, depth: depth)
         case .reflectionMetadataBuiltinDescriptor:
-            return mangleReflectionMetadataBuiltinDescriptor(node, depth: depth)
+            try mangleReflectionMetadataBuiltinDescriptor(node, depth: depth)
         case .reflectionMetadataFieldDescriptor:
-            return mangleReflectionMetadataFieldDescriptor(node, depth: depth)
+            try mangleReflectionMetadataFieldDescriptor(node, depth: depth)
         case .reflectionMetadataSuperclassDescriptor:
-            return mangleReflectionMetadataSuperclassDescriptor(node, depth: depth)
+            try mangleReflectionMetadataSuperclassDescriptor(node, depth: depth)
         case .silThunkHopToMainActorIfNeeded:
-            return mangleSILThunkHopToMainActorIfNeeded(node, depth: depth)
+            try mangleSILThunkHopToMainActorIfNeeded(node, depth: depth)
         case .sugaredInlineArray:
-            return mangleSugaredInlineArray(node, depth: depth)
+            try mangleSugaredInlineArray(node, depth: depth)
         case .typeMetadataInstantiationFunction:
-            return mangleTypeMetadataInstantiationFunction(node, depth: depth)
+            try mangleTypeMetadataInstantiationFunction(node, depth: depth)
         case .typeMetadataSingletonInitializationCache:
-            return mangleTypeMetadataSingletonInitializationCache(node, depth: depth)
+            try mangleTypeMetadataSingletonInitializationCache(node, depth: depth)
         case .uniqueExtendedExistentialTypeShapeSymbolicReference:
-            return mangleUniqueExtendedExistentialTypeShapeSymbolicReference(node, depth: depth)
+            try mangleUniqueExtendedExistentialTypeShapeSymbolicReference(node, depth: depth)
         }
     }
 
     // MARK: - Helper Methods
 
     /// Mangle child nodes in order
-    func mangleChildNodes(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleChildNodes(_ node: Node, depth: Int) throws(RemanglerError) {
         for child in node.children {
-            let result = mangleNode(child, depth: depth + 1)
-            if !result.isSuccess {
-                return result
-            }
+            try mangleNode(child, depth: depth + 1)
         }
-        return .success
     }
 
     /// Mangle child nodes in reverse order
-    func mangleChildNodesReversed(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleChildNodesReversed(_ node: Node, depth: Int) throws(RemanglerError) {
         for child in node.children.reversed() {
-            let result = mangleNode(child, depth: depth + 1)
-            if !result.isSuccess {
-                return result
-            }
+            try mangleNode(child, depth: depth + 1)
         }
-        return .success
     }
 
     /// Mangle a single child node
-    func mangleSingleChildNode(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleSingleChildNode(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count == 1 else {
-            return .multipleChildNodes(node)
+            throw .multipleChildNodes(node)
         }
-        return mangleNode(node.children[0], depth: depth + 1)
+        try mangleNode(node.children[0], depth: depth + 1)
     }
 
     /// Mangle a specific child by index
-    func mangleChildNode(_ node: Node, at index: Int, depth: Int) -> RemanglerError {
+    func mangleChildNode(_ node: Node, at index: Int, depth: Int) throws(RemanglerError) {
         guard index < node.children.count else {
-            return .missingChildNode(node, expectedIndex: index)
+            throw .missingChildNode(node, expectedIndex: index)
         }
-        return mangleNode(node.children[index], depth: depth + 1)
+        try mangleNode(node.children[index], depth: depth + 1)
     }
 
     /// Get a single child, skipping Type wrapper if present
@@ -912,7 +892,7 @@ final class Remangler: RemanglerBase {
     func mangleStandardSubstitution(_ node: Node) -> Bool {
         // Only applies to nominal types
         guard node.kind == .structure || node.kind == .class ||
-              node.kind == .enum || node.kind == .protocol else {
+            node.kind == .enum || node.kind == .protocol else {
             return false
         }
 
@@ -951,7 +931,7 @@ final class Remangler: RemanglerBase {
         // Standard types (Structure, Enum, Protocol)
         switch name {
         // Structures
-        case "AutoreleasingUnsafeMutablePointer": return "A"  // ObjC interop
+        case "AutoreleasingUnsafeMutablePointer": return "A" // ObjC interop
         case "Array": return "a"
         case "Bool": return "b"
         case "Dictionary": return "D"
@@ -975,10 +955,8 @@ final class Remangler: RemanglerBase {
         case "UnsafeMutableRawPointer": return "v"
         case "UnsafeRawBufferPointer": return "W"
         case "UnsafeMutableRawBufferPointer": return "w"
-
         // Enums
         case "Optional": return "q"
-
         // Protocols
         case "BinaryFloatingPoint": return "B"
         case "Encodable": return "E"
@@ -1003,7 +981,6 @@ final class Remangler: RemanglerBase {
         case "StringProtocol": return "y"
         case "SignedInteger": return "Z"
         case "BinaryInteger": return "z"
-
         default:
             // Concurrency types (Swift 5.5+)
             // These use 'c' prefix: Sc<MANGLING>

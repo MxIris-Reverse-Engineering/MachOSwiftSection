@@ -2,7 +2,7 @@
 extension Remangler {
     // MARK: - Top-Level Nodes
 
-    func mangleGlobal(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleGlobal(_ node: Node, depth: Int) throws(RemanglerError) {
         // Global node wraps the actual entity
         // Output the mangling prefix based on flavor
         append("_$s") // Default flavor
@@ -48,29 +48,24 @@ extension Remangler {
 
             default:
                 // Mangle the current child
-                let result = mangleNode(child, depth: depth + 1)
-                if !result.isSuccess { return result }
+                try mangleNode(child, depth: depth + 1)
 
                 // If we need reverse order, mangle all previous children in reverse
                 if mangleInReverseOrder {
                     for reverseIndex in stride(from: index - 1, through: 0, by: -1) {
-                        let reverseResult = mangleNode(node.children[reverseIndex], depth: depth + 1)
-                        if !reverseResult.isSuccess { return reverseResult }
+                        try mangleNode(node.children[reverseIndex], depth: depth + 1)
                     }
                     mangleInReverseOrder = false
                 }
             }
         }
-
-        return .success
     }
 
-    func mangleSuffix(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleSuffix(_ node: Node, depth: Int) throws(RemanglerError) {
         // Suffix is appended as-is
         if let text = node.text {
             append(text)
         }
-        return .success
     }
 
     // MARK: - Specialization Helpers
@@ -228,7 +223,7 @@ extension Remangler {
     }
 
     /// Mangle generic arguments from a context chain
-    private func mangleGenericArgs(_ node: Node, separator: inout Character, depth: Int, fullSubstitutionMap: Bool = false) -> RemanglerError {
+    private func mangleGenericArgs(_ node: Node, separator: inout Character, depth: Int, fullSubstitutionMap: Bool = false) throws(RemanglerError) {
         var fullSubst = fullSubstitutionMap
 
         switch node.kind {
@@ -242,8 +237,7 @@ extension Remangler {
                 fullSubst = true
             }
 
-            let result = mangleGenericArgs(node.children[0], separator: &separator, depth: depth + 1, fullSubstitutionMap: fullSubst)
-            if !result.isSuccess { return result }
+            try mangleGenericArgs(node.children[0], separator: &separator, depth: depth + 1, fullSubstitutionMap: fullSubst)
             append(String(separator))
             separator = "_"
 
@@ -273,8 +267,7 @@ extension Remangler {
                 break
             }
 
-            let result = mangleGenericArgs(node.children[0], separator: &separator, depth: depth + 1, fullSubstitutionMap: fullSubst)
-            if !result.isSuccess { return result }
+            try mangleGenericArgs(node.children[0], separator: &separator, depth: depth + 1, fullSubstitutionMap: fullSubst)
 
             // Only add separator if this node consumes generic args
             if nodeConsumesGenericArgs(node) {
@@ -294,57 +287,50 @@ extension Remangler {
             }
 
             guard node.children.count >= 2 else {
-                return .invalidNodeStructure(node, message: "BoundGeneric needs at least 2 children")
+                throw .invalidNodeStructure(node, message: "BoundGeneric needs at least 2 children")
             }
             let unboundType = node.children[0]
-            guard unboundType.kind == .type && unboundType.children.count > 0 else {
-                return .invalidNodeStructure(node, message: "BoundGeneric child 0 must be Type with children")
+            guard unboundType.kind == .type, unboundType.children.count > 0 else {
+                throw .invalidNodeStructure(node, message: "BoundGeneric child 0 must be Type with children")
             }
             let nominalType = unboundType.children[0]
             guard nominalType.children.count > 0 else {
-                return .invalidNodeStructure(node, message: "Nominal type must have parent/module")
+                throw .invalidNodeStructure(node, message: "Nominal type must have parent/module")
             }
             let parentOrModule = nominalType.children[0]
-            var result = mangleGenericArgs(parentOrModule, separator: &separator, depth: depth + 1, fullSubstitutionMap: fullSubst)
-            if !result.isSuccess { return result }
+            try mangleGenericArgs(parentOrModule, separator: &separator, depth: depth + 1, fullSubstitutionMap: fullSubst)
             append(String(separator))
             separator = "_"
             // Mangle type arguments from TypeList (child 1)
-            result = mangleChildNodes(node.children[1], depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleChildNodes(node.children[1], depth: depth + 1)
 
         case .constrainedExistential:
             append(String(separator))
             separator = "_"
-            let result = mangleChildNodes(node.children[1], depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleChildNodes(node.children[1], depth: depth + 1)
 
         case .boundGenericFunction:
             fullSubst = true
 
             let unboundFunction = node.children[0]
             guard unboundFunction.kind == .function || unboundFunction.kind == .constructor else {
-                return .invalidNodeStructure(node, message: "BoundGenericFunction child 0 must be Function or Constructor")
+                throw .invalidNodeStructure(node, message: "BoundGenericFunction child 0 must be Function or Constructor")
             }
             let parentOrModule = unboundFunction.children[0]
-            var result = mangleGenericArgs(parentOrModule, separator: &separator, depth: depth + 1, fullSubstitutionMap: fullSubst)
-            if !result.isSuccess { return result }
+            try mangleGenericArgs(parentOrModule, separator: &separator, depth: depth + 1, fullSubstitutionMap: fullSubst)
             append(String(separator))
             separator = "_"
-            result = mangleChildNodes(node.children[1], depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleChildNodes(node.children[1], depth: depth + 1)
 
         case .extension:
             guard node.children.count > 1 else {
-                return .invalidNodeStructure(node, message: "Extension needs at least 2 children")
+                throw .invalidNodeStructure(node, message: "Extension needs at least 2 children")
             }
-            return mangleGenericArgs(node.children[1], separator: &separator, depth: depth + 1, fullSubstitutionMap: fullSubst)
+            try mangleGenericArgs(node.children[1], separator: &separator, depth: depth + 1, fullSubstitutionMap: fullSubst)
 
         default:
             break
         }
-
-        return .success
     }
 
     /// Check if a node consumes generic arguments
@@ -367,243 +353,225 @@ extension Remangler {
 
     // MARK: - Type Nodes
 
-    func mangleType(_ node: Node, depth: Int) -> RemanglerError {
-        mangleSingleChildNode(node, depth: depth + 1)
+    func mangleType(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
     }
 
-    func mangleTypeMangling(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleTypeMangling(_ node: Node, depth: Int) throws(RemanglerError) {
         // TypeMangling only outputs children and 'D' suffix
         // The '_$s' prefix is output by the Global node
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNodes(node, depth: depth + 1)
         append("D")
-        return .success
     }
 
-    func mangleTypeList(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleTypeList(_ node: Node, depth: Int) throws(RemanglerError) {
         // Type list with proper list separators
         var isFirst = true
         for child in node.children {
-            let result = mangleNode(child, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleNode(child, depth: depth + 1)
             mangleListSeparator(&isFirst)
         }
         mangleEndOfList(isFirst)
-        return .success
     }
 
     // MARK: - Nominal Types
 
-    func mangleStructure(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleAnyNominalType(node, depth: depth + 1)
+    func mangleStructure(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleAnyNominalType(node, depth: depth + 1)
     }
 
-    func mangleClass(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleAnyNominalType(node, depth: depth + 1)
+    func mangleClass(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleAnyNominalType(node, depth: depth + 1)
     }
 
-    func mangleEnum(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleAnyNominalType(node, depth: depth + 1)
+    func mangleEnum(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleAnyNominalType(node, depth: depth + 1)
     }
 
-    func mangleProtocol(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleAnyGenericType(node, typeOp: "P", depth: depth + 1)
+    func mangleProtocol(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleAnyGenericType(node, typeOp: "P", depth: depth + 1)
     }
 
-    func mangleTypeAlias(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleAnyNominalType(node, depth: depth + 1)
+    func mangleTypeAlias(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleAnyNominalType(node, depth: depth + 1)
     }
 
     // MARK: - Bound Generic Types
 
-    func mangleBoundGenericStructure(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleAnyNominalType(node, depth: depth + 1)
+    func mangleBoundGenericStructure(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleAnyNominalType(node, depth: depth + 1)
     }
 
-    func mangleBoundGenericClass(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleAnyNominalType(node, depth: depth + 1)
+    func mangleBoundGenericClass(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleAnyNominalType(node, depth: depth + 1)
     }
 
-    func mangleBoundGenericEnum(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleBoundGenericEnum(_ node: Node, depth: Int) throws(RemanglerError) {
         // Special case for Optional: use sugar form "Sg"
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "BoundGenericEnum needs at least 2 children")
+            throw .invalidNodeStructure(node, message: "BoundGenericEnum needs at least 2 children")
         }
 
         // Check if this is Optional
         let typeChild = node.children[0]
-        if typeChild.kind == .type && typeChild.children.count > 0 {
+        if typeChild.kind == .type, typeChild.children.count > 0 {
             let enumNode = typeChild.children[0]
-            if enumNode.kind == .enum && enumNode.children.count >= 2 {
+            if enumNode.kind == .enum, enumNode.children.count >= 2 {
                 let moduleNode = enumNode.children[0]
                 let identNode = enumNode.children[1]
 
-                if moduleNode.kind == .module && moduleNode.text == "Swift" &&
-                    identNode.kind == .identifier && identNode.text == "Optional" {
+                if moduleNode.kind == .module, moduleNode.text == "Swift",
+                   identNode.kind == .identifier, identNode.text == "Optional" {
                     // This is Swift.Optional - use sugar form
                     let substResult = trySubstitution(node)
                     if substResult.found {
-                        return .success
+                        return
                     }
 
                     // Mangle the wrapped type (single child of TypeList)
                     let typeList = node.children[1]
-                    guard typeList.kind == .typeList && typeList.children.count == 1 else {
-                        return .invalidNodeStructure(node, message: "Optional TypeList must have 1 child")
+                    guard typeList.kind == .typeList, typeList.children.count == 1 else {
+                        throw .invalidNodeStructure(node, message: "Optional TypeList must have 1 child")
                     }
 
-                    let result = mangleNode(typeList.children[0], depth: depth + 1)
-                    if !result.isSuccess { return result }
+                    try mangleNode(typeList.children[0], depth: depth + 1)
 
                     append("Sg")
 
                     // Add to substitution table (use entry from trySubstitution)
                     addSubstitution(substResult.entry)
-
-                    return .success
+                    return
                 }
             }
         }
 
         // Not Optional - use standard bound generic mangling
-        return mangleAnyNominalType(node, depth: depth + 1)
+        try mangleAnyNominalType(node, depth: depth + 1)
     }
 
     // MARK: - Function Types
 
-    func mangleFunctionType(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleFunctionType(_ node: Node, depth: Int) throws(RemanglerError) {
         // Function type: reverse children (result comes first in mangling)
-        let result = mangleFunctionSignature(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleFunctionSignature(node, depth: depth + 1)
         append("c")
-        return .success
     }
 
-    func mangleFunctionSignature(_ node: Node, depth: Int) -> RemanglerError {
-        mangleChildNodesReversed(node, depth: depth)
+    func mangleFunctionSignature(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodesReversed(node, depth: depth)
     }
 
-    func mangleArgumentTuple(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleArgumentTuple(_ node: Node, depth: Int) throws(RemanglerError) {
         // Skip Type wrappers to get the actual content
         guard node.children.count > 0 else {
-            return .invalidNodeStructure(node, message: "ArgumentTuple has no children")
+            throw .invalidNodeStructure(node, message: "ArgumentTuple has no children")
         }
 
         let child = skipType(node.children[0])
 
         // Check if it's an empty tuple - output 'y'
-        if child.kind == .tuple && child.children.count == 0 {
+        if child.kind == .tuple, child.children.count == 0 {
             append("y")
-            return .success
+            return
         }
 
         // Otherwise mangle the unwrapped child directly
-        return mangleNode(child, depth: depth + 1)
+        try mangleNode(child, depth: depth + 1)
     }
 
-    func mangleReturnType(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleReturnType(_ node: Node, depth: Int) throws(RemanglerError) {
         // Return type uses same logic as ArgumentTuple
-        return mangleArgumentTuple(node, depth: depth + 1)
+        try mangleArgumentTuple(node, depth: depth + 1)
     }
 
     // MARK: - Functions and Methods
 
-    func mangleFunction(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleFunction(_ node: Node, depth: Int) throws(RemanglerError) {
         // Function: context + name + optional labels + function signature
         guard node.children.count >= 3 else {
-            return .invalidNodeStructure(node, message: "Function needs at least 3 children")
+            throw .invalidNodeStructure(node, message: "Function needs at least 3 children")
         }
 
         // Mangle context (child 0)
-        var result = mangleNode(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleNode(node.children[0], depth: depth + 1)
 
         // Mangle name (child 1)
-        result = mangleNode(node.children[1], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleNode(node.children[1], depth: depth + 1)
 
         // Check if child 2 is a LabelList
         let hasLabels = node.children[2].kind == .labelList
         let funcTypeIndex = hasLabels ? 3 : 2
 
         guard funcTypeIndex < node.children.count else {
-            return .invalidNodeStructure(node, message: "Function missing type node")
+            throw .invalidNodeStructure(node, message: "Function missing type node")
         }
 
         // Get the function type (usually wrapped in Type node)
         var funcTypeNode = node.children[funcTypeIndex]
-        if funcTypeNode.kind == .type && funcTypeNode.children.count > 0 {
+        if funcTypeNode.kind == .type, funcTypeNode.children.count > 0 {
             funcTypeNode = funcTypeNode.children[0]
         }
 
         // Mangle label list if present (must come before function signature)
         if hasLabels {
-            result = mangleChildNode(node, at: 2, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleChildNode(node, at: 2, depth: depth + 1)
         }
 
         // Handle the function type
         if funcTypeNode.kind == .dependentGenericType {
             // DependentGenericType: mangle signature first, then generic signature
             guard funcTypeNode.children.count >= 2 else {
-                return .invalidNodeStructure(funcTypeNode, message: "DependentGenericType needs 2 children")
+                throw .invalidNodeStructure(funcTypeNode, message: "DependentGenericType needs 2 children")
             }
 
             // Get the actual function type from child 1
             var actualFuncType = funcTypeNode.children[1]
-            if actualFuncType.kind == .type && actualFuncType.children.count > 0 {
+            if actualFuncType.kind == .type, actualFuncType.children.count > 0 {
                 actualFuncType = actualFuncType.children[0]
             }
 
             // Mangle function signature (reversed children)
-            result = mangleFunctionSignature(actualFuncType, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleFunctionSignature(actualFuncType, depth: depth + 1)
 
             // Mangle generic signature (child 0)
-            result = mangleChildNode(funcTypeNode, at: 0, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleChildNode(funcTypeNode, at: 0, depth: depth + 1)
         } else {
             // Normal function type: just mangle signature (reversed children)
-            result = mangleFunctionSignature(funcTypeNode, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleFunctionSignature(funcTypeNode, depth: depth + 1)
         }
 
         append("F")
-        return .success
     }
 
-    func mangleAllocator(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleAnyConstructor(node, kindOp: "C", depth: depth + 1)
+    func mangleAllocator(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleAnyConstructor(node, kindOp: "C", depth: depth + 1)
     }
 
-    func mangleConstructor(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleAnyConstructor(node, kindOp: "c", depth: depth)
+    func mangleConstructor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleAnyConstructor(node, kindOp: "c", depth: depth)
     }
 
-    func mangleDestructor(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleDestructor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("fd")
-        return .success
     }
 
-    func mangleGetter(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleGetter(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "Getter needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "Getter needs at least 1 child")
         }
-        return mangleAbstractStorage(node.children[0], accessorCode: "g", depth: depth + 1)
+        try mangleAbstractStorage(node.children[0], accessorCode: "g", depth: depth + 1)
     }
 
-    func mangleSetter(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleSetter(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "Setter needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "Setter needs at least 1 child")
         }
-        return mangleAbstractStorage(node.children[0], accessorCode: "s", depth: depth + 1)
+        try mangleAbstractStorage(node.children[0], accessorCode: "s", depth: depth + 1)
     }
 
-    private func mangleAbstractStorage(_ node: Node, accessorCode: String, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    private func mangleAbstractStorage(_ node: Node, accessorCode: String, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
 
         // Output storage kind marker
         switch node.kind {
@@ -612,47 +580,40 @@ extension Remangler {
         case .variable:
             append("v")
         default:
-            return .invalidNodeStructure(node, message: "Not a storage node")
+            throw .invalidNodeStructure(node, message: "Not a storage node")
         }
 
         // Output accessor code
         append(accessorCode)
-        return .success
     }
 
     // MARK: - Identifiers and Names
 
-    func mangleIdentifier(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleIdentifier(_ node: Node, depth: Int) throws(RemanglerError) {
         mangleIdentifierImpl(node, isOperator: false)
-        return .success
     }
 
-    func manglePrivateDeclName(_ node: Node, depth: Int) -> RemanglerError {
+    func manglePrivateDeclName(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "PrivateDeclName needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "PrivateDeclName needs at least 1 child")
         }
 
-        let result = mangleChildNodesReversed(node, depth: depth + 1)
-
-        guard result.isSuccess else { return result }
+        try mangleChildNodesReversed(node, depth: depth + 1)
         // Append "Ll" if 1 child, "LL" if 2 children
         append(node.children.count == 1 ? "Ll" : "LL")
-        return .success
     }
 
-    func mangleLocalDeclName(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleLocalDeclName(_ node: Node, depth: Int) throws(RemanglerError) {
         // LocalDeclName has: number, identifier
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "LocalDeclName needs at least 2 children")
+            throw .invalidNodeStructure(node, message: "LocalDeclName needs at least 2 children")
         }
 
-        let result = mangleChildNode(node, at: 1, depth: depth + 1)
-
-        guard result.isSuccess else { return result }
+        try mangleChildNode(node, at: 1, depth: depth + 1)
 
         append("L")
 
-        return mangleChildNode(node, at: 0, depth: depth + 1)
+        try mangleChildNode(node, at: 0, depth: depth + 1)
     }
 
     /// Translate operator character for mangling
@@ -716,9 +677,9 @@ extension Remangler {
 
     // MARK: - Module and Context
 
-    func mangleModule(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleModule(_ node: Node, depth: Int) throws(RemanglerError) {
         guard let name = node.text else {
-            return .invalidNodeStructure(node, message: "Module has no text")
+            throw .invalidNodeStructure(node, message: "Module has no text")
         }
 
         // Handle special module names with shortcuts
@@ -730,41 +691,35 @@ extension Remangler {
             append("SC")
         } else {
             // Module name - use identifier mangling (which handles substitution)
-            return mangleIdentifier(node, depth: depth)
+            try mangleIdentifier(node, depth: depth)
         }
-
-        return .success
     }
 
-    func mangleExtension(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleExtension(_ node: Node, depth: Int) throws(RemanglerError) {
         // Extension: extended type (child 1), extending module (child 0), optional generic signature (child 2)
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "Extension needs at least 2 children")
+            throw .invalidNodeStructure(node, message: "Extension needs at least 2 children")
         }
 
         // Mangle child 1 (the extended type) first
-        let result1 = mangleChildNode(node, at: 1, depth: depth + 1)
-        if !result1.isSuccess { return result1 }
+        try mangleChildNode(node, at: 1, depth: depth + 1)
 
         // Then mangle child 0 (the extending module)
-        let result0 = mangleChildNode(node, at: 0, depth: depth + 1)
-        if !result0.isSuccess { return result0 }
+        try mangleChildNode(node, at: 0, depth: depth + 1)
 
         // If there's a third child (generic signature), mangle it
         if node.children.count == 3 {
-            let result2 = mangleChildNode(node, at: 2, depth: depth + 1)
-            if !result2.isSuccess { return result2 }
+            try mangleChildNode(node, at: 2, depth: depth + 1)
         }
 
         append("E")
-        return .success
     }
 
     // MARK: - Built-in Types
 
-    func mangleBuiltinTypeName(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleBuiltinTypeName(_ node: Node, depth: Int) throws(RemanglerError) {
         guard let name = node.text else {
-            return .invalidNodeStructure(node, message: "BuiltinTypeName has no text")
+            throw .invalidNodeStructure(node, message: "BuiltinTypeName has no text")
         }
 
         append("B")
@@ -828,63 +783,54 @@ extension Remangler {
                     let width = element.dropFirst("Int".count)
                     append("i\(width)_")
                 } else {
-                    return .unexpectedBuiltinVectorType(node)
+                    throw .unexpectedBuiltinVectorType(node)
                 }
                 append("Bv\(count)_")
             } else {
-                return .unexpectedBuiltinVectorType(node)
+                throw .unexpectedBuiltinVectorType(node)
             }
         } else {
-            return .unexpectedBuiltinType(node)
+            throw .unexpectedBuiltinType(node)
         }
-
-        return .success
     }
 
     // MARK: - Tuple Types
 
-    func mangleTuple(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleTuple(_ node: Node, depth: Int) throws(RemanglerError) {
         // Use mangleTypeList which handles proper list separators
-        let result = mangleTypeList(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleTypeList(node, depth: depth + 1)
         append("t")
-        return .success
     }
 
-    func mangleTupleElement(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleTupleElement(_ node: Node, depth: Int) throws(RemanglerError) {
         // Tuple element: optional label + type
         // C++ uses mangleChildNodesReversed, so mangle in reverse order: type, then label
-        return mangleChildNodesReversed(node, depth: depth + 1)
+        try mangleChildNodesReversed(node, depth: depth + 1)
     }
 
     // MARK: - Dependent Types
 
-    func mangleDependentGenericParamType(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDependentGenericParamType(_ node: Node, depth: Int) throws(RemanglerError) {
         if node.children.count == 2,
            let paramDepth = node.children[0].index,
            let paramIndex = node.children[1].index,
-           paramDepth == 0 && paramIndex == 0 {
-            
+           paramDepth == 0, paramIndex == 0 {
             append("x")
-            return .success
+            return
         }
 
         append("q")
         mangleDependentGenericParamIndex(node)
-        return .success
     }
 
-    func mangleDependentMemberType(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDependentMemberType(_ node: Node, depth: Int) throws(RemanglerError) {
         // Call mangleConstrainedType to handle the whole chain with substitutions
-        let manglingResult = mangleConstrainedType(node, depth: depth + 1)
-        guard case .success(let result) = manglingResult else {
-            if case .failure(let error) = manglingResult {
-                return error
-            }
-            return .invalidNodeStructure(node, message: "mangleConstrainedType failed")
-        }
+        let (numMembers, paramIdx) = try mangleConstrainedType(node, depth: depth + 1)
 
-        let (numMembers, paramIdx) = result
+        // DEBUG: Print what we got
+        if node.description.contains("PhaseValue") && node.description.contains("Value") {
+            print("DEBUG: mangleDependentMemberType - numMembers=\(numMembers), hasParamIdx=\(paramIdx != nil)")
+        }
 
         // Based on chain size, output the appropriate suffix
         switch numMembers {
@@ -894,7 +840,7 @@ extension Remangler {
 
         case 0:
             // Error case - shouldn't happen with valid dependent member types
-            return .invalidNodeStructure(node, message: "WrongDependentMemberType")
+            throw .invalidNodeStructure(node, message: "WrongDependentMemberType")
 
         case 1:
             // Single member access
@@ -914,17 +860,15 @@ extension Remangler {
                 append("X")
             }
         }
-
-        return .success
     }
 
     // MARK: - Protocol Composition
 
     /// Helper function for mangling protocol lists with optional superclass or AnyObject
-    private func mangleProtocolListHelper(_ protocols: Node, superclass: Node?, hasExplicitAnyObject: Bool, depth: Int) -> RemanglerError {
+    private func mangleProtocolListHelper(_ protocols: Node, superclass: Node?, hasExplicitAnyObject: Bool, depth: Int) throws(RemanglerError) {
         // Get the TypeList from the protocols node
         guard protocols.children.count == 1, protocols.children[0].kind == .typeList else {
-            return .invalidNodeStructure(protocols, message: "ProtocolList should contain a single TypeList child")
+            throw .invalidNodeStructure(protocols, message: "ProtocolList should contain a single TypeList child")
         }
 
         let typeList = protocols.children[0]
@@ -932,8 +876,7 @@ extension Remangler {
         // Mangle each protocol
         var isFirst = true
         for child in typeList.children {
-            let result = manglePureProtocol(child, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try manglePureProtocol(child, depth: depth + 1)
             mangleListSeparator(&isFirst)
         }
 
@@ -941,337 +884,278 @@ extension Remangler {
 
         // Append suffix based on type
         if let superclass = superclass {
-            let result = mangleType(superclass, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleType(superclass, depth: depth + 1)
             append("Xc")
         } else if hasExplicitAnyObject {
             append("Xl")
         } else {
             append("p")
         }
-
-        return .success
     }
 
-    func mangleProtocolList(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleProtocolListHelper(node, superclass: nil, hasExplicitAnyObject: false, depth: depth + 1)
+    func mangleProtocolList(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleProtocolListHelper(node, superclass: nil, hasExplicitAnyObject: false, depth: depth + 1)
     }
 
-    func mangleProtocolListWithClass(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleProtocolListWithClass(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "ProtocolListWithClass needs at least 2 children")
+            throw .invalidNodeStructure(node, message: "ProtocolListWithClass needs at least 2 children")
         }
-        return mangleProtocolListHelper(node.children[0], superclass: node.children[1], hasExplicitAnyObject: false, depth: depth + 1)
+        try mangleProtocolListHelper(node.children[0], superclass: node.children[1], hasExplicitAnyObject: false, depth: depth + 1)
     }
 
-    func mangleProtocolListWithAnyObject(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleProtocolListWithAnyObject(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "ProtocolListWithAnyObject needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "ProtocolListWithAnyObject needs at least 1 child")
         }
-        return mangleProtocolListHelper(node.children[0], superclass: nil, hasExplicitAnyObject: true, depth: depth + 1)
+        try mangleProtocolListHelper(node.children[0], superclass: nil, hasExplicitAnyObject: true, depth: depth + 1)
     }
 
     // MARK: - Metatypes
 
-    func mangleMetatype(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleMetatype(_ node: Node, depth: Int) throws(RemanglerError) {
         // Check if first child is MetatypeRepresentation
-        if node.children.count > 0 && node.children[0].kind == .metatypeRepresentation {
-            var result = mangleChildNode(node, at: 1, depth: depth + 1)
-            if !result.isSuccess { return result }
+        if node.children.count > 0, node.children[0].kind == .metatypeRepresentation {
+            try mangleChildNode(node, at: 1, depth: depth + 1)
             append("XM")
-            result = mangleChildNode(node, at: 0, depth: depth + 1)
-            guard result.isSuccess else { return result }
-            return .success
+            try mangleChildNode(node, at: 0, depth: depth + 1)
         } else {
             // Normal case: output single child + "m"
-            let result = mangleSingleChildNode(node, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleSingleChildNode(node, depth: depth + 1)
             append("m")
-            return .success
         }
     }
 
-    func mangleExistentialMetatype(_ node: Node, depth: Int) -> RemanglerError {
-        if node.children.count > 0 && node.children[0].kind == .metatypeRepresentation {
-            let result = mangleChildNode(node, at: 1, depth: depth + 1)
-            if !result.isSuccess { return result }
+    func mangleExistentialMetatype(_ node: Node, depth: Int) throws(RemanglerError) {
+        if node.children.count > 0, node.children[0].kind == .metatypeRepresentation {
+            try mangleChildNode(node, at: 1, depth: depth + 1)
             append("Xm")
-            return mangleChildNode(node, at: 0, depth: depth + 1)
+            try mangleChildNode(node, at: 0, depth: depth + 1)
         } else {
-            let result = mangleSingleChildNode(node, depth: depth)
-            if !result.isSuccess { return result }
+            try mangleSingleChildNode(node, depth: depth)
             append("Xp")
-            return .success
         }
     }
 
     // MARK: - Attributes and Modifiers
 
-    func mangleInOut(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth)
-        if !result.isSuccess { return result }
+    func mangleInOut(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth)
         append("z")
-        return .success
     }
 
-    func mangleShared(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth)
-        if !result.isSuccess { return result }
+    func mangleShared(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth)
         append("h")
-        return .success
     }
 
-    func mangleOwned(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth)
-        if !result.isSuccess { return result }
+    func mangleOwned(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth)
         append("n")
-        return .success
     }
 
     // MARK: - Numbers and Indices
 
-    func mangleNumber(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleNumber(_ node: Node, depth: Int) throws(RemanglerError) {
         guard let index = node.index else {
-            return .invalidNodeStructure(node, message: "Number has no index")
+            throw .invalidNodeStructure(node, message: "Number has no index")
         }
         mangleIndex(index)
-        return .success
     }
 
     // MARK: - Bound Generic Types (Additional)
 
-    func mangleBoundGenericProtocol(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleAnyNominalType(node, depth: depth + 1)
+    func mangleBoundGenericProtocol(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleAnyNominalType(node, depth: depth + 1)
     }
 
-    func mangleBoundGenericTypeAlias(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleAnyNominalType(node, depth: depth + 1)
+    func mangleBoundGenericTypeAlias(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleAnyNominalType(node, depth: depth + 1)
     }
 
     // MARK: - Variables and Storage
 
-    func mangleVariable(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleAbstractStorage(node, accessorCode: "p", depth: depth + 1)
+    func mangleVariable(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleAbstractStorage(node, accessorCode: "p", depth: depth + 1)
     }
 
-    func mangleSubscript(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleAbstractStorage(node, accessorCode: "p", depth: depth + 1)
+    func mangleSubscript(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleAbstractStorage(node, accessorCode: "p", depth: depth + 1)
     }
 
-    func mangleDidSet(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDidSet(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "DidSet needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "DidSet needs at least 1 child")
         }
-        return mangleAbstractStorage(node.children[0], accessorCode: "W", depth: depth + 1)
+        try mangleAbstractStorage(node.children[0], accessorCode: "W", depth: depth + 1)
     }
 
-    func mangleWillSet(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleWillSet(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "WillSet needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "WillSet needs at least 1 child")
         }
-        return mangleAbstractStorage(node.children[0], accessorCode: "w", depth: depth + 1)
+        try mangleAbstractStorage(node.children[0], accessorCode: "w", depth: depth + 1)
     }
 
-    func mangleReadAccessor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleReadAccessor(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "ReadAccessor needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "ReadAccessor needs at least 1 child")
         }
-        return mangleAbstractStorage(node.children[0], accessorCode: "r", depth: depth + 1)
+        try mangleAbstractStorage(node.children[0], accessorCode: "r", depth: depth + 1)
     }
 
-    func mangleModifyAccessor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleModifyAccessor(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "ModifyAccessor needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "ModifyAccessor needs at least 1 child")
         }
-        return mangleAbstractStorage(node.children[0], accessorCode: "M", depth: depth + 1)
+        try mangleAbstractStorage(node.children[0], accessorCode: "M", depth: depth + 1)
     }
 
     // MARK: - Reference Storage
 
-    func mangleWeak(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleWeak(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Xw")
-        return .success
     }
 
-    func mangleUnowned(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleUnowned(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Xo")
-        return .success
     }
 
-    func mangleUnmanaged(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleUnmanaged(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Xu")
-        return .success
     }
 
     // MARK: - Special Function Types
 
-    func mangleThinFunctionType(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodesReversed(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleThinFunctionType(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodesReversed(node, depth: depth + 1)
         append("Xf")
-        return .success
     }
 
-    func mangleNoEscapeFunctionType(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodesReversed(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleNoEscapeFunctionType(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodesReversed(node, depth: depth + 1)
         append("XE")
-        return .success
     }
 
-    func mangleAutoClosureType(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodesReversed(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleAutoClosureType(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodesReversed(node, depth: depth + 1)
         append("XK")
-        return .success
     }
 
-    func mangleEscapingAutoClosureType(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodesReversed(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleEscapingAutoClosureType(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodesReversed(node, depth: depth + 1)
         append("XA")
-        return .success
     }
 
-    func mangleUncurriedFunctionType(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleFunctionSignature(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleUncurriedFunctionType(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleFunctionSignature(node, depth: depth + 1)
         append("c")
-        return .success
     }
 
     // MARK: - Protocol and Type References
 
-    func mangleProtocolWitness(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleProtocolWitness(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("TW")
-        return .success
     }
 
-    func mangleProtocolWitnessTable(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleProtocolWitnessTable(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("WP")
-        return .success
     }
 
-    func mangleProtocolWitnessTableAccessor(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleProtocolWitnessTableAccessor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Wa")
-        return .success
     }
 
-    func mangleValueWitness(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleValueWitness(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "ValueWitness needs at least 2 children")
+            throw .invalidNodeStructure(node, message: "ValueWitness needs at least 2 children")
         }
 
         // Get the index from the first child (Index node)
         guard let indexValue = node.children[0].index else {
-            return .invalidNodeStructure(node, message: "ValueWitness Index child has no index value")
+            throw .invalidNodeStructure(node, message: "ValueWitness Index child has no index value")
         }
 
         // Convert index to ValueWitnessKind
         guard let kind = ValueWitnessKind(rawValue: indexValue) else {
-            return .invalidNodeStructure(node, message: "Invalid ValueWitnessKind index: \(indexValue)")
+            throw .invalidNodeStructure(node, message: "Invalid ValueWitnessKind index: \(indexValue)")
         }
 
         // Mangle the type (second child)
-        let result = mangleChildNode(node, at: 1, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNode(node, at: 1, depth: depth + 1)
 
         // Append "w" + code
         append("w")
         append(kind.code)
-        return .success
     }
 
-    func mangleValueWitnessTable(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleValueWitnessTable(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("WV")
-        return .success
     }
 
     // MARK: - Metadata
 
-    func mangleTypeMetadata(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleTypeMetadata(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("N")
-        return .success
     }
 
-    func mangleTypeMetadataAccessFunction(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleTypeMetadataAccessFunction(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Ma")
-        return .success
     }
 
-    func mangleFullTypeMetadata(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleFullTypeMetadata(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Mf")
-        return .success
     }
 
-    func mangleMetaclass(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleMetaclass(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("Mm")
-        return .success
     }
 
     // MARK: - Static and Class Members
 
-    func mangleStatic(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleStatic(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Z")
-        return .success
     }
 
     // MARK: - Initializers
 
-    func mangleInitializer(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleInitializer(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("fi")
-        return .success
     }
 
     // MARK: - Operators
 
-    func manglePrefixOperator(_ node: Node, depth: Int) -> RemanglerError {
+    func manglePrefixOperator(_ node: Node, depth: Int) throws(RemanglerError) {
         mangleIdentifierImpl(node, isOperator: true)
         append("op")
-        return .success
     }
 
-    func manglePostfixOperator(_ node: Node, depth: Int) -> RemanglerError {
+    func manglePostfixOperator(_ node: Node, depth: Int) throws(RemanglerError) {
         mangleIdentifierImpl(node, isOperator: true)
         append("oP")
-        return .success
     }
 
-    func mangleInfixOperator(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleInfixOperator(_ node: Node, depth: Int) throws(RemanglerError) {
         mangleIdentifierImpl(node, isOperator: true)
         append("oi")
-        return .success
     }
 
     // MARK: - Generic Signature
 
-    func mangleDependentGenericSignature(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDependentGenericSignature(_ node: Node, depth: Int) throws(RemanglerError) {
         // First, separate param counts from requirements
         var paramCountEnd = 0
         var paramCounts: [Node] = []
@@ -1282,15 +1166,14 @@ extension Remangler {
                 paramCounts.append(child)
             } else {
                 // It's a requirement - mangle it
-                let result = mangleChildNode(node, at: idx, depth: depth + 1)
-                if !result.isSuccess { return result }
+                try mangleChildNode(node, at: idx, depth: depth + 1)
             }
         }
 
         // If there's only one generic param, mangle nothing except 'l'
-        if paramCountEnd == 1 && paramCounts[0].index == 1 {
+        if paramCountEnd == 1, paramCounts[0].index == 1 {
             append("l")
-            return .success
+            return
         }
 
         // Remangle generic params: 'r' + param counts + 'l'
@@ -1303,175 +1186,153 @@ extension Remangler {
             }
         }
         append("l")
-        return .success
     }
 
-    func mangleDependentGenericType(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDependentGenericType(_ node: Node, depth: Int) throws(RemanglerError) {
         // Mangle children in reverse order (type, then generic signature)
-        let result = mangleChildNodesReversed(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNodesReversed(node, depth: depth + 1)
         append("u")
-        return .success
     }
 
     // MARK: - Throwing and Async
 
-    func mangleThrowsAnnotation(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleThrowsAnnotation(_ node: Node, depth: Int) throws(RemanglerError) {
         append("K")
-        return .success
     }
 
-    func mangleAsyncAnnotation(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleAsyncAnnotation(_ node: Node, depth: Int) throws(RemanglerError) {
         append("Ya")
-        return .success
     }
 
     // MARK: - Context
 
-    func mangleDeclContext(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDeclContext(_ node: Node, depth: Int) throws(RemanglerError) {
         // DeclContext just mangles its single child
-        return mangleSingleChildNode(node, depth: depth + 1)
+        try mangleSingleChildNode(node, depth: depth + 1)
     }
 
-    func mangleAnonymousContext(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleAnonymousContext(_ node: Node, depth: Int) throws(RemanglerError) {
         // AnonymousContext: name, parent context, optional type list
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "AnonymousContext needs at least 2 children")
+            throw .invalidNodeStructure(node, message: "AnonymousContext needs at least 2 children")
         }
 
         // Mangle parent context
-        var result = mangleChildNode(node, at: 1, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNode(node, at: 1, depth: depth + 1)
 
         // Mangle name
-        result = mangleChildNode(node, at: 0, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNode(node, at: 0, depth: depth + 1)
 
         // Mangle type list if present
         if node.children.count >= 3 {
-            result = mangleTypeList(node.children[2], depth: depth + 1)
+            try mangleTypeList(node.children[2], depth: depth + 1)
         } else {
             append("y")
         }
-        if !result.isSuccess { return result }
 
         append("XZ")
-        return .success
     }
 
     // MARK: - Other Nominal Type
 
-    func mangleOtherNominalType(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleAnyNominalType(node, depth: depth + 1)
+    func mangleOtherNominalType(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleAnyNominalType(node, depth: depth + 1)
     }
 
     // MARK: - Closures
 
-    func mangleExplicitClosure(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleExplicitClosure(_ node: Node, depth: Int) throws(RemanglerError) {
         // ExplicitClosure: context (child 0), type (child 2), index (child 1)
         // Match C++ order: child 0, child 2, "fU", child 1
-        var result = mangleChildNode(node, at: 0, depth: depth + 1) // context
-        if !result.isSuccess { return result }
+        try mangleChildNode(node, at: 0, depth: depth + 1) // context
 
         if node.children.count > 2 {
-            result = mangleChildNode(node, at: 2, depth: depth + 1) // type
-            if !result.isSuccess { return result }
+            try mangleChildNode(node, at: 2, depth: depth + 1) // type
         }
 
         append("fU")
 
         // Mangle index (child 1)
-        return mangleChildNode(node, at: 1, depth: depth + 1)
+        try mangleChildNode(node, at: 1, depth: depth + 1)
     }
 
-    func mangleImplicitClosure(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleImplicitClosure(_ node: Node, depth: Int) throws(RemanglerError) {
         // ImplicitClosure: context (child 0), type (child 2), index (child 1)
         // Match C++ order: child 0, child 2, "fu", child 1
-        var result = mangleChildNode(node, at: 0, depth: depth + 1) // context
-        if !result.isSuccess { return result }
+        try mangleChildNode(node, at: 0, depth: depth + 1) // context
 
         if node.children.count > 2 {
-            result = mangleChildNode(node, at: 2, depth: depth + 1) // type
-            if !result.isSuccess { return result }
+            try mangleChildNode(node, at: 2, depth: depth + 1) // type
         }
 
         append("fu")
 
         // Mangle index (child 1)
-        return mangleChildNode(node, at: 1, depth: depth + 1)
+        try mangleChildNode(node, at: 1, depth: depth + 1)
     }
 
     // MARK: - Label List and Tuple Element Name
 
-    func mangleLabelList(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleLabelList(_ node: Node, depth: Int) throws(RemanglerError) {
         // LabelList contains identifiers or empty placeholders
         // Labels are mangled sequentially WITHOUT separators (unlike TypeList)
         if node.children.isEmpty {
             append("y")
-            return .success
+            return
         } else {
-            return mangleChildNodes(node, depth: depth + 1)
+            try mangleChildNodes(node, depth: depth + 1)
         }
     }
 
-    func mangleTupleElementName(_ node: Node, depth: Int) -> RemanglerError {
-        mangleIdentifier(node, depth: depth + 1)
+    func mangleTupleElementName(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleIdentifier(node, depth: depth + 1)
     }
 
     // MARK: - Special Types
 
-    func mangleDynamicSelf(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth)
-        if !result.isSuccess { return result }
+    func mangleDynamicSelf(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth)
         append("XD")
-        return .success
     }
 
-    func mangleErrorType(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleErrorType(_ node: Node, depth: Int) throws(RemanglerError) {
         append("Xe")
-        return .success
     }
 
     // MARK: - List Markers
 
-    func mangleEmptyList(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleEmptyList(_ node: Node, depth: Int) throws(RemanglerError) {
         append("y")
-        return .success
     }
 
-    func mangleFirstElementMarker(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleFirstElementMarker(_ node: Node, depth: Int) throws(RemanglerError) {
         append("_")
-        return .success
     }
 
-    func mangleVariadicMarker(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleVariadicMarker(_ node: Node, depth: Int) throws(RemanglerError) {
         append("d")
-        return .success
     }
 
     // MARK: - Field and Enum
 
-    func mangleFieldOffset(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleFieldOffset(_ node: Node, depth: Int) throws(RemanglerError) {
         // FieldOffset: child 1 (variable), then "Wv", then child 0 (directness)
-        var result = mangleChildNode(node, at: 1, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNode(node, at: 1, depth: depth + 1)
         append("Wv")
-        return mangleChildNode(node, at: 0, depth: depth + 1)
+        try mangleChildNode(node, at: 0, depth: depth + 1)
     }
 
-    func mangleEnumCase(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleEnumCase(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("WC")
-        return .success
     }
 
     // MARK: - Generic Support (High Priority)
 
     /// Mangle any nominal type (generic or not)
-    func mangleAnyNominalType(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleAnyNominalType(_ node: Node, depth: Int) throws(RemanglerError) {
         if depth > Self.maxDepth {
-            return .tooComplex(node)
+            throw .tooComplex(node)
         }
 
         // Check if this is a specialized type
@@ -1479,29 +1340,26 @@ extension Remangler {
             // Try substitution first
             let substResult = trySubstitution(node)
             if substResult.found {
-                return .success
+                return
             }
 
             // Get unspecialized version
             guard let unboundType = getUnspecialized(node) else {
-                return .invalidNodeStructure(node, message: "Cannot get unspecialized type")
+                throw .invalidNodeStructure(node, message: "Cannot get unspecialized type")
             }
 
             // Mangle unbound type
-            var result = mangleAnyNominalType(unboundType, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleAnyNominalType(unboundType, depth: depth + 1)
 
             // Mangle generic arguments
             var separator: Character = "y"
-            result = mangleGenericArgs(node, separator: &separator, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleGenericArgs(node, separator: &separator, depth: depth + 1)
 
             // Handle retroactive conformances if present
             if node.children.count == 3 {
                 let listNode = node.children[2]
                 for child in listNode.children {
-                    result = mangleNode(child, depth: depth + 1)
-                    if !result.isSuccess { return result }
+                    try mangleNode(child, depth: depth + 1)
                 }
             }
 
@@ -1509,177 +1367,151 @@ extension Remangler {
 
             // Add to substitutions (use entry from trySubstitution)
             addSubstitution(substResult.entry)
-
-            return .success
+            return
         }
 
         // Handle non-specialized nominal types
         switch node.kind {
-        case .structure: return mangleAnyGenericType(node, typeOp: "V", depth: depth)
-        case .class: return mangleAnyGenericType(node, typeOp: "C", depth: depth)
-        case .enum: return mangleAnyGenericType(node, typeOp: "O", depth: depth)
-        case .typeAlias: return mangleAnyGenericType(node, typeOp: "a", depth: depth)
-        case .otherNominalType: return mangleAnyGenericType(node, typeOp: "XY", depth: depth)
-        case .typeSymbolicReference: return mangleTypeSymbolicReference(node, depth: depth)
+        case .structure: try mangleAnyGenericType(node, typeOp: "V", depth: depth)
+        case .class: try mangleAnyGenericType(node, typeOp: "C", depth: depth)
+        case .enum: try mangleAnyGenericType(node, typeOp: "O", depth: depth)
+        case .typeAlias: try mangleAnyGenericType(node, typeOp: "a", depth: depth)
+        case .otherNominalType: try mangleAnyGenericType(node, typeOp: "XY", depth: depth)
+        case .typeSymbolicReference: try mangleTypeSymbolicReference(node, depth: depth)
         default:
-            return .invalidNodeStructure(node, message: "Not a nominal type")
+            throw .invalidNodeStructure(node, message: "Not a nominal type")
         }
     }
 
     /// Mangle any generic type with a given type operator
-    func mangleAnyGenericType(_ node: Node, typeOp: String, depth: Int) -> RemanglerError {
+    func mangleAnyGenericType(_ node: Node, typeOp: String, depth: Int) throws(RemanglerError) {
         // Try substitution first
         let substResult = trySubstitution(node)
         if substResult.found {
-            return .success
+            return
         }
 
         // Mangle child nodes
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNodes(node, depth: depth + 1)
 
         // Append type operator
         append(typeOp)
 
         // Add to substitutions (use entry from trySubstitution)
         addSubstitution(substResult.entry)
-
-        return .success
     }
 
     // MARK: - Constructor Support
 
     /// Mangle any constructor (constructor, allocator, etc.)
-    func mangleAnyConstructor(_ node: Node, kindOp: Character, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleAnyConstructor(_ node: Node, kindOp: Character, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("f\(kindOp)")
-        return .success
     }
 
     // MARK: - Bound Generic Function
 
-    func mangleBoundGenericFunction(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleBoundGenericFunction(_ node: Node, depth: Int) throws(RemanglerError) {
         // Try substitution first
         let substResult = trySubstitution(node)
         if substResult.found {
-            return .success
+            return
         }
 
         // Get unspecialized function
         guard let unboundFunction = getUnspecialized(node) else {
-            return .invalidNodeStructure(node, message: "Cannot get unspecialized function")
+            throw .invalidNodeStructure(node, message: "Cannot get unspecialized function")
         }
 
         // Mangle the unbound function
-        var result = mangleFunction(unboundFunction, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleFunction(unboundFunction, depth: depth + 1)
 
         // Mangle generic arguments
         var separator: Character = "y"
-        result = mangleGenericArgs(node, separator: &separator, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleGenericArgs(node, separator: &separator, depth: depth + 1)
 
         append("G")
 
         // Add to substitutions (use entry from trySubstitution)
         addSubstitution(substResult.entry)
-
-        return .success
     }
 
-    func mangleBoundGenericOtherNominalType(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleAnyNominalType(node, depth: depth + 1)
+    func mangleBoundGenericOtherNominalType(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleAnyNominalType(node, depth: depth + 1)
     }
 
     // MARK: - Associated Types
 
-    func mangleAssociatedType(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleAssociatedType(_ node: Node, depth: Int) throws(RemanglerError) {
         // Associated types are not directly mangleable
-        return .unsupportedNodeKind(node)
+        throw .unsupportedNodeKind(node)
     }
 
-    func mangleAssociatedTypeRef(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleAssociatedTypeRef(_ node: Node, depth: Int) throws(RemanglerError) {
         // Try substitution first
         let substResult = trySubstitution(node)
         if substResult.found {
-            return .success
+            return
         }
 
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNodes(node, depth: depth + 1)
 
         append("Qa")
 
         // Add to substitutions (use entry from trySubstitution)
         addSubstitution(substResult.entry)
-
-        return .success
     }
 
-    func mangleAssociatedTypeDescriptor(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleAssociatedTypeDescriptor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("Tl")
-        return .success
     }
 
-    func mangleAssociatedConformanceDescriptor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleAssociatedConformanceDescriptor(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 3 else {
-            return .invalidNodeStructure(node, message: "AssociatedConformanceDescriptor needs 3 children")
+            throw .invalidNodeStructure(node, message: "AssociatedConformanceDescriptor needs 3 children")
         }
 
-        var result = mangleNode(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleNode(node.children[0], depth: depth + 1)
 
-        result = mangleNode(node.children[1], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleNode(node.children[1], depth: depth + 1)
 
-        result = manglePureProtocol(node.children[2], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try manglePureProtocol(node.children[2], depth: depth + 1)
 
         append("Tn")
-        return .success
     }
 
-    func mangleAssociatedTypeMetadataAccessor(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleAssociatedTypeMetadataAccessor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("Wt")
-        return .success
     }
 
-    func mangleAssocTypePath(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleAssocTypePath(_ node: Node, depth: Int) throws(RemanglerError) {
         // Mangle path to associated type
         var firstElem = true
         for child in node.children {
-            let result = mangleNode(child, depth: depth + 1)
-            guard result.isSuccess else { return result }
+            try mangleNode(child, depth: depth + 1)
             mangleListSeparator(&firstElem)
         }
-        return .success
     }
 
-    func mangleAssociatedTypeGenericParamRef(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleAssociatedTypeGenericParamRef(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "AssociatedTypeGenericParamRef needs 2 children")
+            throw .invalidNodeStructure(node, message: "AssociatedTypeGenericParamRef needs 2 children")
         }
 
-        var result = mangleType(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleType(node.children[0], depth: depth + 1)
 
-        result = mangleAssocTypePath(node.children[1], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleAssocTypePath(node.children[1], depth: depth + 1)
 
         append("MXA")
-        return .success
     }
 
     // MARK: - Protocol Conformance
 
-    func mangleProtocolConformance(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleProtocolConformance(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 3 else {
-            return .invalidNodeStructure(node, message: "ProtocolConformance needs at least 3 children")
+            throw .invalidNodeStructure(node, message: "ProtocolConformance needs at least 3 children")
         }
 
         // Get type from first child
@@ -1697,89 +1529,75 @@ extension Remangler {
         }
 
         // Mangle type
-        var result = mangleNode(ty, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleNode(ty, depth: depth + 1)
 
         // Mangle module if present (4th child)
         if node.children.count == 4 {
-            result = mangleChildNode(node, at: 3, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleChildNode(node, at: 3, depth: depth + 1)
         }
 
         // Mangle protocol
-        result = manglePureProtocol(node.children[1], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try manglePureProtocol(node.children[1], depth: depth + 1)
 
         // Mangle conformance reference
-        result = mangleChildNode(node, at: 2, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNode(node, at: 2, depth: depth + 1)
 
         // Mangle generic signature if present
         if let genSig = genSig {
-            result = mangleNode(genSig, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleNode(genSig, depth: depth + 1)
         }
-
-        return .success
     }
 
-    func mangleConcreteProtocolConformance(_ node: Node, depth: Int) -> RemanglerError {
-        var result = mangleType(node.children[0], depth: depth + 1)
-        guard result.isSuccess else { return result }
-        result = mangleNode(node.children[1], depth: depth + 1)
-        guard result.isSuccess else { return result }
+    func mangleConcreteProtocolConformance(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleType(node.children[0], depth: depth + 1)
+        try mangleNode(node.children[1], depth: depth + 1)
         if node.children.count > 2 {
-            result = mangleAnyProtocolConformanceList(node.children[2], depth: depth + 1)
-            guard result.isSuccess else { return result }
+            try mangleAnyProtocolConformanceList(node.children[2], depth: depth + 1)
         } else {
             append("y")
         }
         append("HC")
-        return .success
     }
 
-    func mangleProtocolConformanceDescriptor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleProtocolConformanceDescriptor(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "ProtocolConformanceDescriptor needs 1 child")
+            throw .invalidNodeStructure(node, message: "ProtocolConformanceDescriptor needs 1 child")
         }
 
-        let result = mangleProtocolConformance(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleProtocolConformance(node.children[0], depth: depth + 1)
 
         append("Mc")
-        return .success
     }
 
-    func mangleAnyProtocolConformance(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleAnyProtocolConformance(_ node: Node, depth: Int) throws(RemanglerError) {
         // Dispatch to specific conformance handler
         switch node.kind {
         case .concreteProtocolConformance:
-            return mangleConcreteProtocolConformance(node, depth: depth + 1)
+            try mangleConcreteProtocolConformance(node, depth: depth + 1)
         case .packProtocolConformance:
-            return manglePackProtocolConformance(node, depth: depth + 1)
+            try manglePackProtocolConformance(node, depth: depth + 1)
         case .dependentProtocolConformanceRoot:
-            return mangleDependentProtocolConformanceRoot(node, depth: depth + 1)
+            try mangleDependentProtocolConformanceRoot(node, depth: depth + 1)
         case .dependentProtocolConformanceInherited:
-            return mangleDependentProtocolConformanceInherited(node, depth: depth + 1)
+            try mangleDependentProtocolConformanceInherited(node, depth: depth + 1)
         case .dependentProtocolConformanceAssociated:
-            return mangleDependentProtocolConformanceAssociated(node, depth: depth + 1)
+            try mangleDependentProtocolConformanceAssociated(node, depth: depth + 1)
         case .dependentProtocolConformanceOpaque:
-            return mangleDependentProtocolConformanceOpaque(node, depth: depth + 1)
-        default:
-            return .success
+            try mangleDependentProtocolConformanceOpaque(node, depth: depth + 1)
+        default: break
         }
     }
 
     /// Mangle a pure protocol (without wrapper)
-    private func manglePureProtocol(_ node: Node, depth: Int) -> RemanglerError {
+    private func manglePureProtocol(_ node: Node, depth: Int) throws(RemanglerError) {
         let proto = skipType(node)
 
         // Try standard substitution
         if mangleStandardSubstitution(proto) {
-            return .success
+            return
         }
 
-        return mangleChildNodes(proto, depth: depth + 1)
+        try mangleChildNodes(proto, depth: depth + 1)
     }
 
     private func getChildOfType(_ node: Node) -> Node {
@@ -1790,468 +1608,416 @@ extension Remangler {
 
     // MARK: - Metadata Descriptors
 
-    func mangleNominalTypeDescriptor(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleNominalTypeDescriptor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("Mn")
-        return .success
     }
 
-    func mangleNominalTypeDescriptorRecord(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleNominalTypeDescriptorRecord(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("Hn")
-        return .success
     }
 
-    func mangleProtocolDescriptor(_ node: Node, depth: Int) -> RemanglerError {
-        let result = manglePureProtocol(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleProtocolDescriptor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try manglePureProtocol(node.children[0], depth: depth + 1)
         append("Mp")
-        return .success
     }
 
-    func mangleProtocolDescriptorRecord(_ node: Node, depth: Int) -> RemanglerError {
-        let result = manglePureProtocol(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleProtocolDescriptorRecord(_ node: Node, depth: Int) throws(RemanglerError) {
+        try manglePureProtocol(node.children[0], depth: depth + 1)
         append("Hr")
-        return .success
     }
 
-    func mangleTypeMetadataCompletionFunction(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleTypeMetadataCompletionFunction(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Mr")
-        return .success
     }
 
-    func mangleTypeMetadataDemanglingCache(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleTypeMetadataDemanglingCache(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("MD")
-        return .success
     }
 
-    func mangleTypeMetadataInstantiationCache(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleTypeMetadataInstantiationCache(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("MI")
-        return .success
     }
 
-    func mangleTypeMetadataLazyCache(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleTypeMetadataLazyCache(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("ML")
-        return .success
     }
 
-    func mangleClassMetadataBaseOffset(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleClassMetadataBaseOffset(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Mo")
-        return .success
     }
 
-    func mangleGenericTypeMetadataPattern(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleGenericTypeMetadataPattern(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("MP")
-        return .success
     }
 
-    func mangleProtocolWitnessTablePattern(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleProtocolWitnessTablePattern(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Wp")
-        return .success
     }
 
-    func mangleGenericProtocolWitnessTable(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleGenericProtocolWitnessTable(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("WG")
-        return .success
     }
 
-    func mangleGenericProtocolWitnessTableInstantiationFunction(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleGenericProtocolWitnessTableInstantiationFunction(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("WI")
-        return .success
     }
 
-    func mangleResilientProtocolWitnessTable(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleResilientProtocolWitnessTable(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Wr")
-        return .success
     }
 
-    func mangleProtocolSelfConformanceWitness(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleProtocolSelfConformanceWitness(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("TS")
-        return .success
     }
 
-    func mangleBaseWitnessTableAccessor(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleBaseWitnessTableAccessor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("Wb")
-        return .success
     }
 
-    func mangleBaseConformanceDescriptor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleBaseConformanceDescriptor(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "BaseConformanceDescriptor needs 2 children")
+            throw .invalidNodeStructure(node, message: "BaseConformanceDescriptor needs 2 children")
         }
 
-        var result = mangleNode(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleNode(node.children[0], depth: depth + 1)
 
-        result = manglePureProtocol(node.children[1], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try manglePureProtocol(node.children[1], depth: depth + 1)
 
         append("Tb")
-        return .success
     }
 
-    func mangleDependentAssociatedConformance(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleType(node.children[0], depth: depth + 1)
-        guard result.isSuccess else { return result }
-        return manglePureProtocol(node.children[1], depth: depth + 1)
+    func mangleDependentAssociatedConformance(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleType(node.children[0], depth: depth + 1)
+        try manglePureProtocol(node.children[1], depth: depth + 1)
     }
 
-    func mangleRetroactiveConformance(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleRetroactiveConformance(_ node: Node, depth: Int) throws(RemanglerError) {
         // RetroactiveConformance: process child 1 (protocol conformance), output 'g', then index from child 0
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "RetroactiveConformance needs at least 2 children")
+            throw .invalidNodeStructure(node, message: "RetroactiveConformance needs at least 2 children")
         }
-        var result = mangleAnyProtocolConformance(node.children[1], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleAnyProtocolConformance(node.children[1], depth: depth + 1)
         append("g")
         if let index = node.children[0].index {
             mangleIndex(index)
         }
-        return .success
     }
 
     // MARK: - Outlined Operations (High Priority)
 
-    func mangleOutlinedCopy(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOutlinedCopy(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("WOy")
-        return .success
     }
 
-    func mangleOutlinedConsume(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOutlinedConsume(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("WOe")
-        return .success
     }
 
-    func mangleOutlinedRetain(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOutlinedRetain(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("WOr")
-        return .success
     }
 
-    func mangleOutlinedRelease(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOutlinedRelease(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("WOs")
-        return .success
     }
 
-    func mangleOutlinedDestroy(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOutlinedDestroy(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("WOh")
-        return .success
     }
 
-    func mangleOutlinedInitializeWithTake(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOutlinedInitializeWithTake(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("WOb")
-        return .success
     }
 
-    func mangleOutlinedInitializeWithCopy(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOutlinedInitializeWithCopy(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("WOc")
-        return .success
     }
 
-    func mangleOutlinedAssignWithTake(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOutlinedAssignWithTake(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("WOd")
-        return .success
     }
 
-    func mangleOutlinedAssignWithCopy(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOutlinedAssignWithCopy(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("WOf")
-        return .success
     }
 
-    func mangleOutlinedVariable(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleOutlinedVariable(_ node: Node, depth: Int) throws(RemanglerError) {
         append("Tv")
         if let index = node.index {
             mangleIndex(index)
         }
-        return .success
     }
 
-    func mangleOutlinedEnumGetTag(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOutlinedEnumGetTag(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("WOg")
-        return .success
     }
 
-    func mangleOutlinedEnumProjectDataForLoad(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleOutlinedEnumProjectDataForLoad(_ node: Node, depth: Int) throws(RemanglerError) {
         if node.children.count == 2 {
-            let result = mangleNode(node.children[0], depth: depth + 1)
-            guard result.isSuccess else { return result }
+            try mangleNode(node.children[0], depth: depth + 1)
             append("WOj")
             if let index = node.children[1].index {
                 mangleIndex(index)
             }
-            return .success
+
         } else {
-            var result = mangleNode(node.children[0], depth: depth + 1)
-            guard result.isSuccess else { return result }
-            result = mangleNode(node.children[1], depth: depth + 1)
-            guard result.isSuccess else { return result }
+            try mangleNode(node.children[0], depth: depth + 1)
+            try mangleNode(node.children[1], depth: depth + 1)
             append("WOj")
             if let index = node.children[2].index {
                 mangleIndex(index)
             }
-            return .success
         }
     }
 
-    func mangleOutlinedEnumTagStore(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleOutlinedEnumTagStore(_ node: Node, depth: Int) throws(RemanglerError) {
         if node.children.count == 2 {
-            let result = mangleNode(node.children[0], depth: depth + 1)
-            guard result.isSuccess else { return result }
+            try mangleNode(node.children[0], depth: depth + 1)
             append("WOi")
             if let index = node.children[1].index {
                 mangleIndex(index)
             }
-            return .success
+
         } else {
-            var result = mangleNode(node.children[0], depth: depth + 1)
-            guard result.isSuccess else { return result }
-            result = mangleNode(node.children[1], depth: depth + 1)
-            guard result.isSuccess else { return result }
+            try mangleNode(node.children[0], depth: depth + 1)
+            try mangleNode(node.children[1], depth: depth + 1)
             append("WOi")
             if let index = node.children[2].index {
                 mangleIndex(index)
             }
-            return .success
         }
     }
 
     /// No ValueWitness variants
-    func mangleOutlinedDestroyNoValueWitness(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOutlinedDestroyNoValueWitness(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("WOH")
-        return .success
     }
 
-    func mangleOutlinedInitializeWithCopyNoValueWitness(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOutlinedInitializeWithCopyNoValueWitness(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("WOC")
-        return .success
     }
 
-    func mangleOutlinedAssignWithTakeNoValueWitness(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOutlinedAssignWithTakeNoValueWitness(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("WOD")
-        return .success
     }
 
-    func mangleOutlinedAssignWithCopyNoValueWitness(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOutlinedAssignWithCopyNoValueWitness(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("WOF")
-        return .success
     }
 
-    func mangleOutlinedBridgedMethod(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleOutlinedBridgedMethod(_ node: Node, depth: Int) throws(RemanglerError) {
         append("Te")
         append(node.text ?? "")
         append("_")
-        return .success
     }
 
-    func mangleOutlinedReadOnlyObject(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleOutlinedReadOnlyObject(_ node: Node, depth: Int) throws(RemanglerError) {
         append("Tv")
         if let index = node.index {
             mangleIndex(index)
         }
         append("r")
-        return .success
     }
 
     // MARK: - Pack Support (High Priority)
 
-    func manglePack(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func manglePack(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("QP")
-        return .success
     }
 
-    func manglePackElement(_ node: Node, depth: Int) -> RemanglerError {
+    func manglePackElement(_ node: Node, depth: Int) throws(RemanglerError) {
         // PackElement: child 0, "Qe", child 1
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "PackElement needs at least 2 children")
+            throw .invalidNodeStructure(node, message: "PackElement needs at least 2 children")
         }
-        var result = mangleChildNode(node, at: 0, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNode(node, at: 0, depth: depth + 1)
         append("Qe")
-        result = mangleChildNode(node, at: 1, depth: depth + 1)
-        return result
+        try mangleChildNode(node, at: 1, depth: depth + 1)
     }
 
-    func manglePackElementLevel(_ node: Node, depth: Int) -> RemanglerError {
+    func manglePackElementLevel(_ node: Node, depth: Int) throws(RemanglerError) {
         // PackElementLevel: just mangle the index
         if let index = node.index {
             mangleIndex(index)
         }
-        return .success
     }
 
-    func manglePackExpansion(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func manglePackExpansion(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("Qp")
-        return .success
     }
 
-    func manglePackProtocolConformance(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleAnyProtocolConformanceList(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+    func manglePackProtocolConformance(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleAnyProtocolConformanceList(node.children[0], depth: depth + 1)
         append("HX")
-        return .success
     }
 
-    func mangleSILPackDirect(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleTypeList(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleSILPackDirect(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleTypeList(node, depth: depth + 1)
         append("Qsd")
-        return .success
     }
 
-    func mangleSILPackIndirect(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleTypeList(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleSILPackIndirect(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleTypeList(node, depth: depth + 1)
         append("QSi")
-        return .success
     }
 
     // MARK: - Generic Specialization
 
-    func mangleGenericSpecialization(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleGenericSpecializationNode(node, specKind: "g", depth: depth)
+    func mangleGenericSpecialization(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleGenericSpecializationNode(node, specKind: "g", depth: depth)
     }
 
-    func mangleGenericPartialSpecialization(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleGenericPartialSpecialization(_ node: Node, depth: Int) throws(RemanglerError) {
         for child in node.children {
             if child.kind == .genericSpecializationParam {
-                let result = mangleChildNode(child, at: 0, depth: depth + 1)
-                if !result.isSuccess { return result }
+                try mangleChildNode(child, at: 0, depth: depth + 1)
                 break
             }
         }
-        append(node.kind == .genericPartialSpecializationNotReAbstracted ? "TP": "Tp")
+        append(node.kind == .genericPartialSpecializationNotReAbstracted ? "TP" : "Tp")
         for child in node.children {
-            if child.kind == .genericSpecializationParam {
-                let result = mangleNode(child, depth: depth + 1)
-                if !result.isSuccess { return result }
+            if child.kind != .genericSpecializationParam {
+                try mangleNode(child, depth: depth + 1)
             }
         }
-        return .success
     }
 
-    private func mangleGenericSpecializationNode(_ node: Node, specKind: String, depth: Int) -> RemanglerError {
-        // Mangle the specialized entity
-        guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "GenericSpecialization needs at least 2 children")
+    private func mangleGenericSpecializationNode(_ node: Node, specKind: String, depth: Int) throws(RemanglerError) {
+        var firstParam = true
+        for child in node.children {
+            if child.isKind(of: .genericSpecializationParam) {
+                try mangleChildNode(child, at: 0, depth: depth + 1)
+                mangleListSeparator(&firstParam)
+            }
         }
 
-        var result = mangleNode(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        append("T")
 
-        // Mangle specialization parameters
-        for i in 1 ..< node.children.count {
-            result = mangleNode(node.children[i], depth: depth + 1)
-            if !result.isSuccess { return result }
+        for child in node.children {
+            if child.isKind(of: .droppedArgument) {
+                try mangleNode(child, depth: depth + 1)
+            }
         }
 
-        append("T\(specKind)")
-        return .success
+        append(specKind)
+
+        for child in node.children {
+            if child.kind != .genericSpecializationParam, child.kind != .droppedArgument {
+                try mangleNode(child, depth: depth + 1)
+            }
+        }
     }
 
-    func mangleGenericSpecializationParam(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleChildNodes(node, depth: depth + 1)
+    func mangleGenericSpecializationParam(_ node: Node, depth: Int) throws(RemanglerError) {
+        throw .unsupportedNodeKind(node)
     }
 
-    func mangleFunctionSignatureSpecialization(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleFunctionSignatureSpecialization(_ node: Node, depth: Int) throws(RemanglerError) {
+        
+        for child in node.children {
+            if child.kind == .functionSignatureSpecializationParam, child.children.count > 0, let rawValue = child.children[0].index, let kind = FunctionSigSpecializationParamKind(rawValue: rawValue) {
+                switch kind {
+                case .constantPropFunction, .constantPropGlobal:
+                    try mangleIdentifier(child.children[1], depth: depth + 1)
+                case .constantPropString:
+                    var textNd = child.children[2]
+                    let text = textNd.text
+                    if let text, !text.isEmpty, (Mangle.isDigit(text.first!) || text.first == "_") {
+                        textNd = Node(kind: .identifier, contents: .text("_\(text)\(text.count)"))
+                    }
+                    try mangleIdentifier(textNd, depth: depth + 1)
+                case .closureProp, .constantPropKeyPath:
+                    try mangleIdentifier(child.children[1], depth: depth + 1)
+                    var i = 2
+                    let e = child.children.count
+                    while i != e {
+                        try mangleType(child.children[i], depth: depth + 1)
+                        i += 1
+                    }
+                default:
+                    break
+                }
+            }
+            
+        }
         append("Tf")
-        return .success
-    }
-
-    func mangleGenericTypeParamDecl(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if case .success = result {
-            append("fp")
+        var returnValMangled = false
+        for child in node.children {
+            if child.kind == .functionSignatureSpecializationReturn {
+                append("_")
+                returnValMangled = true
+            }
+            try mangleNode(child, depth: depth + 1)
+            if child.kind == .specializationPassID, let index = node.index {
+                append(index)
+            }
         }
-        return result
-    }
-
-    func mangleDependentGenericParamCount(_ node: Node, depth: Int) -> RemanglerError {
-        guard let count = node.index else {
-            return .invalidNodeStructure(node, message: "DependentGenericParamCount has no index")
+        if !returnValMangled {
+            append("_n")
         }
-        append("\(count)")
-        return .success
     }
 
-    func mangleDependentGenericParamPackMarker(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleGenericTypeParamDecl(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
+        append("fp")
+    }
+
+    func mangleDependentGenericParamCount(_ node: Node, depth: Int) throws(RemanglerError) {
+        throw .unsupportedNodeKind(node)
+    }
+
+    func mangleDependentGenericParamPackMarker(_ node: Node, depth: Int) throws(RemanglerError) {
         // DependentGenericParamPackMarker: output "Rv" then mangle the param index
         guard node.children.count == 1,
               node.children[0].kind == .type else {
-            return .invalidNodeStructure(node, message: "DependentGenericParamPackMarker needs Type child")
+            throw .invalidNodeStructure(node, message: "DependentGenericParamPackMarker needs Type child")
         }
         append("Rv")
         mangleDependentGenericParamIndex(node.children[0].children[0])
-        return .success
     }
 
-    func mangleDependentGenericParamValueMarker(_ node: Node, depth: Int) -> RemanglerError {
-        append("Xv")
-        return .success
+    func mangleDependentGenericParamValueMarker(_ node: Node, depth: Int) throws(RemanglerError) {
+        assert(node.children.count == 2)
+        assert(node.children[0].children[0].kind == .dependentGenericParamType)
+        assert(node.children[1].kind == .type)
+        try mangleType(node.children[1], depth: depth + 1)
+        append("RV")
+        mangleDependentGenericParamIndex(node.children[0].children[0])
     }
 
     // MARK: - Impl Function Type (High Priority)
 
-    func mangleImplFunctionType(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleImplFunctionType(_ node: Node, depth: Int) throws(RemanglerError) {
         var pseudoGeneric = ""
         var genSig: Node? = nil
         var patternSubs: Node? = nil
@@ -2266,10 +2032,9 @@ extension Remangler {
                  .implErrorResult:
                 // Mangle type (last child of parameter/result node)
                 guard child.children.count >= 2 else {
-                    return .invalidNodeStructure(child, message: "Impl parameter/result needs at least 2 children")
+                    throw .invalidNodeStructure(child, message: "Impl parameter/result needs at least 2 children")
                 }
-                let result = mangleNode(child.children.last!, depth: depth + 1)
-                if !result.isSuccess { return result }
+                try mangleNode(child.children.last!, depth: depth + 1)
 
             case .dependentPseudogenericSignature:
                 pseudoGeneric = "P"
@@ -2289,217 +2054,197 @@ extension Remangler {
             }
         }
 
-        // Output coroutine kind if present
-        for child in node.children where child.kind == .implCoroutineKind {
-            let result = mangleNode(child, depth: depth + 1)
-            if !result.isSuccess { return result }
-        }
-
-        // Output async if present
-        // Note: implAsync node kind may not exist in current Node definitions
-        // for child in node.children where child.kind == .implAsync {
-        //     append("H")
-        // }
-
-        // Output differentiability kind if present
-        for child in node.children where child.kind == .implDifferentiabilityKind {
-            let result = mangleNode(child, depth: depth + 1)
-            if !result.isSuccess { return result }
-        }
-
-        // Output parameters with conventions
-        var isFirst = true
-        for child in node.children where child.kind == .implParameter {
-            guard child.children.count >= 2 else { continue }
-
-            // Inline mangle parameter convention (first child should be ImplConvention)
-            if child.children[0].kind == .implConvention {
-                guard let convText = child.children[0].text else {
-                    return .invalidNodeStructure(child.children[0], message: "ImplConvention has no text")
-                }
-                // Parameter convention mapping
-                switch convText {
-                case "@in": append("i")
-                case "@inout": append("l")
-                case "@inout_aliasable": append("b")
-                case "@in_guaranteed": append("n")
-                case "@in_cxx": append("X")
-                case "@in_constant": append("c")
-                case "@owned": append("x")
-                case "@guaranteed": append("g")
-                case "@deallocating": append("e")
-                case "@unowned": append("y")
-                case "@pack_guaranteed": append("p")
-                case "@pack_owned": append("v")
-                case "@pack_inout": append("m")
-                default:
-                    return .invalidNodeStructure(child.children[0], message: "Unknown parameter convention: \(convText)")
-                }
-
-                // Handle parameter attributes (middle children)
-                for i in 1 ..< (child.children.count - 1) {
-                    let grandchild = child.children[i]
-                    let result = mangleNode(grandchild, depth: depth + 1)
-                    if !result.isSuccess { return result }
-                }
-
-                // Mangle the last child (the parameter type)
-                let paramType = child.children[child.children.count - 1]
-                let result = mangleNode(paramType, depth: depth + 1)
-                if !result.isSuccess { return result }
-            }
-
-            mangleListSeparator(&isFirst)
-        }
-        mangleEndOfList(isFirst)
-
-        // Output results with conventions
-        isFirst = true
-        for child in node.children where child.kind == .implResult || child.kind == .implYield {
-            guard child.children.count >= 2 else { continue }
-
-            // Output 'Y' for yield
-            if child.kind == .implYield {
-                append("Y")
-            }
-
-            // Inline mangle result convention (first child should be ImplConvention)
-            if child.children[0].kind == .implConvention {
-                guard let convText = child.children[0].text else {
-                    return .invalidNodeStructure(child.children[0], message: "ImplConvention has no text")
-                }
-                // Result convention mapping (different from parameter!)
-                switch convText {
-                case "@out": append("r")
-                case "@owned": append("o")
-                case "@unowned": append("d")
-                case "@unowned_inner_pointer": append("u")
-                case "@autoreleased": append("a")
-                case "@pack_out": append("k")
-                default:
-                    return .invalidNodeStructure(child.children[0], message: "Unknown result convention: \(convText)")
-                }
-
-                // Handle result attributes (middle children)
-                for i in 1 ..< (child.children.count - 1) {
-                    let grandchild = child.children[i]
-                    let result = mangleNode(grandchild, depth: depth + 1)
-                    if !result.isSuccess { return result }
-                }
-
-                // Mangle the last child (the result type)
-                let resultType = child.children[child.children.count - 1]
-                let result = mangleNode(resultType, depth: depth + 1)
-                if !result.isSuccess { return result }
-            }
-
-            mangleListSeparator(&isFirst)
-        }
-        mangleEndOfList(isFirst)
-
-        // Mangle error result if present
-        for child in node.children where child.kind == .implErrorResult {
-            guard child.children.count >= 2 else { continue }
-            let result = mangleNode(child.children[0], depth: depth + 1)
-            if !result.isSuccess { return result }
-            append("z")
-        }
-
         // Output generic signature if present
         if let genSig = genSig {
-            let result = mangleNode(genSig, depth: depth + 1)
-            if !result.isSuccess { return result }
-        }
-
-        // Mangle pattern substitutions if present
-        if let patternSubs = patternSubs {
-            let result = mangleNode(patternSubs, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleNode(genSig, depth: depth + 1)
         }
 
         // Mangle invocation substitutions if present
         if let invocationSubs = invocationSubs {
-            let result = mangleNode(invocationSubs, depth: depth + 1)
-            if !result.isSuccess { return result }
+            append("y")
+            try mangleChildNodes(invocationSubs.children[0], depth: depth + 1)
+            if invocationSubs.numberOfChildren >= 2 {
+                try mangleRetroactiveConformance(invocationSubs.children[1], depth: depth + 1)
+            }
         }
 
-        // Output calling convention
-        for child in node.children where child.kind == .implFunctionConvention {
-            let result = mangleNode(child, depth: depth + 1)
-            if !result.isSuccess { return result }
+        // Mangle pattern substitutions if present
+        if let patternSubs = patternSubs {
+            try mangleNode(patternSubs[child: 0], depth: depth + 1)
+            append("y")
+            try mangleChildNodes(patternSubs[child: 1], depth: depth + 1)
+            if patternSubs.numberOfChildren >= 3 {
+                let retroactiveConf = patternSubs[child: 2]
+                if retroactiveConf.kind == .typeList {
+                    try mangleChildNodes(retroactiveConf, depth: depth + 1)
+                } else {
+                    try mangleRetroactiveConformance(retroactiveConf, depth: depth + 1)
+                }
+            }
         }
 
-        append("I\(pseudoGeneric)")
-        return .success
+        append("I")
+        
+        if patternSubs != nil {
+            append("s")
+        }
+        if invocationSubs != nil {
+            append("I")
+        }
+        
+        append(pseudoGeneric)
+        
+        for child in node.children {
+            switch child.kind {
+            case .implDifferentiabilityKind:
+                append(child.index!)
+            case .implEscaping:
+                append("e")
+            case .implErasedIsolation:
+                append("A")
+            case .implSendingResult:
+                append("T")
+            case .implConvention:
+                let convCh: String? = switch child.text {
+                case "@callee_unowned": "y"
+                case "@callee_guaranteed": "g"
+                case "@callee_owned": "x"
+                case "@convention(thin)": "t"
+                default: nil
+                }
+                if let convCh {
+                    append(convCh)
+                } else {
+                    throw .invalidImplCalleeConvention(child)
+                }
+            case .implFunctionConvention:
+                try mangleImplFunctionConvention(child, depth: depth + 1)
+            case .implCoroutineKind:
+                let text: String? = switch child.text {
+                case "yield_once": "A"
+                case "yield_once_2": "I"
+                case "yield_many": "G"
+                default: nil
+                }
+                if let text {
+                    append(text)
+                } else {
+                    throw .invalidImplCoroutineKind(child)
+                }
+            case .implFunctionAttribute:
+                let text: String? = switch child.text {
+                case "@Sendable": "h"
+                case "@async": "H"
+                default: nil
+                }
+                if let text {
+                    append(text)
+                } else {
+                    throw .invalidImplFunctionAttribute(child)
+                }
+            case .implYield:
+                append("Y")
+                fallthrough
+            case .implParameter:
+                let text: String? = switch child.text {
+                case "@in": "i"
+                case "@inout": "l"
+                case "@inout_aliasable": "b"
+                case "@in_guaranteed": "n"
+                case "@in_cxx": "X"
+                case "@in_constant": "c"
+                case "@owned": "x"
+                case "@guaranteed": "g"
+                case "@unowned": "y"
+                case "@pack_guaranteed": "p"
+                case "@pack_owned": "v"
+                case "@pack_inout": "m"
+                default: nil
+                }
+                if let text {
+                    append(text)
+                } else {
+                    throw .invalidImplParameterConvention(child)
+                }
+                for index in 1..<child.numberOfChildren - 1 {
+                    let grandChild = child[child: index]
+                    switch grandChild.kind {
+                    case .implParameterResultDifferentiability:
+                        try mangleImplParameterResultDifferentiability(grandChild, depth: depth + 1)
+                    case .implParameterSending:
+                        try mangleImplParameterSending(grandChild, depth: depth + 1)
+                    case .implParameterIsolated:
+                        try mangleImplParameterIsolated(grandChild, depth: depth + 1)
+                    case .implParameterImplicitLeading:
+                        try mangleImplParameterImplicitLeading(grandChild, depth: depth + 1)
+                    default:
+                        throw .invalidImplParameterAttr(grandChild)
+                    }
+                }
+            case .implErrorResult:
+                append("z")
+                fallthrough
+            case .implResult:
+                let text: String? = switch child.text {
+                case "@out": "r"
+                case "@owned": "o"
+                case "@unowned": "d"
+                case "@unowned_inner_pointer": "u"
+                case "@autoreleased": "a"
+                case "@pack_out": "k"
+                default: nil
+                }
+                if let text {
+                    append(text)
+                    if child.numberOfChildren == 3 {
+                        try mangleImplParameterResultDifferentiability(child[child: 1], depth: depth + 1)
+                    } else if child.numberOfChildren == 4 {
+                        try mangleImplParameterResultDifferentiability(child[child: 1], depth: depth + 1)
+                        try mangleImplParameterSending(child[child: 2], depth: depth + 1)
+                    }
+                } else {
+                    throw .invalidImplParameterConvention(child.children.first)
+                }
+            default:
+                break
+            }
+        }
+        append("_")
     }
 
-    func mangleImplParameter(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleImplParameter(_ node: Node, depth: Int) throws(RemanglerError) {
         // ImplParameter is handled inline in mangleImplFunctionType
-        return .invalidNodeStructure(node, message: "ImplParameter should be handled inline")
+        throw .invalidNodeStructure(node, message: "ImplParameter should be handled inline")
     }
 
-    func mangleImplResult(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleImplResult(_ node: Node, depth: Int) throws(RemanglerError) {
         // ImplResult is handled inline in mangleImplFunctionType
-        return .invalidNodeStructure(node, message: "ImplResult should be handled inline")
+        throw .invalidNodeStructure(node, message: "ImplResult should be handled inline")
     }
 
-    func mangleImplYield(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleChildNodes(node, depth: depth + 1)
+    func mangleImplYield(_ node: Node, depth: Int) throws(RemanglerError) {
+        throw .unsupportedNodeKind(node)
     }
 
-    func mangleImplErrorResult(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleChildNodes(node, depth: depth + 1)
+    func mangleImplErrorResult(_ node: Node, depth: Int) throws(RemanglerError) {
+        throw .unsupportedNodeKind(node)
     }
 
-    func mangleImplConvention(_ node: Node, depth: Int) -> RemanglerError {
-        guard let text = node.text else {
-            return .invalidNodeStructure(node, message: "ImplConvention has no text")
+    func mangleImplConvention(_ node: Node, depth: Int) throws(RemanglerError) {
+        let convCh: String? = switch node.text {
+        case "@callee_unowned": "y"
+        case "@callee_guaranteed": "g"
+        case "@callee_owned": "x"
+        default: nil
         }
-
-        // Map convention names to characters
-        // Handle both parameter/result conventions and callee conventions
-        switch text {
-        // Parameter/Result conventions
-        case "@in": append("i")
-        case "@inout": append("l")
-        case "@inout_aliasable": append("b")
-        case "@in_guaranteed": append("n")
-        case "@in_cxx": append("X")
-        case "@owned": append("x")
-        case "@guaranteed": append("g")
-        case "@deallocating": append("e")
-        case "@unowned": append("y")
-        case "@pack_owned": append("v")
-        case "@pack_guaranteed": append("p")
-        case "@pack_inout": append("m")
-        case "@out": append("r")
-        case "@unowned_inner_pointer": append("u")
-        case "@autoreleased": append("a")
-        case "@pack_out": append("k")
-        // Callee conventions
-        case "@callee_unowned": append("y")
-        case "@callee_guaranteed": append("g")
-        case "@callee_owned": append("x")
-        // Legacy direct/indirect forms (if needed)
-        case "direct_unowned": append("d")
-        case "direct_owned": append("o")
-        case "direct_guaranteed": append("g")
-        case "indirect_in": append("i")
-        case "indirect_in_guaranteed": append("l")
-        case "indirect_inout": append("n")
-        case "indirect_inout_aliasable": append("a")
-        case "indirect_out": append("r")
-        case "pack_owned": append("p")
-        case "pack_guaranteed": append("k")
-        case "pack_inout": append("t")
-        default:
-            return .invalidNodeStructure(node, message: "Unknown impl convention: \(text)")
+        if let convCh {
+            append(convCh)
+        } else {
+            throw .invalidImplCalleeConvention(node)
         }
-
-        return .success
     }
 
-    func mangleImplFunctionConvention(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleImplFunctionConvention(_ node: Node, depth: Int) throws(RemanglerError) {
         // Get text from first child if it exists
         let text = (node.children.count > 0 && node.children[0].text != nil)
             ? node.children[0].text!
@@ -2515,259 +2260,214 @@ extension Remangler {
         case "closure": funcAttr = "K"
         case "witness_method": funcAttr = "W"
         default:
-            return .invalidNodeStructure(node, message: "Unknown function convention: \(text)")
+            throw .invalidNodeStructure(node, message: "Unknown function convention: \(text)")
         }
 
         // Check if we need to handle ClangType (for 'B' and 'C' conventions)
-        if (funcAttr == "B" || funcAttr == "C") && node.children.count > 1
-            && node.children[1].kind == .clangType {
+        if funcAttr == "B" || funcAttr == "C", node.children.count > 1,
+           node.children[1].kind == .clangType {
             append("z")
             append(funcAttr)
-            return mangleNode(node.children[1], depth: depth + 1)
+            try mangleClangType(node[child: 1], depth: depth + 1)
         }
 
         append(funcAttr)
-        return .success
     }
 
-    func mangleImplFunctionConventionName(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleImplFunctionConvention(node, depth: depth)
+    func mangleImplFunctionConventionName(_ node: Node, depth: Int) throws(RemanglerError) {
+        throw .unsupportedNodeKind(node)
     }
 
-    func mangleImplFunctionAttribute(_ node: Node, depth: Int) -> RemanglerError {
-        guard let text = node.text else {
-            return .invalidNodeStructure(node, message: "ImplFunctionAttribute has no text")
-        }
-
-        // Map attribute names
-        switch text {
-        case "pseudogeneric": append("Cp")
-        case "noescape": append("Ce")
-        case "noasync": append("Ca")
-        case "Sendable": append("Cs")
-        case "async": append("Ch")
-        default:
-            return .invalidNodeStructure(node, message: "Unknown function attribute: \(text)")
-        }
-
-        return .success
+    func mangleImplFunctionAttribute(_ node: Node, depth: Int) throws(RemanglerError) {
+        throw .unsupportedNodeKind(node)
     }
 
-    func mangleImplEscaping(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleImplEscaping(_ node: Node, depth: Int) throws(RemanglerError) {
         append("e")
-        return .success
     }
 
-    func mangleImplDifferentiabilityKind(_ node: Node, depth: Int) -> RemanglerError {
-        guard let text = node.text else {
-            return .invalidNodeStructure(node, message: "ImplDifferentiabilityKind has no text")
+    func mangleImplDifferentiabilityKind(_ node: Node, depth: Int) throws(RemanglerError) {
+        if let index = node.index {
+            append(index)
         }
+    }
 
-        switch text {
-        case "forward": append("Jf")
-        case "reverse": append("Jr")
-        case "normal": append("Jn")
-        case "linear": append("Jl")
-        default:
-            return .invalidNodeStructure(node, message: "Unknown differentiability kind: \(text)")
+    func mangleImplCoroutineKind(_ node: Node, depth: Int) throws(RemanglerError) {
+        throw .unsupportedNodeKind(node)
+    }
+
+    func mangleImplParameterIsolated(_ node: Node, depth: Int) throws(RemanglerError) {
+        assert(node.text != nil)
+        let diffChar: String? = switch node.text {
+        case "isolated": "I"
+        default: nil
         }
-
-        return .success
-    }
-
-    func mangleImplCoroutineKind(_ node: Node, depth: Int) -> RemanglerError {
-        guard let text = node.text else {
-            return .invalidNodeStructure(node, message: "ImplCoroutineKind has no text")
+        if let diffChar {
+            append(diffChar)
+        } else {
+            throw .invalidImplParameterAttr(node)
         }
+    }
 
-        switch text {
-        case "yield_once": append("A")
-        case "yield_many": append("G")
-        default:
-            return .invalidNodeStructure(node, message: "Unknown coroutine kind: \(text)")
+    func mangleImplParameterSending(_ node: Node, depth: Int) throws(RemanglerError) {
+        assert(node.text != nil)
+        let diffChar: String? = switch node.text {
+        case "sending": "T"
+        default: nil
         }
-
-        return .success
+        if let diffChar {
+            append(diffChar)
+        } else {
+            throw .invalidImplParameterAttr(node)
+        }
     }
 
-    func mangleImplParameterIsolated(_ node: Node, depth: Int) -> RemanglerError {
-        append("i")
-        return mangleChildNodes(node, depth: depth + 1)
+    func mangleImplParameterImplicitLeading(_ node: Node, depth: Int) throws(RemanglerError) {
+        assert(node.text != nil)
+        let diffChar: String? = switch node.text {
+        case "sil_implicit_leading_param": "L"
+        default: nil
+        }
+        if let diffChar {
+            append(diffChar)
+        } else {
+            throw .invalidImplParameterAttr(node)
+        }
     }
 
-    func mangleImplParameterSending(_ node: Node, depth: Int) -> RemanglerError {
-        append("s")
-        return mangleChildNodes(node, depth: depth + 1)
+    func mangleImplSendingResult(_ node: Node, depth: Int) throws(RemanglerError) {
+        append("T")
+        try mangleChildNodes(node, depth: depth + 1)
     }
 
-    func mangleImplParameterImplicitLeading(_ node: Node, depth: Int) -> RemanglerError {
-        append("I")
-        return mangleChildNodes(node, depth: depth + 1)
+    func mangleImplPatternSubstitutions(_ node: Node, depth: Int) throws(RemanglerError) {
+        throw .unsupportedNodeKind(node)
     }
 
-    func mangleImplSendingResult(_ node: Node, depth: Int) -> RemanglerError {
-        append("S")
-        return mangleChildNodes(node, depth: depth + 1)
-    }
-
-    func mangleImplPatternSubstitutions(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
-        append("Ts")
-        return .success
-    }
-
-    func mangleImplInvocationSubstitutions(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
-        append("Ti")
-        return .success
+    func mangleImplInvocationSubstitutions(_ node: Node, depth: Int) throws(RemanglerError) {
+        throw .unsupportedNodeKind(node)
     }
 
     // MARK: - Descriptor/Record Types (20+ methods)
 
-    func mangleAccessibleFunctionRecord(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleAccessibleFunctionRecord(_ node: Node, depth: Int) throws(RemanglerError) {
         append("HF")
-        return .success
     }
 
-    func mangleAnonymousDescriptor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleAnonymousDescriptor(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "AnonymousDescriptor needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "AnonymousDescriptor needs at least 1 child")
         }
 
-        var result = mangleNode(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleNode(node.children[0], depth: depth + 1)
 
         // Check if there's an identifier child
         if node.children.count == 1 {
             append("MXX")
         } else {
-            result = mangleNode(node.children[1], depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleNode(node.children[1], depth: depth + 1)
             append("MXY")
         }
-
-        return .success
     }
 
-    func mangleExtensionDescriptor(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleNode(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleExtensionDescriptor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleNode(node.children[0], depth: depth + 1)
         append("MXE")
-        return .success
     }
 
-    func mangleMethodDescriptor(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleMethodDescriptor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Tq")
-        return .success
     }
 
-    func mangleModuleDescriptor(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleNode(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleModuleDescriptor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleNode(node.children[0], depth: depth + 1)
         append("MXM")
-        return .success
     }
 
-    func manglePropertyDescriptor(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func manglePropertyDescriptor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("MV")
-        return .success
     }
 
-    func mangleProtocolConformanceDescriptorRecord(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleProtocolConformanceDescriptorRecord(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "ProtocolConformanceDescriptorRecord needs 1 child")
+            throw .invalidNodeStructure(node, message: "ProtocolConformanceDescriptorRecord needs 1 child")
         }
 
-        let result = mangleProtocolConformance(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleProtocolConformance(node.children[0], depth: depth + 1)
 
         append("Hc")
-        return .success
     }
 
-    func mangleProtocolRequirementsBaseDescriptor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleProtocolRequirementsBaseDescriptor(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "ProtocolRequirementsBaseDescriptor needs 1 child")
+            throw .invalidNodeStructure(node, message: "ProtocolRequirementsBaseDescriptor needs 1 child")
         }
 
-        let result = manglePureProtocol(skipType(node.children[0]), depth: depth + 1)
-        if !result.isSuccess { return result }
+        try manglePureProtocol(node.children[0], depth: depth + 1)
 
         append("TL")
-        return .success
     }
 
-    func mangleProtocolSelfConformanceDescriptor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleProtocolSelfConformanceDescriptor(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "ProtocolSelfConformanceDescriptor needs 1 child")
+            throw .invalidNodeStructure(node, message: "ProtocolSelfConformanceDescriptor needs 1 child")
         }
 
-        let result = manglePureProtocol(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try manglePureProtocol(node.children[0], depth: depth + 1)
 
         append("MS")
-        return .success
     }
 
-    func mangleProtocolSelfConformanceWitnessTable(_ node: Node, depth: Int) -> RemanglerError {
-        let result = manglePureProtocol(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleProtocolSelfConformanceWitnessTable(_ node: Node, depth: Int) throws(RemanglerError) {
+        try manglePureProtocol(node.children[0], depth: depth + 1)
         append("WS")
-        return .success
     }
 
-    func mangleProtocolSymbolicReference(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleProtocolSymbolicReference(_ node: Node, depth: Int) throws(RemanglerError) {
         // Symbolic reference - requires resolver
-        return .unsupportedNodeKind(node)
+        throw .unsupportedNodeKind(node)
     }
 
-    func mangleTypeSymbolicReference(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleTypeSymbolicReference(_ node: Node, depth: Int) throws(RemanglerError) {
         // Symbolic reference - requires resolver
-        return .unsupportedNodeKind(node)
+        throw .unsupportedNodeKind(node)
     }
 
-    func mangleObjectiveCProtocolSymbolicReference(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleObjectiveCProtocolSymbolicReference(_ node: Node, depth: Int) throws(RemanglerError) {
         // Symbolic reference - requires resolver
-        return .unsupportedNodeKind(node)
+        throw .unsupportedNodeKind(node)
     }
 
     // MARK: - Opaque Types (10 methods)
 
-    func mangleOpaqueType(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleOpaqueType(_ node: Node, depth: Int) throws(RemanglerError) {
         // Try substitution first
         let substResult = trySubstitution(node)
         if substResult.found {
-            return .success
+            return
         }
 
         guard node.children.count >= 3 else {
-            return .invalidNodeStructure(node, message: "OpaqueType needs at least 3 children")
+            throw .invalidNodeStructure(node, message: "OpaqueType needs at least 3 children")
         }
 
         // Mangle first child (descriptor)
-        var result = mangleNode(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleNode(node.children[0], depth: depth + 1)
 
         // Mangle bound generics (child 2) with separators
         let boundGenerics = node.children[2]
         for (i, child) in boundGenerics.children.enumerated() {
             append(i == 0 ? "y" : "_")
-            result = mangleChildNodes(child, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleChildNodes(child, depth: depth + 1)
         }
 
         // Mangle retroactive conformances if present (child 3)
         if node.children.count >= 4 {
             let retroactiveConformances = node.children[3]
             for child in retroactiveConformances.children {
-                result = mangleNode(child, depth: depth + 1)
-                if !result.isSuccess { return result }
+                try mangleNode(child, depth: depth + 1)
             }
         }
 
@@ -2780,13 +2480,11 @@ extension Remangler {
 
         // Add to substitutions (use entry from trySubstitution)
         addSubstitution(substResult.entry)
-
-        return .success
     }
 
-    func mangleOpaqueReturnType(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleOpaqueReturnType(_ node: Node, depth: Int) throws(RemanglerError) {
         // Check if first child is OpaqueReturnTypeIndex
-        if node.children.count > 0 && node.children[0].kind == .opaqueReturnTypeIndex {
+        if node.children.count > 0, node.children[0].kind == .opaqueReturnTypeIndex {
             // Has index - output "QR" followed by index
             append("QR")
             if let index = node.children[0].index {
@@ -2796,155 +2494,118 @@ extension Remangler {
             // No index or no children - output "Qr"
             append("Qr")
         }
-
-        return .success
     }
 
-    func mangleOpaqueReturnTypeOf(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOpaqueReturnTypeOf(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleNode(node[child: 0], depth: depth + 1)
         append("QO")
-        return .success
     }
 
-    func mangleOpaqueReturnTypeIndex(_ node: Node, depth: Int) -> RemanglerError {
-        // This is just a marker node with an index
-        return .success
+    func mangleOpaqueReturnTypeIndex(_ node: Node, depth: Int) throws(RemanglerError) {
+        throw .badNodeKind(node)
     }
 
-    func mangleOpaqueReturnTypeParent(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleChildNodes(node, depth: depth + 1)
+    func mangleOpaqueReturnTypeParent(_ node: Node, depth: Int) throws(RemanglerError) {
+        throw .badNodeKind(node)
     }
 
-    func mangleOpaqueTypeDescriptor(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOpaqueTypeDescriptor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("MQ")
-        return .success
     }
 
-    func mangleOpaqueTypeDescriptorAccessor(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOpaqueTypeDescriptorAccessor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Mg")
-        return .success
     }
 
-    func mangleOpaqueTypeDescriptorAccessorImpl(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
-        append("Mi")
-        return .success
+    func mangleOpaqueTypeDescriptorAccessorImpl(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
+        append("Mh")
     }
 
-    func mangleOpaqueTypeDescriptorAccessorKey(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOpaqueTypeDescriptorAccessorKey(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Mj")
-        return .success
     }
 
-    func mangleOpaqueTypeDescriptorAccessorVar(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOpaqueTypeDescriptorAccessorVar(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Mk")
-        return .success
     }
 
-    func mangleOpaqueTypeDescriptorRecord(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOpaqueTypeDescriptorRecord(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Ho")
-        return .success
     }
 
-    func mangleOpaqueTypeDescriptorSymbolicReference(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleOpaqueTypeDescriptorSymbolicReference(_ node: Node, depth: Int) throws(RemanglerError) {
         // Symbolic reference
-        return .unsupportedNodeKind(node)
+        throw .unsupportedNodeKind(node)
     }
 
     // MARK: - Thunk Types (10+ methods)
 
-    func mangleCurryThunk(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleCurryThunk(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Tc")
-        return .success
     }
 
-    func mangleDispatchThunk(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleDispatchThunk(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Tj")
-        return .success
     }
 
-    func mangleReabstractionThunk(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleReabstractionThunk(_ node: Node, depth: Int) throws(RemanglerError) {
         // IMPORTANT: Process children in REVERSE order
-        let result = mangleChildNodesReversed(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNodesReversed(node, depth: depth + 1)
         append("Tr")
-        return .success
     }
 
-    func mangleReabstractionThunkHelper(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleReabstractionThunkHelper(_ node: Node, depth: Int) throws(RemanglerError) {
         // IMPORTANT: Process children in REVERSE order
-        let result = mangleChildNodesReversed(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNodesReversed(node, depth: depth + 1)
         append("TR")
-        return .success
     }
 
-    func mangleReabstractionThunkHelperWithSelf(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleReabstractionThunkHelperWithSelf(_ node: Node, depth: Int) throws(RemanglerError) {
         // IMPORTANT: Process children in REVERSE order
-        let result = mangleChildNodesReversed(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNodesReversed(node, depth: depth + 1)
         append("Ty")
-        return .success
     }
 
-    func mangleReabstractionThunkHelperWithGlobalActor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleReabstractionThunkHelperWithGlobalActor(_ node: Node, depth: Int) throws(RemanglerError) {
         // This one uses NORMAL order (not reversed)
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNodes(node, depth: depth + 1)
         append("TU")
-        return .success
     }
 
-    func manglePartialApplyForwarder(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodesReversed(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func manglePartialApplyForwarder(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodesReversed(node, depth: depth + 1)
         append("TA")
-        return .success
     }
 
-    func manglePartialApplyObjCForwarder(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodesReversed(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func manglePartialApplyObjCForwarder(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodesReversed(node, depth: depth + 1)
         append("Ta")
-        return .success
     }
 
     // MARK: - Macro Support (11 methods)
 
-    func mangleMacro(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleMacro(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("fm")
-        return .success
     }
 
-    func mangleMacroExpansionLoc(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleMacroExpansionLoc(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 3 else {
-            return .invalidNodeStructure(node, message: "MacroExpansionLoc needs at least 3 children")
+            throw .invalidNodeStructure(node, message: "MacroExpansionLoc needs at least 3 children")
         }
 
         // Mangle first two children (context)
-        var result = mangleNode(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleNode(node.children[0], depth: depth + 1)
 
-        result = mangleNode(node.children[1], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleNode(node.children[1], depth: depth + 1)
 
         append("fMX")
 
@@ -2956,582 +2617,474 @@ extension Remangler {
         if node.children.count >= 4, let col = node.children[3].index {
             mangleIndex(col)
         }
-
-        return .success
     }
 
-    func mangleMacroExpansionUniqueName(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleMacroExpansionUniqueName(_ node: Node, depth: Int) throws(RemanglerError) {
         // MacroExpansionUniqueName: child 0, optional child 3, child 1, "fMu", child 2
         guard node.children.count >= 3 else {
-            return .invalidNodeStructure(node, message: "MacroExpansionUniqueName needs at least 3 children")
+            throw .invalidNodeStructure(node, message: "MacroExpansionUniqueName needs at least 3 children")
         }
-        var result = mangleChildNode(node, at: 0, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNode(node, at: 0, depth: depth + 1)
 
         // Handle optional private discriminator (child 3)
         if node.children.count >= 4 {
-            result = mangleNode(node.children[3], depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleNode(node.children[3], depth: depth + 1)
         }
 
-        result = mangleChildNode(node, at: 1, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNode(node, at: 1, depth: depth + 1)
 
         append("fMu")
 
-        return mangleChildNode(node, at: 2, depth: depth + 1)
+        try mangleChildNode(node, at: 2, depth: depth + 1)
     }
 
-    func mangleFreestandingMacroExpansion(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleFreestandingMacroExpansion(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 3 else {
-            return .invalidNodeStructure(node, message: "FreestandingMacroExpansion needs at least 3 children")
+            throw .invalidNodeStructure(node, message: "FreestandingMacroExpansion needs at least 3 children")
         }
 
         // Mangle first child (macro reference)
-        var result = mangleNode(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleNode(node.children[0], depth: depth + 1)
 
         // Handle optional private discriminator
         var macroNameIndex = 1
-        if node.children.count >= 4 && node.children[1].kind == .privateDeclName {
-            result = mangleNode(node.children[1], depth: depth + 1)
-            if !result.isSuccess { return result }
+        if node.children.count >= 4, node.children[1].kind == .privateDeclName {
+            try mangleNode(node.children[1], depth: depth + 1)
             macroNameIndex = 2
         }
 
         // Mangle macro name
-        result = mangleNode(node.children[macroNameIndex], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleNode(node.children[macroNameIndex], depth: depth + 1)
 
         append("fMf")
 
         // Mangle parent context
-        result = mangleNode(node.children[macroNameIndex + 1], depth: depth + 1)
-        if !result.isSuccess { return result }
-
-        return .success
+        try mangleNode(node.children[macroNameIndex + 1], depth: depth + 1)
     }
 
-    func mangleAccessorAttachedMacroExpansion(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleAccessorAttachedMacroExpansion(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("fMa")
-        return .success
     }
 
-    func mangleMemberAttributeAttachedMacroExpansion(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleMemberAttributeAttachedMacroExpansion(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("fMA")
-        return .success
     }
 
-    func mangleMemberAttachedMacroExpansion(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleMemberAttachedMacroExpansion(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("fMm")
-        return .success
     }
 
-    func manglePeerAttachedMacroExpansion(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func manglePeerAttachedMacroExpansion(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("fMp")
-        return .success
     }
 
-    func mangleConformanceAttachedMacroExpansion(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleConformanceAttachedMacroExpansion(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("fMc")
-        return .success
     }
 
-    func mangleExtensionAttachedMacroExpansion(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleExtensionAttachedMacroExpansion(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("fMe")
-        return .success
     }
 
-    func mangleBodyAttachedMacroExpansion(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleBodyAttachedMacroExpansion(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("fMb")
-        return .success
     }
 
     // MARK: - Additional Missing Node Handlers (109 methods)
 
     // MARK: - Simple Markers (20 methods)
 
-    func mangleAsyncFunctionPointer(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleAsyncFunctionPointer(_ node: Node, depth: Int) throws(RemanglerError) {
         append("Tu")
-        return .success
     }
 
-    func mangleAsyncRemoved(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleAsyncRemoved(_ node: Node, depth: Int) throws(RemanglerError) {
         append("a")
-        return .success
     }
 
-    func mangleBackDeploymentFallback(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleBackDeploymentFallback(_ node: Node, depth: Int) throws(RemanglerError) {
         append("TwB")
-        return .success
     }
 
-    func mangleBackDeploymentThunk(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleBackDeploymentThunk(_ node: Node, depth: Int) throws(RemanglerError) {
         append("Twb")
-        return .success
     }
 
-    func mangleBuiltinTupleType(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleBuiltinTupleType(_ node: Node, depth: Int) throws(RemanglerError) {
         append("BT")
-        return .success
     }
 
-    func mangleConcurrentFunctionType(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleConcurrentFunctionType(_ node: Node, depth: Int) throws(RemanglerError) {
         append("Yb")
-        return .success
     }
 
-    func mangleConstrainedExistentialSelf(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleConstrainedExistentialSelf(_ node: Node, depth: Int) throws(RemanglerError) {
         append("s")
-        return .success
     }
 
-    func mangleCoroFunctionPointer(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleCoroFunctionPointer(_ node: Node, depth: Int) throws(RemanglerError) {
         append("Twc")
-        return .success
     }
 
-    func mangleDefaultOverride(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDefaultOverride(_ node: Node, depth: Int) throws(RemanglerError) {
         append("Twd")
-        return .success
     }
 
-    func mangleDirectMethodReferenceAttribute(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDirectMethodReferenceAttribute(_ node: Node, depth: Int) throws(RemanglerError) {
         append("Td")
-        return .success
     }
 
-    func mangleDynamicAttribute(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDynamicAttribute(_ node: Node, depth: Int) throws(RemanglerError) {
         append("TD")
-        return .success
     }
 
-    func mangleHasSymbolQuery(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleHasSymbolQuery(_ node: Node, depth: Int) throws(RemanglerError) {
         append("TwS")
-        return .success
     }
 
-    func mangleImplErasedIsolation(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleImplErasedIsolation(_ node: Node, depth: Int) throws(RemanglerError) {
         append("A")
-        return .success
     }
 
-    func mangleIsSerialized(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleIsSerialized(_ node: Node, depth: Int) throws(RemanglerError) {
         append("q")
-        return .success
     }
 
-    func mangleIsolatedAnyFunctionType(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleIsolatedAnyFunctionType(_ node: Node, depth: Int) throws(RemanglerError) {
         append("YA")
-        return .success
     }
 
-    func mangleMergedFunction(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleMergedFunction(_ node: Node, depth: Int) throws(RemanglerError) {
         append("Tm")
-        return .success
     }
 
-    func mangleNonIsolatedCallerFunctionType(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleNonIsolatedCallerFunctionType(_ node: Node, depth: Int) throws(RemanglerError) {
         append("YC")
-        return .success
     }
 
-    func mangleNonObjCAttribute(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleNonObjCAttribute(_ node: Node, depth: Int) throws(RemanglerError) {
         append("TO")
-        return .success
     }
 
-    func mangleObjCAttribute(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleObjCAttribute(_ node: Node, depth: Int) throws(RemanglerError) {
         append("To")
-        return .success
     }
 
-    func mangleSendingResultFunctionType(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleSendingResultFunctionType(_ node: Node, depth: Int) throws(RemanglerError) {
         append("YT")
-        return .success
     }
 
     // MARK: - Child + Code (15 methods)
 
-    func mangleCompileTimeConst(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleCompileTimeConst(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Yt")
-        return .success
     }
 
-    func mangleConstValue(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleConstValue(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Yg")
-        return .success
     }
 
-    func mangleFullObjCResilientClassStub(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleFullObjCResilientClassStub(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Mt")
-        return .success
     }
 
-    func mangleIVarDestroyer(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleIVarDestroyer(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("fE")
-        return .success
     }
 
-    func mangleIVarInitializer(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleIVarInitializer(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("fe")
-        return .success
     }
 
-    func mangleIsolated(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleIsolated(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Yi")
-        return .success
     }
 
-    func mangleMetadataInstantiationCache(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleMetadataInstantiationCache(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("MK")
-        return .success
     }
 
-    func mangleMethodLookupFunction(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleMethodLookupFunction(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Mu")
-        return .success
     }
 
-    func mangleNoDerivative(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleNoDerivative(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Yk")
-        return .success
     }
 
-    func mangleNoncanonicalSpecializedGenericTypeMetadataCache(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleNoncanonicalSpecializedGenericTypeMetadataCache(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("MJ")
-        return .success
     }
 
-    func mangleObjCMetadataUpdateFunction(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleObjCMetadataUpdateFunction(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("MU")
-        return .success
     }
 
-    func mangleObjCResilientClassStub(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleObjCResilientClassStub(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Ms")
-        return .success
     }
 
-    func mangleSILBoxType(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleSILBoxType(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Xb")
-        return .success
     }
 
-    func mangleSILThunkIdentity(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleSILThunkIdentity(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("TTI")
-        return .success
     }
 
-    func mangleSending(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleSending(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Yu")
-        return .success
     }
 
     // MARK: - All Children + Code (9 methods)
 
-    func mangleBuiltinFixedArray(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleBuiltinFixedArray(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("BV")
-        return .success
     }
 
-    func mangleCoroutineContinuationPrototype(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleCoroutineContinuationPrototype(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("TC")
-        return .success
     }
 
-    func mangleDeallocator(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleDeallocator(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("fD")
-        return .success
     }
 
-    func mangleGlobalActorFunctionType(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleGlobalActorFunctionType(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("Yc")
-        return .success
     }
 
-    func mangleGlobalVariableOnceFunction(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleGlobalVariableOnceFunction(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("WZ")
-        return .success
     }
 
-    func mangleGlobalVariableOnceToken(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleGlobalVariableOnceToken(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("Wz")
-        return .success
     }
 
-    func mangleIsolatedDeallocator(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleIsolatedDeallocator(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("fZ")
-        return .success
     }
 
-    func mangleTypedThrowsAnnotation(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleTypedThrowsAnnotation(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("YK")
-        return .success
     }
 
-    func mangleVTableThunk(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleVTableThunk(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("TV")
-        return .success
     }
 
     // MARK: - AbstractStorage Delegates (13 methods)
 
-    func mangleGlobalGetter(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleGlobalGetter(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "GlobalGetter needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "GlobalGetter needs at least 1 child")
         }
-        return mangleAbstractStorage(node.children[0], accessorCode: "G", depth: depth)
+        try mangleAbstractStorage(node.children[0], accessorCode: "G", depth: depth + 1)
     }
 
-    func mangleInitAccessor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleInitAccessor(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "InitAccessor needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "InitAccessor needs at least 1 child")
         }
-        return mangleAbstractStorage(node.children[0], accessorCode: "i", depth: depth)
+        try mangleAbstractStorage(node.children[0], accessorCode: "i", depth: depth + 1)
     }
 
-    func mangleMaterializeForSet(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleMaterializeForSet(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "MaterializeForSet needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "MaterializeForSet needs at least 1 child")
         }
-        return mangleAbstractStorage(node.children[0], accessorCode: "m", depth: depth)
+        try mangleAbstractStorage(node.children[0], accessorCode: "m", depth: depth + 1)
     }
 
-    func mangleModify2Accessor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleModify2Accessor(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "Modify2Accessor needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "Modify2Accessor needs at least 1 child")
         }
-        return mangleAbstractStorage(node.children[0], accessorCode: "x", depth: depth)
+        try mangleAbstractStorage(node.children[0], accessorCode: "x", depth: depth + 1)
     }
 
-    func mangleNativeOwningAddressor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleNativeOwningAddressor(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "NativeOwningAddressor needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "NativeOwningAddressor needs at least 1 child")
         }
-        return mangleAbstractStorage(node.children[0], accessorCode: "lo", depth: depth)
+        try mangleAbstractStorage(node.children[0], accessorCode: "lo", depth: depth + 1)
     }
 
-    func mangleNativeOwningMutableAddressor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleNativeOwningMutableAddressor(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "NativeOwningMutableAddressor needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "NativeOwningMutableAddressor needs at least 1 child")
         }
-        return mangleAbstractStorage(node.children[0], accessorCode: "ao", depth: depth)
+        try mangleAbstractStorage(node.children[0], accessorCode: "ao", depth: depth + 1)
     }
 
-    func mangleNativePinningAddressor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleNativePinningAddressor(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "NativePinningAddressor needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "NativePinningAddressor needs at least 1 child")
         }
-        return mangleAbstractStorage(node.children[0], accessorCode: "lp", depth: depth)
+        try mangleAbstractStorage(node.children[0], accessorCode: "lp", depth: depth + 1)
     }
 
-    func mangleNativePinningMutableAddressor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleNativePinningMutableAddressor(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "NativePinningMutableAddressor needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "NativePinningMutableAddressor needs at least 1 child")
         }
-        return mangleAbstractStorage(node.children[0], accessorCode: "aP", depth: depth)
+        try mangleAbstractStorage(node.children[0], accessorCode: "aP", depth: depth + 1)
     }
 
-    func mangleOwningAddressor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleOwningAddressor(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "OwningAddressor needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "OwningAddressor needs at least 1 child")
         }
-        return mangleAbstractStorage(node.children[0], accessorCode: "lO", depth: depth)
+        try mangleAbstractStorage(node.children[0], accessorCode: "lO", depth: depth + 1)
     }
 
-    func mangleOwningMutableAddressor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleOwningMutableAddressor(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "OwningMutableAddressor needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "OwningMutableAddressor needs at least 1 child")
         }
-        return mangleAbstractStorage(node.children[0], accessorCode: "aO", depth: depth)
+        try mangleAbstractStorage(node.children[0], accessorCode: "aO", depth: depth + 1)
     }
 
-    func mangleRead2Accessor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleRead2Accessor(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "Read2Accessor needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "Read2Accessor needs at least 1 child")
         }
-        return mangleAbstractStorage(node.children[0], accessorCode: "y", depth: depth)
+        try mangleAbstractStorage(node.children[0], accessorCode: "y", depth: depth + 1)
     }
 
-    func mangleUnsafeAddressor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleUnsafeAddressor(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "UnsafeAddressor needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "UnsafeAddressor needs at least 1 child")
         }
-        return mangleAbstractStorage(node.children[0], accessorCode: "lu", depth: depth)
+        try mangleAbstractStorage(node.children[0], accessorCode: "lu", depth: depth + 1)
     }
 
-    func mangleUnsafeMutableAddressor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleUnsafeMutableAddressor(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "UnsafeMutableAddressor needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "UnsafeMutableAddressor needs at least 1 child")
         }
-        return mangleAbstractStorage(node.children[0], accessorCode: "au", depth: depth)
+        try mangleAbstractStorage(node.children[0], accessorCode: "au", depth: depth + 1)
     }
 
     // MARK: - Node Index Methods (8 methods)
 
-    func mangleAutoDiffFunctionKind(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleAutoDiffFunctionKind(_ node: Node, depth: Int) throws(RemanglerError) {
         guard let index = node.index else {
-            return .invalidNodeStructure(node, message: "AutoDiffFunctionKind has no index")
+            throw .invalidNodeStructure(node, message: "AutoDiffFunctionKind has no index")
         }
-        // Cast index to character
-        let scalar = UnicodeScalar(UInt8(index))
-        append(String(Character(scalar)))
-        return .success
+        append(index)
     }
 
-    func mangleDependentConformanceIndex(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDependentConformanceIndex(_ node: Node, depth: Int) throws(RemanglerError) {
         let indexValue = node.index != nil ? node.index! + 2 : 1
         mangleIndex(indexValue)
-        return .success
     }
 
-    func mangleDifferentiableFunctionType(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDifferentiableFunctionType(_ node: Node, depth: Int) throws(RemanglerError) {
         guard let index = node.index else {
-            return .invalidNodeStructure(node, message: "DifferentiableFunctionType has no index")
+            throw .invalidNodeStructure(node, message: "DifferentiableFunctionType has no index")
         }
         append("Yj")
-        let scalar = UnicodeScalar(UInt8(index))
-        append(String(Character(scalar)))
-        return .success
+        append(index)
     }
 
-    func mangleDirectness(_ node: Node, depth: Int) -> RemanglerError {
-        guard let index = node.index else {
-            return .invalidNodeStructure(node, message: "Directness has no index")
+    func mangleDirectness(_ node: Node, depth: Int) throws(RemanglerError) {
+        guard let index = node.index, let directness = Directness(rawValue: index) else {
+            throw .invalidNodeStructure(node, message: "Directness has no index")
         }
-        // 0 = Direct, 1 = Indirect
-        if index == 0 {
+        switch directness {
+        case .direct:
             append("d")
-        } else if index == 1 {
+        case .indirect:
             append("i")
-        } else {
-            return .invalidNodeStructure(node, message: "Invalid directness index")
         }
-        return .success
     }
 
-    func mangleDroppedArgument(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDroppedArgument(_ node: Node, depth: Int) throws(RemanglerError) {
         guard let index = node.index else {
-            return .invalidNodeStructure(node, message: "DroppedArgument has no index")
+            throw .invalidNodeStructure(node, message: "DroppedArgument has no index")
         }
         append("t")
         if index > 0 {
             append("\(index - 1)")
         }
-        return .success
     }
 
-    func mangleInteger(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleInteger(_ node: Node, depth: Int) throws(RemanglerError) {
         guard let index = node.index else {
-            return .invalidNodeStructure(node, message: "Integer has no index")
+            throw .invalidNodeStructure(node, message: "Integer has no index")
         }
         append("$")
         mangleIndex(index)
-        return .success
     }
 
-    func mangleNegativeInteger(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleNegativeInteger(_ node: Node, depth: Int) throws(RemanglerError) {
         guard let index = node.index else {
-            return .invalidNodeStructure(node, message: "NegativeInteger has no index")
+            throw .invalidNodeStructure(node, message: "NegativeInteger has no index")
         }
         append("$n")
         mangleIndex(0 &- index)
-        return .success
     }
 
-    func mangleSpecializationPassID(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleSpecializationPassID(_ node: Node, depth: Int) throws(RemanglerError) {
         guard let index = node.index else {
-            return .invalidNodeStructure(node, message: "SpecializationPassID has no index")
+            throw .invalidNodeStructure(node, message: "SpecializationPassID has no index")
         }
-        append("\(index)")
-        return .success
+        append(index)
     }
 
     // MARK: - Node Text Methods (3 methods)
 
-    func mangleClangType(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleClangType(_ node: Node, depth: Int) throws(RemanglerError) {
         guard let text = node.text else {
-            return .invalidNodeStructure(node, message: "ClangType has no text")
+            throw .invalidNodeStructure(node, message: "ClangType has no text")
         }
         append("\(text.count)")
         append(text)
-        return .success
     }
 
-    func mangleIndexSubset(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleIndexSubset(_ node: Node, depth: Int) throws(RemanglerError) {
         guard let text = node.text else {
-            return .invalidNodeStructure(node, message: "IndexSubset has no text")
+            throw .invalidNodeStructure(node, message: "IndexSubset has no text")
         }
         append(text)
-        return .success
     }
 
-    func mangleMetatypeRepresentation(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleMetatypeRepresentation(_ node: Node, depth: Int) throws(RemanglerError) {
         guard let text = node.text else {
-            return .invalidNodeStructure(node, message: "MetatypeRepresentation has no text")
+            throw .invalidNodeStructure(node, message: "MetatypeRepresentation has no text")
         }
         switch text {
         case "@thin":
@@ -3541,374 +3094,286 @@ extension Remangler {
         case "@objc_metatype":
             append("o")
         default:
-            return .invalidNodeStructure(node, message: "Invalid metatype representation: \(text)")
+            throw .invalidNodeStructure(node, message: "Invalid metatype representation: \(text)")
         }
-        return .success
     }
 
     // MARK: - Complex Conditional Methods (11 methods)
 
-    func mangleCFunctionPointer(_ node: Node, depth: Int) -> RemanglerError {
-        if node.children.count > 0 && node.children[0].kind == .clangType {
+    func mangleCFunctionPointer(_ node: Node, depth: Int) throws(RemanglerError) {
+        if node.children.count > 0, node.children[0].kind == .clangType {
             // Has ClangType child - use XzC
             for i in stride(from: node.children.count - 1, through: 1, by: -1) {
-                let result = mangleChildNode(node, at: i, depth: depth + 1)
-                if !result.isSuccess { return result }
+                try mangleChildNode(node, at: i, depth: depth + 1)
             }
             append("XzC")
-            return mangleClangType(node.children[0], depth: depth + 1)
+            try mangleClangType(node.children[0], depth: depth + 1)
         } else {
             // No ClangType - use XC
-            let result = mangleChildNodesReversed(node, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleChildNodesReversed(node, depth: depth + 1)
             append("XC")
-            return .success
         }
     }
 
-    func mangleDependentAssociatedTypeRef(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDependentAssociatedTypeRef(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "DependentAssociatedTypeRef needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "DependentAssociatedTypeRef needs at least 1 child")
         }
-        var result = mangleIdentifier(node.children[0], depth: depth)
-        if !result.isSuccess { return result }
+        try mangleIdentifier(node.children[0], depth: depth)
 
         if node.children.count > 1 {
-            result = mangleChildNode(node, at: 1, depth: depth + 1)
+            try mangleChildNode(node, at: 1, depth: depth + 1)
         }
-        return result
     }
 
-    func mangleDependentProtocolConformanceOpaque(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDependentProtocolConformanceOpaque(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "DependentProtocolConformanceOpaque needs 2 children")
+            throw .invalidNodeStructure(node, message: "DependentProtocolConformanceOpaque needs 2 children")
         }
-        var result = mangleAnyProtocolConformance(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleAnyProtocolConformance(node.children[0], depth: depth + 1)
 
-        result = mangleType(node.children[1], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleType(node.children[1], depth: depth + 1)
 
         append("HO")
-        return .success
     }
 
-    func mangleEscapingObjCBlock(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodesReversed(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleEscapingObjCBlock(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodesReversed(node, depth: depth + 1)
         append("XL")
-        return .success
     }
 
-    func mangleExtendedExistentialTypeShape(_ node: Node, depth: Int) -> RemanglerError {
-        if node.children.count == 1 {
-            // Only type
-            let result = mangleNode(node.children[0], depth: depth + 1)
-            if !result.isSuccess { return result }
-            append("Xg")
-        } else if node.children.count == 2 {
-            // genSig + type
-            var result = mangleNode(node.children[0], depth: depth + 1)
-            if !result.isSuccess { return result }
-            result = mangleNode(node.children[1], depth: depth + 1)
-            if !result.isSuccess { return result }
+    func mangleExtendedExistentialTypeShape(_ node: Node, depth: Int) throws(RemanglerError) {
+        
+        var genSig: Node?
+        var type: Node?
+        
+        if node.numberOfChildren == 1 {
+            type = node[child: 0]
+        } else {
+            genSig = node[child: 0]
+            type = node[child: 1]
+        }
+        if let genSig {
+            try mangleNode(genSig, depth: depth + 1)
+        }
+        try mangleNode(type!, depth: depth + 1)
+        
+        if genSig != nil {
             append("XG")
         } else {
-            return .invalidNodeStructure(node, message: "ExtendedExistentialTypeShape needs 1 or 2 children")
+            append("Xg")
         }
-        return .success
     }
 
-    func mangleObjCAsyncCompletionHandlerImpl(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleObjCAsyncCompletionHandlerImpl(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 3 else {
-            return .invalidNodeStructure(node, message: "ObjCAsyncCompletionHandlerImpl needs at least 3 children")
+            throw .invalidNodeStructure(node, message: "ObjCAsyncCompletionHandlerImpl needs at least 3 children")
         }
-        var result = mangleChildNode(node, at: 0, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNode(node, at: 0, depth: depth + 1)
 
-        result = mangleChildNode(node, at: 1, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNode(node, at: 1, depth: depth + 1)
 
         if node.children.count == 4 {
-            result = mangleChildNode(node, at: 3, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleChildNode(node, at: 3, depth: depth + 1)
         }
 
         append("Tz")
-        return mangleChildNode(node, at: 2, depth: depth + 1)
+        try mangleChildNode(node, at: 2, depth: depth + 1)
     }
 
-    func mangleObjCBlock(_ node: Node, depth: Int) -> RemanglerError {
-        if node.children.count > 0 && node.children[0].kind == .clangType {
+    func mangleObjCBlock(_ node: Node, depth: Int) throws(RemanglerError) {
+        if node.children.count > 0, node.children[0].kind == .clangType {
             // Has ClangType child - use XzB
             for i in stride(from: node.children.count - 1, through: 1, by: -1) {
-                let result = mangleChildNode(node, at: i, depth: depth + 1)
-                if !result.isSuccess { return result }
+                try mangleChildNode(node, at: i, depth: depth + 1)
             }
             append("XzB")
-            return mangleClangType(node.children[0], depth: depth + 1)
+            try mangleClangType(node.children[0], depth: depth + 1)
         } else {
             // No ClangType - use XB
-            let result = mangleChildNodesReversed(node, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleChildNodesReversed(node, depth: depth + 1)
             append("XB")
-            return .success
         }
     }
 
-    func mangleRelatedEntityDeclName(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleRelatedEntityDeclName(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "RelatedEntityDeclName needs 2 children")
+            throw .invalidNodeStructure(node, message: "RelatedEntityDeclName needs 2 children")
         }
-        let result = mangleChildNode(node, at: 1, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNode(node, at: 1, depth: depth + 1)
 
         guard let kindText = node.children[0].text, kindText.count == 1 else {
-            return .invalidNodeStructure(node, message: "RelatedEntityDeclName kind must be single character")
+            throw .invalidNodeStructure(node, message: "RelatedEntityDeclName kind must be single character")
         }
 
         append("L")
         append(kindText)
-        return .success
     }
 
-    func mangleSugaredDictionary(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleSugaredDictionary(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "SugaredDictionary needs 2 children")
+            throw .invalidNodeStructure(node, message: "SugaredDictionary needs 2 children")
         }
-        var result = mangleType(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleType(node.children[0], depth: depth + 1)
 
-        result = mangleType(node.children[1], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleType(node.children[1], depth: depth + 1)
 
         append("XSD")
-        return .success
     }
 
-    func mangleConstrainedExistential(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleConstrainedExistential(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "ConstrainedExistential needs 2 children")
+            throw .invalidNodeStructure(node, message: "ConstrainedExistential needs 2 children")
         }
-        var result = mangleChildNode(node, at: 0, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNode(node, at: 0, depth: depth + 1)
 
-        result = mangleChildNode(node, at: 1, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNode(node, at: 1, depth: depth + 1)
 
         append("XP")
-        return .success
     }
 
-    func mangleDependentGenericInverseConformanceRequirement(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDependentGenericInverseConformanceRequirement(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "DependentGenericInverseConformanceRequirement needs 2 children")
+            throw .invalidNodeStructure(node, message: "DependentGenericInverseConformanceRequirement needs 2 children")
         }
 
-        // This is a complex one - simplified implementation
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
-
-        append("RI")
-        return .success
+        let mangling = try mangleConstrainedType(node[child: 0], depth: depth + 1)
+        switch mangling.numMembers {
+        case -1:
+            append("RI")
+            mangleIndex(node[child: 1].index!)
+        case 0:
+            append("Ri")
+        case 1:
+            append("Rj")
+        default:
+            append("RJ")
+        }
     }
 
     // MARK: - Sugar Types (3 methods)
 
-    func mangleSugaredArray(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleSugaredArray(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "SugaredArray needs 1 child")
+            throw .invalidNodeStructure(node, message: "SugaredArray needs 1 child")
         }
-        let result = mangleType(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleType(node.children[0], depth: depth + 1)
         append("XSa")
-        return .success
     }
 
-    func mangleSugaredOptional(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleSugaredOptional(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "SugaredOptional needs 1 child")
+            throw .invalidNodeStructure(node, message: "SugaredOptional needs 1 child")
         }
-        let result = mangleType(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleType(node.children[0], depth: depth + 1)
         append("XSq")
-        return .success
     }
 
-    func mangleSugaredParen(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleSugaredParen(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "SugaredParen needs 1 child")
+            throw .invalidNodeStructure(node, message: "SugaredParen needs 1 child")
         }
-        let result = mangleType(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleType(node.children[0], depth: depth + 1)
         append("XSp")
-        return .success
     }
 
     // MARK: - Iterator/Helper Delegates (5+ methods)
 
-    func mangleAutoDiffFunction(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleAutoDiffFunctionOrSimpleThunk(node, op: "TJ", depth: depth)
+    func mangleAutoDiffFunction(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleAutoDiffFunctionOrSimpleThunk(node, op: "TJ", depth: depth + 1)
     }
 
-    func mangleAutoDiffDerivativeVTableThunk(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleAutoDiffFunctionOrSimpleThunk(node, op: "TJV", depth: depth)
+    func mangleAutoDiffDerivativeVTableThunk(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleAutoDiffFunctionOrSimpleThunk(node, op: "TJV", depth: depth + 1)
     }
 
-    private func mangleAutoDiffFunctionOrSimpleThunk(_ node: Node, op: String, depth: Int) -> RemanglerError {
-        // Mangle children before AutoDiffFunctionKind
-        for child in node.children {
-            if child.kind != .autoDiffFunctionKind {
-                let result = mangleNode(child, depth: depth + 1)
-                if !result.isSuccess { return result }
-            } else {
-                break
-            }
+    private func mangleAutoDiffFunctionOrSimpleThunk(_ node: Node, op: String, depth: Int) throws(RemanglerError) {
+
+        var childIt = node.children.makeIterator()
+        
+        while let next = childIt.next(), next.kind != .autoDiffFunctionKind {
+            try mangleNode(next, depth: depth + 1)
         }
-
+        
         append(op)
-
-        // Find and mangle kind, parameter indices, result indices
-        var paramIndices: Node? = nil
-        var resultIndices: Node? = nil
-
-        for (index, child) in node.children.enumerated() {
-            if child.kind == .autoDiffFunctionKind {
-                let result = mangleNode(child, depth: depth + 1)
-                if !result.isSuccess { return result }
-
-                if index + 1 < node.children.count {
-                    paramIndices = node.children[index + 1]
-                }
-                if index + 2 < node.children.count {
-                    resultIndices = node.children[index + 2]
-                }
-                break
-            }
+        
+        if let next = childIt.next() {
+            try mangleNode(next, depth: depth + 1)
         }
-
-        if let paramIndices = paramIndices {
-            let result = mangleNode(paramIndices, depth: depth + 1)
-            if !result.isSuccess { return result }
+        if let next = childIt.next() {
+            try mangleNode(next, depth: depth + 1)
         }
         append("p")
-
-        if let resultIndices = resultIndices {
-            let result = mangleNode(resultIndices, depth: depth + 1)
-            if !result.isSuccess { return result }
+        if let next = childIt.next() {
+            try mangleNode(next, depth: depth + 1)
         }
         append("r")
 
-        return .success
     }
 
-    func mangleAutoDiffSubsetParametersThunk(_ node: Node, depth: Int) -> RemanglerError {
-        // Similar to AutoDiffFunctionOrSimpleThunk but with TJS and additional P
-        for child in node.children {
-            if child.kind != .autoDiffFunctionKind {
-                let result = mangleNode(child, depth: depth + 1)
-                if !result.isSuccess { return result }
-            } else {
-                break
-            }
+    func mangleAutoDiffSubsetParametersThunk(_ node: Node, depth: Int) throws(RemanglerError) {
+        
+        var childIt = node.children.makeIterator()
+        
+        while let next = childIt.next(), next.kind != .autoDiffFunctionKind {
+            try mangleNode(next, depth: depth + 1)
         }
-
+        
         append("TJS")
-
-        // Process remaining children
-        for (index, child) in node.children.enumerated() {
-            if child.kind == .autoDiffFunctionKind {
-                var result = mangleNode(child, depth: depth + 1)
-                if !result.isSuccess { return result }
-
-                // Mangle next 3 children
-                if index + 1 < node.children.count {
-                    result = mangleNode(node.children[index + 1], depth: depth + 1)
-                    if !result.isSuccess { return result }
-                }
-                append("p")
-
-                if index + 2 < node.children.count {
-                    result = mangleNode(node.children[index + 2], depth: depth + 1)
-                    if !result.isSuccess { return result }
-                }
-                append("r")
-
-                if index + 3 < node.children.count {
-                    result = mangleNode(node.children[index + 3], depth: depth + 1)
-                    if !result.isSuccess { return result }
-                }
-                append("P")
-
-                break
-            }
+        
+        if let next = childIt.next() {
+            try mangleNode(next, depth: depth + 1)
         }
-
-        return .success
+        if let next = childIt.next() {
+            try mangleNode(next, depth: depth + 1)
+        }
+        append("p")
+        if let next = childIt.next() {
+            try mangleNode(next, depth: depth + 1)
+        }
+        append("r")
+        if let next = childIt.next() {
+            try mangleNode(next, depth: depth + 1)
+        }
+        append("P")
     }
 
-    func mangleDifferentiabilityWitness(_ node: Node, depth: Int) -> RemanglerError {
-        // Mangle children before Index
-        for child in node.children {
-            if child.kind != .index {
-                let result = mangleNode(child, depth: depth + 1)
-                if !result.isSuccess { return result }
-            } else {
-                break
-            }
+    func mangleDifferentiabilityWitness(_ node: Node, depth: Int) throws(RemanglerError) {
+        
+        var childIt = node.children.makeIterator()
+        
+        while let next = childIt.next(), next.kind != .index {
+            try mangleNode(next, depth: depth + 1)
         }
-
-        // Check for DependentGenericSignature at end
-        if node.children.count > 0 && node.children.last!.kind == .dependentGenericSignature {
-            let result = mangleNode(node.children.last!, depth: depth + 1)
-            if !result.isSuccess { return result }
-        }
-
+        
         append("WJ")
-
-        // Find index child and mangle it
-        for (index, child) in node.children.enumerated() {
-            if child.kind == .index {
-                if let idx = child.index {
-                    let scalar = UnicodeScalar(UInt8(idx))
-                    append(String(Character(scalar)))
-                }
-
-                // Mangle next two children (parameter and result indices)
-                if index + 1 < node.children.count {
-                    let result = mangleNode(node.children[index + 1], depth: depth + 1)
-                    if !result.isSuccess { return result }
-                }
-                append("p")
-
-                if index + 2 < node.children.count {
-                    let result = mangleNode(node.children[index + 2], depth: depth + 1)
-                    if !result.isSuccess { return result }
-                }
-                append("r")
-
-                break
-            }
+        
+        if let last = node.children.last, last.kind == .dependentGenericSignature {
+            try mangleNode(last, depth: depth + 1)
         }
-
-        return .success
+        
+        if let next = childIt.next() {
+            try mangleNode(next, depth: depth + 1)
+        }
+        append("p")
+        if let next = childIt.next() {
+            try mangleNode(next, depth: depth + 1)
+        }
+        append("r")
     }
 
-    func mangleGlobalVariableOnceDeclList(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleGlobalVariableOnceDeclList(_ node: Node, depth: Int) throws(RemanglerError) {
         for child in node.children {
-            let result = mangleNode(child, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleNode(child, depth: depth + 1)
             append("_")
         }
-        return .success
     }
 
-    func mangleKeyPathThunkHelper(_ node: Node, op: String, depth: Int) -> RemanglerError {
+    func mangleKeyPathThunkHelper(_ node: Node, op: String, depth: Int) throws(RemanglerError) {
         // Mangle all non-IsSerialized children first
         for child in node.children {
             if child.kind != .isSerialized {
-                let result = mangleNode(child, depth: depth + 1)
-                if !result.isSuccess { return result }
+                try mangleNode(child, depth: depth + 1)
             }
         }
 
@@ -3917,458 +3382,381 @@ extension Remangler {
         // Then mangle all IsSerialized children
         for child in node.children {
             if child.kind == .isSerialized {
-                let result = mangleNode(child, depth: depth + 1)
-                if !result.isSuccess { return result }
+                try mangleNode(child, depth: depth + 1)
             }
         }
-
-        return .success
     }
 
-    func mangleKeyPathGetterThunkHelper(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleKeyPathThunkHelper(node, op: "TK", depth: depth)
+    func mangleKeyPathGetterThunkHelper(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleKeyPathThunkHelper(node, op: "TK", depth: depth + 1)
     }
 
-    func mangleKeyPathSetterThunkHelper(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleKeyPathThunkHelper(node, op: "Tk", depth: depth)
+    func mangleKeyPathSetterThunkHelper(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleKeyPathThunkHelper(node, op: "Tk", depth: depth + 1)
     }
 
-    func mangleKeyPathEqualsThunkHelper(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleKeyPathThunkHelper(node, op: "TH", depth: depth)
+    func mangleKeyPathEqualsThunkHelper(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleKeyPathThunkHelper(node, op: "TH", depth: depth + 1)
     }
 
-    func mangleKeyPathHashThunkHelper(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleKeyPathThunkHelper(node, op: "Th", depth: depth)
+    func mangleKeyPathHashThunkHelper(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleKeyPathThunkHelper(node, op: "Th", depth: depth + 1)
     }
 
-    func mangleKeyPathAppliedMethodThunkHelper(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleKeyPathThunkHelper(node, op: "TkMA", depth: depth)
+    func mangleKeyPathAppliedMethodThunkHelper(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleKeyPathThunkHelper(node, op: "TkMA", depth: depth + 1)
     }
 
     // MARK: - Pseudo/Delegate Methods (3 methods)
 
-    func mangleDependentPseudogenericSignature(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleDependentGenericSignature(node, depth: depth)
+    func mangleDependentPseudogenericSignature(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleDependentGenericSignature(node, depth: depth + 1)
     }
 
-    func mangleInlinedGenericFunction(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleGenericSpecializationNode(node, specKind: "i", depth: depth)
+    func mangleInlinedGenericFunction(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleGenericSpecializationNode(node, specKind: "i", depth: depth + 1)
     }
 
-    func mangleUniquable(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleUniquable(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "Uniquable needs 1 child")
+            throw .invalidNodeStructure(node, message: "Uniquable needs 1 child")
         }
-        let result = mangleNode(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleNode(node.children[0], depth: depth + 1)
         append("Mq")
-        return .success
     }
 
     // MARK: - Special Cases
 
-    func mangleDefaultArgumentInitializer(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDefaultArgumentInitializer(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "DefaultArgumentInitializer needs 2 children")
+            throw .invalidNodeStructure(node, message: "DefaultArgumentInitializer needs 2 children")
         }
-        let result = mangleChildNode(node, at: 0, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNode(node, at: 0, depth: depth + 1)
 
         append("fA")
 
-        return mangleChildNode(node, at: 1, depth: depth + 1)
+        try mangleChildNode(node, at: 1, depth: depth + 1)
     }
 
-    func mangleSymbolicExtendedExistentialType(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleSymbolicExtendedExistentialType(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "SymbolicExtendedExistentialType needs children")
+            throw .invalidNodeStructure(node, message: "SymbolicExtendedExistentialType needs children")
         }
 
-        var result = mangleNode(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleNode(node.children[0], depth: depth + 1)
 
         // Mangle all children of child[1]
         if node.children.count >= 2 {
             for arg in node.children[1].children {
-                result = mangleNode(arg, depth: depth + 1)
-                if !result.isSuccess { return result }
+                try mangleNode(arg, depth: depth + 1)
             }
         }
 
         // Mangle all children of child[2]
         if node.children.count >= 3 {
             for conf in node.children[2].children {
-                result = mangleNode(conf, depth: depth + 1)
-                if !result.isSuccess { return result }
+                try mangleNode(conf, depth: depth + 1)
             }
         }
-
-        return .success
     }
 
-    func mangleSILBoxTypeWithLayout(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleSILBoxTypeWithLayout(_ node: Node, depth: Int) throws(RemanglerError) {
         // This is complex - simplified implementation
-        guard node.children.count >= 1 && node.children[0].kind == .silBoxLayout else {
-            return .invalidNodeStructure(node, message: "SILBoxTypeWithLayout needs SILBoxLayout child")
+        guard node.children.count >= 1, node.children[0].kind == .silBoxLayout else {
+            throw .invalidNodeStructure(node, message: "SILBoxTypeWithLayout needs SILBoxLayout child")
         }
 
         // Simplified: just mangle children
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNodes(node, depth: depth + 1)
 
         if node.children.count == 3 {
             append("XX")
         } else {
             append("Xx")
         }
-
-        return .success
     }
 
-    func mangleAsyncAwaitResumePartialFunction(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleAsyncAwaitResumePartialFunction(_ node: Node, depth: Int) throws(RemanglerError) {
         append("TQ")
-        return mangleChildNode(node, at: 0, depth: depth + 1)
+        try mangleChildNode(node, at: 0, depth: depth + 1)
     }
 
     // MARK: - Error/Unsupported Methods (7 methods)
 
-    func mangleAccessorFunctionReference(_ node: Node, depth: Int) -> RemanglerError {
-        return .unsupportedNodeKind(node)
+    func mangleAccessorFunctionReference(_ node: Node, depth: Int) throws(RemanglerError) {
+        throw .unsupportedNodeKind(node)
     }
 
-    func mangleIndex(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleIndex(_ node: Node, depth: Int) throws(RemanglerError) {
         // Handled inline elsewhere
-        return .unsupportedNodeKind(node)
+        throw .unsupportedNodeKind(node)
     }
 
-    func mangleUnknownIndex(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleUnknownIndex(_ node: Node, depth: Int) throws(RemanglerError) {
         // Handled inline elsewhere
-        return .unsupportedNodeKind(node)
+        throw .unsupportedNodeKind(node)
     }
 
-    func mangleSILBoxImmutableField(_ node: Node, depth: Int) -> RemanglerError {
-        return .unsupportedNodeKind(node)
+    func mangleSILBoxImmutableField(_ node: Node, depth: Int) throws(RemanglerError) {
+        throw .unsupportedNodeKind(node)
     }
 
-    func mangleSILBoxLayout(_ node: Node, depth: Int) -> RemanglerError {
-        return .unsupportedNodeKind(node)
+    func mangleSILBoxLayout(_ node: Node, depth: Int) throws(RemanglerError) {
+        throw .unsupportedNodeKind(node)
     }
 
-    func mangleSILBoxMutableField(_ node: Node, depth: Int) -> RemanglerError {
-        return .unsupportedNodeKind(node)
+    func mangleSILBoxMutableField(_ node: Node, depth: Int) throws(RemanglerError) {
+        throw .unsupportedNodeKind(node)
     }
 
-    func mangleVTableAttribute(_ node: Node, depth: Int) -> RemanglerError {
-        return .unsupportedNodeKind(node)
+    func mangleVTableAttribute(_ node: Node, depth: Int) throws(RemanglerError) {
+        throw .unsupportedNodeKind(node)
     }
 
     // MARK: - Additional Missing Methods (17 methods)
 
-    func mangleAsyncSuspendResumePartialFunction(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleAsyncSuspendResumePartialFunction(_ node: Node, depth: Int) throws(RemanglerError) {
         // This is handled in the function attribute mangling logic (mangleInReverseOrder)
         // The actual work happens in mangleFunctionAttribut context
-        return mangleChildNodes(node, depth: depth + 1)
+        try mangleChildNodes(node, depth: depth + 1)
     }
 
-    func mangleDependentProtocolConformanceRoot(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDependentProtocolConformanceRoot(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 3 else {
-            return .invalidNodeStructure(node, message: "DependentProtocolConformanceRoot needs at least 3 children")
+            throw .invalidNodeStructure(node, message: "DependentProtocolConformanceRoot needs at least 3 children")
         }
-        var result = mangleType(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleType(node.children[0], depth: depth + 1)
 
-        result = manglePureProtocol(node.children[1], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try manglePureProtocol(node.children[1], depth: depth + 1)
 
         append("HD")
-        return mangleDependentConformanceIndex(node.children[2], depth: depth + 1)
+        try mangleDependentConformanceIndex(node.children[2], depth: depth + 1)
     }
 
-    func mangleDependentProtocolConformanceInherited(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDependentProtocolConformanceInherited(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 3 else {
-            return .invalidNodeStructure(node, message: "DependentProtocolConformanceInherited needs at least 3 children")
+            throw .invalidNodeStructure(node, message: "DependentProtocolConformanceInherited needs at least 3 children")
         }
-        var result = mangleAnyProtocolConformance(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleAnyProtocolConformance(node.children[0], depth: depth + 1)
 
-        result = manglePureProtocol(node.children[1], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try manglePureProtocol(node.children[1], depth: depth + 1)
 
         append("HI")
-        return mangleDependentConformanceIndex(node.children[2], depth: depth + 1)
+        try mangleDependentConformanceIndex(node.children[2], depth: depth + 1)
     }
 
-    func mangleDependentProtocolConformanceAssociated(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDependentProtocolConformanceAssociated(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 3 else {
-            return .invalidNodeStructure(node, message: "DependentProtocolConformanceAssociated needs at least 3 children")
+            throw .invalidNodeStructure(node, message: "DependentProtocolConformanceAssociated needs at least 3 children")
         }
-        var result = mangleAnyProtocolConformance(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleAnyProtocolConformance(node.children[0], depth: depth + 1)
 
-        result = mangleDependentAssociatedConformance(node.children[1], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleDependentAssociatedConformance(node.children[1], depth: depth + 1)
 
         append("HA")
-        return mangleDependentConformanceIndex(node.children[2], depth: depth + 1)
+        try mangleDependentConformanceIndex(node.children[2], depth: depth + 1)
     }
 
-    func mangleDistributedAccessor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDistributedAccessor(_ node: Node, depth: Int) throws(RemanglerError) {
         append("TF")
-        return .success
     }
 
-    func mangleDistributedThunk(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDistributedThunk(_ node: Node, depth: Int) throws(RemanglerError) {
         append("TE")
-        return .success
     }
 
-    func mangleDynamicallyReplaceableFunctionImpl(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDynamicallyReplaceableFunctionImpl(_ node: Node, depth: Int) throws(RemanglerError) {
         append("TI")
-        return .success
     }
 
-    func mangleDynamicallyReplaceableFunctionKey(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDynamicallyReplaceableFunctionKey(_ node: Node, depth: Int) throws(RemanglerError) {
         append("Tx")
-        return .success
     }
 
-    func mangleDynamicallyReplaceableFunctionVar(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDynamicallyReplaceableFunctionVar(_ node: Node, depth: Int) throws(RemanglerError) {
         append("TX")
-        return .success
     }
 
-    func mangleGenericPartialSpecializationNotReAbstracted(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleGenericPartialSpecialization(node, depth: depth + 1)
+    func mangleGenericPartialSpecializationNotReAbstracted(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleGenericPartialSpecialization(node, depth: depth + 1)
     }
 
-    func mangleGenericSpecializationInResilienceDomain(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleGenericSpecializationNode(node, specKind: "B", depth: depth + 1)
+    func mangleGenericSpecializationInResilienceDomain(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleGenericSpecializationNode(node, specKind: "B", depth: depth + 1)
     }
 
-    func mangleGenericSpecializationNotReAbstracted(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleGenericSpecializationNode(node, specKind: "G", depth: depth + 1)
+    func mangleGenericSpecializationNotReAbstracted(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleGenericSpecializationNode(node, specKind: "G", depth: depth + 1)
     }
 
-    func mangleGenericSpecializationPrespecialized(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleGenericSpecializationNode(node, specKind: "s", depth: depth + 1)
+    func mangleGenericSpecializationPrespecialized(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleGenericSpecializationNode(node, specKind: "s", depth: depth + 1)
     }
 
-    func mangleImplParameterResultDifferentiability(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleImplParameterResultDifferentiability(_ node: Node, depth: Int) throws(RemanglerError) {
         guard let text = node.text else {
-            return .invalidNodeStructure(node, message: "ImplParameterResultDifferentiability has no text")
+            throw .invalidNodeStructure(node, message: "ImplParameterResultDifferentiability has no text")
         }
         // Empty string represents default differentiability
         if text.isEmpty {
-            return .success
+            return
         }
         append(text)
-        return .success
     }
 
-    func manglePropertyWrapperBackingInitializer(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func manglePropertyWrapperBackingInitializer(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("fP")
-        return .success
     }
 
-    func manglePropertyWrapperInitFromProjectedValue(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func manglePropertyWrapperInitFromProjectedValue(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("fW")
-        return .success
     }
 
     // MARK: - Additional 36 Missing Methods (Final Batch)
 
     /// Simple methods - just mangling child nodes + code
-    func mangleDefaultAssociatedConformanceAccessor(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDefaultAssociatedConformanceAccessor(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 3 else {
-            return .invalidNodeStructure(node, message: "DefaultAssociatedConformanceAccessor needs at least 3 children")
+            throw .invalidNodeStructure(node, message: "DefaultAssociatedConformanceAccessor needs at least 3 children")
         }
-        var result = mangleNode(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
-        result = mangleNode(node.children[1], depth: depth + 1)
-        if !result.isSuccess { return result }
-        result = manglePureProtocol(node.children[2], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleNode(node.children[0], depth: depth + 1)
+        try mangleNode(node.children[1], depth: depth + 1)
+        try manglePureProtocol(node.children[2], depth: depth + 1)
         append("TN")
-        return .success
     }
 
-    func mangleDefaultAssociatedTypeMetadataAccessor(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleDefaultAssociatedTypeMetadataAccessor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("TM")
-        return .success
     }
 
-    func mangleAssociatedTypeWitnessTableAccessor(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleAssociatedTypeWitnessTableAccessor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("WT")
-        return .success
     }
 
-    func manglePredefinedObjCAsyncCompletionHandlerImpl(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func manglePredefinedObjCAsyncCompletionHandlerImpl(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("TZ")
-        return .success
     }
 
-    func mangleLazyProtocolWitnessTableAccessor(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleLazyProtocolWitnessTableAccessor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("Wl")
-        return .success
     }
 
-    func mangleLazyProtocolWitnessTableCacheVariable(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleLazyProtocolWitnessTableCacheVariable(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("WL")
-        return .success
     }
 
-    func mangleProtocolConformanceRefInTypeModule(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleProtocolConformanceRefInTypeModule(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "ProtocolConformanceRefInTypeModule needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "ProtocolConformanceRefInTypeModule needs at least 1 child")
         }
-        let result = manglePureProtocol(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try manglePureProtocol(node.children[0], depth: depth + 1)
         append("HP")
-        return .success
     }
 
-    func mangleProtocolConformanceRefInProtocolModule(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleProtocolConformanceRefInProtocolModule(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 1 else {
-            return .invalidNodeStructure(node, message: "ProtocolConformanceRefInProtocolModule needs at least 1 child")
+            throw .invalidNodeStructure(node, message: "ProtocolConformanceRefInProtocolModule needs at least 1 child")
         }
-        let result = manglePureProtocol(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try manglePureProtocol(node.children[0], depth: depth + 1)
         append("Hp")
-        return .success
     }
 
-    func mangleProtocolConformanceRefInOtherModule(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleProtocolConformanceRefInOtherModule(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "ProtocolConformanceRefInOtherModule needs at least 2 children")
+            throw .invalidNodeStructure(node, message: "ProtocolConformanceRefInOtherModule needs at least 2 children")
         }
-        let result = manglePureProtocol(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
-        return mangleChildNode(node, at: 1, depth: depth + 1)
+        try manglePureProtocol(node.children[0], depth: depth + 1)
+        try mangleChildNode(node, at: 1, depth: depth + 1)
     }
 
-    func mangleTypeMetadataInstantiationFunction(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleTypeMetadataInstantiationFunction(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Mi")
-        return .success
     }
 
-    func mangleTypeMetadataSingletonInitializationCache(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleTypeMetadataSingletonInitializationCache(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Ml")
-        return .success
     }
 
-    func mangleReflectionMetadataBuiltinDescriptor(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleReflectionMetadataBuiltinDescriptor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("MB")
-        return .success
     }
 
-    func mangleReflectionMetadataFieldDescriptor(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleReflectionMetadataFieldDescriptor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("MF")
-        return .success
     }
 
-    func mangleReflectionMetadataAssocTypeDescriptor(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleReflectionMetadataAssocTypeDescriptor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("MA")
-        return .success
     }
 
-    func mangleReflectionMetadataSuperclassDescriptor(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleReflectionMetadataSuperclassDescriptor(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("MC")
-        return .success
     }
 
-    func mangleOutlinedInitializeWithTakeNoValueWitness(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleOutlinedInitializeWithTakeNoValueWitness(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("WOB")
-        return .success
     }
 
-    func mangleSugaredInlineArray(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleSugaredInlineArray(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "SugaredInlineArray needs at least 2 children")
+            throw .invalidNodeStructure(node, message: "SugaredInlineArray needs at least 2 children")
         }
-        var result = mangleType(node.children[0], depth: depth + 1)
-        if !result.isSuccess { return result }
-        result = mangleType(node.children[1], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleType(node.children[0], depth: depth + 1)
+        try mangleType(node.children[1], depth: depth + 1)
         append("XSA")
-        return .success
     }
 
-    func mangleCanonicalSpecializedGenericMetaclass(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleChildNodes(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleCanonicalSpecializedGenericMetaclass(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleChildNodes(node, depth: depth + 1)
         append("MM")
-        return .success
     }
 
-    func mangleCanonicalSpecializedGenericTypeMetadataAccessFunction(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleCanonicalSpecializedGenericTypeMetadataAccessFunction(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Mb")
-        return .success
     }
 
-    func mangleNoncanonicalSpecializedGenericTypeMetadata(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleNoncanonicalSpecializedGenericTypeMetadata(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("MN")
-        return .success
     }
 
-    func mangleCanonicalPrespecializedGenericTypeCachingOnceToken(_ node: Node, depth: Int) -> RemanglerError {
-        let result = mangleSingleChildNode(node, depth: depth + 1)
-        if !result.isSuccess { return result }
+    func mangleCanonicalPrespecializedGenericTypeCachingOnceToken(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
         append("Mz")
-        return .success
     }
 
-    func mangleAutoDiffSelfReorderingReabstractionThunk(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleAutoDiffSelfReorderingReabstractionThunk(_ node: Node, depth: Int) throws(RemanglerError) {
         var index = 0
         guard node.children.count >= 3 else {
-            return .invalidNodeStructure(node, message: "AutoDiffSelfReorderingReabstractionThunk needs at least 3 children")
+            throw .invalidNodeStructure(node, message: "AutoDiffSelfReorderingReabstractionThunk needs at least 3 children")
         }
 
         // from type
-        var result = mangleNode(node.children[index], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleNode(node.children[index], depth: depth + 1)
         index += 1
 
         // to type
-        result = mangleNode(node.children[index], depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleNode(node.children[index], depth: depth + 1)
         index += 1
 
         // optional dependent generic signature
-        if index < node.children.count && node.children[index].kind == .dependentGenericSignature {
-            result = mangleDependentGenericSignature(node.children[index], depth: depth + 1)
-            if !result.isSuccess { return result }
+        if index < node.children.count, node.children[index].kind == .dependentGenericSignature {
+            try mangleDependentGenericSignature(node.children[index], depth: depth + 1)
             index += 1
         }
 
@@ -4376,44 +3764,38 @@ extension Remangler {
 
         // kind
         if index < node.children.count {
-            result = mangleNode(node.children[index], depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleNode(node.children[index], depth: depth + 1)
         }
-
-        return .success
     }
 
-    func mangleKeyPathUnappliedMethodThunkHelper(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleKeyPathThunkHelper(node, op: "Tkmu", depth: depth + 1)
+    func mangleKeyPathUnappliedMethodThunkHelper(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleKeyPathThunkHelper(node, op: "Tkmu", depth: depth + 1)
     }
 
     /// Complex methods with special logic
-    func mangleDependentGenericConformanceRequirement(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDependentGenericConformanceRequirement(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count == 2 else {
-            return .invalidNodeStructure(node, message: "DependentGenericConformanceRequirement needs 2 children")
+            throw .invalidNodeStructure(node, message: "DependentGenericConformanceRequirement needs 2 children")
         }
 
         let protoOrClass = node.children[1]
         guard protoOrClass.children.count > 0 else {
-            return .invalidNodeStructure(protoOrClass, message: "Protocol or class node has no children")
+            throw .invalidNodeStructure(protoOrClass, message: "Protocol or class node has no children")
         }
 
         if protoOrClass.children[0].kind == .protocol {
-            let result = manglePureProtocol(protoOrClass, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try manglePureProtocol(protoOrClass, depth: depth + 1)
 
-            let mangling = mangleConstrainedType(node.children[0], depth: depth + 1)
-            if !mangling.isSuccess { return mangling.error! }
+            let (numMembers, paramIdx) = try mangleConstrainedType(node.children[0], depth: depth + 1)
 
-            let (numMembers, paramIdx) = mangling.value!
             guard numMembers < 0 || paramIdx != nil else {
-                return .invalidNodeStructure(node, message: "Invalid constrained type result")
+                throw .invalidNodeStructure(node, message: "Invalid constrained type result")
             }
 
             switch numMembers {
             case -1:
                 append("RQ")
-                return .success
+                return
             case 0:
                 append("R")
             case 1:
@@ -4425,23 +3807,19 @@ extension Remangler {
             if let idx = paramIdx {
                 mangleDependentGenericParamIndex(idx)
             }
-            return .success
+            return
         }
 
-        let result = mangleNode(protoOrClass, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleNode(protoOrClass, depth: depth + 1)
 
-        let mangling = mangleConstrainedType(node.children[0], depth: depth + 1)
-        if !mangling.isSuccess { return mangling.error! }
-
-        let (numMembers, paramIdx) = mangling.value!
+        let (numMembers, paramIdx) = try mangleConstrainedType(node.children[0], depth: depth + 1)
         // Note: C++ has DEMANGLER_ASSERT(numMembers < 0 || paramIdx != nil, node)
         // but we continue execution even if this doesn't hold (like C++ release mode)
 
         switch numMembers {
         case -1:
             append("RB")
-            return .success
+            return
         case 0:
             append("Rb")
         case 1:
@@ -4453,28 +3831,23 @@ extension Remangler {
         if let idx = paramIdx {
             mangleDependentGenericParamIndex(idx)
         }
-        return .success
     }
 
-    func mangleDependentGenericSameTypeRequirement(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDependentGenericSameTypeRequirement(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "DependentGenericSameTypeRequirement needs at least 2 children")
+            throw .invalidNodeStructure(node, message: "DependentGenericSameTypeRequirement needs at least 2 children")
         }
 
-        let result = mangleChildNode(node, at: 1, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNode(node, at: 1, depth: depth + 1)
 
-        let mangling = mangleConstrainedType(node.children[0], depth: depth + 1)
-        if !mangling.isSuccess { return mangling.error! }
-
-        let (numMembers, paramIdx) = mangling.value!
+        let (numMembers, paramIdx) = try mangleConstrainedType(node.children[0], depth: depth + 1)
         // Note: C++ has DEMANGLER_ASSERT(numMembers < 0 || paramIdx != nil, node)
         // but we continue execution even if this doesn't hold (like C++ release mode)
 
         switch numMembers {
         case -1:
             append("RS")
-            return .success
+            return
         case 0:
             append("Rs")
         case 1:
@@ -4486,45 +3859,37 @@ extension Remangler {
         if let idx = paramIdx {
             mangleDependentGenericParamIndex(idx)
         }
-        return .success
     }
 
-    func mangleDependentGenericSameShapeRequirement(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDependentGenericSameShapeRequirement(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "DependentGenericSameShapeRequirement needs at least 2 children")
+            throw .invalidNodeStructure(node, message: "DependentGenericSameShapeRequirement needs at least 2 children")
         }
 
-        let result = mangleChildNode(node, at: 1, depth: depth + 1)
-        if !result.isSuccess { return result }
+        try mangleChildNode(node, at: 1, depth: depth + 1)
 
-        let mangling = mangleConstrainedType(node.children[0], depth: depth + 1)
-        if !mangling.isSuccess { return mangling.error! }
+        let (numMembers, paramIdx) = try mangleConstrainedType(node.children[0], depth: depth + 1)
 
-        let (numMembers, paramIdx) = mangling.value!
         guard numMembers < 0 || paramIdx != nil else {
-            return .invalidNodeStructure(node, message: "Invalid constrained type result")
+            throw .invalidNodeStructure(node, message: "Invalid constrained type result")
         }
 
         guard numMembers == 0 else {
-            return .invalidNodeStructure(node, message: "Invalid same-shape requirement")
+            throw .invalidNodeStructure(node, message: "Invalid same-shape requirement")
         }
 
         append("Rh")
         if let idx = paramIdx {
             mangleDependentGenericParamIndex(idx)
         }
-        return .success
     }
 
-    func mangleDependentGenericLayoutRequirement(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleDependentGenericLayoutRequirement(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count >= 2 else {
-            return .invalidNodeStructure(node, message: "DependentGenericLayoutRequirement needs at least 2 children")
+            throw .invalidNodeStructure(node, message: "DependentGenericLayoutRequirement needs at least 2 children")
         }
 
-        let mangling = mangleConstrainedType(node.children[0], depth: depth + 1)
-        if !mangling.isSuccess { return mangling.error! }
-
-        let (numMembers, paramIdx) = mangling.value!
+        let (numMembers, paramIdx) = try mangleConstrainedType(node.children[0], depth: depth + 1)
         // Note: C++ has DEMANGLER_ASSERT(numMembers < 0 || paramIdx != nil, node)
         // but we continue execution even if this doesn't hold (like C++ release mode)
 
@@ -4546,56 +3911,49 @@ extension Remangler {
 
         // Mangle layout constraint identifier
         guard node.children[1].kind == .identifier else {
-            return .invalidNodeStructure(node, message: "Expected identifier as second child")
+            throw .invalidNodeStructure(node, message: "Expected identifier as second child")
         }
         guard let text = node.children[1].text, text.count == 1 else {
-            return .invalidNodeStructure(node, message: "Layout identifier must be single character")
+            throw .invalidNodeStructure(node, message: "Layout identifier must be single character")
         }
         append(text)
 
         // Optional size
         if node.children.count >= 3 {
-            let result = mangleChildNode(node, at: 2, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleChildNode(node, at: 2, depth: depth + 1)
         }
 
         // Optional alignment
         if node.children.count >= 4 {
-            let result = mangleChildNode(node, at: 3, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleChildNode(node, at: 3, depth: depth + 1)
         }
-
-        return .success
     }
 
-    func mangleConstrainedExistentialRequirementList(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleConstrainedExistentialRequirementList(_ node: Node, depth: Int) throws(RemanglerError) {
         guard node.children.count > 0 else {
-            return .invalidNodeStructure(node, message: "ConstrainedExistentialRequirementList must have children")
+            throw .invalidNodeStructure(node, message: "ConstrainedExistentialRequirementList must have children")
         }
 
         var firstElem = true
         for i in 0 ..< node.children.count {
-            let result = mangleChildNode(node, at: i, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleChildNode(node, at: i, depth: depth + 1)
             mangleListSeparator(&firstElem)
         }
-
-        return .success
     }
 
-    func mangleFunctionSignatureSpecializationReturn(_ node: Node, depth: Int) -> RemanglerError {
-        return mangleFunctionSignatureSpecializationParam(node, depth: depth + 1)
+    func mangleFunctionSignatureSpecializationReturn(_ node: Node, depth: Int) throws(RemanglerError) {
+        try mangleFunctionSignatureSpecializationParam(node, depth: depth + 1)
     }
 
-    func mangleFunctionSignatureSpecializationParam(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleFunctionSignatureSpecializationParam(_ node: Node, depth: Int) throws(RemanglerError) {
         if node.children.count == 0 {
             append("n")
-            return .success
+            return
         }
 
         // First child is kind
         guard let kindNode = node.children.first, let kindValue = kindNode.index else {
-            return .invalidNodeStructure(node, message: "FunctionSignatureSpecializationParam missing kind")
+            throw .invalidNodeStructure(node, message: "FunctionSignatureSpecializationParam missing kind")
         }
 
         // Use enum values for cleaner code
@@ -4610,19 +3968,19 @@ extension Remangler {
                 append("pg")
             case .constantPropInteger:
                 guard node.children.count >= 2, let text = node.children[1].text else {
-                    return .invalidNodeStructure(node, message: "ConstantPropInteger missing text")
+                    throw .invalidNodeStructure(node, message: "ConstantPropInteger missing text")
                 }
                 append("pi")
                 append(text)
             case .constantPropFloat:
                 guard node.children.count >= 2, let text = node.children[1].text else {
-                    return .invalidNodeStructure(node, message: "ConstantPropFloat missing text")
+                    throw .invalidNodeStructure(node, message: "ConstantPropFloat missing text")
                 }
                 append("pd")
                 append(text)
             case .constantPropString:
                 guard node.children.count >= 2, let encodingStr = node.children[1].text else {
-                    return .invalidNodeStructure(node, message: "ConstantPropString missing encoding")
+                    throw .invalidNodeStructure(node, message: "ConstantPropString missing encoding")
                 }
                 append("ps")
                 if encodingStr == "u8" {
@@ -4632,7 +3990,7 @@ extension Remangler {
                 } else if encodingStr == "objc" {
                     append("c")
                 } else {
-                    return .invalidNodeStructure(node, message: "Unknown string encoding: \(encodingStr)")
+                    throw .invalidNodeStructure(node, message: "Unknown string encoding: \(encodingStr)")
                 }
             case .constantPropKeyPath:
                 append("pk")
@@ -4655,7 +4013,7 @@ extension Remangler {
 
             // If it's a simple case, we're done
             if kind < FunctionSigSpecializationParamKind.dead.rawValue {
-                return .success
+                return
             }
         }
 
@@ -4694,57 +4052,53 @@ extension Remangler {
         if hasSROA {
             append("X")
         }
-
-        return .success
     }
 
-    func mangleAnyProtocolConformanceList(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleAnyProtocolConformanceList(_ node: Node, depth: Int) throws(RemanglerError) {
         var firstElem = true
         for child in node.children {
-            let result = mangleAnyProtocolConformance(child, depth: depth + 1)
-            if !result.isSuccess { return result }
+            try mangleAnyProtocolConformance(child, depth: depth + 1)
             mangleListSeparator(&firstElem)
         }
         mangleEndOfList(firstElem)
-        return .success
     }
 
     /// Error/Unsupported methods
-    func mangleFunctionSignatureSpecializationParamKind(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleFunctionSignatureSpecializationParamKind(_ node: Node, depth: Int) throws(RemanglerError) {
         // handled inline in mangleFunctionSignatureSpecializationParam
-        return .unsupportedNodeKind(node)
+        throw .unsupportedNodeKind(node)
     }
 
-    func mangleFunctionSignatureSpecializationParamPayload(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleFunctionSignatureSpecializationParamPayload(_ node: Node, depth: Int) throws(RemanglerError) {
         // handled inline in mangleFunctionSignatureSpecializationParam
-        return .unsupportedNodeKind(node)
+        throw .unsupportedNodeKind(node)
     }
 
-    func mangleUniqueExtendedExistentialTypeShapeSymbolicReference(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleUniqueExtendedExistentialTypeShapeSymbolicReference(_ node: Node, depth: Int) throws(RemanglerError) {
         // We don't support absolute references in the mangling of these
-        return .unsupportedNodeKind(node)
+        throw .unsupportedNodeKind(node)
     }
 
-    func mangleNonUniqueExtendedExistentialTypeShapeSymbolicReference(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleNonUniqueExtendedExistentialTypeShapeSymbolicReference(_ node: Node, depth: Int) throws(RemanglerError) {
         // We don't support absolute references in the mangling of these
-        return .unsupportedNodeKind(node)
+        throw .unsupportedNodeKind(node)
     }
 
-    func mangleSILThunkHopToMainActorIfNeeded(_ node: Node, depth: Int) -> RemanglerError {
+    func mangleSILThunkHopToMainActorIfNeeded(_ node: Node, depth: Int) throws(RemanglerError) {
         // This method doesn't exist in C++ - likely a newer addition or different name
-        return .unsupportedNodeKind(node)
+        throw .unsupportedNodeKind(node)
     }
 
     // MARK: - Helper Methods for Dependent Types
 
     /// Mangle a constrained type, returning the number of chain members and the base param node
-    func mangleConstrainedType(_ node: Node, depth: Int) -> RemanglerResult<(numMembers: Int, paramIdx: Node?)> {
+    func mangleConstrainedType(_ node: Node, depth: Int) throws(RemanglerError) -> (numMembers: Int, paramIdx: Node?) {
         var currentNode = skipType(node)
 
         // Try substitution first
         let substResult = trySubstitution(currentNode)
         if substResult.found {
-            return .success((-1, nil))
+            return (-1, nil)
         }
 
         // Build chain of dependent member types
@@ -4759,14 +4113,12 @@ extension Remangler {
         }
 
         // Check if we have a dependent generic param type or constrained existential self
-        if currentNode.kind != .dependentGenericParamType &&
-            currentNode.kind != .constrainedExistentialSelf {
-            let result = mangleNode(currentNode, depth: depth + 1)
-            if !result.isSuccess {
-                return .failure(result)
-            }
+        if currentNode.kind != .dependentGenericParamType,
+           currentNode.kind != .constrainedExistentialSelf {
+            try mangleNode(currentNode, depth: depth + 1)
+
             if chain.isEmpty {
-                return .success((-1, nil))
+                return (-1, nil)
             }
             currentNode = Node(kind: .type) // placeholder
         }
@@ -4775,10 +4127,7 @@ extension Remangler {
         var listSeparator = chain.count > 1 ? "_" : ""
         for i in stride(from: chain.count - 1, through: 0, by: -1) {
             let depAssocTyRef = chain[i]
-            let result = mangleNode(depAssocTyRef, depth: depth + 1)
-            if !result.isSuccess {
-                return .failure(result)
-            }
+            try mangleNode(depAssocTyRef, depth: depth + 1)
             append(listSeparator)
             listSeparator = "" // After first element, no more separators
         }
@@ -4790,7 +4139,7 @@ extension Remangler {
         let paramNode = (currentNode.kind == .dependentGenericParamType ||
             currentNode.kind == .constrainedExistentialSelf) ? currentNode : nil
 
-        return .success((chain.count, paramNode))
+        return (chain.count, paramNode)
     }
 
     /// Mangle a dependent generic parameter index

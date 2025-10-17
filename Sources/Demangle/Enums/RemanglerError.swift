@@ -1,8 +1,5 @@
 /// Errors that can occur during remangling operations
 public enum RemanglerError: Error, CustomStringConvertible {
-    /// Remangling was successful
-    case success
-
     /// The node tree is too complex (exceeds maximum depth)
     case tooComplex(Node?)
 
@@ -21,6 +18,14 @@ public enum RemanglerError: Error, CustomStringConvertible {
     /// Invalid impl parameter convention
     case invalidImplParameterConvention(Node?)
 
+    case invalidImplCalleeConvention(Node?)
+    
+    case invalidImplCoroutineKind(Node)
+    
+    case invalidImplFunctionAttribute(Node)
+    
+    case invalidImplParameterAttr(Node)
+    
     /// Invalid generic signature
     case invalidGenericSignature(Node?)
 
@@ -45,17 +50,8 @@ public enum RemanglerError: Error, CustomStringConvertible {
     /// Generic error with message
     case genericError(String)
 
-    public var isSuccess: Bool {
-        if case .success = self {
-            return true
-        }
-        return false
-    }
-
     public var description: String {
         switch self {
-        case .success:
-            return "Success"
         case .tooComplex(let node):
             return "Node tree too complex (exceeds max depth)\(nodeInfo(node))"
         case .badNodeKind(let node):
@@ -84,47 +80,13 @@ public enum RemanglerError: Error, CustomStringConvertible {
             return "Unexpected builtin vector type\(nodeInfo(node))"
         case .genericError(let message):
             return "Error: \(message)"
+        default:
+            return ""
         }
     }
 
     private func nodeInfo(_ node: Node?) -> String {
         guard let node = node else { return "" }
         return " (kind: \(node.kind))"
-    }
-}
-
-/// Result type that can contain either a value or a remangling error
-public enum RemanglerResult<T> {
-    case success(T)
-    case failure(RemanglerError)
-
-    public var isSuccess: Bool {
-        if case .success = self {
-            return true
-        }
-        return false
-    }
-
-    public var value: T? {
-        if case .success(let value) = self {
-            return value
-        }
-        return nil
-    }
-
-    public var error: RemanglerError? {
-        if case .failure(let error) = self {
-            return error
-        }
-        return nil
-    }
-
-    public func get() throws -> T {
-        switch self {
-        case .success(let value):
-            return value
-        case .failure(let error):
-            throw error
-        }
     }
 }

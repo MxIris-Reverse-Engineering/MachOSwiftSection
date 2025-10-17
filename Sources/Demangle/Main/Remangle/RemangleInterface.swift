@@ -7,20 +7,9 @@
 ///
 /// - Parameter node: The root node of the demangled tree
 /// - Returns: The mangled string, or nil if remangling failed
-public func remangle(_ node: Node) -> String? {
+public func remangle(_ node: Node) throws(RemanglerError) -> String {
     let remangler = Remangler()
-    let result = remangler.mangle(node)
-    return result.value
-}
-
-/// Remangle a node tree into a mangled string (throwing version)
-///
-/// - Parameter node: The root node of the demangled tree
-/// - Returns: The mangled string
-/// - Throws: RemanglerError if remangling fails
-public func remangleThrows(_ node: Node) throws -> String {
-    let remangler = Remangler()
-    return try remangler.mangleThrows(node)
+    return try remangler.mangle(node)
 }
 
 /// Remangle a node tree with custom options
@@ -29,112 +18,9 @@ public func remangleThrows(_ node: Node) throws -> String {
 ///   - node: The root node of the demangled tree
 ///   - usePunycode: Whether to use Punycode encoding for non-ASCII identifiers
 /// - Returns: The mangled string, or nil if remangling failed
-public func remangle(_ node: Node, usePunycode: Bool) -> String? {
+public func remangle(_ node: Node, usePunycode: Bool) throws(RemanglerError) -> String {
     let remangler = Remangler(usePunycode: usePunycode)
-    let result = remangler.mangle(node)
-    return result.value
-}
-
-/// Round-trip a mangled symbol: demangle then remangle
-///
-/// This is useful for testing and validation purposes.
-///
-/// - Parameter mangledName: The mangled symbol name
-/// - Returns: The remangled string, or nil if any step failed
-public func roundTrip(_ mangledName: String) -> String? {
-    // Demangle
-    guard let node = try? demangleAsNode(mangledName) else {
-        return nil
-    }
-
-    // Remangle
-    return remangle(node)
-}
-
-/// Verify that a mangled name can be successfully round-tripped
-///
-/// - Parameter mangledName: The mangled symbol name
-/// - Returns: True if demangle->remangle produces the same string
-public func canRoundTrip(_ mangledName: String) -> Bool {
-    guard let remangled = roundTrip(mangledName) else {
-        return false
-    }
-    return remangled == mangledName
-}
-
-/// Extract and remangle a subtree of a demangled node
-///
-/// This is useful for extracting specific parts of a mangled symbol,
-/// such as just the type information.
-///
-/// - Parameters:
-///   - node: The root node to search
-///   - predicate: A predicate to find the desired subtree
-/// - Returns: The remangled subtree, or nil if not found or remangling failed
-public func extractAndRemangle(_ node: Node, where predicate: (Node) -> Bool) -> String? {
-    // Find the subtree
-    func findNode(_ current: Node) -> Node? {
-        if predicate(current) {
-            return current
-        }
-        for child in current.children {
-            if let found = findNode(child) {
-                return found
-            }
-        }
-        return nil
-    }
-
-    guard let subtree = findNode(node) else {
-        return nil
-    }
-
-    // Remangle it
-    return remangle(subtree)
-}
-
-/// Modify a demangled tree and remangle it
-///
-/// This allows you to transform parts of a demangled symbol tree
-/// and produce a new mangled name.
-///
-/// - Parameters:
-///   - node: The root node to modify
-///   - transform: A transformation function applied to the tree
-/// - Returns: The remangled string after transformation, or nil if failed
-public func modifyAndRemangle(_ node: Node, transform: (Node) -> Node) -> String? {
-    let modifiedNode = transform(node)
-    return remangle(modifiedNode)
-}
-
-// MARK: - Batch Operations
-
-/// Remangle multiple nodes in batch
-///
-/// - Parameter nodes: Array of nodes to remangle
-/// - Returns: Array of remangled strings (nil for failed items)
-public func remangleBatch(_ nodes: [Node]) -> [String?] {
-    return nodes.map { remangle($0) }
-}
-
-/// Remangle multiple nodes concurrently
-///
-/// - Parameter nodes: Array of nodes to remangle
-/// - Returns: Array of remangled strings (nil for failed items)
-public func remangleConcurrent(_ nodes: [Node]) async -> [String?] {
-    await withTaskGroup(of: (Int, String?).self) { group in
-        for (index, node) in nodes.enumerated() {
-            group.addTask {
-                (index, remangle(node))
-            }
-        }
-
-        var results = [String?](repeating: nil, count: nodes.count)
-        for await (index, result) in group {
-            results[index] = result
-        }
-        return results
-    }
+    return try remangler.mangle(node)
 }
 
 // MARK: - Validation Helpers
@@ -144,17 +30,9 @@ public func remangleConcurrent(_ nodes: [Node]) async -> [String?] {
 /// - Parameter node: The node to check
 /// - Returns: True if the node can be remangled
 public func canRemangle(_ node: Node) -> Bool {
-    return remangle(node) != nil
+    return (try? remangle(node)) != nil
 }
 
-/// Get detailed error information when remangling fails
-///
-/// - Parameter node: The node to remangle
-/// - Returns: Either the mangled string or an error
-public func remangleWithError(_ node: Node) -> RemanglerResult<String> {
-    let remangler = Remangler()
-    return remangler.mangle(node)
-}
 
 // MARK: - Statistics and Debugging
 
@@ -179,12 +57,12 @@ public struct RemanglingStatistics {
 ///
 /// - Parameter node: The node to remangle
 /// - Returns: Statistics about the remangling operation
-public func remangleWithStatistics(_ node: Node) -> RemanglingStatistics {
+public func remangleWithStatistics(_ node: Node) throws(RemanglerError) -> RemanglingStatistics {
     let remangler = Remangler()
-    let result = remangler.mangle(node)
+    let result = try remangler.mangle(node)
 
     return RemanglingStatistics(
-        result: result.value,
+        result: result,
         substitutionCount: remangler.substitutionCount,
         outputLength: remangler.buffer.count
     )
