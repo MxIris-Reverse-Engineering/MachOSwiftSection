@@ -57,7 +57,7 @@ final class Remangler: RemanglerBase {
     }
 
     // MARK: - Core Mangling
-
+    
     /// Main entry point for mangling a single node
     func mangleNode(_ node: Node, depth: Int) -> RemanglerError {
         // Check recursion depth

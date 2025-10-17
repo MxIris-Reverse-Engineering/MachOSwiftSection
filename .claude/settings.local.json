@@ -39,7 +39,19 @@
       "Read(//Volumes/Repositories/OpenSource/AppleOSS/Swift-Stable/swift/**)",
       "Bash(tee:*)",
       "Bash(awk:*)",
-      "Bash(paste:*)"
+      "Bash(paste:*)",
+      "Bash(sed:*)",
+      "Bash(if [ -f /tmp/test_output.txt ])",
+      "Bash(then grep \"AHnFTW\\|AInFTW\" /tmp/test_output.txt)",
+      "Bash(for line in 444 530 540 572 747 858 898 3946)",
+      "Bash(.build/debug/swift-section:*)",
+      "Bash(echo:*)",
+      "Bash(do echo \"Symbol: $line\" echo \"$line\")",
+      "Bash(/usr/bin/xcrun swift-demangle:*)",
+      "Bash(chmod:*)",
+      "Bash(/tmp/quick_compare.sh)",
+      "Bash(git stash:*)",
+      "Bash(/tmp/check_each_method.sh)"
     ],
     "deny": [],
     "ask": []
