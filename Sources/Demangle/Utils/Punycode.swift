@@ -14,26 +14,60 @@ enum Punycode {
     ///
     /// - Parameters:
     ///   - input: The string to encode
-    ///   - mapNonSymbolChars: Whether to map non-symbol characters
+    ///   - mapNonSymbolChars: Whether to map non-symbol characters (ASCII < 0x80) to 0xD800 range
     /// - Returns: The encoded string, or nil if encoding fails
     static func encodePunycode(_ input: String, mapNonSymbolChars: Bool) -> String? {
-        // Convert input to Unicode scalars
+        // Convert input to Unicode scalars, applying character mapping as needed
+        // This mirrors the C++ convertUTF8toUTF32 function behavior
         var codePoints = [UInt32]()
+
         for scalar in input.unicodeScalars {
             let value = scalar.value
 
-            // Map non-symbol characters if requested
-            if mapNonSymbolChars, value >= 0xD800, value < 0xD880 {
-                // Already in the mapped range
-                codePoints.append(value)
-            } else if !isValidUnicodeScalar(value) {
-                return nil
+            // For ASCII characters (< 0x80), check if we need to map non-symbol chars
+            if value < 0x80 {
+                // Check if it's a valid symbol character
+                let isValidSymbol = isValidSymbolChar(UInt8(value))
+
+                if isValidSymbol || !mapNonSymbolChars {
+                    // Valid symbol char, or we're not mapping - use as-is
+                    codePoints.append(value)
+                } else {
+                    // Non-symbol char and we're mapping - map to 0xD800 + value
+                    codePoints.append(0xD800 + value)
+                }
             } else {
+                // Non-ASCII character - validate and use as-is
+                if !isValidUnicodeScalar(value) {
+                    return nil
+                }
                 codePoints.append(value)
             }
         }
 
         return encodePunycode(codePoints)
+    }
+
+    /// Check if a character is a valid symbol character (can appear in mangled names)
+    /// Matches C++ isValidSymbolChar: letters, digits, underscore, dollar sign
+    private static func isValidSymbolChar(_ ch: UInt8) -> Bool {
+        return isValidSymbolStart(ch) || isDigit(ch)
+    }
+
+    /// Check if a character can start a symbol
+    private static func isValidSymbolStart(_ ch: UInt8) -> Bool {
+        return isLetter(ch) || ch == UInt8(ascii: "_") || ch == UInt8(ascii: "$")
+    }
+
+    /// Check if character is a letter (a-z, A-Z)
+    private static func isLetter(_ ch: UInt8) -> Bool {
+        return (ch >= UInt8(ascii: "a") && ch <= UInt8(ascii: "z")) ||
+               (ch >= UInt8(ascii: "A") && ch <= UInt8(ascii: "Z"))
+    }
+
+    /// Check if character is a digit (0-9)
+    private static func isDigit(_ ch: UInt8) -> Bool {
+        return ch >= UInt8(ascii: "0") && ch <= UInt8(ascii: "9")
     }
 
     /// Encode Unicode code points using Punycode

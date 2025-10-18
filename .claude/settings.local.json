@@ -53,7 +53,10 @@
       "Bash(git stash:*)",
       "Bash(/tmp/check_each_method.sh)",
       "Bash(swift-demangle:*)",
-      "Bash(tr:*)"
+      "Bash(tr:*)",
+      "Bash(cut:*)",
+      "Bash(xargs:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []

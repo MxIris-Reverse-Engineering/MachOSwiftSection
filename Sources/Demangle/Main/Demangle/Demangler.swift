@@ -1032,11 +1032,11 @@ extension Demangler {
     private mutating func demangleBoundGenericType() throws -> Node {
         let (array, retroactiveConformances) = try demangleBoundGenerics()
         let nominal = try popTypeAndGetAnyGeneric()
-        var children = try [demangleBoundGenericArgs(nominal: nominal, array: array, index: 0)]
-        if !retroactiveConformances.isEmpty {
-            children.append(Node(kind: .typeList, children: retroactiveConformances.reversed()))
+        let boundNode = try demangleBoundGenericArgs(nominal: nominal, array: array, index: 0)
+        if let retroactiveConformances {
+            boundNode.addChild(retroactiveConformances)
         }
-        let type = Node(kind: .type, children: children)
+        let type = Node(kind: .type, child: boundNode)
         substitutions.append(type)
         return type
     }
@@ -1050,16 +1050,18 @@ extension Demangler {
         return retroactiveConformances.isEmpty ? nil : Node(kind: .typeList, children: retroactiveConformances)
     }
 
-    private mutating func demangleBoundGenerics() throws -> (typeLists: [Node], conformances: [Node]) {
+    private mutating func demangleBoundGenerics() throws -> (typeLists: [Node], conformances: Node?) {
         let retroactiveConformances = try popRetroactiveConformances()
 
         var array = [Node]()
         while true {
-            var children = [Node]()
+            
+            let typeList = Node(kind: .typeList)
+            array.append(typeList)
             while let t = pop(kind: .type) {
-                children.append(t)
+                typeList.addChild(t)
             }
-            array.append(Node(kind: .typeList, children: children.reversed()))
+            typeList.reverseChildren()
 
             if pop(kind: .emptyList) != nil {
                 break
@@ -1068,7 +1070,7 @@ extension Demangler {
             }
         }
 
-        return (array, retroactiveConformances?.children ?? [])
+        return (array, retroactiveConformances)
     }
 
     private mutating func demangleBoundGenericArgs(nominal: Node, array: [Node], index: Int) throws -> Node {
@@ -1206,13 +1208,19 @@ extension Demangler {
         if scanner.conditional(scalar: "s") {
             let (substitutions, conformances) = try demangleBoundGenerics()
             let sig = try require(pop(kind: .dependentGenericSignature))
-            let subsNode = try Node(kind: .implPatternSubstitutions, children: [sig, require(substitutions.first)] + conformances)
+            let subsNode = try Node(kind: .implPatternSubstitutions, children: [sig, require(substitutions.first)])
+            if let conformances {
+                subsNode.addChild(conformances)
+            }
             typeChildren.append(subsNode)
         }
 
         if scanner.conditional(scalar: "I") {
             let (substitutions, conformances) = try demangleBoundGenerics()
-            let subsNode = try Node(kind: .implInvocationSubstitutions, children: [require(substitutions.first)] + conformances)
+            let subsNode = try Node(kind: .implInvocationSubstitutions, children: [require(substitutions.first)])
+            if let conformances {
+                subsNode.addChild(conformances)
+            }
             typeChildren.append(subsNode)
         }
 
@@ -1424,9 +1432,12 @@ extension Demangler {
                 children: [
                     name,
                     Node(kind: .index, contents: .index(index)),
-                    Node(kind: .typeList, children: boundGenericArgs + retroactiveConformances),
+                    Node(kind: .typeList, children: boundGenericArgs),
                 ]
             )
+            if let retroactiveConformances {
+                opaque.addChild(retroactiveConformances)
+            }
             let opaqueType = Node(kind: .type, child: opaque)
             substitutions.append(opaqueType)
             return opaqueType
@@ -1491,7 +1502,10 @@ extension Demangler {
 
         var base = try index.map { Node(kind: .type, child: $0) } ?? require(pop(kind: .type))
         while let assocType = assocTypeNames.popLast() {
-            base = Node(kind: .type, child: Node(kind: .dependentMemberType, children: [Node(kind: .type, child: base), assocType]))
+            // base is already a Type node, so don't wrap it again
+            // Matches C++: depTy = addChild(depTy, BaseTy); BaseTy = createType(addChild(depTy, AssocTy));
+            let depTy = Node(kind: .dependentMemberType, children: [base, assocType])
+            base = Node(kind: .type, child: depTy)
         }
         return base
     }

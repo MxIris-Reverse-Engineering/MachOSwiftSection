@@ -510,8 +510,8 @@ enum Mangle {
                 // Mangle substring up to next word substitution
                 var first = true
                 mangler.appendToBuffer("\(repl.stringPos - pos)")
-
-                while pos < repl.stringPos {
+                
+                repeat {
                     // Update start position of new words
                     if wordsInBufferMutable < mangler.words.count,
                        mangler.words[wordsInBufferMutable].start == pos {
@@ -532,7 +532,7 @@ enum Mangle {
 
                     pos += 1
                     first = false
-                }
+                } while pos < repl.stringPos
             }
 
             // Handle word substitution

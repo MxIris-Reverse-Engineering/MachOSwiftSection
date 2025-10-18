@@ -50,6 +50,8 @@ public enum RemanglerError: Error, CustomStringConvertible {
     /// Generic error with message
     case genericError(String)
 
+    case indexOutOfBounds
+    
     public var description: String {
         switch self {
         case .tooComplex(let node):
