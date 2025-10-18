@@ -276,10 +276,20 @@ enum Mangle {
         }
     }
 
-    protocol Mangler {
+    // MARK: - Identifier Mangling with Word Substitution
+
+    /// Protocol that manglers must implement to use mangleIdentifier
+    protocol IdentifierMangler {
+        var words: [SubstitutionWord] { get set }
+        var substWordsInIdent: [WordReplacement] { get set }
+        var usePunycode: Bool { get }
+        static var maxNumWords: Int { get }
         var buffer: String { get }
+
         func resetBuffer(to position: Int)
         func append(_ string: String)
+        func addWord(_ word: SubstitutionWord)
+        func addSubstWordInIdent(_ repl: WordReplacement)
     }
 
     // MARK: - Substitution Merging
@@ -329,7 +339,7 @@ enum Mangle {
         ///   - appendToBuffer: Callback to append string to buffer
         ///   - getBuffer: Callback to get current buffer content
         /// - Returns: True if merge was successful
-        func tryMergeSubst<M: Mangler>(
+        func tryMergeSubst<M: IdentifierMangler>(
             _ mangler: M,
             subst: String,
             isStandardSubst: Bool
@@ -395,21 +405,6 @@ enum Mangle {
         }
     }
 
-    // MARK: - Identifier Mangling with Word Substitution
-
-    /// Protocol that manglers must implement to use mangleIdentifier
-    protocol IdentifierMangler {
-        var words: [SubstitutionWord] { get set }
-        var substWordsInIdent: [WordReplacement] { get set }
-        var usePunycode: Bool { get }
-        var maxNumWords: Int { get }
-
-        func getBufferStr() -> String
-        func appendToBuffer(_ str: String)
-        func addWord(_ word: SubstitutionWord)
-        func addSubstWord(_ repl: WordReplacement)
-    }
-
     /// Mangles an identifier using word substitution
     ///
     /// This is a complex algorithm that:
@@ -428,11 +423,11 @@ enum Mangle {
         if mangler.usePunycode, needsPunycodeEncoding(ident) {
             if let encoded = Punycode.encodePunycode(ident, mapNonSymbolChars: true) {
                 let pcIdent = encoded
-                mangler.appendToBuffer("00\(pcIdent.count)")
+                mangler.append("00\(pcIdent.count)")
                 if let first = pcIdent.first, isDigit(first) || first == "_" {
-                    mangler.appendToBuffer("_")
+                    mangler.append("_")
                 }
-                mangler.appendToBuffer(pcIdent)
+                mangler.append(pcIdent)
                 return
             }
         }
@@ -467,7 +462,7 @@ enum Mangle {
                 }
 
                 // Check if word exists in buffer
-                var wordIdx = lookupWord(in: mangler.getBufferStr(), from: 0, to: wordsInBuffer)
+                var wordIdx = lookupWord(in: mangler.buffer, from: 0, to: wordsInBuffer)
 
                 // Check if word exists in this identifier
                 if wordIdx == nil {
@@ -477,8 +472,8 @@ enum Mangle {
                 if let idx = wordIdx {
                     // Found word substitution
                     assert(idx < 26)
-                    mangler.addSubstWord(WordReplacement(stringPos: wordStartPos, wordIdx: idx))
-                } else if wordLen >= 2, mangler.words.count < mangler.maxNumWords {
+                    mangler.addSubstWordInIdent(WordReplacement(stringPos: wordStartPos, wordIdx: idx))
+                } else if wordLen >= 2, mangler.words.count < M.maxNumWords {
                     // New word
                     mangler.addWord(SubstitutionWord(start: wordStartPos, length: wordLen))
                 }
@@ -494,14 +489,14 @@ enum Mangle {
 
         // Mangle with word substitutions
         if !mangler.substWordsInIdent.isEmpty {
-            mangler.appendToBuffer("0")
+            mangler.append("0")
         }
 
         var pos = 0
         var wordsInBufferMutable = wordsInBuffer
 
         // Add dummy word at end
-        mangler.addSubstWord(WordReplacement(stringPos: ident.count, wordIdx: -1))
+        mangler.addSubstWordInIdent(WordReplacement(stringPos: ident.count, wordIdx: -1))
 
         for idx in 0 ..< mangler.substWordsInIdent.count {
             let repl = mangler.substWordsInIdent[idx]
@@ -509,14 +504,14 @@ enum Mangle {
             if pos < repl.stringPos {
                 // Mangle substring up to next word substitution
                 var first = true
-                mangler.appendToBuffer("\(repl.stringPos - pos)")
-                
+                mangler.append("\(repl.stringPos - pos)")
+
                 repeat {
                     // Update start position of new words
                     if wordsInBufferMutable < mangler.words.count,
                        mangler.words[wordsInBufferMutable].start == pos {
                         var word = mangler.words[wordsInBufferMutable]
-                        word.start = mangler.getBufferStr().count
+                        word.start = mangler.buffer.count
                         mangler.words[wordsInBufferMutable] = word
                         wordsInBufferMutable += 1
                     }
@@ -525,9 +520,9 @@ enum Mangle {
 
                     // Error recovery for invalid identifiers
                     if first, isDigit(ch) {
-                        mangler.appendToBuffer("X")
+                        mangler.append("X")
                     } else {
-                        mangler.appendToBuffer(String(ch))
+                        mangler.append(String(ch))
                     }
 
                     pos += 1
@@ -543,13 +538,13 @@ enum Mangle {
                 if idx < mangler.substWordsInIdent.count - 2 {
                     // Lowercase letter
                     let ch = Character(UnicodeScalar(UInt8(ascii: "a") + UInt8(repl.wordIdx)))
-                    mangler.appendToBuffer(String(ch))
+                    mangler.append(String(ch))
                 } else {
                     // Last word substitution is uppercase
                     let ch = Character(UnicodeScalar(UInt8(ascii: "A") + UInt8(repl.wordIdx)))
-                    mangler.appendToBuffer(String(ch))
+                    mangler.append(String(ch))
                     if pos == ident.count {
-                        mangler.appendToBuffer("0")
+                        mangler.append("0")
                     }
                 }
             }

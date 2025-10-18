@@ -1,24 +1,24 @@
 /// Errors that can occur during remangling operations
-public enum RemanglerError: Error, CustomStringConvertible {
+public enum ManglingError: Error, CustomStringConvertible {
     /// The node tree is too complex (exceeds maximum depth)
-    case tooComplex(Node?)
+    case tooComplex(Node)
 
     /// Unknown or unsupported node kind
-    case badNodeKind(Node?)
+    case badNodeKind(Node)
 
     /// Node has multiple children when only one was expected
-    case multipleChildNodes(Node?)
+    case multipleChildNodes(Node)
 
     /// Bad nominal type kind
-    case badNominalTypeKind(Node?)
+    case badNominalTypeKind(Node)
 
     /// Unsupported node kind for this operation
-    case unsupportedNodeKind(Node?)
+    case unsupportedNodeKind(Node)
 
     /// Invalid impl parameter convention
-    case invalidImplParameterConvention(Node?)
+    case invalidImplParameterConvention(Node)
 
-    case invalidImplCalleeConvention(Node?)
+    case invalidImplCalleeConvention(Node)
     
     case invalidImplCoroutineKind(Node)
     
@@ -27,25 +27,25 @@ public enum RemanglerError: Error, CustomStringConvertible {
     case invalidImplParameterAttr(Node)
     
     /// Invalid generic signature
-    case invalidGenericSignature(Node?)
+    case invalidGenericSignature(Node)
 
     /// Invalid dependent member type
-    case invalidDependentMemberType(Node?)
+    case invalidDependentMemberType(Node)
 
     /// Missing expected child node
-    case missingChildNode(Node?, expectedIndex: Int)
+    case missingChildNode(Node, expectedIndex: Int)
 
     /// Invalid node structure
-    case invalidNodeStructure(Node?, message: String)
+    case invalidNodeStructure(Node, message: String)
 
     /// Symbolic reference resolver not provided when needed
-    case missingSymbolicResolver(Node?)
+    case missingSymbolicResolver(Node)
 
     /// Unexpected builtin type encountered
-    case unexpectedBuiltinType(Node?)
+    case unexpectedBuiltinType(Node)
 
     /// Unexpected builtin vector type encountered
-    case unexpectedBuiltinVectorType(Node?)
+    case unexpectedBuiltinVectorType(Node)
 
     /// Generic error with message
     case genericError(String)

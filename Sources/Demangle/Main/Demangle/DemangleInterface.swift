@@ -1,5 +1,3 @@
-import SwiftStdlibToolbox
-
 /// This is likely to be the primary entry point to this file. Pass a string containing a Swift mangled symbol or type, get a parsed SwiftSymbol structure which can then be directly examined or printed.
 ///
 /// - Parameters:
@@ -7,12 +5,8 @@ import SwiftStdlibToolbox
 ///   - isType: if true, no prefix is parsed and, on completion, the first item on the parse stack is returned.
 /// - Returns: the successfully parsed result
 /// - Throws: a SwiftSymbolParseError error that contains parse position when the error occurred.
-package func demangleAsNode(_ mangled: String, isType: Bool = false, symbolicReferenceResolver: SymbolicReferenceResolver? = nil) throws -> Node {
-//    if let cached = _cache[mangled] {
-//        return cached
-//    }
+public func demangleAsNode(_ mangled: String, isType: Bool = false, symbolicReferenceResolver: SymbolicReferenceResolver? = nil) throws -> Node {
     let node = try demangleAsNode(mangled.unicodeScalars, isType: isType, symbolicReferenceResolver: symbolicReferenceResolver)
-//    _cache[mangled] = node
     return node
 }
 
@@ -34,6 +28,3 @@ private func demangleAsNode<C: Collection & Sendable>(_ mangled: C, isType: Bool
         throw SwiftSymbolParseError.invalidSwiftMangledName
     }
 }
-
-@Mutex
-private var _cache: [String: Node] = [:]

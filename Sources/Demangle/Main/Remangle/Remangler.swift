@@ -8,9 +8,6 @@ final class Remangler: RemanglerBase {
     /// Maximum recursion depth to prevent stack overflow
     static let maxDepth = 1024
 
-    /// Maximum number of substitution words
-    static let maxNumWords = 26
-
     // MARK: - Properties
 
     /// Callback for resolving symbolic references
@@ -38,16 +35,16 @@ final class Remangler: RemanglerBase {
     // MARK: - Public API
 
     /// Remangle a node tree into a mangled string
-    func mangle(_ node: Node) throws(RemanglerError) -> String {
+    func mangle(_ node: Node) throws(ManglingError) -> String {
         clearBuffer()
-        try mangleNode(node, depth: 0)
+        try mangle(node, depth: 0)
         return buffer
     }
 
     // MARK: - Core Mangling
 
     /// Main entry point for mangling a single node
-    func mangleNode(_ node: Node, depth: Int) throws(RemanglerError) {
+    func mangle(_ node: Node, depth: Int) throws(ManglingError) {
         // Check recursion depth
         if depth > Self.maxDepth {
             throw .tooComplex(node)
@@ -807,33 +804,33 @@ final class Remangler: RemanglerBase {
     // MARK: - Helper Methods
 
     /// Mangle child nodes in order
-    func mangleChildNodes(_ node: Node, depth: Int) throws(RemanglerError) {
+    func mangleChildNodes(_ node: Node, depth: Int) throws(ManglingError) {
         for child in node.children {
-            try mangleNode(child, depth: depth + 1)
+            try mangle(child, depth: depth + 1)
         }
     }
 
     /// Mangle child nodes in reverse order
-    func mangleChildNodesReversed(_ node: Node, depth: Int) throws(RemanglerError) {
+    func mangleChildNodesReversed(_ node: Node, depth: Int) throws(ManglingError) {
         for child in node.children.reversed() {
-            try mangleNode(child, depth: depth + 1)
+            try mangle(child, depth: depth + 1)
         }
     }
 
     /// Mangle a single child node
-    func mangleSingleChildNode(_ node: Node, depth: Int) throws(RemanglerError) {
+    func mangleSingleChildNode(_ node: Node, depth: Int) throws(ManglingError) {
         guard node.children.count == 1 else {
             throw .multipleChildNodes(node)
         }
-        try mangleNode(node.children[0], depth: depth + 1)
+        try mangle(node.children[0], depth: depth + 1)
     }
 
     /// Mangle a specific child by index
-    func mangleChildNode(_ node: Node, at index: Int, depth: Int) throws(RemanglerError) {
+    func mangleChildNode(_ node: Node, at index: Int, depth: Int) throws(ManglingError) {
         guard index < node.children.count else {
             throw .missingChildNode(node, expectedIndex: index)
         }
-        try mangleNode(node.children[index], depth: depth + 1)
+        try mangle(node.children[index], depth: depth + 1)
     }
 
     /// Get a single child, skipping Type wrapper if present

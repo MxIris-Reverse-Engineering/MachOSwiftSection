@@ -7,7 +7,7 @@
 ///
 /// - Parameter node: The root node of the demangled tree
 /// - Returns: The mangled string, or nil if remangling failed
-public func remangle(_ node: Node) throws(RemanglerError) -> String {
+public func mangle(_ node: Node) throws(ManglingError) -> String {
     let remangler = Remangler()
     return try remangler.mangle(node)
 }
@@ -18,7 +18,7 @@ public func remangle(_ node: Node) throws(RemanglerError) -> String {
 ///   - node: The root node of the demangled tree
 ///   - usePunycode: Whether to use Punycode encoding for non-ASCII identifiers
 /// - Returns: The mangled string, or nil if remangling failed
-public func remangle(_ node: Node, usePunycode: Bool) throws(RemanglerError) -> String {
+public func mangle(_ node: Node, usePunycode: Bool) throws(ManglingError) -> String {
     let remangler = Remangler(usePunycode: usePunycode)
     return try remangler.mangle(node)
 }
@@ -29,41 +29,6 @@ public func remangle(_ node: Node, usePunycode: Bool) throws(RemanglerError) -> 
 ///
 /// - Parameter node: The node to check
 /// - Returns: True if the node can be remangled
-public func canRemangle(_ node: Node) -> Bool {
-    return (try? remangle(node)) != nil
-}
-
-
-// MARK: - Statistics and Debugging
-
-/// Get statistics about a remangling operation
-public struct RemanglingStatistics {
-    /// The resulting mangled string (nil if failed)
-    public let result: String?
-
-    /// Number of substitutions used
-    public let substitutionCount: Int
-
-    /// Length of the mangled output
-    public let outputLength: Int
-
-    /// Whether remangling succeeded
-    public var succeeded: Bool {
-        return result != nil
-    }
-}
-
-/// Remangle a node and collect statistics
-///
-/// - Parameter node: The node to remangle
-/// - Returns: Statistics about the remangling operation
-public func remangleWithStatistics(_ node: Node) throws(RemanglerError) -> RemanglingStatistics {
-    let remangler = Remangler()
-    let result = try remangler.mangle(node)
-
-    return RemanglingStatistics(
-        result: result,
-        substitutionCount: remangler.substitutionCount,
-        outputLength: remangler.buffer.count
-    )
+public func canMangle(_ node: Node) -> Bool {
+    return (try? mangle(node)) != nil
 }

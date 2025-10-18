@@ -1432,7 +1432,7 @@ extension Demangler {
                 children: [
                     name,
                     Node(kind: .index, contents: .index(index)),
-                    Node(kind: .typeList, children: boundGenericArgs),
+                    Node(kind: .typeList, children: boundGenericArgs.reversed()),
                 ]
             )
             if let retroactiveConformances {

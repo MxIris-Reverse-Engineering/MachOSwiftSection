@@ -4,7 +4,7 @@
 /// - Hash-based substitution lookup cache
 /// - Two-level substitution storage (inline + overflow)
 /// - Output buffer management
-class RemanglerBase: Mangle.Mangler {
+class RemanglerBase: Mangle.IdentifierMangler {
     // MARK: - Constants
 
     /// Capacity of the hash-based node hash cache (must be power of 2)
@@ -39,7 +39,7 @@ class RemanglerBase: Mangle.Mangler {
     }
 
     /// Maximum number of words to track (matches C++ MaxNumWords = 26)
-    private static let maxNumWords = 26
+    static let maxNumWords = 26
 
     /// List of all words seen so far in the mangled string
     var words: [Mangle.SubstitutionWord] = []
@@ -336,25 +336,5 @@ class RemanglerBase: Mangle.Mangler {
     /// Clear word replacements for the current identifier
     func clearSubstWordsInIdent() {
         substWordsInIdent.removeAll(keepingCapacity: true)
-    }
-
-    /// Get the current buffer as a string (for word lookup)
-    func getBufferStr() -> String {
-        return buffer
-    }
-}
-
-// MARK: - IdentifierMangler Conformance
-extension RemanglerBase: Mangle.IdentifierMangler {
-    var maxNumWords: Int {
-        return Self.maxNumWords
-    }
-
-    func appendToBuffer(_ str: String) {
-        append(str)
-    }
-
-    func addSubstWord(_ repl: Mangle.WordReplacement) {
-        addSubstWordInIdent(repl)
     }
 }
