@@ -11,7 +11,7 @@ import Dependencies
 final class DyldCacheSymbolRemangleTests: DyldCacheSymbolTests {
     @MainActor
     @Test func symbols() throws {
-        let allSwiftSymbols = try symbols(for: .SwiftUI, .SwiftUICore)
+        let allSwiftSymbols = try allSymbols()
         "Total Swift Symbols: \(allSwiftSymbols.count)".print()
         for symbol in allSwiftSymbols {
             let swiftStdlibDemangledName = stdlib_demangleName(symbol.stringValue)
@@ -22,17 +22,17 @@ final class DyldCacheSymbolRemangleTests: DyldCacheSymbolTests {
                 let remangledString = try Demangle.mangleAsString(node)
                 #expect(remangledString == symbol.stringValue)
             } catch {
-                symbol.stringValue.print()
                 if symbol.stringValue != swiftStdlibDemangledName {
                     Issue.record(error)
+                    symbol.stringValue.print()
                 }
             }
         }
     }
     
     @Test func test() async throws {
-        let node = try demangleAsNode("_$s10Foundation14AttributeScopePAAE13attributeKeysQrvpZQOyAA0B6ScopesO7SwiftUIE0G12UIAttributesV_Qo_ML")
-        try Demangle.mangleAsString(node).print()
-//        node.description.print()
+        let node = try demangleAsNode("_$sSis15WritableKeyPathCy17RealityFoundation23PhysicallyBasedMaterialVAE9BaseColorVGTHTm")
+//        try Demangle.mangleAsString(node).print()
+        node.description.print()
     }
 }

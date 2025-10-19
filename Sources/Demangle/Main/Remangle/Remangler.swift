@@ -3217,7 +3217,7 @@ extension Remangler {
         for child in node.children {
             switch child.kind {
             case .implDifferentiabilityKind:
-                append(child.index!)
+                try append(child.character)
             case .implEscaping:
                 append("e")
             case .implErasedIsolation:
@@ -3410,8 +3410,8 @@ extension Remangler {
     }
 
     private func mangleImplDifferentiabilityKind(_ node: Node, depth: Int) throws(ManglingError) {
-        if let index = node.index {
-            append(index)
+        if let index = node.index, let scalar = UnicodeScalar(UInt32(index)) {
+            append(Character(scalar))
         }
     }
 
@@ -4086,10 +4086,10 @@ extension Remangler {
     // MARK: - Node Index Methods (8 methods)
 
     private func mangleAutoDiffFunctionKind(_ node: Node, depth: Int) throws(ManglingError) {
-        guard let index = node.index else {
+        guard let index = node.index, let scalar = UnicodeScalar(UInt32(index)) else {
             throw .invalidNodeStructure(node, message: "AutoDiffFunctionKind has no index")
         }
-        append(index)
+        append(Character(scalar))
     }
 
     private func mangleDependentConformanceIndex(_ node: Node, depth: Int) throws(ManglingError) {
@@ -4102,7 +4102,9 @@ extension Remangler {
             throw .invalidNodeStructure(node, message: "DifferentiableFunctionType has no index")
         }
         append("Yj")
-        append(index)
+        if let scalar = UnicodeScalar(UInt32(index)) {
+            append(Character(scalar))
+        }
     }
 
     private func mangleDirectness(_ node: Node, depth: Int) throws(ManglingError) {
@@ -4351,73 +4353,92 @@ extension Remangler {
     }
 
     private func mangleAutoDiffFunctionOrSimpleThunk(_ node: Node, op: String, depth: Int) throws(ManglingError) {
-        var childIt = node.children.makeIterator()
+        var childIt = 0
 
-        while let next = childIt.next(), next.kind != .autoDiffFunctionKind {
+        while let next = try? node[safeChild: childIt], next.kind != .autoDiffFunctionKind {
             try mangle(next, depth: depth + 1)
+            childIt += 1
         }
 
         append(op)
 
-        if let next = childIt.next() {
-            try mangle(next, depth: depth + 1)
-        }
-        if let next = childIt.next() {
-            try mangle(next, depth: depth + 1)
-        }
+        try mangle(node[safeChild: childIt], depth: depth + 1)
+        childIt += 1
+        
+        try mangle(node[safeChild: childIt], depth: depth + 1)
+        childIt += 1
+        
         append("p")
-        if let next = childIt.next() {
-            try mangle(next, depth: depth + 1)
-        }
+        
+        try mangle(node[safeChild: childIt], depth: depth + 1)
+        childIt += 1
+        
         append("r")
     }
 
     private func mangleAutoDiffSubsetParametersThunk(_ node: Node, depth: Int) throws(ManglingError) {
-        var childIt = node.children.makeIterator()
+        
+        var childIt = 0
 
-        while let next = childIt.next(), next.kind != .autoDiffFunctionKind {
+        while let next = try? node[safeChild: childIt], next.kind != .autoDiffFunctionKind {
             try mangle(next, depth: depth + 1)
+            childIt += 1
         }
 
         append("TJS")
 
-        if let next = childIt.next() {
-            try mangle(next, depth: depth + 1)
-        }
-        if let next = childIt.next() {
-            try mangle(next, depth: depth + 1)
-        }
+        try mangle(node[safeChild: childIt], depth: depth + 1)
+        childIt += 1
+        
+        try mangle(node[safeChild: childIt], depth: depth + 1)
+        childIt += 1
+        
         append("p")
-        if let next = childIt.next() {
-            try mangle(next, depth: depth + 1)
-        }
+        
+        try mangle(node[safeChild: childIt], depth: depth + 1)
+        childIt += 1
+        
         append("r")
-        if let next = childIt.next() {
-            try mangle(next, depth: depth + 1)
-        }
+        
+        try mangle(node[safeChild: childIt], depth: depth + 1)
+        childIt += 1
+        
         append("P")
     }
 
-    private func mangleDifferentiabilityWitness(_ node: Node, depth: Int) throws(ManglingError) {
-        var childIt = node.children.makeIterator()
-
-        while let next = childIt.next(), next.kind != .index {
-            try mangle(next, depth: depth + 1)
+    private func require<T>(_ param: T?) throws(ManglingError) -> T {
+        if let param {
+            return param
+        } else {
+            throw .genericError("")
         }
+    }
+    
+    private func mangleDifferentiabilityWitness(_ node: Node, depth: Int) throws(ManglingError) {
+        var childIt = 0
 
-        append("WJ")
+        while let next = try? node[safeChild: childIt], next.kind != .index {
+            try mangle(next, depth: depth + 1)
+            childIt += 1
+        }
 
         if let last = node.children.last, last.kind == .dependentGenericSignature {
             try mangle(last, depth: depth + 1)
         }
-
-        if let next = childIt.next() {
-            try mangle(next, depth: depth + 1)
-        }
+        
+        append("WJ")
+        
+        try append(node[safeChild: childIt].character)
+        childIt += 1
+        
+        try mangle(node[safeChild: childIt], depth: depth + 1)
+        childIt += 1
+        
         append("p")
-        if let next = childIt.next() {
-            try mangle(next, depth: depth + 1)
-        }
+        
+        try mangle(node[safeChild: childIt], depth: depth + 1)
+        childIt += 1
+        
         append("r")
     }
 
@@ -5926,4 +5947,16 @@ extension Node {
 
         return true
     }
+    
+    var character: Character {
+        get throws(ManglingError) {
+            if let index, let scalar = UnicodeScalar(UInt32(index)) {
+                return Character(scalar)
+            } else {
+                throw .genericError("")
+            }
+        }
+    }
 }
+
+

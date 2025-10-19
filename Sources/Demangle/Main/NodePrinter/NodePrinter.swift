@@ -391,7 +391,9 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
         case .reflectionMetadataBuiltinDescriptor: printFirstChild(name, prefix: "reflection metadata builtin descriptor ")
         case .reflectionMetadataFieldDescriptor: printFirstChild(name, prefix: "reflection metadata field descriptor ")
         case .reflectionMetadataSuperclassDescriptor: printFirstChild(name, prefix: "reflection metadata superclass descriptor ")
-        case .relatedEntityDeclName: printFirstChild(name, prefix: "related decl '\(name.text ?? "")' for ")
+        case .relatedEntityDeclName:
+            printFirstChild(name, prefix: "related decl '", suffix: "' for ")
+            _ = printOptional(name.children.at(1))
         case .resilientProtocolWitnessTable: printFirstChild(name, prefix: "resilient protocol witness table for ")
         case .retroactiveConformance: printRetroactiveConformance(name)
         case .returnType: printReturnType(name)

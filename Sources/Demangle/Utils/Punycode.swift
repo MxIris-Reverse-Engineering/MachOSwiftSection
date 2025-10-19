@@ -7,7 +7,7 @@ enum Punycode {
     private static let skew = 38
     private static let damp = 700
     private static let initialBias = 72
-    private static let initialN: UInt32 = 128
+    private static let initialN = 128
     private static let delimiter: Character = "_"
 
     /// Encode a string using Punycode
@@ -74,12 +74,13 @@ enum Punycode {
     private static func encodePunycode(_ inputCodePoints: [UInt32]) -> String? {
         var output = ""
 
-        var n = initialN
-        var delta = 0
-        var bias = initialBias
+        var n = UInt32(initialN)
+        var delta: Int = 0
+        var bias: Int = initialBias
 
         // Copy basic code points (< 0x80) to output
-        var h = 0
+        // Using size_t equivalent (Int) for h and b to match C++
+        var h: Int = 0
         for c in inputCodePoints {
             if c < 0x80 {
                 h += 1
@@ -89,7 +90,7 @@ enum Punycode {
                 return nil
             }
         }
-        let b = h
+        let b: Int = h
 
         // Add delimiter if we have basic code points
         if b > 0 {
@@ -101,16 +102,19 @@ enum Punycode {
             // Find minimum code point >= n
             var m: UInt32 = 0x10FFFF
             for codePoint in inputCodePoints {
-                if codePoint >= n, codePoint < m {
+                if codePoint >= n && codePoint < m {
                     m = codePoint
                 }
             }
 
-            // Check for overflow
-            if (m - n) > (UInt32.max - UInt32(delta)) / UInt32(h + 1) {
+            // Check for overflow - matching C++ line 182
+            // C++: if ((m - n) > (std::numeric_limits<int>::max() - delta) / (h + 1))
+            let mMinusN = Int(m - n)
+            let hPlusOne = h + 1
+            if mMinusN > (Int.max - delta) / hPlusOne {
                 return nil
             }
-            delta = delta + Int(m - n) * (h + 1)
+            delta = delta + mMinusN * hPlusOne
             n = m
 
             for c in inputCodePoints {
@@ -122,10 +126,10 @@ enum Punycode {
                 }
 
                 if c == n {
-                    var q = delta
-                    var k = base
+                    var q: Int = delta
+                    var k: Int = base
                     while true {
-                        let t = k <= bias ? tmin
+                        let t: Int = k <= bias ? tmin
                             : k >= bias + tmax ? tmax
                             : k - bias
 
@@ -202,11 +206,11 @@ enum Punycode {
         }
 
         // Magic numbers from RFC3492
-        var n = 128
+        var n = initialN
         var i = 0
-        var bias = 72
-        let symbolCount = 36
-        let alphaCount = 26
+        var bias = initialBias
+        let symbolCount = base
+        let alphaCount = tmax
         while pos != input.endIndex {
             let oldi = i
             var w = 1
