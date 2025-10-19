@@ -6,7 +6,6 @@ import Demangle
 import Semantic
 import SwiftStdlibToolbox
 import MachOKit
-import TypeIndexing
 import Dependencies
 import Utilities
 @_spi(Internals) import MachOSymbols
@@ -57,9 +56,6 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     /// The Mach-O binary being analyzed
     public let machO: MachO
 
-    /// Optional type database for enhanced type resolution when indexing is enabled
-    private let typeDatabase: TypeDatabase<MachO>?
-
     /// Event dispatcher for handling logging and progress events
     private let eventDispatcher: SwiftInterfaceBuilderEvents.Dispatcher
 
@@ -94,10 +90,6 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     /// Set of all names encountered during analysis (for conflict resolution)
     @Mutex
     private var allNames: Set<String> = []
-
-    /// List of dependency Mach-O files for enhanced type resolution
-    @Mutex
-    private var dependencies: [MachO] = []
 
     /// Set of all imported modules required for the interface
     @Mutex
@@ -136,6 +128,9 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     @Mutex
     public private(set) var globalFunctionDefinitions: [FunctionDefinition] = []
 
+    @Mutex
+    public private(set) var extraDataProviders: [SwiftInterfaceBuilderExtraDataProvider] = []
+
     /// Creates a new Swift interface builder for the given Mach-O binary.
     ///
     /// - Parameters:
@@ -146,17 +141,9 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     public init(configuration: SwiftInterfaceBuilderConfiguration = .init(), eventHandlers: [SwiftInterfaceBuilderEvents.Handler] = [], in machO: MachO) throws {
         self.eventDispatcher = .init()
         eventDispatcher.addHandlers(eventHandlers)
-        eventDispatcher.dispatch(.initialization(config: SwiftInterfaceBuilderEvents.InitializationConfig(isTypeIndexingEnabled: configuration.isEnabledTypeIndexing, showCImportedTypes: configuration.showCImportedTypes)))
 
         self.configuration = configuration
 
-        let typeDatabase: TypeDatabase<MachO>? = if configuration.isEnabledTypeIndexing, let platform = machO.loadCommands.buildVersionCommand?.platform.sdkPlatform {
-            TypeDatabase(platform: platform)
-        } else {
-            nil
-        }
-
-        self.typeDatabase = typeDatabase
         self.machO = machO
         self.typeDemangleResolver = .using { [weak self] node in
             if let self {
@@ -164,6 +151,14 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 try printer.printRoot(node)
             }
         }
+    }
+    
+    public func addExtraDataProvider(_ extraDataProvider: any SwiftInterfaceBuilderExtraDataProvider) {
+        extraDataProviders.append(extraDataProvider)
+    }
+    
+    public func removeAllExtraDataProviders() {
+        extraDataProviders.removeAll()
     }
 
     /// Prepares the builder by indexing all symbols and collecting module information.
@@ -177,6 +172,14 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     /// - Throws: An error if indexing fails or if required data cannot be extracted.
     public func prepare() async throws {
         eventDispatcher.dispatch(.phaseTransition(phase: .preparation, state: .started))
+
+        for extraDataProvider in extraDataProviders {
+            do {
+                try await extraDataProvider.setup()
+            } catch {
+                print(error)
+            }
+        }
 
         do {
             eventDispatcher.dispatch(.extractionStarted(section: .swiftTypes))
@@ -229,10 +232,6 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         }
 
         eventDispatcher.dispatch(.phaseTransition(phase: .preparation, state: .completed))
-    }
-
-    public func build() throws -> SemanticString {
-        try printRoot()
     }
 
     /// Indexes all types found in the Mach-O binary and builds parent-child relationships.
@@ -654,26 +653,36 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         globalFunctionDefinitions = DefinitionBuilder.functions(for: symbolIndexStore.globalSymbols(of: .function, in: machO), isGlobalOrStatic: true)
     }
 
+    private func collectModules() async throws {
+        eventDispatcher.dispatch(.moduleCollectionStarted)
+        @Dependency(\.symbolIndexStore)
+        var symbolIndexStore
+
+        var usedModules: OrderedSet<String> = []
+        let filterModules: Set<String> = [cModule, objcModule, stdlibName]
+        let allSymbols = symbolIndexStore.allSymbols(in: machO)
+
+        eventDispatcher.dispatch(.symbolScanStarted(context: SwiftInterfaceBuilderEvents.SymbolScanContext(totalSymbols: allSymbols.count, filterModules: Array(filterModules.sorted()))))
+
+        for symbol in allSymbols {
+            for moduleNode in symbol.demangledNode.all(of: .module) {
+                if let module = moduleNode.text, !filterModules.contains(module) {
+                    if usedModules.append(module).inserted {
+                        eventDispatcher.dispatch(.moduleFound(context: SwiftInterfaceBuilderEvents.ModuleContext(moduleName: module)))
+                    }
+                }
+            }
+        }
+
+        importedModules = usedModules
+        eventDispatcher.dispatch(.moduleCollectionCompleted(result: SwiftInterfaceBuilderEvents.ModuleCollectionResult(moduleCount: usedModules.count, modules: Array(usedModules.sorted()))))
+    }
+
     /// Performs complete indexing of the Mach-O binary.
     /// This method coordinates all indexing operations in the correct order
     /// to build a complete picture of the Swift API.
     private func index() async throws {
         eventDispatcher.dispatch(.phaseTransition(phase: .indexing, state: .started))
-        dependencies.append(machO)
-        if let typeDatabase {
-            do {
-                let dependencyModules = Set(dependencies.map(\.imagePath.lastPathComponent.deletingPathExtension.deletingPathExtension.strippedLibSwiftPrefix))
-                eventDispatcher.dispatch(.typeDatabaseIndexingStarted(input: SwiftInterfaceBuilderEvents.TypeDatabaseIndexingInput(dependencyModules: Array(dependencyModules.sorted()))))
-                try await typeDatabase.index(dependencies: dependencies) { dependencyModules.contains($0) }
-                eventDispatcher.dispatch(.typeDatabaseIndexingCompleted)
-            } catch {
-                eventDispatcher.dispatch(.typeDatabaseIndexingFailed(error: error))
-                throw error
-            }
-        } else {
-            let reason: SwiftInterfaceBuilderEvents.TypeDatabaseSkipReason = configuration.isEnabledTypeIndexing ? .notAvailable : .notEnabled
-            eventDispatcher.dispatch(.typeDatabaseSkipped(reason: reason))
-        }
 
         do {
             eventDispatcher.dispatch(.phaseOperationStarted(phase: .indexing, operation: .typeIndexing))
@@ -717,7 +726,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     }
 
     @SemanticStringBuilder
-    private func printRoot() throws -> SemanticString {
+    public func printRoot() throws -> SemanticString {
         for module in OrderedSet(Self.internalModules + importedModules).sorted() {
             Standard("import \(module)")
             BreakLine()
@@ -787,7 +796,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     }
 
     @SemanticStringBuilder
-    private func printTypeDefinition(_ typeDefinition: TypeDefinition, level: Int = 1) throws -> SemanticString {
+    public func printTypeDefinition(_ typeDefinition: TypeDefinition, level: Int = 1) throws -> SemanticString {
         let dumper = typeDefinition.type.dumper(using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: false), in: machO)
 
         if level > 1 {
@@ -824,7 +833,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     }
 
     @SemanticStringBuilder
-    private func printProtocolDefinition(_ protocolDefinition: ProtocolDefinition, level: Int = 1) throws -> SemanticString {
+    public func printProtocolDefinition(_ protocolDefinition: ProtocolDefinition, level: Int = 1) throws -> SemanticString {
         let dumper = ProtocolDumper(protocolDefinition.protocol, using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: false), in: machO)
 
         if level > 1 {
@@ -859,7 +868,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     }
 
     @SemanticStringBuilder
-    private func printExtensionDefinition(_ extensionDefinition: ExtensionDefinition, level: Int = 1) throws -> SemanticString {
+    public func printExtensionDefinition(_ extensionDefinition: ExtensionDefinition, level: Int = 1) throws -> SemanticString {
         Keyword(.extension)
         Space()
         extensionDefinition.extensionName.print()
@@ -917,7 +926,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     }
 
     @SemanticStringBuilder
-    private func printDefinition(_ definition: some Definition, level: Int = 1) throws -> SemanticString {
+    public func printDefinition(_ definition: some Definition, level: Int = 1) throws -> SemanticString {
         for (offset, allocator) in definition.allocators.offsetEnumerated() {
             BreakLine()
 
@@ -1000,274 +1009,35 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     }
 
     @SemanticStringBuilder
-    private func printVariable(_ variable: VariableDefinition, level: Int) throws -> SemanticString {
+    public func printVariable(_ variable: VariableDefinition, level: Int) throws -> SemanticString {
         var printer = VariableNodePrinter(isStored: variable.isStored, isOverride: variable.isOverride, hasSetter: variable.hasSetter, indentation: level, delegate: self)
         try printer.printRoot(variable.node)
     }
 
     @SemanticStringBuilder
-    private func printFunction(_ function: FunctionDefinition) throws -> SemanticString {
+    public func printFunction(_ function: FunctionDefinition) throws -> SemanticString {
         var printer = FunctionNodePrinter(isOverride: function.isOverride, delegate: self)
         try printer.printRoot(function.node)
     }
 
     @SemanticStringBuilder
-    private func printSubscript(_ `subscript`: SubscriptDefinition, level: Int) throws -> SemanticString {
+    public func printSubscript(_ `subscript`: SubscriptDefinition, level: Int) throws -> SemanticString {
         var printer = SubscriptNodePrinter(isOverride: `subscript`.isOverride, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
         try printer.printRoot(`subscript`.node)
     }
 
-    /// Collects all modules that need to be imported for the interface.
-    /// Scans all symbols to find module references and builds the import list.
-    private func collectModules() async throws {
-        eventDispatcher.dispatch(.moduleCollectionStarted)
-        @Dependency(\.symbolIndexStore)
-        var symbolIndexStore
-
-        var usedModules: OrderedSet<String> = []
-        let filterModules: Set<String> = [cModule, objcModule, stdlibName]
-        let allSymbols = symbolIndexStore.allSymbols(in: machO)
-
-        eventDispatcher.dispatch(.symbolScanStarted(context: SwiftInterfaceBuilderEvents.SymbolScanContext(totalSymbols: allSymbols.count, filterModules: Array(filterModules.sorted()))))
-
-        for symbol in allSymbols {
-            for moduleNode in symbol.demangledNode.all(of: .module) {
-                if let module = moduleNode.text, !filterModules.contains(module) {
-                    if usedModules.append(module).inserted {
-                        eventDispatcher.dispatch(.moduleFound(context: SwiftInterfaceBuilderEvents.ModuleContext(moduleName: module)))
-                    }
-                }
-            }
-        }
-
-        importedModules = usedModules
-        eventDispatcher.dispatch(.moduleCollectionCompleted(result: SwiftInterfaceBuilderEvents.ModuleCollectionResult(moduleCount: usedModules.count, modules: Array(usedModules.sorted()))))
-    }
-}
-
-extension SwiftInterfaceBuilder<MachOFile> {
-    /// Sets the dependency paths for loading related Mach-O files and dyld caches.
-    /// This improves type resolution by providing access to types from dependencies.
-    ///
-    /// - Parameter paths: An array of dependency paths specifying where to find related binaries.
-    ///                   Can include specific Mach-O files, dyld cache paths, or system cache.
-    ///
-    /// ## Example
-    /// ```swift
-    /// builder.setDependencyPaths([
-    ///     .machO("/path/to/dependency.framework/Versions/A/dependency"),
-    ///     .dyldSharedCache("/path/to/dyld_shared_cache_x86_64"),
-    ///     .usesSystemDyldSharedCache
-    /// ])
-    /// ```
-    public func setDependencyPaths(_ paths: [DependencyPath]) {
-        eventDispatcher.dispatch(.dependencyLoadingStarted(input: SwiftInterfaceBuilderEvents.DependencyLoadingInput(paths: paths.count)))
-        var dependencies: [MachOFile] = []
-        let dependencyPaths = Set(machO.dependencies.map(\.dylib.name))
-
-        for searchPath in paths {
-            switch searchPath {
-            case .machO(let path):
-                do {
-                    if let machOFile = try File.loadFromFile(url: .init(fileURLWithPath: path)).machOFiles.first {
-                        dependencies.append(machOFile)
-                        eventDispatcher.dispatch(.dependencyLoadSuccess(context: SwiftInterfaceBuilderEvents.DependencyContext(path: path, count: nil)))
-                    } else {
-                        eventDispatcher.dispatch(.dependencyLoadWarning(warning: .init(path: path, reason: .noMachOFileFound)))
-                    }
-                } catch {
-                    eventDispatcher.dispatch(.dependencyLoadingFailed(failure: SwiftInterfaceBuilderEvents.DependencyLoadingFailure(path: path, error: error)))
-                }
-            case .dyldSharedCache(let path):
-                do {
-                    let fullDyldCache = try FullDyldCache(url: .init(fileURLWithPath: path))
-                    var foundCount = 0
-                    for machOFile in fullDyldCache.machOFiles() where dependencyPaths.contains(machOFile.imagePath) {
-                        dependencies.append(machOFile)
-                        foundCount += 1
-                    }
-                    eventDispatcher.dispatch(.dependencyLoadSuccess(context: SwiftInterfaceBuilderEvents.DependencyContext(path: path, count: foundCount)))
-                } catch {
-                    eventDispatcher.dispatch(.dependencyLoadingFailed(failure: SwiftInterfaceBuilderEvents.DependencyLoadingFailure(path: path, error: error)))
-                }
-            case .usesSystemDyldSharedCache:
-                if let hostDyldCache = FullDyldCache.host {
-                    var foundCount = 0
-                    for machOFile in hostDyldCache.machOFiles() where dependencyPaths.contains(machOFile.imagePath) {
-                        dependencies.append(machOFile)
-                        foundCount += 1
-                    }
-                    eventDispatcher.dispatch(.dependencyLoadSuccess(context: SwiftInterfaceBuilderEvents.DependencyContext(path: "system dyld cache", count: foundCount)))
-                } else {
-                    eventDispatcher.dispatch(.dependencyLoadWarning(warning: .init(path: "system dyld cache", reason: .systemCacheNotAvailable)))
-                }
-            }
-        }
-
-        self.dependencies = dependencies
-        eventDispatcher.dispatch(.dependencyLoadingCompleted(result: SwiftInterfaceBuilderEvents.DependencyLoadingResult(loadedCount: dependencies.count)))
-    }
-}
-
-extension SwiftInterfaceBuilder<MachOImage> {
-    public func setupDependencies() {
-        var dependencies: [MachO] = []
-        let dependencyPaths = machO.dependencies.map(\.dylib.name)
-
-        for dependencyPath in dependencyPaths {
-            if let machO = MachOImage(name: dependencyPath) {
-                dependencies.append(machO)
-            }
-        }
-
-        self.dependencies = dependencies
-    }
 }
 
 extension SwiftInterfaceBuilder: NodePrintableDelegate {
     func moduleName(forTypeName typeName: String) -> String? {
-        typeDatabase?.moduleName(forTypeName: typeName)
+        extraDataProviders.firstNonNil { $0.moduleName(forTypeName: typeName) }
     }
 
     func swiftName(forCName cName: String) -> String? {
-        typeDatabase?.swiftName(forCName: cName)
+        extraDataProviders.firstNonNil { $0.swiftName(forCName: cName) }
     }
 
     func opaqueType(forNode node: Node, index: Int?) -> String? {
-        do {
-            @Dependency(\.symbolIndexStore)
-            var symbolIndexStore
-
-            guard let opaqueTypeDescriptorSymbol = symbolIndexStore.opaqueTypeDescriptorSymbol(for: node, in: machO) else { return nil }
-
-            let opaqueType = try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(from: opaqueTypeDescriptorSymbol.offset, in: machO), in: machO)
-            let requirements = try opaqueType.requirements(in: machO)
-            var protocolRequirementsByParamType: OrderedDictionary<String, [GenericRequirementDescriptor]> = [:]
-            var protocolRequirements = requirements.filter(\.content.isProtocol)
-            for protocolRequirement in protocolRequirements {
-                let param = try protocolRequirement.dumpParameterName(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO).string
-                protocolRequirementsByParamType[param, default: []].append(protocolRequirement)
-            }
-            if let index {
-                protocolRequirements = protocolRequirementsByParamType.elements[index + 1].value
-            } else {
-                protocolRequirements = protocolRequirementsByParamType.elements[0].value
-            }
-            let typeRequirements = requirements.filter(\.content.isType)
-            let typeRequirementNodes = try typeRequirements.compactMap { try MetadataReader.buildGenericSignature(for: $0, in: machO) }
-            var substitutionMap: SubstitutionMap<Node> = .init()
-            var associatedTypeByParamType: [String: [Node]] = [:]
-            var witnessTypeByParamType: [String: [Node]] = [:]
-            for typeRequirementNode in typeRequirementNodes {
-                guard let sameTypeRequirementNode = typeRequirementNode.first(of: .dependentGenericSameTypeRequirement) else { continue }
-                guard let firstType = sameTypeRequirementNode.children.at(0), let secondType = sameTypeRequirementNode.children.at(1) else { continue }
-                if secondType.children.first?.isKind(of: .dependentMemberType) ?? false {
-                    substitutionMap.add(original: firstType, substitution: secondType)
-                    if let paramTypeNode = secondType.first(of: .dependentGenericParamType), let paramType = paramTypeNode.text {
-                        associatedTypeByParamType[paramType, default: []].append(secondType)
-                    }
-                } else if let paramTypeNode = firstType.first(of: .dependentGenericParamType), let paramType = paramTypeNode.text {
-                    witnessTypeByParamType[paramType, default: []].append(secondType)
-                }
-            }
-
-            var results: [String] = []
-            for protocolRequirement in protocolRequirements {
-                var result = ""
-                let param = try protocolRequirement.dumpParameterName(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO).string
-                let proto = try protocolRequirement.dumpContent(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO).string
-                result.write(proto)
-                var primaryAssociatedTypes: [String] = []
-                if let associatedTypes = associatedTypeByParamType[param] {
-                    for associatedType in associatedTypes {
-                        let primaryAssociatedTypeNode = substitutionMap.rootOriginal(for: associatedType)
-                        primaryAssociatedTypes.append(primaryAssociatedTypeNode.print(using: .opaqueTypeBuilderOnly))
-                    }
-                }
-
-                if let witnessTypes = witnessTypeByParamType[param] {
-                    for witnessType in witnessTypes {
-                        primaryAssociatedTypes.append(witnessType.print(using: .opaqueTypeBuilderOnly))
-                    }
-                }
-
-                if !primaryAssociatedTypes.isEmpty {
-                    result.write("<")
-                    result.write(primaryAssociatedTypes.joined(separator: ", "))
-                    result.write(">")
-                }
-
-                results.append(result)
-            }
-
-            return results.joined(separator: " & ")
-        } catch {
-            return nil
-        }
-    }
-}
-
-extension String {
-    var strippedLibSwiftPrefix: String {
-        if hasPrefix("libswift") {
-            return String(dropFirst("libswift".count))
-        }
-        return self
-    }
-}
-
-extension MachOKit.Platform {
-    var sdkPlatform: SDKPlatform? {
-        switch self {
-        case .macOS,
-             .macCatalyst:
-            return .macOS
-        case .driverKit:
-            return .driverKit
-        case .iOS:
-            return .iOS
-        case .tvOS:
-            return .tvOS
-        case .watchOS:
-            return .watchOS
-        case .visionOS:
-            return .visionOS
-        case .iOSSimulator:
-            return .iOSSimulator
-        case .tvOSSimulator:
-            return .tvOSSimulator
-        case .watchOSSimulator:
-            return .watchOSSimulator
-        case .visionOSSimulator:
-            return .visionOSSimulator
-        default:
-            return nil
-        }
-    }
-}
-
-extension LoadCommandsProtocol {
-    var buildVersionCommand: BuildVersionCommand? {
-        for command in self {
-            switch command {
-            case .buildVersion(let buildVersionCommand):
-                return buildVersionCommand
-            default:
-                break
-            }
-        }
-        return nil
-    }
-}
-
-extension Sequence {
-    func filterNonNil<T>(_ filter: (Element) throws -> T?) rethrows -> [Element] {
-        var results: [Element] = []
-        for element in self {
-            if try filter(element) != nil {
-                results.append(element)
-            }
-        }
-        return results
+        extraDataProviders.firstNonNil { $0.opaqueType(forNode: node, index: index) }
     }
 }

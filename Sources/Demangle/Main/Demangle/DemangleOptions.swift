@@ -60,7 +60,7 @@ public struct DemangleOptions: OptionSet, Codable, Sendable {
         .shortenArchetype,
     ]
 
-    public static let interface: DemangleOptions = {
+    package static let interface: DemangleOptions = {
         var options = DemangleOptions.default
         options.remove(.displayObjCModule)
         options.insert(.synthesizeSugarOnTypes)
@@ -72,7 +72,7 @@ public struct DemangleOptions: OptionSet, Codable, Sendable {
         return options
     }()
 
-    public static let interfaceType: DemangleOptions = {
+    package static let interfaceType: DemangleOptions = {
         var options = DemangleOptions.interface
         options.insert(.removeBoundGeneric)
         return options

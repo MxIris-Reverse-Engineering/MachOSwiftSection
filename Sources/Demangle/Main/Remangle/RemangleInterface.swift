@@ -9,9 +9,8 @@
 ///   - node: The root node of the demangled tree
 ///   - usePunycode: Whether to use Punycode encoding for non-ASCII identifiers
 /// - Returns: The mangled string, or nil if remangling failed
-public func mangleAsString(_ node: Node, usePunycode: Bool = true, symbolicReferenceResolver: SymbolicReferenceResolver? = nil) throws(ManglingError) -> String {
+public func mangleAsString(_ node: Node, usePunycode: Bool = true) throws(ManglingError) -> String {
     let remangler = Remangler(usePunycode: usePunycode)
-    remangler.symbolicReferenceResolver = symbolicReferenceResolver
     return try remangler.mangle(node)
 }
 

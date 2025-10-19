@@ -3,14 +3,16 @@ import Testing
 @testable import Demangle
 import MachOKit
 import MachOFoundation
-@testable import MachOSwiftSection
 @testable import MachOTestingSupport
 import Dependencies
 
-@Suite
-final class DyldCacheSymbolRemangleTests: DyldCacheSymbolTests {
-    @MainActor
-    @Test func symbols() throws {
+protocol DemangleAndRemangleTests {
+    func allSymbols() throws ->[MachOSwiftSymbol]
+    @MainActor func mainTest() throws
+}
+
+extension DemangleAndRemangleTests {
+    func mainTest() throws {
         let allSwiftSymbols = try allSymbols()
         "Total Swift Symbols: \(allSwiftSymbols.count)".print()
         for symbol in allSwiftSymbols {
@@ -28,6 +30,14 @@ final class DyldCacheSymbolRemangleTests: DyldCacheSymbolTests {
                 }
             }
         }
+    }
+}
+
+@Suite
+final class DyldCacheSymbolRemangleTests: DyldCacheSymbolTests, DemangleAndRemangleTests {
+    @MainActor
+    @Test func symbols() throws {
+        try mainTest()
     }
     
     @Test func test() async throws {

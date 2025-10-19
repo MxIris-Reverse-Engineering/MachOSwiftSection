@@ -1,16 +1,16 @@
 /// A data structure for managing directed substitutions, forming chains of transformations.
-/// 
+///
 /// This map is designed to find the beginning (root original) or the end (final substitution)
 /// of a substitution chain. For example, given the rules:
 /// A -> B
 /// B -> C
-/// 
+///
 /// - The final substitution for A is C.
 /// - The root original for C is A.
-/// 
+///
 /// It is not based on equivalence (like a Union-Find structure) but on a directed path.
 /// It includes cycle detection to prevent infinite loops.
-public struct SubstitutionMap<T: Hashable> {
+package struct SubstitutionMap<T: Hashable> {
     // Stores the forward mapping: original -> substitution
     // e.g., [A: B] means A is substituted by B.
     private var substitutions: [T: T] = [:]
@@ -19,17 +19,17 @@ public struct SubstitutionMap<T: Hashable> {
     // e.g., [B: A] means B is a substitution for A.
     private var originals: [T: T] = [:]
 
-    public init() {}
+    package init() {}
 
     /// Adds a new substitution rule to the map.
-    /// 
+    ///
     /// It establishes a directed link from the original to its substitution.
     /// A precondition ensures that a type cannot be a substitution for more than one original,
     /// maintaining a clean, non-branching reverse path.
-    /// 
+    ///
     /// - Parameter substitution: The type that replaces the original.
     /// - Parameter original: The type to be replaced.
-    public mutating func add(original: T, substitution: T) {
+    package mutating func add(original: T, substitution: T) {
         // To maintain a simple chain structure, a substitution should only have one original.
         // If `originals[substitution]` is already set, it means we are trying to create a
         // structure like X -> Y and Z -> Y, which complicates finding a single "root".
@@ -44,13 +44,13 @@ public struct SubstitutionMap<T: Hashable> {
     }
 
     /// Traverses the substitution chain to find the final form of a given type.
-    /// 
+    ///
     /// For a chain A -> B -> C, the final substitution for A is C.
     /// Includes cycle detection to prevent infinite loops.
-    /// 
+    ///
     /// - Parameter original: The starting type in the chain.
     /// - Returns: The type at the very end of the substitution chain.
-    public func finalSubstitution(for original: T) -> T {
+    package func finalSubstitution(for original: T) -> T {
         var current = original
         var visited: Set<T> = [current]
 
@@ -68,13 +68,13 @@ public struct SubstitutionMap<T: Hashable> {
     }
 
     /// Traverses the substitution chain backwards to find the root original of a given type.
-    /// 
+    ///
     /// For a chain A -> B -> C, the root original for C is A.
     /// Includes cycle detection to prevent infinite loops.
-    /// 
+    ///
     /// - Parameter substitution: The starting type in the chain.
     /// - Returns: The type at the very beginning of the substitution chain.
-    public func rootOriginal(for substitution: T) -> T {
+    package func rootOriginal(for substitution: T) -> T {
         var current = substitution
         var visited: Set<T> = [current]
 

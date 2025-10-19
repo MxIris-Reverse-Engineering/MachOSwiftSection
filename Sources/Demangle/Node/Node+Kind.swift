@@ -573,27 +573,3 @@ extension Sequence where Element == Node.Kind {
         ]
     }
 }
-
-extension Node {
-    package var identifier: String? {
-        if let node = children.at(1), node.kind == .identifier {
-            return node.text
-        } else if let node = children.at(1), node.kind == .privateDeclName {
-            return node.children.at(1)?.text
-        } else if let node = first(of: .prefixOperator, .postfixOperator, .infixOperator) {
-            return node.text
-        } else if let node = first(of: .identifier) {
-            return node.text
-        } else if let node = first(of: .privateDeclName) {
-            return node.children.at(1)?.text
-        } else {
-            return nil
-        }
-    }
-}
-
-extension Node {
-    public func isKind(of kinds: Node.Kind...) -> Bool {
-        return kinds.contains(kind)
-    }
-}

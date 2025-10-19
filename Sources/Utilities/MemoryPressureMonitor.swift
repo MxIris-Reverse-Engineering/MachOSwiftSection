@@ -1,6 +1,6 @@
 import Dispatch
 
-package class MemoryPressureMonitor {
+package final class MemoryPressureMonitor {
 
     private var memoryPressureSource: DispatchSourceMemoryPressure?
     

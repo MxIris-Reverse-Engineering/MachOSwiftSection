@@ -34,4 +34,3 @@ public enum SymbolicReference {
     }
 }
 
-public typealias SymbolicReferenceResolver = @Sendable (_ kind: SymbolicReferenceKind, _ directness: Directness, _ symbolicReferenceIndex: Int) -> Node?

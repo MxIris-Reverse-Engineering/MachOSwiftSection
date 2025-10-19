@@ -48,7 +48,7 @@ package enum XcodeMachOFileName: CaseIterable {
         case AccessibilityAudit
         case AccessibilitySupport
         case AppResourceGeneration
-        case AppThinningse
+        case AppThinning
         case AssetRuntimeSupport
         case AuthenticationAPI
         case BuildServerProtocol
@@ -398,7 +398,7 @@ package enum XcodeMachOFileName: CaseIterable {
     case plugins(Plugins)
 
     package var contentsDirectory: String {
-        "/Applications/Xcode.app/Contents"
+        "/Applications/Xcode.app/Contents/"
     }
 
     package var rawValue: String {
@@ -413,7 +413,7 @@ package enum XcodeMachOFileName: CaseIterable {
     }
 
     package var url: URL {
-        return URL(fileURLWithPathWithoutExtension: "\(contentsDirectory)/\(rawValue)")!
+        return URL(fileURLWithPathWithoutExtension: "\(contentsDirectory)\(rawValue)")
     }
 
     package static var allCases: [XcodeMachOFileName] {
@@ -427,7 +427,7 @@ import Foundation
 import Darwin
 
 extension URL {
-    init?(fileURLWithPathWithoutExtension pathWithoutExtension: String) {
+    init(fileURLWithPathWithoutExtension pathWithoutExtension: String) {
         // 1. Create a glob pattern by appending ".*"
         // e.g., "/Folder/A" becomes "/Folder/A.*"
         let pattern = pathWithoutExtension + ".*"
@@ -453,7 +453,7 @@ extension URL {
             self = URL(fileURLWithPath: swiftPath)
         } else {
             // If no matches were found or an error occurred, return nil.
-            return nil
+            fatalError()
         }
     }
 }

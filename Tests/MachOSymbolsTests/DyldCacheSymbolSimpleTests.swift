@@ -3,7 +3,6 @@ import Testing
 @testable import Demangle
 import MachOKit
 import MachOFoundation
-@testable import MachOSwiftSection
 @testable import MachOTestingSupport
 import Dependencies
 

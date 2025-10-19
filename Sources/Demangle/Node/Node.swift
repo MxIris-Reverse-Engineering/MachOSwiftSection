@@ -1,6 +1,12 @@
 import SwiftStdlibToolbox
 
 public final class Node: Sendable {
+    public enum Contents: Hashable, Sendable {
+        case none
+        case index(UInt64)
+        case text(String)
+    }
+
     public let kind: Kind
 
     public let contents: Contents
@@ -11,35 +17,6 @@ public final class Node: Sendable {
     @Mutex
     public private(set) var children: [Node] = []
 
-    public var numberOfChildren: Int { children.count }
-
-    public enum Contents: Hashable, Sendable {
-        case none
-        case index(UInt64)
-        case text(String)
-
-        public var hasText: Bool {
-            text != nil
-        }
-
-        public var text: String? {
-            switch self {
-            case .none:
-                return nil
-            case .index:
-                return nil
-            case .text(let string):
-                return string
-            }
-        }
-    }
-
-    package func copy() -> Node {
-        let copy = Node(kind: kind, contents: contents, children: children.map { $0.copy() })
-        copy.parent = parent
-        return copy
-    }
-
     public init(kind: Kind, contents: Contents = .none, children: [Node] = []) {
         self.kind = kind
         self.contents = contents
@@ -49,51 +26,10 @@ public final class Node: Sendable {
         }
     }
 
-    public convenience init(kind: Kind, child: Node) {
-        self.init(kind: kind, contents: .none, children: [child])
-    }
-
-    public convenience init(kind: Kind, children: [Node] = []) {
-        self.init(kind: kind, contents: .none, children: children)
-    }
-
-    public convenience init(kind: Kind, text: String, child: Node) {
-        self.init(kind: kind, contents: .text(text), children: [child])
-    }
-
-    public convenience init(kind: Kind, text: String, children: [Node] = []) {
-        self.init(kind: kind, contents: .text(text), children: children)
-    }
-
-    public convenience init(kind: Kind, index: UInt64, child: Node) {
-        self.init(kind: kind, contents: .index(index), children: [child])
-    }
-
-    public convenience init(kind: Kind, index: UInt64, children: [Node] = []) {
-        self.init(kind: kind, contents: .index(index), children: children)
-    }
-
-    convenience init(typeWithChildKind: Kind, childChild: Node) {
-        self.init(kind: .type, contents: .none, children: [Node(kind: typeWithChildKind, children: [childChild])])
-    }
-
-    convenience init(typeWithChildKind: Kind, childChildren: [Node]) {
-        self.init(kind: .type, contents: .none, children: [Node(kind: typeWithChildKind, children: childChildren)])
-    }
-
-    convenience init(swiftStdlibTypeKind: Kind, name: String) {
-        self.init(kind: .type, contents: .none, children: [Node(kind: swiftStdlibTypeKind, children: [
-            Node(kind: .module, contents: .text(stdlibName)),
-            Node(kind: .identifier, contents: .text(name)),
-        ])])
-    }
-
-    convenience init(swiftBuiltinType: Kind, name: String) {
-        self.init(kind: .type, children: [Node(kind: swiftBuiltinType, contents: .text(name))])
-    }
-
-    subscript(child childIndex: Int) -> Node {
-        children[childIndex]
+    public func copy() -> Node {
+        let copy = Node(kind: kind, contents: contents, children: children.map { $0.copy() })
+        copy.parent = parent
+        return copy
     }
 }
 

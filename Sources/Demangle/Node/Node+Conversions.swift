@@ -6,13 +6,54 @@ extension Node {
         }
     }
 
+    public var hasText: Bool {
+        text != nil
+    }
+
+    public var indexAsCharacter: Character? {
+        if let index, let scalar = UnicodeScalar(UInt32(index)) {
+            return Character(scalar)
+        } else {
+            return nil
+        }
+    }
+
     public var index: UInt64? {
         switch contents {
         case .index(let i): return i
         default: return nil
         }
     }
-    
+
+    public var hasIndex: Bool {
+        index != nil
+    }
+
+    public var isNoneContents: Bool {
+        switch contents {
+        case .none: return true
+        default: return false
+        }
+    }
+
+    public var numberOfChildren: Int {
+        children.count
+    }
+
+    public var hasChildren: Bool {
+        numberOfChildren > 0
+    }
+
+    public var firstChild: Node? {
+        children.first
+    }
+
+    public var lastChild: Node? {
+        children.last
+    }
+}
+
+extension Node {
     public var isProtocol: Bool {
         switch kind {
         case .type: return children.first?.isProtocol ?? false
@@ -100,23 +141,31 @@ extension Node {
 }
 
 extension Node {
-    package func findGenericParamsDepth() -> [UInt64: UInt64]? {
-        guard kind == .dependentGenericType, first(of: .dependentGenericParamCount) != nil else { return nil }
+    public func isKind(of kinds: Node.Kind...) -> Bool {
+        return kinds.contains(kind)
+    }
+}
 
-        var depths: [UInt64: UInt64] = [:]
+extension Node {
+    public subscript(child childIndex: Int) -> Node {
+        children[childIndex]
+    }
 
-        for child in self {
-            guard child.kind == .dependentGenericParamType else { continue }
-            guard let depth = child.children.at(0)?.index else { continue }
-            guard let index = child.children.at(1)?.index else { continue }
+    public subscript(safeChild childIndex: Int) -> Node? {
+        children[safe: childIndex]
+    }
 
-            if let currentDepth = depths[index] {
-                depths[index] = Swift.max(currentDepth, depth)
+    public subscript(throwChild childIndex: Int) -> Node {
+        get throws(IndexOutOfBoundError) {
+            if let child = children[safe: childIndex] {
+                return child
             } else {
-                depths[index] = depth
+                throw .default
             }
         }
+    }
 
-        return depths
+    public struct IndexOutOfBoundError: Error {
+        public static let `default` = IndexOutOfBoundError()
     }
 }

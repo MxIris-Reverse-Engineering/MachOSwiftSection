@@ -17,9 +17,8 @@ extension SwiftInterfaceBuilderTests {
 
     func buildFile(in machO: MachOFile) async throws {
         let builder = try SwiftInterfaceBuilder(configuration: .init(isEnabledTypeIndexing: false), eventHandlers: [], in: machO)
-        builder.setDependencyPaths([.usesSystemDyldSharedCache])
         try await builder.prepare()
-        let result = try builder.build()
+        let result = try builder.printRoot()
         try rootDirectory.createDirectoryIfNeeded()
         try result.string.write(to: rootDirectory.appending(path: "\(machO.imagePath.lastPathComponent)-FileDump.swiftinterface"), atomically: true, encoding: .utf8)
 
@@ -28,9 +27,8 @@ extension SwiftInterfaceBuilderTests {
 
     func buildFile(in machO: MachOImage) async throws {
         let builder = try SwiftInterfaceBuilder(configuration: .init(isEnabledTypeIndexing: false), eventHandlers: [OSLogEventHandler()], in: machO)
-        builder.setupDependencies()
         try await builder.prepare()
-        let result = try builder.build()
+        let result = try builder.printRoot()
         try rootDirectory.createDirectoryIfNeeded()
         try result.string.write(to: rootDirectory.appending(path: "\(machO.imagePath.lastPathComponent)-ImageDump.swiftinterface"), atomically: true, encoding: .utf8)
 

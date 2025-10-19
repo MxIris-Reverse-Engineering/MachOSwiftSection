@@ -1,5 +1,5 @@
 @attached(member, names: arbitrary)
-public macro CaseCheckable(
+package macro CaseCheckable(
     _ access: AccessLevel? = nil
 ) = #externalMacro(
     module: "MachOMacros",

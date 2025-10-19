@@ -281,7 +281,7 @@ extension GenericRequirementDescriptor {
     private func dumpProtocolMangledName<MachO: MachOSwiftSectionRepresentableWithCache>(_ mangledName: MangledName, in machO: MachO, @SemanticStringBuilder builder: (Node) throws -> SemanticString) throws -> SemanticString {
         let node = try MetadataReader.demangleType(for: mangledName, in: machO)
 
-        let params = node.filter(of: .dependentAssociatedTypeRef).compactMap { $0.first(of: .identifier)?.contents.text }
+        let params = node.filter(of: .dependentAssociatedTypeRef).compactMap { $0.first(of: .identifier)?.text }
         
         if params.isEmpty {
             if node == .firstGenericParamType {

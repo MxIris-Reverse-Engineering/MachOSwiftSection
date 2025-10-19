@@ -6,9 +6,9 @@ import MachOFoundation
 
 private final class MetadataReaderCache: MachOCache<MetadataReaderCache.Entry> {
     fileprivate static let shared = MetadataReaderCache()
-    
+
     private override init() {}
-    
+
     fileprivate struct MangledNameBox: Hashable {
         let wrappedValue: MangledName
 
@@ -33,10 +33,10 @@ private final class MetadataReaderCache: MachOCache<MetadataReaderCache.Entry> {
         Entry()
     }
 
-    override func entry<MachO>(in machO: MachO) -> Entry? where MachO : MachORepresentableWithCache {
+    override func entry<MachO>(in machO: MachO) -> Entry? where MachO: MachORepresentableWithCache {
         super.entry(in: machO)
     }
-    
+
     func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
         if let node = entry(in: machO)?.nodeForMangledNameBox[MangledNameBox(mangledName)] {
             return node
@@ -61,7 +61,7 @@ public enum MetadataReader<MachO: MachOSwiftSectionRepresentableWithCache> {
     fileprivate static func _demangleType(for mangledName: MangledName, in machO: MachO) throws -> Node {
         return try demangle(for: mangledName, kind: .type, in: machO)
     }
-    
+
     public static func demangleType(for mangledName: MangledName, in machO: MachO) throws -> Node {
 //        return try demangle(for: mangledName, kind: .type, in: machO)
         try MetadataReaderCache.shared.demangleType(for: mangledName, in: machO)
@@ -91,7 +91,7 @@ public enum MetadataReader<MachO: MachOSwiftSectionRepresentableWithCache> {
         case .symbol:
             mangledName.symbolString
         }
-        let symbolicReferenceResolver: SymbolicReferenceResolver = { kind, directness, index -> Node? in
+        let symbolicReferenceResolver: DemangleSymbolicReferenceResolver = { kind, directness, index -> Node? in
             do {
                 var result: Node?
                 let lookup = mangledName.lookupElements[index]
@@ -397,10 +397,10 @@ public enum MetadataReader<MachO: MachOSwiftSectionRepresentableWithCache> {
 
         let identifierNode = nameChild.children[1]
 
-        guard identifierNode.kind == .identifier, identifierNode.contents.hasText else { return nil }
+        guard identifierNode.kind == .identifier, identifierNode.hasText else { return nil }
 
         guard let namedContext = context.namedContextDescriptor else { return nil }
-        guard try namedContext.name(in: machO) == identifierNode.contents.text else { return nil }
+        guard try namedContext.name(in: machO) == identifierNode.text else { return nil }
 
         parentContextRef = try parentContext.parent(in: machO)
 

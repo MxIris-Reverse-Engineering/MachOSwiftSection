@@ -3,16 +3,17 @@ import Testing
 @testable import Demangle
 import MachOKit
 import MachOFoundation
-@testable import MachOSwiftSection
 @testable import MachOTestingSupport
 import Dependencies
 
+struct MachOSwiftSymbol {
+    let imagePath: String
+    let offset: Int
+    let stringValue: String
+}
+
 class DyldCacheSymbolTests: DyldCacheTests {
-    struct MachOSwiftSymbol {
-        let imagePath: String
-        let offset: Int
-        let stringValue: String
-    }
+    
 
     func symbols(for machOImageNames: MachOImageName...) throws -> [MachOSwiftSymbol] {
         var symbols: [MachOSwiftSymbol] = []

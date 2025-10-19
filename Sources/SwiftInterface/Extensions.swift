@@ -1,4 +1,5 @@
 import Foundation
+import MachOKit
 import MachOSwiftSection
 import MemberwiseInit
 import OrderedCollections
@@ -7,6 +8,7 @@ import Demangle
 import Semantic
 import SwiftStdlibToolbox
 @_spi(Internals) import MachOSymbols
+import TypeIndexing
 
 extension Node {
     var accessorKind: AccessorKind {
@@ -155,5 +157,81 @@ extension Node {
         } else {
             return findKind(self)
         }
+    }
+}
+
+
+extension String {
+    var strippedLibSwiftPrefix: String {
+        if hasPrefix("libswift") {
+            return String(dropFirst("libswift".count))
+        }
+        return self
+    }
+}
+
+extension MachOKit.Platform {
+    var sdkPlatform: SDKPlatform? {
+        switch self {
+        case .macOS,
+             .macCatalyst:
+            return .macOS
+        case .driverKit:
+            return .driverKit
+        case .iOS:
+            return .iOS
+        case .tvOS:
+            return .tvOS
+        case .watchOS:
+            return .watchOS
+        case .visionOS:
+            return .visionOS
+        case .iOSSimulator:
+            return .iOSSimulator
+        case .tvOSSimulator:
+            return .tvOSSimulator
+        case .watchOSSimulator:
+            return .watchOSSimulator
+        case .visionOSSimulator:
+            return .visionOSSimulator
+        default:
+            return nil
+        }
+    }
+}
+
+extension LoadCommandsProtocol {
+    var buildVersionCommand: BuildVersionCommand? {
+        for command in self {
+            switch command {
+            case .buildVersion(let buildVersionCommand):
+                return buildVersionCommand
+            default:
+                break
+            }
+        }
+        return nil
+    }
+}
+
+extension Sequence {
+    func filterNonNil<T, E: Swift.Error>(_ filter: (Element) throws(E) -> T?) throws(E) -> [Element] {
+        var results: [Element] = []
+        for element in self {
+            if try filter(element) != nil {
+                results.append(element)
+            }
+        }
+        return results
+    }
+    
+    
+    func firstNonNil<T, E: Swift.Error>(_ transform: (Element) throws(E) -> T?) throws(E) -> T? {
+        for element in self {
+            if let newElement = try transform(element) {
+                return newElement
+            }
+        }
+        return nil
     }
 }

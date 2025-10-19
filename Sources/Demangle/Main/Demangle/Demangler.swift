@@ -3,12 +3,11 @@ struct Demangler<C>: Sendable where C: Collection, C.Iterator.Element == Unicode
     private var nameStack: [Node] = []
     private var substitutions: [Node] = []
     private var words: [String] = []
-    private var symbolicReferences: [Int32] = []
     private var isOldFunctionTypeMangling: Bool = false
     private var flavor: ManglingFlavor = .default
     private var symbolicReferenceIndex: Int = 0
 
-    var symbolicReferenceResolver: SymbolicReferenceResolver?
+    var symbolicReferenceResolver: DemangleSymbolicReferenceResolver?
 
     init(scalars: C) {
         self.scanner = ScalarScanner(scalars: scalars)
@@ -67,7 +66,7 @@ extension Demangler {
     }
 
     private mutating func popTopLevelInto(_ parent: Node) throws(DemanglingError) {
-        while var funcAttr = pop(where: { $0.isFunctionAttr }) {
+        while let funcAttr = pop(where: { $0.isFunctionAttr }) {
             switch funcAttr.kind {
             case .partialApplyForwarder,
                  .partialApplyObjCForwarder:
@@ -100,7 +99,7 @@ extension Demangler {
         try parseAndPushNames()
 
         let suffix = pop(kind: .suffix)
-        var topLevel = Node(kind: .global)
+        let topLevel = Node(kind: .global)
         try popTopLevelInto(topLevel)
         if let suffix {
             topLevel.addChild(suffix)
@@ -912,7 +911,7 @@ extension Demangler {
              "A" ... "J":
             return try Node(kind: .relatedEntityDeclName, children: [
                 Node(kind: .identifier, contents: .text(String(c))),
-                require(pop())
+                require(pop()),
             ])
         default:
             try scanner.backtrack()
@@ -1055,7 +1054,6 @@ extension Demangler {
 
         var array = [Node]()
         while true {
-            
             let typeList = Node(kind: .typeList)
             array.append(typeList)
             while let t = pop(kind: .type) {
@@ -2634,7 +2632,6 @@ private let maxRepeatCount = 2048
 
 private let maxNumWords = 26
 
-
 extension Demangler {
     /// NOTE: This struct is fileprivate to avoid clashing with CwlUtils (from which it is taken). If you want to use this struct outside this file, consider including CwlUtils.
     ///
@@ -2784,7 +2781,7 @@ extension Demangler {
         mutating func skipUntil(scalar: UnicodeScalar) throws(DemanglingError) {
             var i = index
             var c = 0
-            while i != scalars.endIndex && scalars[i] != scalar {
+            while i != scalars.endIndex, scalars[i] != scalar {
                 i = scalars.index(after: i)
                 c += 1
             }
@@ -2799,7 +2796,7 @@ extension Demangler {
         mutating func skipUntil(set inSet: Set<UnicodeScalar>) throws(DemanglingError) {
             var i = index
             var c = 0
-            while i != scalars.endIndex && !inSet.contains(scalars[i]) {
+            while i != scalars.endIndex, !inSet.contains(scalars[i]) {
                 i = scalars.index(after: i)
                 c += 1
             }
@@ -2855,7 +2852,7 @@ extension Demangler {
 
         /// Attempt to advance the `index` by count, returning `false` and `index` unchanged if `index` would advance past the end, otherwise returns `true` and `index` is advanced.
         mutating func skip(count: Int = 1) throws(DemanglingError) {
-            if count == 1 && index != scalars.endIndex {
+            if count == 1, index != scalars.endIndex {
                 index = scalars.index(after: index)
                 consumed += 1
             } else {
@@ -2952,7 +2949,7 @@ extension Demangler {
         func peek(skipCount: Int = 0) -> UnicodeScalar? {
             var i = index
             var c = skipCount
-            while c > 0 && i != scalars.endIndex {
+            while c > 0, i != scalars.endIndex {
                 i = scalars.index(after: i)
                 c -= 1
             }
@@ -2987,7 +2984,7 @@ extension Demangler {
             var result: UInt64 = 0
             var i = index
             var c = 0
-            while i != scalars.endIndex && scalars[i].isDigit {
+            while i != scalars.endIndex, scalars[i].isDigit {
                 let digit = UInt64(scalars[i].value - UnicodeScalar("0").value)
 
                 // The Swift compiler allows overflow here for malformed inputs, so we're obliged to do the same
@@ -3030,8 +3027,6 @@ extension Demangler {
             return index == scalars.endIndex
         }
     }
-
-
 }
 
 extension String.UnicodeScalarView {

@@ -5,7 +5,7 @@
 ///   - isType: if true, no prefix is parsed and, on completion, the first item on the parse stack is returned.
 /// - Returns: the successfully parsed result
 /// - Throws: a SwiftSymbolParseError error that contains parse position when the error occurred.
-public func demangleAsNode(_ mangled: String, isType: Bool = false, symbolicReferenceResolver: SymbolicReferenceResolver? = nil) throws(DemanglingError) -> Node {
+public func demangleAsNode(_ mangled: String, isType: Bool = false, symbolicReferenceResolver: DemangleSymbolicReferenceResolver? = nil) throws(DemanglingError) -> Node {
     try demangleAsNode(mangled.unicodeScalars, isType: isType, symbolicReferenceResolver: symbolicReferenceResolver)
 }
 
@@ -16,7 +16,7 @@ public func demangleAsNode(_ mangled: String, isType: Bool = false, symbolicRefe
 ///   - isType: if true, no prefix is parsed and, on completion, the first item on the parse stack is returned.
 /// - Returns: the successfully parsed result
 /// - Throws: a SwiftSymbolParseError error that contains parse position when the error occurred.
-private func demangleAsNode<C: Collection & Sendable>(_ mangled: C, isType: Bool = false, symbolicReferenceResolver: SymbolicReferenceResolver? = nil) throws(DemanglingError) -> Node where C.Iterator.Element == UnicodeScalar, C.Index: Sendable {
+private func demangleAsNode<C: Collection & Sendable>(_ mangled: C, isType: Bool = false, symbolicReferenceResolver: DemangleSymbolicReferenceResolver? = nil) throws(DemanglingError) -> Node where C.Iterator.Element == UnicodeScalar, C.Index: Sendable {
     var demangler = Demangler(scalars: mangled)
     demangler.symbolicReferenceResolver = symbolicReferenceResolver
     if isType {

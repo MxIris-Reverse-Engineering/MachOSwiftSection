@@ -50,7 +50,7 @@ public enum ManglingError: Error, CustomStringConvertible {
     /// Generic error with message
     case genericError(String)
 
-    case indexOutOfBounds
+    case indexOutOfBound
     
     public var description: String {
         switch self {

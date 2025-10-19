@@ -20,8 +20,8 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "The color scheme for the output.")
     var colorScheme: SemanticColorScheme = .none
     
-    @Flag(name: .customLong("enable-type-indexing"), help: "Enable type indexing for the generated Swift interface.")
-    var isEnabledTypeIndexing: Bool = false
+//    @Flag(name: .customLong("enable-type-indexing"), help: "Enable type indexing for the generated Swift interface.")
+//    var isEnabledTypeIndexing: Bool = false
     
     @Flag(help: "Show imported C types in the generated Swift interface.")
     var showCImportedTypes: Bool = false
@@ -29,7 +29,7 @@ struct InterfaceCommand: AsyncParsableCommand {
     func run() async throws {
         let machOFile = try MachOFile.load(options: machOOptions)
         
-        let configuration = SwiftInterfaceBuilderConfiguration(isEnabledTypeIndexing: isEnabledTypeIndexing, showCImportedTypes: showCImportedTypes)
+        let configuration = SwiftInterfaceBuilderConfiguration(showCImportedTypes: showCImportedTypes)
         
         let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [OSLogEventHandler()], in: machOFile)
         
@@ -39,7 +39,7 @@ struct InterfaceCommand: AsyncParsableCommand {
         
         print("Building Swift interface...")
         
-        let interfaceString = try builder.build()
+        let interfaceString = try builder.printRoot()
         
         print("Swift interface built successfully.")
         

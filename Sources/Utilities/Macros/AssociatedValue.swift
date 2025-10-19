@@ -31,7 +31,7 @@
 /// // }
 /// ```
 @attached(member, names: arbitrary)
-public macro AssociatedValue(
+package macro AssociatedValue(
     _ access: AccessLevel? = nil, // Changed to an unlabeled enum parameter
     prefix: String? = nil,
     suffix: String? = nil
