@@ -1,5 +1,5 @@
 /// A type for representing the different possible failure conditions when using ScalarScanner
-public enum SwiftSymbolParseError: Error, Sendable {
+public enum DemanglingError: Error, Sendable {
     /// Attempted to convert the buffer to UnicodeScalars but the buffer contained invalid data
     case utf8ParseError
 

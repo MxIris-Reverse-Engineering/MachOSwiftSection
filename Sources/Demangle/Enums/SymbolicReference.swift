@@ -14,7 +14,7 @@ public enum SymbolicReferenceKind: UInt8, CaseIterable, Sendable {
 }
 
 public enum SymbolicReference {
-    public static func symbolicReference(for rawValue: UInt8) -> (SymbolicReferenceKind, Directness)? {
+    public static func symbolicReference(for rawValue: UInt8) -> (kind: SymbolicReferenceKind, directness: Directness)? {
         switch rawValue {
         case 0x01:
             return (.context, .direct)
@@ -34,4 +34,4 @@ public enum SymbolicReference {
     }
 }
 
-public typealias SymbolicReferenceResolver = @Sendable (SymbolicReferenceKind, Directness, Int) -> Node?
+public typealias SymbolicReferenceResolver = @Sendable (_ kind: SymbolicReferenceKind, _ directness: Directness, _ symbolicReferenceIndex: Int) -> Node?

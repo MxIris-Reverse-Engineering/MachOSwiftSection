@@ -107,7 +107,7 @@ enum Punycode {
             }
 
             // Check for overflow
-            if (m - n) > (UInt32(Int.max) - UInt32(delta)) / UInt32(h + 1) {
+            if (m - n) > (UInt32.max - UInt32(delta)) / UInt32(h + 1) {
                 return nil
             }
             delta = delta + Int(m - n) * (h + 1)
@@ -189,7 +189,7 @@ enum Punycode {
     }
 
     /// Rough adaptation of the pseudocode from 6.2 "Decoding procedure" in RFC3492
-    static func decodeSwiftPunycode(_ value: String) throws -> String {
+    static func decodePunycode(_ value: String) throws(DemanglingError) -> String {
         let input = value.unicodeScalars
         var output = [UnicodeScalar]()
 
@@ -218,7 +218,7 @@ enum Punycode {
                 } else if input[pos] >= UnicodeScalar("A") {
                     digit = Int((input[pos].value - UnicodeScalar("A").value) + UInt32(alphaCount))
                 } else {
-                    throw SwiftSymbolParseError.punycodeParseError
+                    throw DemanglingError.punycodeParseError
                 }
 
                 if pos != input.endIndex {

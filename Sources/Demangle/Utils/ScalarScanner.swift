@@ -28,10 +28,10 @@ struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == Unicod
 
     /// Throw if the scalars at the current `index` don't match the scalars in `value`. Advance the `index` to the end of the match.
     /// WARNING: `string` is used purely for its `unicodeScalars` property and matching is purely based on direct scalar comparison (no decomposition or normalization is performed).
-    mutating func match(string: String) throws {
-        let (newIndex, newConsumed) = try string.unicodeScalars.reduce((index: index, count: 0)) { (tuple: (index: C.Index, count: Int), scalar: UnicodeScalar) in
+    mutating func match(string: String) throws(DemanglingError) {
+        let (newIndex, newConsumed) = try string.unicodeScalars.reduceThrowable((index: index, count: 0)) { (tuple: (index: C.Index, count: Int), scalar: UnicodeScalar) throws(DemanglingError) in
             if tuple.index == self.scalars.endIndex || scalar != self.scalars[tuple.index] {
-                throw SwiftSymbolParseError.matchFailed(wanted: string, at: consumed)
+                throw .matchFailed(wanted: string, at: consumed)
             }
             return (index: self.scalars.index(after: tuple.index), count: tuple.count + 1)
         }
@@ -40,27 +40,27 @@ struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == Unicod
     }
 
     /// Throw if the scalars at the current `index` don't match the scalars in `value`. Advance the `index` to the end of the match.
-    mutating func match(scalar: UnicodeScalar) throws {
+    mutating func match(scalar: UnicodeScalar) throws(DemanglingError) {
         if index == scalars.endIndex || scalars[index] != scalar {
-            throw SwiftSymbolParseError.matchFailed(wanted: String(scalar), at: consumed)
+            throw DemanglingError.matchFailed(wanted: String(scalar), at: consumed)
         }
         index = scalars.index(after: index)
         consumed += 1
     }
 
     /// Throw if the scalars at the current `index` don't match the scalars in `value`. Advance the `index` to the end of the match.
-    mutating func match(where test: @escaping (UnicodeScalar) -> Bool) throws {
+    mutating func match(where test: @escaping (UnicodeScalar) -> Bool) throws(DemanglingError) {
         if index == scalars.endIndex || !test(scalars[index]) {
-            throw SwiftSymbolParseError.matchFailed(wanted: "(match test function to succeed)", at: consumed)
+            throw DemanglingError.matchFailed(wanted: "(match test function to succeed)", at: consumed)
         }
         index = scalars.index(after: index)
         consumed += 1
     }
 
     /// Throw if the scalars at the current `index` don't match the scalars in `value`. Advance the `index` to the end of the match.
-    mutating func read(where test: @escaping (UnicodeScalar) -> Bool) throws -> UnicodeScalar {
+    mutating func read(where test: @escaping (UnicodeScalar) -> Bool) throws(DemanglingError) -> UnicodeScalar {
         if index == scalars.endIndex || !test(scalars[index]) {
-            throw SwiftSymbolParseError.matchFailed(wanted: "(read test function to succeed)", at: consumed)
+            throw DemanglingError.matchFailed(wanted: "(read test function to succeed)", at: consumed)
         }
         let s = scalars[index]
         index = scalars.index(after: index)
@@ -69,7 +69,7 @@ struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == Unicod
     }
 
     /// Consume scalars from the contained collection, up to but not including the first instance of `scalar` found. `index` is advanced to immediately before `scalar`. Returns all scalars consumed prior to `scalar` as a `String`. Throws if `scalar` is never found.
-    mutating func readUntil(scalar: UnicodeScalar) throws -> String {
+    mutating func readUntil(scalar: UnicodeScalar) throws(DemanglingError) -> String {
         var i = index
         let previousConsumed = consumed
         try skipUntil(scalar: scalar)
@@ -86,7 +86,7 @@ struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == Unicod
 
     /// Consume scalars from the contained collection, up to but not including the first instance of `string` found. `index` is advanced to immediately before `string`. Returns all scalars consumed prior to `string` as a `String`. Throws if `string` is never found.
     /// WARNING: `string` is used purely for its `unicodeScalars` property and matching is purely based on direct scalar comparison (no decomposition or normalization is performed).
-    mutating func readUntil(string: String) throws -> String {
+    mutating func readUntil(string: String) throws(DemanglingError) -> String {
         var i = index
         let previousConsumed = consumed
         try skipUntil(string: string)
@@ -102,7 +102,7 @@ struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == Unicod
     }
 
     /// Consume scalars from the contained collection, up to but not including the first instance of any character in `set` found. `index` is advanced to immediately before `string`. Returns all scalars consumed prior to `string` as a `String`. Throws if no matching characters are ever found.
-    mutating func readUntil(set inSet: Set<UnicodeScalar>) throws -> String {
+    mutating func readUntil(set inSet: Set<UnicodeScalar>) throws(DemanglingError) -> String {
         var i = index
         let previousConsumed = consumed
         try skipUntil(set: inSet)
@@ -143,7 +143,7 @@ struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == Unicod
     }
 
     /// Consume scalars from the contained collection, up to but not including the first instance of `scalar` found. `index` is advanced to immediately before `scalar`. Throws if `scalar` is never found.
-    mutating func skipUntil(scalar: UnicodeScalar) throws {
+    mutating func skipUntil(scalar: UnicodeScalar) throws(DemanglingError) {
         var i = index
         var c = 0
         while i != scalars.endIndex && scalars[i] != scalar {
@@ -151,14 +151,14 @@ struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == Unicod
             c += 1
         }
         if i == scalars.endIndex {
-            throw SwiftSymbolParseError.searchFailed(wanted: String(scalar), after: consumed)
+            throw DemanglingError.searchFailed(wanted: String(scalar), after: consumed)
         }
         index = i
         consumed += c
     }
 
     /// Consume scalars from the contained collection, up to but not including the first instance of any scalar from `set` is found. `index` is advanced to immediately before `scalar`. Throws if `scalar` is never found.
-    mutating func skipUntil(set inSet: Set<UnicodeScalar>) throws {
+    mutating func skipUntil(set inSet: Set<UnicodeScalar>) throws(DemanglingError) {
         var i = index
         var c = 0
         while i != scalars.endIndex && !inSet.contains(scalars[i]) {
@@ -166,7 +166,7 @@ struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == Unicod
             c += 1
         }
         if i == scalars.endIndex {
-            throw SwiftSymbolParseError.searchFailed(wanted: "One of: \(inSet.sorted())", after: consumed)
+            throw DemanglingError.searchFailed(wanted: "One of: \(inSet.sorted())", after: consumed)
         }
         index = i
         consumed += c
@@ -174,7 +174,7 @@ struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == Unicod
 
     /// Consume scalars from the contained collection, up to but not including the first instance of `string` found. `index` is advanced to immediately before `string`. Throws if `string` is never found.
     /// WARNING: `string` is used purely for its `unicodeScalars` property and matching is purely based on direct scalar comparison (no decomposition or normalization is performed).
-    mutating func skipUntil(string: String) throws {
+    mutating func skipUntil(string: String) throws(DemanglingError) {
         let match = string.unicodeScalars
         guard let first = match.first else { return }
         if match.count == 1 {
@@ -188,7 +188,7 @@ struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == Unicod
         outerLoop: repeat {
             while scalars[i] != first {
                 if i == scalars.endIndex {
-                    throw SwiftSymbolParseError.searchFailed(wanted: String(match), after: consumed)
+                    throw DemanglingError.searchFailed(wanted: String(match), after: consumed)
                 }
                 i = scalars.index(after: i)
                 c += 1
@@ -201,7 +201,7 @@ struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == Unicod
             c += 1
             for s in remainder {
                 if i == scalars.endIndex {
-                    throw SwiftSymbolParseError.searchFailed(wanted: String(match), after: consumed)
+                    throw DemanglingError.searchFailed(wanted: String(match), after: consumed)
                 }
                 if scalars[i] != s {
                     continue outerLoop
@@ -216,7 +216,7 @@ struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == Unicod
     }
 
     /// Attempt to advance the `index` by count, returning `false` and `index` unchanged if `index` would advance past the end, otherwise returns `true` and `index` is advanced.
-    mutating func skip(count: Int = 1) throws {
+    mutating func skip(count: Int = 1) throws(DemanglingError) {
         if count == 1 && index != scalars.endIndex {
             index = scalars.index(after: index)
             consumed += 1
@@ -225,7 +225,7 @@ struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == Unicod
             var c = count
             while c > 0 {
                 if i == scalars.endIndex {
-                    throw SwiftSymbolParseError.endedPrematurely(count: count, at: consumed)
+                    throw DemanglingError.endedPrematurely(count: count, at: consumed)
                 }
                 i = scalars.index(after: i)
                 c -= 1
@@ -236,7 +236,7 @@ struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == Unicod
     }
 
     /// Attempt to advance the `index` by count, returning `false` and `index` unchanged if `index` would advance past the end, otherwise returns `true` and `index` is advanced.
-    mutating func backtrack(count: Int = 1) throws {
+    mutating func backtrack(count: Int = 1) throws(DemanglingError) {
         if count <= consumed {
             if count == 1 {
                 index = scalars.index(index, offsetBy: -1)
@@ -249,7 +249,7 @@ struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == Unicod
                 }
             }
         } else {
-            throw SwiftSymbolParseError.endedPrematurely(count: -count, at: consumed)
+            throw DemanglingError.endedPrematurely(count: -count, at: consumed)
         }
     }
 
@@ -303,9 +303,9 @@ struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == Unicod
     }
 
     /// If the `index` is at the end, throw, otherwise, return the next scalar at the current `index` without advancing `index`.
-    func requirePeek() throws -> UnicodeScalar {
+    func requirePeek() throws(DemanglingError) -> UnicodeScalar {
         if index == scalars.endIndex {
-            throw SwiftSymbolParseError.endedPrematurely(count: 1, at: consumed)
+            throw DemanglingError.endedPrematurely(count: 1, at: consumed)
         }
         return scalars[index]
     }
@@ -325,9 +325,9 @@ struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == Unicod
     }
 
     /// If the `index` is at the end, throw, otherwise, return the next scalar at the current `index`, advancing `index` by one.
-    mutating func readScalar() throws -> UnicodeScalar {
+    mutating func readScalar() throws(DemanglingError) -> UnicodeScalar {
         if index == scalars.endIndex {
-            throw SwiftSymbolParseError.endedPrematurely(count: 1, at: consumed)
+            throw DemanglingError.endedPrematurely(count: 1, at: consumed)
         }
         let result = scalars[index]
         index = scalars.index(after: index)
@@ -336,16 +336,16 @@ struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == Unicod
     }
 
     /// Throws if scalar at the current `index` is not in the range `"0"` to `"9"`. Consume scalars `"0"` to `"9"` until a scalar outside that range is encountered. Return the integer representation of the value scanned, interpreted as a base 10 integer. `index` is advanced to the end of the number.
-    mutating func readInt() throws -> UInt64 {
+    mutating func readInt() throws(DemanglingError) -> UInt64 {
         let result = try conditionalInt()
         guard let r = result else {
-            throw SwiftSymbolParseError.expectedInt(at: consumed)
+            throw DemanglingError.expectedInt(at: consumed)
         }
         return r
     }
 
     /// Throws if scalar at the current `index` is not in the range `"0"` to `"9"`. Consume scalars `"0"` to `"9"` until a scalar outside that range is encountered. Return the integer representation of the value scanned, interpreted as a base 10 integer. `index` is advanced to the end of the number.
-    mutating func conditionalInt() throws -> UInt64? {
+    mutating func conditionalInt() throws(DemanglingError) -> UInt64? {
         var result: UInt64 = 0
         var i = index
         var c = 0
@@ -367,13 +367,13 @@ struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == Unicod
     }
 
     /// Consume and return `count` scalars. `index` will be advanced by count. Throws if end of `scalars` occurs before consuming `count` scalars.
-    mutating func readScalars(count: Int) throws -> String {
+    mutating func readScalars(count: Int) throws(DemanglingError) -> String {
         var result = String()
         result.reserveCapacity(count)
         var i = index
         for _ in 0 ..< count {
             if i == scalars.endIndex {
-                throw SwiftSymbolParseError.endedPrematurely(count: count, at: consumed)
+                throw DemanglingError.endedPrematurely(count: count, at: consumed)
             }
             result.unicodeScalars.append(scalars[i])
             i = scalars.index(after: i)
@@ -384,11 +384,21 @@ struct ScalarScanner<C: Collection>: Sendable where C.Iterator.Element == Unicod
     }
 
     /// Returns a throwable error capturing the current scanner progress point.
-    func unexpectedError() -> SwiftSymbolParseError {
-        return SwiftSymbolParseError.unexpected(at: consumed)
+    func unexpectedError() -> DemanglingError {
+        return DemanglingError.unexpected(at: consumed)
     }
 
     var isAtEnd: Bool {
         return index == scalars.endIndex
+    }
+}
+
+extension String.UnicodeScalarView {
+    fileprivate func reduceThrowable<Result, E: Error>(_ initialResult: Result, _ nextPartialResult: (Result, Unicode.Scalar) throws(E) -> Result) throws(E) -> Result {
+        do {
+            return try reduce(initialResult, nextPartialResult)
+        } catch {
+            throw error as! E
+        }
     }
 }

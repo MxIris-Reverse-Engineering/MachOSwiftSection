@@ -19,7 +19,7 @@ final class DyldCacheSymbolRemangleTests: DyldCacheSymbolTests {
                 let node = try demangleAsNode(symbol.stringValue)
                 let swiftSectionDemanlgedName = node.print()
                 #expect(swiftStdlibDemangledName == swiftSectionDemanlgedName, "\(symbol.stringValue)")
-                let remangledString = try Demangle.mangle(node)
+                let remangledString = try Demangle.mangleAsString(node)
                 #expect(remangledString == symbol.stringValue)
             } catch {
                 symbol.stringValue.print()
@@ -30,9 +30,9 @@ final class DyldCacheSymbolRemangleTests: DyldCacheSymbolTests {
         }
     }
     
-    @Test func remangle() async throws {
+    @Test func test() async throws {
         let node = try demangleAsNode("_$s10Foundation14AttributeScopePAAE13attributeKeysQrvpZQOyAA0B6ScopesO7SwiftUIE0G12UIAttributesV_Qo_ML")
-        try Demangle.mangle(node).print()
+        try Demangle.mangleAsString(node).print()
 //        node.description.print()
     }
 }
