@@ -1,9 +1,9 @@
 import Foundation
 import MachOKit
-import MachOMacro
+
 import MachOFoundation
 
-public struct Struct: TopLevelType {
+public struct Struct: TopLevelType, ContextProtocol {
     public let descriptor: StructDescriptor
     public let genericContext: TypeGenericContext?
     public let foreignMetadataInitialization: ForeignMetadataInitialization?
@@ -14,7 +14,7 @@ public struct Struct: TopLevelType {
     public let invertibleProtocolSet: InvertibleProtocolSet?
     public let singletonMetadataPointer: SingletonMetadataPointer?
     
-    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: StructDescriptor, in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: StructDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
 
         var currentOffset = descriptor.offset + descriptor.layoutSize

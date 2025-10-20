@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import MachOKit
-import MachOMacro
+
 import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
@@ -10,7 +10,7 @@ import MachOFoundation
 @Suite(.serialized)
 final class XcodeMachOFileDumpTests: XcodeMachOFileTests, DumpableTests {
     
-    override class var fileName: XcodeMachOFileName { .sharedFrameworks(.DNTSourceKitSupport) }
+    override class var fileName: XcodeMachOFileName { .sharedFrameworks(.SourceKitSupport) }
 }
 
 extension XcodeMachOFileDumpTests {

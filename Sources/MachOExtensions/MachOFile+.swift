@@ -22,7 +22,7 @@ extension MachOFile {
             return currentCache
         }
     }
-    
+
     @AssociatedObject(.retain(.nonatomic))
     private var _cache: DyldCache?
 
@@ -82,11 +82,20 @@ extension MachOFile {
     ///   - machO: The `MachOFile` object representing the MachO file to resolve rebases from.
     /// - Returns: The resolved rebase value as a `UInt64`, or `nil` if the rebase cannot be resolved.
 
+    @AssociatedObject(.retain(.nonatomic))
+    private var _resolveRebaseCache: [Int: UInt64] = [:]
+
     public func resolveRebase(fileOffset: Int) -> UInt64? {
         let offset: UInt64 = numericCast(fileOffset)
-        if let (cache, _offset) = resolveCacheStartOffsetIfNeeded(offset: offset),
-           let resolved = cache.resolveOptionalRebase(at: _offset) {
-            return resolved - cache.mainCacheHeader.sharedRegionStart
+
+        if let cached = _resolveRebaseCache[fileOffset] {
+            return cached
+        }
+
+        if let (cache, _offset) = resolveCacheStartOffsetIfNeeded(offset: offset), let resolved = cache.resolveOptionalRebase(at: _offset) {
+            let result = resolved - cache.mainCacheHeader.sharedRegionStart
+            _resolveRebaseCache[fileOffset] = result
+            return result
         }
 
         if cache != nil {
@@ -94,6 +103,7 @@ extension MachOFile {
         }
 
         if let resolved = resolveOptionalRebase(at: offset) {
+            _resolveRebaseCache[fileOffset] = resolved
             return resolved
         }
         return nil
@@ -116,16 +126,23 @@ extension MachOFile {
     ///   - machO: The `MachOFile` object representing the MachO file to analyze.
     /// - Returns: The resolved symbol name as a `String`, or `nil` if the bind operation cannot be resolved.
 
+    @AssociatedObject(.retain(.nonatomic))
+    private var _resolveBindCache: [UInt64: String] = [:]
+
     public func resolveBind(fileOffset: Int) -> String? {
         guard !isLoadedFromDyldCache else { return nil }
         guard let fixup = dyldChainedFixups else { return nil }
 
         let offset: UInt64 = numericCast(fileOffset)
 
-        if let resolved = resolveBind(at: offset) {
-            return fixup.symbolName(for: resolved.0.info.nameOffset)
+        if let cached = _resolveBindCache[offset] {
+            return cached
         }
-        return nil
+
+        guard let resolved = resolveBind(at: offset) else { return nil }
+        let result = fixup.symbolName(for: resolved.0.info.nameOffset)
+        _resolveBindCache[offset] = result
+        return result
     }
 
     /// Determines whether the specified file offset within the MachO file represents a bind operation.

@@ -1,10 +1,10 @@
 import Foundation
 import MachOKit
 import MachOFoundation
-import MachOMacro
+
 
 public struct ExtendedExistentialTypeShape: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let flags: ExtendedExistentialTypeShapeFlags
         public let existentialType: RelativeDirectPointer<MangledName>
         public let requirementSignatureHeader: GenericContextDescriptorHeader.Layout
@@ -21,7 +21,7 @@ public struct ExtendedExistentialTypeShape: ResolvableLocatableLayoutWrapper {
 }
 
 extension ExtendedExistentialTypeShape {
-    public func existentialType<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+    public func existentialType<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
         try layout.existentialType.resolve(from: offset(of: \.existentialType), in: machO)
     }
 }

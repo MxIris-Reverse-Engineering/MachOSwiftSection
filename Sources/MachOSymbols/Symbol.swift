@@ -1,17 +1,21 @@
 import MachOKit
-import MachOMacro
+
 import MachOReading
 import MachOResolving
 import MachOExtensions
+import Demangling
 
-public struct Symbol: Resolvable, Hashable {
+public struct Symbol: Resolvable, SymbolProtocol, Hashable {
     public let offset: Int
 
-    public let stringValue: String
-
-    public init(offset: Int, stringValue: String) {
+    public let name: String
+    
+    public let nlist: (any NlistProtocol)?
+    
+    public init(offset: Int, name: String, nlist: (any NlistProtocol)? = nil) {
         self.offset = offset
-        self.stringValue = stringValue
+        self.name = name
+        self.nlist = nlist
     }
 
     public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self {
@@ -24,5 +28,35 @@ public struct Symbol: Resolvable, Hashable {
         }
         return nil
     }
+    
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(offset)
+        hasher.combine(name)
+    }
+    
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        return lhs.offset == rhs.offset && lhs.name == rhs.name
+    }
 }
 
+public protocol SymbolProtocol {
+    var name: String { get }
+}
+
+extension MachOSymbols.SymbolProtocol {
+    public var demangledNode: Node {
+        get throws {
+            try demangleAsNode(name)
+        }
+    }
+}
+
+extension MachOKit.SymbolProtocol {
+    public var demangledNode: Node {
+        get throws {
+            try demangleAsNode(name)
+        }
+    }
+}
+
+extension MachOKit.ExportedSymbol: MachOSymbols.SymbolProtocol {}

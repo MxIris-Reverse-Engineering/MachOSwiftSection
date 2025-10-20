@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOMacro
+
 
 extension MachORepresentable {
     package func _section(

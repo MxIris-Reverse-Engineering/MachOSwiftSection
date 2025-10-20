@@ -1,10 +1,10 @@
 import Foundation
 import MachOKit
-import MachOMacro
+
 import MachOFoundation
 
 public struct RelativeObjCProtocolPrefix: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let isa: RelativeDirectRawPointer
         public let mangledName: RelativeDirectPointer<MangledName>
     }
@@ -20,7 +20,7 @@ public struct RelativeObjCProtocolPrefix: ResolvableLocatableLayoutWrapper {
 }
 
 extension RelativeObjCProtocolPrefix {
-    func mangledName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+    func mangledName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
         return try layout.mangledName.resolve(from: offset(of: \.mangledName), in: machO)
     }
 }

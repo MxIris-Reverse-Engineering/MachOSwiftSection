@@ -1,5 +1,5 @@
 import MachOKit
-import MachOMacro
+
 import MachOFoundation
 
 public struct StructMetadata: TypeMetadataProtocol {
@@ -21,10 +21,11 @@ public struct StructMetadata: TypeMetadataProtocol {
 }
 
 extension StructMetadata {
-    public func fieldOffsets<MachO: MachORepresentableWithCache & MachOReadable>(for descriptor: StructDescriptor? = nil, in machO: MachO) throws -> [UInt32] {
+    public func fieldOffsets<MachO: MachOSwiftSectionRepresentableWithCache>(for descriptor: StructDescriptor? = nil, in machO: MachO) throws -> [UInt32] {
         let descriptor = try descriptor ?? layout.descriptor.resolve(in: machO)
         guard descriptor.fieldOffsetVector != .zero else { return [] }
-        let offset = offset + descriptor.fieldOffsetVector.cast() * MemoryLayout<StoredPointer>.size
+        // Metadata.offset + fieldOffset (eg. 2 * 8)
+        let offset = offset + (descriptor.fieldOffsetVector.cast() * MemoryLayout<StoredSize>.size)
         return try machO.readElements(offset: offset, numberOfElements: descriptor.numFields.cast())
     }
 }

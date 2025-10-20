@@ -2,8 +2,9 @@ import Foundation
 import MachOKit
 import MachOExtensions
 import Utilities
+import SwiftStdlibToolbox
 
-// Internal use only.
+@_spi(Internals)
 open class MachOCache<Entry> {
     private let memoryPressureMonitor = MemoryPressureMonitor()
 
@@ -19,6 +20,7 @@ open class MachOCache<Entry> {
         memoryPressureMonitor.startMonitoring()
     }
 
+    @Mutex
     private var entryByIdentifier: [AnyHashable: Entry] = [:]
 
     @discardableResult
@@ -32,7 +34,7 @@ open class MachOCache<Entry> {
         return nil
     }
 
-    package func entry<MachO: MachORepresentableWithCache>(in machO: MachO) -> Entry? {
+    open func entry<MachO: MachORepresentableWithCache>(in machO: MachO) -> Entry? {
         createEntryIfNeeded(in: machO)
         if let cacheEntry = entryByIdentifier[machO.identifier] {
             return cacheEntry

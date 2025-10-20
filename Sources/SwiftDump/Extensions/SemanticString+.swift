@@ -1,7 +1,7 @@
 import Semantic
 
 extension SemanticString {
-    func replacingTypeNameOrOtherToTypeDeclaration() -> SemanticString {
+    package func replacingTypeNameOrOtherToTypeDeclaration() -> SemanticString {
         replacing {
             switch $0 {
             case .type(let type, .name):

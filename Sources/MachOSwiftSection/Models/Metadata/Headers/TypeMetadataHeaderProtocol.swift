@@ -1,0 +1,6 @@
+import Foundation
+import MachOKit
+import MachOFoundation
+
+
+public protocol TypeMetadataHeaderProtocol: TypeMetadataLayoutPrefixProtocol, TypeMetadataHeaderBaseProtocol where Layout: TypeMetadataHeaderLayout {}

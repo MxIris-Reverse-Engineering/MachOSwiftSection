@@ -1,0 +1,94 @@
+import Foundation
+import MachOKit
+import MachOSwiftSection
+import Semantic
+import Utilities
+
+package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCache>: ConformedDumper {
+    private let associatedType: AssociatedType
+    
+    private let configuration: DumperConfiguration
+    
+    private let machO: MachO
+
+    package init(_ dumped: AssociatedType, using configuration: DumperConfiguration, in machO: MachO) {
+        self.associatedType = dumped
+        self.configuration = configuration
+        self.machO = machO
+    }
+
+    private var demangleResolver: DemangleResolver {
+        configuration.demangleResolver
+    }
+    
+    package var declaration: SemanticString {
+        get throws {
+            Keyword(.extension)
+
+            Space()
+
+            try typeName
+
+            Standard(":")
+
+            Space()
+
+            try protocolName
+        }
+    }
+
+    @SemanticStringBuilder
+    package var records: SemanticString {
+        get throws {
+            for (offset, record) in associatedType.records.offsetEnumerated() {
+                BreakLine()
+
+                Indent(level: 1)
+
+                Keyword(.typealias)
+
+                Space()
+
+                try TypeDeclaration(kind: .other, record.name(in: machO))
+
+                Space()
+
+                Standard("=")
+
+                Space()
+
+                try demangleResolver.resolve(for: MetadataReader.demangleType(for: record.substitutedTypeName(in: machO), in: machO))
+
+                if offset.isEnd {
+                    BreakLine()
+                }
+            }
+        }
+    }
+    
+    package var body: SemanticString {
+        get throws {
+            try declaration
+            
+            Space()
+
+            Standard("{")
+
+            try records
+
+            Standard("}")
+        }
+    }
+
+    package var typeName: SemanticString {
+        get throws {
+            try demangleResolver.resolve(for: MetadataReader.demangleType(for: associatedType.conformingTypeName, in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+        }
+    }
+
+    package var protocolName: SemanticString {
+        get throws {
+            try demangleResolver.resolve(for: MetadataReader.demangleType(for: associatedType.protocolTypeName, in: machO))
+        }
+    }
+}

@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOMacro
+
 import MachOFoundation
 
 // template <typename Runtime>
@@ -27,7 +27,7 @@ import MachOFoundation
 //                              TargetMethodDefaultOverrideTableHeader<Runtime>,
 //                              TargetMethodDefaultOverrideDescriptor<Runtime>>
 
-public struct Class: TopLevelType {
+public struct Class: TopLevelType, ContextProtocol {
     public let descriptor: ClassDescriptor
     public let genericContext: TypeGenericContext?
     public let resilientSuperclass: ResilientSuperclass?
@@ -47,7 +47,7 @@ public struct Class: TopLevelType {
     public let methodDefaultOverrideTableHeader: MethodDefaultOverrideTableHeader?
     public let methodDefaultOverrideDescriptors: [MethodDefaultOverrideDescriptor]
 
-    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: ClassDescriptor, in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: ClassDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
         let genericContext = try descriptor.typeGenericContext(in: machO)
         self.genericContext = genericContext
@@ -161,3 +161,8 @@ public struct Class: TopLevelType {
         }
     }
 }
+
+
+//extension Class {
+//    package func method
+//}

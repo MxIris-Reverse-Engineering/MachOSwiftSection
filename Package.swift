@@ -1,4 +1,4 @@
-// swift-tools-version: 6.1
+// swift-tools-version: 6.2
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 @preconcurrency import PackageDescription
@@ -27,6 +27,8 @@ if isSilentTest {
     testSettings.append(.define("SILENT_TEST"))
 }
 
+let MachOKitVersion: Version = "0.39.0"
+
 extension Package.Dependency {
     static let MachOKit: Package.Dependency = {
         if useSPMPrebuildVersion {
@@ -38,7 +40,7 @@ extension Package.Dependency {
 
     static let MachOKitOrigin = Package.Dependency.package(
         url: "https://github.com/p-x9/MachOKit.git",
-        from: "0.35.1"
+        from: MachOKitVersion
     )
 
     static let MachOKitMain = Package.Dependency.package(
@@ -48,7 +50,7 @@ extension Package.Dependency {
 
     static let MachOKitSPM = Package.Dependency.package(
         url: "https://github.com/p-x9/MachOKit-SPM",
-        from: "0.35.1"
+        from: MachOKitVersion
     )
 }
 
@@ -73,6 +75,10 @@ extension Target.Dependency {
         name: "SwiftSyntax",
         package: "swift-syntax"
     )
+    static let SwiftParser = Target.Dependency.product(
+        name: "SwiftParser",
+        package: "swift-syntax"
+    )
     static let SwiftSyntaxMacros = Target.Dependency.product(
         name: "SwiftSyntaxMacros",
         package: "swift-syntax"
@@ -93,7 +99,7 @@ extension Target.Dependency {
 
 let package = Package(
     name: "MachOSwiftSection",
-    platforms: [.macOS(.v10_15), .iOS(.v13), .tvOS(.v13), .watchOS(.v6), .visionOS(.v1)],
+    platforms: [.macOS(.v13), .iOS(.v16), .tvOS(.v16), .watchOS(.v9), .visionOS(.v1)],
     products: [
         .library(
             name: "MachOSwiftSection",
@@ -102,6 +108,10 @@ let package = Package(
         .library(
             name: "SwiftDump",
             targets: ["SwiftDump"]
+        ),
+        .library(
+            name: "SwiftInterface",
+            targets: ["SwiftInterface"]
         ),
         .executable(
             name: "swift-section",
@@ -115,9 +125,16 @@ let package = Package(
         .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
         .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
-        .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", from: "0.3.0"),
+        .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", branch: "main"),
         .package(url: "https://github.com/apple/swift-collections", from: "1.2.0"),
         .package(url: "https://github.com/MxIris-Library-Forks/swift-memberwise-init-macro", from: "0.5.3-fork"),
+        .package(url: "https://github.com/p-x9/MachOObjCSection", from: "0.4.0"),
+        .package(url: "https://github.com/Mx-Iris/SourceKitD", branch: "main"),
+        .package(url: "https://github.com/christophhagen/BinaryCodable", from: "3.1.0"),
+        .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-apinotes", branch: "main"),
+        .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.4"),
+        .package(url: "https://github.com/brightdigit/SyntaxKit", branch: "main"),
+//        .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-clang", from: "0.1.0"),
     ],
     targets: [
         .target(
@@ -125,22 +142,29 @@ let package = Package(
         ),
 
         .target(
-            name: "Demangle",
+            name: "Demangling",
             dependencies: [
-                .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+                "Utilities",
             ]
         ),
 
         .target(
-            name: "Utilities"
+            name: "Utilities",
+            dependencies: [
+                "MachOMacros",
+                .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+                .product(name: "AssociatedObject", package: "AssociatedObject"),
+                .product(name: "MemberwiseInit", package: "swift-memberwise-init-macro"),
+                .product(name: "OrderedCollections", package: "swift-collections"),
+                .product(name: "Dependencies", package: "swift-dependencies"),
+            ]
         ),
 
         .target(
             name: "MachOExtensions",
             dependencies: [
                 .MachOKit,
-                "MachOMacro",
-                .product(name: "AssociatedObject", package: "AssociatedObject"),
+                "Utilities",
             ]
         ),
 
@@ -149,9 +173,7 @@ let package = Package(
             dependencies: [
                 .MachOKit,
                 "MachOExtensions",
-                "MachOMacro",
                 "Utilities",
-                .product(name: "AssociatedObject", package: "AssociatedObject"),
             ]
         ),
 
@@ -159,10 +181,9 @@ let package = Package(
             name: "MachOReading",
             dependencies: [
                 .MachOKit,
-                "MachOMacro",
+                "Utilities",
                 "MachOExtensions",
                 .product(name: "FileIO", package: "swift-fileio"),
-                .product(name: "AssociatedObject", package: "AssociatedObject"),
             ]
         ),
 
@@ -181,33 +202,34 @@ let package = Package(
                 .MachOKit,
                 "MachOReading",
                 "MachOResolving",
-                "MachOMacro",
-                "Demangle",
+                "Demangling",
                 "Utilities",
                 "MachOCaches",
-                .product(name: "OrderedCollections", package: "swift-collections"),
+            ],
+            swiftSettings: [
+                .unsafeFlags(["-Xfrontend", "-enable-private-imports"]),
             ]
         ),
 
         .target(
-            name: "MachOPointer",
+            name: "MachOPointers",
             dependencies: [
                 .MachOKit,
                 "MachOReading",
                 "MachOResolving",
-                "MachOMacro",
+                "Utilities",
             ]
         ),
 
         .target(
-            name: "MachOSymbolPointer",
+            name: "MachOSymbolPointers",
             dependencies: [
                 .MachOKit,
                 "MachOReading",
                 "MachOResolving",
-                "MachOMacro",
-                "MachOPointer",
+                "MachOPointers",
                 "MachOSymbols",
+                "Utilities",
             ]
         ),
 
@@ -217,11 +239,11 @@ let package = Package(
                 .MachOKit,
                 "MachOReading",
                 "MachOExtensions",
-                "MachOMacro",
-                "MachOPointer",
+                "MachOPointers",
                 "MachOSymbols",
                 "MachOResolving",
-                "MachOSymbolPointer",
+                "MachOSymbolPointers",
+                "Utilities",
             ]
         ),
 
@@ -229,11 +251,10 @@ let package = Package(
             name: "MachOSwiftSection",
             dependencies: [
                 .MachOKit,
-                "Demangle",
                 "MachOFoundation",
-                "MachOMacro",
-                .product(name: "MemberwiseInit", package: "swift-memberwise-init-macro"),
-            ]
+                "Demangling",
+                "Utilities",
+            ],
         ),
 
         .target(
@@ -243,7 +264,44 @@ let package = Package(
                 "MachOSwiftSection",
                 "Semantic",
                 "Utilities",
-                .product(name: "OrderedCollections", package: "swift-collections"),
+            ]
+        ),
+
+        .target(
+            name: "TypeIndexing",
+            dependencies: [
+                "Utilities",
+                .SwiftSyntax,
+                .SwiftParser,
+                .SwiftSyntaxBuilder,
+                .product(name: "SourceKitD", package: "SourceKitD"),
+                .product(name: "BinaryCodable", package: "BinaryCodable"),
+                .product(name: "APINotes", package: "swift-apinotes"),
+                .product(name: "MachOObjCSection", package: "MachOObjCSection"),
+            ]
+        ),
+
+        .target(
+            name: "SwiftIndex",
+            dependencies: [
+                .MachOKit,
+                "MachOSwiftSection",
+                "SwiftDump",
+                "Semantic",
+                "Utilities",
+                "TypeIndexing",
+            ]
+        ),
+
+        .target(
+            name: "SwiftInterface",
+            dependencies: [
+                .MachOKit,
+                "MachOSwiftSection",
+                "SwiftDump",
+                "Semantic",
+                "Utilities",
+                "TypeIndexing",
             ]
         ),
 
@@ -251,6 +309,7 @@ let package = Package(
             name: "swift-section",
             dependencies: [
                 "SwiftDump",
+                "SwiftInterface",
                 .product(name: "Rainbow", package: "Rainbow"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
@@ -258,15 +317,8 @@ let package = Package(
 
         // MARK: - Macros
 
-        .target(
-            name: "MachOMacro",
-            dependencies: [
-                "MachOMacroPlugin",
-            ]
-        ),
-
         .macro(
-            name: "MachOMacroPlugin",
+            name: "MachOMacros",
             dependencies: [
                 .SwiftSyntax,
                 .SwiftSyntaxMacros,
@@ -288,18 +340,26 @@ let package = Package(
         ),
 
         .testTarget(
-            name: "DemangleTests",
+            name: "DemanglingTests",
             dependencies: [
-                "Demangle",
-            ]
+                "Demangling",
+            ],
+            swiftSettings: testSettings
         ),
-
+        .testTarget(
+            name: "MachOSymbolsTests",
+            dependencies: [
+                "MachOSymbols",
+                "MachOTestingSupport",
+            ],
+            swiftSettings: testSettings
+        ),
         .testTarget(
             name: "MachOSwiftSectionTests",
             dependencies: [
                 "MachOSwiftSection",
-                "SwiftDump",
                 "MachOTestingSupport",
+                "SwiftDump",
             ],
             swiftSettings: testSettings
         ),
@@ -308,6 +368,24 @@ let package = Package(
             name: "SwiftDumpTests",
             dependencies: [
                 "SwiftDump",
+                "MachOTestingSupport",
+            ],
+            swiftSettings: testSettings
+        ),
+
+        .testTarget(
+            name: "TypeIndexingTests",
+            dependencies: [
+                "TypeIndexing",
+                "MachOTestingSupport",
+            ],
+            swiftSettings: testSettings
+        ),
+
+        .testTarget(
+            name: "SwiftInterfaceTests",
+            dependencies: [
+                "SwiftInterface",
                 "MachOTestingSupport",
             ],
             swiftSettings: testSettings

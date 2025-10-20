@@ -1,10 +1,10 @@
 import Foundation
 import MachOKit
 import MachOFoundation
-import MachOMacro
+
 
 public struct GenericRequirementDescriptor: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let flags: GenericRequirementFlags
         public let param: RelativeDirectPointer<MangledName>
         public let content: RelativeOffset
@@ -22,11 +22,17 @@ public struct GenericRequirementDescriptor: ResolvableLocatableLayoutWrapper {
 
 extension GenericRequirementDescriptor {
     
-    public func paramManagedName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+    public func isContentEqual<MachO: MachOSwiftSectionRepresentableWithCache>(to other: GenericRequirementDescriptor, in machO: MachO) -> Bool {
+        guard let lhsResolvedParam = try? paramMangledName(in: machO), let rhsResolvedParam = try? other.paramMangledName(in: machO) else { return false }
+        guard let lhsResolvedContent = try? resolvedContent(in: machO), let rhsResolvedContent = try? other.resolvedContent(in: machO) else { return false }
+        return layout.flags == other.flags && lhsResolvedParam == rhsResolvedParam && lhsResolvedContent == rhsResolvedContent
+    }
+    
+    public func paramMangledName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
         return try layout.param.resolve(from: offset(of: \.param), in: machO)
     }
 
-    public func type<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+    public func type<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
         return try RelativeDirectPointer<MangledName>(relativeOffset: layout.content).resolve(from: offset(of: \.content), in: machO)
     }
 
@@ -55,7 +61,7 @@ extension GenericRequirementDescriptor {
         }
     }
 
-    public func resolvedContent<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> ResolvedGenericRequirementContent {
+    public func resolvedContent<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ResolvedGenericRequirementContent {
         let offset = offset(of: \.content)
         switch content {
         case .type(let relativeDirectPointer):

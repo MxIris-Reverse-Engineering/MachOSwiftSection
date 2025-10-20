@@ -4,6 +4,7 @@ public protocol MachORepresentableWithCache: MachORepresentable {
     associatedtype Cache: DyldCacheRepresentable
     associatedtype Identifier: Hashable
 
+    var imagePath: String { get }
     var identifier: Identifier { get }
     var cache: Cache? { get }
     var startOffset: Int { get }
@@ -42,6 +43,9 @@ extension MachOFile: MachORepresentableWithCache {
 }
 
 extension MachOImage: MachORepresentableWithCache {
+    
+    public var imagePath: String { path ?? "" }
+    
     public var identifier: MachOTargetIdentifier {
         .image(ptr)
     }

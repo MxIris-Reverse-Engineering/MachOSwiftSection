@@ -31,4 +31,8 @@ public struct ProtocolRequirementFlags: OptionSet, Sendable {
     public var isAsync: Bool {
         return !isCoroutine && contains(.maybeAsync)
     }
+    
+    public var isInstance: Bool {
+        return contains(.isInstance)
+    }
 }

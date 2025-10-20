@@ -1,14 +1,14 @@
 import Foundation
 import MachOKit
 import MachOFoundation
-import MachOMacro
 
-public struct AnonymousContext {
+
+public struct AnonymousContext: TopLevelType, ContextProtocol {
     public let descriptor: AnonymousContextDescriptor
     public let genericContext: GenericContext?
     public let mangledName: MangledName?
 
-    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: AnonymousContextDescriptor, in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: AnonymousContextDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
         var currentOffset = descriptor.offset + descriptor.layoutSize
 

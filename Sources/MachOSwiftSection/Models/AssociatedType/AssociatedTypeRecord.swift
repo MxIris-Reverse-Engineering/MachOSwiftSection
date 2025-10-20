@@ -1,10 +1,10 @@
 import Foundation
 import MachOKit
 import MachOFoundation
-import MachOMacro
+
 
 public struct AssociatedTypeRecord: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let name: RelativeDirectPointer<String>
         public let substitutedTypeName: RelativeDirectPointer<MangledName>
     }
@@ -20,11 +20,11 @@ public struct AssociatedTypeRecord: ResolvableLocatableLayoutWrapper {
 }
 
 extension AssociatedTypeRecord {
-    public func name<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> String {
+    public func name<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> String {
         return try layout.name.resolve(from: offset(of: \.name), in: machO)
     }
 
-    public func substitutedTypeName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+    public func substitutedTypeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
         return try layout.substitutedTypeName.resolve(from: offset(of: \.substitutedTypeName), in: machO)
     }
 }

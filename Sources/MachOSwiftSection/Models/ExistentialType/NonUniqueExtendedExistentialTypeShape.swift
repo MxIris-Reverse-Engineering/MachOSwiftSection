@@ -1,10 +1,10 @@
 import Foundation
 import MachOKit
 import MachOFoundation
-import MachOMacro
+
 
 public struct NonUniqueExtendedExistentialTypeShape: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let uniqueCache: RelativeDirectPointer<Pointer<ExtendedExistentialTypeShape>>
         public let localCopy: ExtendedExistentialTypeShape.Layout
     }
@@ -20,7 +20,7 @@ public struct NonUniqueExtendedExistentialTypeShape: ResolvableLocatableLayoutWr
 }
 
 extension NonUniqueExtendedExistentialTypeShape {
-    public func existentialType<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+    public func existentialType<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
         try layout.localCopy.existentialType.resolve(from: offset(of: \.localCopy.existentialType), in: machO)
     }
 }

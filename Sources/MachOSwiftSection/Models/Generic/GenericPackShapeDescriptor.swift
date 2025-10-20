@@ -1,5 +1,7 @@
+import MachOFoundation
+
 public struct GenericPackShapeDescriptor: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let kind: UInt16
         public let index: UInt16
         public let shapeClass: UInt16
@@ -11,5 +13,11 @@ public struct GenericPackShapeDescriptor: ResolvableLocatableLayoutWrapper {
     public init(layout: Layout, offset: Int) {
         self.offset = offset
         self.layout = layout
+    }
+}
+
+extension GenericPackShapeDescriptor {
+    public var kind: GenericPackKind {
+        .init(rawValue: layout.kind)!
     }
 }

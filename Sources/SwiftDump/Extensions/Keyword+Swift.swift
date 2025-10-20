@@ -1,7 +1,7 @@
 import Semantic
 
 extension Keyword {
-    enum Swift: String {
+    package enum Swift: String {
         case `associatedtype`
         case `extension`
         case `typealias`
@@ -21,9 +21,12 @@ extension Keyword {
         case `where`
         case `indirect`
         case `protocol`
+        case `Self`
+        case `each`
+        case `repeat`
     }
     
-    init(_ keyword: Swift) {
+    package init(_ keyword: Swift) {
         self.init(keyword.rawValue)
     }
 }

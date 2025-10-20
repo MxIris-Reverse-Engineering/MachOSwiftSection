@@ -1,12 +1,12 @@
 import MachOKit
 import MachOFoundation
-import MachOMacro
+
 
 public protocol AnonymousContextDescriptorProtocol: ContextDescriptorProtocol where Layout: AnonymousContextDescriptorLayout {}
 
 
 extension AnonymousContextDescriptorProtocol {
-    public func mangledName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName? {
+    public func mangledName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName? {
         guard hasMangledName else {
             return nil
         }

@@ -1,4 +1,4 @@
-public enum ContextDescriptorKindSpecificFlags {
+public enum ContextDescriptorKindSpecificFlags: Sendable {
     case `protocol`(ProtocolContextDescriptorFlags)
     case type(TypeContextDescriptorFlags)
     case anonymous(AnonymousContextDescriptorFlags)

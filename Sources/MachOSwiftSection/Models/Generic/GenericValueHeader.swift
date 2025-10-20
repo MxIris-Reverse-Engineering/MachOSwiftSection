@@ -1,7 +1,8 @@
 import Foundation
+import MachOFoundation
 
 public struct GenericValueHeader: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let numValues: UInt32
     }
 

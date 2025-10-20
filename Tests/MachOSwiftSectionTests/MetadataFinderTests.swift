@@ -1,22 +1,29 @@
 import Foundation
 import Testing
 import MachOKit
-import MachOTestingSupport
-import MachOMacro
+@_spi(Internals) import MachOSymbols
 import MachOFoundation
-import SwiftDump
+import Demangling
 @testable import MachOSwiftSection
+@testable import MachOTestingSupport
+import Dependencies
 
 @Suite
-struct MetadataFinderTests {
-    let mainCache: DyldCache
+final class MetadataFinderTests: DyldCacheTests, @unchecked Sendable {
 
-    init() throws {
-        self.mainCache = try DyldCache(path: .current)
-    }
+    override class var cacheImageName: MachOImageName { .AppKit }
 
+    @Dependency(\.symbolIndexStore)
+    private var symbolIndexStore
+    
+    
     @Test func dumpMetadatasInAppKit() async throws {
-        try await dumpMetadatas(for: #require(mainCache.machOFile(named: .AppKit)))
+        let symbols = symbolIndexStore.symbols(of: .typeMetadata, in: machOFileInCache)
+        for symbol in symbols {
+            let metadata = try Metadata.resolve(from: symbol.offset, in: machOFileInCache)
+            print(try demangleAsNode(symbol.name).print(using: .default), terminator: " ")
+            print(metadata.kind)
+        }
     }
 
     @Test func dumpMetadatasInSwiftUI() async throws {
@@ -29,11 +36,8 @@ struct MetadataFinderTests {
         let typeDescriptors = try machO.swift.typeContextDescriptors
 
         for typeDescriptor in typeDescriptors {
-            guard case .type(let type) = typeDescriptor else {
-                continue
-            }
-            switch type {
-            case .enum:
+            switch typeDescriptor {
+            case .enum/*(let enumDescriptor)*/:
                 continue
             case .struct(let structDescriptor):
                 guard let metadata = try finder.metadata(for: structDescriptor) as StructMetadata? else {

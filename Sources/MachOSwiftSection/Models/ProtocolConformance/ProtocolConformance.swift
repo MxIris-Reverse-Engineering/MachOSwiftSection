@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOMacro
+
 import MachOFoundation
 
 // using TrailingObjects = swift::ABI::TrailingObjects<
@@ -33,7 +33,7 @@ public struct ProtocolConformance: TopLevelType {
 
     public let conditionalRequirements: [GenericRequirementDescriptor]
 
-    public let conditionalPackShapeHeader: GenericPackShapeHeader?
+//    public let conditionalPackShapeHeader: GenericPackShapeHeader?
 
     public let conditionalPackShapeDescriptors: [GenericPackShapeDescriptor]
 
@@ -43,7 +43,7 @@ public struct ProtocolConformance: TopLevelType {
 
     public let genericWitnessTable: GenericWitnessTable?
     
-    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: ProtocolConformanceDescriptor, in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: ProtocolConformanceDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
 
         self.protocol = try descriptor.protocolDescriptor(in: machO)
@@ -70,13 +70,13 @@ public struct ProtocolConformance: TopLevelType {
         }
 
         if descriptor.flags.numConditionalPackShapeDescriptors > 0 {
-            let header: GenericPackShapeHeader = try machO.readWrapperElement(offset: currentOffset)
-            self.conditionalPackShapeHeader = header
-            currentOffset.offset(of: GenericPackShapeHeader.self)
-            self.conditionalPackShapeDescriptors = try machO.readWrapperElements(offset: currentOffset, numberOfElements: header.numPacks.cast()) as [GenericPackShapeDescriptor]
-            currentOffset.offset(of: GenericPackShapeDescriptor.self, numbersOfElements: header.numPacks.cast())
+//            let header: GenericPackShapeHeader = try machO.readWrapperElement(offset: currentOffset)
+//            self.conditionalPackShapeHeader = header
+//            currentOffset.offset(of: GenericPackShapeHeader.self)
+            self.conditionalPackShapeDescriptors = try machO.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.flags.numConditionalPackShapeDescriptors.cast()) as [GenericPackShapeDescriptor]
+            currentOffset.offset(of: GenericPackShapeDescriptor.self, numbersOfElements: descriptor.flags.numConditionalPackShapeDescriptors.cast())
         } else {
-            self.conditionalPackShapeHeader = nil
+//            self.conditionalPackShapeHeader = nil
             self.conditionalPackShapeDescriptors = []
         }
 

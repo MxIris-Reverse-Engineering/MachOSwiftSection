@@ -1,8 +1,8 @@
 import MachOKit
-import MachOMacro
+
 import MachOFoundation
 
-public enum RelativeProtocolDescriptorPointer {
+public enum RelativeProtocolDescriptorPointer: Sendable, Equatable {
     case objcPointer(RelativeSymbolOrElementPointerIntPair<ObjCProtocolPrefix, Bool>)
     case swiftPointer(RelativeSymbolOrElementPointerIntPair<ProtocolDescriptor, Bool>)
 
@@ -25,7 +25,7 @@ public enum RelativeProtocolDescriptorPointer {
     }
 
     
-    public func protocolDescriptorRef<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> ProtocolDescriptorRef {
+    public func protocolDescriptorRef<MachO: MachOSwiftSectionRepresentableWithCache>(from offset: Int, in machO: MachO) throws -> ProtocolDescriptorRef {
         let storedPointer = try rawPointer.resolveIndirectType(from: offset, in: machO).address
         if isObjC {
             return .forObjC(storedPointer)
@@ -34,7 +34,7 @@ public enum RelativeProtocolDescriptorPointer {
         }
     }
 
-    public func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> SymbolOrElement<ProtocolDescriptorWithObjCInterop> {
+    public func resolve<MachO: MachOSwiftSectionRepresentableWithCache>(from offset: Int, in machO: MachO) throws -> SymbolOrElement<ProtocolDescriptorWithObjCInterop> {
         switch self {
         case .objcPointer(let relativeIndirectablePointerIntPair):
             return try relativeIndirectablePointerIntPair.resolve(from: offset, in: machO).map { .objc($0) }

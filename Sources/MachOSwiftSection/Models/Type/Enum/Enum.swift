@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOMacro
+
 import MachOFoundation
 
 // template <typename Runtime>
@@ -18,7 +18,7 @@ import MachOFoundation
 //                            InvertibleProtocolSet,
 //                            TargetSingletonMetadataPointer<Runtime>>
 
-public struct Enum: TopLevelType {
+public struct Enum: TopLevelType, ContextProtocol {
     public let descriptor: EnumDescriptor
     public let genericContext: TypeGenericContext?
     public let foreignMetadataInitialization: ForeignMetadataInitialization?
@@ -29,7 +29,7 @@ public struct Enum: TopLevelType {
     public let invertibleProtocolSet: InvertibleProtocolSet?
     public let singletonMetadataPointer: SingletonMetadataPointer?
 
-    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: EnumDescriptor, in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: EnumDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
 
         var currentOffset = descriptor.offset + descriptor.layoutSize

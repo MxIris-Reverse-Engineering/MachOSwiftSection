@@ -1,17 +1,16 @@
 import Foundation
 import MachOKit
 import MachOFoundation
-import MachOMacro
 
-public struct MangledName {
-    package enum Element {
-        package struct Lookup: CustomStringConvertible {
-            package enum Reference {
+public struct MangledName: Sendable, Hashable {
+    package enum Element: Sendable, Hashable {
+        package struct Lookup: CustomStringConvertible, Sendable, Hashable {
+            package enum Reference: Hashable, Sendable {
                 case relative(RelativeReference)
                 case absolute(AbsoluteReference)
             }
 
-            package struct RelativeReference: CustomStringConvertible {
+            package struct RelativeReference: CustomStringConvertible, Sendable, Hashable {
                 package let kind: UInt8
                 package let relativeOffset: RelativeOffset
                 package var description: String {
@@ -21,7 +20,7 @@ public struct MangledName {
                 }
             }
 
-            package struct AbsoluteReference: CustomStringConvertible {
+            package struct AbsoluteReference: CustomStringConvertible, Sendable, Hashable {
                 package let kind: UInt8
                 package let reference: UInt64
                 package var description: String {
@@ -64,27 +63,27 @@ public struct MangledName {
         elements.compactMap { if case .lookup(let lookup) = $0 { lookup } else { nil } }
     }
 
-    public func symbolStringValue() -> String {
+    public var symbolString: String {
         guard !elements.isEmpty else { return "" }
-        let rawStringValue = rawStringValue()
-        if rawStringValue.isStartWithManglePrefix {
+        let rawStringValue = rawString
+        if rawStringValue.isSwiftSymbol {
             return rawStringValue
         } else {
             return rawStringValue.insertManglePrefix
         }
     }
 
-    public func typeStringValue() -> String {
+    public var typeString: String {
         guard !elements.isEmpty else { return "" }
-        let rawStringValue = rawStringValue()
-        if rawStringValue.isStartWithManglePrefix {
+        let rawStringValue = rawString
+        if rawStringValue.isSwiftSymbol {
             return rawStringValue.stripManglePrefix
         } else {
             return rawStringValue
         }
     }
-    
-    public func rawStringValue() -> String {
+
+    public var rawString: String {
         guard !elements.isEmpty else { return "" }
         var results: [String] = []
         for element in elements {
@@ -105,6 +104,10 @@ public struct MangledName {
 
     public var isEmpty: Bool {
         return elements.isEmpty
+    }
+
+    package func isContentsEqual(to otherMangledName: MangledName) -> Bool {
+        elements == otherMangledName.elements
     }
 }
 
@@ -169,5 +172,3 @@ extension MangledName: CustomStringConvertible {
         return lines.joined(separator: "\n")
     }
 }
-
-

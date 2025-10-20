@@ -1,0 +1,143 @@
+import Foundation
+import MachOKit
+import MachOSwiftSection
+import Semantic
+import Utilities
+import MemberwiseInit
+import Demangling
+import Dependencies
+@_spi(Internals) import MachOSymbols
+
+package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
+    private let `enum`: Enum
+
+    private let configuration: DumperConfiguration
+
+    private let machO: MachO
+
+    @Dependency(\.symbolIndexStore)
+    private var symbolIndexStore
+
+    package init(_ dumped: Enum, using configuration: DumperConfiguration, in machO: MachO) {
+        self.enum = dumped
+        self.configuration = configuration
+        self.machO = machO
+    }
+
+    private var demangleResolver: DemangleResolver {
+        configuration.demangleResolver
+    }
+
+    package var declaration: SemanticString {
+        get throws {
+            Keyword(.enum)
+
+            Space()
+
+            try name
+
+            if let genericContext = `enum`.genericContext {
+                try genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO)
+            }
+        }
+    }
+
+    package var fields: SemanticString {
+        get throws {
+            for (offset, fieldRecord) in try `enum`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
+                BreakLine()
+
+                Indent(level: configuration.indentation)
+
+                if fieldRecord.flags.contains(.isIndirectCase) {
+                    Keyword(.indirect)
+                    Space()
+                    Keyword(.case)
+                    Space()
+                } else {
+                    Keyword(.case)
+                    Space()
+                }
+
+                try MemberDeclaration("\(fieldRecord.fieldName(in: machO))")
+
+                let mangledName = try fieldRecord.mangledTypeName(in: machO)
+
+                if !mangledName.isEmpty {
+                    let demangledName = try demangleResolver.resolve(for: MetadataReader.demangleType(for: mangledName, in: machO))
+                    let demangledNameString = demangledName.string
+                    if demangledNameString.hasPrefix("("), demangledNameString.hasSuffix(")") {
+                        demangledName
+                    } else {
+                        Standard("(")
+                        demangledName
+                        Standard(")")
+                    }
+                }
+
+                if offset.isEnd {
+                    BreakLine()
+                }
+            }
+        }
+    }
+
+    package var body: SemanticString {
+        get throws {
+            try declaration
+
+            Space()
+
+            Standard("{")
+
+            try fields
+
+            let interfaceNameString = try interfaceName.string
+
+            for kind in SymbolIndexStore.MemberKind.allCases {
+                for (offset, symbol) in symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
+                    if offset.isStart {
+                        BreakLine()
+
+                        Indent(level: 1)
+
+                        InlineComment(kind.description)
+                    }
+
+                    BreakLine()
+
+                    Indent(level: 1)
+
+                    try demangleResolver.resolve(for: symbol.demangledNode)
+
+                    if offset.isEnd {
+                        BreakLine()
+                    }
+                }
+            }
+
+            Standard("}")
+        }
+    }
+
+    package var name: SemanticString {
+        get throws {
+            try _name(using: demangleResolver)
+        }
+    }
+
+    private var interfaceName: SemanticString {
+        get throws {
+            try _name(using: .options(.interface))
+        }
+    }
+
+    @SemanticStringBuilder
+    private func _name(using resolver: DemangleResolver) throws -> SemanticString {
+        if configuration.displayParentName {
+            try resolver.resolve(for: MetadataReader.demangleContext(for: .type(.enum(`enum`.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+        } else {
+            try TypeDeclaration(kind: .enum, `enum`.descriptor.name(in: machO))
+        }
+    }
+}

@@ -1,6 +1,5 @@
 import Foundation
-import MachOCaches
-import MachOFoundation
+@_spi(Internals) import MachOCaches
 import MachOSwiftSection
 
 package final class PrimitiveTypeMappingCache: MachOCache<PrimitiveTypeMapping> {
@@ -11,10 +10,14 @@ package final class PrimitiveTypeMappingCache: MachOCache<PrimitiveTypeMapping> 
     }
 
     package override func buildEntry<MachO>(for machO: MachO) -> PrimitiveTypeMapping? where MachO: MachORepresentableWithCache {
-        if let machO = machO as? any MachOSwiftSectionRepresentableWithCache & MachOReadable {
+        if let machO = machO as? any MachOSwiftSectionRepresentableWithCache {
             return try? .init(machO: machO)
         } else {
             return nil
         }
+    }
+    
+    package override func entry<MachO>(in machO: MachO) -> PrimitiveTypeMapping? where MachO : MachORepresentableWithCache {
+        super.entry(in: machO)
     }
 }

@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOMacro
+
 import MachOFoundation
 
 public struct ExtensionContextDescriptor: ExtensionContextDescriptorProtocol {
@@ -21,7 +21,7 @@ public struct ExtensionContextDescriptor: ExtensionContextDescriptorProtocol {
 }
 
 extension ExtensionContextDescriptorProtocol {
-    public func extendedContext<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName? {
+    public func extendedContext<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName? {
         try layout.extendedContext.resolve(from: offset + 8, in: machO)
     }
 }

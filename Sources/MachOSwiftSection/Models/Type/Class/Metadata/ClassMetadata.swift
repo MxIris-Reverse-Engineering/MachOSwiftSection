@@ -1,9 +1,8 @@
 import MachOKit
 import MachOFoundation
-import MachOMacro
 
-public struct ClassMetadata: TypeMetadataProtocol {
-    public struct Layout: ClassMetadataLayout {
+public struct ClassMetadata: ClassMetadataProtocol, TypeMetadataProtocol {
+    public struct Layout: ClassMetadataLayout, ClassMetadataLayoutWithDescriptor {
         public let kind: StoredPointer
         public let superclass: StoredPointer
         public let flags: UInt32
@@ -13,7 +12,7 @@ public struct ClassMetadata: TypeMetadataProtocol {
         public let reserved: UInt16
         public let classSize: UInt32
         public let classAddressPoint: UInt32
-        public let descriptor: Pointer<ClassDescriptor>
+        public let descriptor: Pointer<ClassDescriptor?>
         public let iVarDestroyer: RawPointer
     }
 
@@ -28,13 +27,3 @@ public struct ClassMetadata: TypeMetadataProtocol {
 
     public static var descriptorOffset: Int { Layout.offset(of: .descriptor) }
 }
-
-
-
-
-
-
-
-
-
-

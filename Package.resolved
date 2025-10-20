@@ -1,5 +1,5 @@
 {
-  "originHash" : "af420d353ec787ca7235c44800815c9f7dceef9bf6124b29b30dca2ccaee9765",
+  "originHash" : "ac895b8c93d4421fc5e46271a666de713b1bb18dcb216cf5c8033f4dfb415e38",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -11,12 +11,30 @@
       }
     },
     {
+      "identity" : "binarycodable",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/christophhagen/BinaryCodable",
+      "state" : {
+        "revision" : "53f057050f3c78a1997ed0218337fd92d2eba2b5",
+        "version" : "3.1.1"
+      }
+    },
+    {
+      "identity" : "combine-schedulers",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/combine-schedulers",
+      "state" : {
+        "revision" : "5928286acce13def418ec36d05a001a9641086f2",
+        "version" : "1.0.3"
+      }
+    },
+    {
       "identity" : "frameworktoolbox",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Mx-Iris/FrameworkToolbox",
       "state" : {
-        "revision" : "ee688b5d481888ef0eff5052124cebe9b895d78f",
-        "version" : "0.3.0"
+        "branch" : "main",
+        "revision" : "a4cd7b3cf58323fbb24c0ece5d4385a94238fa87"
       }
     },
     {
@@ -24,8 +42,26 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/MachOKit.git",
       "state" : {
-        "revision" : "d0b543aa795d83539691b80959b0adb152b072e7",
-        "version" : "0.35.1"
+        "revision" : "fc1f2646220b3ce9db2e415b6b8848f5a89ed865",
+        "version" : "0.39.0"
+      }
+    },
+    {
+      "identity" : "machoobjcsection",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/p-x9/MachOObjCSection",
+      "state" : {
+        "revision" : "3f1bb0d9dac4fb4bd3f3ccb2eb293eac20aa8543",
+        "version" : "0.4.0"
+      }
+    },
+    {
+      "identity" : "metacodable",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/SwiftyLab/MetaCodable",
+      "state" : {
+        "revision" : "e2b09b4ceed09c972adb7f48572446d07a1c0e16",
+        "version" : "1.5.0"
       }
     },
     {
@@ -33,8 +69,26 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/onevcat/Rainbow",
       "state" : {
-        "revision" : "0c627a4f8a39ef37eadec1ceec02e4a7f55561ac",
-        "version" : "4.1.0"
+        "revision" : "16da5c62dd737258c6df2e8c430f8a3202f655a7",
+        "version" : "4.2.0"
+      }
+    },
+    {
+      "identity" : "sourcekitd",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Mx-Iris/SourceKitD",
+      "state" : {
+        "branch" : "main",
+        "revision" : "329d4da39453f6446226261a614f852d84bdb212"
+      }
+    },
+    {
+      "identity" : "swift-apinotes",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/MxIris-DeveloperTool-Forks/swift-apinotes",
+      "state" : {
+        "branch" : "main",
+        "revision" : "2fe208c1824f053c04778c5dad2a6fe93d8ab3bf"
       }
     },
     {
@@ -42,8 +96,17 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-argument-parser",
       "state" : {
-        "revision" : "011f0c765fb46d9cac61bca19be0527e99c98c8b",
-        "version" : "1.5.1"
+        "revision" : "309a47b2b1d9b5e991f36961c983ecec72275be3",
+        "version" : "1.6.1"
+      }
+    },
+    {
+      "identity" : "swift-clocks",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/swift-clocks",
+      "state" : {
+        "revision" : "cc46202b53476d64e824e0b6612da09d84ffde8e",
+        "version" : "1.0.6"
       }
     },
     {
@@ -51,8 +114,26 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-collections",
       "state" : {
-        "revision" : "c1805596154bb3a265fd91b8ac0c4433b4348fb0",
-        "version" : "1.2.0"
+        "revision" : "8c0c0a8b49e080e54e5e328cc552821ff07cd341",
+        "version" : "1.2.1"
+      }
+    },
+    {
+      "identity" : "swift-concurrency-extras",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/swift-concurrency-extras",
+      "state" : {
+        "revision" : "5a3825302b1a0d744183200915a47b508c828e6f",
+        "version" : "1.3.2"
+      }
+    },
+    {
+      "identity" : "swift-dependencies",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/swift-dependencies",
+      "state" : {
+        "revision" : "a10f9feeb214bc72b5337b6ef6d5a029360db4cc",
+        "version" : "1.10.0"
       }
     },
     {
@@ -60,8 +141,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/swift-fileio.git",
       "state" : {
-        "revision" : "23349fe1eb23c6ca2876d461a46ff60c0fa92f9c",
-        "version" : "0.9.0"
+        "revision" : "76a4c719e796a1e5052e283788d8cd92408758fe",
+        "version" : "0.12.0"
       }
     },
     {
@@ -83,6 +164,15 @@
       }
     },
     {
+      "identity" : "swift-objc-dump",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/p-x9/swift-objc-dump.git",
+      "state" : {
+        "revision" : "1e91dfd4c332f7015f4c46f99df8a53fbb495e20",
+        "version" : "0.7.0"
+      }
+    },
+    {
       "identity" : "swift-object-association",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/swift-object-association.git",
@@ -98,6 +188,33 @@
       "state" : {
         "revision" : "f99ae8aa18f0cf0d53481901f88a0991dc3bd4a2",
         "version" : "601.0.1"
+      }
+    },
+    {
+      "identity" : "syntaxkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/brightdigit/SyntaxKit",
+      "state" : {
+        "branch" : "main",
+        "revision" : "1bd7f84c218fd35a111c0b310cad5b32e8489acc"
+      }
+    },
+    {
+      "identity" : "xctest-dynamic-overlay",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
+      "state" : {
+        "revision" : "b2ed9eabefe56202ee4939dd9fc46b6241c88317",
+        "version" : "1.6.1"
+      }
+    },
+    {
+      "identity" : "yams",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/jpsim/Yams",
+      "state" : {
+        "revision" : "d41ba4e7164c0838c6d48351f7575f7f762151fe",
+        "version" : "6.1.0"
       }
     }
   ],

@@ -1,7 +1,8 @@
 import Foundation
+import MachOFoundation
 
 public struct GenericValueDescriptor: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let type: UInt32
     }
 
@@ -10,5 +11,11 @@ public struct GenericValueDescriptor: ResolvableLocatableLayoutWrapper {
     public init(layout: Layout, offset: Int) {
         self.offset = offset
         self.layout = layout
+    }
+}
+
+extension GenericValueDescriptor {
+    public var type: GenericValueType {
+        .init(rawValue: layout.type)!
     }
 }

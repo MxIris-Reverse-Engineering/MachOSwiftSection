@@ -1,6 +1,5 @@
 import MachOKit
 import MachOFoundation
-import MachOMacro
 
 @Layout
 public protocol ClassMetadataObjCInteropLayout: AnyClassMetadataObjCInteropLayout {
@@ -11,6 +10,6 @@ public protocol ClassMetadataObjCInteropLayout: AnyClassMetadataObjCInteropLayou
     var reserved: UInt16 { get }
     var classSize: UInt32 { get }
     var classAddressPoint: UInt32 { get }
-    var descriptor: Pointer<ClassDescriptor> { get }
+    var descriptor: Pointer<ClassDescriptor?> { get }
     var iVarDestroyer: RawPointer { get }
 }

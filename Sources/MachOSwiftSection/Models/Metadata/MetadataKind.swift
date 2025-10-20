@@ -34,6 +34,8 @@ public enum MetadataKind: UInt32 {
     case fixedArray = 0x308
     /// 0 | Self.isNonType
     case heapLocalVariable = 0x400
+    /// 0 | Self.isNonType | Self.isRuntimePrivate
+    case heapGenericLocalVariable = 0x500
     /// 1 | Self.isNonType | Self.isRuntimePrivate
     case errorObject = 0x501
     /// 2 | Self.isNonType | Self.isRuntimePrivate
@@ -64,10 +66,28 @@ public enum MetadataKind: UInt32 {
     }
 
     static func enumeratedMetadataKind(_ kind: UInt64) -> Self {
-        if kind.cast() > lastEnumerated.rawValue {
+        if kind > lastEnumerated.rawValue.cast() {
             return .class
         } else {
             return .init(rawValue: kind.cast()) ?? .lastEnumerated
+        }
+    }
+    
+    var isAnyClass: Bool {
+        switch self {
+        case .class, .objcClassWrapper, .foreignClass:
+            return true
+        default:
+            return false
+        }
+    }
+    
+    var isAnyExistentialType: Bool {
+        switch self {
+        case .existential, .existentialMetatype:
+            return true
+        default:
+            return false
         }
     }
 }

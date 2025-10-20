@@ -1,7 +1,8 @@
 import Foundation
+import MachOFoundation
 
 public struct ResilientWitnessesHeader: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let numWitnesses: UInt32
     }
     

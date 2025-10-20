@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOMacro
+
 import MachOFoundation
 
 // using TrailingObjects
@@ -9,14 +9,14 @@ import MachOFoundation
 //      TargetGenericRequirementDescriptor<Runtime>,
 //      TargetProtocolRequirement<Runtime>>;
 
-public struct `Protocol`: TopLevelType {
+public struct `Protocol`: TopLevelType, ContextProtocol {
     public enum Error: Swift.Error {
         case invalidProtocolDescriptor
     }
 
     public let descriptor: ProtocolDescriptor
 
-    public let requirementInSignatures: [GenericRequirementDescriptor]
+    public let requirementInSignatures: [GenericRequirement]
 
     public let requirements: [ProtocolRequirement]
 
@@ -32,7 +32,7 @@ public struct `Protocol`: TopLevelType {
         descriptor.numRequirementsInSignature.cast()
     }
 
-    public init<MachO: MachORepresentableWithCache & MachOReadable>(descriptor: ProtocolDescriptor, in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: ProtocolDescriptor, in machO: MachO) throws {
         guard let protocolFlags = descriptor.flags.kindSpecificFlags?.protocolFlags else {
             throw Error.invalidProtocolDescriptor
         }
@@ -42,7 +42,8 @@ public struct `Protocol`: TopLevelType {
         var currentOffset = descriptor.offset + descriptor.layoutSize
 
         if descriptor.numRequirementsInSignature > 0 {
-            self.requirementInSignatures = try machO.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.numRequirementsInSignature.cast()) as [GenericRequirementDescriptor]
+            let requirementInSignatures = try machO.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.numRequirementsInSignature.cast()) as [GenericRequirementDescriptor]
+            self.requirementInSignatures = try requirementInSignatures.map { try .init(descriptor: $0, in: machO) }
             currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: descriptor.numRequirementsInSignature.cast())
             currentOffset = align(address: currentOffset.cast(), alignment: 4).cast()
         } else {

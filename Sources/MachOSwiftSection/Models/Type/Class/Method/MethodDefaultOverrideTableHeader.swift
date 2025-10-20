@@ -1,7 +1,8 @@
 import Foundation
+import MachOFoundation
 
 public struct MethodDefaultOverrideTableHeader: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let numEntries: UInt32
     }
 

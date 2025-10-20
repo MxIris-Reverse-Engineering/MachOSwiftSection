@@ -1,32 +1,46 @@
 import Foundation
 import Testing
 import MachOKit
-import MachOMacro
+
 import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
 @testable import MachOTestingSupport
 
 @Suite(.serialized)
-final class DyldCacheDumpTests: DyldCacheTests, DumpableTests {}
+final class DyldCacheDumpTests: DyldCacheTests, DumpableTests {
+    override class var cacheImageName: MachOImageName { .SwiftUICore }
+}
 
 extension DyldCacheDumpTests {
     // MARK: - Types
-    
+
     @Test func typesInCacheFile() async throws {
-        try await dumpTypes(for: machOFileInCache)
+        try await dumpTypes(for: machOFileInCache, isDetail: true)
     }
 
     @Test func typesInMainCacheFile() async throws {
-        try await dumpTypes(for: machOFileInMainCache)
+        try await dumpTypes(for: machOFileInMainCache, options: .class)
     }
 
     @Test func typesInSubCacheFile() async throws {
-        try await dumpTypes(for: machOFileInSubCache)
+        try await dumpTypes(for: machOFileInSubCache, isDetail: true)
+    }
+
+    @Test func opaqueTypesInCacheFile() async throws {
+        try await dumpOpaqueTypes(for: machOFileInCache)
+    }
+
+    @Test func opaqueTypesInMainCacheFile() async throws {
+        try await dumpOpaqueTypes(for: machOFileInMainCache)
+    }
+
+    @Test func opaqueTypesInSubCacheFile() async throws {
+        try await dumpOpaqueTypes(for: machOFileInSubCache)
     }
 
     // MARK: - Protocols
-    
+
     @Test func protocolsInCacheFile() async throws {
         try await dumpProtocols(for: machOFileInCache)
     }
@@ -40,7 +54,7 @@ extension DyldCacheDumpTests {
     }
 
     // MARK: - ProtocolConformances
-    
+
     @Test func protocolConformancesInCacheFile() async throws {
         try await dumpProtocolConformances(for: machOFileInCache)
     }
@@ -54,7 +68,7 @@ extension DyldCacheDumpTests {
     }
 
     // MARK: - AssociatedTypes
-    
+
     @Test func associatedTypesInCacheFile() async throws {
         try await dumpAssociatedTypes(for: machOFileInCache)
     }
@@ -68,7 +82,7 @@ extension DyldCacheDumpTests {
     }
 
     // MARK: - BuiltinTypes
-    
+
     @Test func builtinTypesInCacheFile() async throws {
         try await dumpBuiltinTypes(for: machOFileInCache)
     }

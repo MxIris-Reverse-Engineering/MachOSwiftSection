@@ -1,5 +1,8 @@
+import Foundation
+import MachOFoundation
+
 public struct ValueWitnessTable: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let size: StoredSize
         public let stride: StoredSize
         public let flags: ValueWitnessFlags

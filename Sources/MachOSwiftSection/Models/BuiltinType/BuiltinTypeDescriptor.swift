@@ -1,10 +1,10 @@
 import Foundation
 import MachOKit
 import MachOFoundation
-import MachOMacro
+
 
 public struct BuiltinTypeDescriptor: ResolvableLocatableLayoutWrapper, TopLevelDescriptor {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let typeName: RelativeDirectPointer<MangledName?>
         public let size: UInt32
         public let alignmentAndFlags: UInt32
@@ -23,7 +23,7 @@ public struct BuiltinTypeDescriptor: ResolvableLocatableLayoutWrapper, TopLevelD
 }
 
 extension BuiltinTypeDescriptor {
-    public func typeName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName? {
+    public func typeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName? {
         return try layout.typeName.resolve(from: offset(of: \.typeName), in: machO)
     }
 

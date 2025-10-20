@@ -1,23 +1,23 @@
 import Foundation
 
 extension String {
-    var hasLazyPrefix: Bool {
+    package var hasLazyPrefix: Bool {
         hasPrefix("$__lazy_storage_$_")
     }
 
-    var stripLazyPrefix: String {
+    package var stripLazyPrefix: String {
         replacingOccurrences(of: "$__lazy_storage_$_", with: "")
     }
 
-    var hasWeakPrefix: Bool {
+    package var hasWeakPrefix: Bool {
         hasPrefix("weak ")
     }
 
-    var stripWeakPrefix: String {
+    package var stripWeakPrefix: String {
         replacingOccurrences(of: "weak ", with: "")
     }
 
-    var insertBracketIfNeeded: String {
+    package var insertBracketIfNeeded: String {
         if hasPrefix("("), hasSuffix(")") {
             return self
         } else {
@@ -26,13 +26,13 @@ extension String {
     }
 }
 extension String? {
-    var valueOrEmpty: String {
+    package var valueOrEmpty: String {
         self ?? ""
     }
 }
 
 extension String {
-    var insertSubFunctionPrefix: String {
+    package var insertSubFunctionPrefix: String {
         "sub_" + self
     }
 }

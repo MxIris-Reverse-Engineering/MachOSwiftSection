@@ -1,6 +1,6 @@
 import Foundation
 
-public struct MethodDescriptorFlags: RawRepresentable, Sendable {
+public struct MethodDescriptorFlags: RawRepresentable, Hashable, Sendable {
     public typealias RawValue = UInt32
 
     public let rawValue: RawValue

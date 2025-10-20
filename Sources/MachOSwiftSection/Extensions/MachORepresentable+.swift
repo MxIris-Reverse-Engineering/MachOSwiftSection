@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOMacro
+
 
 extension MachOFile {
     func section(for swiftMachOSection: MachOSwiftSectionName) throws -> (any SectionProtocol) {

@@ -1,10 +1,10 @@
 import Foundation
 import MachOKit
-import MachOMacro
+
 import MachOFoundation
 
 public struct ObjCProtocolPrefix: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let isa: RawPointer
         public let name: Pointer<String>
     }
@@ -20,11 +20,11 @@ public struct ObjCProtocolPrefix: ResolvableLocatableLayoutWrapper {
 }
 
 extension ObjCProtocolPrefix {
-    public func name<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> String {
+    public func name<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> String {
         try layout.name.resolve(in: machO)
     }
     
-    public func mangledName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName {
+    public func mangledName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
         try Pointer<MangledName>(address: layout.name.address).resolve(in: machO)
     }
 }

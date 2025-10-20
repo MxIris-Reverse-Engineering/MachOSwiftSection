@@ -1,13 +1,12 @@
 import Foundation
 import MachOKit
-import MachOMacro
 import MachOFoundation
 
 public struct MethodDefaultOverrideDescriptor: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let replacement: RelativeMethodDescriptorPointer
         public let original: RelativeMethodDescriptorPointer
-        public let implementation: RelativeDirectPointer<Symbol?>
+        public let implementation: RelativeDirectPointer<Symbols?>
     }
 
     public var layout: Layout
@@ -21,7 +20,15 @@ public struct MethodDefaultOverrideDescriptor: ResolvableLocatableLayoutWrapper 
 }
 
 extension MethodDefaultOverrideDescriptor {
-    public func implementationSymbol<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> Symbol? {
+    public func originalMethodDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<MethodDescriptor>? {
+        return try layout.original.resolve(from: offset(of: \.original), in: machO).asOptional
+    }
+
+    public func replacementMethodDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<MethodDescriptor>? {
+        return try layout.replacement.resolve(from: offset(of: \.original), in: machO).asOptional
+    }
+
+    public func implementationSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Symbols? {
         return try layout.implementation.resolve(from: offset(of: \.implementation), in: machO)
     }
 }

@@ -1,5 +1,4 @@
 import Foundation
-import MachOMacro
 
 @Layout
 public protocol ClassMetadataBoundsLayout: MetadataBoundsLayout {

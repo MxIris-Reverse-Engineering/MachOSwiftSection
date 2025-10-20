@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOMacro
+
 import MachOFoundation
 
 public struct ClassDescriptor: TypeContextDescriptorProtocol {
@@ -8,7 +8,7 @@ public struct ClassDescriptor: TypeContextDescriptorProtocol {
         public let flags: ContextDescriptorFlags
         public let parent: RelativeContextPointer
         public let name: RelativeDirectPointer<String>
-        public let accessFunctionPtr: RelativeOffset
+        public let accessFunctionPtr: RelativeDirectPointer<MetadataAccessor>
         public let fieldDescriptor: RelativeDirectPointer<FieldDescriptor>
         public let superclassType: RelativeDirectPointer<MangledName?>
         public let metadataNegativeSizeInWordsOrResilientMetadataBounds: UInt32
@@ -81,7 +81,7 @@ extension ClassDescriptor {
         return ExtraClassDescriptorFlags(rawValue: layout.metadataPositiveSizeInWordsOrExtraClassFlags).hasObjCResilientClassStub
     }
     
-    public func superclassTypeMangledName<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> MangledName? {
+    public func superclassTypeMangledName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName? {
         try layout.superclassType.resolve(from: offset(of: \.superclassType), in: machO)
     }
 }

@@ -1,5 +1,5 @@
 import Foundation
-import MachOMacro
+
 
 @Layout
 public protocol StructDescriptorLayout: TypeContextDescriptorLayout {

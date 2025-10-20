@@ -9,13 +9,13 @@ extension DyldCache {
     }
 }
 
-extension DyldCache {
-    package enum ImageSearchMode {
-        case name(String)
-        case path(String)
-    }
+package enum DyldCacheImageSearchMode {
+    case name(String)
+    case path(String)
+}
 
-    package func machOFile(by mode: ImageSearchMode) -> MachOFile? {
+extension DyldCache {
+    package func machOFile(by mode: DyldCacheImageSearchMode) -> MachOFile? {
         if let found = machOFiles().first(where: { $0.match(by: mode) }) {
             return found
         }
@@ -37,12 +37,22 @@ extension DyldCache {
     }
 }
 
+extension FullDyldCache {
+    package func machOFile(by mode: DyldCacheImageSearchMode) -> MachOFile? {
+        if let found = machOFiles().first(where: { $0.match(by: mode) }) {
+            return found
+        }
+
+        return nil
+    }
+}
+
 extension MachOFile {
-    fileprivate func match(by mode: DyldCache.ImageSearchMode) -> Bool {
+    fileprivate func match(by mode: DyldCacheImageSearchMode) -> Bool {
         switch mode {
-        case let .name(name):
+        case .name(let name):
             return imagePath.nsString.lastPathComponent.nsString.deletingPathExtension == name
-        case let .path(path):
+        case .path(let path):
             return imagePath == path
         }
     }

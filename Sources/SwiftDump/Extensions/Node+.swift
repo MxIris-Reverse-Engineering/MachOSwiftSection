@@ -1,5 +1,5 @@
 import Foundation
-import Demangle
+import Demangling
 import Semantic
 
 extension SemanticString: NodePrinterTarget {
@@ -28,6 +28,8 @@ extension SemanticString: NodePrinterTarget {
             write(content, type: semanticType)
         case .printModule:
             write(content, type: .other)
+        case .printKeyword:
+            write(content, type: .keyword)
         }
     }
 }
@@ -40,7 +42,7 @@ extension Node {
 }
 
 extension Node {
-    var hasWeakNode: Bool {
+    package var hasWeakNode: Bool {
         preorder().first { $0.kind == .weak } != nil
     }
 }

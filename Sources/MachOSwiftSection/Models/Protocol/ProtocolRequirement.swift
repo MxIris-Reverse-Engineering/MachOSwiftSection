@@ -1,9 +1,9 @@
 import MachOKit
-import MachOMacro
+
 import MachOFoundation
 
 public struct ProtocolRequirement: ResolvableLocatableLayoutWrapper {
-    public struct Layout: Sendable {
+    public struct Layout: LayoutProtocol {
         public let flags: ProtocolRequirementFlags
         public let defaultImplementation: RelativeDirectPointer<Symbols?>
     }
@@ -19,7 +19,7 @@ public struct ProtocolRequirement: ResolvableLocatableLayoutWrapper {
 }
 
 extension ProtocolRequirement {
-    public func defaultImplementationSymbols<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> Symbols? {
+    public func defaultImplementationSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Symbols? {
         guard layout.defaultImplementation.isValid else { return nil }
         return try layout.defaultImplementation.resolve(from: offset(of: \.defaultImplementation), in: machO)
     }

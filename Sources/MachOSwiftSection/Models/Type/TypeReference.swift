@@ -1,8 +1,8 @@
 import MachOKit
-import MachOMacro
+
 import MachOFoundation
 
-public enum TypeReference {
+public enum TypeReference: Sendable {
     case directTypeDescriptor(RelativeDirectPointer<ContextDescriptorWrapper?>)
     case indirectTypeDescriptor(RelativeDirectPointer<ContextPointer>)
     case directObjCClassName(RelativeDirectPointer<String?>)
@@ -22,7 +22,7 @@ public enum TypeReference {
     }
 
     
-    public func resolve<MachO: MachORepresentableWithCache & MachOReadable>(at offset: Int, in machO: MachO) throws -> ResolvedTypeReference {
+    public func resolve<MachO: MachOSwiftSectionRepresentableWithCache>(at offset: Int, in machO: MachO) throws -> ResolvedTypeReference {
         switch self {
         case let .directTypeDescriptor(relativeDirectPointer):
             return try .directTypeDescriptor(relativeDirectPointer.resolve(from: offset, in: machO))
@@ -36,7 +36,7 @@ public enum TypeReference {
     }
 }
 
-public enum ResolvedTypeReference {
+public enum ResolvedTypeReference: Sendable {
     case directTypeDescriptor(ContextDescriptorWrapper?)
     case indirectTypeDescriptor(SymbolOrElement<ContextDescriptorWrapper>?)
     case directObjCClassName(String?)
