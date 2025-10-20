@@ -2,6 +2,7 @@ import Foundation
 import MachOKit
 import MachOExtensions
 import Utilities
+import SwiftStdlibToolbox
 
 @_spi(Internals)
 open class MachOCache<Entry> {
@@ -19,6 +20,7 @@ open class MachOCache<Entry> {
         memoryPressureMonitor.startMonitoring()
     }
 
+    @Mutex
     private var entryByIdentifier: [AnyHashable: Entry] = [:]
 
     @discardableResult

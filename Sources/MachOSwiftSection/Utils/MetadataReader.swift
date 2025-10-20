@@ -2,6 +2,7 @@ import Foundation
 import MachOKit
 import Demangling
 import MachOFoundation
+import SwiftStdlibToolbox
 @_spi(Internals) import MachOCaches
 
 private final class MetadataReaderCache: MachOCache<MetadataReaderCache.Entry> {
@@ -26,6 +27,7 @@ private final class MetadataReaderCache: MachOCache<MetadataReaderCache.Entry> {
     }
 
     final class Entry {
+        @Mutex
         fileprivate var nodeForMangledNameBox: [MangledNameBox: Node] = [:]
     }
 

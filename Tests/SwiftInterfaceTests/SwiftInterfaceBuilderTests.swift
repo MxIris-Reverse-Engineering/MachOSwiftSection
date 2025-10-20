@@ -16,7 +16,7 @@ extension SwiftInterfaceBuilderTests {
     }
 
     func buildFile(in machO: MachOFile) async throws {
-        let builder = try SwiftInterfaceBuilder(configuration: .init(isEnabledTypeIndexing: false), eventHandlers: [], in: machO)
+        let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: machO)
         try await builder.prepare()
         let result = try builder.printRoot()
         try rootDirectory.createDirectoryIfNeeded()
@@ -26,7 +26,7 @@ extension SwiftInterfaceBuilderTests {
     }
 
     func buildFile(in machO: MachOImage) async throws {
-        let builder = try SwiftInterfaceBuilder(configuration: .init(isEnabledTypeIndexing: false), eventHandlers: [OSLogEventHandler()], in: machO)
+        let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: machO)
         try await builder.prepare()
         let result = try builder.printRoot()
         try rootDirectory.createDirectoryIfNeeded()

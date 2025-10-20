@@ -2,9 +2,10 @@ import Foundation
 import MachOFoundation
 import MachOKit
 import Demangling
+import SwiftStdlibToolbox
 
-
-package final class PrimitiveTypeMapping {
+package final class PrimitiveTypeMapping: Sendable {
+    @Mutex
     private var storage: [String: String] = [:]
 
     package init<MachO: MachOSwiftSectionRepresentableWithCache>(machO: MachO) throws {
