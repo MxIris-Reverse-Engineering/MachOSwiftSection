@@ -10,40 +10,6 @@ import Dependencies
 import Utilities
 @_spi(Internals) import MachOSymbols
 
-/// A comprehensive Swift interface builder that generates human-readable Swift interface files from Mach-O binaries.
-///
-/// The SwiftInterfaceBuilder analyzes Mach-O binaries to extract Swift type information, protocol definitions,
-/// extensions, and other Swift language constructs, then generates clean, formatted Swift interface code.
-/// This is particularly useful for reverse engineering, documentation generation, and understanding
-/// the public API of Swift frameworks and libraries.
-///
-/// ## Features
-/// - Extracts and formats Swift types (classes, structs, enums)
-/// - Generates protocol definitions with requirements
-/// - Handles protocol conformances and associated types
-/// - Processes extensions and their members
-/// - Supports generic signatures and constraints
-/// - Manages module imports and dependencies
-/// - Provides type indexing for better resolution
-///
-/// ## Usage
-/// ```swift
-/// let config = SwiftInterfaceBuilderConfiguration(isEnabledTypeIndexing: true)
-/// let builder = try SwiftInterfaceBuilder(configuration: config, in: machOFile)
-///
-/// // Set dependency paths for better type resolution
-/// builder.setDependencyPaths([
-///     .dyldSharedCache("/path/to/cache"),
-///     .usesSystemDyldSharedCache
-/// ])
-///
-/// // Prepare the builder by indexing all symbols
-/// try await builder.prepare()
-///
-/// // Generate the Swift interface
-/// let interface = try builder.build()
-/// ```
-///
 public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWithCache & Sendable>: Sendable {
     /// Swift standard library and internal modules that should not be explicitly imported
     private static var internalModules: [String] {

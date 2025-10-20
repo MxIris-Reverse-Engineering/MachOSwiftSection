@@ -56,7 +56,8 @@
       "Bash(tr:*)",
       "Bash(cut:*)",
       "Bash(xargs:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": [],
     "ask": []
