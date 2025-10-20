@@ -33,7 +33,7 @@ extension Definition {
 }
 
 extension MutableDefinition {
-    func setDefintions(for memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>, inExtension: Bool) {
+    func setDefinitions(for memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>, inExtension: Bool) {
         for (kind, memberSymbols) in memberSymbolsByKind {
             switch kind {
             case .variable(inExtension, let isStatic, false):
