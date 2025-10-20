@@ -7,7 +7,7 @@ import ArgumentParser
 struct DemangleCommand: AsyncParsableCommand {
     static let configuration: CommandConfiguration = .init(
         commandName: "demangle",
-        abstract: "Demangle mangled name in a Mach-O file."
+        abstract: "Demangling mangled name in a Mach-O file."
     )
 
     @OptionGroup

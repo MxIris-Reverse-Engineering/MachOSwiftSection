@@ -1,5 +1,5 @@
 import MemberwiseInit
-import Demangle
+import Demangling
 import MachOSymbols
 import MachOSwiftSection
 

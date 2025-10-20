@@ -1,5 +1,5 @@
 import Semantic
-import Demangle
+import Demangling
 import MachOKit
 import MachOSwiftSection
 import Utilities

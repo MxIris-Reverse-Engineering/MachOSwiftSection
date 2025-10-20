@@ -1,7 +1,7 @@
 import MachOKit
 import MachOSwiftSection
 import Semantic
-import Demangle
+import Demangling
 
 extension ResilientSuperclass {
     package func dumpSuperclass<MachO: MachOSwiftSectionRepresentableWithCache>(resolver: DemangleResolver, for kind: TypeReferenceKind, in machO: MachO) throws -> SemanticString? {

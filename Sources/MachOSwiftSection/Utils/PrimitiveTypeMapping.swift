@@ -1,7 +1,7 @@
 import Foundation
 import MachOFoundation
 import MachOKit
-import Demangle
+import Demangling
 
 
 package final class PrimitiveTypeMapping {

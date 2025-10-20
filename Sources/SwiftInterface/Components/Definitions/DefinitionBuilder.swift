@@ -1,4 +1,4 @@
-import Demangle
+import Demangling
 import MachOSymbols
 import MachOSwiftSection
 

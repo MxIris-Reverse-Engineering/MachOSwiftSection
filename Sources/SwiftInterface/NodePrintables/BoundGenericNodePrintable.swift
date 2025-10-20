@@ -1,4 +1,4 @@
-import Demangle
+import Demangling
 
 protocol BoundGenericNodePrintable: NodePrintable {
     mutating func printNameInBoundGeneric(_ name: Node, context: Context?) -> Bool

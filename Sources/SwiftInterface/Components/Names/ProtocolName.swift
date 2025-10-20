@@ -1,6 +1,6 @@
 import MemberwiseInit
 import Semantic
-import Demangle
+import Demangling
 
 @MemberwiseInit(.public)
 public struct ProtocolName: DefinitionName, Hashable, Sendable {

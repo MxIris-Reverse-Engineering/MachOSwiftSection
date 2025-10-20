@@ -1,4 +1,4 @@
-import Demangle
+import Demangling
 
 extension String {
     var countedString: String {

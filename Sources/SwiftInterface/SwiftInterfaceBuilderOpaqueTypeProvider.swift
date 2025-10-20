@@ -1,4 +1,4 @@
-import Demangle
+import Demangling
 import MachOKit
 import MachOSwiftSection
 import Dependencies

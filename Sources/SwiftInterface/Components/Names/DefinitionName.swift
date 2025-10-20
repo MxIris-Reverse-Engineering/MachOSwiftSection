@@ -1,5 +1,5 @@
 import Foundation
-import Demangle
+import Demangling
 
 public protocol DefinitionName {
     var node: Node { get }

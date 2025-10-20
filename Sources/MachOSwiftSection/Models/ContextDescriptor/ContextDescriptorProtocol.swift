@@ -1,7 +1,7 @@
 import MachOKit
 import MachOFoundation
 
-import Demangle
+import Demangling
 
 @dynamicMemberLookup
 public protocol ContextDescriptorProtocol: ResolvableLocatableLayoutWrapper where Layout: ContextDescriptorLayout {

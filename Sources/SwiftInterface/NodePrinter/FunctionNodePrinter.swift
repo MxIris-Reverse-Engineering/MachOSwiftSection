@@ -1,5 +1,5 @@
 import Foundation
-import Demangle
+import Demangling
 import MachOExtensions
 import Semantic
 

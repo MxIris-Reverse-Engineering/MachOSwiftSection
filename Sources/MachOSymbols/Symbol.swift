@@ -3,7 +3,7 @@ import MachOKit
 import MachOReading
 import MachOResolving
 import MachOExtensions
-import Demangle
+import Demangling
 
 public struct Symbol: Resolvable, SymbolProtocol, Hashable {
     public let offset: Int

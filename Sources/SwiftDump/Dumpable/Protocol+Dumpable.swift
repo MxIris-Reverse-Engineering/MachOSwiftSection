@@ -3,7 +3,7 @@ import MachOKit
 import MachOSwiftSection
 import Semantic
 import Utilities
-import Demangle
+import Demangling
 import OrderedCollections
 
 extension MachOSwiftSection.`Protocol`: NamedDumpable {

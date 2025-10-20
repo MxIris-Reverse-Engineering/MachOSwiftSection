@@ -1,6 +1,6 @@
 import MachOKit
 import MachOExtensions
-import Demangle
+import Demangling
 import OrderedCollections
 import Utilities
 @_spi(Internals) import MachOCaches

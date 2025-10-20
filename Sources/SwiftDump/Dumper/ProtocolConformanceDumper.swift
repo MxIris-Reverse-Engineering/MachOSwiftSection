@@ -2,7 +2,7 @@ import Foundation
 import MachOKit
 import MachOSwiftSection
 import Semantic
-import Demangle
+import Demangling
 import Utilities
 import OrderedCollections
 

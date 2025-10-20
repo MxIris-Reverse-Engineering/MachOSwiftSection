@@ -1,5 +1,5 @@
 import Foundation
-import Demangle
+import Demangling
 import Semantic
 
 struct TypeNodePrinter: InterfaceNodePrintable {

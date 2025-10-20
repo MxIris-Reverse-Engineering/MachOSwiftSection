@@ -1,5 +1,5 @@
 import Foundation
-import Demangle
+import Demangling
 import Testing
 import MachOSymbols
 @testable import MachOSwiftSection

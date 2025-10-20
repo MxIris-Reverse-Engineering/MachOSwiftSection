@@ -1,4 +1,4 @@
-import Demangle
+import Demangling
 
 public protocol SwiftInterfaceBuilderExtraDataProvider {
     func moduleName(forTypeName typeName: String) -> String?

@@ -1,4 +1,4 @@
-import Demangle
+import Demangling
 
 protocol FunctionTypeNodePrintableContext {
     var isAllocator: Bool { set get }

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Demangle
+@testable import Demangling
 import MachOKit
 import MachOFoundation
 @testable import MachOTestingSupport
@@ -21,7 +21,7 @@ extension DemangleAndRemangleTests {
                 let node = try demangleAsNode(symbol.stringValue)
                 let swiftSectionDemanlgedName = node.print()
                 #expect(swiftStdlibDemangledName == swiftSectionDemanlgedName, "\(symbol.stringValue)")
-                let remangledString = try Demangle.mangleAsString(node)
+                let remangledString = try Demangling.mangleAsString(node)
                 #expect(remangledString == symbol.stringValue)
             } catch {
                 if symbol.stringValue != swiftStdlibDemangledName {
@@ -42,7 +42,7 @@ final class DyldCacheSymbolRemangleTests: DyldCacheSymbolTests, DemangleAndReman
     
     @Test func test() async throws {
         let node = try demangleAsNode("_$sSis15WritableKeyPathCy17RealityFoundation23PhysicallyBasedMaterialVAE9BaseColorVGTHTm")
-//        try Demangle.mangleAsString(node).print()
+//        try Demangling.mangleAsString(node).print()
         node.description.print()
     }
 }

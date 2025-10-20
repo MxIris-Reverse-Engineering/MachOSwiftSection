@@ -1,4 +1,4 @@
-import Demangle
+import Demangling
 
 @dynamicMemberLookup
 public struct DemangledSymbol: Sendable {

@@ -2,7 +2,7 @@ import Semantic
 import MachOKit
 import MachOSwiftSection
 import Utilities
-import Demangle
+import Demangling
 
 private func genericParameterName(depth: Int, index: Int) throws -> String {
     var charIndex = index

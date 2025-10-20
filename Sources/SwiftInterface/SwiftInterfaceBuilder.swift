@@ -2,7 +2,7 @@ import MachOSwiftSection
 import MemberwiseInit
 import OrderedCollections
 import SwiftDump
-import Demangle
+import Demangling
 import Semantic
 import SwiftStdlibToolbox
 import MachOKit

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Demangle
+@testable import Demangling
 
 struct NodeTests {
     @Test func testNode() {

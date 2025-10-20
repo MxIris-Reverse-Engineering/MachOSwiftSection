@@ -1,4 +1,4 @@
-import Demangle
+import Demangling
 
 protocol TypeNodePrintable: NodePrintable {
     mutating func printNameInType(_ name: Node, context: Context?) -> Bool

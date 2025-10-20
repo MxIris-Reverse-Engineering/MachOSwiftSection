@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import Demangle
+import Demangling
 import MachOFoundation
 @_spi(Internals) import MachOCaches
 

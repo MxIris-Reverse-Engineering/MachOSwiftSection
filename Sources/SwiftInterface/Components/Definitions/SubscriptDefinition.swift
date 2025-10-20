@@ -1,5 +1,5 @@
 import MemberwiseInit
-import Demangle
+import Demangling
 
 @MemberwiseInit(.public)
 public struct SubscriptDefinition: Sendable, AccessorRepresentable {

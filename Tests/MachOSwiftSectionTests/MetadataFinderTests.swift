@@ -3,7 +3,7 @@ import Testing
 import MachOKit
 @_spi(Internals) import MachOSymbols
 import MachOFoundation
-import Demangle
+import Demangling
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
 import Dependencies

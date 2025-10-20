@@ -1,4 +1,4 @@
-import Demangle
+import Demangling
 
 protocol DependentGenericNodePrintable: NodePrintable {
     var isProtocol: Bool { get }

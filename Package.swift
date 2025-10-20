@@ -142,7 +142,7 @@ let package = Package(
         ),
 
         .target(
-            name: "Demangle",
+            name: "Demangling",
             dependencies: [
                 "Utilities",
             ]
@@ -202,7 +202,7 @@ let package = Package(
                 .MachOKit,
                 "MachOReading",
                 "MachOResolving",
-                "Demangle",
+                "Demangling",
                 "Utilities",
                 "MachOCaches",
             ],
@@ -252,7 +252,7 @@ let package = Package(
             dependencies: [
                 .MachOKit,
                 "MachOFoundation",
-                "Demangle",
+                "Demangling",
                 "Utilities",
             ],
         ),
@@ -340,9 +340,9 @@ let package = Package(
         ),
 
         .testTarget(
-            name: "DemangleTests",
+            name: "DemanglingTests",
             dependencies: [
-                "Demangle",
+                "Demangling",
             ],
             swiftSettings: testSettings
         ),

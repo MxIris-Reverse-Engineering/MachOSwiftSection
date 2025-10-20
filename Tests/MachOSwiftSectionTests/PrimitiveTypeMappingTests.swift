@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import MachOKit
-import Demangle
+import Demangling
 import MachOFoundation
 @testable import MachOTestingSupport
 @testable import MachOSwiftSection

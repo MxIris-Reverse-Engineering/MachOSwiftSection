@@ -4,7 +4,7 @@ import MachOSwiftSection
 import Semantic
 import Utilities
 import MemberwiseInit
-import Demangle
+import Demangling
 import Dependencies
 @_spi(Internals) import MachOSymbols
 

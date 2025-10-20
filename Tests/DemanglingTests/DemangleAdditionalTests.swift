@@ -1,5 +1,5 @@
 import Testing
-@testable import Demangle
+@testable import Demangling
 
 @Suite
 struct DemangleAdditionalTests {

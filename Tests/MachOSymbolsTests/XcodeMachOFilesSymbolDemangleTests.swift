@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Demangle
+@testable import Demangling
 import MachOKit
 import MachOFoundation
 @testable import MachOTestingSupport

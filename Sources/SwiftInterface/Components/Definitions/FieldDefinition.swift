@@ -1,5 +1,5 @@
 import MemberwiseInit
-import Demangle
+import Demangling
 
 public struct FieldFlags: OptionSet, Sendable {
     public let rawValue: Int
