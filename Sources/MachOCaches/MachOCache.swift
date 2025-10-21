@@ -5,7 +5,7 @@ import Utilities
 import SwiftStdlibToolbox
 
 @_spi(Internals)
-open class MachOCache<Entry> {
+open class MachOCache<Entry>: @unchecked Sendable {
     private let memoryPressureMonitor = MemoryPressureMonitor()
 
     package init() {

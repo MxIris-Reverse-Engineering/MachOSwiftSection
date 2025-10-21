@@ -1,6 +1,6 @@
 import ArgumentParser
 
-struct MachOOptionGroup: ParsableArguments {
+struct MachOOptionGroup: ParsableArguments, Sendable {
     @Argument(help: "The path to the Mach-O file or dyld shared cache to dump.", completion: .file())
     var filePath: String?
 

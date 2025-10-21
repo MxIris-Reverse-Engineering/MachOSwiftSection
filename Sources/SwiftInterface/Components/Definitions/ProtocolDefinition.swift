@@ -86,11 +86,11 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
             }
         }
 
-        setDefintions(for: requirementMemberSymbolsByKind, inExtension: false)
+        setDefinitions(for: requirementMemberSymbolsByKind, inExtension: false)
         
         let extensionDefinition = try ExtensionDefinition(extensionName: protocolName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
 
-        extensionDefinition.setDefintions(for: defaultImplementationMemberSymbolsByKind, inExtension: true)
+        extensionDefinition.setDefinitions(for: defaultImplementationMemberSymbolsByKind, inExtension: true)
 
         if extensionDefinition.hasMembers {
             self.defaultImplementationExtensions = [extensionDefinition]

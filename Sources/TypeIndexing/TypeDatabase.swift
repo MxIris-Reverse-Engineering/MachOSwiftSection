@@ -3,7 +3,7 @@ import FoundationToolbox
 import APINotes
 import MachOKit
 
-package final class TypeDatabase<MachO: MachORepresentable>: Sendable {
+package final class TypeDatabase<MachO: MachORepresentable & Sendable>: Sendable {
     package struct Record: Sendable {
         package let moduleName: String
         package let typeName: String

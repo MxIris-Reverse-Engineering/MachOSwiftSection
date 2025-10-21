@@ -1,6 +1,6 @@
 import MachOKit
 
-public protocol MachORepresentableWithCache: MachORepresentable {
+public protocol MachORepresentableWithCache: MachORepresentable, Sendable {
     associatedtype Cache: DyldCacheRepresentable
     associatedtype Identifier: Hashable
 
@@ -28,7 +28,7 @@ extension MachOImage {
     }
 }
 
-extension MachOFile: MachORepresentableWithCache {
+extension MachOFile: MachORepresentableWithCache, @unchecked @retroactive Sendable {
     public var identifier: MachOTargetIdentifier {
         .file(imagePath)
     }
@@ -42,7 +42,7 @@ extension MachOFile: MachORepresentableWithCache {
     }
 }
 
-extension MachOImage: MachORepresentableWithCache {
+extension MachOImage: MachORepresentableWithCache, @unchecked @retroactive Sendable {
     
     public var imagePath: String { path ?? "" }
     

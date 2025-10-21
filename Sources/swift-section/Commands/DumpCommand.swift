@@ -6,12 +6,14 @@ import MachOSwiftSection
 import SwiftDump
 import Semantic
 
-final actor DumpCommand: AsyncParsableCommand {
+struct DumpCommand: AsyncParsableCommand {
     static let configuration: CommandConfiguration = .init(
         commandName: "dump",
         abstract: "Dump Swift information from a Mach-O file or dyld shared cache.",
     )
 
+    private var dumpedString = ""
+    
     @OptionGroup
     var machOOptions: MachOOptionGroup
 
@@ -24,15 +26,11 @@ final actor DumpCommand: AsyncParsableCommand {
     @Option(name: .shortAndLong, parsing: .upToNextOption, help: "The sections to dump. If not specified, all sections will be dumped.")
     var sections: [SwiftSection] = SwiftSection.allCases
 
-//    @Flag(inversion: .prefixedEnableDisable, help: "Enable searching for metadata.")
-    private var searchMetadata: Bool = false
-
-    private var dumpedString = ""
 
     @Option(name: .shortAndLong, help: "The color scheme for the output.")
     var colorScheme: SemanticColorScheme = .none
 
-    func run() async throws {
+    mutating func run() async throws {
         let machOFile = try MachOFile.load(options: machOOptions)
 
         let demangleOptions = demangleOptions.buildSwiftDumpDemangleOptions()
@@ -57,7 +55,7 @@ final actor DumpCommand: AsyncParsableCommand {
     }
 
     @MainActor
-    private func dumpTypes(using options: DemangleOptions, in machO: MachOFile) async throws {
+    private mutating func dumpTypes(using options: DemangleOptions, in machO: MachOFile) async throws {
         let typeContextDescriptors = try machO.swift.typeContextDescriptors
 
         for typeContextDescriptor in typeContextDescriptors {
@@ -81,7 +79,7 @@ final actor DumpCommand: AsyncParsableCommand {
     }
 
     @MainActor
-    private func dumpAssociatedTypes(using options: DemangleOptions, in machO: MachOFile) async throws {
+    private mutating func dumpAssociatedTypes(using options: DemangleOptions, in machO: MachOFile) async throws {
         let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
         for associatedTypeDescriptor in associatedTypeDescriptors {
             await performDump {
@@ -91,7 +89,7 @@ final actor DumpCommand: AsyncParsableCommand {
     }
 
     @MainActor
-    private func dumpProtocols(using options: DemangleOptions, in machO: MachOFile) async throws {
+    private mutating func dumpProtocols(using options: DemangleOptions, in machO: MachOFile) async throws {
         let protocolDescriptors = try machO.swift.protocolDescriptors
         for protocolDescriptor in protocolDescriptors {
             await performDump {
@@ -101,7 +99,7 @@ final actor DumpCommand: AsyncParsableCommand {
     }
 
     @MainActor
-    private func dumpProtocolConformances(using options: DemangleOptions, in machO: MachOFile) async throws {
+    private mutating func dumpProtocolConformances(using options: DemangleOptions, in machO: MachOFile) async throws {
         let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
 
         for protocolConformanceDescriptor in protocolConformanceDescriptors {
@@ -111,7 +109,7 @@ final actor DumpCommand: AsyncParsableCommand {
         }
     }
 
-    private func performDump(@SemanticStringBuilder _ action: () async throws -> SemanticString) async {
+    private mutating func performDump(@SemanticStringBuilder _ action: @Sendable () async throws -> SemanticString) async {
         do {
             try await dumpOrPrint(action())
         } catch {
@@ -119,11 +117,11 @@ final actor DumpCommand: AsyncParsableCommand {
         }
     }
 
-    private func dumpError(_ error: Swift.Error) {
+    private mutating func dumpError(_ error: Swift.Error) {
         dumpOrPrint(SemanticString(components: Error(error.localizedDescription)))
     }
 
-    private func dumpOrPrint(_ semanticString: SemanticString) {
+    private mutating func dumpOrPrint(_ semanticString: SemanticString) {
         if outputPath != nil {
             dumpedString.append(semanticString.string)
             dumpedString.append("\n")
@@ -132,7 +130,7 @@ final actor DumpCommand: AsyncParsableCommand {
         }
     }
 
-    private func dumpOrPrint(_ string: String) {
+    private mutating func dumpOrPrint(_ string: String) {
         if outputPath != nil {
             dumpedString.append(string)
             dumpedString.append("\n")
