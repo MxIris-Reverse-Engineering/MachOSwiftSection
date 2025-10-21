@@ -1,10 +1,24 @@
 /// Protocol for building types from mangled nodes
+
+
+public protocol BuiltSILBoxFieldProtocol {
+    associatedtype BuiltType
+    
+    init(type: BuiltType, isMutable: Bool)
+}
+
+public protocol BuiltSubstitutionProtocol {
+    associatedtype BuiltType
+    
+    init(firstType: BuiltType, secondType: BuiltType)
+}
+
 public protocol TypeBuilder {
     associatedtype BuiltType
     associatedtype BuiltTypeDecl
     associatedtype BuiltProtocolDecl
-    associatedtype BuiltSILBoxField
-    associatedtype BuiltSubstitution
+    associatedtype BuiltSILBoxField: BuiltSILBoxFieldProtocol where BuiltSILBoxField.BuiltType == BuiltType
+    associatedtype BuiltSubstitution: BuiltSubstitutionProtocol where BuiltSubstitution.BuiltType == BuiltType
     associatedtype BuiltRequirement
     associatedtype BuiltInverseRequirement
     associatedtype BuiltLayoutConstraint
