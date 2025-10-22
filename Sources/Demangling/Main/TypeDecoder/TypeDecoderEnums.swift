@@ -181,6 +181,37 @@ public enum LayoutConstraintKind: Sendable {
     case trivialStride
 }
 
+extension LayoutConstraintKind {
+    init?(from text: String) {
+        switch text {
+        case "U": self = .unknownLayout
+        case "R": self = .refCountedObject
+        case "N": self = .nativeRefCountedObject
+        case "C": self = .class
+        case "D": self = .nativeClass
+        case "T": self = .trivial
+        case "B": self = .bridgeObject
+        case "E",
+             "e": self = .trivialOfExactSize
+        case "M",
+             "m": self = .trivialOfAtMostSize
+        case "S": self = .trivialStride
+        default: return nil
+        }
+    }
+
+    var needsSizeAlignment: Bool {
+        switch self {
+        case .trivialOfExactSize,
+             .trivialOfAtMostSize,
+             .trivialStride:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 // Requirement kinds
 public enum RequirementKind: Sendable {
     case conformance
@@ -193,4 +224,41 @@ public enum RequirementKind: Sendable {
 public enum InvertibleProtocolKind: UInt32, Sendable {
     case copyable = 0
     case escapable = 1
+}
+
+
+extension FunctionMetadataDifferentiabilityKind {
+    init(from rawValue: UInt8) {
+        switch rawValue {
+        case 1:
+            self = .forward
+        case 2:
+            self = .reverse
+        case 3:
+            self = .normal
+        case 4:
+            self = .linear
+        default:
+            self = .nonDifferentiable
+        }
+    }
+}
+
+extension ImplFunctionDifferentiabilityKind {
+    init(from rawValue: UInt8) {
+        switch rawValue {
+        case 0:
+            self = .nonDifferentiable
+        case 1:
+            self = .forward
+        case 2:
+            self = .reverse
+        case 3:
+            self = .normal
+        case 4:
+            self = .linear
+        default:
+            self = .nonDifferentiable
+        }
+    }
 }

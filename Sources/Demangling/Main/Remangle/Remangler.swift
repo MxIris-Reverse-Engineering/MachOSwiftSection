@@ -1393,160 +1393,6 @@ extension Remangler {
         }
     }
 
-    // MARK: - Specialization Helpers
-
-    /// Check if a node is specialized (has bound generics in its context chain)
-    private func isSpecialized(_ node: Node) -> Bool {
-        switch node.kind {
-        case .boundGenericStructure,
-             .boundGenericEnum,
-             .boundGenericClass,
-             .boundGenericOtherNominalType,
-             .boundGenericTypeAlias,
-             .boundGenericProtocol,
-             .boundGenericFunction,
-             .constrainedExistential:
-            return true
-
-        case .structure,
-             .enum,
-             .class,
-             .typeAlias,
-             .otherNominalType,
-             .protocol,
-             .function,
-             .allocator,
-             .constructor,
-             .destructor,
-             .variable,
-             .subscript,
-             .explicitClosure,
-             .implicitClosure,
-             .initializer,
-             .propertyWrapperBackingInitializer,
-             .propertyWrapperInitFromProjectedValue,
-             .defaultArgumentInitializer,
-             .getter,
-             .setter,
-             .willSet,
-             .didSet,
-             .readAccessor,
-             .modifyAccessor,
-             .unsafeAddressor,
-             .unsafeMutableAddressor,
-             .static:
-            return node.children.count > 0 && isSpecialized(node.children[0])
-
-        case .extension:
-            return node.children.count > 1 && isSpecialized(node.children[1])
-
-        default:
-            return false
-        }
-    }
-
-    /// Get the unspecialized version of a node (removes BoundGeneric wrappers)
-    private func getUnspecialized(_ node: Node) -> Node? {
-        var numToCopy = 2
-
-        switch node.kind {
-        case .function,
-             .getter,
-             .setter,
-             .willSet,
-             .didSet,
-             .readAccessor,
-             .modifyAccessor,
-             .unsafeAddressor,
-             .unsafeMutableAddressor,
-             .allocator,
-             .constructor,
-             .destructor,
-             .variable,
-             .subscript,
-             .explicitClosure,
-             .implicitClosure,
-             .initializer,
-             .propertyWrapperBackingInitializer,
-             .propertyWrapperInitFromProjectedValue,
-             .defaultArgumentInitializer,
-             .static:
-            numToCopy = node.children.count
-            fallthrough
-
-        case .structure,
-             .enum,
-             .class,
-             .typeAlias,
-             .otherNominalType:
-            guard node.children.count > 0 else { return nil }
-
-            let result = Node(kind: node.kind)
-            var parentOrModule = node.children[0]
-            if isSpecialized(parentOrModule) {
-                guard let unspec = getUnspecialized(parentOrModule) else { return nil }
-                parentOrModule = unspec
-            }
-            result.addChild(parentOrModule)
-            for idx in 1 ..< numToCopy {
-                if idx < node.children.count {
-                    result.addChild(node.children[idx])
-                }
-            }
-            return result
-
-        case .boundGenericStructure,
-             .boundGenericEnum,
-             .boundGenericClass,
-             .boundGenericProtocol,
-             .boundGenericOtherNominalType,
-             .boundGenericTypeAlias:
-            guard node.children.count > 0 else { return nil }
-            let unboundType = node.children[0]
-            guard unboundType.kind == .type, unboundType.children.count > 0 else { return nil }
-            let nominalType = unboundType.children[0]
-            if isSpecialized(nominalType) {
-                return getUnspecialized(nominalType)
-            }
-            return nominalType
-
-        case .constrainedExistential:
-            guard node.children.count > 0 else { return nil }
-            let unboundType = node.children[0]
-            guard unboundType.kind == .type else { return nil }
-            return unboundType
-
-        case .boundGenericFunction:
-            guard node.children.count > 0 else { return nil }
-            let unboundFunction = node.children[0]
-            guard unboundFunction.kind == .function || unboundFunction.kind == .constructor else {
-                return nil
-            }
-            if isSpecialized(unboundFunction) {
-                return getUnspecialized(unboundFunction)
-            }
-            return unboundFunction
-
-        case .extension:
-            guard node.children.count >= 2 else { return nil }
-            let parent = node.children[1]
-            if !isSpecialized(parent) {
-                return node
-            }
-            guard let unspec = getUnspecialized(parent) else { return nil }
-            let result = Node(kind: .extension)
-            result.addChild(node.children[0])
-            result.addChild(unspec)
-            if node.children.count == 3 {
-                result.addChild(node.children[2])
-            }
-            return result
-
-        default:
-            return nil
-        }
-    }
-
     /// Mangle generic arguments from a context chain
     private func mangleGenericArgs(_ node: Node, separator: inout Character, depth: Int, fullSubstitutionMap: Bool = false) throws(ManglingError) {
         var fullSubst = fullSubstitutionMap
@@ -5958,3 +5804,152 @@ extension Node {
 }
 
 
+func getUnspecialized(_ node: Node) -> Node? {
+    var numToCopy = 2
+
+    switch node.kind {
+    case .function,
+         .getter,
+         .setter,
+         .willSet,
+         .didSet,
+         .readAccessor,
+         .modifyAccessor,
+         .unsafeAddressor,
+         .unsafeMutableAddressor,
+         .allocator,
+         .constructor,
+         .destructor,
+         .variable,
+         .subscript,
+         .explicitClosure,
+         .implicitClosure,
+         .initializer,
+         .propertyWrapperBackingInitializer,
+         .propertyWrapperInitFromProjectedValue,
+         .defaultArgumentInitializer,
+         .static:
+        numToCopy = node.children.count
+        fallthrough
+
+    case .structure,
+         .enum,
+         .class,
+         .typeAlias,
+         .otherNominalType:
+        guard node.children.count > 0 else { return nil }
+
+        let result = Node(kind: node.kind)
+        var parentOrModule = node.children[0]
+        if isSpecialized(parentOrModule) {
+            guard let unspec = getUnspecialized(parentOrModule) else { return nil }
+            parentOrModule = unspec
+        }
+        result.addChild(parentOrModule)
+        for idx in 1 ..< numToCopy {
+            if idx < node.children.count {
+                result.addChild(node.children[idx])
+            }
+        }
+        return result
+
+    case .boundGenericStructure,
+         .boundGenericEnum,
+         .boundGenericClass,
+         .boundGenericProtocol,
+         .boundGenericOtherNominalType,
+         .boundGenericTypeAlias:
+        guard node.children.count > 0 else { return nil }
+        let unboundType = node.children[0]
+        guard unboundType.kind == .type, unboundType.children.count > 0 else { return nil }
+        let nominalType = unboundType.children[0]
+        if isSpecialized(nominalType) {
+            return getUnspecialized(nominalType)
+        }
+        return nominalType
+
+    case .constrainedExistential:
+        guard node.children.count > 0 else { return nil }
+        let unboundType = node.children[0]
+        guard unboundType.kind == .type else { return nil }
+        return unboundType
+
+    case .boundGenericFunction:
+        guard node.children.count > 0 else { return nil }
+        let unboundFunction = node.children[0]
+        guard unboundFunction.kind == .function || unboundFunction.kind == .constructor else {
+            return nil
+        }
+        if isSpecialized(unboundFunction) {
+            return getUnspecialized(unboundFunction)
+        }
+        return unboundFunction
+
+    case .extension:
+        guard node.children.count >= 2 else { return nil }
+        let parent = node.children[1]
+        if !isSpecialized(parent) {
+            return node
+        }
+        guard let unspec = getUnspecialized(parent) else { return nil }
+        let result = Node(kind: .extension)
+        result.addChild(node.children[0])
+        result.addChild(unspec)
+        if node.children.count == 3 {
+            result.addChild(node.children[2])
+        }
+        return result
+
+    default:
+        return nil
+    }
+}
+
+func isSpecialized(_ node: Node) -> Bool {
+    switch node.kind {
+    case .boundGenericStructure,
+         .boundGenericEnum,
+         .boundGenericClass,
+         .boundGenericOtherNominalType,
+         .boundGenericTypeAlias,
+         .boundGenericProtocol,
+         .boundGenericFunction,
+         .constrainedExistential:
+        return true
+
+    case .structure,
+         .enum,
+         .class,
+         .typeAlias,
+         .otherNominalType,
+         .protocol,
+         .function,
+         .allocator,
+         .constructor,
+         .destructor,
+         .variable,
+         .subscript,
+         .explicitClosure,
+         .implicitClosure,
+         .initializer,
+         .propertyWrapperBackingInitializer,
+         .propertyWrapperInitFromProjectedValue,
+         .defaultArgumentInitializer,
+         .getter,
+         .setter,
+         .willSet,
+         .didSet,
+         .readAccessor,
+         .modifyAccessor,
+         .unsafeAddressor,
+         .unsafeMutableAddressor,
+         .static:
+        return node.children.count > 0 && isSpecialized(node.children[0])
+
+    case .extension:
+        return node.children.count > 1 && isSpecialized(node.children[1])
+
+    default:
+        return false
+    }
+}
