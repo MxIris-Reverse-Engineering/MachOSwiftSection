@@ -262,3 +262,52 @@ extension ImplFunctionDifferentiabilityKind {
         }
     }
 }
+
+
+protocol ImplFunctionParamProtocol {
+    associatedtype BuiltTypeParam
+    associatedtype ConventionType
+    associatedtype OptionsType: OptionSet
+
+    init(type: BuiltTypeParam, convention: ConventionType, options: OptionsType)
+
+    static func getConventionFromString(_ string: String) -> ConventionType?
+    static func getDifferentiabilityFromString(_ string: String) -> OptionsType?
+    static func getSending() -> OptionsType
+}
+
+protocol ImplFunctionResultProtocol {
+    associatedtype BuiltTypeParam
+    associatedtype ConventionType
+    associatedtype OptionsType: OptionSet
+
+    init(type: BuiltTypeParam, convention: ConventionType, options: OptionsType)
+
+    static func getConventionFromString(_ string: String) -> ConventionType?
+    static func getDifferentiabilityFromString(_ string: String) -> OptionsType?
+    static func getSending() -> OptionsType
+}
+
+extension ImplFunctionParam: ImplFunctionParamProtocol {
+    typealias BuiltTypeParam = BuiltType
+}
+
+extension ImplFunctionResult: ImplFunctionResultProtocol {
+    typealias BuiltTypeParam = BuiltType
+}
+
+
+extension ImplMetatypeRepresentation {
+    init?(from text: String) {
+        switch text {
+        case "@thin":
+            self = .thin
+        case "@thick":
+            self = .thick
+        case "@objc_metatype":
+            self = .objC
+        default:
+            return nil
+        }
+    }
+}
