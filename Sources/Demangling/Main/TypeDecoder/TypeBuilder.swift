@@ -1,24 +1,5 @@
 /// Protocol for building types from mangled nodes
 
-
-//public protocol BuiltSILBoxFieldProtocol {
-//    associatedtype BuiltType
-//    
-//    init(type: BuiltType, isMutable: Bool)
-//}
-//
-//public protocol BuiltSubstitutionProtocol {
-//    associatedtype BuiltType
-//    
-//    init(firstType: BuiltType, secondType: BuiltType)
-//}
-//
-//public protocol BuiltRequirementProtocol {
-//    associatedtype BuiltType
-//    
-//    init(kind: RequirementKind, subjectType: BuiltType, constraintType: BuiltType)
-//}
-
 public protocol TypeBuilder {
     associatedtype BuiltType
     associatedtype BuiltTypeDecl
@@ -31,7 +12,7 @@ public protocol TypeBuilder {
     associatedtype BuiltGenericSignature
     associatedtype BuiltSubstitutionMap
 
-    func decodeMangledType(node: Node?, forRequirement: Bool) throws -> BuiltType
+    func decodeMangledType(node: Node?, forRequirement: Bool) throws(TypeLookupError) -> BuiltType
     
     // Get mangling flavor
     func getManglingFlavor() -> ManglingFlavor

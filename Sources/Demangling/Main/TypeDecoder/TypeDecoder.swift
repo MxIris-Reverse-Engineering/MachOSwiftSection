@@ -23,7 +23,7 @@ public final class TypeDecoder<Builder: TypeBuilder> {
     }
 
     /// Given a demangle tree, attempt to turn it into a type.
-    public func decodeMangledType(node: Node, forRequirement: Bool = true) throws -> BuiltType {
+    public func decodeMangledType(node: Node, forRequirement: Bool = true) throws(TypeLookupError) -> BuiltType {
         try decodeMangledType(node: node, depth: 0, forRequirement: forRequirement)
     }
 }
@@ -35,7 +35,7 @@ extension TypeDecoder {
         node: Node,
         depth: Int,
         forRequirement: Bool = true
-    ) throws -> BuiltType {
+    ) throws(TypeLookupError) -> BuiltType {
         guard depth <= Self.maxDepth else {
             throw TypeLookupError("Mangled type is too complex")
         }
@@ -43,19 +43,19 @@ extension TypeDecoder {
         switch node.kind {
         case .global:
             guard !node.children.isEmpty else {
-                throw makeError(node: node, message: "no children")
+                throw TypeLookupError(node: node, message: "no children")
             }
             return try decodeMangledType(node: node.children[0], depth: depth + 1)
 
         case .typeMangling:
             guard !node.children.isEmpty else {
-                throw makeError(node: node, message: "no children")
+                throw TypeLookupError(node: node, message: "no children")
             }
             return try decodeMangledType(node: node.children[0], depth: depth + 1)
 
         case .type:
             guard !node.children.isEmpty else {
-                throw makeError(node: node, message: "no children")
+                throw TypeLookupError(node: node, message: "no children")
             }
             return try decodeMangledType(
                 node: node.children[0],
@@ -88,7 +88,7 @@ extension TypeDecoder {
             )
 
             guard let typeDecl else {
-                throw makeError(node: node, message: "Failed to create type decl")
+                throw TypeLookupError(node: node, message: "Failed to create type decl")
             }
 
             if typeAlias {
@@ -103,7 +103,7 @@ extension TypeDecoder {
              .boundGenericTypeAlias,
              .boundGenericOtherNominalType:
             guard node.children.count >= 2 else {
-                throw makeError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
+                throw TypeLookupError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
             }
 
             let args = try decodeGenericArgs(node: node.children[1], depth: depth + 1)
@@ -132,7 +132,7 @@ extension TypeDecoder {
             )
 
             guard let typeDecl else {
-                throw makeError(node: node, message: "Failed to create type decl")
+                throw TypeLookupError(node: node, message: "Failed to create type decl")
             }
 
             return builder.createBoundGenericType(typeDecl: typeDecl, args: args, parent: parent)
@@ -163,12 +163,12 @@ extension TypeDecoder {
             // But when resolving it to a type, we want to *keep* the argument
             // so that the parent type becomes 'S' and not 'P'.
             guard node.children.count >= 2 else {
-                throw makeError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
+                throw TypeLookupError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
             }
 
             let genericArgs = node.children[1]
             guard genericArgs.children.count == 1 else {
-                throw makeError(node: genericArgs, message: "expected 1 generic argument, saw \(genericArgs.children.count)")
+                throw TypeLookupError(node: genericArgs, message: "expected 1 generic argument, saw \(genericArgs.children.count)")
             }
 
             return try decodeMangledType(node: genericArgs.children[0], depth: depth + 1)
@@ -178,7 +178,7 @@ extension TypeDecoder {
             do {
                 mangling = try mangleAsString(node)
             } catch {
-                throw makeError(node: node, message: "failed to mangle node")
+                throw TypeLookupError(node: node, message: "failed to mangle node")
             }
             return builder.createBuiltinType(name: node.text ?? "", mangledName: mangling)
 
@@ -194,12 +194,12 @@ extension TypeDecoder {
 
                 guard reprNode.kind == .metatypeRepresentation,
                       let text = reprNode.text else {
-                    throw makeError(node: reprNode, message: "wrong node kind or no text")
+                    throw TypeLookupError(node: reprNode, message: "wrong node kind or no text")
                 }
 
                 repr = ImplMetatypeRepresentation(from: text)
             } else if node.children.isEmpty {
-                throw makeError(node: node, message: "no children")
+                throw TypeLookupError(node: node, message: "no children")
             }
 
             let instance = try decodeMangledType(node: node.children[childIndex], depth: depth + 1)
@@ -210,12 +210,12 @@ extension TypeDecoder {
             case .existentialMetatype:
                 return builder.createExistentialMetatypeType(instance: instance, repr: repr)
             default:
-                throw makeError(node: node, message: "unexpected metatype kind")
+                throw TypeLookupError(node: node, message: "unexpected metatype kind")
             }
 
         case .symbolicExtendedExistentialType:
             guard node.children.count >= 2 else {
-                throw makeError(node: node, message: "not enough children")
+                throw TypeLookupError(node: node, message: "not enough children")
             }
 
             let shapeNode = node.children[0]
@@ -227,7 +227,7 @@ extension TypeDecoder {
              .protocolListWithAnyObject,
              .protocolListWithClass:
             guard !node.children.isEmpty else {
-                throw makeError(node: node, message: "no children")
+                throw TypeLookupError(node: node, message: "no children")
             }
 
             // Find the protocol list
@@ -241,7 +241,7 @@ extension TypeDecoder {
             // Demangle the protocol list.
             for componentType in typeList.children {
                 guard let proto = decodeMangledProtocolType(node: componentType, depth: depth + 1) else {
-                    throw makeError(node: componentType, message: "failed to decode protocol type")
+                    throw TypeLookupError(node: componentType, message: "failed to decode protocol type")
                 }
                 protocols.append(proto)
             }
@@ -253,7 +253,7 @@ extension TypeDecoder {
             switch node.kind {
             case .protocolListWithClass:
                 guard node.children.count >= 2 else {
-                    throw makeError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
+                    throw TypeLookupError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
                 }
                 superclass = try decodeMangledType(node: node.children[1], depth: depth + 1)
                 isClassBound = true
@@ -269,7 +269,7 @@ extension TypeDecoder {
 
         case .constrainedExistential:
             guard node.children.count >= 2 else {
-                throw makeError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
+                throw TypeLookupError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
             }
 
             let protocolType = try decodeMangledType(node: node.children[0], depth: depth + 1)
@@ -279,7 +279,7 @@ extension TypeDecoder {
 
             let reqts = node.children[1]
             guard reqts.kind == .constrainedExistentialRequirementList else {
-                throw makeError(node: reqts, message: "is not requirement list")
+                throw TypeLookupError(node: reqts, message: "is not requirement list")
             }
 
             try decodeRequirements(
@@ -298,13 +298,13 @@ extension TypeDecoder {
              .protocol,
              .protocolSymbolicReference:
             guard let proto = decodeMangledProtocolType(node: node, depth: depth + 1) else {
-                throw makeError(node: node, message: "failed to decode protocol type")
+                throw TypeLookupError(node: node, message: "failed to decode protocol type")
             }
             return builder.createProtocolCompositionType(protocol: proto, superclass: nil, isClassBound: false, forRequirement: forRequirement)
 
         case .dynamicSelf:
             guard node.children.count == 1 else {
-                throw makeError(node: node, message: "expected 1 child, saw \(node.children.count)")
+                throw TypeLookupError(node: node, message: "expected 1 child, saw \(node.children.count)")
             }
             let selfType = try decodeMangledType(node: node.children[0], depth: depth + 1)
             return builder.createDynamicSelfType(base: selfType)
@@ -313,7 +313,7 @@ extension TypeDecoder {
             guard node.children.count >= 2,
                   let depthValue = node.children[0].index,
                   let indexValue = node.children[1].index else {
-                throw makeError(node: node, message: "invalid generic param type")
+                throw TypeLookupError(node: node, message: "invalid generic param type")
             }
             return builder.createGenericTypeParameterType(depth: Int(depthValue), index: Int(indexValue))
 
@@ -326,7 +326,7 @@ extension TypeDecoder {
              .escapingAutoClosureType,
              .functionType:
             guard node.children.count >= 2 else {
-                throw makeError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
+                throw TypeLookupError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
             }
 
             var flags = FunctionTypeFlags()
@@ -354,7 +354,7 @@ extension TypeDecoder {
             case .globalActorFunctionType:
                 let child = node.children[firstChildIndex]
                 guard !child.children.isEmpty else {
-                    throw makeError(node: child, message: "Global actor node is missing child")
+                    throw TypeLookupError(node: child, message: "Global actor node is missing child")
                 }
                 globalActorType = try decodeMangledType(node: child.children[0], depth: depth + 1)
                 firstChildIndex += 1
@@ -375,7 +375,7 @@ extension TypeDecoder {
 
             if firstChildIndex < node.children.count, node.children[firstChildIndex].kind == .differentiableFunctionType {
                 guard let rawValue = node.children[firstChildIndex].index else {
-                    throw makeError(node: node.children[firstChildIndex], message: "missing differentiability index")
+                    throw TypeLookupError(node: node.children[firstChildIndex], message: "missing differentiability index")
                 }
 
                 diffKind = FunctionMetadataDifferentiabilityKind(from: UInt8(rawValue))
@@ -394,7 +394,7 @@ extension TypeDecoder {
                 isThrow = true
                 let child = node.children[firstChildIndex]
                 guard child.hasChildren else {
-                    throw makeError(node: child, message: "Thrown error node is missing child")
+                    throw TypeLookupError(node: child, message: "Thrown error node is missing child")
                 }
                 thrownErrorType = try decodeMangledType(node: child.children[0], depth: depth + 1)
                 extFlags = extFlags.withTypedThrows(true)
@@ -426,7 +426,7 @@ extension TypeDecoder {
                 .withDifferentiable(diffKind.isDifferentiable)
 
             guard node.children.count >= firstChildIndex + 2 else {
-                throw makeError(node: node, message: "fewer children (\(node.children.count)) than required (\(firstChildIndex + 2))")
+                throw TypeLookupError(node: node, message: "fewer children (\(node.children.count)) than required (\(firstChildIndex + 2))")
             }
 
             var hasParamFlags = false
@@ -478,7 +478,7 @@ extension TypeDecoder {
                 switch child.kind {
                 case .implConvention:
                     guard let text = child.text else {
-                        throw makeError(node: node, message: "expected text")
+                        throw TypeLookupError(node: node, message: "expected text")
                     }
                     if text == "@convention(thin)" {
                         flags = flags.withRepresentation(.thin)
@@ -490,7 +490,7 @@ extension TypeDecoder {
                     guard child.hasChildren,
                           child.children[0].kind == .implFunctionConventionName,
                           let text = child.children[0].text else {
-                        throw makeError(node: node, message: "expected convention name")
+                        throw TypeLookupError(node: node, message: "expected convention name")
                     }
 
                     switch text {
@@ -504,7 +504,7 @@ extension TypeDecoder {
 
                 case .implFunctionAttribute:
                     guard let text = child.text else {
-                        throw makeError(node: node, message: "expected text")
+                        throw TypeLookupError(node: node, message: "expected text")
                     }
 
                     switch text {
@@ -526,7 +526,7 @@ extension TypeDecoder {
 
                 case .implCoroutineKind:
                     guard let text = child.text else {
-                        throw makeError(node: node, message: "expected text")
+                        throw TypeLookupError(node: node, message: "expected text")
                     }
 
                     switch text {
@@ -537,12 +537,12 @@ extension TypeDecoder {
                     case "yield_many":
                         coroutineKind = .yieldMany
                     default:
-                        throw makeError(node: node, message: "failed to decode coroutine kind")
+                        throw TypeLookupError(node: node, message: "failed to decode coroutine kind")
                     }
 
                 case .implDifferentiabilityKind:
                     guard let index = child.index else {
-                        throw makeError(node: node, message: "missing differentiability index")
+                        throw TypeLookupError(node: node, message: "missing differentiability index")
                     }
 
                     let diffKind = ImplFunctionDifferentiabilityKind(from: UInt8(index))
@@ -567,7 +567,7 @@ extension TypeDecoder {
                     try decodeImplFunctionResult(node: child, depth: depth + 1, results: &errorResults)
 
                 default:
-                    throw makeError(node: child, message: "unexpected kind")
+                    throw TypeLookupError(node: child, message: "unexpected kind")
                 }
             }
 
@@ -578,7 +578,7 @@ extension TypeDecoder {
             case 1:
                 errorResult = errorResults[0]
             default:
-                throw makeError(node: node, message: "got \(errorResults.count) errors")
+                throw TypeLookupError(node: node, message: "got \(errorResults.count) errors")
             }
 
             return builder.createImplFunctionType(
@@ -593,7 +593,7 @@ extension TypeDecoder {
 
         case .argumentTuple:
             guard node.hasChildren else {
-                throw makeError(node: node, message: "no children")
+                throw TypeLookupError(node: node, message: "no children")
             }
             return try decodeMangledType(
                 node: node.children[0],
@@ -602,7 +602,7 @@ extension TypeDecoder {
 
         case .returnType:
             guard node.hasChildren else {
-                throw makeError(node: node, message: "no children")
+                throw TypeLookupError(node: node, message: "no children")
             }
             return try decodeMangledType(
                 node: node.children[0],
@@ -616,7 +616,7 @@ extension TypeDecoder {
 
             for element in node.children {
                 guard element.kind == .tupleElement else {
-                    throw makeError(node: element, message: "unexpected kind")
+                    throw TypeLookupError(node: element, message: "unexpected kind")
                 }
 
                 var typeChildIndex = 0
@@ -624,7 +624,7 @@ extension TypeDecoder {
                 // Check for variadic marker
                 if typeChildIndex < element.children.count &&
                     element.children[typeChildIndex].kind == .variadicMarker {
-                    throw makeError(node: element.children[typeChildIndex], message: "variadic not supported")
+                    throw TypeLookupError(node: element.children[typeChildIndex], message: "variadic not supported")
                 }
 
                 // Check for label
@@ -649,12 +649,12 @@ extension TypeDecoder {
 
         case .tupleElement:
             guard !node.children.isEmpty else {
-                throw makeError(node: node, message: "no children")
+                throw TypeLookupError(node: node, message: "no children")
             }
 
             if node.children[0].kind == .tupleElementName {
                 guard node.children.count >= 2 else {
-                    throw makeError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
+                    throw TypeLookupError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
                 }
                 return try decodeMangledType(node: node.children[1], depth: depth + 1, forRequirement: false)
             }
@@ -680,28 +680,28 @@ extension TypeDecoder {
             case .silPackIndirect:
                 return builder.createSILPackType(elements: elements, isElementAddress: true)
             default:
-                throw makeError(node: node, message: "unexpected pack kind")
+                throw TypeLookupError(node: node, message: "unexpected pack kind")
             }
 
         case .packExpansion:
-            throw makeError(node: node, message: "pack expansion type in unsupported position")
+            throw TypeLookupError(node: node, message: "pack expansion type in unsupported position")
 
         case .dependentGenericType:
             guard node.children.count >= 2 else {
-                throw makeError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
+                throw TypeLookupError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
             }
             return try decodeMangledType(node: node.children[1], depth: depth + 1)
 
         case .dependentMemberType:
             guard node.children.count >= 2 else {
-                throw makeError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
+                throw TypeLookupError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
             }
 
             let base = try decodeMangledType(node: node.children[0], depth: depth + 1)
 
             let assocTypeChild = node.children[1]
             guard let member = assocTypeChild.children.first?.text else {
-                throw makeError(node: assocTypeChild, message: "missing member name")
+                throw TypeLookupError(node: assocTypeChild, message: "missing member name")
             }
 
             if assocTypeChild.children.count < 2 {
@@ -709,14 +709,14 @@ extension TypeDecoder {
             }
 
             guard let proto = decodeMangledProtocolType(node: assocTypeChild.children[1], depth: depth + 1) else {
-                throw makeError(node: assocTypeChild, message: "failed to decode protocol")
+                throw TypeLookupError(node: assocTypeChild, message: "failed to decode protocol")
             }
 
             return builder.createDependentMemberType(member: member, base: base, protocol: proto)
 
         case .dependentAssociatedTypeRef:
             guard node.children.count >= 2 else {
-                throw makeError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
+                throw TypeLookupError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
             }
             return try decodeMangledType(node: node.children[1], depth: depth + 1)
 
@@ -724,7 +724,7 @@ extension TypeDecoder {
              .unmanaged,
              .weak:
             guard !node.children.isEmpty else {
-                throw makeError(node: node, message: "no children")
+                throw TypeLookupError(node: node, message: "no children")
             }
 
             let base = try decodeMangledType(node: node.children[0], depth: depth + 1)
@@ -737,12 +737,12 @@ extension TypeDecoder {
             case .weak:
                 return builder.createWeakStorageType(base: base)
             default:
-                throw makeError(node: node, message: "unexpected storage type kind")
+                throw TypeLookupError(node: node, message: "unexpected storage type kind")
             }
 
         case .silBoxType:
             guard !node.children.isEmpty else {
-                throw makeError(node: node, message: "no children")
+                throw TypeLookupError(node: node, message: "no children")
             }
             let base = try decodeMangledType(node: node.children[0], depth: depth + 1)
             return builder.createSILBoxType(base: base)
@@ -755,7 +755,7 @@ extension TypeDecoder {
             var genericParams: [BuiltType] = []
 
             guard !node.children.isEmpty else {
-                throw makeError(node: node, message: "no children")
+                throw TypeLookupError(node: node, message: "no children")
             }
 
             var pushedGenericParams = false
@@ -768,12 +768,12 @@ extension TypeDecoder {
             if node.children.count > 1 {
                 let substNode = node.children[2]
                 guard substNode.kind == .typeList else {
-                    throw makeError(node: substNode, message: "expected type list")
+                    throw TypeLookupError(node: substNode, message: "expected type list")
                 }
 
                 let dependentGenericSignatureNode = node.children[1]
                 guard dependentGenericSignatureNode.kind == .dependentGenericSignature else {
-                    throw makeError(node: dependentGenericSignatureNode, message: "expected dependent generic signature")
+                    throw TypeLookupError(node: dependentGenericSignatureNode, message: "expected dependent generic signature")
                 }
 
                 // Count generic parameters at each depth
@@ -829,7 +829,7 @@ extension TypeDecoder {
             // Decode field types
             let fieldsNode = node.children[0]
             guard fieldsNode.kind == .silBoxLayout else {
-                throw makeError(node: fieldsNode, message: "expected layout")
+                throw TypeLookupError(node: fieldsNode, message: "expected layout")
             }
 
             for fieldNode in fieldsNode.children {
@@ -840,11 +840,11 @@ extension TypeDecoder {
                 case .silBoxImmutableField:
                     isMutable = false
                 default:
-                    throw makeError(node: fieldNode, message: "unhandled field type")
+                    throw TypeLookupError(node: fieldNode, message: "unhandled field type")
                 }
 
                 guard !fieldNode.children.isEmpty else {
-                    throw makeError(node: fieldNode, message: "no children")
+                    throw TypeLookupError(node: fieldNode, message: "no children")
                 }
 
                 let type = try decodeMangledType(node: fieldNode.children[0], depth: depth + 1)
@@ -866,21 +866,21 @@ extension TypeDecoder {
             switch node.kind {
             case .sugaredOptional:
                 guard !node.children.isEmpty else {
-                    throw makeError(node: node, message: "no children")
+                    throw TypeLookupError(node: node, message: "no children")
                 }
                 let base = try decodeMangledType(node: node.children[0], depth: depth + 1)
                 return builder.createOptionalType(base: base)
 
             case .sugaredArray:
                 guard !node.children.isEmpty else {
-                    throw makeError(node: node, message: "no children")
+                    throw TypeLookupError(node: node, message: "no children")
                 }
                 let element = try decodeMangledType(node: node.children[0], depth: depth + 1)
                 return builder.createArrayType(element: element)
 
             case .sugaredInlineArray:
                 guard node.children.count >= 2 else {
-                    throw makeError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
+                    throw TypeLookupError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
                 }
                 let count = try decodeMangledType(node: node.children[0], depth: depth + 1)
                 let element = try decodeMangledType(node: node.children[1], depth: depth + 1)
@@ -888,7 +888,7 @@ extension TypeDecoder {
 
             case .sugaredDictionary:
                 guard node.children.count >= 2 else {
-                    throw makeError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
+                    throw TypeLookupError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
                 }
                 let key = try decodeMangledType(node: node.children[0], depth: depth + 1)
                 let value = try decodeMangledType(node: node.children[1], depth: depth + 1)
@@ -896,18 +896,18 @@ extension TypeDecoder {
 
             case .sugaredParen:
                 guard !node.children.isEmpty else {
-                    throw makeError(node: node, message: "no children")
+                    throw TypeLookupError(node: node, message: "no children")
                 }
                 // ParenType has been removed, return the base type
                 return try decodeMangledType(node: node.children[0], depth: depth + 1)
 
             default:
-                throw makeError(node: node, message: "unexpected sugared type kind")
+                throw TypeLookupError(node: node, message: "unexpected sugared type kind")
             }
 
         case .opaqueType:
             guard node.children.count >= 3 else {
-                throw makeError(node: node, message: "fewer children (\(node.children.count)) than required (3)")
+                throw TypeLookupError(node: node, message: "fewer children (\(node.children.count)) than required (3)")
             }
 
             let descriptor = node.children[0]
@@ -915,7 +915,7 @@ extension TypeDecoder {
 
             guard ordinalNode.kind == .index,
                   let ordinal = ordinalNode.index else {
-                throw makeError(node: ordinalNode, message: "unexpected kind or no index")
+                throw TypeLookupError(node: ordinalNode, message: "unexpected kind or no index")
             }
 
             var genericArgsBuf: [BuiltType] = []
@@ -947,33 +947,27 @@ extension TypeDecoder {
 
         case .integer:
             guard let index = node.index else {
-                throw makeError(node: node, message: "missing index")
+                throw TypeLookupError(node: node, message: "missing index")
             }
             return builder.createIntegerType(value: Int(index))
 
         case .negativeInteger:
             guard let index = node.index else {
-                throw makeError(node: node, message: "missing index")
+                throw TypeLookupError(node: node, message: "missing index")
             }
             return builder.createNegativeIntegerType(value: Int(index))
 
         case .builtinFixedArray:
             guard node.children.count >= 2 else {
-                throw makeError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
+                throw TypeLookupError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
             }
             let size = try decodeMangledType(node: node.children[0], depth: depth + 1)
             let element = try decodeMangledType(node: node.children[1], depth: depth + 1)
             return builder.createBuiltinFixedArrayType(size: size, element: element)
 
         default:
-            throw makeError(node: node, message: "unexpected kind")
+            throw TypeLookupError(node: node, message: "unexpected kind")
         }
-    }
-}
-
-extension TypeDecoder {
-    private func makeError(node: Node, message: String) -> TypeLookupError {
-        TypeLookupError(node: node, message: message)
     }
 }
 
@@ -981,319 +975,46 @@ extension TypeDecoder {
     private func decodeTypeSequenceElement(
         node: Node,
         depth: Int,
-        resultCallback: (BuiltType) throws -> Void
-    ) throws {
+        resultCallback: (BuiltType) throws(TypeLookupError) -> Void
+    ) throws(TypeLookupError) {
         var node = node
         if node.kind == .type {
             node = node.children[0]
         }
 
         if node.kind == .packExpansion {
-            try decodePackExpansion(node: node, depth: depth, resultCallback: resultCallback)
+            guard node.children.count >= 2 else {
+                throw TypeLookupError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
+            }
+
+            let patternType = node.children[0]
+            let countType = try decodeMangledType(node: node.children[1], depth: depth)
+
+            let numElements = builder.beginPackExpansion(countType: countType)
+            defer { builder.endPackExpansion() }
+
+            for i in 0 ..< numElements {
+                builder.advancePackExpansion(index: i)
+                let expandedElementType = try decodeMangledType(node: patternType, depth: depth)
+                try resultCallback(builder.createExpandedPackElement(type: expandedElementType))
+            }
         } else {
             let elementType = try decodeMangledType(node: node, depth: depth, forRequirement: false)
             try resultCallback(elementType)
         }
     }
 
-    private func decodePackExpansion(
-        node: Node,
-        depth: Int,
-        resultCallback: (BuiltType) throws -> Void
-    ) throws {
-        guard node.children.count >= 2 else {
-            throw makeError(node: node, message: "fewer children (\(node.children.count)) than required (2)")
-        }
-
-        let patternType = node.children[0]
-        let countType = try decodeMangledType(node: node.children[1], depth: depth)
-
-        let numElements = builder.beginPackExpansion(countType: countType)
-        defer { builder.endPackExpansion() }
-
-        for i in 0 ..< numElements {
-            builder.advancePackExpansion(index: i)
-            let expandedElementType = try decodeMangledType(node: patternType, depth: depth)
-            try resultCallback(builder.createExpandedPackElement(type: expandedElementType))
-        }
-    }
-}
-
-extension TypeDecoder {
-    private func decodeGenericArgs(node: Node, depth: Int) throws -> [BuiltType] {
-        guard node.kind == .typeList else {
-            throw makeError(node: node, message: "is not TypeList")
-        }
-
-        var args: [BuiltType] = []
-        for genericArg in node.children {
-            let paramType = try decodeMangledType(node: genericArg, depth: depth, forRequirement: false)
-            args.append(paramType)
-        }
-        return args
-    }
-}
-
-extension TypeDecoder {
-    private func functionConvention(for kind: Node.Kind) -> FunctionMetadataConvention {
-        switch kind {
-        case .objCBlock,
-             .escapingObjCBlock:
-            return .block
-        case .cFunctionPointer:
-            return .cFunctionPointer
-        case .thinFunctionType:
-            return .thin
-        default:
-            return .swift
-        }
-    }
-
-    private func isEscapingFunction(kind: Node.Kind) -> Bool {
-        switch kind {
-        case .functionType,
-             .escapingAutoClosureType,
-             .escapingObjCBlock:
-            return true
-        default:
-            return false
-        }
-    }
-
-    private func decodeMangledFunctionInputType(
-        node: Node,
-        depth: Int,
-        params: inout [FunctionParam<BuiltType>],
-        hasParamFlags: inout Bool
-    ) throws {
-        guard depth <= Self.maxDepth else {
-            return
-        }
-
-        // Look through sugar nodes
-        if node.kind == .type || node.kind == .argumentTuple {
-            if !node.children.isEmpty {
-                try decodeMangledFunctionInputType(
-                    node: node.children[0],
-                    depth: depth + 1,
-                    params: &params,
-                    hasParamFlags: &hasParamFlags
-                )
-            }
-            return
-        }
-
-        // Handle tuple expansion
-        if node.kind == .tuple {
-            for element in node.children {
-                try decodeParameterElement(
-                    node: element,
-                    depth: depth + 1,
-                    params: &params,
-                    hasParamFlags: &hasParamFlags
-                )
-            }
-            return
-        }
-
-        // Handle single parameter
-        try decodeSingleParameter(
-            node: node,
-            depth: depth,
-            params: &params,
-            hasParamFlags: &hasParamFlags
-        )
-    }
-
-    private func decodeParameterElement(
-        node: Node,
-        depth: Int,
-        params: inout [FunctionParam<BuiltType>],
-        hasParamFlags: inout Bool
-    ) throws {
-        guard node.kind == .tupleElement else {
-            return
-        }
-
-        var param: FunctionParam<BuiltType>?
-        var label: String?
-
-        for child in node.children {
-            switch child.kind {
-            case .tupleElementName:
-                label = child.text
-
-            case .variadicMarker:
-                hasParamFlags = true
-                if param == nil {
-                    // We'll set the type later
-                    continue
-                }
-                param?.setVariadic()
-
-            case .type:
-                if !child.children.isEmpty {
-                    let typeParam = try decodeParameterType(
-                        node: child.children[0],
-                        depth: depth + 1,
-                        hasParamFlags: &hasParamFlags
-                    )
-                    param = typeParam
-                    param?.setLabel(label)
-                }
-
-            default:
-                let typeParam = try decodeParameterType(
-                    node: child,
-                    depth: depth + 1,
-                    hasParamFlags: &hasParamFlags
-                )
-                param = typeParam
-                param?.setLabel(label)
-            }
-        }
-
-        if let param = param {
-            params.append(param)
-        }
-    }
-
-    private func decodeSingleParameter(
-        node: Node,
-        depth: Int,
-        params: inout [FunctionParam<BuiltType>],
-        hasParamFlags: inout Bool
-    ) throws {
-        let param = try decodeParameterType(node: node, depth: depth, hasParamFlags: &hasParamFlags)
-        params.append(param)
-    }
-
-    private func decodeParameterType(
-        node: Node,
-        depth: Int,
-        hasParamFlags: inout Bool
-    ) throws -> FunctionParam<BuiltType> {
-        var currentNode = node
-        var param: FunctionParam<BuiltType>?
-
-        // Process parameter modifiers
-        while true {
-            switch currentNode.kind {
-            case .inOut:
-                hasParamFlags = true
-                if param == nil {
-                    // Decode the inner type first
-                    if !currentNode.children.isEmpty {
-                        let innerType = try decodeMangledType(node: currentNode.children[0], depth: depth + 1, forRequirement: false)
-                        param = FunctionParam(type: innerType)
-                    }
-                }
-                param?.setOwnership(.inout)
-                if let param = param {
-                    return param
-                }
-                return try FunctionParam(type: decodeMangledType(node: currentNode, depth: depth, forRequirement: false))
-
-            case .shared:
-                hasParamFlags = true
-                if !currentNode.children.isEmpty {
-                    currentNode = currentNode.children[0]
-                    if param == nil {
-                        let innerType = try decodeMangledType(node: currentNode, depth: depth + 1, forRequirement: false)
-                        param = FunctionParam(type: innerType)
-                    }
-                    param?.setOwnership(.shared)
-                }
-                if let param = param {
-                    return param
-                }
-                return try FunctionParam(type: decodeMangledType(node: currentNode, depth: depth, forRequirement: false))
-
-            case .owned:
-                hasParamFlags = true
-                if !currentNode.children.isEmpty {
-                    currentNode = currentNode.children[0]
-                    if param == nil {
-                        let innerType = try decodeMangledType(node: currentNode, depth: depth + 1, forRequirement: false)
-                        param = FunctionParam(type: innerType)
-                    }
-                    param?.setOwnership(.owned)
-                }
-                if let param = param {
-                    return param
-                }
-                return try FunctionParam(type: decodeMangledType(node: currentNode, depth: depth, forRequirement: false))
-
-            case .noDerivative:
-                hasParamFlags = true
-                if !currentNode.children.isEmpty {
-                    currentNode = currentNode.children[0]
-                    if param == nil {
-                        let innerType = try decodeMangledType(node: currentNode, depth: depth + 1, forRequirement: false)
-                        param = FunctionParam(type: innerType)
-                    }
-                    param?.setNoDerivative()
-                } else {
-                    break
-                }
-
-            case .isolated:
-                hasParamFlags = true
-                if !currentNode.children.isEmpty {
-                    currentNode = currentNode.children[0]
-                    if param == nil {
-                        let innerType = try decodeMangledType(node: currentNode, depth: depth + 1, forRequirement: false)
-                        param = FunctionParam(type: innerType)
-                    }
-                    param?.setIsolated()
-                } else {
-                    break
-                }
-
-            case .sending:
-                hasParamFlags = true
-                if !currentNode.children.isEmpty {
-                    currentNode = currentNode.children[0]
-                    if param == nil {
-                        let innerType = try decodeMangledType(node: currentNode, depth: depth + 1, forRequirement: false)
-                        param = FunctionParam(type: innerType)
-                    }
-                    param?.setSending()
-                } else {
-                    break
-                }
-
-            case .autoClosureType,
-                 .escapingAutoClosureType:
-                hasParamFlags = true
-                let innerType = try decodeMangledType(node: currentNode, depth: depth + 1, forRequirement: false)
-                if param == nil {
-                    param = FunctionParam(type: innerType)
-                }
-                param?.setAutoClosure()
-                return param!
-
-            default:
-                // No more modifiers, decode the actual type
-                let type = try decodeMangledType(node: currentNode, depth: depth + 1, forRequirement: false)
-                return param ?? FunctionParam(type: type)
-            }
-        }
-    }
-}
-
-extension TypeDecoder {
     private func decodeImplFunctionParam<T: ImplFunctionParamProtocol>(
         node: Node,
         depth: Int,
         results: inout [T]
-    ) throws where T.BuiltTypeParam == BuiltType {
+    ) throws(TypeLookupError) where T.BuiltTypeParam == BuiltType {
         guard depth <= Self.maxDepth else {
             throw TypeLookupError("Depth exceeded")
         }
 
         guard node.children.count >= 2 else {
-            throw makeError(node: node, message: "expected at least 2 children")
+            throw TypeLookupError(node: node, message: "expected at least 2 children")
         }
 
         let conventionNode = node.children[0]
@@ -1302,11 +1023,11 @@ extension TypeDecoder {
         guard conventionNode.kind == .implConvention,
               typeNode.kind == .type,
               let conventionString = conventionNode.text else {
-            throw makeError(node: node, message: "invalid parameter structure")
+            throw TypeLookupError(node: node, message: "invalid parameter structure")
         }
 
         guard let convention = T.getConventionFromString(conventionString) else {
-            throw makeError(node: conventionNode, message: "invalid convention")
+            throw TypeLookupError(node: conventionNode, message: "invalid convention")
         }
 
         let type = try decodeMangledType(node: typeNode, depth: depth + 1)
@@ -1320,20 +1041,12 @@ extension TypeDecoder {
                    let diffOptions = T.getDifferentiabilityFromString(text) {
                     options = options.union(diffOptions)
                 }
-
             case .implParameterSending:
                 options = options.union(T.getSending())
-
             case .implParameterIsolated:
-                if T.self == ImplFunctionParam<BuiltType>.self {
-                    options = options.union(ImplFunctionParam<BuiltType>.getIsolated() as! T.OptionsType)
-                }
-
+                options = options.union(T.getIsolated())
             case .implParameterImplicitLeading:
-                if T.self == ImplFunctionParam<BuiltType>.self {
-                    options = options.union(ImplFunctionParam<BuiltType>.getImplicitLeading() as! T.OptionsType)
-                }
-
+                options = options.union(T.getImplicitLeading())
             default:
                 break
             }
@@ -1346,13 +1059,13 @@ extension TypeDecoder {
         node: Node,
         depth: Int,
         results: inout [T]
-    ) throws where T.BuiltTypeParam == BuiltType {
+    ) throws(TypeLookupError) where T.BuiltTypeParam == BuiltType {
         guard depth <= Self.maxDepth else {
             throw TypeLookupError("Depth exceeded")
         }
 
         guard node.children.count >= 2 else {
-            throw makeError(node: node, message: "expected at least 2 children")
+            throw TypeLookupError(node: node, message: "expected at least 2 children")
         }
 
         let conventionNode = node.children[0]
@@ -1361,11 +1074,11 @@ extension TypeDecoder {
         guard conventionNode.kind == .implConvention,
               typeNode.kind == .type,
               let conventionString = conventionNode.text else {
-            throw makeError(node: node, message: "invalid result structure")
+            throw TypeLookupError(node: node, message: "invalid result structure")
         }
 
         guard let convention = T.getConventionFromString(conventionString) else {
-            throw makeError(node: conventionNode, message: "invalid convention")
+            throw TypeLookupError(node: conventionNode, message: "invalid convention")
         }
 
         let type = try decodeMangledType(node: typeNode, depth: depth + 1)
@@ -1391,16 +1104,27 @@ extension TypeDecoder {
         let result = T(type: type, convention: convention, options: options)
         results.append(result)
     }
-}
 
-extension TypeDecoder {
+    private func decodeGenericArgs(node: Node, depth: Int) throws(TypeLookupError) -> [BuiltType] {
+        guard node.kind == .typeList else {
+            throw TypeLookupError(node: node, message: "is not TypeList")
+        }
+
+        var args: [BuiltType] = []
+        for genericArg in node.children {
+            let paramType = try decodeMangledType(node: genericArg, depth: depth, forRequirement: false)
+            args.append(paramType)
+        }
+        return args
+    }
+
     private func decodeMangledTypeDecl(
         node: Node,
         depth: Int,
         typeDecl: inout BuiltTypeDecl?,
         parent: inout BuiltType?,
         typeAlias: inout Bool
-    ) throws {
+    ) throws(TypeLookupError) {
         guard depth <= Self.maxDepth else {
             throw TypeLookupError("Mangled type is too complex")
         }
@@ -1421,7 +1145,7 @@ extension TypeDecoder {
             declNode = node
         } else {
             guard node.children.count >= 2 else {
-                throw makeError(node: node, message: "Number of node children (\(node.children.count)) less than required (2)")
+                throw TypeLookupError(node: node, message: "Number of node children (\(node.children.count)) less than required (2)")
             }
 
             var parentContext = node.children[0]
@@ -1440,7 +1164,7 @@ extension TypeDecoder {
             case .extension:
                 // Decode the type being extended
                 guard parentContext.children.count >= 2 else {
-                    throw makeError(
+                    throw TypeLookupError(
                         node: parentContext,
                         message: "Number of parentContext children (\(parentContext.children.count)) less than required (2)"
                     )
@@ -1495,6 +1219,143 @@ extension TypeDecoder {
 
         return builder.createProtocolDecl(node: node)
     }
+
+    private func decodeMangledFunctionInputType(
+        node: Node,
+        depth: Int,
+        params: inout [FunctionParam<BuiltType>],
+        hasParamFlags: inout Bool
+    ) throws(TypeLookupError) {
+        guard depth <= Self.maxDepth else {
+            return
+        }
+
+        if node.kind == .type || node.kind == .argumentTuple {
+            if !node.children.isEmpty {
+                try decodeMangledFunctionInputType(
+                    node: node.children[0],
+                    depth: depth + 1,
+                    params: &params,
+                    hasParamFlags: &hasParamFlags
+                )
+            }
+            return
+        }
+
+        func decodeParamTypeAndFlags(node: Node, param: inout FunctionParam<BuiltType>) throws(TypeLookupError) {
+            var node = node
+            var recurse = true
+            while recurse {
+                do {
+                    switch node.kind {
+                    case .inOut:
+                        param.setOwnership(.inout)
+                        node = try node[throwChild: 0]
+                        hasParamFlags = true
+                    case .shared:
+                        param.setOwnership(.shared)
+                        node = try node[throwChild: 0]
+                        hasParamFlags = true
+                    case .owned:
+                        param.setOwnership(.owned)
+                        node = try node[throwChild: 0]
+                        hasParamFlags = true
+                    case .noDerivative:
+                        param.setNoDerivative()
+                        node = try node[throwChild: 0]
+                        hasParamFlags = true
+                    case .isolated:
+                        param.setIsolated()
+                        node = try node[throwChild: 0]
+                        hasParamFlags = true
+                    case .sending:
+                        param.setSending()
+                        node = try node[throwChild: 0]
+                        hasParamFlags = true
+                    case .autoClosureType,
+                         .escapingAutoClosureType:
+                        param.setAutoClosure()
+                        hasParamFlags = true
+                        recurse = false
+                    default:
+                        recurse = false
+                    }
+                } catch {
+                    throw TypeLookupError("Index out of bound.")
+                }
+
+                return try decodeTypeSequenceElement(node: node, depth: depth + 1) { paramType in
+                    param.setType(paramType)
+                    params.append(param)
+                }
+            }
+        }
+
+        func decodeParam(node: Node) throws(TypeLookupError) {
+            guard node.kind == .tupleElement else {
+                return
+            }
+
+            var param: FunctionParam<BuiltType> = .init()
+
+            for child in node.children {
+                switch child.kind {
+                case .tupleElementName:
+                    param.setLabel(child.text)
+                case .variadicMarker:
+                    param.setVariadic()
+                    hasParamFlags = true
+                case .type:
+                    if !child.children.isEmpty {
+                        try decodeParamTypeAndFlags(
+                            node: child.children[0],
+                            param: &param
+                        )
+                    }
+                default:
+                    throw TypeLookupError("unknown node")
+                }
+            }
+        }
+
+        // Handle tuple expansion
+        if node.kind == .tuple {
+            for element in node.children {
+                try decodeParam(node: element)
+            }
+            return
+        }
+
+        var param = FunctionParam<BuiltType>()
+        try decodeParamTypeAndFlags(node: node, param: &param)
+    }
+}
+
+extension TypeDecoder {
+    private func functionConvention(for kind: Node.Kind) -> FunctionMetadataConvention {
+        switch kind {
+        case .objCBlock,
+             .escapingObjCBlock:
+            return .block
+        case .cFunctionPointer:
+            return .cFunctionPointer
+        case .thinFunctionType:
+            return .thin
+        default:
+            return .swift
+        }
+    }
+
+    private func isEscapingFunction(kind: Node.Kind) -> Bool {
+        switch kind {
+        case .functionType,
+             .escapingAutoClosureType,
+             .escapingObjCBlock:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 private func decodeRequirements<BuilderType: TypeBuilder>(
@@ -1502,7 +1363,7 @@ private func decodeRequirements<BuilderType: TypeBuilder>(
     requirements: inout [BuilderType.BuiltRequirement],
     inverseRequirements: inout [BuilderType.BuiltInverseRequirement],
     builder: BuilderType
-) throws {
+) throws(TypeLookupError) {
     for child in node.children {
         // Skip parameter count and marker nodes
         switch child.kind {
@@ -1582,30 +1443,28 @@ private func decodeRequirements<BuilderType: TypeBuilder>(
     }
 }
 
-extension TypeDecoder {
-    #if canImport(ObjectiveC)
-    private func getObjCClassOrProtocolName(_ node: Node) -> String? {
-        guard node.kind == .class || node.kind == .protocol else {
-            return nil
-        }
-
-        guard node.children.count == 2 else {
-            return nil
-        }
-
-        let moduleNode = node.children[0]
-        guard moduleNode.kind == .module,
-              moduleNode.text == objcModule else {
-            return nil
-        }
-
-        // Check whether we have an identifier
-        let nameNode = node.children[1]
-        guard nameNode.kind == .identifier else {
-            return nil
-        }
-
-        return nameNode.text
+#if canImport(ObjectiveC)
+private func getObjCClassOrProtocolName(_ node: Node) -> String? {
+    guard node.kind == .class || node.kind == .protocol else {
+        return nil
     }
-    #endif
+
+    guard node.children.count == 2 else {
+        return nil
+    }
+
+    let moduleNode = node.children[0]
+    guard moduleNode.kind == .module,
+          moduleNode.text == objcModule else {
+        return nil
+    }
+
+    // Check whether we have an identifier
+    let nameNode = node.children[1]
+    guard nameNode.kind == .identifier else {
+        return nil
+    }
+
+    return nameNode.text
 }
+#endif
