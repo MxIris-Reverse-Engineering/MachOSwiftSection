@@ -1,7 +1,7 @@
 import ArgumentParser
 import SwiftDump
 
-struct DemangleOptionGroup: ParsableArguments {
+struct DemangleOptionGroup: ParsableArguments, Sendable {
     enum PresetOptions: String, ExpressibleByArgument, CaseIterable {
         case `default`
         case simplified

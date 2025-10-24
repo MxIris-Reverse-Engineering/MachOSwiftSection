@@ -103,6 +103,6 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
             }
         }
 
-        setDefintions(for: memberSymbolsByKind, inExtension: true)
+        setDefinitions(for: memberSymbolsByKind, inExtension: true)
     }
 }

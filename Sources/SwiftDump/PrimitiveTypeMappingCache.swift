@@ -2,7 +2,7 @@ import Foundation
 @_spi(Internals) import MachOCaches
 import MachOSwiftSection
 
-package final class PrimitiveTypeMappingCache: MachOCache<PrimitiveTypeMapping> {
+package final class PrimitiveTypeMappingCache: MachOCache<PrimitiveTypeMapping>, @unchecked Sendable {
     package static let shared = PrimitiveTypeMappingCache()
 
     private override init() {

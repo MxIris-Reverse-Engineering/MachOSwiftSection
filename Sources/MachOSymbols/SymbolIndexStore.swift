@@ -10,8 +10,8 @@ import MemberwiseInit
 
 @_spi(ForSymbolViewer)
 @_spi(Internals)
-public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
-    public enum MemberKind: Hashable, CaseIterable, CustomStringConvertible {
+public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry>, @unchecked Sendable {
+    public enum MemberKind: Hashable, CaseIterable, CustomStringConvertible, Sendable {
         fileprivate struct Traits: OptionSet, Hashable {
             fileprivate let rawValue: Int
             fileprivate init(rawValue: Int) {
@@ -76,7 +76,7 @@ public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry> {
         }
     }
 
-    public enum GlobalKind: Hashable, CaseIterable, CustomStringConvertible {
+    public enum GlobalKind: Hashable, CaseIterable, CustomStringConvertible, Sendable {
         case variable(isStorage: Bool)
         case function
 

@@ -390,6 +390,5 @@ let package = Package(
             ],
             swiftSettings: testSettings
         ),
-    ],
-    swiftLanguageModes: [.v5]
+    ]
 )

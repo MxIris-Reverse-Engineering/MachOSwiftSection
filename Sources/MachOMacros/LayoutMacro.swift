@@ -128,7 +128,7 @@ public struct LayoutMacro: PeerMacro, MemberMacro, ExtensionMacro {
 
         let enumDeclSyntax: DeclSyntax =
             """
-            public enum \(raw: fieldEnumName) {
+            public enum \(raw: fieldEnumName): Sendable {
                 \(raw: enumCases.joined(separator: "\n    "))
 
                 // Static cache for this protocol's direct fields

@@ -5,7 +5,7 @@ import OrderedCollections
 import Utilities
 @_spi(Internals) import MachOCaches
 
-package final class SymbolCache: MachOCache<SymbolCache.Entry> {
+package final class SymbolCache: MachOCache<SymbolCache.Entry>, @unchecked Sendable {
     package static let shared = SymbolCache()
 
     private override init() { super.init() }

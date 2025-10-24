@@ -3,7 +3,7 @@ import MachOObjCSection
 @preconcurrency import ObjCDump
 import FoundationToolbox
 
-final class ObjCInterfaceIndexer<MachO: MachORepresentable>: Sendable {
+final class ObjCInterfaceIndexer<MachO: MachORepresentable & Sendable>: Sendable {
     enum Error: Swift.Error {
         case unsupportedMachO(MachO)
     }

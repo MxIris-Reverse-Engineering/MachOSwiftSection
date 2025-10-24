@@ -1,4 +1,4 @@
-import MachOKit
+@preconcurrency import MachOKit
 import MachOSwiftSection
 
 @dynamicMemberLookup

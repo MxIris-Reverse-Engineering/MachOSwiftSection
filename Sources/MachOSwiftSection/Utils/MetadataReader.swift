@@ -5,7 +5,7 @@ import MachOFoundation
 import SwiftStdlibToolbox
 @_spi(Internals) import MachOCaches
 
-private final class MetadataReaderCache: MachOCache<MetadataReaderCache.Entry> {
+private final class MetadataReaderCache: MachOCache<MetadataReaderCache.Entry>, @unchecked Sendable {
     fileprivate static let shared = MetadataReaderCache()
 
     private override init() {}
