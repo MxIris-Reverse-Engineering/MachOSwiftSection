@@ -741,8 +741,8 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     }
 
     @SemanticStringBuilder
-    public func printTypeDefinition(_ typeDefinition: TypeDefinition, level: Int = 1) throws -> SemanticString {
-        let dumper = typeDefinition.type.dumper(using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: false), in: machO)
+    public func printTypeDefinition(_ typeDefinition: TypeDefinition, level: Int = 1, displayParentName: Bool = false) throws -> SemanticString {
+        let dumper = typeDefinition.type.dumper(using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: displayParentName), in: machO)
 
         if level > 1 {
             Indent(level: level - 1)
@@ -778,7 +778,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     }
 
     @SemanticStringBuilder
-    public func printProtocolDefinition(_ protocolDefinition: ProtocolDefinition, level: Int = 1) throws -> SemanticString {
+    public func printProtocolDefinition(_ protocolDefinition: ProtocolDefinition, level: Int = 1, displayParentName: Bool = false) throws -> SemanticString {
         let dumper = ProtocolDumper(protocolDefinition.protocol, using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: false), in: machO)
 
         if level > 1 {
