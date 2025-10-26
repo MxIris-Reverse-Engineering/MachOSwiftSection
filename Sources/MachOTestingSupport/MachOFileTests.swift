@@ -4,7 +4,7 @@ import MachOKit
 
 import MachOFoundation
 
-package class MachOFileTests {
+package class MachOFileTests: @unchecked Sendable {
     package let machOFile: MachOFile
 
     package class var fileName: MachOFileName { .Finder }

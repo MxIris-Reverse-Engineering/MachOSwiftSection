@@ -4,7 +4,7 @@ import MachOKit
 
 import MachOFoundation
 
-package class DyldCacheTests {
+package class DyldCacheTests: @unchecked Sendable {
     package let mainCache: DyldCache
 
     package let subCache: DyldCache

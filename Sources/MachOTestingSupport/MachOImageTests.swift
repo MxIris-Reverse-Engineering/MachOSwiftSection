@@ -4,7 +4,7 @@ import MachOKit
 
 import MachOFoundation
 
-package class MachOImageTests {
+package class MachOImageTests: @unchecked Sendable {
     package let machOImage: MachOImage
 
     package class var imageName: MachOImageName { .Foundation }

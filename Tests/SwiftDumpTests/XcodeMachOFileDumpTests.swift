@@ -8,7 +8,7 @@ import MachOFoundation
 @testable import MachOTestingSupport
 
 @Suite(.serialized)
-final class XcodeMachOFileDumpTests: XcodeMachOFileTests, DumpableTests {
+final class XcodeMachOFileDumpTests: XcodeMachOFileTests, DumpableTests, @unchecked Sendable {
     
     override class var fileName: XcodeMachOFileName { .sharedFrameworks(.SourceKitSupport) }
 }

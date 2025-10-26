@@ -60,7 +60,7 @@ extension SwiftInterfaceBuilderTests {
 
 @Suite
 enum SwiftInterfaceBuilderTestSuite {
-    class DyldCacheTests: MachOTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests {
+    class DyldCacheTests: MachOTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var platform: Platform { .macOS }
 
         override class var cacheImageName: MachOImageName { .SwiftUI }
@@ -72,7 +72,7 @@ enum SwiftInterfaceBuilderTestSuite {
         }
     }
 
-    class MachOFileTests: MachOTestingSupport.MachOFileTests, SwiftInterfaceBuilderTests {
+    class MachOFileTests: MachOTestingSupport.MachOFileTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var fileName: MachOFileName { .SymbolTestsCore }
 
         @Test func buildFile() async throws {
@@ -80,7 +80,7 @@ enum SwiftInterfaceBuilderTestSuite {
         }
     }
 
-    class MachOImageTests: MachOTestingSupport.MachOImageTests, SwiftInterfaceBuilderTests {
+    class MachOImageTests: MachOTestingSupport.MachOImageTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var imageName: MachOImageName { .SwiftUICore }
 
         @Test func buildFile() async throws {
