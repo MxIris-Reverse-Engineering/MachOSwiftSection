@@ -51,7 +51,8 @@ extension TypeNodePrintable {
     }
 
     mutating func printOpaqueType(_ name: Node) {
-        printFirstChild(name)
+//        printFirstChild(name)
+        printOptional(name[safeChild: 2])
     }
     
     mutating func printType(_ name: Node) {

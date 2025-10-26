@@ -217,12 +217,6 @@ swift-section interface /path/to/binary
 
 # Save interface to file
 swift-section interface --output-path interface.swift /path/to/binary
-
-# Enable type indexing for better interface generation
-swift-section interface --enable-type-indexing /path/to/binary
-
-# Use color scheme for console output
-swift-section interface --color-scheme light /path/to/binary
 ```
 
 ## License

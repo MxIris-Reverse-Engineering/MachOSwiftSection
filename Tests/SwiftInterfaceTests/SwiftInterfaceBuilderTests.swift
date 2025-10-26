@@ -65,7 +65,7 @@ enum SwiftInterfaceBuilderTestSuite {
 
         override class var cacheImageName: MachOImageName { .SwiftUI }
 
-        override class var cachePath: DyldSharedCachePath { .macOS_15_5 }
+        override class var cachePath: DyldSharedCachePath { .iOS_18_5 }
 
         @Test func buildFile() async throws {
             try await buildFile(in: machOFileInCache)

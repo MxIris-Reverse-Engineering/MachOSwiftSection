@@ -11,11 +11,11 @@ struct InterfaceCommand: AsyncParsableCommand {
         abstract: "Generate Swift interface from a Mach-O file."
     )
 
-    @Argument(help: "The output path for the dump. If not specified, the output will be printed to the console.", completion: .file())
-    var outputPath: String
-
     @OptionGroup
     var machOOptions: MachOOptionGroup
+
+    @Option(name: .shortAndLong, help: "The output path for the dump. If not specified, the output will be printed to the console.", completion: .file())
+    var outputPath: String?
 
     @Flag(help: "Show imported C types in the generated Swift interface.")
     var showCImportedTypes: Bool = false
@@ -37,8 +37,12 @@ struct InterfaceCommand: AsyncParsableCommand {
 
         print("Swift interface built successfully.")
 
-        print("Writing Swift interface to \(outputPath)...")
-        let outputURL = URL(fileURLWithPath: outputPath)
-        try interfaceString.string.write(to: outputURL, atomically: true, encoding: .utf8)
+        if let outputPath {
+            print("Writing Swift interface to \(outputPath)...")
+            let outputURL = URL(fileURLWithPath: outputPath)
+            try interfaceString.string.write(to: outputURL, atomically: true, encoding: .utf8)
+        } else {
+            print(interfaceString.string)
+        }
     }
 }
