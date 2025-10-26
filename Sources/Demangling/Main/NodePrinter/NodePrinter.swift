@@ -1112,6 +1112,7 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
         printFirstChild(name)
         target.write(".")
         _ = printOptional(name.children.at(1))
+        _ = printOptional(name.children.at(2))
     }
 
     private mutating func printImplInvocationsSubstitutions(_ name: Node) {

@@ -23,7 +23,7 @@ package class DyldCacheTests: @unchecked Sendable {
     
     package class var cacheImageName: MachOImageName { .AttributeGraph }
     
-    package class var cachePath: DyldSharedCachePath { .current }
+    package class var cachePath: DyldSharedCachePath { .iOS_18_5 }
     
     package init() async throws {
         self.mainCache = try DyldCache(path: Self.cachePath)

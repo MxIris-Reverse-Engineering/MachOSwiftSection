@@ -36,7 +36,7 @@ extension OpaqueTypeTests {
     }
 }
 
-final class OpaqueTypeDyldCacheTests: DyldCacheTests, OpaqueTypeTests {
+final class OpaqueTypeDyldCacheTests: DyldCacheTests, OpaqueTypeTests, @unchecked Sendable {
     override class var cacheImageName: MachOImageName { .SwiftUICore }
 
     @MainActor
@@ -45,7 +45,7 @@ final class OpaqueTypeDyldCacheTests: DyldCacheTests, OpaqueTypeTests {
     }
 }
 
-final class OpaqueTypeMachOFileTests: MachOFileTests, OpaqueTypeTests {
+final class OpaqueTypeMachOFileTests: MachOFileTests, OpaqueTypeTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .SymbolTestsCore }
 
     @MainActor
@@ -54,7 +54,7 @@ final class OpaqueTypeMachOFileTests: MachOFileTests, OpaqueTypeTests {
     }
 }
 
-final class OpaqueTypeMachOImageTests: MachOImageTests, OpaqueTypeTests {
+final class OpaqueTypeMachOImageTests: MachOImageTests, OpaqueTypeTests, @unchecked Sendable {
     override class var imageName: MachOImageName { .SwiftUICore }
 
     @MainActor
