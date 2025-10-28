@@ -87,7 +87,7 @@ extension TypeNodePrintable {
     mutating func printProtocolList(_ name: Node) {
         guard let typeList = name.children.first else { return }
         if typeList.children.isEmpty {
-            target.write("Any")
+            target.write("Any", context: .context(for: name, state: .printKeyword))
         } else {
             printChildren(typeList, separator: " & ")
         }
@@ -106,7 +106,9 @@ extension TypeNodePrintable {
         if protocolsTypeList.children.count > 0 {
             printChildren(protocolsTypeList, suffix: " & ", separator: " & ")
         }
-        target.write("Swift.AnyObject")
+        target.write("Swift", context: .context(for: name, state: .printModule))
+        target.write(".")
+        target.write("AnyObject", context: .context(for: name, state: .printIdentifier))
     }
 
     mutating func printTuple(_ name: Node) {
@@ -122,7 +124,8 @@ extension TypeNodePrintable {
         target.write(needParens ? "(" : "")
         _ = printName(type)
         target.write(needParens ? ")" : "")
-        target.write(type.kind.isExistentialType ? ".Protocol" : ".Type")
+        target.write(".")
+        target.write(type.kind.isExistentialType ? "Protocol" : "Type", context: .context(for: name, state: .printKeyword))
     }
     
     

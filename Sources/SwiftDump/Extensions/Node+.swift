@@ -3,13 +3,17 @@ import Demangling
 import Semantic
 
 extension SemanticString: NodePrinterTarget {
-    package mutating func write(_ content: String, context: NodePrintContext) {
+    package mutating func write(_ content: String, context: NodePrintContext?) {
+        guard let context else {
+            write(content)
+            return
+        }
         switch context.state {
         case .printFunctionParameters:
             write(content, type: .function(.declaration))
         case .printIdentifier:
             let semanticType: SemanticType
-            switch context.node.parent?.kind {
+            switch context.node?.parent?.kind {
             case .function:
                 semanticType = .function(.declaration)
             case .variable:
@@ -30,6 +34,8 @@ extension SemanticString: NodePrinterTarget {
             write(content, type: .other)
         case .printKeyword:
             write(content, type: .keyword)
+        case .printType:
+            write(content, type: .type(.other, .name))
         }
     }
 }

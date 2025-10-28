@@ -30,13 +30,13 @@ extension NodePrintable {
         case .privateDeclName:
             printPrivateDeclName(name)
         case .inOut:
-            printFirstChild(name, prefix: "inout ")
+            printFirstChild(name, prefix: "inout ", prefixContext: .context(for: name, state: .printKeyword))
         case .owned:
-            printFirstChild(name, prefix: "__owned ")
+            printFirstChild(name, prefix: "__owned ", prefixContext: .context(for: name, state: .printKeyword))
         case .isolated:
-            printFirstChild(name, prefix: "isolated ")
+            printFirstChild(name, prefix: "isolated ", prefixContext: .context(for: name, state: .printKeyword))
         case .isolatedAnyFunctionType:
-            target.write("@isolated(any) ")
+            target.write("@isolated(any) ", context: .context(for: name, state: .printKeyword))
         case .dynamicSelf:
             target.write("Self", context: .context(for: name, state: .printKeyword))
         default:
@@ -88,21 +88,21 @@ extension NodePrintable {
     }
 
     @discardableResult
-    mutating func printOptional(_ optional: Node?, prefix: String? = nil, suffix: String? = nil, asPrefixContext: Bool = false) -> Node? {
+    mutating func printOptional(_ optional: Node?, prefix: String? = nil, prefixContext: NodePrintContext? = nil, suffix: String? = nil, suffixContext: NodePrintContext? = nil, asPrefixContext: Bool = false) -> Node? {
         guard let o = optional else { return nil }
-        prefix.map { target.write($0) }
-        let r = printName(o)
-        suffix.map { target.write($0) }
+        prefix.map { target.write($0, context: prefixContext) }
+        let r = printName(o, asPrefixContext: asPrefixContext)
+        suffix.map { target.write($0, context: suffixContext) }
         return r
     }
 
-    mutating func printFirstChild(_ ofName: Node, prefix: String? = nil, suffix: String? = nil, asPrefixContext: Bool = false) {
-        _ = printOptional(ofName.children.at(0), prefix: prefix, suffix: suffix)
+    mutating func printFirstChild(_ ofName: Node, prefix: String? = nil, prefixContext: NodePrintContext? = nil, suffix: String? = nil, suffixContext: NodePrintContext? = nil, asPrefixContext: Bool = false) {
+        _ = printOptional(ofName.children.at(0), prefix: prefix, prefixContext: prefixContext, suffix: suffix, suffixContext: suffixContext, asPrefixContext: asPrefixContext)
     }
 
-    mutating func printSequence<S>(_ names: S, prefix: String? = nil, suffix: String? = nil, separator: String? = nil) where S: Sequence, S.Element == Node {
+    mutating func printSequence<S>(_ names: S, prefix: String? = nil, prefixContext: NodePrintContext? = nil, suffix: String? = nil, suffixContext: NodePrintContext? = nil, separator: String? = nil) where S: Sequence, S.Element == Node {
         var isFirst = true
-        prefix.map { target.write($0) }
+        prefix.map { target.write($0, context: prefixContext) }
         for c in names {
             if let s = separator, !isFirst {
                 target.write(s)
@@ -111,11 +111,11 @@ extension NodePrintable {
             }
             _ = printName(c)
         }
-        suffix.map { target.write($0) }
+        suffix.map { target.write($0, context: suffixContext) }
     }
 
-    mutating func printChildren(_ ofName: Node, prefix: String? = nil, suffix: String? = nil, separator: String? = nil) {
-        printSequence(ofName.children, prefix: prefix, suffix: suffix, separator: separator)
+    mutating func printChildren(_ ofName: Node, prefix: String? = nil, prefixContext: NodePrintContext? = nil, suffix: String? = nil, suffixContext: NodePrintContext? = nil, separator: String? = nil) {
+        printSequence(ofName.children, prefix: prefix, prefixContext: prefixContext, suffix: suffix, suffixContext: suffixContext, separator: separator)
     }
 }
 
