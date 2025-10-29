@@ -98,7 +98,7 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         if header.numParams > 0 {
             let parameters: [GenericParamDescriptor] = try machO.readWrapperElements(offset: currentOffset, numberOfElements: Int(header.numParams))
             currentOffset.offset(of: GenericParamDescriptor.self, numbersOfElements: Int(header.numParams))
-            currentOffset = numericCast(align(address: numericCast(currentOffset), alignment: 4))
+            currentOffset = align(address: currentOffset, alignment: 4)
             self.parameters = parameters
         } else {
             self.parameters = []

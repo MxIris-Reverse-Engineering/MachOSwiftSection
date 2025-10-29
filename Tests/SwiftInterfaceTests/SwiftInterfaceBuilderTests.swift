@@ -32,7 +32,7 @@ extension SwiftInterfaceBuilderTests {
         try rootDirectory.createDirectoryIfNeeded()
         try result.string.write(to: rootDirectory.appending(path: "\(machO.imagePath.lastPathComponent)-ImageDump.swiftinterface"), atomically: true, encoding: .utf8)
 
-        printNonConsumedSymbols(in: machO)
+//        printNonConsumedSymbols(in: machO)
     }
 
     func printNonConsumedSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) {
@@ -81,7 +81,7 @@ enum SwiftInterfaceBuilderTestSuite {
     }
 
     class MachOImageTests: MachOTestingSupport.MachOImageTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
-        override class var imageName: MachOImageName { .SwiftUICore }
+        override class var imageName: MachOImageName { .SwiftUI }
 
         @Test func buildFile() async throws {
             try await buildFile(in: machOImage)
