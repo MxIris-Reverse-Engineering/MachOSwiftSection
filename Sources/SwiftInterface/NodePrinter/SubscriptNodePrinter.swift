@@ -34,7 +34,7 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
 
     mutating func printRoot(_ node: Node) throws -> SemanticString {
         if isOverride {
-            target.write("override", context: .context(for: node, state: .printKeyword))
+            target.write("override", context: .context(state: .printKeyword))
             target.writeSpace()
         }
         try _printRoot(node)
@@ -51,7 +51,8 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
         } else if node.isKind(of: .subscript) {
             printSubscript(node)
         } else if node.kind == .static, let first = node.children.first {
-            target.write("static ")
+            target.write("static", context: .context(state: .printKeyword))
+            target.writeSpace()
             isStatic = true
             try _printRoot(first)
         } else if node.kind == .methodDescriptor, let first = node.children.first {
@@ -79,7 +80,7 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
             node = first
             genericFunctionTypeList = second
         }
-        target.write("subscript")
+        target.write("subscript", context: .context(state: .printKeyword))
         if let first = node.children.first {
             if first.isKind(of: .extension) {
                 isProtocol = first.children.at(1)?.isKind(of: .protocol) ?? false
@@ -98,7 +99,9 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
             let nodes = genericSignature.all(of: .requirementKinds)
             for (offset, node) in nodes.offsetEnumerated() {
                 if offset.isStart {
-                    target.write(" where ")
+                    target.writeSpace()
+                    target.write("where", context: .context(state: .printKeyword))
+                    target.writeSpace()
                 }
                 printName(node)
                 if !offset.isEnd {
@@ -110,11 +113,11 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
         target.write(" {")
         target.write("\n")
         target.write(String(repeating: " ", count: (indentation + 1) * 4))
-        target.write("get")
+        target.write("get", context: .context(state: .printKeyword))
         if hasSetter {
             target.write("\n")
             target.write(String(repeating: " ", count: (indentation + 1) * 4))
-            target.write("set")
+            target.write("set", context: .context(state: .printKeyword))
         }
         target.write("\n")
         target.write(String(repeating: " ", count: indentation * 4))

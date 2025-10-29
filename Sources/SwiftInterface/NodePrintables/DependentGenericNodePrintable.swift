@@ -179,16 +179,16 @@ extension DependentGenericNodePrintable {
         guard let layout = name.children.at(1), let c = layout.text?.unicodeScalars.first else { return }
         printFirstChild(name, suffix: ": ")
         switch c {
-        case "U": target.write("_UnknownLayout", context: .context(for: name, state: .printType))
-        case "R": target.write("_RefCountedObject", context: .context(for: name, state: .printType))
-        case "N": target.write("_NativeRefCountedObject", context: .context(for: name, state: .printType))
-        case "C": target.write("AnyObject", context: .context(for: name, state: .printType))
-        case "D": target.write("_NativeClass", context: .context(for: name, state: .printType))
-        case "T": target.write("_Trivial", context: .context(for: name, state: .printType))
+        case "U": target.write("_UnknownLayout", context: .context(state: .printType))
+        case "R": target.write("_RefCountedObject", context: .context(state: .printType))
+        case "N": target.write("_NativeRefCountedObject", context: .context(state: .printType))
+        case "C": target.write("AnyObject", context: .context(state: .printType))
+        case "D": target.write("_NativeClass", context: .context(state: .printType))
+        case "T": target.write("_Trivial", context: .context(state: .printType))
         case "E",
-             "e": target.write("_Trivial", context: .context(for: name, state: .printType))
+             "e": target.write("_Trivial", context: .context(state: .printType))
         case "M",
-             "m": target.write("_TrivialAtMost", context: .context(for: name, state: .printType))
+             "m": target.write("_TrivialAtMost", context: .context(state: .printType))
         default: break
         }
         if name.children.count > 2 {
@@ -218,8 +218,8 @@ extension DependentGenericNodePrintable {
     mutating func printDependentGenericInverseConformanceRequirement(_ name: Node) {
         printFirstChild(name, suffix: ": ~")
         switch name.children.at(1)?.index {
-        case 0: target.write("Swift.Copyable", context: .context(for: name, state: .printType))
-        case 1: target.write("Swift.Escapable", context: .context(for: name, state: .printType))
+        case 0: target.write("Swift.Copyable", context: .context(state: .printType))
+        case 1: target.write("Swift.Escapable", context: .context(state: .printType))
         default: target.write("Swift.<bit \(name.children.at(1)?.index ?? 0)>")
         }
     }

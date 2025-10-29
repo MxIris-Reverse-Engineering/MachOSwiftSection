@@ -29,7 +29,7 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
 
     mutating func printRoot(_ node: Node) throws -> SemanticString {
         if isOverride {
-            target.write("override", context: .context(for: node, state: .printKeyword))
+            target.write("override", context: .context(state: .printKeyword))
             target.writeSpace()
         }
         try _printRoot(node)
@@ -46,7 +46,8 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
         } else if node.isKind(of: .function, .boundGenericFunction, .allocator, .constructor) {
             printFunction(node)
         } else if node.kind == .static, let first = node.children.first {
-            target.write("static ")
+            target.write("static", context: .context(state: .printKeyword))
+            target.writeSpace()
             isStatic = true
             try _printRoot(first)
         } else if node.kind == .methodDescriptor, let first = node.children.first {
@@ -79,7 +80,8 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
             }
         }
         if function.kind != .allocator {
-            target.write("func ")
+            target.write("func", context: .context(state: .printKeyword))
+            target.writeSpace()
             if let identifier = function.children.first(of: .identifier) {
                 printIdentifier(identifier)
             } else if let privateDeclName = function.children.first(of: .privateDeclName) {
@@ -88,7 +90,7 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
                 target.write(text + " ")
             }
         } else if function.kind == .allocator {
-            target.write("init")
+            target.write("init", context: .context(state: .printKeyword))
             if function.isReturnOptional {
                 target.write("?")
             }
@@ -101,7 +103,9 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
             let nodes = genericSignature.all(of: .requirementKinds)
             for (offset, node) in nodes.offsetEnumerated() {
                 if offset.isStart {
-                    target.write(" where ")
+                    target.writeSpace()
+                    target.write("where", context: .context(state: .printKeyword))
+                    target.writeSpace()
                 }
                 printName(node)
                 if !offset.isEnd {
