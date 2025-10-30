@@ -3,4 +3,5 @@ package enum NodePrintState {
     case printFunctionParameters
     case printModule
     case printKeyword
+    case printType
 }

@@ -4,7 +4,7 @@ import MachOKit
 
 import MachOFoundation
 
-package class DyldCacheTests {
+package class DyldCacheTests: @unchecked Sendable {
     package let mainCache: DyldCache
 
     package let subCache: DyldCache
@@ -23,7 +23,7 @@ package class DyldCacheTests {
     
     package class var cacheImageName: MachOImageName { .AttributeGraph }
     
-    package class var cachePath: DyldSharedCachePath { .current }
+    package class var cachePath: DyldSharedCachePath { .macOS_15_5 }
     
     package init() async throws {
         self.mainCache = try DyldCache(path: Self.cachePath)

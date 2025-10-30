@@ -32,7 +32,7 @@ extension SwiftInterfaceBuilderTests {
         try rootDirectory.createDirectoryIfNeeded()
         try result.string.write(to: rootDirectory.appending(path: "\(machO.imagePath.lastPathComponent)-ImageDump.swiftinterface"), atomically: true, encoding: .utf8)
 
-        printNonConsumedSymbols(in: machO)
+//        printNonConsumedSymbols(in: machO)
     }
 
     func printNonConsumedSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) {
@@ -60,19 +60,19 @@ extension SwiftInterfaceBuilderTests {
 
 @Suite
 enum SwiftInterfaceBuilderTestSuite {
-    class DyldCacheTests: MachOTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests {
+    class DyldCacheTests: MachOTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var platform: Platform { .macOS }
 
         override class var cacheImageName: MachOImageName { .SwiftUI }
 
-        override class var cachePath: DyldSharedCachePath { .current }
+        override class var cachePath: DyldSharedCachePath { .iOS_18_5 }
 
         @Test func buildFile() async throws {
             try await buildFile(in: machOFileInCache)
         }
     }
 
-    class MachOFileTests: MachOTestingSupport.MachOFileTests, SwiftInterfaceBuilderTests {
+    class MachOFileTests: MachOTestingSupport.MachOFileTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var fileName: MachOFileName { .SymbolTestsCore }
 
         @Test func buildFile() async throws {
@@ -80,8 +80,8 @@ enum SwiftInterfaceBuilderTestSuite {
         }
     }
 
-    class MachOImageTests: MachOTestingSupport.MachOImageTests, SwiftInterfaceBuilderTests {
-        override class var imageName: MachOImageName { .SwiftUICore }
+    class MachOImageTests: MachOTestingSupport.MachOImageTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
+        override class var imageName: MachOImageName { .SwiftUI }
 
         @Test func buildFile() async throws {
             try await buildFile(in: machOImage)

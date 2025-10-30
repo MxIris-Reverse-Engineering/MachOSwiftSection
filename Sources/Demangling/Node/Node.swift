@@ -34,14 +34,14 @@ public final class Node: Sendable {
 }
 
 extension Node {
-    package func changeChild(_ newChild: Node?, atIndex: Int) -> Node {
-        guard children.indices.contains(atIndex) else { return self }
+    package func changeChild(_ newChild: Node?, at index: Int) -> Node {
+        guard children.indices.contains(index) else { return self }
 
         var modifiedChildren = children
         if let nc = newChild {
-            modifiedChildren[atIndex] = nc
+            modifiedChildren[index] = nc
         } else {
-            modifiedChildren.remove(at: atIndex)
+            modifiedChildren.remove(at: index)
         }
         return Node(kind: kind, contents: contents, children: modifiedChildren)
     }

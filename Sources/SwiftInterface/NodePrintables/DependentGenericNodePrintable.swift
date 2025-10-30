@@ -55,7 +55,7 @@ extension DependentGenericNodePrintable {
 
     mutating func printDependentGenericParamName(_ name: String) {
         if isProtocol, name == "A" {
-            target.write("Self")
+            target.write("Self", context: .context(state: .printKeyword))
         } else {
             target.write(name)
         }
@@ -142,12 +142,14 @@ extension DependentGenericNodePrintable {
                 }
 
                 if isGenericParamPack(UInt64(gpDepth), UInt64(index)) {
-                    target.write("each ")
+                    target.write("each", context: .context(state: .printKeyword))
+                    target.writeSpace()
                 }
 
                 let value = isGenericParamValue(UInt64(gpDepth), UInt64(index))
                 if value != nil {
-                    target.write("let ")
+                    target.write("let", context: .context(state: .printKeyword))
+                    target.writeSpace()
                 }
 
                 printDependentGenericParamName(genericParameterName(depth: depths?[index.cast()] ?? gpDepth.cast(), index: index.cast()))
@@ -177,16 +179,16 @@ extension DependentGenericNodePrintable {
         guard let layout = name.children.at(1), let c = layout.text?.unicodeScalars.first else { return }
         printFirstChild(name, suffix: ": ")
         switch c {
-        case "U": target.write("_UnknownLayout")
-        case "R": target.write("_RefCountedObject")
-        case "N": target.write("_NativeRefCountedObject")
-        case "C": target.write("AnyObject")
-        case "D": target.write("_NativeClass")
-        case "T": target.write("_Trivial")
+        case "U": target.write("_UnknownLayout", context: .context(state: .printType))
+        case "R": target.write("_RefCountedObject", context: .context(state: .printType))
+        case "N": target.write("_NativeRefCountedObject", context: .context(state: .printType))
+        case "C": target.write("AnyObject", context: .context(state: .printType))
+        case "D": target.write("_NativeClass", context: .context(state: .printType))
+        case "T": target.write("_Trivial", context: .context(state: .printType))
         case "E",
-             "e": target.write("_Trivial")
+             "e": target.write("_Trivial", context: .context(state: .printType))
         case "M",
-             "m": target.write("_TrivialAtMost")
+             "m": target.write("_TrivialAtMost", context: .context(state: .printType))
         default: break
         }
         if name.children.count > 2 {
@@ -216,8 +218,8 @@ extension DependentGenericNodePrintable {
     mutating func printDependentGenericInverseConformanceRequirement(_ name: Node) {
         printFirstChild(name, suffix: ": ~")
         switch name.children.at(1)?.index {
-        case 0: target.write("Swift.Copyable")
-        case 1: target.write("Swift.Escapable")
+        case 0: target.write("Swift.Copyable", context: .context(state: .printType))
+        case 1: target.write("Swift.Escapable", context: .context(state: .printType))
         default: target.write("Swift.<bit \(name.children.at(1)?.index ?? 0)>")
         }
     }

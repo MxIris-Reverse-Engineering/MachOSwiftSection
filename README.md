@@ -17,9 +17,10 @@ It may be the most powerful swift dump you can find so far, as it uses a custom 
 - [x] Type Context Descriptors
 - [x] Associated Type Descriptors
 - [x] Method Symbol For Dyld Caches
-- [ ] Type Member Layout (WIP)
-- [ ] Builtin Type Descriptors
-- [ ] Capture Descriptors
+- [x] Builtin Type Descriptors
+- [x] Swift Interface Support
+- [ ] Type Member Layout (WIP, MachOImage only)
+- [ ] Swift Section MCP
 
 ### Usage
 
@@ -69,72 +70,19 @@ for typeContextDescriptor in typeContextDescriptors {
 }
 ```
 
-#### Dump Swift Interface
-
-Swift Interface definitions can be dump from Enum/Struct/Class/Protocol/ProtocolConformance/AssociatedType model
-
-First, you need to import `SwiftDump` module.
-
 #### Generate Complete Swift Interface
 
 For generating complete Swift interface files, you can use the `SwiftInterface` library which provides a more comprehensive interface generation capability.
 
-Options can customize the print content, such as using syntactic sugar types or strip the ObjC Module.
-
 ```swift
 import MachOKit
 import MachOSwiftSection
-import SwiftDump
+import SwiftInterface
 
-let typeContextDescriptors = machO.swift.typesContextDescriptors ?? []
-for typeContextDescriptor in typeContextDescriptors {
-    switch typeContextDescriptor {
-    case .type(let typeContextDescriptorWrapper):
-        switch typeContextDescriptorWrapper {
-        case .enum(let enumDescriptor):
-            let enumType = try Enum(descriptor: enumDescriptor, in: machO)
-            try print(enumType.dump(using: printOptions, in: machO))
-        case .struct(let structDescriptor):
-            let structType = try Struct(descriptor: structDescriptor, in: machO)
-            try print(structType.dump(using: printOptions, in: machO))
-        case .class(let classDescriptor):
-            let classType = try Class(descriptor: classDescriptor, in: machO)
-            try print(classType.dump(using: printOptions, in: machO))
-        }
-    default:
-        break
-    }
-}
+let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: machO)
+try await builder.prepare()
+let result = try builder.printRoot()
 ```
-
-<details>
-
-<summary>Example of dumped string</summary>
-
-```swift
-enum Foundation.Date.ComponentsFormatStyle.Field.Option {
-    case year
-    case month
-    case week
-    case day
-    case hour
-    case minute
-    case second
-}
-enum Foundation.Date.ComponentsFormatStyle.Field.CodingKeys {
-    case option
-}
-struct Foundation.LocaleCache {
-    let lock: LockedState<LocaleCache.State>
-    let _currentCache: LockedState<_LocaleProtocol?>
-    var _currentNSCache: LockedState<_NSSwiftLocale?>
-}
-struct Foundation.TimeZoneCache {
-    let lock: LockedState<TimeZoneCache.State>
-}
-```
-
-</details>
 
 ## swift-section CLI Tool
 
@@ -144,7 +92,7 @@ You can get the swift-section CLI tool in three ways:
 
 - **GitHub Releases**: Download from [GitHub releases](https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection/releases)
 - **Homebrew**: Install via `brew install swift-section`
-- **Build from Source**: Build with `./build-executable-product.sh` (requires Xcode 16.3 / Swift 6.1+ toolchain)
+- **Build from Source**: Build with `./build-executable-product.sh` (requires Xcode 26.0 / Swift 6.2+ toolchain)
 
 ### Usage
 
@@ -182,26 +130,6 @@ swift-section dump --uses-system-dyld-shared-cache --cache-image-name UIKit
 swift-section dump --dyld-shared-cache --cache-image-path /path/to/cache /path/to/dyld_shared_cache
 ```
 
-#### demangle - Demangle Swift Names
-
-Demangle mangled Swift names in a Mach-O file.
-
-```bash
-swift-section demangle [options] [file-path] --mangled-name <mangled-name>
-```
-
-**Basic usage:**
-```bash
-# Demangle a specific mangled name
-swift-section demangle /path/to/binary --mangled-name '$s10Foundation4DateV18ComponentsFormatStyleV5FieldV6OptionO4yearAIcACmF'
-
-# Demangle with specific file offset
-swift-section demangle /path/to/binary --mangled-name '$s...' --file-offset 0x1000
-
-# Use simplified demangle options
-swift-section demangle /path/to/binary --mangled-name '$s...' --demangle-options simplified
-```
-
 #### interface - Generate Swift Interface
 
 Generate a complete Swift interface file from a Mach-O file, similar to Swift's generated interfaces.
@@ -217,12 +145,6 @@ swift-section interface /path/to/binary
 
 # Save interface to file
 swift-section interface --output-path interface.swift /path/to/binary
-
-# Enable type indexing for better interface generation
-swift-section interface --enable-type-indexing /path/to/binary
-
-# Use color scheme for console output
-swift-section interface --color-scheme light /path/to/binary
 ```
 
 ## License

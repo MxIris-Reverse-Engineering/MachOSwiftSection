@@ -107,7 +107,9 @@ public enum MetadataReader<MachO: MachOSwiftSectionRepresentableWithCache> {
                         if let context = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset).resolve(from: offset, in: machO) {
                             if let opaqueTypeDescriptor = context.opaqueTypeDescriptor {
                                 let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
-                                result = try .init(kind: .opaqueReturnTypeOf, child: demangleType(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO))
+//                                result = try .init(kind: .opaqueReturnTypeOf, child: demangleType(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO))
+                                
+                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, index: address(of: opaqueType.offset, in: machO))
                             } else {
                                 result = try buildContextMangling(context: .element(context), in: machO)
                             }
@@ -117,7 +119,8 @@ public enum MetadataReader<MachO: MachOSwiftSectionRepresentableWithCache> {
                         if let resolvableElement = try relativePointer.resolve(from: offset, in: machO).asOptional {
                             if case .element(let element) = resolvableElement, let opaqueTypeDescriptor = element.opaqueTypeDescriptor {
                                 let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
-                                result = try .init(kind: .opaqueReturnTypeOf, child: demangleType(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO))
+//                                result = try .init(kind: .opaqueReturnTypeOf, child: demangleType(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO))
+                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, index: address(of: opaqueType.offset, in: machO))
                             } else {
                                 result = try buildContextMangling(context: resolvableElement, in: machO)
                             }

@@ -1109,9 +1109,11 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
     }
 
     private mutating func printOpaqueType(_ name: Node) {
-        printFirstChild(name)
-        target.write(".")
-        _ = printOptional(name.children.at(1))
+//        printFirstChild(name)
+//        target.write(".")
+//        _ = printOptional(name.children.at(1))
+//        _ = printOptional(name.children.at(2))
+        printChildren(name, separator: ".")
     }
 
     private mutating func printImplInvocationsSubstitutions(_ name: Node) {

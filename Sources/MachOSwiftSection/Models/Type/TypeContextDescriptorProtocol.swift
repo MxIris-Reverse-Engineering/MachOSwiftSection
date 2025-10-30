@@ -54,6 +54,6 @@ extension TypeContextDescriptorProtocol {
     }
 }
 
-func align(address: UInt64, alignment: UInt64) -> UInt64 {
+func align(address: Int, alignment: Int) -> Int {
     (address + alignment - 1) & ~(alignment - 1)
 }

@@ -5,7 +5,7 @@ import Demangling
 @testable import MachOSwiftSection
 @testable import SwiftDump
 
-final class MetadataAccessorTests: MachOImageTests {
+final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
     override class var imageName: MachOImageName { .SwiftUI }
 
     @MainActor

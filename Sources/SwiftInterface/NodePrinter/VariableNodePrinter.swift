@@ -37,7 +37,7 @@ struct VariableNodePrinter: InterfaceNodePrintable {
 
     mutating func printRoot(_ node: Node) throws -> SemanticString {
         if isOverride {
-            target.write("override", context: .context(for: node, state: .printKeyword))
+            target.write("override", context: .context(state: .printKeyword))
             target.writeSpace()
         }
         try _printRoot(node)
@@ -54,7 +54,8 @@ struct VariableNodePrinter: InterfaceNodePrintable {
         } else if node.kind == .variable {
             try printVariable(node)
         } else if node.kind == .static, let first = node.children.first {
-            target.write("static ")
+            target.write("static", context: .context(state: .printKeyword))
+            target.writeSpace()
             isStatic = true
             try _printRoot(first)
         } else if node.kind == .methodDescriptor, let first = node.children.first {
@@ -94,9 +95,11 @@ struct VariableNodePrinter: InterfaceNodePrintable {
             }
         }
         if isStored, !hasSetter {
-            target.write("let ")
+            target.write("let", context: .context(state: .printKeyword))
+            target.writeSpace()
         } else {
-            target.write("var ")
+            target.write("var", context: .context(state: .printKeyword))
+            target.writeSpace()
         }
 
         target.write(identifier.text ?? "", context: .context(for: identifier, state: .printIdentifier))
@@ -111,11 +114,11 @@ struct VariableNodePrinter: InterfaceNodePrintable {
         target.write(" {")
         target.write("\n")
         target.write(String(repeating: " ", count: (indentation + 1) * 4))
-        target.write("get")
+        target.write("get", context: .context(state: .printKeyword))
         if hasSetter {
             target.write("\n")
             target.write(String(repeating: " ", count: (indentation + 1) * 4))
-            target.write("set")
+            target.write("set", context: .context(state: .printKeyword))
         }
         target.write("\n")
         target.write(String(repeating: " ", count: indentation * 4))
