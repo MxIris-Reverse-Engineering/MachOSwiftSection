@@ -20,12 +20,22 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(help: "Show imported C types in the generated Swift interface.")
     var showCImportedTypes: Bool = false
 
+    @Flag(help: "beta")
+    var parseOpaqueReturnType: Bool = false
+
+    @Option(name: .shortAndLong, help: "The color scheme for the output.")
+    var colorScheme: SemanticColorScheme = .none
+
     func run() async throws {
         let machOFile = try MachOFile.load(options: machOOptions)
 
         let configuration = SwiftInterfaceBuilderConfiguration(showCImportedTypes: showCImportedTypes)
 
-        let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [OSLogEventHandler()], in: machOFile)
+        let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [ConsoleEventHandler()], in: machOFile)
+
+        if parseOpaqueReturnType {
+            builder.addExtraDataProvider(SwiftInterfaceBuilderOpaqueTypeProvider(machO: machOFile))
+        }
 
         print("Preparing to build Swift interface...")
 
@@ -42,7 +52,7 @@ struct InterfaceCommand: AsyncParsableCommand {
             let outputURL = URL(fileURLWithPath: outputPath)
             try interfaceString.string.write(to: outputURL, atomically: true, encoding: .utf8)
         } else {
-            print(interfaceString.string)
+            interfaceString.printColorfully(using: colorScheme)
         }
     }
 }
