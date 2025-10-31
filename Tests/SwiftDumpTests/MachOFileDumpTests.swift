@@ -8,7 +8,7 @@ import MachOFoundation
 @testable import MachOTestingSupport
 
 @Suite(.serialized)
-final class MachOFileDumpTests: MachOFileTests, DumpableTests {
+final class MachOFileDumpTests: MachOFileTests, DumpableTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .SymbolTestsCore }
 }
 

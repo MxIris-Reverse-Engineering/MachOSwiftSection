@@ -3,7 +3,7 @@ import Testing
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
 
-final class ProtocolRequirementSignatureTests: DyldCacheTests {
+final class ProtocolRequirementSignatureTests: DyldCacheTests, @unchecked Sendable {
     
     @Test func protocols() async throws {
         let machO = machOFileInMainCache

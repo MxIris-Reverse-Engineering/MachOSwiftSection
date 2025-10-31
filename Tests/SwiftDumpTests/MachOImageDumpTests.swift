@@ -18,7 +18,7 @@ import WatchKit
 import SwiftUI
 
 @Suite(.serialized)
-final class MachOImageDumpTests: MachOImageTests, DumpableTests {
+final class MachOImageDumpTests: MachOImageTests, DumpableTests, @unchecked Sendable {
     
     override class var imageName: MachOImageName { .AppKit }
 }

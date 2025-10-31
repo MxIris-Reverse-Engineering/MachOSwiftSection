@@ -3,7 +3,7 @@ import Testing
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
 
-final class ProtocolGenericContextTests: MachOFileTests {
+final class ProtocolGenericContextTests: MachOFileTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .SymbolTestsCore }
 
     @Test func test() async throws {

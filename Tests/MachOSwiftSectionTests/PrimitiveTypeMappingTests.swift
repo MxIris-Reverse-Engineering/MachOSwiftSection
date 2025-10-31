@@ -7,7 +7,7 @@ import MachOFoundation
 @testable import MachOSwiftSection
 
 @Suite
-final class PrimitiveTypeMappingTests: DyldCacheTests {
+final class PrimitiveTypeMappingTests: DyldCacheTests, @unchecked Sendable {
     
     override class var cacheImageName: MachOImageName { .AttributeGraph }
     
