@@ -36,6 +36,8 @@ extension TypeNodePrintable {
             printChildren(name)
         case .opaqueType:
             printOpaqueType(name)
+        case .symbolicExtendedExistentialType:
+            printSymbolicExtendedExistentialType(name)
         default:
             return false
         }
@@ -134,5 +136,14 @@ extension TypeNodePrintable {
             printFirstChild(name, suffix: " ")
         }
         _ = printOptional(name.children.at(name.children.count == 2 ? 1 : 0), suffix: ".Type")
+    }
+    
+    mutating func printSymbolicExtendedExistentialType(_ name: Node) {
+        guard let second = name.children.at(1) else { return }
+        _ = printName(second)
+        if let third = name.children.at(2) {
+            target.write(", ")
+            _ = printName(third)
+        }
     }
 }

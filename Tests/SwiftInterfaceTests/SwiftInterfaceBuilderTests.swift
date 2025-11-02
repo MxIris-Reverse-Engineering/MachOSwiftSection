@@ -22,7 +22,7 @@ extension SwiftInterfaceBuilderTests {
         try rootDirectory.createDirectoryIfNeeded()
         try result.string.write(to: rootDirectory.appending(path: "\(machO.imagePath.lastPathComponent)-FileDump.swiftinterface"), atomically: true, encoding: .utf8)
 
-        printNonConsumedSymbols(in: machO)
+//        printNonConsumedSymbols(in: machO)
     }
 
     func buildFile(in machO: MachOImage) async throws {
