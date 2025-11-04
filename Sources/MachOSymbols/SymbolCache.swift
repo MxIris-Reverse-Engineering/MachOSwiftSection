@@ -4,6 +4,7 @@ import Demangling
 import OrderedCollections
 import Utilities
 @_spi(Internals) import MachOCaches
+import SwiftStdlibToolbox
 
 package final class SymbolCache: MachOCache<SymbolCache.Entry>, @unchecked Sendable {
     package static let shared = SymbolCache()
@@ -18,24 +19,25 @@ package final class SymbolCache: MachOCache<SymbolCache.Entry>, @unchecked Senda
     package override func buildEntry<MachO>(for machO: MachO) -> Entry? where MachO: MachORepresentableWithCache {
         let cacheEntry = Entry()
         var cachedSymbols: Set<String> = []
+        var symbolsByOffset: OrderedDictionary<Int, [Symbol]> = [:]
         for symbol in machO.symbols where symbol.name.isSwiftSymbol {
             var offset = symbol.offset
-            cacheEntry.symbolsByOffset[offset, default: []].append(.init(offset: offset, name: symbol.name, nlist: symbol.nlist))
+            symbolsByOffset[offset, default: []].append(.init(offset: offset, name: symbol.name, nlist: symbol.nlist))
             if let cache = machO.cache {
                 offset -= cache.mainCacheHeader.sharedRegionStart.cast()
-                cacheEntry.symbolsByOffset[offset, default: []].append(.init(offset: offset, name: symbol.name, nlist: symbol.nlist))
+                symbolsByOffset[offset, default: []].append(.init(offset: offset, name: symbol.name, nlist: symbol.nlist))
             }
             cachedSymbols.insert(symbol.name)
         }
 
         for exportedSymbol in machO.exportedSymbols where exportedSymbol.name.isSwiftSymbol && !cachedSymbols.contains(exportedSymbol.name) {
             if var offset = exportedSymbol.offset {
-                cacheEntry.symbolsByOffset[offset, default: []].append(.init(offset: offset, name: exportedSymbol.name))
+                symbolsByOffset[offset, default: []].append(.init(offset: offset, name: exportedSymbol.name))
                 offset += machO.startOffset
-                cacheEntry.symbolsByOffset[offset, default: []].append(.init(offset: offset, name: exportedSymbol.name))
+                symbolsByOffset[offset, default: []].append(.init(offset: offset, name: exportedSymbol.name))
             }
         }
-
+        cacheEntry.symbolsByOffset = symbolsByOffset
         return cacheEntry
     }
 
@@ -57,5 +59,9 @@ package final class SymbolCache: MachOCache<SymbolCache.Entry>, @unchecked Senda
         } else {
             return nil
         }
+    }
+    
+    package func prepare<MachO: MachORepresentableWithCache>(in machO: MachO) {
+        _ = entry(in: machO)
     }
 }

@@ -18,13 +18,13 @@ final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {
     @Test func functionNode() async throws {
         let node = try demangleAsNode("_$s7SwiftUI19AnyStyleContextTypeV07acceptsC0ySbxmxQpRvzAA0dE0RzlF")
         var printer = FunctionNodePrinter(isOverride: false)
-        try printer.printRoot(node).string.print()
+        try await printer.printRoot(node).string.print()
     }
 
     @Test func variableNode() async throws {
         let variableNode = try demangleAsNode("_$s7SwiftUI38HostingViewTransparentBackgroundReasonVs10SetAlgebraAAsADP7isEmptySbvgTW")
         var variableNodePrinter = VariableNodePrinter(isStored: false, isOverride: false, hasSetter: true, indentation: 0)
-        try variableNodePrinter.printRoot(#require(variableNode.children.first)).string.print()
+        try await variableNodePrinter.printRoot(#require(variableNode.children.first)).string.print()
     }
 
     @Test func functionNodes() async throws {
@@ -36,7 +36,7 @@ final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {
                 var printer = FunctionNodePrinter(isOverride: false)
                 "Mangled  : \(demangledSymbol.symbol.name)".print()
                 "Demangled: \(node.print(using: .interface))".print()
-                try "Interface: \(printer.printRoot(#require(node.children.first)).string)".print()
+                try "Interface: \(await printer.printRoot(#require(node.children.first)).string)".print()
             } catch {
                 "Error printing node: \(node.print(using: .default))".print()
             }
@@ -54,7 +54,7 @@ final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {
                 do {
                     var printer = TypeNodePrinter()
                     "Demangled: \(node.print(using: .interface))".print()
-                    try "Interface: \(printer.printRoot(node).string)".print()
+                    try "Interface: \(await printer.printRoot(node).string)".print()
                     "Node: \(node)".print()
                 } catch {
                     "Error printing node: \(node.print(using: .default))".print()
@@ -79,7 +79,7 @@ final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {
                 var printer = SubscriptNodePrinter(isOverride: false, hasSetter: false, indentation: 1)
                 "Mangled  : \(demangledSymbol.symbol.name)".print()
                 "Demangled: \(node.print(using: .interface))".print()
-                try "Interface: \(printer.printRoot(node).string)".print()
+                try "Interface: \(await printer.printRoot(node).string)".print()
             } catch {
                 "Error printing node: \(node.print(using: .default))".print()
             }

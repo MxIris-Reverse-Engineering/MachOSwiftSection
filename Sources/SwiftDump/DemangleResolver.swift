@@ -8,22 +8,22 @@ import Demangling
 
 package enum DemangleResolver {
     case options(DemangleOptions)
-    case builder((Node) throws -> SemanticString)
+    case builder((Node) async throws -> SemanticString)
 
     package static func using(options: DemangleOptions) -> DemangleResolver {
         .options(options)
     }
 
-    package static func using(@SemanticStringBuilder builder: @escaping (Node) throws -> SemanticString) -> DemangleResolver {
+    package static func using(@SemanticStringBuilder builder: @escaping (Node) async throws -> SemanticString) -> DemangleResolver {
         .builder(builder)
     }
 
-    func resolve(for node: Node) throws -> SemanticString {
+    func resolve(for node: Node) async throws -> SemanticString {
         switch self {
         case .options(let options):
             return node.printSemantic(using: options)
         case .builder(let builder):
-            return try builder(node)
+            return try await builder(node)
         }
     }
 

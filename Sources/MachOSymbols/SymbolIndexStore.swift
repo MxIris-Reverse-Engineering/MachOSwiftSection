@@ -8,6 +8,7 @@ import Dependencies
 import MemberwiseInit
 @_spi(Internals) import MachOCaches
 import AsyncAlgorithms
+import SwiftStdlibToolbox
 
 @_spi(ForSymbolViewer)
 @_spi(Internals)
@@ -370,6 +371,10 @@ public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry>, @unchec
             return $0.wrappedValue
         }
     }
+    
+    public func prepare<MachO: MachORepresentableWithCache>(in machO: MachO) async {
+        _ = await entry(in: machO)
+    }
 }
 
 extension Node.Kind {
@@ -466,16 +471,6 @@ extension Sequence where Element == SymbolIndexStore.IndexedSymbol {
         for indexedSymbol in self {
             indexedSymbol.isConsumed = true
             results.append(indexedSymbol.wrappedValue)
-        }
-        return results
-    }
-}
-
-extension Sequence {
-    @inlinable public func asyncMap<T, E>(_ transform: (Element) async throws(E) -> T) async throws(E) -> [T] where E: Swift.Error {
-        var results: [T] = []
-        for element in self {
-            try await results.append(transform(element))
         }
         return results
     }

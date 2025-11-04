@@ -40,7 +40,7 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
                         Standard(",")
                     }
                     Space()
-                    try requirement.descriptor.dumpContent(resolver: demangleResolver, in: machO)
+                    try await requirement.descriptor.dumpContent(resolver: demangleResolver, in: machO)
                 }
                 if !requirementInSignatures.isEmpty {
                     Space()
@@ -48,7 +48,7 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
                     Space()
 
                     for (offset, requirement) in requirementInSignatures.offsetEnumerated() {
-                        try requirement.descriptor.dumpProtocolRequirement(resolver: demangleResolver, in: machO)
+                        try await requirement.descriptor.dumpProtocolRequirement(resolver: demangleResolver, in: machO)
                         if !offset.isEnd {
                             Standard(",")
                             Space()
@@ -96,7 +96,7 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
                 BreakLine()
                 Indent(level: configuration.indentation)
                 if let symbols = try Symbols.resolve(from: requirement.offset, in: machO), let validNode = try await validNode(for: symbols) {
-                    try demangleResolver.resolve(for: validNode)
+                    try await demangleResolver.resolve(for: validNode)
                 } else {
                     InlineComment("[Stripped Symbol]")
                 }
@@ -119,7 +119,7 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
 
                 BreakLine()
                 Indent(level: configuration.indentation)
-                try demangleResolver.resolve(for: defaultImplementation)
+                try await demangleResolver.resolve(for: defaultImplementation)
 
                 if offset.isEnd {
                     BreakLine()
@@ -138,7 +138,7 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
     @SemanticStringBuilder
     private func _name(using resolver: DemangleResolver) async throws -> SemanticString {
         if configuration.displayParentName {
-            try resolver.resolve(for: MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await resolver.resolve(for: MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
             try TypeDeclaration(kind: .protocol, `protocol`.descriptor.name(in: machO))
         }

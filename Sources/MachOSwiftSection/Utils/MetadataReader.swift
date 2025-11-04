@@ -78,7 +78,6 @@ public enum MetadataReader<MachO: MachOSwiftSectionRepresentableWithCache> {
     }
 
     public static func demangleSymbol(for symbol: Symbol, in machO: MachO) throws -> Node? {
-//        return try demangle(for: .init(unsolvedSymbol: unsolvedSymbol), kind: .symbol, in: machOFile)
         return SymbolCache.shared.demangledNode(for: symbol, in: machO)
     }
 

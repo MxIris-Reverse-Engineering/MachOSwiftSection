@@ -48,8 +48,12 @@ final class SymbolIndexStoreTests: DyldCacheTests, @unchecked Sendable {
     }
     
     @Test func symbols() async throws {
+        let clock = ContinuousClock()
         let machO = machOFileInCache
-        let _ = await symbolIndexStore.allSymbols(in: machO)
+        let duration = await clock.measure {
+            let _ = await symbolIndexStore.allSymbols(in: machO)
+        }
+        print(duration)
         guard let memberSymbolsByKind = await symbolIndexStore.entry(in: machO)?.memberSymbolsByKind else {
             return
         }

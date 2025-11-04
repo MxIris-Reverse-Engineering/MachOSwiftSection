@@ -37,7 +37,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
             try await name
 
             if let genericContext = `enum`.genericContext {
-                try genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO)
+                try await genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO)
             }
         }
     }
@@ -64,7 +64,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
                 let mangledName = try fieldRecord.mangledTypeName(in: machO)
 
                 if !mangledName.isEmpty {
-                    let demangledName = try demangleResolver.resolve(for: MetadataReader.demangleType(for: mangledName, in: machO))
+                    let demangledName = try await demangleResolver.resolve(for: MetadataReader.demangleType(for: mangledName, in: machO))
                     let demangledNameString = demangledName.string
                     if demangledNameString.hasPrefix("("), demangledNameString.hasSuffix(")") {
                         demangledName
@@ -108,7 +108,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
 
                     Indent(level: 1)
 
-                    try demangleResolver.resolve(for: symbol.demangledNode)
+                    try await demangleResolver.resolve(for: symbol.demangledNode)
 
                     if offset.isEnd {
                         BreakLine()
@@ -135,7 +135,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
     @SemanticStringBuilder
     private func _name(using resolver: DemangleResolver) async throws -> SemanticString {
         if configuration.displayParentName {
-            try resolver.resolve(for: MetadataReader.demangleContext(for: .type(.enum(`enum`.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await resolver.resolve(for: MetadataReader.demangleContext(for: .type(.enum(`enum`.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
             try TypeDeclaration(kind: .enum, `enum`.descriptor.name(in: machO))
         }

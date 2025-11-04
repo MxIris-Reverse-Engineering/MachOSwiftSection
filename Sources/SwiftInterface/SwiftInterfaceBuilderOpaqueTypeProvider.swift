@@ -13,27 +13,18 @@ public final class SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSect
         self.machO = machO
     }
 
-    @Mutex
-    private var opaqueTypeDescriptorSymbolByNode: OrderedDictionary<Node, DemangledSymbol> = [:]
-
-    public func setup() async throws {
-        @Dependency(\.symbolIndexStore)
-        var symbolIndexStore
-        if let allOpaqueTypeDescriptorSymbols = await symbolIndexStore.allOpaqueTypeDescriptorSymbols(in: machO) {
-            opaqueTypeDescriptorSymbolByNode = allOpaqueTypeDescriptorSymbols
-        }
-    }
-
-    public func opaqueType(forNode node: Node, index: Int?) -> String? {
+    public func opaqueType(forNode node: Node, index: Int?) async -> String? {
         do {
-            guard let opaqueTypeDescriptorSymbol = opaqueTypeDescriptorSymbolByNode[node] else { return nil }
+            @Dependency(\.symbolIndexStore)
+            var symbolIndexStore
+            guard let opaqueTypeDescriptorSymbol = await symbolIndexStore.opaqueTypeDescriptorSymbol(for: node, in: machO) else { return nil }
 
             let opaqueType = try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(from: opaqueTypeDescriptorSymbol.offset, in: machO), in: machO)
             let requirements = try opaqueType.requirements(in: machO)
             var protocolRequirementsByParamType: OrderedDictionary<String, [GenericRequirementDescriptor]> = [:]
             var protocolRequirements = requirements.filter(\.content.isProtocol)
             for protocolRequirement in protocolRequirements {
-                let param = try protocolRequirement.dumpParameterName(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO).string
+                let param = try await protocolRequirement.dumpParameterName(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO).string
                 protocolRequirementsByParamType[param, default: []].append(protocolRequirement)
             }
             if let index {
@@ -62,8 +53,8 @@ public final class SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSect
             var results: [String] = []
             for protocolRequirement in protocolRequirements {
                 var result = ""
-                let param = try protocolRequirement.dumpParameterName(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO).string
-                let proto = try protocolRequirement.dumpContent(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO).string
+                let param = try await protocolRequirement.dumpParameterName(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO).string
+                let proto = try await protocolRequirement.dumpContent(resolver: .using(options: .opaqueTypeBuilderOnly), in: machO).string
                 result.write(proto)
                 var primaryAssociatedTypes: [String] = []
                 if let associatedTypes = associatedTypeByParamType[param] {

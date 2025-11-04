@@ -35,7 +35,7 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
             try await name
 
             if let genericContext = `struct`.genericContext {
-                try genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO)
+                try await genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO)
             }
         }
     }
@@ -74,7 +74,7 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
                 MemberDeclaration(fieldName.stripLazyPrefix)
                 Standard(":")
                 Space()
-                try demangleResolver.modify {
+                try await demangleResolver.modify {
                     if case .options(let demangleOptions) = $0 {
                         return .options(demangleOptions.union(.removeWeakPrefix))
                     } else {
@@ -116,7 +116,7 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
 
                     Indent(level: 1)
 
-                    try demangleResolver.resolve(for: symbol.demangledNode)
+                    try await demangleResolver.resolve(for: symbol.demangledNode)
 
                     if offset.isEnd {
                         BreakLine()
@@ -143,7 +143,7 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
     @SemanticStringBuilder
     private func _name(using resolver: DemangleResolver) async throws -> SemanticString {
         if configuration.displayParentName {
-            try resolver.resolve(for: MetadataReader.demangleContext(for: .type(.struct(`struct`.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await resolver.resolve(for: MetadataReader.demangleContext(for: .type(.struct(`struct`.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
             try TypeDeclaration(kind: .struct, `struct`.descriptor.name(in: machO))
         }

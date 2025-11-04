@@ -9,7 +9,7 @@ extension ResilientSuperclass {
         case .options(let demangleOptions):
             return try dumpSuperclass(using: demangleOptions, for: kind, in: machO)
         case .builder(let builder):
-            return try dumpSuperclassNode(for: kind, in: machO).map { try builder($0) }
+            return try await dumpSuperclassNode(for: kind, in: machO).asyncMap { try await builder($0) }
         }
     }
 

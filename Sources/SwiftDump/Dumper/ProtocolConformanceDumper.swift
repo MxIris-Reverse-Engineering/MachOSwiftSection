@@ -46,7 +46,7 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
             }
 
             for conditionalRequirement in protocolConformance.conditionalRequirements {
-                try conditionalRequirement.dump(resolver: demangleResolver, in: machO)
+                try await conditionalRequirement.dump(resolver: demangleResolver, in: machO)
             }
         }
     }
@@ -73,18 +73,18 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
 
                     if let symbols = try resilientWitness.implementationSymbols(in: machO), let node = try await _node(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes) {
                         _ = visitedNodes.append(node)
-                        try demangleResolver.resolve(for: node)
+                        try await demangleResolver.resolve(for: node)
                     } else if let requirement = try resilientWitness.requirement(in: machO) {
                         switch requirement {
                         case .symbol(let symbol):
-                            try MetadataReader.demangleSymbol(for: symbol, in: machO).map { try demangleResolver.resolve(for: $0) }
+                            try await MetadataReader.demangleSymbol(for: symbol, in: machO).asyncMap { try await demangleResolver.resolve(for: $0) }
                         case .element(let element):
                             if let symbols = try Symbols.resolve(from: element.offset, in: machO), let node = try await _node(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes) {
                                 _ = visitedNodes.append(node)
-                                try demangleResolver.resolve(for: node)
+                                try await demangleResolver.resolve(for: node)
                             } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machO), let node = try await _node(for: defaultImplementationSymbols, typeName: typeNameString, visitedNodes: visitedNodes) {
                                 _ = visitedNodes.append(node)
-                                try demangleResolver.resolve(for: node)
+                                try await demangleResolver.resolve(for: node)
                             } else if !element.defaultImplementation.isNull {
                                 FunctionDeclaration(addressString(of: element.defaultImplementation.resolveDirectOffset(from: element.offset(of: \.defaultImplementation)), in: machO).insertSubFunctionPrefix)
                             } else if !resilientWitness.implementation.isNull {
@@ -121,7 +121,7 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
     @SemanticStringBuilder
     package var protocolName: SemanticString {
         get async throws {
-            try protocolConformance.protocolNode(in: machO).map { try demangleResolver.resolve(for: $0) }
+            try await protocolConformance.protocolNode(in: machO).asyncMap { try await demangleResolver.resolve(for: $0) }
         }
     }
 
@@ -197,13 +197,4 @@ extension ProtocolConformance {
     }
 }
 
-extension Optional {
-    public func asyncMap<E, U>(_ transform: (Wrapped) async throws(E) -> U) async throws(E) -> U? where E: Swift.Error, U: ~Copyable {
-        switch self {
-        case .none:
-            return nil
-        case .some(let wrapped):
-            return try await transform(wrapped)
-        }
-    }
-}
+
