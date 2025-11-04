@@ -42,4 +42,24 @@ open class MachOCache<Entry>: @unchecked Sendable {
             return nil
         }
     }
+    
+    @discardableResult
+    private func createEntryIfNeeded<MachO: MachORepresentableWithCache>(in machO: MachO, isForced: Bool = false) async -> Bool {
+        guard isForced || (entryByIdentifier[machO.identifier] == nil) else { return false }
+        entryByIdentifier[machO.identifier] = await buildEntry(for: machO)
+        return true
+    }
+    
+    open func buildEntry<MachO: MachORepresentableWithCache>(for machO: MachO) async -> Entry? {
+        return nil
+    }
+    
+    open func entry<MachO: MachORepresentableWithCache>(in machO: MachO) async -> Entry? {
+        await createEntryIfNeeded(in: machO)
+        if let cacheEntry = entryByIdentifier[machO.identifier] {
+            return cacheEntry
+        } else {
+            return nil
+        }
+    }
 }

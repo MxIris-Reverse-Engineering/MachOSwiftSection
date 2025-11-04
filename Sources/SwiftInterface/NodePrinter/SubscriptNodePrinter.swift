@@ -32,41 +32,41 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
         case onlySupportedForSubscriptNode(Node)
     }
 
-    mutating func printRoot(_ node: Node) throws -> SemanticString {
+    mutating func printRoot(_ node: Node) async throws -> SemanticString {
         if isOverride {
             target.write("override", context: .context(state: .printKeyword))
             target.writeSpace()
         }
-        try _printRoot(node)
+        try await _printRoot(node)
         return target
     }
 
-    private mutating func _printRoot(_ node: Node) throws {
+    private mutating func _printRoot(_ node: Node) async throws {
         if node.kind == .global, let first = node.children.first {
             if first.isKind(of: .asyncFunctionPointer, .mergedFunction), let second = node.children.second {
-                try _printRoot(second)
+                try await _printRoot(second)
             } else {
-                try _printRoot(first)
+                try await _printRoot(first)
             }
         } else if node.isKind(of: .subscript) {
-            printSubscript(node)
+            await printSubscript(node)
         } else if node.kind == .static, let first = node.children.first {
             target.write("static", context: .context(state: .printKeyword))
             target.writeSpace()
             isStatic = true
-            try _printRoot(first)
+            try await _printRoot(first)
         } else if node.kind == .methodDescriptor, let first = node.children.first {
-            try _printRoot(first)
+            try await _printRoot(first)
         } else if node.kind == .getter || node.kind == .setter, let first = node.children.first {
-            try _printRoot(first)
+            try await _printRoot(first)
         } else if node.kind == .protocolWitness, let second = node.children.second {
-            try _printRoot(second)
+            try await _printRoot(second)
         } else {
             throw Error.onlySupportedForSubscriptNode(node)
         }
     }
 
-    private mutating func printSubscript(_ node: Node) {
+    private mutating func printSubscript(_ node: Node) async {
         // Setup target node for opaque return type lookup
         var targetNode = node
         if isStatic {
@@ -93,7 +93,7 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
         }
 
         if let type = node.children.first(of: .type), let functionType = type.children.first {
-            printLabelList(name: node, type: functionType, genericFunctionTypeList: genericFunctionTypeList)
+            await printLabelList(name: node, type: functionType, genericFunctionTypeList: genericFunctionTypeList)
         }
         if let genericSignature = node.first(of: .dependentGenericSignature) {
             let nodes = genericSignature.all(of: .requirementKinds)
@@ -103,7 +103,7 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
                     target.write("where", context: .context(state: .printKeyword))
                     target.writeSpace()
                 }
-                printName(node)
+                await printName(node)
                 if !offset.isEnd {
                     target.write(", ")
                 }

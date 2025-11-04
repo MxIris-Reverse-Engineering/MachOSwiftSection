@@ -234,4 +234,13 @@ extension Sequence {
         }
         return nil
     }
+    
+    func asyncFirstNonNil<T, E: Swift.Error>(_ transform: (Element) async throws(E) -> T?) async throws(E) -> T? {
+        for element in self {
+            if let newElement = try await transform(element) {
+                return newElement
+            }
+        }
+        return nil
+    }
 }

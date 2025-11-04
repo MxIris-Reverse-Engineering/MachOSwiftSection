@@ -2,40 +2,40 @@ import Demangling
 
 protocol DependentGenericNodePrintable: NodePrintable {
     var isProtocol: Bool { get }
-    mutating func printNameInDependentGeneric(_ name: Node, context: Context?) -> Bool
-    mutating func printGenericSignature(_ name: Node)
-    mutating func printDependentGenericConformanceRequirement(_ name: Node)
-    mutating func printDependentGenericLayoutRequirement(_ name: Node)
-    mutating func printDependentAssociatedTypeRef(_ name: Node)
-    mutating func printDependentGenericParamType(_ name: Node)
-    mutating func printDependentGenericSameTypeRequirement(_ name: Node)
-    mutating func printDependentGenericType(_ name: Node)
-    mutating func printDependentMemberType(_ name: Node)
-    mutating func printDependentGenericInverseConformanceRequirement(_ name: Node)
-    mutating func printDependentGenericParamName(_ name: String)
+    mutating func printNameInDependentGeneric(_ name: Node, context: Context?) async  -> Bool
+    mutating func printGenericSignature(_ name: Node) async
+    mutating func printDependentGenericConformanceRequirement(_ name: Node) async
+    mutating func printDependentGenericLayoutRequirement(_ name: Node) async
+    mutating func printDependentAssociatedTypeRef(_ name: Node) async
+    mutating func printDependentGenericParamType(_ name: Node) async
+    mutating func printDependentGenericSameTypeRequirement(_ name: Node) async
+    mutating func printDependentGenericType(_ name: Node) async
+    mutating func printDependentMemberType(_ name: Node) async
+    mutating func printDependentGenericInverseConformanceRequirement(_ name: Node) async
+    mutating func printDependentGenericParamName(_ name: String) async
 }
 
 extension DependentGenericNodePrintable {
-    mutating func printNameInDependentGeneric(_ name: Node, context: Context?) -> Bool {
+    mutating func printNameInDependentGeneric(_ name: Node, context: Context?) async -> Bool {
         switch name.kind {
         case .dependentGenericParamType:
-            printDependentGenericParamType(name)
+            await printDependentGenericParamType(name)
         case .dependentAssociatedTypeRef:
-            printDependentAssociatedTypeRef(name)
+            await printDependentAssociatedTypeRef(name)
         case .dependentGenericConformanceRequirement:
-            printDependentGenericConformanceRequirement(name)
+            await printDependentGenericConformanceRequirement(name)
         case .dependentGenericLayoutRequirement:
-            printDependentGenericLayoutRequirement(name)
+            await printDependentGenericLayoutRequirement(name)
         case .dependentGenericSameTypeRequirement:
-            printDependentGenericSameTypeRequirement(name)
+            await printDependentGenericSameTypeRequirement(name)
         case .dependentGenericType:
-            printDependentGenericType(name)
+            await printDependentGenericType(name)
         case .dependentMemberType:
-            printDependentMemberType(name)
+            await printDependentMemberType(name)
         case .dependentGenericSignature:
-            printGenericSignature(name)
+            await printGenericSignature(name)
         case .dependentGenericInverseConformanceRequirement:
-            printDependentGenericInverseConformanceRequirement(name)
+            await printDependentGenericInverseConformanceRequirement(name)
         case .dependentGenericParamPackMarker:
             break
         default:
@@ -44,16 +44,16 @@ extension DependentGenericNodePrintable {
         return true
     }
 
-    mutating func printDependentAssociatedTypeRef(_ name: Node) {
-        _ = printOptional(name.children.at(1), suffix: ".")
-        printFirstChild(name)
+    mutating func printDependentAssociatedTypeRef(_ name: Node) async {
+        _ = await printOptional(name.children.at(1), suffix: ".")
+        await printFirstChild(name)
     }
 
-    mutating func printDependentGenericParamType(_ name: Node) {
-        printDependentGenericParamName(name.text ?? "")
+    mutating func printDependentGenericParamType(_ name: Node) async {
+        await printDependentGenericParamName(name.text ?? "")
     }
 
-    mutating func printDependentGenericParamName(_ name: String) {
+    mutating func printDependentGenericParamName(_ name: String) async {
         if isProtocol, name == "A" {
             target.write("Self", context: .context(state: .printKeyword))
         } else {
@@ -61,7 +61,7 @@ extension DependentGenericNodePrintable {
         }
     }
     
-    mutating func printGenericSignature(_ name: Node) {
+    mutating func printGenericSignature(_ name: Node) async {
         target.write("<")
         var numGenericParams = 0
         for c in name.children {
@@ -152,11 +152,11 @@ extension DependentGenericNodePrintable {
                     target.writeSpace()
                 }
 
-                printDependentGenericParamName(genericParameterName(depth: depths?[index.cast()] ?? gpDepth.cast(), index: index.cast()))
+                await printDependentGenericParamName(genericParameterName(depth: depths?[index.cast()] ?? gpDepth.cast(), index: index.cast()))
 
                 if let value {
                     target.write(": ")
-                    _ = printName(value)
+                    _ = await printName(value)
                 }
             }
         }
@@ -170,14 +170,14 @@ extension DependentGenericNodePrintable {
         target.write(">")
     }
 
-    mutating func printDependentGenericConformanceRequirement(_ name: Node) {
-        printFirstChild(name)
-        _ = printOptional(name.children.at(1), prefix: ": ")
+    mutating func printDependentGenericConformanceRequirement(_ name: Node) async {
+        await printFirstChild(name)
+        _ = await printOptional(name.children.at(1), prefix: ": ")
     }
 
-    mutating func printDependentGenericLayoutRequirement(_ name: Node) {
+    mutating func printDependentGenericLayoutRequirement(_ name: Node) async {
         guard let layout = name.children.at(1), let c = layout.text?.unicodeScalars.first else { return }
-        printFirstChild(name, suffix: ": ")
+        await printFirstChild(name, suffix: ": ")
         switch c {
         case "U": target.write("_UnknownLayout", context: .context(state: .printType))
         case "R": target.write("_RefCountedObject", context: .context(state: .printType))
@@ -192,31 +192,31 @@ extension DependentGenericNodePrintable {
         default: break
         }
         if name.children.count > 2 {
-            _ = printOptional(name.children.at(2), prefix: "(")
-            _ = printOptional(name.children.at(3), prefix: ", ")
+            _ = await printOptional(name.children.at(2), prefix: "(")
+            _ = await printOptional(name.children.at(3), prefix: ", ")
             target.write(")")
         }
     }
 
-    mutating func printDependentGenericSameTypeRequirement(_ name: Node) {
-        printFirstChild(name)
-        _ = printOptional(name.children.at(1), prefix: " == ")
+    mutating func printDependentGenericSameTypeRequirement(_ name: Node) async {
+        await printFirstChild(name)
+        _ = await printOptional(name.children.at(1), prefix: " == ")
     }
 
-    mutating func printDependentGenericType(_ name: Node) {
+    mutating func printDependentGenericType(_ name: Node) async {
         guard let depType = name.children.at(1) else { return }
-        printFirstChild(name)
-        _ = printOptional(depType, prefix: depType.needSpaceBeforeType ? " " : "")
+        await printFirstChild(name)
+        _ = await printOptional(depType, prefix: depType.needSpaceBeforeType ? " " : "")
     }
 
-    mutating func printDependentMemberType(_ name: Node) {
-        printFirstChild(name)
+    mutating func printDependentMemberType(_ name: Node) async {
+        await printFirstChild(name)
         target.write(".")
-        _ = printOptional(name.children.at(1))
+        _ = await printOptional(name.children.at(1))
     }
 
-    mutating func printDependentGenericInverseConformanceRequirement(_ name: Node) {
-        printFirstChild(name, suffix: ": ~")
+    mutating func printDependentGenericInverseConformanceRequirement(_ name: Node) async {
+        await printFirstChild(name, suffix: ": ~")
         switch name.children.at(1)?.index {
         case 0: target.write("Swift.Copyable", context: .context(state: .printType))
         case 1: target.write("Swift.Escapable", context: .context(state: .printType))

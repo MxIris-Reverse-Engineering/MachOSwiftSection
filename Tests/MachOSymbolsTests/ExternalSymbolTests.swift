@@ -3,7 +3,7 @@ import Testing
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
 
-final class ExternalSymbolTests: MachOFileTests {
+final class ExternalSymbolTests: MachOFileTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .iOS_18_5_Simulator_SwiftUI }
 
     @Test func machOSections() async throws {

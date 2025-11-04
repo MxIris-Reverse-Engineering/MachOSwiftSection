@@ -1,13 +1,13 @@
 import Demangling
 
 protocol BoundGenericNodePrintable: NodePrintable {
-    mutating func printNameInBoundGeneric(_ name: Node, context: Context?) -> Bool
-    mutating func printBoundGeneric(_ name: Node)
-    mutating func printBoundGenericNoSugar(_ name: Node)
+    mutating func printNameInBoundGeneric(_ name: Node, context: Context?) async -> Bool
+    mutating func printBoundGeneric(_ name: Node) async
+    mutating func printBoundGenericNoSugar(_ name: Node) async
 }
 
 extension BoundGenericNodePrintable {
-    mutating func printNameInBoundGeneric(_ name: Node, context: Context?) -> Bool {
+    mutating func printNameInBoundGeneric(_ name: Node, context: Context?) async -> Bool {
         switch name.kind {
         case .boundGenericClass,
              .boundGenericStructure,
@@ -15,23 +15,23 @@ extension BoundGenericNodePrintable {
              .boundGenericProtocol,
              .boundGenericOtherNominalType,
              .boundGenericTypeAlias:
-            printBoundGeneric(name)
+            await printBoundGeneric(name)
             return true
         default:
             return false
         }
     }
 
-    mutating func printBoundGeneric(_ name: Node) {
+    mutating func printBoundGeneric(_ name: Node) async {
         guard name.children.count >= 2 else { return }
         guard name.children.count == 2, name.kind != .boundGenericClass else {
-            printBoundGenericNoSugar(name)
+            await printBoundGenericNoSugar(name)
             return
         }
 
         if name.kind == .boundGenericProtocol {
-            _ = printOptional(name.children.at(1))
-            _ = printOptional(name.children.at(0), prefix: " as ")
+            _ = await printOptional(name.children.at(1))
+            _ = await printOptional(name.children.at(0), prefix: " as ")
             return
         }
 
@@ -41,24 +41,24 @@ extension BoundGenericNodePrintable {
              .implicitlyUnwrappedOptional:
             if let type = name.children.at(1)?.children.at(0) {
                 let needParens = !type.isSimpleType
-                _ = printOptional(type, prefix: needParens ? "(" : "", suffix: needParens ? ")" : "")
+                _ = await printOptional(type, prefix: needParens ? "(" : "", suffix: needParens ? ")" : "")
                 target.write(sugarType == .optional ? "?" : "!")
             }
         case .array,
              .dictionary:
-            _ = printOptional(name.children.at(1)?.children.at(0), prefix: "[")
+            _ = await printOptional(name.children.at(1)?.children.at(0), prefix: "[")
             if sugarType == .dictionary {
-                _ = printOptional(name.children.at(1)?.children.at(1), prefix: " : ")
+                _ = await printOptional(name.children.at(1)?.children.at(1), prefix: " : ")
             }
             target.write("]")
-        default: printBoundGenericNoSugar(name)
+        default: await printBoundGenericNoSugar(name)
         }
     }
 
-    mutating func printBoundGenericNoSugar(_ name: Node) {
+    mutating func printBoundGenericNoSugar(_ name: Node) async {
         guard let typeList = name.children.at(1) else { return }
-        printFirstChild(name)
-        printChildren(typeList, prefix: "<", suffix: ">", separator: ", ")
+        await printFirstChild(name)
+        await printChildren(typeList, prefix: "<", suffix: ">", separator: ", ")
     }
 
     func findSugar(_ name: Node) -> SugarType {

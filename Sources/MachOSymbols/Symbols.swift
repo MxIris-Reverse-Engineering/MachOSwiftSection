@@ -1,5 +1,4 @@
 import MachOKit
-
 import MachOReading
 import MachOResolving
 import MachOExtensions

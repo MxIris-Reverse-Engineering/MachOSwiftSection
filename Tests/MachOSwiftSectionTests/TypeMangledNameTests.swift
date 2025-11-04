@@ -3,7 +3,7 @@ import Testing
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
 
-final class TypeMangledNameTests: DyldCacheTests {
+final class TypeMangledNameTests: DyldCacheTests, @unchecked Sendable {
     @Test func typeMangledNames() async throws {
         let machO = machOFileInMainCache
         for type in try machO.swift.typeContextDescriptors {

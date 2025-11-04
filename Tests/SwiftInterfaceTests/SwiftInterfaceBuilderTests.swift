@@ -18,17 +18,17 @@ extension SwiftInterfaceBuilderTests {
     func buildFile(in machO: MachOFile) async throws {
         let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: machO)
         try await builder.prepare()
-        let result = try builder.printRoot()
+        let result = try await builder.printRoot()
         try rootDirectory.createDirectoryIfNeeded()
         try result.string.write(to: rootDirectory.appending(path: "\(machO.imagePath.lastPathComponent)-FileDump.swiftinterface"), atomically: true, encoding: .utf8)
 
-        printNonConsumedSymbols(in: machO)
+//        printNonConsumedSymbols(in: machO)
     }
 
     func buildFile(in machO: MachOImage) async throws {
         let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: machO)
         try await builder.prepare()
-        let result = try builder.printRoot()
+        let result = try await builder.printRoot()
         try rootDirectory.createDirectoryIfNeeded()
         try result.string.write(to: rootDirectory.appending(path: "\(machO.imagePath.lastPathComponent)-ImageDump.swiftinterface"), atomically: true, encoding: .utf8)
 
@@ -65,7 +65,7 @@ enum SwiftInterfaceBuilderTestSuite {
 
         override class var cacheImageName: MachOImageName { .SwiftUI }
 
-        override class var cachePath: DyldSharedCachePath { .iOS_18_5 }
+        override class var cachePath: DyldSharedCachePath { .current }
 
         @Test func buildFile() async throws {
             try await buildFile(in: machOFileInCache)

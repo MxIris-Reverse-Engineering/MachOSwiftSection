@@ -35,41 +35,41 @@ struct VariableNodePrinter: InterfaceNodePrintable {
         case onlySupportedForVariableNode(Node)
     }
 
-    mutating func printRoot(_ node: Node) throws -> SemanticString {
+    mutating func printRoot(_ node: Node) async throws -> SemanticString {
         if isOverride {
             target.write("override", context: .context(state: .printKeyword))
             target.writeSpace()
         }
-        try _printRoot(node)
+        try await _printRoot(node)
         return target
     }
 
-    private mutating func _printRoot(_ node: Node) throws {
+    private mutating func _printRoot(_ node: Node) async throws {
         if node.kind == .global, let first = node.children.first {
             if first.isKind(of: .asyncFunctionPointer, .mergedFunction), let second = node.children.second {
-                try _printRoot(second)
+                try await _printRoot(second)
             } else {
-                try _printRoot(first)
+                try await _printRoot(first)
             }
         } else if node.kind == .variable {
-            try printVariable(node)
+            try await printVariable(node)
         } else if node.kind == .static, let first = node.children.first {
             target.write("static", context: .context(state: .printKeyword))
             target.writeSpace()
             isStatic = true
-            try _printRoot(first)
+            try await _printRoot(first)
         } else if node.kind == .methodDescriptor, let first = node.children.first {
-            try _printRoot(first)
+            try await _printRoot(first)
         } else if node.kind == .protocolWitness, let second = node.children.second {
-            try _printRoot(second)
+            try await _printRoot(second)
         } else if node.kind == .getter || node.kind == .setter, let first = node.children.first {
-            try _printRoot(first)
+            try await _printRoot(first)
         } else {
             throw Error.onlySupportedForVariableNode(node)
         }
     }
 
-    private mutating func printVariable(_ node: Node) throws {
+    private mutating func printVariable(_ node: Node) async throws {
         let identifier: Node? = if let identifier = node.children.first(of: .identifier) {
             identifier
         } else if let privateDeclName = node.children.first(of: .privateDeclName) {
@@ -107,7 +107,7 @@ struct VariableNodePrinter: InterfaceNodePrintable {
         
         guard let type = node.children.first(of: .type) else { return }
         
-        printName(type)
+        await printName(type)
         
         guard !isStored else { return }
 

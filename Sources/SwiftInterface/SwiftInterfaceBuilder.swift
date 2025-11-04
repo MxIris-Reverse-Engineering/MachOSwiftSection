@@ -9,6 +9,7 @@ import MachOKit
 import Dependencies
 import Utilities
 @_spi(Internals) import MachOSymbols
+@_spi(Internals) import MachOCaches
 
 public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWithCache & Sendable>: Sendable {
     private static var internalModules: [String] {
@@ -59,7 +60,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     @Mutex
     public private(set) var allProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> = [:]
-    
+
     @Mutex
     public private(set) var typeExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
 
@@ -98,15 +99,15 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         self.typeDemangleResolver = .using { [weak self] node in
             if let self {
                 var printer = TypeNodePrinter(delegate: self)
-                try printer.printRoot(node)
+                try await printer.printRoot(node)
             }
         }
     }
-    
+
     public func addExtraDataProvider(_ extraDataProvider: any SwiftInterfaceBuilderExtraDataProvider) {
         extraDataProviders.append(extraDataProvider)
     }
-    
+
     public func removeAllExtraDataProviders() {
         extraDataProviders.removeAll()
     }
@@ -167,6 +168,14 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             associatedTypes = []
         }
 
+        
+        @Dependency(\.symbolIndexStore)
+        var symbolIndexStore
+        
+        await symbolIndexStore.prepare(in: machO)
+        
+        SymbolCache.shared.prepare(in: machO)
+        
         do {
             try await index()
         } catch {
@@ -200,7 +209,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             }
 
             do {
-                let declaration = try TypeDefinition(type: type, in: machO)
+                let declaration = try await TypeDefinition(type: type, in: machO)
                 currentModuleTypeDefinitions[declaration.typeName] = declaration
                 allNames.insert(declaration.typeName.name)
                 successfulCount += 1
@@ -355,7 +364,6 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         eventDispatcher.dispatch(.protocolIndexingCompleted(result: SwiftInterfaceBuilderEvents.ProtocolIndexingResult(totalProcessed: protocols.count, successful: successfulCount, failed: failedCount)))
     }
 
-    
     private func indexConformances() async throws {
         eventDispatcher.dispatch(.conformanceIndexingStarted(input: SwiftInterfaceBuilderEvents.ConformanceIndexingInput(totalConformances: protocolConformances.count, totalAssociatedTypes: associatedTypes.count)))
         var protocolConformancesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, ProtocolConformance>> = [:]
@@ -446,14 +454,13 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         eventDispatcher.dispatch(.conformanceIndexingCompleted(result: SwiftInterfaceBuilderEvents.ConformanceIndexingResult(conformedTypes: protocolConformancesByTypeName.count, associatedTypeCount: associatedTypesByTypeName.count, extensionCount: extensionCount, failedConformances: failedConformances, failedAssociatedTypes: failedAssociatedTypes, failedExtensions: failedExtensions)))
     }
 
-    
     private func indexExtensions() async throws {
         eventDispatcher.dispatch(.extensionIndexingStarted)
 
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
-        let memberSymbolsByName = symbolIndexStore.memberSymbols(
+        let memberSymbolsByName = await symbolIndexStore.memberSymbols(
             of: .allocator(inExtension: true),
             .variable(inExtension: true, isStatic: false, isStorage: false),
             .variable(inExtension: true, isStatic: true, isStorage: false),
@@ -476,7 +483,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         for (node, memberSymbols) in memberSymbolsByName {
             let name = node.print(using: .interfaceTypeBuilderOnly)
-            guard let typeInfo = symbolIndexStore.typeInfo(for: name, in: machO) else {
+            guard let typeInfo = await symbolIndexStore.typeInfo(for: name, in: machO) else {
                 eventDispatcher.dispatch(.extensionTargetNotFound(targetName: name))
                 continue
             }
@@ -540,7 +547,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             do {
                 if let typeKind = typeInfo.kind.typeKind {
                     let extensionName = ExtensionName(node: node, kind: .type(typeKind))
-                    
+
                     for (node, memberSymbolsByKind) in memberSymbolsByGenericSignature {
                         try typeExtensionDefinitions[extensionName, default: []].append(extensionDefinition(of: .type(typeKind), for: memberSymbolsByKind, genericSignature: node))
                         typeExtensionCount += 1
@@ -563,7 +570,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                     }
                 } else {
                     let extensionName = ExtensionName(node: node, kind: .typeAlias)
-                    
+
                     for (node, memberSymbolsByKind) in memberSymbolsByGenericSignature {
                         try typeAliasExtensionDefinitions[extensionName, default: []].append(extensionDefinition(of: .typeAlias, for: memberSymbolsByKind, genericSignature: node))
                         typeAliasExtensionCount += 1
@@ -592,12 +599,12 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         eventDispatcher.dispatch(.extensionIndexingCompleted(result: SwiftInterfaceBuilderEvents.ExtensionIndexingResult(typeExtensions: typeExtensionCount, protocolExtensions: protocolExtensionCount, typeAliasExtensions: typeAliasExtensionCount, failed: failedExtensions)))
     }
 
-    private func indexGlobals() {
+    private func indexGlobals() async throws {
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
-        globalVariableDefinitions = DefinitionBuilder.variables(for: symbolIndexStore.globalSymbols(of: .variable(isStorage: false), .variable(isStorage: true), in: machO), fieldNames: [], isGlobalOrStatic: true)
-        globalFunctionDefinitions = DefinitionBuilder.functions(for: symbolIndexStore.globalSymbols(of: .function, in: machO), isGlobalOrStatic: true)
+        globalVariableDefinitions = await DefinitionBuilder.variables(for: symbolIndexStore.globalSymbols(of: .variable(isStorage: false), .variable(isStorage: true), in: machO), fieldNames: [], isGlobalOrStatic: true)
+        globalFunctionDefinitions = await DefinitionBuilder.functions(for: symbolIndexStore.globalSymbols(of: .function, in: machO), isGlobalOrStatic: true)
     }
 
     private func collectModules() async throws {
@@ -607,7 +614,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         var usedModules: OrderedSet<String> = []
         let filterModules: Set<String> = [cModule, objcModule, stdlibName]
-        let allSymbols = symbolIndexStore.allSymbols(in: machO)
+        let allSymbols = await symbolIndexStore.allSymbols(in: machO)
 
         eventDispatcher.dispatch(.symbolScanStarted(context: SwiftInterfaceBuilderEvents.SymbolScanContext(totalSymbols: allSymbols.count, filterModules: Array(filterModules.sorted()))))
 
@@ -625,7 +632,6 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         eventDispatcher.dispatch(.moduleCollectionCompleted(result: SwiftInterfaceBuilderEvents.ModuleCollectionResult(moduleCount: usedModules.count, modules: Array(usedModules.sorted()))))
     }
 
-    
     private func index() async throws {
         eventDispatcher.dispatch(.phaseTransition(phase: .indexing, state: .started))
 
@@ -665,13 +671,13 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             throw error
         }
 
-        indexGlobals()
+        try await indexGlobals()
 
         eventDispatcher.dispatch(.phaseTransition(phase: .indexing, state: .completed))
     }
 
     @SemanticStringBuilder
-    public func printRoot() throws -> SemanticString {
+    public func printRoot() async throws -> SemanticString {
         for module in OrderedSet(Self.internalModules + importedModules).sorted() {
             Standard("import \(module)")
             BreakLine()
@@ -680,7 +686,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (offset, variable) in globalVariableDefinitions.offsetEnumerated() {
             BreakLine()
 
-            try printVariable(variable, level: 0)
+            try await printVariable(variable, level: 0)
 
             if offset.isEnd {
                 BreakLine()
@@ -690,7 +696,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (offset, function) in globalFunctionDefinitions.offsetEnumerated() {
             BreakLine()
 
-            try printFunction(function)
+            try await printFunction(function)
 
             if offset.isEnd {
                 BreakLine()
@@ -700,7 +706,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (offset, typeDefinition) in rootTypeDefinitions.values.offsetEnumerated() {
             BreakLine()
 
-            try printTypeDefinition(typeDefinition)
+            try await printTypeDefinition(typeDefinition)
 
             if offset.isEnd {
                 BreakLine()
@@ -710,7 +716,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (offset, protocolDefinition) in rootProtocolDefinitions.values.offsetEnumerated() {
             BreakLine()
 
-            try printProtocolDefinition(protocolDefinition)
+            try await printProtocolDefinition(protocolDefinition)
 
             if offset.isEnd {
                 BreakLine()
@@ -721,7 +727,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             for (offset, extensionDefinition) in protocolDefinition.defaultImplementationExtensions.offsetEnumerated() {
                 BreakLine()
 
-                try printExtensionDefinition(extensionDefinition)
+                try await printExtensionDefinition(extensionDefinition)
 
                 if offset.isEnd {
                     BreakLine()
@@ -729,10 +735,10 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             }
         }
 
-        for (offset, extensionDefinition) in (typeExtensionDefinitions.values.flatMap { $0 } + protocolExtensionDefinitions.values.flatMap { $0 } + typeAliasExtensionDefinitions.values.flatMap { $0 } + conformanceExtensionDefinitions.values.flatMap { $0 }).offsetEnumerated() {
+        for (offset, extensionDefinition) in allExtensionDefinitions.offsetEnumerated() {
             BreakLine()
 
-            try printExtensionDefinition(extensionDefinition)
+            try await printExtensionDefinition(extensionDefinition)
 
             if offset.isEnd {
                 BreakLine()
@@ -740,32 +746,36 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         }
     }
 
+    private var allExtensionDefinitions: [ExtensionDefinition] {
+        (typeExtensionDefinitions.values.flatMap { $0 } + protocolExtensionDefinitions.values.flatMap { $0 } + typeAliasExtensionDefinitions.values.flatMap { $0 } + conformanceExtensionDefinitions.values.flatMap { $0 })
+    }
+
     @SemanticStringBuilder
-    public func printTypeDefinition(_ typeDefinition: TypeDefinition, level: Int = 1, displayParentName: Bool = false) throws -> SemanticString {
+    public func printTypeDefinition(_ typeDefinition: TypeDefinition, level: Int = 1, displayParentName: Bool = false) async throws -> SemanticString {
         let dumper = typeDefinition.type.dumper(using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: displayParentName), in: machO)
 
         if level > 1 {
             Indent(level: level - 1)
         }
 
-        try dumper.declaration
+        try await dumper.declaration
 
         Space()
         Standard("{")
 
         for child in typeDefinition.typeChildren {
             BreakLine()
-            try printTypeDefinition(child, level: level + 1)
+            try await printTypeDefinition(child, level: level + 1)
         }
 
         for child in typeDefinition.protocolChildren {
             BreakLine()
-            try printProtocolDefinition(child, level: level + 1)
+            try await printProtocolDefinition(child, level: level + 1)
         }
 
-        try dumper.fields
+        try await dumper.fields
 
-        try printDefinition(typeDefinition, level: level)
+        try await printDefinition(typeDefinition, level: level)
 
         if level > 1, typeDefinition.hasMembers || typeDefinition.typeChildren.count > 0 || typeDefinition.protocolChildren.count > 0 {
             if !typeDefinition.hasMembers {
@@ -778,22 +788,22 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     }
 
     @SemanticStringBuilder
-    public func printProtocolDefinition(_ protocolDefinition: ProtocolDefinition, level: Int = 1, displayParentName: Bool = false) throws -> SemanticString {
+    public func printProtocolDefinition(_ protocolDefinition: ProtocolDefinition, level: Int = 1, displayParentName: Bool = false) async throws -> SemanticString {
         let dumper = ProtocolDumper(protocolDefinition.protocol, using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: false), in: machO)
 
         if level > 1 {
             Indent(level: level - 1)
         }
 
-        try dumper.declaration
+        try await dumper.declaration
 
         Space()
 
         Standard("{")
 
-        try dumper.associatedTypes
+        try await dumper.associatedTypes
 
-        try printDefinition(protocolDefinition, level: level)
+        try await printDefinition(protocolDefinition, level: level)
 
         if level > 1, protocolDefinition.hasMembers {
             Indent(level: level - 1)
@@ -804,7 +814,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         if protocolDefinition.parent == nil {
             for (offset, extensionDefinition) in protocolDefinition.defaultImplementationExtensions.offsetEnumerated() {
                 BreakLine()
-                try printExtensionDefinition(extensionDefinition)
+                try await printExtensionDefinition(extensionDefinition)
                 if offset.isEnd {
                     BreakLine()
                 }
@@ -813,11 +823,11 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     }
 
     @SemanticStringBuilder
-    public func printExtensionDefinition(_ extensionDefinition: ExtensionDefinition, level: Int = 1) throws -> SemanticString {
+    public func printExtensionDefinition(_ extensionDefinition: ExtensionDefinition, level: Int = 1) async throws -> SemanticString {
         Keyword(.extension)
         Space()
         extensionDefinition.extensionName.print()
-        if let protocolConformance = extensionDefinition.protocolConformance, let protocolName = try? protocolConformance.dumpProtocolName(using: .interfaceTypeBuilderOnly, in: machO) {
+        if let protocolConformance = extensionDefinition.protocolConformance, let protocolName = try? await protocolConformance.dumpProtocolName(using: .interfaceTypeBuilderOnly, in: machO) {
             Standard(":")
             Space()
             protocolName
@@ -843,7 +853,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (offset, typeDefinition) in extensionDefinition.types.offsetEnumerated() {
             BreakLine()
 
-            try printTypeDefinition(typeDefinition, level: level + 1)
+            try await printTypeDefinition(typeDefinition, level: level + 1)
 
             if offset.isEnd {
                 BreakLine()
@@ -853,7 +863,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         for (offset, protocolDefinition) in extensionDefinition.protocols.offsetEnumerated() {
             BreakLine()
 
-            try printProtocolDefinition(protocolDefinition, level: level + 1)
+            try await printProtocolDefinition(protocolDefinition, level: level + 1)
 
             if offset.isEnd {
                 BreakLine()
@@ -862,22 +872,22 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         if let associatedType = extensionDefinition.associatedType {
             let dumper = AssociatedTypeDumper(associatedType, using: .init(demangleResolver: typeDemangleResolver), in: machO)
-            try dumper.records
+            try await dumper.records
         }
 
-        try printDefinition(extensionDefinition, level: 1)
+        try await printDefinition(extensionDefinition, level: 1)
 
         Standard("}")
     }
 
     @SemanticStringBuilder
-    public func printDefinition(_ definition: some Definition, level: Int = 1) throws -> SemanticString {
+    public func printDefinition(_ definition: some Definition, level: Int = 1) async throws -> SemanticString {
         for (offset, allocator) in definition.allocators.offsetEnumerated() {
             BreakLine()
 
             Indent(level: level)
 
-            try printFunction(allocator)
+            try await printFunction(allocator)
 
             if offset.isEnd {
                 BreakLine()
@@ -888,7 +898,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             BreakLine()
             Indent(level: level)
 
-            try printVariable(variable, level: level)
+            try await printVariable(variable, level: level)
 
             if offset.isEnd {
                 BreakLine()
@@ -900,7 +910,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
             Indent(level: level)
 
-            try printFunction(function)
+            try await printFunction(function)
 
             if offset.isEnd {
                 BreakLine()
@@ -911,7 +921,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             BreakLine()
             Indent(level: level)
 
-            try printSubscript(`subscript`, level: level)
+            try await printSubscript(`subscript`, level: level)
 
             if offset.isEnd {
                 BreakLine()
@@ -922,7 +932,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             BreakLine()
             Indent(level: level)
 
-            try printVariable(variable, level: level)
+            try await printVariable(variable, level: level)
 
             if offset.isEnd {
                 BreakLine()
@@ -933,7 +943,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             BreakLine()
             Indent(level: level)
 
-            try printFunction(function)
+            try await printFunction(function)
 
             if offset.isEnd {
                 BreakLine()
@@ -945,7 +955,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
             Indent(level: level)
 
-            try printSubscript(`subscript`, level: level)
+            try await printSubscript(`subscript`, level: level)
 
             if offset.isEnd {
                 BreakLine()
@@ -954,35 +964,34 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     }
 
     @SemanticStringBuilder
-    public func printVariable(_ variable: VariableDefinition, level: Int) throws -> SemanticString {
+    public func printVariable(_ variable: VariableDefinition, level: Int) async throws -> SemanticString {
         var printer = VariableNodePrinter(isStored: variable.isStored, isOverride: variable.isOverride, hasSetter: variable.hasSetter, indentation: level, delegate: self)
-        try printer.printRoot(variable.node)
+        try await printer.printRoot(variable.node)
     }
 
     @SemanticStringBuilder
-    public func printFunction(_ function: FunctionDefinition) throws -> SemanticString {
+    public func printFunction(_ function: FunctionDefinition) async throws -> SemanticString {
         var printer = FunctionNodePrinter(isOverride: function.isOverride, delegate: self)
-        try printer.printRoot(function.node)
+        try await printer.printRoot(function.node)
     }
 
     @SemanticStringBuilder
-    public func printSubscript(_ `subscript`: SubscriptDefinition, level: Int) throws -> SemanticString {
+    public func printSubscript(_ `subscript`: SubscriptDefinition, level: Int) async throws -> SemanticString {
         var printer = SubscriptNodePrinter(isOverride: `subscript`.isOverride, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
-        try printer.printRoot(`subscript`.node)
+        try await printer.printRoot(`subscript`.node)
     }
-
 }
 
 extension SwiftInterfaceBuilder: NodePrintableDelegate {
-    func moduleName(forTypeName typeName: String) -> String? {
-        extraDataProviders.firstNonNil { $0.moduleName(forTypeName: typeName) }
+    func moduleName(forTypeName typeName: String) async -> String? {
+        await extraDataProviders.asyncFirstNonNil { await $0.moduleName(forTypeName: typeName) }
     }
 
-    func swiftName(forCName cName: String) -> String? {
-        extraDataProviders.firstNonNil { $0.swiftName(forCName: cName) }
+    func swiftName(forCName cName: String) async -> String? {
+        await extraDataProviders.asyncFirstNonNil { await $0.swiftName(forCName: cName) }
     }
 
-    func opaqueType(forNode node: Node, index: Int?) -> String? {
-        extraDataProviders.firstNonNil { $0.opaqueType(forNode: node, index: index) }
+    func opaqueType(forNode node: Node, index: Int?) async -> String? {
+        await extraDataProviders.asyncFirstNonNil { await $0.opaqueType(forNode: node, index: index) }
     }
 }

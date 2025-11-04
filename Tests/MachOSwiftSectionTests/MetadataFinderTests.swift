@@ -18,7 +18,7 @@ final class MetadataFinderTests: DyldCacheTests, @unchecked Sendable {
     
     
     @Test func dumpMetadatasInAppKit() async throws {
-        let symbols = symbolIndexStore.symbols(of: .typeMetadata, in: machOFileInCache)
+        let symbols = await symbolIndexStore.symbols(of: .typeMetadata, in: machOFileInCache)
         for symbol in symbols {
             let metadata = try Metadata.resolve(from: symbol.offset, in: machOFileInCache)
             print(try demangleAsNode(symbol.name).print(using: .default), terminator: " ")
@@ -43,13 +43,13 @@ final class MetadataFinderTests: DyldCacheTests, @unchecked Sendable {
                 guard let metadata = try finder.metadata(for: structDescriptor) as StructMetadata? else {
                     continue
                 }
-                try Struct(descriptor: structDescriptor, in: machO).dump(using: .test, in: machO).string.print()
+                try await Struct(descriptor: structDescriptor, in: machO).dump(using: .test, in: machO).string.print()
                 try metadata.fieldOffsets(for: structDescriptor, in: machO).print()
             case .class(let classDescriptor):
                 guard let metadata = try finder.metadata(for: classDescriptor) as ClassMetadataObjCInterop? else {
                     continue
                 }
-                try Class(descriptor: classDescriptor, in: machO).dump(using: .test, in: machO).string.print()
+                try await Class(descriptor: classDescriptor, in: machO).dump(using: .test, in: machO).string.print()
                 try metadata.fieldOffsets(for: classDescriptor, in: machO).print()
             }
         }

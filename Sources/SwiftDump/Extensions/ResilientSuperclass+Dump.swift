@@ -4,12 +4,12 @@ import Semantic
 import Demangling
 
 extension ResilientSuperclass {
-    package func dumpSuperclass<MachO: MachOSwiftSectionRepresentableWithCache>(resolver: DemangleResolver, for kind: TypeReferenceKind, in machO: MachO) throws -> SemanticString? {
+    package func dumpSuperclass<MachO: MachOSwiftSectionRepresentableWithCache>(resolver: DemangleResolver, for kind: TypeReferenceKind, in machO: MachO) async throws -> SemanticString? {
         switch resolver {
         case .options(let demangleOptions):
             return try dumpSuperclass(using: demangleOptions, for: kind, in: machO)
         case .builder(let builder):
-            return try dumpSuperclassNode(for: kind, in: machO).map { try builder($0) }
+            return try await dumpSuperclassNode(for: kind, in: machO).asyncMap { try await builder($0) }
         }
     }
 

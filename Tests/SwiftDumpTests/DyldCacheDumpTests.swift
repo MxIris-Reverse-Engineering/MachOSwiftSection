@@ -9,7 +9,7 @@ import MachOFoundation
 
 @Suite(.serialized)
 final class DyldCacheDumpTests: DyldCacheTests, DumpableTests, @unchecked Sendable {
-    override class var cacheImageName: MachOImageName { .SwiftUICore }
+    override class var cacheImageName: MachOImageName { .AppKit }
 }
 
 extension DyldCacheDumpTests {

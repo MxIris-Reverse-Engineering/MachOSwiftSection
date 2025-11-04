@@ -29,21 +29,21 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
     }
 
     package var declaration: SemanticString {
-        get throws {
+        get async throws {
             Keyword(.enum)
 
             Space()
 
-            try name
+            try await name
 
             if let genericContext = `enum`.genericContext {
-                try genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO)
+                try await genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO)
             }
         }
     }
 
     package var fields: SemanticString {
-        get throws {
+        get async throws {
             for (offset, fieldRecord) in try `enum`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
                 BreakLine()
 
@@ -64,7 +64,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
                 let mangledName = try fieldRecord.mangledTypeName(in: machO)
 
                 if !mangledName.isEmpty {
-                    let demangledName = try demangleResolver.resolve(for: MetadataReader.demangleType(for: mangledName, in: machO))
+                    let demangledName = try await demangleResolver.resolve(for: MetadataReader.demangleType(for: mangledName, in: machO))
                     let demangledNameString = demangledName.string
                     if demangledNameString.hasPrefix("("), demangledNameString.hasSuffix(")") {
                         demangledName
@@ -83,19 +83,19 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
     }
 
     package var body: SemanticString {
-        get throws {
-            try declaration
+        get async throws {
+            try await declaration
 
             Space()
 
             Standard("{")
 
-            try fields
+            try await fields
 
-            let interfaceNameString = try interfaceName.string
+            let interfaceNameString = try await interfaceName.string
 
             for kind in SymbolIndexStore.MemberKind.allCases {
-                for (offset, symbol) in symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
+                for (offset, symbol) in await symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
                     if offset.isStart {
                         BreakLine()
 
@@ -108,7 +108,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
 
                     Indent(level: 1)
 
-                    try demangleResolver.resolve(for: symbol.demangledNode)
+                    try await demangleResolver.resolve(for: symbol.demangledNode)
 
                     if offset.isEnd {
                         BreakLine()
@@ -121,21 +121,21 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
     }
 
     package var name: SemanticString {
-        get throws {
-            try _name(using: demangleResolver)
+        get async throws {
+            try await _name(using: demangleResolver)
         }
     }
 
     private var interfaceName: SemanticString {
-        get throws {
-            try _name(using: .options(.interface))
+        get async throws {
+            try await _name(using: .options(.interface))
         }
     }
 
     @SemanticStringBuilder
-    private func _name(using resolver: DemangleResolver) throws -> SemanticString {
+    private func _name(using resolver: DemangleResolver) async throws -> SemanticString {
         if configuration.displayParentName {
-            try resolver.resolve(for: MetadataReader.demangleContext(for: .type(.enum(`enum`.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await resolver.resolve(for: MetadataReader.demangleContext(for: .type(.enum(`enum`.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
             try TypeDeclaration(kind: .enum, `enum`.descriptor.name(in: machO))
         }

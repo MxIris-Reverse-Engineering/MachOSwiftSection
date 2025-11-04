@@ -7,17 +7,17 @@ protocol FunctionTypeNodePrintableContext {
 }
 
 protocol FunctionTypeNodePrintable: NodePrintable where Context: FunctionTypeNodePrintableContext {
-    mutating func printNameInFunction(_ name: Node, context: Context?) -> Bool
-    mutating func printFunctionType(_ functionType: Node, labelList: Node?, isAllocator: Bool, isBlockOrClosure: Bool)
+    mutating func printNameInFunction(_ name: Node, context: Context?) async -> Bool
+    mutating func printFunctionType(_ functionType: Node, labelList: Node?, isAllocator: Bool, isBlockOrClosure: Bool) async
 }
 
 extension FunctionTypeNodePrintable {
-    mutating func printNameInFunction(_ name: Node, context: Context?) -> Bool {
+    mutating func printNameInFunction(_ name: Node, context: Context?) async -> Bool {
         switch name.kind {
         case .returnType:
-            printReturnType(name)
+            await printReturnType(name)
         case .tupleElement:
-            printTupleElement(name)
+            await printTupleElement(name)
         case .cFunctionPointer,
              .objCBlock,
              .noEscapeFunctionType,
@@ -27,7 +27,7 @@ extension FunctionTypeNodePrintable {
              .functionType,
              .escapingObjCBlock,
              .uncurriedFunctionType:
-            printFunctionType(name, labelList: nil, isAllocator: context?.isAllocator ?? false, isBlockOrClosure: context?.isBlockOrClosure ?? true)
+            await printFunctionType(name, labelList: nil, isAllocator: context?.isAllocator ?? false, isBlockOrClosure: context?.isBlockOrClosure ?? true)
         case .throwsAnnotation:
             target.writeSpace()
             target.write("throws", context: .context(state: .printKeyword))
@@ -35,14 +35,14 @@ extension FunctionTypeNodePrintable {
             target.writeSpace()
             target.write("async", context: .context(state: .printKeyword))
         case .typedThrowsAnnotation:
-            printTypeThrowsAnnotation(name)
+            await printTypeThrowsAnnotation(name)
         case .concurrentFunctionType:
             target.write("@Sendable", context: .context(state: .printKeyword))
             target.writeSpace()
         case .globalActorFunctionType:
-            printGlobalActorFunctionType(name)
+            await printGlobalActorFunctionType(name)
         case .differentiableFunctionType:
-            printDifferentiableFunctionType(name)
+            await printDifferentiableFunctionType(name)
         case .nonIsolatedCallerFunctionType:
             target.write("nonisolated(nonsending)", context: .context(state: .printKeyword))
             target.writeSpace()
@@ -50,25 +50,25 @@ extension FunctionTypeNodePrintable {
             target.write("@isolated(any)", context: .context(state: .printKeyword))
             target.writeSpace()
         case .sending:
-            printFirstChild(name, prefix: "sending ", prefixContext: .context(state: .printKeyword))
+            await printFirstChild(name, prefix: "sending ", prefixContext: .context(state: .printKeyword))
         case .sendingResultFunctionType:
             target.write("sending", context: .context(state: .printKeyword))
             target.writeSpace()
         case .clangType:
             target.write(name.text ?? "")
         case .packElement:
-            printFirstChild(name, prefix: "each ", prefixContext: .context(state: .printKeyword))
+            await printFirstChild(name, prefix: "each ", prefixContext: .context(state: .printKeyword))
         case .packElementLevel:
             break
         case .packExpansion:
-            printFirstChild(name, prefix: "repeat ", prefixContext: .context(state: .printKeyword))
+            await printFirstChild(name, prefix: "repeat ", prefixContext: .context(state: .printKeyword))
         default:
             return false
         }
         return true
     }
 
-    mutating func printFunctionType(_ functionType: Node, labelList: Node?, isAllocator: Bool, isBlockOrClosure: Bool) {
+    mutating func printFunctionType(_ functionType: Node, labelList: Node?, isAllocator: Bool, isBlockOrClosure: Bool) async {
         switch functionType.kind {
         case .autoClosureType,
              .escapingAutoClosureType:
@@ -78,13 +78,13 @@ extension FunctionTypeNodePrintable {
             target.write("@convention(thin)", context: .context(state: .printKeyword))
             target.writeSpace()
         case .cFunctionPointer:
-            printConventionWithMangledCType(functionType, label: "c")
+            await printConventionWithMangledCType(functionType, label: "c")
         case .escapingObjCBlock:
             target.write("@escaping", context: .context(state: .printKeyword))
             target.writeSpace()
             fallthrough
         case .objCBlock:
-            printConventionWithMangledCType(functionType, label: "block")
+            await printConventionWithMangledCType(functionType, label: "block")
         default: break
         }
 
@@ -102,7 +102,7 @@ extension FunctionTypeNodePrintable {
             hasSendingResult = true
         }
         if functionType.children.at(startIndex)?.kind == .isolatedAnyFunctionType {
-            _ = printOptional(functionType.children.at(startIndex))
+            _ = await printOptional(functionType.children.at(startIndex))
             startIndex += 1
         }
         var nonIsolatedCallerNode: Node?
@@ -111,7 +111,7 @@ extension FunctionTypeNodePrintable {
             startIndex += 1
         }
         if functionType.children.at(startIndex)?.kind == .globalActorFunctionType {
-            _ = printOptional(functionType.children.at(startIndex))
+            _ = await printOptional(functionType.children.at(startIndex))
             startIndex += 1
         }
         if functionType.children.at(startIndex)?.kind == .differentiableFunctionType {
@@ -141,7 +141,7 @@ extension FunctionTypeNodePrintable {
         }
 
         if let nonIsolatedCallerNode {
-            _ = printName(nonIsolatedCallerNode)
+            _ = await printName(nonIsolatedCallerNode)
         }
 
         if isSendable {
@@ -151,14 +151,14 @@ extension FunctionTypeNodePrintable {
 
         guard let parameterType = functionType.children.at(argIndex) else { return }
 
-        printFunctionParameters(labelList: labelList, parameterType: parameterType, showTypes: true)
+        await printFunctionParameters(labelList: labelList, parameterType: parameterType, showTypes: true)
 
         if isAsync {
             target.writeSpace()
             target.write("async", context: .context(state: .printKeyword))
         }
         if let thrownErrorNode {
-            _ = printName(thrownErrorNode)
+            _ = await printName(thrownErrorNode)
         }
 
         let returnType = functionType.children.at(argIndex + 1)
@@ -176,10 +176,10 @@ extension FunctionTypeNodePrintable {
             target.writeSpace()
         }
 
-        printOptional(returnType)
+        await printOptional(returnType)
     }
 
-    private mutating func printFunctionParameters(labelList: Node?, parameterType: Node, showTypes: Bool) {
+    private mutating func printFunctionParameters(labelList: Node?, parameterType: Node, showTypes: Bool) async {
         guard parameterType.kind == .argumentTuple else { return }
         guard let t = parameterType.children.first, t.kind == .type else { return }
         guard let parameters = t.children.first else { return }
@@ -187,7 +187,7 @@ extension FunctionTypeNodePrintable {
         if parameters.kind != .tuple {
             if showTypes {
                 target.write("(_: ")
-                _ = printName(parameters)
+                _ = await printName(parameters)
                 target.write(")")
             } else {
                 target.write("(_:)")
@@ -214,7 +214,7 @@ extension FunctionTypeNodePrintable {
             }
 
             if showTypes {
-                _ = printName(tuple.element)
+                _ = await printName(tuple.element)
                 if tuple.offset != parameters.children.count - 1 {
                     target.write(", ")
                 }
@@ -223,54 +223,54 @@ extension FunctionTypeNodePrintable {
         target.write(")")
     }
 
-    private mutating func printTupleElement(_ name: Node) {
+    private mutating func printTupleElement(_ name: Node) async {
         if let label = name.children.first(where: { $0.kind == .tupleElementName }) {
             target.write("\(label.text ?? ""): ")
         }
         guard let type = name.children.first(where: { $0.kind == .type }) else { return }
-        _ = printName(type)
+        _ = await printName(type)
         if let _ = name.children.first(where: { $0.kind == .variadicMarker }) {
             target.write("...")
         }
     }
 
-    private mutating func printConventionWithMangledCType(_ name: Node, label: String) {
+    private mutating func printConventionWithMangledCType(_ name: Node, label: String) async {
         target.write("@convention(\(label)", context: .context(state: .printKeyword))
         if let firstChild = name.children.first, firstChild.kind == .clangType {
             target.write(", mangledCType: \"")
-            _ = printName(firstChild)
+            _ = await printName(firstChild)
             target.write("\"")
         }
         target.write(") ")
     }
     
-    private mutating func printReturnType(_ name: Node) {
+    private mutating func printReturnType(_ name: Node) async {
         if name.children.isEmpty, let t = name.text {
             target.write(t)
         } else {
-            printChildren(name)
+            await printChildren(name)
         }
     }
     
-    mutating func printTypeThrowsAnnotation(_ name: Node) {
+    mutating func printTypeThrowsAnnotation(_ name: Node) async {
         target.writeSpace()
         target.write("throws", context: .context(state: .printKeyword))
         target.write("(")
         if let child = name.children.first {
-            _ = printName(child)
+            _ = await printName(child)
         }
         target.write(")")
     }
     
-    mutating func printGlobalActorFunctionType(_ name: Node) {
+    mutating func printGlobalActorFunctionType(_ name: Node) async {
         if let firstChild = name.children.first {
             target.write("@")
-            _ = printName(firstChild)
+            _ = await printName(firstChild)
             target.write(" ")
         }
     }
     
-    mutating func printDifferentiableFunctionType(_ name: Node) {
+    mutating func printDifferentiableFunctionType(_ name: Node) async {
         target.write("@differentiable")
         switch UnicodeScalar(UInt8(name.index ?? 0)) {
         case "f": target.write("(_forward)")
@@ -280,7 +280,7 @@ extension FunctionTypeNodePrintable {
         }
     }
     
-    mutating func printLabelList(name: Node, type: Node, genericFunctionTypeList: Node?) {
+    mutating func printLabelList(name: Node, type: Node, genericFunctionTypeList: Node?) async {
         var labelList = name.children.first(of: .labelList)
 
         if let argumentTuple = name.first(of: .argumentTuple), let tuple = argumentTuple.first(of: .tuple) {
@@ -291,12 +291,12 @@ extension FunctionTypeNodePrintable {
 
         if labelList != nil || genericFunctionTypeList != nil {
             if let genericFunctionTypeList {
-                printChildren(genericFunctionTypeList, prefix: "<", suffix: ">", separator: ", ")
+                await printChildren(genericFunctionTypeList, prefix: "<", suffix: ">", separator: ", ")
             }
             var functionType = type
             if type.kind == .dependentGenericType {
                 if genericFunctionTypeList == nil {
-                    printOptional(type.children.first)
+                    await printOptional(type.children.first)
                 }
                 if let dt = type.children.at(1) {
                     if dt.needSpaceBeforeType {
@@ -307,12 +307,12 @@ extension FunctionTypeNodePrintable {
                     }
                 }
             }
-            printFunctionType(functionType, labelList: labelList, isAllocator: name.kind == .allocator, isBlockOrClosure: false)
+            await printFunctionType(functionType, labelList: labelList, isAllocator: name.kind == .allocator, isBlockOrClosure: false)
         } else {
             var context = Context()
             context.isAllocator = name.kind == .allocator
             context.isBlockOrClosure = false
-            printName(type, context: context)
+            await printName(type, context: context)
         }
     }
 }

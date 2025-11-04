@@ -17,8 +17,8 @@ struct TypeNodePrinter: InterfaceNodePrintable {
         self.delegate = delegate
     }
 
-    mutating func printRoot(_ node: Node) throws -> SemanticString {
-        printName(node)
+    mutating func printRoot(_ node: Node) async throws -> SemanticString {
+        await printName(node)
         return target
     }
 }

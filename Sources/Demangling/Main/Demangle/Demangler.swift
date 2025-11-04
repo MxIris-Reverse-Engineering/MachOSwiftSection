@@ -129,14 +129,14 @@ extension Demangler {
         guard let (kind, directness) = SymbolicReference.symbolicReference(for: rawValue) else {
             throw DemanglingError.requiredNonOptional
         }
-        guard let symbolicReferenceResolver, let symbol = symbolicReferenceResolver(kind, directness, symbolicReferenceIndex) else {
+        guard let symbolicReferenceResolver, let resolvedNode = symbolicReferenceResolver(kind, directness, symbolicReferenceIndex) else {
             throw DemanglingError.requiredNonOptional
         }
         symbolicReferenceIndex += 1
-        if (kind == .context || kind == .objectiveCProtocol) && (symbol.kind != .opaqueTypeDescriptorSymbolicReference && symbol.kind != .opaqueReturnTypeOf) {
-            substitutions.append(symbol)
+        if (kind == .context || kind == .objectiveCProtocol) && (resolvedNode.kind != .opaqueTypeDescriptorSymbolicReference && resolvedNode.kind != .opaqueReturnTypeOf) {
+            substitutions.append(resolvedNode)
         }
-        return symbol
+        return resolvedNode
     }
 
     private mutating func demangleTypeAnnotation() throws(DemanglingError) -> Node {

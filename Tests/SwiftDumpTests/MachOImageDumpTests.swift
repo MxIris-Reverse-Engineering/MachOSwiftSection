@@ -18,7 +18,7 @@ import WatchKit
 import SwiftUI
 
 @Suite(.serialized)
-final class MachOImageDumpTests: MachOImageTests, DumpableTests {
+final class MachOImageDumpTests: MachOImageTests, DumpableTests, @unchecked Sendable {
     
     override class var imageName: MachOImageName { .AppKit }
 }
@@ -45,7 +45,7 @@ extension MachOImageDumpTests {
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
         
-        let symbols = symbolIndexStore.allSymbols(in: machOImage)
+        let symbols = await symbolIndexStore.allSymbols(in: machOImage)
         for symbol in symbols {
             print(symbol.offset, symbol.name)
         }

@@ -3,7 +3,7 @@ import Semantic
 import MemberwiseInit
 
 protocol InterfaceNodePrintable: NodePrintable, BoundGenericNodePrintable, TypeNodePrintable, DependentGenericNodePrintable, FunctionTypeNodePrintable {
-    mutating func printRoot(_ node: Node) throws -> SemanticString
+    mutating func printRoot(_ node: Node) async throws -> SemanticString
 }
 
 protocol InterfaceNodePrintableContext: NodePrintableContext, FunctionTypeNodePrintableContext {}
@@ -18,20 +18,20 @@ struct InterfaceNodePrinterContext: InterfaceNodePrintableContext {
 }
 
 extension InterfaceNodePrintable {
-    mutating func printName(_ name: Node, asPrefixContext: Bool, context: Context?) -> Node? {
-        if printNameInBase(name, context: context) {
+    mutating func printName(_ name: Node, asPrefixContext: Bool, context: Context?) async -> Node? {
+        if await printNameInBase(name, context: context) {
             return nil
         }
-        if printNameInBoundGeneric(name, context: context) {
+        if await printNameInBoundGeneric(name, context: context) {
             return nil
         }
-        if printNameInType(name, context: context) {
+        if await printNameInType(name, context: context) {
             return nil
         }
-        if printNameInDependentGeneric(name, context: context) {
+        if await printNameInDependentGeneric(name, context: context) {
             return nil
         }
-        if printNameInFunction(name, context: context) {
+        if await printNameInFunction(name, context: context) {
             return nil
         }
         return nil

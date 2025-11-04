@@ -23,11 +23,11 @@ public final class SwiftInterfaceBuilderTypeNameProvider<MachO: MachOSwiftSectio
         try await typeDatabase.index(dependencies: dependencies.dependencies) { dependencyModules.contains($0) }
     }
 
-    public func moduleName(forTypeName typeName: String) -> String? {
+    public func moduleName(forTypeName typeName: String) async -> String? {
         typeDatabase.moduleName(forTypeName: typeName)
     }
 
-    public func swiftName(forCName cName: String) -> String? {
+    public func swiftName(forCName cName: String) async -> String? {
         typeDatabase.swiftName(forCName: cName)
     }
 }

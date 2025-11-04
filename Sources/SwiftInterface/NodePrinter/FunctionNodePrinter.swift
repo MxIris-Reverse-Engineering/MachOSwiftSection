@@ -27,39 +27,39 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
         case onlySupportedForFunctionNode(Node)
     }
 
-    mutating func printRoot(_ node: Node) throws -> SemanticString {
+    mutating func printRoot(_ node: Node) async throws -> SemanticString {
         if isOverride {
             target.write("override", context: .context(state: .printKeyword))
             target.writeSpace()
         }
-        try _printRoot(node)
+        try await _printRoot(node)
         return target
     }
 
-    private mutating func _printRoot(_ node: Node) throws {
+    private mutating func _printRoot(_ node: Node) async throws {
         if node.kind == .global, let first = node.children.first {
             if first.isKind(of: .asyncFunctionPointer, .mergedFunction), let second = node.children.second {
-                try _printRoot(second)
+                try await _printRoot(second)
             } else {
-                try _printRoot(first)
+                try await _printRoot(first)
             }
         } else if node.isKind(of: .function, .boundGenericFunction, .allocator, .constructor) {
-            printFunction(node)
+            await printFunction(node)
         } else if node.kind == .static, let first = node.children.first {
             target.write("static", context: .context(state: .printKeyword))
             target.writeSpace()
             isStatic = true
-            try _printRoot(first)
+            try await _printRoot(first)
         } else if node.kind == .methodDescriptor, let first = node.children.first {
-            try _printRoot(first)
+            try await _printRoot(first)
         } else if node.kind == .protocolWitness, let second = node.children.second {
-            try _printRoot(second)
+            try await _printRoot(second)
         } else {
             throw Error.onlySupportedForFunctionNode(node)
         }
     }
 
-    private mutating func printFunction(_ function: Node) {
+    private mutating func printFunction(_ function: Node) async {
         var targetNode = function
         if isStatic {
             targetNode = Node(kind: .static, child: targetNode)
@@ -83,9 +83,9 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
             target.write("func", context: .context(state: .printKeyword))
             target.writeSpace()
             if let identifier = function.children.first(of: .identifier) {
-                printIdentifier(identifier)
+                await printIdentifier(identifier)
             } else if let privateDeclName = function.children.first(of: .privateDeclName) {
-                printPrivateDeclName(privateDeclName)
+                await printPrivateDeclName(privateDeclName)
             } else if let `operator` = function.children.first(of: .prefixOperator, .infixOperator, .postfixOperator), let text = `operator`.text {
                 target.write(text + " ")
             }
@@ -96,7 +96,7 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
             }
         }
         if let type = function.children.first(of: .type), let functionType = type.children.first {
-            printLabelList(name: function, type: functionType, genericFunctionTypeList: genericFunctionTypeList)
+            await printLabelList(name: function, type: functionType, genericFunctionTypeList: genericFunctionTypeList)
         }
 
         if let genericSignature = function.first(of: .dependentGenericSignature) {
@@ -107,7 +107,7 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
                     target.write("where", context: .context(state: .printKeyword))
                     target.writeSpace()
                 }
-                printName(node)
+                await printName(node)
                 if !offset.isEnd {
                     target.write(", ")
                 }
