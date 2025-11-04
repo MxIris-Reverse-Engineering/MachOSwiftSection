@@ -7,11 +7,11 @@ import Demangling
 import OrderedCollections
 
 extension MachOSwiftSection.`Protocol`: NamedDumpable {
-    public func dumpName<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-        try ProtocolDumper(self, using: .init(demangleResolver: .using(options: options)), in: machO).name
+    public func dumpName<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) async throws -> SemanticString {
+        try await ProtocolDumper(self, using: .init(demangleResolver: .using(options: options)), in: machO).name
     }
 
-    public func dump<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {
-        try ProtocolDumper(self, using: .init(demangleResolver: .using(options: options)), in: machO).body
+    public func dump<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) async throws -> SemanticString {
+        try await ProtocolDumper(self, using: .init(demangleResolver: .using(options: options)), in: machO).body
     }
 }

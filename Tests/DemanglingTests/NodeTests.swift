@@ -4,7 +4,7 @@ import Testing
 
 struct NodeTests {
     @Test func testNode() {
-        let node = Node(kind: .type, contents: .none) {
+        _ = Node(kind: .type, contents: .none) {
             Node(kind: .dependentMemberType) {
                 Node(kind: .dependentGenericParamType, contents: .text("A")) {
                     Node(kind: .index, contents: .index(0))

@@ -12,7 +12,7 @@ struct MachOSwiftSymbol {
     let stringValue: String
 }
 
-class DyldCacheSymbolTests: DyldCacheTests {
+class DyldCacheSymbolTests: DyldCacheTests, @unchecked Sendable {
     
 
     func symbols(for machOImageNames: MachOImageName...) throws -> [MachOSwiftSymbol] {

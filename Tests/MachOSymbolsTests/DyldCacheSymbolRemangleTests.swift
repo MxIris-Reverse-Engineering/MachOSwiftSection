@@ -34,7 +34,7 @@ extension DemangleAndRemangleTests {
 }
 
 @Suite
-final class DyldCacheSymbolRemangleTests: DyldCacheSymbolTests, DemangleAndRemangleTests {
+final class DyldCacheSymbolRemangleTests: DyldCacheSymbolTests, DemangleAndRemangleTests, @unchecked Sendable {
     @MainActor
     @Test func symbols() throws {
         try mainTest()

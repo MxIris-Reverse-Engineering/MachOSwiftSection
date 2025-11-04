@@ -22,24 +22,24 @@ package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCac
     }
     
     package var declaration: SemanticString {
-        get throws {
+        get async throws {
             Keyword(.extension)
 
             Space()
 
-            try typeName
+            try await typeName
 
             Standard(":")
 
             Space()
 
-            try protocolName
+            try await protocolName
         }
     }
 
     @SemanticStringBuilder
     package var records: SemanticString {
-        get throws {
+        get async throws {
             for (offset, record) in associatedType.records.offsetEnumerated() {
                 BreakLine()
 
@@ -67,27 +67,27 @@ package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCac
     }
     
     package var body: SemanticString {
-        get throws {
-            try declaration
+        get async throws {
+            try await declaration
             
             Space()
 
             Standard("{")
 
-            try records
+            try await records
 
             Standard("}")
         }
     }
 
     package var typeName: SemanticString {
-        get throws {
+        get async throws {
             try demangleResolver.resolve(for: MetadataReader.demangleType(for: associatedType.conformingTypeName, in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         }
     }
 
     package var protocolName: SemanticString {
-        get throws {
+        get async throws {
             try demangleResolver.resolve(for: MetadataReader.demangleType(for: associatedType.protocolTypeName, in: machO))
         }
     }

@@ -8,7 +8,7 @@ import Dependencies
 
 #if !SILENT_TEST
 
-final class DyldCacheSymbolSimpleTests: DyldCacheSymbolTests {
+final class DyldCacheSymbolSimpleTests: DyldCacheSymbolTests, @unchecked Sendable {
     @MainActor
     @Test func writeSymbolsToDesktop() async throws {
         var string = ""

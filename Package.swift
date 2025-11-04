@@ -135,6 +135,7 @@ let package = Package(
         .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.4"),
         .package(url: "https://github.com/brightdigit/SyntaxKit", branch: "main"),
 //        .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-clang", from: "0.1.0"),
+        .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.4"),
     ],
     targets: [
         .target(
@@ -157,6 +158,7 @@ let package = Package(
                 .product(name: "MemberwiseInit", package: "swift-memberwise-init-macro"),
                 .product(name: "OrderedCollections", package: "swift-collections"),
                 .product(name: "Dependencies", package: "swift-dependencies"),
+                .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
             ]
         ),
 

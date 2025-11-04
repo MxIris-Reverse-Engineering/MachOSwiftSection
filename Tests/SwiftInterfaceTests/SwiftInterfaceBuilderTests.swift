@@ -18,7 +18,7 @@ extension SwiftInterfaceBuilderTests {
     func buildFile(in machO: MachOFile) async throws {
         let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: machO)
         try await builder.prepare()
-        let result = try builder.printRoot()
+        let result = try await builder.printRoot()
         try rootDirectory.createDirectoryIfNeeded()
         try result.string.write(to: rootDirectory.appending(path: "\(machO.imagePath.lastPathComponent)-FileDump.swiftinterface"), atomically: true, encoding: .utf8)
 
@@ -28,7 +28,7 @@ extension SwiftInterfaceBuilderTests {
     func buildFile(in machO: MachOImage) async throws {
         let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: machO)
         try await builder.prepare()
-        let result = try builder.printRoot()
+        let result = try await builder.printRoot()
         try rootDirectory.createDirectoryIfNeeded()
         try result.string.write(to: rootDirectory.appending(path: "\(machO.imagePath.lastPathComponent)-ImageDump.swiftinterface"), atomically: true, encoding: .utf8)
 

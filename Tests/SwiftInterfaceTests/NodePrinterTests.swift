@@ -27,8 +27,8 @@ final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {
         try variableNodePrinter.printRoot(#require(variableNode.children.first)).string.print()
     }
 
-    @Test func functionNodes() throws {
-        let demangledSymbols = symbolIndexStore.memberSymbols(of: .function(inExtension: true, isStatic: true), in: machOFileInCache)
+    @Test func functionNodes() async throws {
+        let demangledSymbols = await symbolIndexStore.memberSymbols(of: .function(inExtension: true, isStatic: true), in: machOFileInCache)
 
         for demangledSymbol in demangledSymbols {
             let node = demangledSymbol.demangledNode
@@ -65,7 +65,7 @@ final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {
     }
     
     @Test func subscriptNodes() async throws {
-        let demangledSymbols = symbolIndexStore.memberSymbols(
+        let demangledSymbols = await symbolIndexStore.memberSymbols(
             of: .subscript(inExtension: false, isStatic: false),
                 .subscript(inExtension: true, isStatic: false),
                 .subscript(inExtension: false, isStatic: true),

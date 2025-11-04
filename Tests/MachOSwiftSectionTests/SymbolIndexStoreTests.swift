@@ -39,7 +39,7 @@ final class SymbolIndexStoreTests: DyldCacheTests, @unchecked Sendable {
 //    }
 
     @Test func globalSymbols() async throws {
-        let symbols = symbolIndexStore.globalSymbols(of: .function, in: machOFileInCache)
+        let symbols = await symbolIndexStore.globalSymbols(of: .function, in: machOFileInCache)
         for symbol in symbols {
             symbol.demangledNode.print(using: .default).print()
             symbol.demangledNode.description.print()
@@ -49,8 +49,8 @@ final class SymbolIndexStoreTests: DyldCacheTests, @unchecked Sendable {
     
     @Test func symbols() async throws {
         let machO = machOFileInCache
-        let _ = symbolIndexStore.allSymbols(in: machO)
-        guard let memberSymbolsByKind = symbolIndexStore.entry(in: machO)?.memberSymbolsByKind else {
+        let _ = await symbolIndexStore.allSymbols(in: machO)
+        guard let memberSymbolsByKind = await symbolIndexStore.entry(in: machO)?.memberSymbolsByKind else {
             return
         }
         for (kind, memberSymbolsByName) in memberSymbolsByKind {

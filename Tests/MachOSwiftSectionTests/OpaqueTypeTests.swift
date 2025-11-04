@@ -10,7 +10,7 @@ protocol OpaqueTypeTests {}
 
 extension OpaqueTypeTests {
     func opaqueTypes<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
-        let symbols = SymbolIndexStore.shared.symbols(of: .opaqueTypeDescriptor, in: machO)
+        let symbols = await SymbolIndexStore.shared.symbols(of: .opaqueTypeDescriptor, in: machO)
         for symbol in symbols {
             guard symbol.offset > 0 else { continue }
             print("Demangled:")
@@ -20,7 +20,7 @@ extension OpaqueTypeTests {
             let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
             print("Current Requirements:")
             for requirement in try opaqueType.requirements(in: machO) {
-                let requirementString = try requirement.dump(using: .default, in: machO).string
+                let requirementString = try await requirement.dump(using: .default, in: machO).string
                 requirementString.print()
                 if let node = try MetadataReader.buildGenericSignature(for: [requirement], in: machO) {
                     node.description.print()

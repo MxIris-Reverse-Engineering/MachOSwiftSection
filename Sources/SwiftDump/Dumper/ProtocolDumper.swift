@@ -24,12 +24,12 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
     }
 
     package var declaration: SemanticString {
-        get throws {
+        get async throws {
             Keyword(.protocol)
 
             Space()
 
-            try name
+            try await name
 
             if `protocol`.numberOfRequirementsInSignature > 0 {
                 var requirementInSignatures = `protocol`.requirementInSignatures
@@ -61,7 +61,7 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
     
     @SemanticStringBuilder
     package var associatedTypes: SemanticString {
-        get throws {
+        get async throws {
             let associatedTypes = try `protocol`.descriptor.associatedTypes(in: machO)
 
             if !associatedTypes.isEmpty {
@@ -81,27 +81,27 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
     
 
     package var body: SemanticString {
-        get throws {
-            try declaration
+        get async throws {
+            try await declaration
 
             Space()
 
             Standard("{")
 
-            try associatedTypes
+            try await associatedTypes
 
             var defaultImplementations: OrderedSet<Node> = []
 
             for (offset, requirement) in `protocol`.requirements.offsetEnumerated() {
                 BreakLine()
                 Indent(level: configuration.indentation)
-                if let symbols = try Symbols.resolve(from: requirement.offset, in: machO), let validNode = try validNode(for: symbols) {
+                if let symbols = try Symbols.resolve(from: requirement.offset, in: machO), let validNode = try await validNode(for: symbols) {
                     try demangleResolver.resolve(for: validNode)
                 } else {
                     InlineComment("[Stripped Symbol]")
                 }
 
-                if let symbols = try requirement.defaultImplementationSymbols(in: machO), let defaultImplementation = try validNode(for: symbols, visitedNode: defaultImplementations) {
+                if let symbols = try requirement.defaultImplementationSymbols(in: machO), let defaultImplementation = try await validNode(for: symbols, visitedNode: defaultImplementations) {
                     _ = defaultImplementations.append(defaultImplementation)
                 }
 
@@ -130,13 +130,13 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
     }
 
     package var name: SemanticString {
-        get throws {
-            try _name(using: demangleResolver)
+        get async throws {
+            try await _name(using: demangleResolver)
         }
     }
 
     @SemanticStringBuilder
-    private func _name(using resolver: DemangleResolver) throws -> SemanticString {
+    private func _name(using resolver: DemangleResolver) async throws -> SemanticString {
         if configuration.displayParentName {
             try resolver.resolve(for: MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
@@ -144,8 +144,8 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
         }
     }
 
-    private func validNode(for symbols: Symbols, visitedNode: borrowing OrderedSet<Node> = []) throws -> Node? {
-        let currentInterfaceName = try _name(using: .options(.interfaceType)).string
+    private func validNode(for symbols: Symbols, visitedNode: borrowing OrderedSet<Node> = []) async throws -> Node? {
+        let currentInterfaceName = try await _name(using: .options(.interfaceType)).string
         for symbol in symbols {
             if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), protocolNode.print(using: .interfaceType) == currentInterfaceName, !visitedNode.contains(node) {
                 return node

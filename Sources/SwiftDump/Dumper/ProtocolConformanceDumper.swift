@@ -26,18 +26,18 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
     }
 
     package var declaration: SemanticString {
-        get throws {
+        get async throws {
             Keyword(.extension)
 
             Space()
 
-            try typeName
+            try await typeName
 
             Standard(":")
 
             Space()
 
-            try protocolName
+            try await protocolName
 
             if !protocolConformance.conditionalRequirements.isEmpty {
                 Space()
@@ -52,10 +52,10 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
     }
 
     package var body: SemanticString {
-        get throws {
-            try declaration
+        get async throws {
+            try await declaration
 
-            let typeNameString = try typeName.string
+            let typeNameString = try await typeName.string
 
             if protocolConformance.resilientWitnesses.isEmpty {
                 Space()
@@ -71,7 +71,7 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
 
                     Indent(level: 1)
 
-                    if let symbols = try resilientWitness.implementationSymbols(in: machO), let node = try _node(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes) {
+                    if let symbols = try resilientWitness.implementationSymbols(in: machO), let node = try await _node(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes) {
                         _ = visitedNodes.append(node)
                         try demangleResolver.resolve(for: node)
                     } else if let requirement = try resilientWitness.requirement(in: machO) {
@@ -79,10 +79,10 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
                         case .symbol(let symbol):
                             try MetadataReader.demangleSymbol(for: symbol, in: machO).map { try demangleResolver.resolve(for: $0) }
                         case .element(let element):
-                            if let symbols = try Symbols.resolve(from: element.offset, in: machO), let node = try _node(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes) {
+                            if let symbols = try Symbols.resolve(from: element.offset, in: machO), let node = try await _node(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes) {
                                 _ = visitedNodes.append(node)
                                 try demangleResolver.resolve(for: node)
-                            } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machO), let node = try _node(for: defaultImplementationSymbols, typeName: typeNameString, visitedNodes: visitedNodes) {
+                            } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machO), let node = try await _node(for: defaultImplementationSymbols, typeName: typeNameString, visitedNodes: visitedNodes) {
                                 _ = visitedNodes.append(node)
                                 try demangleResolver.resolve(for: node)
                             } else if !element.defaultImplementation.isNull {
@@ -113,19 +113,19 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     package var typeName: SemanticString {
-        get throws {            
+        get async throws {
             try protocolConformance.typeNode(in: machO)?.printSemantic(using: typeNameOptions).replacingTypeNameOrOtherToTypeDeclaration()
         }
     }
 
     @SemanticStringBuilder
     package var protocolName: SemanticString {
-        get throws {
+        get async throws {
             try protocolConformance.protocolNode(in: machO).map { try demangleResolver.resolve(for: $0) }
         }
     }
 
-    private func _node(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<Node> = []) throws -> Node? {
+    private func _node(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<Node> = []) async throws -> Node? {
         for symbol in symbols {
             if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolConformanceNode = node.preorder().first(where: { $0.kind == .protocolConformance }), let symbolTypeName = protocolConformanceNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.entry(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(node) {
                 return node
@@ -184,7 +184,7 @@ extension ProtocolConformance {
     package func typeNode<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Node? {
         return try typeReference.node(in: machO)
     }
-    
+
     package func protocolNode<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Node? {
         switch `protocol` {
         case .symbol(let symbol):
@@ -193,6 +193,17 @@ extension ProtocolConformance {
             return try MetadataReader.demangleContext(for: .protocol(element), in: machO)
         case .none:
             return nil
+        }
+    }
+}
+
+extension Optional {
+    public func asyncMap<E, U>(_ transform: (Wrapped) async throws(E) -> U) async throws(E) -> U? where E: Swift.Error, U: ~Copyable {
+        switch self {
+        case .none:
+            return nil
+        case .some(let wrapped):
+            return try await transform(wrapped)
         }
     }
 }

@@ -27,12 +27,12 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
     }
 
     package var declaration: SemanticString {
-        get throws {
+        get async throws {
             Keyword(.struct)
 
             Space()
 
-            try name
+            try await name
 
             if let genericContext = `struct`.genericContext {
                 try genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO)
@@ -41,7 +41,7 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
     }
 
     package var fields: SemanticString {
-        get throws {
+        get async throws {
             for (offset, fieldRecord) in try `struct`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
                 BreakLine()
 
@@ -91,19 +91,19 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
     }
 
     package var body: SemanticString {
-        get throws {
-            try declaration
+        get async throws {
+            try await declaration
 
             Space()
 
             Standard("{")
 
-            try fields
+            try await fields
 
-            let interfaceNameString = try interfaceName.string
+            let interfaceNameString = try await interfaceName.string
 
             for kind in SymbolIndexStore.MemberKind.allCases {
-                for (offset, symbol) in symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
+                for (offset, symbol) in await symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
                     if offset.isStart {
                         BreakLine()
 
@@ -129,19 +129,19 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
     }
 
     package var name: SemanticString {
-        get throws {
-            try _name(using: demangleResolver)
+        get async throws {
+            try await _name(using: demangleResolver)
         }
     }
 
     private var interfaceName: SemanticString {
-        get throws {
-            try _name(using: .options(.interface))
+        get async throws {
+            try await _name(using: .options(.interface))
         }
     }
 
     @SemanticStringBuilder
-    private func _name(using resolver: DemangleResolver) throws -> SemanticString {
+    private func _name(using resolver: DemangleResolver) async throws -> SemanticString {
         if configuration.displayParentName {
             try resolver.resolve(for: MetadataReader.demangleContext(for: .type(.struct(`struct`.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {

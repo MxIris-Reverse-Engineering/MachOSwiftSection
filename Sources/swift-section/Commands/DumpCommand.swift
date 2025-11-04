@@ -62,17 +62,17 @@ struct DumpCommand: AsyncParsableCommand {
             switch typeContextDescriptor {
             case .enum(let enumDescriptor):
                 await performDump {
-                    try Enum(descriptor: enumDescriptor, in: machO).dump(using: options, in: machO)
+                    try await Enum(descriptor: enumDescriptor, in: machO).dump(using: options, in: machO)
                 }
 
             case .struct(let structDescriptor):
                 await performDump {
-                    try Struct(descriptor: structDescriptor, in: machO).dump(using: options, in: machO)
+                    try await Struct(descriptor: structDescriptor, in: machO).dump(using: options, in: machO)
                 }
 
             case .class(let classDescriptor):
                 await performDump {
-                    try Class(descriptor: classDescriptor, in: machO).dump(using: options, in: machO)
+                    try await Class(descriptor: classDescriptor, in: machO).dump(using: options, in: machO)
                 }
             }
         }
@@ -83,7 +83,7 @@ struct DumpCommand: AsyncParsableCommand {
         let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
         for associatedTypeDescriptor in associatedTypeDescriptors {
             await performDump {
-                try AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: options, in: machO)
+                try await AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: options, in: machO)
             }
         }
     }
@@ -93,7 +93,7 @@ struct DumpCommand: AsyncParsableCommand {
         let protocolDescriptors = try machO.swift.protocolDescriptors
         for protocolDescriptor in protocolDescriptors {
             await performDump {
-                try Protocol(descriptor: protocolDescriptor, in: machO).dump(using: options, in: machO)
+                try await Protocol(descriptor: protocolDescriptor, in: machO).dump(using: options, in: machO)
             }
         }
     }
@@ -104,7 +104,7 @@ struct DumpCommand: AsyncParsableCommand {
 
         for protocolConformanceDescriptor in protocolConformanceDescriptors {
             await performDump {
-                try ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO).dump(using: options, in: machO)
+                try await ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO).dump(using: options, in: machO)
             }
         }
     }

@@ -28,7 +28,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
     }
 
     package var declaration: SemanticString {
-        get throws {
+        get async throws {
             if `class`.descriptor.isActor {
                 Keyword(.actor)
             } else {
@@ -37,26 +37,26 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
             Space()
 
-            try name
-
+            try await name
+            let superclass = try await superclass
             if let genericContext = `class`.genericContext {
                 try genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO) {
-                    try superclass
+                    superclass
                 }
             } else {
-                try superclass
+                superclass
             }
         }
     }
 
     @SemanticStringBuilder
     package var superclass: SemanticString {
-        get throws {
+        get async throws {
             if let superclassMangledName = try `class`.descriptor.superclassTypeMangledName(in: machO) {
                 Standard(":")
                 Space()
                 try demangleResolver.resolve(for: MetadataReader.demangleType(for: superclassMangledName, in: machO))
-            } else if let resilientSuperclass = `class`.resilientSuperclass, let kind = `class`.descriptor.resilientSuperclassReferenceKind, let superclass = try resilientSuperclass.dumpSuperclass(resolver: demangleResolver, for: kind, in: machO) {
+            } else if let resilientSuperclass = `class`.resilientSuperclass, let kind = `class`.descriptor.resilientSuperclassReferenceKind, let superclass = try await resilientSuperclass.dumpSuperclass(resolver: demangleResolver, for: kind, in: machO) {
                 Standard(":")
                 Space()
                 superclass
@@ -66,7 +66,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
     
     
     package var fields: SemanticString {
-        get throws {
+        get async throws {
             for (offset, fieldRecord) in try `class`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
                 BreakLine()
 
@@ -119,14 +119,14 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
     }
 
     package var body: SemanticString {
-        get throws {
-            try declaration
+        get async throws {
+            try await declaration
 
             Space()
 
             Standard("{")
 
-            try fields
+            try await fields
 
             var methodVisitedNodes: OrderedSet<Node> = []
             for (offset, descriptor) in `class`.methodDescriptors.offsetEnumerated() {
@@ -138,7 +138,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
                 dumpMethodKeyword(for: descriptor)
 
-                try dumpMethodDeclaration(for: descriptor, visitedNodes: &methodVisitedNodes)
+                try await dumpMethodDeclaration(for: descriptor, visitedNodes: &methodVisitedNodes)
 
                 if offset.isEnd {
                     BreakLine()
@@ -153,7 +153,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                 
                 let methodDescriptor = try descriptor.methodDescriptor(in: machO)
                 
-                if let symbols = try? descriptor.implementationSymbols(in: machO), let node = try validNode(for: symbols, visitedNodes: methodOverrideVisitedNodes) {
+                if let symbols = try? descriptor.implementationSymbols(in: machO), let node = try await validNode(for: symbols, visitedNodes: methodOverrideVisitedNodes) {
                     dumpMethodKind(for: methodDescriptor?.resolved)
                     Keyword(.override)
                     Space()
@@ -175,7 +175,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                         Keyword(.override)
                         Space()
                         dumpMethodKeyword(for: element)
-                        try? dumpMethodDeclaration(for: element, visitedNodes: &methodOverrideVisitedNodes)
+                        try? await dumpMethodDeclaration(for: element, visitedNodes: &methodOverrideVisitedNodes)
                     }
                 } else {
                     Error("Symbol not found")
@@ -196,7 +196,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
                 Space()
 
-                if let symbols = try? descriptor.implementationSymbols(in: machO), let node = try validNode(for: symbols, visitedNodes: methodDefaultOverrideVisitedNodes) {
+                if let symbols = try? descriptor.implementationSymbols(in: machO), let node = try await validNode(for: symbols, visitedNodes: methodDefaultOverrideVisitedNodes) {
                     try demangleResolver.resolve(for: node)
                     _ = methodDefaultOverrideVisitedNodes.append(node)
                 } else if !descriptor.implementation.isNull {
@@ -210,10 +210,10 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                 }
             }
 
-            let interfaceNameString = try interfaceName.string
+            let interfaceNameString = try await interfaceName.string
 
             for kind in SymbolIndexStore.MemberKind.allCases {
-                for (offset, symbol) in symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
+                for (offset, symbol) in await symbolIndexStore.memberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
                     if offset.isStart {
                         BreakLine()
 
@@ -235,7 +235,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
             }
 
             for kind in SymbolIndexStore.MemberKind.allCases {
-                for (offset, symbol) in symbolIndexStore.methodDescriptorMemberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
+                for (offset, symbol) in await symbolIndexStore.methodDescriptorMemberSymbols(of: kind, for: interfaceNameString, in: machO).offsetEnumerated() {
                     if offset.isStart {
                         BreakLine()
 
@@ -261,19 +261,19 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
     }
 
     package var name: SemanticString {
-        get throws {
-            try _name(using: demangleResolver)
+        get async throws {
+            try await _name(using: demangleResolver)
         }
     }
 
     private var interfaceName: SemanticString {
-        get throws {
-            try _name(using: .options(.interface))
+        get async throws {
+            try await _name(using: .options(.interface))
         }
     }
 
     @SemanticStringBuilder
-    private func _name(using resolver: DemangleResolver) throws -> SemanticString {
+    private func _name(using resolver: DemangleResolver) async throws -> SemanticString {
         if configuration.displayParentName {
             try resolver.resolve(for: MetadataReader.demangleContext(for: .type(.class(`class`.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
@@ -309,8 +309,8 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
     }
 
     @SemanticStringBuilder
-    private func dumpMethodDeclaration(for descriptor: MethodDescriptor, visitedNodes: inout OrderedSet<Node>) throws -> SemanticString {
-        if let symbols = try? descriptor.implementationSymbols(in: machO), let node = try validNode(for: symbols, visitedNodes: visitedNodes) {
+    private func dumpMethodDeclaration(for descriptor: MethodDescriptor, visitedNodes: inout OrderedSet<Node>) async throws -> SemanticString {
+        if let symbols = try? descriptor.implementationSymbols(in: machO), let node = try await validNode(for: symbols, visitedNodes: visitedNodes) {
             try demangleResolver.resolve(for: node)
             _ = visitedNodes.append(node)
         } else if !descriptor.implementation.isNull {
@@ -320,8 +320,8 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
         }
     }
     
-    package func validNode(for symbols: Symbols, visitedNodes: borrowing OrderedSet<Node> = []) throws -> Node? {
-        let currentInterfaceName = try _name(using: .options(.interfaceType)).string
+    package func validNode(for symbols: Symbols, visitedNodes: borrowing OrderedSet<Node> = []) async throws -> Node? {
+        let currentInterfaceName = try await _name(using: .options(.interfaceType)).string
         for symbol in symbols {
             if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let classNode = node.first(of: .class), classNode.print(using: .interfaceType) == currentInterfaceName, !visitedNodes.contains(node) {
                 return node

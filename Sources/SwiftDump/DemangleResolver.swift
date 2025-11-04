@@ -26,9 +26,8 @@ package enum DemangleResolver {
             return try builder(node)
         }
     }
-    
+
     func modify(_ modifier: (DemangleResolver) -> DemangleResolver) -> DemangleResolver {
         modifier(self)
     }
-    
 }

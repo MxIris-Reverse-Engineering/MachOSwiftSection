@@ -73,7 +73,7 @@ public final class TypeDefinition: Definition {
             !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty || hasDeallocator || hasDestructor
     }
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(type: TypeContextWrapper, in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(type: TypeContextWrapper, in machO: MachO) async throws {
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
@@ -138,21 +138,21 @@ public final class TypeDefinition: Definition {
         let name = typeName.name
         let node = typeName.node
 
-        self.allocators = DefinitionBuilder.allocators(
+        self.allocators = await DefinitionBuilder.allocators(
             for: symbolIndexStore.memberSymbols(of: .allocator(inExtension: false), for: name, node: node, in: machO),
             methodDescriptorLookup: methodDescriptorLookup
         )
 
-        self.hasDeallocator = !symbolIndexStore.memberSymbols(of: .deallocator, for: typeName.name, in: machO).isEmpty
+        self.hasDeallocator = await !symbolIndexStore.memberSymbols(of: .deallocator, for: typeName.name, in: machO).isEmpty
 
-        self.variables = DefinitionBuilder.variables(
+        self.variables = await DefinitionBuilder.variables(
             for: symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: name, node: node, in: machO),
             fieldNames: fieldNames,
             methodDescriptorLookup: methodDescriptorLookup,
             isGlobalOrStatic: false
         )
 
-        self.staticVariables = DefinitionBuilder.variables(
+        self.staticVariables = await DefinitionBuilder.variables(
             for: symbolIndexStore.memberSymbols(
                 of: .variable(inExtension: false, isStatic: true, isStorage: false),
                     .variable(inExtension: false, isStatic: true, isStorage: true),
@@ -164,25 +164,25 @@ public final class TypeDefinition: Definition {
             isGlobalOrStatic: true
         )
 
-        self.functions = DefinitionBuilder.functions(
+        self.functions = await DefinitionBuilder.functions(
             for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: false), for: name, node: node, in: machO),
             methodDescriptorLookup: methodDescriptorLookup,
             isGlobalOrStatic: false
         )
 
-        self.staticFunctions = DefinitionBuilder.functions(
+        self.staticFunctions = await DefinitionBuilder.functions(
             for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: true), for: name, node: node, in: machO),
             methodDescriptorLookup: methodDescriptorLookup,
             isGlobalOrStatic: true
         )
 
-        self.subscripts = DefinitionBuilder.subscripts(
+        self.subscripts = await DefinitionBuilder.subscripts(
             for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: false), for: name, node: node, in: machO),
             methodDescriptorLookup: methodDescriptorLookup,
             isStatic: false
         )
 
-        self.staticSubscripts = DefinitionBuilder.subscripts(
+        self.staticSubscripts = await DefinitionBuilder.subscripts(
             for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: true), for: name, node: node, in: machO),
             methodDescriptorLookup: methodDescriptorLookup,
             isStatic: true

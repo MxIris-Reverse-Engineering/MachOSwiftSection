@@ -43,7 +43,7 @@ struct InterfaceCommand: AsyncParsableCommand {
 
         print("Building Swift interface...")
 
-        let interfaceString = try builder.printRoot()
+        let interfaceString = try await builder.printRoot()
 
         print("Swift interface built successfully.")
 
