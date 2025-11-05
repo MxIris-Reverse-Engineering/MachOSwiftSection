@@ -2,7 +2,7 @@ import MachOKit
 
 import MachOFoundation
 
-public struct StructMetadata: TypeMetadataProtocol {
+public struct StructMetadata: ResolvableLocatableLayoutWrapper {
     public struct Layout: StructMetadataLayout {
         public let kind: StoredPointer
         public let descriptor: Pointer<StructDescriptor>

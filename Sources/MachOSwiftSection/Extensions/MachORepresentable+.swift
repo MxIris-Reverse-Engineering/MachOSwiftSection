@@ -1,7 +1,6 @@
 import Foundation
 import MachOKit
 
-
 extension MachOFile {
     func section(for swiftMachOSection: MachOSwiftSectionName) throws -> (any SectionProtocol) {
         let loadCommands = loadCommands

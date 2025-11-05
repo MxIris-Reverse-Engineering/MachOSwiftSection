@@ -1,7 +1,7 @@
 import MachOKit
 import MachOFoundation
 
-public struct ClassMetadataObjCInterop: ClassMetadataProtocol, TypeMetadataProtocol {
+public struct ClassMetadataObjCInterop: ClassMetadataProtocol {
     public struct Layout: ClassMetadataObjCInteropLayout, ClassMetadataLayoutWithDescriptor {
         public let kind: StoredPointer
         public let superclass: StoredPointer

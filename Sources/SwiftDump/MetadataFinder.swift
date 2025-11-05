@@ -1,6 +1,7 @@
 import Foundation
 import MachOKit
 import MachOFoundation
+import MachOSwiftSection
 
 package protocol MachOOffsetConverter {
     func offset(of address: UInt64, at fileOffset: Int) -> Int
@@ -35,6 +36,10 @@ extension MachORepresentableWithCache {
 package protocol TypeMetadataProtocol: MetadataProtocol {
     static var descriptorOffset: Int { get }
 }
+
+extension StructMetadata: TypeMetadataProtocol {}
+extension ClassMetadata: TypeMetadataProtocol {}
+extension ClassMetadataObjCInterop: TypeMetadataProtocol {}
 
 package final class MetadataFinder<MachO: MachOSwiftSectionRepresentableWithCache & MachOOffsetConverter> {
     package let machO: MachO

@@ -3,6 +3,7 @@ import MachOFoundation
 import MachOKit
 import Demangling
 import SwiftStdlibToolbox
+import MachOSwiftSection
 
 package final class PrimitiveTypeMapping: Sendable {
     @Mutex

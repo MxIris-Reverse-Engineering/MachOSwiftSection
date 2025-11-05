@@ -68,18 +68,26 @@ public final class TypeDefinition: Definition {
     @Mutex
     public var hasDestructor: Bool = false
 
+    @Mutex
+    public private(set) var isIndexed: Bool = false
+    
     public var hasMembers: Bool {
         !fields.isEmpty || !variables.isEmpty || !functions.isEmpty ||
             !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty || hasDeallocator || hasDestructor
     }
 
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(type: TypeContextWrapper, in machO: MachO) async throws {
-        @Dependency(\.symbolIndexStore)
-        var symbolIndexStore
-
         self.type = type
         let typeName = try type.typeName(in: machO)
         self.typeName = typeName
+    }
+    
+    package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
+        guard !isIndexed else { return }
+        
+        @Dependency(\.symbolIndexStore)
+        var symbolIndexStore
+        
         var fields: [FieldDefinition] = []
         let typeContextDescriptor = try required(type.contextDescriptorWrapper.typeContextDescriptor)
         let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machO)
@@ -187,5 +195,7 @@ public final class TypeDefinition: Definition {
             methodDescriptorLookup: methodDescriptorLookup,
             isStatic: true
         )
+        
+        isIndexed = true
     }
 }

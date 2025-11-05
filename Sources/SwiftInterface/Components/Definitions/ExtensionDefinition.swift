@@ -50,6 +50,9 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
     @Mutex
     public var missingSymbolWitnesses: [ResilientWitness] = []
 
+    @Mutex
+    public private(set) var isIndexed: Bool = false
+    
     public var hasMembers: Bool {
         !variables.isEmpty || !functions.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !allocators.isEmpty || !constructors.isEmpty || !staticSubscripts.isEmpty || !subscripts.isEmpty
     }
@@ -59,7 +62,14 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
         self.genericSignature = genericSignature
         self.protocolConformance = protocolConformance
         self.associatedType = associatedType
+        
+    }
+    
+    package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
+        guard !isIndexed else { return }
+        
         guard let protocolConformance, !protocolConformance.resilientWitnesses.isEmpty else { return }
+        
         func _symbol(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<Node> = []) throws -> DemangledSymbol? {
             for symbol in symbols {
                 if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolConformanceNode = node.first(of: .protocolConformance), let symbolTypeName = protocolConformanceNode.children.first?.print(using: .interfaceTypeBuilderOnly), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.entry(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(node) {
@@ -104,5 +114,7 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
         }
 
         setDefinitions(for: memberSymbolsByKind, inExtension: true)
+        
+        isIndexed = true
     }
 }

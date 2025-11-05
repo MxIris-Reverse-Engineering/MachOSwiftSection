@@ -3,6 +3,7 @@ import MachOKit
 import Demangling
 import MachOFoundation
 import SwiftStdlibToolbox
+import MachOSwiftSection
 @_spi(Internals) import MachOCaches
 
 private final class MetadataReaderCache: MachOCache<MetadataReaderCache.Entry>, @unchecked Sendable {
@@ -77,7 +78,7 @@ public enum MetadataReader<MachO: MachOSwiftSectionRepresentableWithCache> {
         return try buildContextManglingForSymbol(symbol, in: machO)
     }
 
-    public static func demangleSymbol(for symbol: Symbol, in machO: MachO) throws -> Node? {
+    public static func demangleSymbol(for symbol: Symbol, in machO: MachO) async throws -> Node? {
         return SymbolCache.shared.demangledNode(for: symbol, in: machO)
     }
 
@@ -131,10 +132,10 @@ public enum MetadataReader<MachO: MachOSwiftSectionRepresentableWithCache> {
                     result = .init(kind: .accessorFunctionReference, contents: .index(address(of: RelativeDirectRawPointer(relativeOffset: relativeOffset).resolveDirectOffset(from: offset), in: machO)))
                 case .uniqueExtendedExistentialTypeShape:
                     let extendedExistentialTypeShape = try RelativeDirectPointer<ExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: offset, in: machO)
-                    result = try .init(kind: .uniqueExtendedExistentialTypeShapeSymbolicReference, children: demangleType(for: extendedExistentialTypeShape.existentialType(in: machO), in: machO).children)
+                    result = try .init(kind: .uniqueExtendedExistentialTypeShapeSymbolicReference, children: demangle(for: extendedExistentialTypeShape.existentialType(in: machO), kind: .type, in: machO).children)
                 case .nonUniqueExtendedExistentialTypeShape:
                     let nonUniqueExtendedExistentialTypeShape = try RelativeDirectPointer<NonUniqueExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: offset, in: machO)
-                    result = try .init(kind: .nonUniqueExtendedExistentialTypeShapeSymbolicReference, children: demangleType(for: nonUniqueExtendedExistentialTypeShape.existentialType(in: machO), in: machO).children)
+                    result = try .init(kind: .nonUniqueExtendedExistentialTypeShapeSymbolicReference, children: demangle(for: nonUniqueExtendedExistentialTypeShape.existentialType(in: machO), kind: .type, in: machO).children)
                 case .objectiveCProtocol:
                     let relativePointer = RelativeDirectPointer<RelativeObjCProtocolPrefix>(relativeOffset: relativeOffset)
                     let objcProtocol = try relativePointer.resolve(from: offset, in: machO)

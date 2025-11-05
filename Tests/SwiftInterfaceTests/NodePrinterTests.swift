@@ -1,12 +1,12 @@
 import Foundation
 import Demangling
 import Testing
-import MachOSymbols
-@testable import MachOSwiftSection
-@testable import SwiftInterface
-@testable import MachOTestingSupport
 import Dependencies
+@testable import MachOSwiftSection
+@testable import MachOTestingSupport
 @_spi(Internals) import MachOSymbols
+@testable import SwiftDump
+@testable import SwiftInterface
 
 @Suite
 final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {

@@ -49,6 +49,9 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
     @Mutex
     public var staticSubscripts: [SubscriptDefinition] = []
 
+    @Mutex
+    public private(set) var isIndexed: Bool = false
+    
     public var hasMembers: Bool {
         !associatedTypes.isEmpty || !variables.isEmpty || !functions.isEmpty ||
         !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty
@@ -60,6 +63,12 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
         let protocolName = ProtocolName(node: node)
         let name = protocolName.name
         self.protocolName = protocolName
+        
+    }
+    
+    package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
+        guard !isIndexed else { return }
+        let name = protocolName.name
         func _symbol(for symbols: Symbols, visitedNodes: borrowing OrderedSet<Node> = []) throws -> DemangledSymbol? {
             for symbol in symbols {
                 if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), protocolNode.print(using: .interfaceTypeBuilderOnly) == name, !visitedNodes.contains(node) {
@@ -95,5 +104,7 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
         if extensionDefinition.hasMembers {
             self.defaultImplementationExtensions = [extensionDefinition]
         }
+        
+        isIndexed = true
     }
 }

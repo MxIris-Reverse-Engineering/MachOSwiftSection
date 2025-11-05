@@ -752,6 +752,11 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     public func printTypeDefinition(_ typeDefinition: TypeDefinition, level: Int = 1, displayParentName: Bool = false) async throws -> SemanticString {
+        
+        if !typeDefinition.isIndexed {
+            try await typeDefinition.index(in: machO)
+        }
+        
         let dumper = typeDefinition.type.dumper(using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: displayParentName), in: machO)
 
         if level > 1 {
@@ -789,6 +794,10 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     public func printProtocolDefinition(_ protocolDefinition: ProtocolDefinition, level: Int = 1, displayParentName: Bool = false) async throws -> SemanticString {
+        if !protocolDefinition.isIndexed {
+            try await protocolDefinition.index(in: machO)
+        }
+        
         let dumper = ProtocolDumper(protocolDefinition.protocol, using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: false), in: machO)
 
         if level > 1 {
@@ -824,6 +833,9 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     public func printExtensionDefinition(_ extensionDefinition: ExtensionDefinition, level: Int = 1) async throws -> SemanticString {
+        if !extensionDefinition.isIndexed {
+            try await extensionDefinition.index(in: machO)
+        }
         Keyword(.extension)
         Space()
         extensionDefinition.extensionName.print()
@@ -882,6 +894,11 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     public func printDefinition(_ definition: some Definition, level: Int = 1) async throws -> SemanticString {
+        
+        if let mutableDefinition = definition as? MutableDefinition, !mutableDefinition.isIndexed {
+            try await mutableDefinition.index(in: machO)
+        }
+        
         for (offset, allocator) in definition.allocators.offsetEnumerated() {
             BreakLine()
 

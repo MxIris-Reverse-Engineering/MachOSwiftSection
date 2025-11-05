@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import MachOSwiftSection
+@testable import SwiftDump
 @testable import MachOTestingSupport
 
 final class ProtocolRequirementSignatureTests: DyldCacheTests, @unchecked Sendable {
