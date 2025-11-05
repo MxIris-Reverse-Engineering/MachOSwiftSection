@@ -146,21 +146,21 @@ public final class TypeDefinition: Definition {
         let name = typeName.name
         let node = typeName.node
 
-        self.allocators = await DefinitionBuilder.allocators(
+        self.allocators = DefinitionBuilder.allocators(
             for: symbolIndexStore.memberSymbols(of: .allocator(inExtension: false), for: name, node: node, in: machO),
             methodDescriptorLookup: methodDescriptorLookup
         )
 
-        self.hasDeallocator = await !symbolIndexStore.memberSymbols(of: .deallocator, for: typeName.name, in: machO).isEmpty
+        self.hasDeallocator = !symbolIndexStore.memberSymbols(of: .deallocator, for: typeName.name, in: machO).isEmpty
 
-        self.variables = await DefinitionBuilder.variables(
+        self.variables = DefinitionBuilder.variables(
             for: symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: name, node: node, in: machO),
             fieldNames: fieldNames,
             methodDescriptorLookup: methodDescriptorLookup,
             isGlobalOrStatic: false
         )
 
-        self.staticVariables = await DefinitionBuilder.variables(
+        self.staticVariables = DefinitionBuilder.variables(
             for: symbolIndexStore.memberSymbols(
                 of: .variable(inExtension: false, isStatic: true, isStorage: false),
                     .variable(inExtension: false, isStatic: true, isStorage: true),
@@ -172,25 +172,25 @@ public final class TypeDefinition: Definition {
             isGlobalOrStatic: true
         )
 
-        self.functions = await DefinitionBuilder.functions(
+        self.functions = DefinitionBuilder.functions(
             for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: false), for: name, node: node, in: machO),
             methodDescriptorLookup: methodDescriptorLookup,
             isGlobalOrStatic: false
         )
 
-        self.staticFunctions = await DefinitionBuilder.functions(
+        self.staticFunctions = DefinitionBuilder.functions(
             for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: true), for: name, node: node, in: machO),
             methodDescriptorLookup: methodDescriptorLookup,
             isGlobalOrStatic: true
         )
 
-        self.subscripts = await DefinitionBuilder.subscripts(
+        self.subscripts = DefinitionBuilder.subscripts(
             for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: false), for: name, node: node, in: machO),
             methodDescriptorLookup: methodDescriptorLookup,
             isStatic: false
         )
 
-        self.staticSubscripts = await DefinitionBuilder.subscripts(
+        self.staticSubscripts = DefinitionBuilder.subscripts(
             for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: true), for: name, node: node, in: machO),
             methodDescriptorLookup: methodDescriptorLookup,
             isStatic: true

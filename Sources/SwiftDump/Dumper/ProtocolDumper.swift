@@ -95,7 +95,7 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
             for (offset, requirement) in `protocol`.requirements.offsetEnumerated() {
                 BreakLine()
                 Indent(level: configuration.indentation)
-                if let symbols = try Symbols.resolve(from: requirement.offset, in: machO), let validNode = try await validNode(for: symbols) {
+                if let symbols = try await Symbols.resolve(from: requirement.offset, in: machO), let validNode = try await validNode(for: symbols) {
                     try await demangleResolver.resolve(for: validNode)
                 } else {
                     InlineComment("[Stripped Symbol]")

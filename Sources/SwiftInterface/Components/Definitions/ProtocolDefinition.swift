@@ -60,9 +60,7 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(`protocol`: MachOSwiftSection.`Protocol`, in machO: MachO) throws {
         self.protocol = `protocol`
         let node = try MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO)
-        let protocolName = ProtocolName(node: node)
-        let name = protocolName.name
-        self.protocolName = protocolName
+        self.protocolName = ProtocolName(node: node)
         
     }
     
@@ -86,7 +84,7 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
         var defaultImplementationVisitedNodes: OrderedSet<Node> = []
         
         for requirement in `protocol`.requirements {
-            guard let symbols = try Symbols.resolve(from: requirement.offset, in: machO), let symbol = try? _symbol(for: symbols, visitedNodes: requirementVisitedNodes) else { continue }
+            guard let symbols = try await Symbols.resolve(from: requirement.offset, in: machO), let symbol = try? _symbol(for: symbols, visitedNodes: requirementVisitedNodes) else { continue }
             requirementVisitedNodes.append(symbol.demangledNode)
             addSymbol(symbol, memberSymbolsByKind: &requirementMemberSymbolsByKind, inExtension: false)
             if let symbols = try requirement.defaultImplementationSymbols(in: machO), let defaultImplementationSymbol = try _symbol(for: symbols, visitedNodes: defaultImplementationVisitedNodes) {

@@ -5,6 +5,7 @@ import MachOFoundation
 import SwiftStdlibToolbox
 import MachOSwiftSection
 @_spi(Internals) import MachOCaches
+@_spi(Internals) import MachOSymbols
 
 private final class MetadataReaderCache: MachOCache<MetadataReaderCache.Entry>, @unchecked Sendable {
     fileprivate static let shared = MetadataReaderCache()
@@ -78,8 +79,9 @@ public enum MetadataReader<MachO: MachOSwiftSectionRepresentableWithCache> {
         return try buildContextManglingForSymbol(symbol, in: machO)
     }
 
-    public static func demangleSymbol(for symbol: Symbol, in machO: MachO) async throws -> Node? {
-        return SymbolCache.shared.demangledNode(for: symbol, in: machO)
+    public static func demangleSymbol(for symbol: Symbol, in machO: MachO) throws -> Node? {
+//        return SymbolCache.shared.demangledNode(for: symbol, in: machO)
+        return SymbolIndexStore.shared.demangledNode(for: symbol, in: machO)
     }
 
     public static func demangleContext(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {

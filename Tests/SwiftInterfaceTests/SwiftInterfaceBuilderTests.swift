@@ -43,11 +43,11 @@ extension SwiftInterfaceBuilderTests {
 //        printNonConsumedSymbols(in: machO)
     }
 
-    func printNonConsumedSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) {
+    func printNonConsumedSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async {
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
-        if let memberSymbolsByKind = symbolIndexStore.entry(in: machO)?.memberSymbolsByKind {
+        if let memberSymbolsByKind = await symbolIndexStore.entry(in: machO)?.memberSymbolsByKind {
             for (kind, memberSymbolsByName) in memberSymbolsByKind {
                 for (name, memberSymbolsByNode) in memberSymbolsByName {
                     for (node, memberSymbols) in memberSymbolsByNode {

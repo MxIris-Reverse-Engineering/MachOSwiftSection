@@ -92,7 +92,7 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
                         addSymbol(.init(symbol: symbol, demangledNode: demangledNode), memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
                     }
                 case .element(let element):
-                    if let symbols = try Symbols.resolve(from: element.offset, in: machO), let symbol = try _symbol(for: symbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
+                    if let symbols = try await Symbols.resolve(from: element.offset, in: machO), let symbol = try _symbol(for: symbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
                         _ = visitedNodes.append(symbol.demangledNode)
                         addSymbol(symbol, memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
                     } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machO), let symbol = try _symbol(for: defaultImplementationSymbols, typeName: extensionName.name, visitedNodes: visitedNodes) {

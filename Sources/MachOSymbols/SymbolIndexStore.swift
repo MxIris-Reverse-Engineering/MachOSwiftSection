@@ -129,21 +129,63 @@ public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry>, @unchec
     fileprivate typealias MemberSymbols = OrderedDictionary<String, OrderedDictionary<Node, [IndexedSymbol]>>
     fileprivate typealias OpaqueTypeDescriptorSymbol = IndexedSymbol
 
-    public actor Entry {
-        fileprivate var typeInfoByName: [String: TypeInfo] = [:]
-        fileprivate var symbolsByKind: OrderedDictionary<Node.Kind, AllSymbols> = [:]
-        fileprivate var globalSymbolsByKind: OrderedDictionary<GlobalKind, GlobalSymbols> = [:]
-        fileprivate var memberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
-        fileprivate var methodDescriptorMemberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
-        fileprivate var protocolWitnessMemberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
-        fileprivate var opaqueTypeDescriptorSymbolByNode: OrderedDictionary<Node, OpaqueTypeDescriptorSymbol> = [:]
-        fileprivate var symbolsByOffset: OrderedDictionary<Int, [Symbol]> = [:]
-        fileprivate var demangledNodeBySymbol: [Symbol: Node] = [:]
+    public final class Entry: Sendable {
+        @Mutex
+        fileprivate private(set) var typeInfoByName: [String: TypeInfo] = [:]
+        @Mutex
+        fileprivate private(set) var globalSymbolsByKind: OrderedDictionary<GlobalKind, GlobalSymbols> = [:]
+        @Mutex
+        fileprivate private(set) var opaqueTypeDescriptorSymbolByNode: OrderedDictionary<Node, OpaqueTypeDescriptorSymbol> = [:]
+        @Mutex
+        fileprivate private(set) var memberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
+        @Mutex
+        fileprivate private(set) var methodDescriptorMemberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
+        @Mutex
+        fileprivate private(set) var protocolWitnessMemberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
+        @Mutex
+        fileprivate private(set) var symbolsByKind: OrderedDictionary<Node.Kind, AllSymbols> = [:]
+        @Mutex
+        fileprivate private(set) var symbolsByOffset: OrderedDictionary<Int, [Symbol]> = [:]
+        @Mutex
+        fileprivate private(set) var demangledNodeBySymbol: [Symbol: Node] = [:]
         
+        fileprivate func appendSymbol(_ symbol: IndexedSymbol, for kind: Node.Kind) {
+            symbolsByKind[kind, default: []].append(symbol)
+        }
         
-        fileprivate func apply(_ result: ProcessMemberSymbolResult, to keyPath: ReferenceWritableKeyPath<Entry, OrderedDictionary<MemberKind, MemberSymbols>>) async {
-            self[keyPath: keyPath][result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNode, default: []].append(result.indexedSymbol)
+        fileprivate func setOpaqueTypeDescriptorSymbol(_ symbol: OpaqueTypeDescriptorSymbol, for node: Node) {
+            opaqueTypeDescriptorSymbolByNode[node] = symbol
+        }
+        
+        fileprivate func setDemangledNode(_ demangledNode: Node?, for symbol: Symbol) {
+            demangledNodeBySymbol[symbol] = demangledNode
+        }
+        
+        fileprivate func setSymbolsByOffset(_ symbolsByOffset: OrderedDictionary<Int, [Symbol]>) {
+            self.symbolsByOffset = symbolsByOffset
+        }
+        
+        fileprivate func setDemangledNodeBySymbol(_ demangledNodeBySymbol: [Symbol: Node]) {
+            self.demangledNodeBySymbol = demangledNodeBySymbol
+        }
+        
+        fileprivate func setMemberSymbols(for result: ProcessMemberSymbolResult) {
+            memberSymbolsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNode, default: []].append(result.indexedSymbol)
             typeInfoByName[result.typeName] = result.typeInfo
+        }
+        
+        fileprivate func setMethodDescriptorMemberSymbols(for result: ProcessMemberSymbolResult) {
+            methodDescriptorMemberSymbolsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNode, default: []].append(result.indexedSymbol)
+            typeInfoByName[result.typeName] = result.typeInfo
+        }
+        
+        fileprivate func setProtocolWitnessMemberSymbols(for result: ProcessMemberSymbolResult) {
+            protocolWitnessMemberSymbolsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNode, default: []].append(result.indexedSymbol)
+            typeInfoByName[result.typeName] = result.typeInfo
+        }
+        
+        fileprivate func setGlobalSymbols(for result: ProcessGlobalSymbolResult) {
+            globalSymbolsByKind[result.kind, default: []].append(result.indexedSymbol)
         }
     }
 
@@ -151,8 +193,8 @@ public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry>, @unchec
 
     private override init() { super.init() }
 
-    public override func buildEntry<MachO>(for machO: MachO) async -> Entry? where MachO: MachORepresentableWithCache {
-        var entry = Entry()
+    public override func buildEntry<MachO>(for machO: MachO) -> Entry? where MachO: MachORepresentableWithCache {
+        let entry = Entry()
         var cachedSymbols: Set<String> = []
         var symbolsByOffset: OrderedDictionary<Int, [Symbol]> = [:]
         var symbolByName: OrderedDictionary<String, Symbol> = [:]
@@ -185,31 +227,45 @@ public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry>, @unchec
 
                 guard rootNode.isKind(of: .global), let node = rootNode.children.first else { continue }
 
-                entry.symbolsByKind[node.kind, default: []].append(IndexedSymbol(DemangledSymbol(symbol: symbol, demangledNode: rootNode)))
-
+                entry.appendSymbol(IndexedSymbol(DemangledSymbol(symbol: symbol, demangledNode: rootNode)), for: node.kind)
                 if rootNode.isGlobal {
                     if !symbol.isExternal {
-                        processGlobalSymbol(symbol, node: node, rootNode: rootNode, in: &entry.globalSymbolsByKind)
+                        if let result = processGlobalSymbol(symbol, node: node, rootNode: rootNode) {
+                            entry.setGlobalSymbols(for: result)
+                        }
                     }
                 } else {
                     if node.kind == .methodDescriptor, let firstChild = node.children.first {
-                        if let result = processMemberSymbol(symbol, node: firstChild, rootNode: rootNode, in: &entry.methodDescriptorMemberSymbolsByKind, typeInfoByName: &entry.typeInfoByName) {
-                            await entry.apply(result, to: \.methodDescriptorMemberSymbolsByKind)
+                        if let result = processMemberSymbol(symbol, node: firstChild, rootNode: rootNode) {
+                            entry.setMethodDescriptorMemberSymbols(for: result)
                         }
                     } else if node.kind == .protocolWitness, let firstChild = node.children.first {
-                        processMemberSymbol(symbol, node: firstChild, rootNode: rootNode, in: &entry.protocolWitnessMemberSymbolsByKind, typeInfoByName: &entry.typeInfoByName)
+                        if let result = processMemberSymbol(symbol, node: firstChild, rootNode: rootNode) {
+                            entry.setProtocolWitnessMemberSymbols(for: result)
+                        }
                     } else if node.kind == .mergedFunction, let secondChild = rootNode.children.second {
-                        processMemberSymbol(symbol, node: secondChild, rootNode: rootNode, in: &entry.memberSymbolsByKind, typeInfoByName: &entry.typeInfoByName)
+                        if let result = processMemberSymbol(symbol, node: secondChild, rootNode: rootNode) {
+                            entry.setMemberSymbols(for: result)
+                        }
                     } else if node.kind == .opaqueTypeDescriptor, let firstChild = node.children.first, firstChild.kind == .opaqueReturnTypeOf, let memberSymbol = firstChild.children.first {
-                        processOpaqueTypeDescriptorSymbol(symbol, node: memberSymbol, rootNode: rootNode, in: &entry.opaqueTypeDescriptorSymbolByNode)
+                        if symbol.offset > 0 {
+                            entry.setOpaqueTypeDescriptorSymbol(IndexedSymbol(DemangledSymbol(symbol: symbol, demangledNode: rootNode)), for: memberSymbol)
+                        }
                     } else {
-                        processMemberSymbol(symbol, node: node, rootNode: rootNode, in: &entry.memberSymbolsByKind, typeInfoByName: &entry.typeInfoByName)
+                        if let result = processMemberSymbol(symbol, node: node, rootNode: rootNode) {
+                            entry.setMemberSymbols(for: result)
+                        }
                     }
                 }
             } catch {
                 print(error)
             }
         }
+        
+        entry.setSymbolsByOffset(symbolsByOffset)
+        
+        entry.setDemangledNodeBySymbol(demangledNodeBySymbol)
+        
         return entry
     }
 
@@ -221,15 +277,16 @@ public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry>, @unchec
         let indexedSymbol: IndexedSymbol
     }
 
-    private func processMemberSymbol(_ symbol: Symbol, node: Node, rootNode: Node, in innerEntry: inout OrderedDictionary<MemberKind, MemberSymbols>, typeInfoByName: inout [String: TypeInfo]) -> ProcessMemberSymbolResult? {
+    private func processMemberSymbol(_ symbol: Symbol, node: Node, rootNode: Node) -> ProcessMemberSymbolResult? {
         if node.kind == .static, let firstChild = node.children.first, firstChild.kind.isMember {
-            return processMemberSymbol(symbol, node: firstChild, rootNode: rootNode, traits: [.isStatic], in: &innerEntry, typeInfoByName: &typeInfoByName)
+            return processMemberSymbol(symbol, node: firstChild, rootNode: rootNode, traits: [.isStatic])
         } else if node.kind.isMember {
-            return processMemberSymbol(symbol, node: node, rootNode: rootNode, traits: [], in: &innerEntry, typeInfoByName: &typeInfoByName)
+            return processMemberSymbol(symbol, node: node, rootNode: rootNode, traits: [])
         }
+        return nil
     }
 
-    private func processMemberSymbol(_ symbol: Symbol, node: Node, rootNode: Node, traits: MemberKind.Traits, in entry: inout OrderedDictionary<MemberKind, MemberSymbols>, typeInfoByName: inout [String: TypeInfo]) -> ProcessMemberSymbolResult? {
+    private func processMemberSymbol(_ symbol: Symbol, node: Node, rootNode: Node, traits: MemberKind.Traits) -> ProcessMemberSymbolResult? {
         var traits = traits
         var node = node
         switch node.kind {
@@ -239,27 +296,27 @@ public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry>, @unchec
                 traits.insert(.inExtension)
                 first = type
             }
-            return processMemberSymbol(symbol, node: first, rootNode: rootNode, memberKind: .allocator(inExtension: traits.contains(.inExtension)), in: &entry, typeInfoByName: &typeInfoByName)
+            return processMemberSymbol(symbol, node: first, rootNode: rootNode, memberKind: .allocator(inExtension: traits.contains(.inExtension)))
         case .deallocator:
             guard let first = node.children.first else { return nil }
-            return processMemberSymbol(symbol, node: first, rootNode: rootNode, memberKind: .deallocator, in: &entry, typeInfoByName: &typeInfoByName)
+            return processMemberSymbol(symbol, node: first, rootNode: rootNode, memberKind: .deallocator)
         case .constructor:
             guard var first = node.children.first else { return nil }
             if first.kind == .extension, let type = first.children.at(1) {
                 traits.insert(.inExtension)
                 first = type
             }
-            return processMemberSymbol(symbol, node: first, rootNode: rootNode, memberKind: .constructor(inExtension: traits.contains(.inExtension)), in: &entry, typeInfoByName: &typeInfoByName)
+            return processMemberSymbol(symbol, node: first, rootNode: rootNode, memberKind: .constructor(inExtension: traits.contains(.inExtension)))
         case .destructor:
             guard let first = node.children.first else { return nil }
-            return processMemberSymbol(symbol, node: first, rootNode: rootNode, memberKind: .destructor, in: &entry, typeInfoByName: &typeInfoByName)
+            return processMemberSymbol(symbol, node: first, rootNode: rootNode, memberKind: .destructor)
         case .function:
             guard var first = node.children.first else { return nil }
             if first.kind == .extension, let type = first.children.at(1) {
                 traits.insert(.inExtension)
                 first = type
             }
-            return processMemberSymbol(symbol, node: first, rootNode: rootNode, memberKind: .function(inExtension: traits.contains(.inExtension), isStatic: traits.contains(.isStatic)), in: &entry, typeInfoByName: &typeInfoByName)
+            return processMemberSymbol(symbol, node: first, rootNode: rootNode, memberKind: .function(inExtension: traits.contains(.inExtension), isStatic: traits.contains(.isStatic)))
         case .variable:
             guard let parent = node.parent, parent.children.first === node else { return nil }
             node = parent
@@ -272,91 +329,95 @@ public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry>, @unchec
                     traits.insert(.inExtension)
                     first = type
                 }
-                return processMemberSymbol(symbol, node: first, rootNode: rootNode, memberKind: .variable(inExtension: traits.contains(.inExtension), isStatic: traits.contains(.isStatic), isStorage: traits.contains(.isStorage)), in: &entry, typeInfoByName: &typeInfoByName)
+                return processMemberSymbol(symbol, node: first, rootNode: rootNode, memberKind: .variable(inExtension: traits.contains(.inExtension), isStatic: traits.contains(.isStatic), isStorage: traits.contains(.isStorage)))
             } else if let subscriptNode = node.children.first, subscriptNode.kind == .subscript, var first = subscriptNode.children.first {
                 if first.kind == .extension, let type = first.children.at(1) {
                     traits.insert(.inExtension)
                     first = type
                 }
-                return processMemberSymbol(symbol, node: first, rootNode: rootNode, memberKind: .subscript(inExtension: traits.contains(.inExtension), isStatic: traits.contains(.isStatic)), in: &entry, typeInfoByName: &typeInfoByName)
+                return processMemberSymbol(symbol, node: first, rootNode: rootNode, memberKind: .subscript(inExtension: traits.contains(.inExtension), isStatic: traits.contains(.isStatic)))
             }
         default:
-            return nil
+            break
         }
+        return nil
     }
 
-    private func processMemberSymbol(_ symbol: Symbol, node: Node, rootNode: Node, memberKind: MemberKind, in entry: inout OrderedDictionary<MemberKind, MemberSymbols>, typeInfoByName: inout [String: TypeInfo]) -> ProcessMemberSymbolResult? {
+    private func processMemberSymbol(_ symbol: Symbol, node: Node, rootNode: Node, memberKind: MemberKind) -> ProcessMemberSymbolResult? {
         let typeNode = Node(kind: .type, child: node)
         let typeName = typeNode.print(using: .interfaceTypeBuilderOnly)
         if let typeKind = node.kind.typeKind {
-            typeInfoByName[typeName] = .init(name: typeName, kind: typeKind)
-            entry[memberKind, default: [:]][typeName, default: [:]][typeNode, default: []].append(IndexedSymbol(DemangledSymbol(symbol: symbol, demangledNode: rootNode)))
+//            typeInfoByName[typeName] = .init(name: typeName, kind: typeKind)
+//            entry[memberKind, default: [:]][typeName, default: [:]][typeNode, default: []].append(IndexedSymbol(DemangledSymbol(symbol: symbol, demangledNode: rootNode)))
             return .init(memberKind: memberKind, typeName: typeName, typeNode: typeNode, typeInfo: .init(name: typeName, kind: typeKind), indexedSymbol: IndexedSymbol(DemangledSymbol(symbol: symbol, demangledNode: rootNode)))
         }
         return nil
     }
 
-    private func processOpaqueTypeDescriptorSymbol(_ symbol: Symbol, node: Node, rootNode: Node, in entry: inout OrderedDictionary<Node, OpaqueTypeDescriptorSymbol>) {
-        guard symbol.offset > 0 else { return }
-        entry[node] = IndexedSymbol(DemangledSymbol(symbol: symbol, demangledNode: rootNode))
+    
+    fileprivate struct ProcessGlobalSymbolResult: Sendable {
+        let kind: GlobalKind
+        let indexedSymbol: IndexedSymbol
     }
+    
 
-    private func processGlobalSymbol(_ symbol: Symbol, node: Node, rootNode: Node, in entry: inout OrderedDictionary<GlobalKind, GlobalSymbols>) {
+    private func processGlobalSymbol(_ symbol: Symbol, node: Node, rootNode: Node) -> ProcessGlobalSymbolResult? {
         switch node.kind {
         case .function:
-            entry[.function, default: []].append(IndexedSymbol(DemangledSymbol(symbol: symbol, demangledNode: rootNode)))
+            return .init(kind: .function, indexedSymbol: IndexedSymbol(DemangledSymbol(symbol: symbol, demangledNode: rootNode)))
         case .variable:
-            guard let parent = node.parent, parent.children.first === node else { return }
+            guard let parent = node.parent, parent.children.first === node else { return nil }
             let isStorage = node.parent?.isAccessor == false
-            entry[.variable(isStorage: isStorage), default: []].append(IndexedSymbol(DemangledSymbol(symbol: symbol, demangledNode: rootNode)))
+            return .init(kind: .variable(isStorage: isStorage), indexedSymbol: IndexedSymbol(DemangledSymbol(symbol: symbol, demangledNode: rootNode)))
         case .getter,
              .setter:
             if let variableNode = node.children.first, variableNode.kind == .variable {
-                processGlobalSymbol(symbol, node: variableNode, rootNode: rootNode, in: &entry)
+                return processGlobalSymbol(symbol, node: variableNode, rootNode: rootNode)
             }
         default:
             break
         }
+        return nil
     }
 
-    public func allSymbols<MachO: MachORepresentableWithCache>(in machO: MachO) async -> [DemangledSymbol] {
-        if let symbols = await entry(in: machO)?.symbolsByKind.values.flatMap({ $0 }) {
+    public func allSymbols<MachO: MachORepresentableWithCache>(in machO: MachO) -> [DemangledSymbol] {
+        if let symbols = entry(in: machO)?.symbolsByKind.values.flatMap({ $0 }) {
             return symbols.mapWrappedValues()
         } else {
             return []
         }
     }
 
-    public func symbolsByKind<MachO: MachORepresentableWithCache>(in machO: MachO) async -> OrderedDictionary<Node.Kind, [DemangledSymbol]> {
-        if let symbols = await entry(in: machO)?.symbolsByKind {
+    public func symbolsByKind<MachO: MachORepresentableWithCache>(in machO: MachO) -> OrderedDictionary<Node.Kind, [DemangledSymbol]> {
+        if let symbols = entry(in: machO)?.symbolsByKind {
             return symbols.mapValues { $0.mapWrappedValues() }
         } else {
             return [:]
         }
     }
 
-    public func typeInfo<MachO: MachORepresentableWithCache>(for name: String, in machO: MachO) async -> TypeInfo? {
-        return await entry(in: machO)?.typeInfoByName[name]
+    public func typeInfo<MachO: MachORepresentableWithCache>(for name: String, in machO: MachO) -> TypeInfo? {
+        return entry(in: machO)?.typeInfoByName[name]
     }
 
-    public func symbols<MachO: MachORepresentableWithCache>(of kinds: Node.Kind..., in machO: MachO) async -> [DemangledSymbol] {
-        return await kinds.asyncMap { await entry(in: machO)?.symbolsByKind[$0] ?? [] }.reduce(into: []) { $0 += $1.mapWrappedValues() }
+    public func symbols<MachO: MachORepresentableWithCache>(of kinds: Node.Kind..., in machO: MachO) -> [DemangledSymbol] {
+        return kinds.map { entry(in: machO)?.symbolsByKind[$0] ?? [] }.reduce(into: []) { $0 += $1.mapWrappedValues() }
     }
 
-    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) async -> [DemangledSymbol] {
-        return await kinds.asyncMap { await entry(in: machO)?.memberSymbolsByKind[$0]?.values.flatMap { $0.values.flatMap { $0 } } ?? [] }.reduce(into: []) { $0 += $1.mapWrappedValues() }
+    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
+        return kinds.map { entry(in: machO)?.memberSymbolsByKind[$0]?.values.flatMap { $0.values.flatMap { $0 } } ?? [] }.reduce(into: []) { $0 += $1.mapWrappedValues() }
     }
 
-    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) async -> [DemangledSymbol] {
-        return await kinds.asyncMap { await entry(in: machO)?.memberSymbolsByKind[$0]?[name]?.values.flatMap { $0 } ?? [] }.reduce(into: []) { $0 += $1.mapWrappedValues() }
+    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) -> [DemangledSymbol] {
+        return kinds.map { entry(in: machO)?.memberSymbolsByKind[$0]?[name]?.values.flatMap { $0 } ?? [] }.reduce(into: []) { $0 += $1.mapWrappedValues() }
     }
 
-    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, node: Node, in machO: MachO) async -> [DemangledSymbol] {
-        return await kinds.asyncMap { await entry(in: machO)?.memberSymbolsByKind[$0]?[name]?[node] ?? [] }.reduce(into: []) { $0 += $1.mapWrappedValues() }
+    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, node: Node, in machO: MachO) -> [DemangledSymbol] {
+        return kinds.map { entry(in: machO)?.memberSymbolsByKind[$0]?[name]?[node] ?? [] }.reduce(into: []) { $0 += $1.mapWrappedValues() }
     }
 
-    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., excluding names: borrowing Set<String>, in machO: MachO) async -> OrderedDictionary<Node, OrderedDictionary<MemberKind, [DemangledSymbol]>> {
-        let filtered = await kinds.async.reduce(into: [:]) { $0[$1] = await entry(in: machO)?.memberSymbolsByKind[$1]?.filter { !names.contains($0.key) } ?? [:] }
+    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., excluding names: borrowing Set<String>, in machO: MachO) -> OrderedDictionary<Node, OrderedDictionary<MemberKind, [DemangledSymbol]>> {
+        let filtered = kinds.reduce(into: [:]) { $0[$1] = entry(in: machO)?.memberSymbolsByKind[$1]?.filter { !names.contains($0.key) } ?? [:] }
 
         var result: OrderedDictionary<Node, OrderedDictionary<MemberKind, [DemangledSymbol]>> = [:]
         for (kind, memberSymbols) in filtered {
@@ -369,61 +430,61 @@ public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry>, @unchec
         return result
     }
 
-    public func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) async -> [DemangledSymbol] {
-        return await kinds.asyncMap { await entry(in: machO)?.methodDescriptorMemberSymbolsByKind[$0]?.values.flatMap { $0.values.flatMap { $0 } } ?? [] }.reduce(into: []) { $0 += $1.mapWrappedValues() }
+    public func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
+        return kinds.map { entry(in: machO)?.methodDescriptorMemberSymbolsByKind[$0]?.values.flatMap { $0.values.flatMap { $0 } } ?? [] }.reduce(into: []) { $0 += $1.mapWrappedValues() }
     }
 
-    public func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) async -> [DemangledSymbol] {
-        return await kinds.asyncMap { await entry(in: machO)?.methodDescriptorMemberSymbolsByKind[$0]?[name]?.values.flatMap { $0 } ?? [] }.reduce(into: []) { $0 += $1.mapWrappedValues() }
+    public func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) -> [DemangledSymbol] {
+        return kinds.map { entry(in: machO)?.methodDescriptorMemberSymbolsByKind[$0]?[name]?.values.flatMap { $0 } ?? [] }.reduce(into: []) { $0 += $1.mapWrappedValues() }
     }
 
-    public func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) async -> [DemangledSymbol] {
-        return await kinds.asyncMap { await entry(in: machO)?.protocolWitnessMemberSymbolsByKind[$0]?.values.flatMap { $0.values.flatMap { $0 } } ?? [] }.reduce(into: []) { $0 += $1.mapWrappedValues() }
+    public func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
+        return kinds.map { entry(in: machO)?.protocolWitnessMemberSymbolsByKind[$0]?.values.flatMap { $0.values.flatMap { $0 } } ?? [] }.reduce(into: []) { $0 += $1.mapWrappedValues() }
     }
 
-    public func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) async -> [DemangledSymbol] {
-        return await kinds.asyncMap { await entry(in: machO)?.protocolWitnessMemberSymbolsByKind[$0]?[name]?.values.flatMap { $0 } ?? [] }.reduce(into: []) { $0 += $1.mapWrappedValues() }
+    public func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) -> [DemangledSymbol] {
+        return kinds.map { entry(in: machO)?.protocolWitnessMemberSymbolsByKind[$0]?[name]?.values.flatMap { $0 } ?? [] }.reduce(into: []) { $0 += $1.mapWrappedValues() }
     }
 
-    public func globalSymbols<MachO: MachORepresentableWithCache>(of kinds: GlobalKind..., in machO: MachO) async -> [DemangledSymbol] {
-        return await kinds.asyncMap { await entry(in: machO)?.globalSymbolsByKind[$0] ?? [] }.reduce(into: []) { $0 += $1.mapWrappedValues() }
+    public func globalSymbols<MachO: MachORepresentableWithCache>(of kinds: GlobalKind..., in machO: MachO) -> [DemangledSymbol] {
+        return kinds.map { entry(in: machO)?.globalSymbolsByKind[$0] ?? [] }.reduce(into: []) { $0 += $1.mapWrappedValues() }
     }
 
-    public func allOpaqueTypeDescriptorSymbols<MachO: MachORepresentableWithCache>(in machO: MachO) async -> OrderedDictionary<Node, DemangledSymbol>? {
-        return await entry(in: machO)?.opaqueTypeDescriptorSymbolByNode.mapValues {
+    public func allOpaqueTypeDescriptorSymbols<MachO: MachORepresentableWithCache>(in machO: MachO) -> OrderedDictionary<Node, DemangledSymbol>? {
+        return entry(in: machO)?.opaqueTypeDescriptorSymbolByNode.mapValues {
             return $0.wrappedValue
         }
     }
 
-    public func opaqueTypeDescriptorSymbol<MachO: MachORepresentableWithCache>(for node: Node, in machO: MachO) async -> DemangledSymbol? {
-        return await entry(in: machO)?.opaqueTypeDescriptorSymbolByNode[node].map {
+    public func opaqueTypeDescriptorSymbol<MachO: MachORepresentableWithCache>(for node: Node, in machO: MachO) -> DemangledSymbol? {
+        return entry(in: machO)?.opaqueTypeDescriptorSymbolByNode[node].map {
             $0.isConsumed = true
             return $0.wrappedValue
         }
     }
 
-    package func symbols<MachO: MachORepresentableWithCache>(for offset: Int, in machO: MachO) async -> Symbols? {
-        if let symbols = await entry(in: machO)?.symbolsByOffset[offset], !symbols.isEmpty {
+    package func symbols<MachO: MachORepresentableWithCache>(for offset: Int, in machO: MachO) -> Symbols? {
+        if let symbols = entry(in: machO)?.symbolsByOffset[offset], !symbols.isEmpty {
             return .init(offset: offset, symbols: symbols)
         } else {
             return nil
         }
     }
 
-    package func demangledNode<MachO: MachORepresentableWithCache>(for symbol: Symbol, in machO: MachO) async -> Node? {
-        guard let cacheEntry = await entry(in: machO) else { return nil }
-        if let node = await cacheEntry.demangledNodeBySymbol[symbol] {
+    package func demangledNode<MachO: MachORepresentableWithCache>(for symbol: Symbol, in machO: MachO) -> Node? {
+        guard let cacheEntry = entry(in: machO) else { return nil }
+        if let node = cacheEntry.demangledNodeBySymbol[symbol] {
             return node
         } else if let node = try? demangleAsNode(symbol.name) {
-            cacheEntry.demangledNodeBySymbol[symbol] = node
+            cacheEntry.setDemangledNode(node, for: symbol)
             return node
         } else {
             return nil
         }
     }
 
-    public func prepare<MachO: MachORepresentableWithCache>(in machO: MachO) async {
-        _ = await entry(in: machO)
+    public func prepare<MachO: MachORepresentableWithCache>(in machO: MachO) {
+        _ = entry(in: machO)
     }
 }
 
