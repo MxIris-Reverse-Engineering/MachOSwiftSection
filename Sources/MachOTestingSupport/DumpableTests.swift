@@ -101,7 +101,7 @@ extension DumpableTests {
     package func dumpOpaqueTypes<MachO: MachOSwiftSectionRepresentableWithCache & MachOOffsetConverter>(for machO: MachO) async throws {
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
-        let symbols = await symbolIndexStore.symbols(of: .opaqueTypeDescriptor, in: machO)
+        let symbols = symbolIndexStore.symbols(of: .opaqueTypeDescriptor, in: machO)
         for symbol in symbols where symbol.offset != 0 {
             var offset = symbol.offset
 

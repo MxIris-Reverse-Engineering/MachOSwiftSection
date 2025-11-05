@@ -19,7 +19,7 @@ final class MetadataFinderTests: DyldCacheTests, @unchecked Sendable {
     
     
     @Test func dumpMetadatasInAppKit() async throws {
-        let symbols = await symbolIndexStore.symbols(of: .typeMetadata, in: machOFileInCache)
+        let symbols = symbolIndexStore.symbols(of: .typeMetadata, in: machOFileInCache)
         for symbol in symbols {
             let metadata = try Metadata.resolve(from: symbol.offset, in: machOFileInCache)
             print(try demangleAsNode(symbol.name).print(using: .default), terminator: " ")

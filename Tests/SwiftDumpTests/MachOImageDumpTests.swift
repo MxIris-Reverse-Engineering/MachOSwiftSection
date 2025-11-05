@@ -45,7 +45,7 @@ extension MachOImageDumpTests {
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
         
-        let symbols = await symbolIndexStore.allSymbols(in: machOImage)
+        let symbols = symbolIndexStore.allSymbols(in: machOImage)
         for symbol in symbols {
             print(symbol.offset, symbol.name)
         }
