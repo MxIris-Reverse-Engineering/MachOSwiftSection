@@ -13,7 +13,7 @@ struct DumpCommand: AsyncParsableCommand {
     )
 
     private var dumpedString = ""
-    
+
     @OptionGroup
     var machOOptions: MachOOptionGroup
 
@@ -25,7 +25,6 @@ struct DumpCommand: AsyncParsableCommand {
 
     @Option(name: .shortAndLong, parsing: .upToNextOption, help: "The sections to dump. If not specified, all sections will be dumped.")
     var sections: [SwiftSection] = SwiftSection.allCases
-
 
     @Option(name: .shortAndLong, help: "The color scheme for the output.")
     var colorScheme: SemanticColorScheme = .none
