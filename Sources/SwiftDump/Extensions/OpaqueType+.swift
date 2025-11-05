@@ -3,7 +3,7 @@ import Demangling
 import MachOSwiftSection
 
 extension OpaqueType {
-    public func requirements(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [GenericRequirementDescriptor] {
+    package func requirements(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [GenericRequirementDescriptor] {
         guard let genericContext else { return [] }
 
         var usedRequirements = Set<Node>()

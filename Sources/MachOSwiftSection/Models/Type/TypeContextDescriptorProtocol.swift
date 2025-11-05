@@ -1,5 +1,4 @@
 import MachOKit
-
 import MachOFoundation
 
 public protocol TypeContextDescriptorProtocol: NamedContextDescriptorProtocol where Layout: TypeContextDescriptorLayout {}
@@ -52,8 +51,4 @@ extension TypeContextDescriptorProtocol {
     public var hasSingletonMetadataPointer: Bool {
         return !layout.flags.contains(.isGeneric) && hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer
     }
-}
-
-func align(address: Int, alignment: Int) -> Int {
-    (address + alignment - 1) & ~(alignment - 1)
 }
