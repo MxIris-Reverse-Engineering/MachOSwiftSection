@@ -7,6 +7,7 @@ import MachOFoundation
 @testable import SwiftDump
 @testable import MachOTestingSupport
 import Dependencies
+@_spi(Core) import MachOObjCSection
 
 #if os(macOS)
 import AppKit
@@ -19,78 +20,74 @@ import SwiftUI
 
 @Suite(.serialized)
 final class ClassHierarchyDumpTests: MachOImageTests, DumpableTests, @unchecked Sendable {
-    
     override class var imageName: MachOImageName { .AppKit }
-    
+
     @Test
     func dump() async throws {
         let machO = machOImage
         for type in try machO.swift.types {
             switch type {
             case .class(let `class`):
-                var classes: [String] = try [`class`.descriptor.name(in: machO)]
-                try await perform(`class`, classes: &classes)
-                print(classes)
+                var classes: [String] = []
+                if let metadataAccessor = try `class`.descriptor.metadataAccessor(in: machO), !`class`.descriptor.flags.isGeneric {
+                    let metadata = try metadataAccessor.perform(request: .init(state: .complete, isBlocking: false)).value.resolve(in: machO)
+                    switch metadata {
+                    case .class(let classMetadataObjCInterop):
+                        try print(`class`.descriptor.name(in: machO))
+                        try perform(classMetadata: classMetadataObjCInterop, classDescriptor: `class`.descriptor, classes: &classes)
+                        print(classes)
+                    default:
+                        break
+                    }
+                }
             default:
-                continue
+                break
             }
         }
     }
-    
-    private func perform(_ `class`: `Class`, classes: inout [String]) async throws {
+
+    private func perform(objcClass: ObjCClass64, classes: inout [String]) throws {
         let machO = machOImage
-        if let resilientSuperclass = `class`.resilientSuperclass, let kind = `class`.resilientSuperclassReferenceKind {
-            let typeReference = try resilientSuperclass.superclassResolvedTypeReference(for: kind, in: machO)
-            switch typeReference {
-            case .directTypeDescriptor(let contextDescriptorWrapper):
-                switch contextDescriptorWrapper {
-                case .type(let typeContextDescriptorWrapper):
-                    switch typeContextDescriptorWrapper {
-                    case .class(let classDescription):
-                        try classes.append(classDescription.name(in: machO))
-                        try await perform(Class(descriptor: classDescription, in: machO), classes: &classes)
-                    default:
-                        return
-                    }
-                default:
-                    return
-                }
-            case .indirectTypeDescriptor(let symbolOrElement):
-                switch symbolOrElement {
-                case .element(let element):
-                    switch element {
-                    case .type(let typeContextDescriptorWrapper):
-                        switch typeContextDescriptorWrapper {
-                        case .class(let classDescription):
-                            try classes.append(classDescription.name(in: machO))
-                            try await perform(Class(descriptor: classDescription, in: machO), classes: &classes)
-                        default:
-                            return
-                        }
-                    default:
-                        return
-                    }
-                case .symbol(let symbol):
-                    try classes.append(symbol.demangledNode.print(using: .interfaceType))
-                default:
-                    return
-                }
-            case .directObjCClassName(let string):
-                if let string {
-                    classes.append(string)
-                }
-            case .indirectObjCClass(let symbolOrElement):
-                switch symbolOrElement {
-                case .element(let element):
-                    if let classDescription = try element.descriptor.resolve(in: machO) {
-                        try classes.append(classDescription.name(in: machO))
-                        try await perform(Class(descriptor: classDescription, in: machO), classes: &classes)
-                    }
-                default:
-                    return
-                }
+        if let superclass = objcClass.superClass(in: machO)?.1 {
+            if let name = superclass.info(in: machO)?.name {
+                classes.append(name)
+                try perform(objcClass: superclass, classes: &classes)
             }
         }
     }
     
+    private func perform(classMetadata: ClassMetadataObjCInterop, classDescriptor: ClassDescriptor, classes: inout [String]) throws {
+        let machO = machOImage
+
+        try classes.append(classDescriptor.name(in: machO))
+        if let superclassMetadata = try classMetadata.superclass(in: machO) {
+            if superclassMetadata.isPureObjC {
+                let objcClass = try ObjCClass64.resolve(from: superclassMetadata.offset, in: machO)
+                if let name = objcClass.info(in: machO)?.name {
+                    classes.append(name)
+                }
+                try perform(objcClass: objcClass, classes: &classes)
+            } else if let superclassDescriptor = try superclassMetadata.descriptor(in: machO) {
+                try perform(classMetadata: superclassMetadata, classDescriptor: superclassDescriptor, classes: &classes)
+            }
+        }
+    }
 }
+
+extension ObjCClass64: @retroactive Equatable {
+    public static func == (lhs: ObjCClass64, rhs: ObjCClass64) -> Bool {
+        lhs.offset == rhs.offset && lhs.layout == rhs.layout
+    }
+}
+extension ObjCClass64: LocatableLayoutWrapper, Resolvable, @unchecked @retroactive Sendable {}
+
+extension ObjCClass64.Layout: @retroactive Equatable {
+    public static func == (lhs: ObjCClass64.Layout, rhs: ObjCClass64.Layout) -> Bool {
+        lhs.isa == rhs.isa &&
+        lhs.superclass == rhs.superclass &&
+        lhs.methodCacheBuckets == rhs.methodCacheBuckets &&
+        lhs.methodCacheProperties == rhs.methodCacheProperties &&
+        lhs.swiftClassFlags == rhs.swiftClassFlags
+    }
+}
+extension ObjCClass64.Layout: LayoutProtocol, @unchecked @retroactive Sendable {}

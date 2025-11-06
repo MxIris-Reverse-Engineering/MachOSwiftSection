@@ -371,6 +371,7 @@ let package = Package(
             dependencies: [
                 "SwiftDump",
                 "MachOTestingSupport",
+                .product(name: "MachOObjCSection", package: "MachOObjCSection"),
             ],
             swiftSettings: testSettings
         ),
