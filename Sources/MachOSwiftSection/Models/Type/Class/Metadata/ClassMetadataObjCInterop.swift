@@ -4,7 +4,7 @@ import MachOFoundation
 public struct ClassMetadataObjCInterop: ClassMetadataProtocol {
     public struct Layout: ClassMetadataObjCInteropLayout, ClassMetadataLayoutWithDescriptor {
         public let kind: StoredPointer
-        public let superclass: StoredPointer
+        public let superclass: Pointer<ClassMetadataObjCInterop?>
         public let cache: RawPointer
         public let vtable: RawPointer
         public let data: StoredSize

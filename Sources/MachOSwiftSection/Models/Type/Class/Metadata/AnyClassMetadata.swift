@@ -4,7 +4,7 @@ import MachOFoundation
 public struct AnyClassMetadata: HeapMetadataProtocol {
     public struct Layout: AnyClassMetadataLayout {
         public let kind: StoredPointer
-        public let superclass: StoredPointer
+        public let superclass: Pointer<ClassMetadata?>
     }
 
     public var layout: Layout
