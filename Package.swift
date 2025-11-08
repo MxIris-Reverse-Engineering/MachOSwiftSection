@@ -40,7 +40,7 @@ extension Package.Dependency {
 
     static let MachOKitOrigin = Package.Dependency.package(
         url: "https://github.com/p-x9/MachOKit.git",
-        from: MachOKitVersion
+        exact: MachOKitVersion
     )
 
     static let MachOKitMain = Package.Dependency.package(
