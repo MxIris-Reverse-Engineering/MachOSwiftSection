@@ -266,6 +266,7 @@ let package = Package(
                 "MachOSwiftSection",
                 "Semantic",
                 "Utilities",
+                .product(name: "MachOObjCSection", package: "MachOObjCSection"),
             ]
         ),
 

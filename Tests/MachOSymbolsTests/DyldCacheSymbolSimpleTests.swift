@@ -37,9 +37,7 @@ final class DyldCacheSymbolSimpleTests: DyldCacheSymbolTests, @unchecked Sendabl
     }
 
     @Test func demangle() async throws {
-        var demangler = Demangler(scalars: "_$ss11InlineArrayVsRi__rlE8_storagexq_BVvr".unicodeScalars)
-        let node = try demangler.demangleSymbol()
-        node.print().print()
+        try demangleAsNode("_TtCs12_SwiftObject").print().print()
     }
 }
 
