@@ -1,3 +1,5 @@
+#if os(macOS)
+
 import Foundation
 import SourceKitD
 import FoundationToolbox
@@ -54,3 +56,5 @@ extension DependencyValues {
         set { self[SourceKitManagerKey.self] = newValue }
     }
 }
+
+#endif

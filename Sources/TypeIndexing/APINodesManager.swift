@@ -1,3 +1,5 @@
+#if os(macOS)
+
 import Foundation
 import APINotes
 import FoundationToolbox
@@ -64,3 +66,6 @@ final class APINotesManager: Sendable {
 extension Bool? {
     var orFalse: Bool { self ?? false }
 }
+
+
+#endif

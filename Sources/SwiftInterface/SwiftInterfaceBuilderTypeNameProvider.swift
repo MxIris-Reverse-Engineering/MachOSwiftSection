@@ -1,3 +1,5 @@
+#if os(macOS)
+
 import TypeIndexing
 import MachOKit
 import MachOSwiftSection
@@ -31,3 +33,36 @@ public final class SwiftInterfaceBuilderTypeNameProvider<MachO: MachOSwiftSectio
         typeDatabase.swiftName(forCName: cName)
     }
 }
+
+
+extension MachOKit.Platform {
+    var sdkPlatform: SDKPlatform? {
+        switch self {
+        case .macOS,
+             .macCatalyst:
+            return .macOS
+        case .driverKit:
+            return .driverKit
+        case .iOS:
+            return .iOS
+        case .tvOS:
+            return .tvOS
+        case .watchOS:
+            return .watchOS
+        case .visionOS:
+            return .visionOS
+        case .iOSSimulator:
+            return .iOSSimulator
+        case .tvOSSimulator:
+            return .tvOSSimulator
+        case .watchOSSimulator:
+            return .watchOSSimulator
+        case .visionOSSimulator:
+            return .visionOSSimulator
+        default:
+            return nil
+        }
+    }
+}
+
+#endif

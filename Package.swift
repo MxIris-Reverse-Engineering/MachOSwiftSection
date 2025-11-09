@@ -277,9 +277,9 @@ let package = Package(
                 .SwiftSyntax,
                 .SwiftParser,
                 .SwiftSyntaxBuilder,
-                .product(name: "SourceKitD", package: "SourceKitD"),
+                .product(name: "SourceKitD", package: "SourceKitD", condition: .when(platforms: [.macOS])),
                 .product(name: "BinaryCodable", package: "BinaryCodable"),
-                .product(name: "APINotes", package: "swift-apinotes"),
+                .product(name: "APINotes", package: "swift-apinotes", condition: .when(platforms: [.macOS])),
                 .product(name: "MachOObjCSection", package: "MachOObjCSection"),
             ]
         ),
@@ -304,7 +304,7 @@ let package = Package(
                 "SwiftDump",
                 "Semantic",
                 "Utilities",
-                "TypeIndexing",
+                .target(name: "TypeIndexing", condition: .when(platforms: [.macOS]))
             ]
         ),
 

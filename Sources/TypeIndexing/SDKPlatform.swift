@@ -1,3 +1,5 @@
+#if os(macOS)
+
 import Foundation
 
 package enum SDKPlatform: String, CaseIterable, Hashable, Codable, Sendable {
@@ -54,3 +56,6 @@ package enum SDKPlatform: String, CaseIterable, Hashable, Codable, Sendable {
         }
     }
 }
+
+
+#endif

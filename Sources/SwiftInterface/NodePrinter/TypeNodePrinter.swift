@@ -9,12 +9,13 @@ struct TypeNodePrinter: InterfaceNodePrintable {
 
     var targetNode: Node? { nil }
 
-    var isProtocol: Bool { false }
+    private(set) var isProtocol: Bool
 
     private(set) weak var delegate: (any NodePrintableDelegate)?
 
-    init(delegate: (any NodePrintableDelegate)? = nil) {
+    init(delegate: (any NodePrintableDelegate)? = nil, isProtocol: Bool = false) {
         self.delegate = delegate
+        self.isProtocol = isProtocol
     }
 
     mutating func printRoot(_ node: Node) async throws -> SemanticString {

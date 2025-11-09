@@ -24,3 +24,13 @@ public struct ExtensionName: DefinitionName, Hashable, Sendable {
         }
     }
 }
+
+
+extension ExtensionName {
+    var isProtocol: Bool {
+        switch kind {
+        case .protocol: return true
+        default: return false
+        }
+    }
+}

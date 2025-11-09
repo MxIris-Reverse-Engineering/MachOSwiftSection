@@ -1,3 +1,5 @@
+#if os(macOS)
+
 import Foundation
 import FoundationToolbox
 import APINotes
@@ -114,3 +116,6 @@ package final class TypeDatabase<MachO: MachORepresentable & Sendable>: Sendable
         }
     }
 }
+
+
+#endif

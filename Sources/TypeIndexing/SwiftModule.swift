@@ -1,3 +1,5 @@
+#if os(macOS)
+
 import Foundation
 import Dependencies
 
@@ -53,3 +55,6 @@ struct SwiftModule: Sendable, Codable {
         SwiftModuleIndexer(module: self)
     }
 }
+
+
+#endif

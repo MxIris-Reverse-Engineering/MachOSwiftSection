@@ -1,3 +1,5 @@
+#if os(macOS)
+
 import Foundation
 
 struct Subprocess: Codable {
@@ -101,3 +103,6 @@ struct Subprocess: Codable {
         return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
+
+
+#endif

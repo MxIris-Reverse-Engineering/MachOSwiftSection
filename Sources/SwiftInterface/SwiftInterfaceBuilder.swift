@@ -851,7 +851,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                     Keyword(.where)
                     Space()
                 }
-                node.printSemantic(using: .interfaceBuilderOnly)
+                try await printType(node, isProtocol: extensionDefinition.extensionName.isProtocol, level: level)
                 if !offset.isEnd {
                     Standard(",")
                     Space()
@@ -995,6 +995,12 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     public func printSubscript(_ `subscript`: SubscriptDefinition, level: Int) async throws -> SemanticString {
         var printer = SubscriptNodePrinter(isOverride: `subscript`.isOverride, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
         try await printer.printRoot(`subscript`.node)
+    }
+    
+    @SemanticStringBuilder
+    public func printType(_ typeNode: Node, isProtocol: Bool, level: Int) async throws -> SemanticString {
+        var printer = TypeNodePrinter(delegate: self, isProtocol: isProtocol)
+        try await printer.printRoot(typeNode)
     }
 }
 
