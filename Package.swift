@@ -113,6 +113,10 @@ let package = Package(
             name: "SwiftInterface",
             targets: ["SwiftInterface"]
         ),
+        .library(
+            name: "TypeIndexing",
+            targets: ["TypeIndexing"]
+        ),
         .executable(
             name: "swift-section",
             targets: ["swift-section"]
@@ -273,6 +277,7 @@ let package = Package(
         .target(
             name: "TypeIndexing",
             dependencies: [
+                "SwiftInterface",
                 "Utilities",
                 .SwiftSyntax,
                 .SwiftParser,
@@ -292,7 +297,6 @@ let package = Package(
                 "SwiftDump",
                 "Semantic",
                 "Utilities",
-                "TypeIndexing",
             ]
         ),
 
@@ -304,7 +308,6 @@ let package = Package(
                 "SwiftDump",
                 "Semantic",
                 "Utilities",
-                .target(name: "TypeIndexing", condition: .when(platforms: [.macOS]))
             ]
         ),
 

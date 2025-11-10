@@ -161,28 +161,6 @@ extension Node {
     }
 }
 
-extension String {
-    var strippedLibSwiftPrefix: String {
-        if hasPrefix("libswift") {
-            return String(dropFirst("libswift".count))
-        }
-        return self
-    }
-}
-
-extension LoadCommandsProtocol {
-    var buildVersionCommand: BuildVersionCommand? {
-        for command in self {
-            switch command {
-            case .buildVersion(let buildVersionCommand):
-                return buildVersionCommand
-            default:
-                break
-            }
-        }
-        return nil
-    }
-}
 
 extension Sequence {
     func filterNonNil<T, E: Swift.Error>(_ filter: (Element) throws(E) -> T?) throws(E) -> [Element] {

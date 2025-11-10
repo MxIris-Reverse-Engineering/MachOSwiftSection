@@ -1,8 +1,7 @@
 #if os(macOS)
-
-import TypeIndexing
 import MachOKit
 import MachOSwiftSection
+import SwiftInterface
 
 public final class SwiftInterfaceBuilderTypeNameProvider<MachO: MachOSwiftSectionRepresentableWithCache & Sendable>: SwiftInterfaceBuilderExtraDataProvider, Sendable {
     public let machO: MachO
@@ -34,7 +33,6 @@ public final class SwiftInterfaceBuilderTypeNameProvider<MachO: MachOSwiftSectio
     }
 }
 
-
 extension MachOKit.Platform {
     var sdkPlatform: SDKPlatform? {
         switch self {
@@ -62,6 +60,29 @@ extension MachOKit.Platform {
         default:
             return nil
         }
+    }
+}
+
+extension LoadCommandsProtocol {
+    var buildVersionCommand: BuildVersionCommand? {
+        for command in self {
+            switch command {
+            case .buildVersion(let buildVersionCommand):
+                return buildVersionCommand
+            default:
+                break
+            }
+        }
+        return nil
+    }
+}
+
+extension String {
+    var strippedLibSwiftPrefix: String {
+        if hasPrefix("libswift") {
+            return String(dropFirst("libswift".count))
+        }
+        return self
     }
 }
 
