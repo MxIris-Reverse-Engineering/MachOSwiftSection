@@ -797,7 +797,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             try await protocolDefinition.index(in: machO)
         }
         
-        let dumper = ProtocolDumper(protocolDefinition.protocol, using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: false), in: machO)
+        let dumper = ProtocolDumper(protocolDefinition.protocol, using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: displayParentName), in: machO)
 
         if level > 1 {
             Indent(level: level - 1)
@@ -813,6 +813,17 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         try await printDefinition(protocolDefinition, level: level)
 
+        if configuration.printStrippedSymbolicItem, !protocolDefinition.strippedSymbolicRequirements.isEmpty {
+            for (offset, strippedSymbolicRequirement) in protocolDefinition.strippedSymbolicRequirements.offsetEnumerated() {
+                BreakLine()
+                Indent(level: level)
+                strippedSymbolicRequirement.strippedSymbolicInfo()
+                if offset.isEnd {
+                    BreakLine()
+                }
+            }
+        }
+        
         if level > 1, protocolDefinition.hasMembers {
             Indent(level: level - 1)
         }

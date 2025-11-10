@@ -12,7 +12,7 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
     public let `protocol`: MachOSwiftSection.`Protocol`
 
     public let protocolName: ProtocolName
-    
+
     @Mutex
     public weak var parent: TypeDefinition?
 
@@ -24,7 +24,7 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
 
     @Mutex
     public var associatedTypes: [String] = []
-    
+
     @Mutex
     public var allocators: [FunctionDefinition] = []
 
@@ -50,20 +50,22 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
     public var staticSubscripts: [SubscriptDefinition] = []
 
     @Mutex
+    public var strippedSymbolicRequirements: [ProtocolRequirement] = []
+
+    @Mutex
     public private(set) var isIndexed: Bool = false
-    
+
     public var hasMembers: Bool {
         !associatedTypes.isEmpty || !variables.isEmpty || !functions.isEmpty ||
-        !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty
+        !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty || !strippedSymbolicRequirements.isEmpty
     }
 
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(`protocol`: MachOSwiftSection.`Protocol`, in machO: MachO) throws {
         self.protocol = `protocol`
         let node = try MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO)
         self.protocolName = ProtocolName(node: node)
-        
     }
-    
+
     package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
         guard !isIndexed else { return }
         let name = protocolName.name
@@ -75,16 +77,19 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
             }
             return nil
         }
-        self.associatedTypes = try `protocol`.descriptor.associatedTypes(in: machO)
-        
+        associatedTypes = try `protocol`.descriptor.associatedTypes(in: machO)
+
         var requirementMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]> = [:]
         var defaultImplementationMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]> = [:]
 
         var requirementVisitedNodes: OrderedSet<Node> = []
         var defaultImplementationVisitedNodes: OrderedSet<Node> = []
-        
+
         for requirement in `protocol`.requirements {
-            guard let symbols = try await Symbols.resolve(from: requirement.offset, in: machO), let symbol = try? _symbol(for: symbols, visitedNodes: requirementVisitedNodes) else { continue }
+            guard let symbols = try await Symbols.resolve(from: requirement.offset, in: machO), let symbol = try? _symbol(for: symbols, visitedNodes: requirementVisitedNodes) else {
+                strippedSymbolicRequirements.append(requirement)
+                continue
+            }
             requirementVisitedNodes.append(symbol.demangledNode)
             addSymbol(symbol, memberSymbolsByKind: &requirementMemberSymbolsByKind, inExtension: false)
             if let symbols = try requirement.defaultImplementationSymbols(in: machO), let defaultImplementationSymbol = try _symbol(for: symbols, visitedNodes: defaultImplementationVisitedNodes) {
@@ -94,15 +99,15 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
         }
 
         setDefinitions(for: requirementMemberSymbolsByKind, inExtension: false)
-        
+
         let extensionDefinition = try ExtensionDefinition(extensionName: protocolName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
 
         extensionDefinition.setDefinitions(for: defaultImplementationMemberSymbolsByKind, inExtension: true)
 
         if extensionDefinition.hasMembers {
-            self.defaultImplementationExtensions = [extensionDefinition]
+            defaultImplementationExtensions = [extensionDefinition]
         }
-        
+
         isIndexed = true
     }
 }
