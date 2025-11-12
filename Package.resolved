@@ -1,5 +1,5 @@
 {
-  "originHash" : "57300e38d1c0646ebf7a3418295a951ed478a4d7c2be5ee2c8e06ba8b795c5cb",
+  "originHash" : "863330dd59b531fc7d459075532c72d739d1f7fc159ffa0a4f2fbbd1b8b7eab5",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/combine-schedulers",
       "state" : {
-        "revision" : "5928286acce13def418ec36d05a001a9641086f2",
-        "version" : "1.0.3"
+        "revision" : "fd16d76fd8b9a976d88bfb6cacc05ca8d19c91b6",
+        "version" : "1.1.0"
       }
     },
     {
@@ -34,7 +34,7 @@
       "location" : "https://github.com/Mx-Iris/FrameworkToolbox",
       "state" : {
         "branch" : "main",
-        "revision" : "6bb9c64b552c0830761c76df77c729ed852697bb"
+        "revision" : "c9691bb68f04d5b154aa177929f6c2a920caa0d2"
       }
     },
     {

@@ -11,7 +11,7 @@ import Utilities
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import MachOCaches
 
-public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWithCache & Sendable>: Sendable {
+public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWithCache>: Sendable {
     private static var internalModules: [String] {
         ["Swift", "_Concurrency", "_StringProcessing", "_SwiftConcurrencyShims"]
     }

@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-
+import FoundationToolbox
 import MachOFoundation
 
 @CaseCheckable(.public)
