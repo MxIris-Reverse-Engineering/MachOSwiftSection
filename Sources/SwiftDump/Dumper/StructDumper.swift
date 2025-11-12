@@ -12,10 +12,10 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
     private let configuration: DumperConfiguration
 
     private let machO: MachO
-    
+
     @Dependency(\.symbolIndexStore)
     private var symbolIndexStore
-    
+
     package init(_ dumped: Struct, using configuration: DumperConfiguration, in machO: MachO) {
         self.struct = dumped
         self.configuration = configuration
@@ -40,10 +40,29 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
         }
     }
 
+    private var fieldOffsets: [Int]? {
+        guard configuration.emitOffsetComments else { return nil }
+        guard let metadataAccessor = try? `struct`.descriptor.metadataAccessor(in: machO), !`struct`.flags.isGeneric else { return nil }
+        guard let metadataWrapper = try? metadataAccessor.perform(request: .init()).value.resolve(in: machO) else { return nil }
+        switch metadataWrapper {
+        case .struct(let metadata):
+            return try? metadata.fieldOffsets(for: `struct`.descriptor, in: machO).map { $0.cast() }
+        default:
+            return nil
+        }
+    }
+
     package var fields: SemanticString {
         get async throws {
+            let fieldOffsets = fieldOffsets
             for (offset, fieldRecord) in try `struct`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
                 BreakLine()
+
+                if let fieldOffsets, let fieldOffset = fieldOffsets[safe: offset.index] {
+                    Indent(level: configuration.indentation)
+                    Comment("field offset: 0x\(String(fieldOffset, radix: 16))")
+                    BreakLine()
+                }
 
                 Indent(level: configuration.indentation)
 

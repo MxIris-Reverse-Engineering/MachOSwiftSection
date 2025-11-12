@@ -64,11 +64,29 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
         }
     }
     
+    private var fieldOffsets: [Int]? {
+        guard configuration.emitOffsetComments else { return nil }
+        guard let metadataAccessor = try? `class`.descriptor.metadataAccessor(in: machO), !`class`.flags.isGeneric else { return nil }
+        guard let metadataWrapper = try? metadataAccessor.perform(request: .init()).value.resolve(in: machO) else { return nil }
+        switch metadataWrapper {
+        case .class(let metadata):
+            return try? metadata.fieldOffsets(for: `class`.descriptor, in: machO).map { $0.cast() }
+        default:
+            return nil
+        }
+    }
     
     package var fields: SemanticString {
         get async throws {
+            let fieldOffsets = fieldOffsets
             for (offset, fieldRecord) in try `class`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
                 BreakLine()
+                
+                if let fieldOffsets, let fieldOffset = fieldOffsets[safe: offset.index] {
+                    Indent(level: configuration.indentation)
+                    Comment("field offset: 0x\(String(fieldOffset, radix: 16))")
+                    BreakLine()
+                }
 
                 Indent(level: configuration.indentation)
 

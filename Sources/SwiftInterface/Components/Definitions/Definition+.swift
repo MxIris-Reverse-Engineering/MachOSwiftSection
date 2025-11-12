@@ -2,7 +2,7 @@
 import OrderedCollections
 
 extension Definition {
-    func addSymbol(_ symbol: DemangledSymbol, memberSymbolsByKind: inout OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>, inExtension: Bool) {
+    func addSymbol(_ symbol: DemangledSymbolWithOffset, memberSymbolsByKind: inout OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbolWithOffset]>, inExtension: Bool) {
         let node = symbol.demangledNode
         if node.contains(.variable) {
             if node.contains(.static) {
@@ -33,7 +33,7 @@ extension Definition {
 }
 
 extension MutableDefinition {
-    func setDefinitions(for memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>, inExtension: Bool) {
+    func setDefinitions(for memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbolWithOffset]>, inExtension: Bool) {
         for (kind, memberSymbols) in memberSymbolsByKind {
             switch kind {
             case .variable(inExtension, let isStatic, false):

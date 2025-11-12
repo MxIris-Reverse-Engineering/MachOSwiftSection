@@ -29,11 +29,16 @@ public struct ClassDescriptor: TypeContextDescriptorProtocol {
 }
 
 extension ClassDescriptor {
+        
     public var resilientSuperclassReferenceKind: TypeReferenceKind? {
         guard let resilientSuperclassReferenceKind = layout.flags.kindSpecificFlags?.typeFlags?.classResilientSuperclassReferenceKind else {
             return nil
         }
         return resilientSuperclassReferenceKind
+    }
+    
+    public func resilientMetadataBounds<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> StoredClassMetadataBounds {
+        return try RelativeDirectPointer<StoredClassMetadataBounds>(relativeOffset: Int32(bitPattern: layout.metadataNegativeSizeInWordsOrResilientMetadataBounds)).resolve(from: offset(of: \.metadataNegativeSizeInWordsOrResilientMetadataBounds), in: machO)
     }
     
     public var hasFieldOffsetVector: Bool {

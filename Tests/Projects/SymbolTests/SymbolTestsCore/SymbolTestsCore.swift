@@ -11,9 +11,15 @@ public protocol ProtocolTest<Body> {
     associatedtype Body: ProtocolTest
 
     var body: Body { get }
+    
+    
+    static var body: Body? { get }
 }
 
 extension ProtocolTest {
+    
+    public static var body: Body? { nil }
+    
     public static func test(lhs: Body, rhs: Self) -> Bool { false }
 }
 

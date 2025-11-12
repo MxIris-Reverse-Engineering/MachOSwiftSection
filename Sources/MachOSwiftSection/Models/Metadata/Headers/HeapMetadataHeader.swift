@@ -2,7 +2,6 @@ import Foundation
 import MachOKit
 import MachOFoundation
 
-
 public struct HeapMetadataHeader: HeapMetadataHeaderProtocol {
     public struct Layout: HeapMetadataHeaderLayout {
         public let layoutString: Pointer<String?>

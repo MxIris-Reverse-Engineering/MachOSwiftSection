@@ -147,14 +147,14 @@ public final class TypeDefinition: Definition {
         let node = typeName.node
 
         self.allocators = DefinitionBuilder.allocators(
-            for: symbolIndexStore.memberSymbols(of: .allocator(inExtension: false), for: name, node: node, in: machO),
+            for: symbolIndexStore.memberSymbols(of: .allocator(inExtension: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
             methodDescriptorLookup: methodDescriptorLookup
         )
 
         self.hasDeallocator = !symbolIndexStore.memberSymbols(of: .deallocator, for: typeName.name, in: machO).isEmpty
 
         self.variables = DefinitionBuilder.variables(
-            for: symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: name, node: node, in: machO),
+            for: symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
             fieldNames: fieldNames,
             methodDescriptorLookup: methodDescriptorLookup,
             isGlobalOrStatic: false
@@ -167,31 +167,31 @@ public final class TypeDefinition: Definition {
                 for: name,
                 node: node,
                 in: machO
-            ),
+            ).map { .init(base: $0, offset: nil) },
             methodDescriptorLookup: methodDescriptorLookup,
             isGlobalOrStatic: true
         )
 
         self.functions = DefinitionBuilder.functions(
-            for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: false), for: name, node: node, in: machO),
+            for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
             methodDescriptorLookup: methodDescriptorLookup,
             isGlobalOrStatic: false
         )
 
         self.staticFunctions = DefinitionBuilder.functions(
-            for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: true), for: name, node: node, in: machO),
+            for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: true), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
             methodDescriptorLookup: methodDescriptorLookup,
             isGlobalOrStatic: true
         )
 
         self.subscripts = DefinitionBuilder.subscripts(
-            for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: false), for: name, node: node, in: machO),
+            for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
             methodDescriptorLookup: methodDescriptorLookup,
             isStatic: false
         )
 
         self.staticSubscripts = DefinitionBuilder.subscripts(
-            for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: true), for: name, node: node, in: machO),
+            for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: true), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
             methodDescriptorLookup: methodDescriptorLookup,
             isStatic: true
         )

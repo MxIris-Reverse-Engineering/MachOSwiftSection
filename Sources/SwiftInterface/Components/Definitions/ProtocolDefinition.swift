@@ -8,6 +8,28 @@ import Semantic
 import SwiftStdlibToolbox
 @_spi(Internals) import MachOSymbols
 
+@MemberwiseInit()
+@dynamicMemberLookup
+struct DemangledSymbolWithOffset {
+    let base: DemangledSymbol
+    let offset: Int?
+    
+    init(_ base: DemangledSymbol) {
+        self.base = base
+        self.offset = nil
+    }
+    
+    subscript<Value>(dynamicMember keyPath: KeyPath<DemangledSymbol, Value>) -> Value {
+        base[keyPath: keyPath]
+    }
+}
+
+extension Sequence<DemangledSymbol> {
+    func mapToDemangledSymbolWithOffset() -> [DemangledSymbolWithOffset] {
+        map { .init($0) }
+    }
+}
+
 public final class ProtocolDefinition: Definition, MutableDefinition {
     public let `protocol`: MachOSwiftSection.`Protocol`
 
@@ -79,22 +101,25 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
         }
         associatedTypes = try `protocol`.descriptor.associatedTypes(in: machO)
 
-        var requirementMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]> = [:]
-        var defaultImplementationMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]> = [:]
+        var requirementMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbolWithOffset]> = [:]
+        var defaultImplementationMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbolWithOffset]> = [:]
 
         var requirementVisitedNodes: OrderedSet<Node> = []
         var defaultImplementationVisitedNodes: OrderedSet<Node> = []
 
+        var offsetOfPWT = 0
+        
         for requirement in `protocol`.requirements {
+            offsetOfPWT.offset(of: StoredPointer.self)
             guard let symbols = try await Symbols.resolve(from: requirement.offset, in: machO), let symbol = try? _symbol(for: symbols, visitedNodes: requirementVisitedNodes) else {
                 strippedSymbolicRequirements.append(requirement)
                 continue
             }
             requirementVisitedNodes.append(symbol.demangledNode)
-            addSymbol(symbol, memberSymbolsByKind: &requirementMemberSymbolsByKind, inExtension: false)
+            addSymbol(.init(base: symbol, offset: offsetOfPWT), memberSymbolsByKind: &requirementMemberSymbolsByKind, inExtension: false)
             if let symbols = try requirement.defaultImplementationSymbols(in: machO), let defaultImplementationSymbol = try _symbol(for: symbols, visitedNodes: defaultImplementationVisitedNodes) {
                 defaultImplementationVisitedNodes.append(defaultImplementationSymbol.demangledNode)
-                addSymbol(defaultImplementationSymbol, memberSymbolsByKind: &defaultImplementationMemberSymbolsByKind, inExtension: true)
+                addSymbol(.init(base: defaultImplementationSymbol, offset: offsetOfPWT), memberSymbolsByKind: &defaultImplementationMemberSymbolsByKind, inExtension: true)
             }
         }
 

@@ -4,19 +4,17 @@ import Testing
 @testable import SwiftDump
 @testable import MachOTestingSupport
 
-final class ProtocolRequirementSignatureTests: DyldCacheTests, @unchecked Sendable {
+final class ProtocolRequirementSignatureTests: MachOFileTests, @unchecked Sendable {
+    
+    override class var fileName: MachOFileName { .SymbolTestsCore }
     
     @Test func protocols() async throws {
-        let machO = machOFileInMainCache
+        let machO = machOFile
         let protocolDescriptors = try machO.swift.protocolDescriptors
         for protocolDescriptor in protocolDescriptors {
             let proto = try Protocol(descriptor: protocolDescriptor, in: machO)
-            for requirementInSignature in proto.requirementInSignatures {
-                let node = try MetadataReader.demangleType(for: requirementInSignature.paramManagledName, in: machO)
-                node.print(using: .default).print()
-                print(node)
-                print("")
-                print(requirementInSignature.flags.kind)
+            for requirement in proto.requirements {
+                print(requirement.flags.kind)
             }
             print("-------------------------------")
         }
