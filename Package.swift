@@ -167,6 +167,10 @@ let package = Package(
         ),
 
         .target(
+            name: "MachOUtilitiesC"
+        ),
+
+        .target(
             name: "MachOExtensions",
             dependencies: [
                 .MachOKit,
@@ -366,6 +370,7 @@ let package = Package(
                 "MachOSwiftSection",
                 "MachOTestingSupport",
                 "SwiftDump",
+                "MachOUtilitiesC",
             ],
             swiftSettings: testSettings
         ),

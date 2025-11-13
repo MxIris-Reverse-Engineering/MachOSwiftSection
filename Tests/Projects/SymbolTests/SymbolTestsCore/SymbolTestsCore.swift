@@ -284,7 +284,9 @@ public protocol ProtocolWitnessTableTest {
 }
 
 extension StructTest: ProtocolWitnessTableTest {
-    public func a() {}
+    public func a() {
+        print(GenericStructNonRequirement<Self>.init(field1: 0.1, field2: self, field3: 1))
+    }
 
     public func b() {}
 
