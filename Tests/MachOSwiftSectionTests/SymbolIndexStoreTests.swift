@@ -54,7 +54,7 @@ final class SymbolIndexStoreTests: DyldCacheTests, @unchecked Sendable {
             let _ = symbolIndexStore.allSymbols(in: machO)
         }
         print(duration)
-        guard let memberSymbolsByKind = await symbolIndexStore.entry(in: machO)?.memberSymbolsByKind else {
+        guard let memberSymbolsByKind = symbolIndexStore.entry(in: machO)?.memberSymbolsByKind else {
             return
         }
         for (kind, memberSymbolsByName) in memberSymbolsByKind {

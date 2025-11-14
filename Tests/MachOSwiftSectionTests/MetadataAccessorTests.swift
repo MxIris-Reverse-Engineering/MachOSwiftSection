@@ -85,4 +85,9 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
         guard let ptr = dyld_image_header_containing_address(unsafeBitCast(Image.self, to: UnsafeRawPointer.self)) else { return }
         print(MachOImage(ptr: ptr).path ?? "nil")
     }
+    
+    @Test func metadataCreate() async throws {
+        let (machO, metadata) = try #require(StructMetadata.create(Image.self))
+        print(machO.ptr, metadata.offset)
+    }
 }

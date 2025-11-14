@@ -264,6 +264,7 @@ let package = Package(
                 "MachOFoundation",
                 "Demangling",
                 "Utilities",
+                "MachOUtilitiesC",
             ],
         ),
 
