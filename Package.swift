@@ -140,6 +140,7 @@ let package = Package(
         .package(url: "https://github.com/brightdigit/SyntaxKit", branch: "main"),
 //        .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-clang", from: "0.1.0"),
         .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.4"),
+        .package(url: "https://github.com/MxIris-Reverse-Engineering/DyldPrivate", branch: "main"),
     ],
     targets: [
         .target(
@@ -164,10 +165,6 @@ let package = Package(
                 .product(name: "Dependencies", package: "swift-dependencies"),
                 .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
             ]
-        ),
-
-        .target(
-            name: "MachOUtilitiesC"
         ),
 
         .target(
@@ -264,7 +261,7 @@ let package = Package(
                 "MachOFoundation",
                 "Demangling",
                 "Utilities",
-                "MachOUtilitiesC",
+                .product(name: "DyldPrivate", package: "DyldPrivate"),
             ],
         ),
 
@@ -371,7 +368,6 @@ let package = Package(
                 "MachOSwiftSection",
                 "MachOTestingSupport",
                 "SwiftDump",
-                "MachOUtilitiesC",
             ],
             swiftSettings: testSettings
         ),

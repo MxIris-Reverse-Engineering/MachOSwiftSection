@@ -1,5 +1,5 @@
 {
-  "originHash" : "863330dd59b531fc7d459075532c72d739d1f7fc159ffa0a4f2fbbd1b8b7eab5",
+  "originHash" : "ddaf7ce31421cd92786c1afaff38303d3b193e5beed41b3aad41d616a8c93d8e",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -26,6 +26,15 @@
       "state" : {
         "revision" : "fd16d76fd8b9a976d88bfb6cacc05ca8d19c91b6",
         "version" : "1.1.0"
+      }
+    },
+    {
+      "identity" : "dyldprivate",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/MxIris-Reverse-Engineering/DyldPrivate",
+      "state" : {
+        "branch" : "main",
+        "revision" : "3b4d596b702d7c8f589d0babe42c7387e5d24dbc"
       }
     },
     {
