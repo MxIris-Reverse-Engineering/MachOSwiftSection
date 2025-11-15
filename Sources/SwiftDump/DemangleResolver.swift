@@ -6,19 +6,19 @@ import Utilities
 import MemberwiseInit
 import Demangling
 
-package enum DemangleResolver {
+public enum DemangleResolver: Sendable {
     case options(DemangleOptions)
-    case builder((Node) async throws -> SemanticString)
+    case builder(@Sendable (Node) async throws -> SemanticString)
 
-    package static func using(options: DemangleOptions) -> DemangleResolver {
+    public static func using(options: DemangleOptions) -> DemangleResolver {
         .options(options)
     }
 
-    package static func using(@SemanticStringBuilder builder: @escaping (Node) async throws -> SemanticString) -> DemangleResolver {
+    public static func using(@SemanticStringBuilder builder: @Sendable @escaping (Node) async throws -> SemanticString) -> DemangleResolver {
         .builder(builder)
     }
 
-    func resolve(for node: Node) async throws -> SemanticString {
+    public func resolve(for node: Node) async throws -> SemanticString {
         switch self {
         case .options(let options):
             return node.printSemantic(using: options)
@@ -27,7 +27,7 @@ package enum DemangleResolver {
         }
     }
 
-    func modify(_ modifier: (DemangleResolver) -> DemangleResolver) -> DemangleResolver {
+    public func modify(_ modifier: (DemangleResolver) -> DemangleResolver) -> DemangleResolver {
         modifier(self)
     }
 }
