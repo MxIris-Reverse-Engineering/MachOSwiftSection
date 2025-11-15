@@ -149,7 +149,6 @@ swift-section interface --output-path interface.swiftinterface /path/to/binary
 swift-section interface --architecture arm64 /path/to/binary
 
 **Working with dyld shared cache:**
-```bash
 # Dump from system dyld shared cache
 swift-section interface --uses-system-dyld-shared-cache --cache-image-name SwiftUICore
 
