@@ -1,3 +1,5 @@
+#if os(macOS)
+
 import Foundation
 import FoundationToolbox
 import BinaryCodable
@@ -299,3 +301,6 @@ extension URL {
         }
     }
 }
+
+
+#endif

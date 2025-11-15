@@ -5,6 +5,7 @@ import Demangling
 import MachOFoundation
 @testable import MachOTestingSupport
 @testable import MachOSwiftSection
+@testable import SwiftDump
 
 @Suite
 final class PrimitiveTypeMappingTests: DyldCacheTests, @unchecked Sendable {

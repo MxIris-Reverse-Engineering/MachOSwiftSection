@@ -2,7 +2,6 @@ import Foundation
 import MachOKit
 import MachOFoundation
 
-
 public struct FullMetadata<Metadata: MetadataProtocol>: ResolvableLocatableLayoutWrapper {
     @dynamicMemberLookup
     public struct Layout: LayoutProtocol {

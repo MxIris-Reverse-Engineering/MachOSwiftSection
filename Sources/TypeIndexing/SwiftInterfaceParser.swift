@@ -1,3 +1,5 @@
+#if os(macOS)
+
 import Foundation
 import SwiftSyntax
 import SwiftParser
@@ -294,3 +296,6 @@ actor SwiftInterfaceParser {
         }
     }
 }
+
+
+#endif

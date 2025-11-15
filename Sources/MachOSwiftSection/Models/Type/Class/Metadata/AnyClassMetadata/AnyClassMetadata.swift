@@ -1,10 +1,13 @@
 import Foundation
+import MachOKit
 import MachOFoundation
 
-public struct AnyClassMetadata: HeapMetadataProtocol {
+
+
+public struct AnyClassMetadata: AnyClassMetadataProtocol {
     public struct Layout: AnyClassMetadataLayout {
         public let kind: StoredPointer
-        public let superclass: StoredPointer
+        public let superclass: Pointer<AnyClassMetadata?>
     }
 
     public var layout: Layout

@@ -1,5 +1,4 @@
-import Foundation
-import FoundationToolbox
+import SwiftStdlibToolbox
 
 extension Node {
     public convenience init(kind: Kind, child: Node) {

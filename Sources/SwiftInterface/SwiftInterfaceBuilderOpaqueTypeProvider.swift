@@ -5,6 +5,7 @@ import Dependencies
 import OrderedCollections
 @_spi(Internals) import MachOSymbols
 import SwiftStdlibToolbox
+import SwiftDump
 
 public final class SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRepresentableWithCache & Sendable>: SwiftInterfaceBuilderExtraDataProvider, Sendable {
     public let machO: MachO
@@ -17,7 +18,7 @@ public final class SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSect
         do {
             @Dependency(\.symbolIndexStore)
             var symbolIndexStore
-            guard let opaqueTypeDescriptorSymbol = await symbolIndexStore.opaqueTypeDescriptorSymbol(for: node, in: machO) else { return nil }
+            guard let opaqueTypeDescriptorSymbol = symbolIndexStore.opaqueTypeDescriptorSymbol(for: node, in: machO) else { return nil }
 
             let opaqueType = try OpaqueType(descriptor: OpaqueTypeDescriptor.resolve(from: opaqueTypeDescriptorSymbol.offset, in: machO), in: machO)
             let requirements = try opaqueType.requirements(in: machO)

@@ -11,9 +11,15 @@ public protocol ProtocolTest<Body> {
     associatedtype Body: ProtocolTest
 
     var body: Body { get }
+    
+    
+    static var body: Body? { get }
 }
 
 extension ProtocolTest {
+    
+    public static var body: Body? { nil }
+    
     public static func test(lhs: Body, rhs: Self) -> Bool { false }
 }
 
@@ -56,7 +62,7 @@ public class ClassTest {
 }
 
 public class SubclassTest: ClassTest {
-    public override final var instanceVariable: Bool {
+    public final override var instanceVariable: Bool {
         set {}
         get { true }
     }
@@ -207,6 +213,8 @@ extension Never: @retroactive Sequence {
     }
 }
 
+public typealias SpecializationGenericStructNonRequirement = GenericStructNonRequirement<String>
+
 public struct GenericStructNonRequirement<A> {
     public var field1: Double
     public var field2: A
@@ -265,4 +273,26 @@ public class GenericClassLayoutRequirementInheritNSObject<A: AnyObject>: NSObjec
         self.field2 = field2
         self.field3 = field3
     }
+}
+
+public protocol ProtocolWitnessTableTest {
+    func a()
+    func b()
+    func c()
+    func d()
+    func e()
+}
+
+extension StructTest: ProtocolWitnessTableTest {
+    public func a() {
+        print(GenericStructNonRequirement<Self>.init(field1: 0.1, field2: self, field3: 1))
+    }
+
+    public func b() {}
+
+    public func c() {}
+
+    public func d() {}
+
+    public func e() {}
 }

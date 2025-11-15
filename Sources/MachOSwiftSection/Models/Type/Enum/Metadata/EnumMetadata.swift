@@ -1,7 +1,7 @@
 import Foundation
 import MachOFoundation
 
-public struct EnumMetadata: ResolvableLocatableLayoutWrapper {
+public struct EnumMetadata: EnumMetadataProtocol {
     public struct Layout: EnumMetadataLayout {
         public let kind: StoredPointer
         public let descriptor: Pointer<EnumDescriptor>
@@ -17,11 +17,4 @@ public struct EnumMetadata: ResolvableLocatableLayoutWrapper {
     }
 }
 
-extension EnumMetadata {
-    public func payloadSize<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> StoredSize? {
-        let descriptor = try layout.descriptor.resolve(in: machO)
-        guard descriptor.hasPayloadSizeOffset else { return nil }
-        let offset = offset.offseting(of: StoredSize.self, numbersOfElements: descriptor.payloadSizeOffset)
-        return try machO.readElement(offset: offset)
-    }
-}
+

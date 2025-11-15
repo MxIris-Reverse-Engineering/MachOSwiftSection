@@ -5,11 +5,11 @@ import Semantic
 import Utilities
 
 extension Enum: NamedDumpable {
-    public func dumpName<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) async throws -> SemanticString {
-        try await EnumDumper(self, using: .init(demangleResolver: .using(options: options)), in: machO).name
+    public func dumpName<MachO: MachOSwiftSectionRepresentableWithCache>(using configuration: DumperConfiguration, in machO: MachO) async throws -> SemanticString {
+        try await EnumDumper(self, using: configuration, in: machO).name
     }
 
-    public func dump<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) async throws -> SemanticString {
-        try await EnumDumper(self, using: .init(demangleResolver: .using(options: options)), in: machO).body
+    public func dump<MachO: MachOSwiftSectionRepresentableWithCache>(using configuration: DumperConfiguration, in machO: MachO) async throws -> SemanticString {
+        try await EnumDumper(self, using: configuration, in: machO).body
     }
 }

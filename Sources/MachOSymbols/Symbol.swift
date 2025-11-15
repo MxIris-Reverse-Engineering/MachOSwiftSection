@@ -4,7 +4,7 @@ import MachOResolving
 import MachOExtensions
 import Demangling
 
-public struct Symbol: Resolvable, SymbolProtocol, Hashable {
+public struct Symbol: AsyncResolvable, SymbolProtocol, Hashable {
     public let offset: Int
 
     public let name: String
@@ -23,6 +23,18 @@ public struct Symbol: Resolvable, SymbolProtocol, Hashable {
 
     public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self? {
         if let symbol = machO.symbols(offset: offset)?.first {
+            return symbol
+        }
+        return nil
+    }
+    
+
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) async throws -> Self {
+        try await required(resolve(from: offset, in: machO))
+    }
+
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) async throws -> Self? {
+        if let symbol = await machO.symbols(offset: offset)?.first {
             return symbol
         }
         return nil

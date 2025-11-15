@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
+@testable import SwiftDump
 
 final class TypeMangledNameTests: DyldCacheTests, @unchecked Sendable {
     @Test func typeMangledNames() async throws {

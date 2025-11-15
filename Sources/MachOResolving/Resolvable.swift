@@ -43,13 +43,18 @@ extension Resolvable where Self: LocatableLayoutWrapper {
 
 extension Int: Resolvable {}
 extension UInt: Resolvable {}
+
 extension Int8: Resolvable {}
 extension UInt8: Resolvable {}
+
 extension Int16: Resolvable {}
 extension UInt16: Resolvable {}
+
 extension Int32: Resolvable {}
 extension UInt32: Resolvable {}
+
 extension Int64: Resolvable {}
 extension UInt64: Resolvable {}
+
 extension Float: Resolvable {}
 extension Double: Resolvable {}

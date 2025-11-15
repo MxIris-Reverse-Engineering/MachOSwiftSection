@@ -20,16 +20,19 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(help: "Show imported C types in the generated Swift interface.")
     var showCImportedTypes: Bool = false
 
-    @Flag(help: "beta")
+    @Flag(help: "Parse opaque return value, this option is an experimental feature and may result in parsing errors for complex return types.")
     var parseOpaqueReturnType: Bool = false
 
+    @Flag(help: "Generate field offset and PWT offset comments, if possible")
+    var emitOffsetComments: Bool = false
+    
     @Option(name: .shortAndLong, help: "The color scheme for the output.")
     var colorScheme: SemanticColorScheme = .none
 
     func run() async throws {
         let machOFile = try MachOFile.load(options: machOOptions)
 
-        let configuration = SwiftInterfaceBuilderConfiguration(showCImportedTypes: showCImportedTypes)
+        let configuration = SwiftInterfaceBuilderConfiguration(showCImportedTypes: showCImportedTypes, emitOffsetComments: emitOffsetComments)
 
         let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [ConsoleEventHandler()], in: machOFile)
 

@@ -1,5 +1,5 @@
 {
-  "originHash" : "57300e38d1c0646ebf7a3418295a951ed478a4d7c2be5ee2c8e06ba8b795c5cb",
+  "originHash" : "25a59dda529f6ad46f62d2ce762a00ab9b029429f9d7a23e60ff3e82844f8eed",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -24,8 +24,17 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/combine-schedulers",
       "state" : {
-        "revision" : "5928286acce13def418ec36d05a001a9641086f2",
-        "version" : "1.0.3"
+        "revision" : "fd16d76fd8b9a976d88bfb6cacc05ca8d19c91b6",
+        "version" : "1.1.0"
+      }
+    },
+    {
+      "identity" : "dyldprivate",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/MxIris-Reverse-Engineering/DyldPrivate",
+      "state" : {
+        "branch" : "main",
+        "revision" : "3b4d596b702d7c8f589d0babe42c7387e5d24dbc"
       }
     },
     {
@@ -34,7 +43,7 @@
       "location" : "https://github.com/Mx-Iris/FrameworkToolbox",
       "state" : {
         "branch" : "main",
-        "revision" : "6bb9c64b552c0830761c76df77c729ed852697bb"
+        "revision" : "c9691bb68f04d5b154aa177929f6c2a920caa0d2"
       }
     },
     {
@@ -119,6 +128,15 @@
       }
     },
     {
+      "identity" : "swift-cmark",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-cmark.git",
+      "state" : {
+        "revision" : "5d9bdaa4228b381639fff09403e39a04926e2dbe",
+        "version" : "0.7.1"
+      }
+    },
+    {
       "identity" : "swift-collections",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-collections",
@@ -164,6 +182,24 @@
       }
     },
     {
+      "identity" : "swift-log",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-log.git",
+      "state" : {
+        "revision" : "ce592ae52f982c847a4efc0dd881cc9eb32d29f2",
+        "version" : "1.6.4"
+      }
+    },
+    {
+      "identity" : "swift-markdown",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-markdown",
+      "state" : {
+        "revision" : "7d9a5ce307528578dfa777d505496bd5f544ad94",
+        "version" : "0.7.3"
+      }
+    },
+    {
       "identity" : "swift-memberwise-init-macro",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/MxIris-Library-Forks/swift-memberwise-init-macro",
@@ -200,12 +236,30 @@
       }
     },
     {
-      "identity" : "syntaxkit",
+      "identity" : "swiftterm",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/brightdigit/SyntaxKit",
+      "location" : "https://github.com/migueldeicaza/SwiftTerm.git",
+      "state" : {
+        "revision" : "0b8d99bd19b694df44e1ccaa3891309719d34330",
+        "version" : "1.5.1"
+      }
+    },
+    {
+      "identity" : "termkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/migueldeicaza/TermKit",
       "state" : {
         "branch" : "main",
-        "revision" : "1bd7f84c218fd35a111c0b310cad5b32e8489acc"
+        "revision" : "6fd4a96b1f310576d8cb1894f8897cbfd4f3ed55"
+      }
+    },
+    {
+      "identity" : "textbufferkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/migueldeicaza/TextBufferKit.git",
+      "state" : {
+        "revision" : "7f3ed5b1d7288de34ad853544d802647be11cfcf",
+        "version" : "0.3.0"
       }
     },
     {

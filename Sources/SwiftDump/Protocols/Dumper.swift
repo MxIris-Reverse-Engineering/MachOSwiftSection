@@ -1,8 +1,8 @@
 import Semantic
 import MachOSwiftSection
 
-package protocol Dumper {
-    associatedtype Dumped
+package protocol Dumper: Sendable {
+    associatedtype Dumped: Sendable
     associatedtype MachO: MachOSwiftSectionRepresentableWithCache
     
     @SemanticStringBuilder var declaration: SemanticString { get async throws }

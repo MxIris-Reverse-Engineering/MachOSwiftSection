@@ -1,3 +1,5 @@
+#if os(macOS)
+
 import Foundation
 import MachOObjCSection
 @preconcurrency import ObjCDump
@@ -61,3 +63,6 @@ final class ObjCInterfaceIndexer<MachO: MachORepresentable & Sendable>: Sendable
         }
     }
 }
+
+
+#endif

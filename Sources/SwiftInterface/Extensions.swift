@@ -8,7 +8,6 @@ import Demangling
 import Semantic
 import SwiftStdlibToolbox
 @_spi(Internals) import MachOSymbols
-import TypeIndexing
 
 extension Node {
     var accessorKind: AccessorKind {
@@ -16,8 +15,10 @@ extension Node {
         switch node.kind {
         case .getter: return .getter
         case .setter: return .setter
-        case .modifyAccessor, .modify2Accessor: return .modifyAccessor
-        case .readAccessor, .read2Accessor: return .readAccessor
+        case .modifyAccessor,
+             .modify2Accessor: return .modifyAccessor
+        case .readAccessor,
+             .read2Accessor: return .readAccessor
         default: return .none
         }
     }
@@ -161,59 +162,6 @@ extension Node {
 }
 
 
-extension String {
-    var strippedLibSwiftPrefix: String {
-        if hasPrefix("libswift") {
-            return String(dropFirst("libswift".count))
-        }
-        return self
-    }
-}
-
-extension MachOKit.Platform {
-    var sdkPlatform: SDKPlatform? {
-        switch self {
-        case .macOS,
-             .macCatalyst:
-            return .macOS
-        case .driverKit:
-            return .driverKit
-        case .iOS:
-            return .iOS
-        case .tvOS:
-            return .tvOS
-        case .watchOS:
-            return .watchOS
-        case .visionOS:
-            return .visionOS
-        case .iOSSimulator:
-            return .iOSSimulator
-        case .tvOSSimulator:
-            return .tvOSSimulator
-        case .watchOSSimulator:
-            return .watchOSSimulator
-        case .visionOSSimulator:
-            return .visionOSSimulator
-        default:
-            return nil
-        }
-    }
-}
-
-extension LoadCommandsProtocol {
-    var buildVersionCommand: BuildVersionCommand? {
-        for command in self {
-            switch command {
-            case .buildVersion(let buildVersionCommand):
-                return buildVersionCommand
-            default:
-                break
-            }
-        }
-        return nil
-    }
-}
-
 extension Sequence {
     func filterNonNil<T, E: Swift.Error>(_ filter: (Element) throws(E) -> T?) throws(E) -> [Element] {
         var results: [Element] = []
@@ -224,8 +172,7 @@ extension Sequence {
         }
         return results
     }
-    
-    
+
     func firstNonNil<T, E: Swift.Error>(_ transform: (Element) throws(E) -> T?) throws(E) -> T? {
         for element in self {
             if let newElement = try transform(element) {
@@ -234,7 +181,7 @@ extension Sequence {
         }
         return nil
     }
-    
+
     func asyncFirstNonNil<T, E: Swift.Error>(_ transform: (Element) async throws(E) -> T?) async throws(E) -> T? {
         for element in self {
             if let newElement = try await transform(element) {
@@ -242,5 +189,41 @@ extension Sequence {
             }
         }
         return nil
+    }
+}
+
+extension ProtocolRequirement {
+    @SemanticStringBuilder
+    func strippedSymbolicInfo() -> SemanticString {
+        Comment(
+            """
+            Kind: \(layout.flags.kind.description), isAsync: \(layout.flags.isAsync), isInstance: \(layout.flags.isInstance)
+            """
+        )
+    }
+}
+
+extension ProtocolRequirementKind: CustomStringConvertible {
+    public var description: String {
+        switch self {
+        case .baseProtocol:
+            "BaseProtocol"
+        case .method:
+            "Method"
+        case .`init`:
+            "Init"
+        case .getter:
+            "Getter"
+        case .setter:
+            "Setter"
+        case .readCoroutine:
+            "ReadCoroutine"
+        case .modifyCoroutine:
+            "ModifyCoroutine"
+        case .associatedTypeAccessFunction:
+            "AssociatedTypeAccessFunction"
+        case .associatedConformanceAccessFunction:
+            "AssociatedConformanceAccessFunction"
+        }
     }
 }

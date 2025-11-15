@@ -3,68 +3,16 @@ import MachOKit
 import Demangling
 import MachOFoundation
 import SwiftStdlibToolbox
+import MachOSwiftSection
 @_spi(Internals) import MachOCaches
+@_spi(Internals) import MachOSymbols
 
-private final class MetadataReaderCache: MachOCache<MetadataReaderCache.Entry>, @unchecked Sendable {
-    fileprivate static let shared = MetadataReaderCache()
-
-    private override init() {}
-
-    fileprivate struct MangledNameBox: Hashable {
-        let wrappedValue: MangledName
-
-        func hash(into hasher: inout Hasher) {
-            hasher.combine(wrappedValue.elements)
-        }
-
-        static func == (lhs: Self, rhs: Self) -> Bool {
-            lhs.wrappedValue.elements == rhs.wrappedValue.elements
-        }
-
-        init(_ wrappedValue: MangledName) {
-            self.wrappedValue = wrappedValue
-        }
-    }
-
-    final class Entry {
-        @Mutex
-        fileprivate var nodeForMangledNameBox: [MangledNameBox: Node] = [:]
-    }
-
-    override func buildEntry<MachO>(for machO: MachO) -> Entry? where MachO: MachORepresentableWithCache {
-        Entry()
-    }
-
-    override func entry<MachO>(in machO: MachO) -> Entry? where MachO: MachORepresentableWithCache {
-        super.entry(in: machO)
-    }
-
-    func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
-        if let node = entry(in: machO)?.nodeForMangledNameBox[MangledNameBox(mangledName)] {
-            return node
-        } else {
-            let node = try MetadataReader._demangleType(for: mangledName, in: machO)
-            entry(in: machO)?.nodeForMangledNameBox[MangledNameBox(mangledName)] = node
-            return node
-        }
-    }
-}
-
-public enum MetadataReader<MachO: MachOSwiftSectionRepresentableWithCache> {
-//    public static func demangle(for mangledName: MangledName, in machO: MachO) throws -> Node {
-//        let rawString = mangledName.rawString
-//        if rawString.isSwiftSymbol {
-//            return try demangle(for: mangledName, kind: .symbol, in: machO)
-//        } else {
-//            return try demangleType(for: mangledName, in: machO)
-//        }
-//    }
-
+package enum MetadataReader<MachO: MachOSwiftSectionRepresentableWithCache> {
     fileprivate static func _demangleType(for mangledName: MangledName, in machO: MachO) throws -> Node {
         return try demangle(for: mangledName, kind: .type, in: machO)
     }
 
-    public static func demangleType(for mangledName: MangledName, in machO: MachO) throws -> Node {
+    package static func demangleType(for mangledName: MangledName, in machO: MachO) throws -> Node {
 //        return try demangle(for: mangledName, kind: .type, in: machO)
         try MetadataReaderCache.shared.demangleType(for: mangledName, in: machO)
     }
@@ -73,15 +21,15 @@ public enum MetadataReader<MachO: MachOSwiftSectionRepresentableWithCache> {
 //        return try demangle(for: mangledName, kind: .symbol, in: machO)
 //    }
 
-    public static func demangleType(for symbol: Symbol, in machO: MachO) throws -> Node? {
+    package static func demangleType(for symbol: Symbol, in machO: MachO) throws -> Node? {
         return try buildContextManglingForSymbol(symbol, in: machO)
     }
 
-    public static func demangleSymbol(for symbol: Symbol, in machO: MachO) throws -> Node? {
-        return SymbolCache.shared.demangledNode(for: symbol, in: machO)
+    package static func demangleSymbol(for symbol: Symbol, in machO: MachO) throws -> Node? {
+        return SymbolIndexStore.shared.demangledNode(for: symbol, in: machO)
     }
 
-    public static func demangleContext(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
+    package static func demangleContext(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
         return try required(buildContextMangling(context: context, in: machO))
     }
 
@@ -131,10 +79,10 @@ public enum MetadataReader<MachO: MachOSwiftSectionRepresentableWithCache> {
                     result = .init(kind: .accessorFunctionReference, contents: .index(address(of: RelativeDirectRawPointer(relativeOffset: relativeOffset).resolveDirectOffset(from: offset), in: machO)))
                 case .uniqueExtendedExistentialTypeShape:
                     let extendedExistentialTypeShape = try RelativeDirectPointer<ExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: offset, in: machO)
-                    result = try .init(kind: .uniqueExtendedExistentialTypeShapeSymbolicReference, children: demangleType(for: extendedExistentialTypeShape.existentialType(in: machO), in: machO).children)
+                    result = try .init(kind: .uniqueExtendedExistentialTypeShapeSymbolicReference, children: demangle(for: extendedExistentialTypeShape.existentialType(in: machO), kind: .type, in: machO).children)
                 case .nonUniqueExtendedExistentialTypeShape:
                     let nonUniqueExtendedExistentialTypeShape = try RelativeDirectPointer<NonUniqueExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: offset, in: machO)
-                    result = try .init(kind: .nonUniqueExtendedExistentialTypeShapeSymbolicReference, children: demangleType(for: nonUniqueExtendedExistentialTypeShape.existentialType(in: machO), in: machO).children)
+                    result = try .init(kind: .nonUniqueExtendedExistentialTypeShapeSymbolicReference, children: demangle(for: nonUniqueExtendedExistentialTypeShape.existentialType(in: machO), kind: .type, in: machO).children)
                 case .objectiveCProtocol:
                     let relativePointer = RelativeDirectPointer<RelativeObjCProtocolPrefix>(relativeOffset: relativeOffset)
                     let objcProtocol = try relativePointer.resolve(from: offset, in: machO)
@@ -497,7 +445,7 @@ extension Node {
         typeNonWrapperSymbol
     }
 
-    func nodes(for kind: Node.Kind) -> [Node] {
+    fileprivate func nodes(for kind: Node.Kind) -> [Node] {
         var nodes: [Node] = []
         func enumerate(_ child: Node) {
             if child.kind == kind {
@@ -512,11 +460,47 @@ extension Node {
     }
 }
 
-extension Array {
-    subscript(safe index: Int) -> Element? {
-        if index < 0 || index >= count {
-            return nil
+private final class MetadataReaderCache: MachOCache<MetadataReaderCache.Entry>, @unchecked Sendable {
+    fileprivate static let shared = MetadataReaderCache()
+
+    private override init() {}
+
+    fileprivate struct MangledNameBox: Hashable {
+        let wrappedValue: MangledName
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(wrappedValue.elements)
         }
-        return self[index]
+
+        static func == (lhs: Self, rhs: Self) -> Bool {
+            lhs.wrappedValue.elements == rhs.wrappedValue.elements
+        }
+
+        init(_ wrappedValue: MangledName) {
+            self.wrappedValue = wrappedValue
+        }
+    }
+
+    final class Entry {
+        @Mutex
+        fileprivate var nodeForMangledNameBox: [MangledNameBox: Node] = [:]
+    }
+
+    override func buildEntry<MachO>(for machO: MachO) -> Entry? where MachO: MachORepresentableWithCache {
+        Entry()
+    }
+
+    override func entry<MachO>(in machO: MachO) -> Entry? where MachO: MachORepresentableWithCache {
+        super.entry(in: machO)
+    }
+
+    func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
+        if let node = entry(in: machO)?.nodeForMangledNameBox[MangledNameBox(mangledName)] {
+            return node
+        } else {
+            let node = try MetadataReader._demangleType(for: mangledName, in: machO)
+            entry(in: machO)?.nodeForMangledNameBox[MangledNameBox(mangledName)] = node
+            return node
+        }
     }
 }

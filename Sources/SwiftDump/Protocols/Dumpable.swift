@@ -5,8 +5,8 @@ import MachOSwiftSection
 
 public typealias DemangleOptions = Demangling.DemangleOptions
 
-public protocol Dumpable {
-    func dump<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) async throws -> SemanticString
+public protocol Dumpable: Sendable {
+    func dump<MachO: MachOSwiftSectionRepresentableWithCache>(using configuration: DumperConfiguration, in machO: MachO) async throws -> SemanticString
 }
 
 

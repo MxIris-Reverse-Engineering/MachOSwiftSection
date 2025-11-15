@@ -9,4 +9,5 @@ public struct VariableDefinition: Sendable, AccessorRepresentable {
     public let name: String
     public let accessors: [Accessor]
     public let isGlobalOrStatic: Bool
+    public var offset: Int? { accessors.first?.offset }
 }

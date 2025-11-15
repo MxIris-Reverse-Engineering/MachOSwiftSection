@@ -18,4 +18,5 @@ public struct Accessor: Sendable {
     public let kind: AccessorKind
     public let symbol: DemangledSymbol
     public let methodDescriptor: MethodDescriptorWrapper?
+    public let offset: Int?
 }

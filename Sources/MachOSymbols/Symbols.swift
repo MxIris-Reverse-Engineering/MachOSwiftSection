@@ -3,7 +3,7 @@ import MachOReading
 import MachOResolving
 import MachOExtensions
 
-public struct Symbols: Resolvable {
+public struct Symbols: AsyncResolvable {
     private var _storage: [Symbol] = []
 
     public let offset: Int
@@ -19,6 +19,14 @@ public struct Symbols: Resolvable {
 
     public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self? {
         return machO.symbols(offset: offset)
+    }
+    
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) async throws -> Self {
+        try await required(resolve(from: offset, in: machO))
+    }
+
+    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) async throws -> Self? {
+        return await machO.symbols(offset: offset)
     }
 }
 

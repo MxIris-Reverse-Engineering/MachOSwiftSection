@@ -35,21 +35,21 @@ import MachOSwiftSection
 let machO //` MachOFile` or `MachOImage`
 
 // Protocol Descriptors
-let protocolDescriptors = machO.swift.protocolDescriptors ?? []
+let protocolDescriptors = try machO.swift.protocolDescriptors
 for protocolDescriptor in protocolDescriptors {
     let protocolType = try Protocol(descriptor: protocolDescriptor, in: machO)
     // do somethings ...
 }
 
 // Protocol Conformance Descriptors
-let protocolConformanceDescriptors = machO.swift.protocolConformanceDescriptors ?? []
+let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
 for protocolConformanceDescriptor in protocolConformanceDescriptors {
     let protocolConformance = try ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO)
     // do somethings ...
 }
 
 // Type/Nominal Descriptors
-let typeContextDescriptors = machO.swift.typesContextDescriptors ?? []
+let typeContextDescriptors = try machO.swift.typesContextDescriptors
 for typeContextDescriptor in typeContextDescriptors {
     switch typeContextDescriptor {
     case .type(let typeContextDescriptorWrapper):
@@ -76,12 +76,11 @@ For generating complete Swift interface files, you can use the `SwiftInterface` 
 
 ```swift
 import MachOKit
-import MachOSwiftSection
 import SwiftInterface
 
 let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: machO)
 try await builder.prepare()
-let result = try builder.printRoot()
+let result = try await builder.printRoot()
 ```
 
 ## swift-section CLI Tool
@@ -96,7 +95,7 @@ You can get the swift-section CLI tool in three ways:
 
 ### Usage
 
-The swift-section CLI tool provides three main subcommands: `dump`, `demangle`, and `interface`.
+The swift-section CLI tool provides two main subcommands: `dump`, and `interface`.
 
 #### dump - Dump Swift Information
 
@@ -124,7 +123,7 @@ swift-section dump --architecture arm64 /path/to/binary
 **Working with dyld shared cache:**
 ```bash
 # Dump from system dyld shared cache
-swift-section dump --uses-system-dyld-shared-cache --cache-image-name UIKit
+swift-section dump --uses-system-dyld-shared-cache --cache-image-name SwiftUICore
 
 # Dump from specific dyld shared cache
 swift-section dump --dyld-shared-cache --cache-image-path /path/to/cache /path/to/dyld_shared_cache
@@ -144,7 +143,18 @@ swift-section interface [options] [file-path]
 swift-section interface /path/to/binary
 
 # Save interface to file
-swift-section interface --output-path interface.swift /path/to/binary
+swift-section interface --output-path interface.swiftinterface /path/to/binary
+
+# Use specific architecture
+swift-section interface --architecture arm64 /path/to/binary
+
+**Working with dyld shared cache:**
+```bash
+# Dump from system dyld shared cache
+swift-section interface --uses-system-dyld-shared-cache --cache-image-name SwiftUICore
+
+# Dump from specific dyld shared cache
+swift-section interface --dyld-shared-cache --cache-image-path /path/to/cache /path/to/dyld_shared_cache
 ```
 
 ## License

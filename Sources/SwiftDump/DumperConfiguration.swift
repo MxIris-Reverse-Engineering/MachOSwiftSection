@@ -6,9 +6,15 @@ import Utilities
 import MemberwiseInit
 import Demangling
 
-@MemberwiseInit(.package)
-package struct DumperConfiguration {
-    package var demangleResolver: DemangleResolver
-    package var indentation: Int = 1
-    package var displayParentName: Bool = true
+@MemberwiseInit(.public)
+public struct DumperConfiguration: Sendable {
+    public var demangleResolver: DemangleResolver
+    public var indentation: Int = 1
+    public var displayParentName: Bool = true
+    public var emitOffsetComments: Bool = false
+    
+    
+    public static func demangleOptions(_ demangleOptions: DemangleOptions) -> Self {
+        .init(demangleResolver: .options(demangleOptions))
+    }
 }

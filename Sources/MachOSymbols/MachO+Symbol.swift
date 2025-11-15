@@ -3,7 +3,11 @@ import MachOExtensions
 
 extension MachORepresentableWithCache {
     public func symbols(offset: Int) -> MachOSymbols.Symbols? {
-        return SymbolCache.shared.symbols(for: offset, in: self)
+        return SymbolIndexStore.shared.symbols(for: offset, in: self)
+    }
+    
+    public func symbols(offset: Int) async -> MachOSymbols.Symbols? {
+        return SymbolIndexStore.shared.symbols(for: offset, in: self)
     }
 }
 

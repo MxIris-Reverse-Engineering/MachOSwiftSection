@@ -79,7 +79,7 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
                         case .symbol(let symbol):
                             try await MetadataReader.demangleSymbol(for: symbol, in: machO).asyncMap { try await demangleResolver.resolve(for: $0) }
                         case .element(let element):
-                            if let symbols = try Symbols.resolve(from: element.offset, in: machO), let node = try await _node(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes) {
+                            if let symbols = try await Symbols.resolve(from: element.offset, in: machO), let node = try await _node(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes) {
                                 _ = visitedNodes.append(node)
                                 try await demangleResolver.resolve(for: node)
                             } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machO), let node = try await _node(for: defaultImplementationSymbols, typeName: typeNameString, visitedNodes: visitedNodes) {

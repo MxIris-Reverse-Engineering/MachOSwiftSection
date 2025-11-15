@@ -24,6 +24,6 @@ private func demangleAsNode<C: Collection & Sendable>(_ mangled: C, isType: Bool
     } else if Demangler.getManglingPrefixLength(mangled) != 0 {
         return try demangler.demangleSymbol()
     } else {
-        throw .invalidSwiftMangledName
+        return try demangler.demangleSwift3TopLevelSymbol()
     }
 }

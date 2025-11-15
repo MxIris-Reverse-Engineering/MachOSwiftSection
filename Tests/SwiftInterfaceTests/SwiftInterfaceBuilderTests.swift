@@ -16,8 +16,12 @@ extension SwiftInterfaceBuilderTests {
     }
 
     func buildFile(in machO: MachOFile) async throws {
-        let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: machO)
-        try await builder.prepare()
+        let builder = try SwiftInterfaceBuilder(configuration: .init(emitOffsetComments: true), eventHandlers: [], in: machO)
+        let clock = ContinuousClock()
+        let duration = try await clock.measure {
+            try await builder.prepare()
+        }
+        print(duration)
         let result = try await builder.printRoot()
         try rootDirectory.createDirectoryIfNeeded()
         try result.string.write(to: rootDirectory.appending(path: "\(machO.imagePath.lastPathComponent)-FileDump.swiftinterface"), atomically: true, encoding: .utf8)
@@ -26,8 +30,12 @@ extension SwiftInterfaceBuilderTests {
     }
 
     func buildFile(in machO: MachOImage) async throws {
-        let builder = try SwiftInterfaceBuilder(configuration: .init(), eventHandlers: [], in: machO)
-        try await builder.prepare()
+        let builder = try SwiftInterfaceBuilder(configuration: .init(emitOffsetComments: true), eventHandlers: [], in: machO)
+        let clock = ContinuousClock()
+        let duration = try await clock.measure {
+            try await builder.prepare()
+        }
+        print(duration)
         let result = try await builder.printRoot()
         try rootDirectory.createDirectoryIfNeeded()
         try result.string.write(to: rootDirectory.appending(path: "\(machO.imagePath.lastPathComponent)-ImageDump.swiftinterface"), atomically: true, encoding: .utf8)
@@ -61,11 +69,9 @@ extension SwiftInterfaceBuilderTests {
 @Suite
 enum SwiftInterfaceBuilderTestSuite {
     class DyldCacheTests: MachOTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
-        override class var platform: Platform { .macOS }
-
         override class var cacheImageName: MachOImageName { .SwiftUI }
 
-        override class var cachePath: DyldSharedCachePath { .current }
+        override class var cachePath: DyldSharedCachePath { .iOS_26_1 }
 
         @Test func buildFile() async throws {
             try await buildFile(in: machOFileInCache)
@@ -81,7 +87,7 @@ enum SwiftInterfaceBuilderTestSuite {
     }
 
     class MachOImageTests: MachOTestingSupport.MachOImageTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
-        override class var imageName: MachOImageName { .SwiftUI }
+        override class var imageName: MachOImageName { .AppKit }
 
         @Test func buildFile() async throws {
             try await buildFile(in: machOImage)

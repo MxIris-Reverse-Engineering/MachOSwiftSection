@@ -2,9 +2,24 @@ import Foundation
 import MachOKit
 import MachOExtensions
 import MachOReading
+import DyldPrivate
 
 public protocol MetadataProtocol: ResolvableLocatableLayoutWrapper where Layout: MetadataLayout {
     associatedtype HeaderType: ResolvableLocatableLayoutWrapper = TypeMetadataHeader
+}
+
+extension MetadataProtocol {
+    public static func create(_ type: Any.Type) -> (machO: MachOImage, metadata: Self)? {
+        let ptr = unsafeBitCast(type, to: UnsafeRawPointer.self)
+
+        guard let machHeader = dyld_image_header_containing_address(ptr) else { return nil }
+        
+        let machO = MachOImage(ptr: machHeader)
+
+        let layout: Layout = unsafeBitCast(type, to: UnsafePointer<Layout>.self).pointee
+
+        return (machO, self.init(layout: layout, offset: ptr.int - machO.ptr.int))
+    }
 }
 
 extension MetadataProtocol {

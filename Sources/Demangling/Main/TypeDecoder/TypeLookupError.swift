@@ -12,14 +12,6 @@ public struct TypeLookupError: Error, CustomStringConvertible, Sendable {
         self.file = file
         self.line = line
     }
-
-    /// Initialize a type lookup error with a formatted message
-    public init(format: String, args: CVarArg..., file: String = #file, line: Int = #line) {
-        self.message = String(format: format, arguments: args)
-        self.file = file
-        self.line = line
-    }
-
     /// Initialize from a node error
     public init(node: Node, message: String, file: String = #file, line: Int = #line) {
         let nodeInfo = "Node kind \(node.kind)"

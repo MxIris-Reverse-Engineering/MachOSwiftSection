@@ -1,10 +1,13 @@
 import MachOKit
 import MachOFoundation
 
-public struct ClassMetadata: ClassMetadataProtocol, TypeMetadataProtocol {
-    public struct Layout: ClassMetadataLayout, ClassMetadataLayoutWithDescriptor {
+public struct ClassMetadataObjCInterop: ClassMetadataObjCInteropProtocol {
+    public struct Layout: ClassMetadataObjCInteropLayout, FinalClassMetadataLayout {
         public let kind: StoredPointer
-        public let superclass: StoredPointer
+        public let superclass: Pointer<AnyClassMetadataObjCInterop?>
+        public let cache: RawPointer
+        public let vtable: RawPointer
+        public let data: StoredSize
         public let flags: UInt32
         public let instanceAddressPoint: UInt32
         public let instanceSize: UInt32
