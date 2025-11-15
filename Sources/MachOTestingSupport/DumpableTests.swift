@@ -29,7 +29,7 @@ extension DumpableTests {
     package func dumpProtocols<MachO: MachOSwiftSectionRepresentableWithCache>(for machO: MachO) async throws {
         let protocolDescriptors = try machO.swift.protocolDescriptors
         for protocolDescriptor in protocolDescriptors {
-            try await Protocol(descriptor: protocolDescriptor, in: machO).dump(using: .test, in: machO).string.print()
+            try await Protocol(descriptor: protocolDescriptor, in: machO).dump(using: .demangleOptions(.test), in: machO).string.print()
         }
     }
 
@@ -38,7 +38,7 @@ extension DumpableTests {
         let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
 
         for protocolConformanceDescriptor in protocolConformanceDescriptors {
-            try await ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO).dump(using: .test, in: machO).string.print()
+            try await ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO).dump(using: .demangleOptions(.test), in: machO).string.print()
         }
     }
 
@@ -56,7 +56,7 @@ extension DumpableTests {
                 do {
                     if isDetail {
                         let enumType = try Enum(descriptor: enumDescriptor, in: machO)
-                        try await enumType.dump(using: .test, in: machO).string.print()
+                        try await enumType.dump(using: .demangleOptions(.test), in: machO).string.print()
                     } else {
                         print(enumDescriptor)
                     }
@@ -68,7 +68,7 @@ extension DumpableTests {
                 do {
                     if isDetail {
                         let structType = try Struct(descriptor: structDescriptor, in: machO)
-                        try await structType.dump(using: .test, in: machO).string.print()
+                        try await structType.dump(using: .demangleOptions(.test), in: machO).string.print()
                     } else {
                         print(structDescriptor)
                     }
@@ -83,7 +83,7 @@ extension DumpableTests {
                 do {
                     if isDetail {
                         let classType = try Class(descriptor: classDescriptor, in: machO)
-                        try await classType.dump(using: .test, in: machO).string.print()
+                        try await classType.dump(using: .demangleOptions(.test), in: machO).string.print()
                     } else {
                         print(classDescriptor)
                     }
@@ -121,7 +121,7 @@ extension DumpableTests {
     package func dumpAssociatedTypes<MachO: MachOSwiftSectionRepresentableWithCache>(for machO: MachO) async throws {
         let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
         for associatedTypeDescriptor in associatedTypeDescriptors {
-            try await AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: .test, in: machO).string.print()
+            try await AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: .demangleOptions(.test), in: machO).string.print()
         }
     }
 
