@@ -13,18 +13,18 @@ public protocol TypeBuilder {
     associatedtype BuiltSubstitutionMap
 
     func decodeMangledType(node: Node?, forRequirement: Bool) throws(TypeLookupError) -> BuiltType
-    
+
     // Get mangling flavor
     func getManglingFlavor() -> ManglingFlavor
 
     func createRequirement(kind: RequirementKind, subjectType: BuiltType, constraintType: BuiltType) -> BuiltRequirement
-    
+
     func createRequirement(kind: RequirementKind, subjectType: BuiltType, layout: BuiltLayoutConstraint) -> BuiltRequirement
-    
+
     func createSubstitution(firstType: BuiltType, secondType: BuiltType) -> BuiltSubstitution
-    
+
     func createSILBoxField(type: BuiltType, isMutable: Bool) -> BuiltSILBoxField
-    
+
     // Create type declarations
     func createTypeDecl(node: Node, typeAlias: inout Bool) -> BuiltTypeDecl?
     func createProtocolDecl(node: Node) -> BuiltProtocolDecl?

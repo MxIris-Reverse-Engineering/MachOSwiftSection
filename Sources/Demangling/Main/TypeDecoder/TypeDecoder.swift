@@ -1,5 +1,3 @@
-import Foundation
-
 /// Decode a mangled type to construct an abstract type using a custom builder.
 /// This is a Swifty implementation that uses throws for error handling.
 public final class TypeDecoder<Builder: TypeBuilder> {

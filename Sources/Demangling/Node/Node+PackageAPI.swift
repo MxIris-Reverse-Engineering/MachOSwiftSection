@@ -1,5 +1,3 @@
-import Foundation
-
 extension Node {
     package func findGenericParamsDepth() -> [UInt64: UInt64]? {
         guard kind == .dependentGenericType, first(of: .dependentGenericParamCount) != nil else { return nil }
