@@ -17,9 +17,13 @@ func envEnable(_ key: String, default defaultValue: Bool = false) -> Bool {
     }
 }
 
+let MachOKitVersion: Version = "0.39.0"
+
 let isSilentTest = envEnable("MACHO_SWIFT_SECTION_SILENT_TEST", default: false)
 
 let useSPMPrebuildVersion = envEnable("MACHO_SWIFT_SECTION_USE_SPM_PREBUILD_VERSION", default: false)
+
+let useSwiftTUI = envEnable("MACHO_SWIFT_SECTION_USE_SWIFTTUI", default: false)
 
 var testSettings: [SwiftSetting] = []
 
@@ -27,7 +31,27 @@ if isSilentTest {
     testSettings.append(.define("SILENT_TEST"))
 }
 
-let MachOKitVersion: Version = "0.39.0"
+var dependencies: [Package.Dependency] = [
+    .MachOKit,
+    .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.1.0" ..< "602.0.0"),
+    .package(url: "https://github.com/p-x9/AssociatedObject", from: "0.13.0"),
+    .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
+    .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
+    .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
+    .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", branch: "main"),
+    .package(url: "https://github.com/apple/swift-collections", from: "1.2.0"),
+    .package(url: "https://github.com/MxIris-Library-Forks/swift-memberwise-init-macro", from: "0.5.3-fork"),
+    .package(url: "https://github.com/p-x9/MachOObjCSection", from: "0.4.0"),
+    .package(url: "https://github.com/Mx-Iris/SourceKitD", branch: "main"),
+    .package(url: "https://github.com/christophhagen/BinaryCodable", from: "3.1.0"),
+    .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-apinotes", branch: "main"),
+    .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.4"),
+//        .package(url: "https://github.com/brightdigit/SyntaxKit", branch: "main"),
+//        .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-clang", from: "0.1.0"),
+    .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.4"),
+    .package(url: "https://github.com/MxIris-Reverse-Engineering/DyldPrivate", branch: "main"),
+    .package(url: "https://github.com/migueldeicaza/TermKit", branch: "main"),
+]
 
 extension Package.Dependency {
     static let MachOKit: Package.Dependency = {
@@ -95,309 +119,337 @@ extension Target.Dependency {
         name: "SwiftSyntaxBuilder",
         package: "swift-syntax"
     )
+
+    static let SwiftTUI = Target.Dependency.product(
+        name: "SwiftTUI",
+        package: "SwiftTUI"
+    )
+
+    static let TermKit = Target.Dependency.product(
+        name: "TermKit",
+        package: "TermKit"
+    )
+}
+
+extension Product {
+    static func library(_ target: Target) -> Product {
+        .library(name: target.name, targets: [target.name])
+    }
+
+    static func executable(_ target: Target) -> Product {
+        .executable(name: target.name, targets: [target.name])
+    }
+}
+
+extension Target.Dependency {
+    static func target(_ target: Target) -> Self {
+        .targetItem(name: target.name, condition: nil)
+    }
+}
+
+@MainActor
+extension Target {
+    static let Semantic = Target.target(
+        name: "Semantic"
+    )
+
+    static let Demangling = Target.target(
+        name: "Demangling",
+        dependencies: [
+            .target(.Utilities),
+        ]
+    )
+
+    static let Utilities = Target.target(
+        name: "Utilities",
+        dependencies: [
+            .target(.MachOMacros),
+            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+            .product(name: "AssociatedObject", package: "AssociatedObject"),
+            .product(name: "MemberwiseInit", package: "swift-memberwise-init-macro"),
+            .product(name: "OrderedCollections", package: "swift-collections"),
+            .product(name: "Dependencies", package: "swift-dependencies"),
+            .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
+        ]
+    )
+
+    static let MachOExtensions = Target.target(
+        name: "MachOExtensions",
+        dependencies: [
+            .MachOKit,
+            .target(.Utilities),
+        ]
+    )
+
+    static let MachOCaches = Target.target(
+        name: "MachOCaches",
+        dependencies: [
+            .MachOKit,
+            .target(.MachOExtensions),
+            .target(.Utilities),
+        ]
+    )
+
+    static let MachOReading = Target.target(
+        name: "MachOReading",
+        dependencies: [
+            .MachOKit,
+            .target(.MachOExtensions),
+            .target(.Utilities),
+            .product(name: "FileIO", package: "swift-fileio"),
+        ]
+    )
+
+    static let MachOResolving = Target.target(
+        name: "MachOResolving",
+        dependencies: [
+            .MachOKit,
+            .target(.MachOExtensions),
+            .target(.MachOReading),
+        ]
+    )
+
+    static let MachOSymbols = Target.target(
+        name: "MachOSymbols",
+        dependencies: [
+            .MachOKit,
+            .target(.MachOReading),
+            .target(.MachOResolving),
+            .target(.Utilities),
+            .target(.Demangling),
+            .target(.MachOCaches),
+        ],
+        swiftSettings: [
+            .unsafeFlags(["-Xfrontend", "-enable-private-imports"]),
+        ]
+    )
+
+    static let MachOPointers = Target.target(
+        name: "MachOPointers",
+        dependencies: [
+            .MachOKit,
+            .target(.MachOReading),
+            .target(.MachOResolving),
+            .target(.Utilities),
+        ]
+    )
+
+    static let MachOSymbolPointers = Target.target(
+        name: "MachOSymbolPointers",
+        dependencies: [
+            .MachOKit,
+            .target(.MachOReading),
+            .target(.MachOResolving),
+            .target(.MachOPointers),
+            .target(.MachOSymbols),
+            .target(.Utilities),
+        ]
+    )
+
+    static let MachOFoundation = Target.target(
+        name: "MachOFoundation",
+        dependencies: [
+            .MachOKit,
+            .target(.MachOReading),
+            .target(.MachOExtensions),
+            .target(.MachOPointers),
+            .target(.MachOSymbols),
+            .target(.MachOResolving),
+            .target(.MachOSymbolPointers),
+            .target(.Utilities),
+        ]
+    )
+
+    static let MachOSwiftSection = Target.target(
+        name: "MachOSwiftSection",
+        dependencies: [
+            .MachOKit,
+            .target(.MachOFoundation),
+            .target(.Demangling),
+            .target(.Utilities),
+            .product(name: "DyldPrivate", package: "DyldPrivate"),
+        ],
+    )
+
+    static let SwiftDump = Target.target(
+        name: "SwiftDump",
+        dependencies: [
+            .MachOKit,
+            .target(.MachOSwiftSection),
+            .target(.Semantic),
+            .target(.Utilities),
+            .product(name: "MachOObjCSection", package: "MachOObjCSection"),
+        ]
+    )
+
+    static let SwiftIndex = Target.target(
+        name: "SwiftIndex",
+        dependencies: [
+            .MachOKit,
+            .target(.MachOSwiftSection),
+            .target(.SwiftDump),
+            .target(.Semantic),
+            .target(.Utilities),
+        ]
+    )
+
+    static let SwiftInterface = Target.target(
+        name: "SwiftInterface",
+        dependencies: [
+            .MachOKit,
+            .target(.MachOSwiftSection),
+            .target(.SwiftDump),
+            .target(.Semantic),
+            .target(.Utilities),
+        ]
+    )
+
+    static let TypeIndexing = Target.target(
+        name: "TypeIndexing",
+        dependencies: [
+            .target(.SwiftInterface),
+            .target(.Utilities),
+            .SwiftSyntax,
+            .SwiftParser,
+            .SwiftSyntaxBuilder,
+            .product(name: "SourceKitD", package: "SourceKitD", condition: .when(platforms: [.macOS])),
+            .product(name: "BinaryCodable", package: "BinaryCodable"),
+            .product(name: "APINotes", package: "swift-apinotes", condition: .when(platforms: [.macOS])),
+            .product(name: "MachOObjCSection", package: "MachOObjCSection"),
+        ]
+    )
+
+    static let swift_section = Target.executableTarget(
+        name: "swift-section",
+        dependencies: [
+            .target(.SwiftDump),
+            .target(.SwiftInterface),
+            .product(name: "Rainbow", package: "Rainbow"),
+            .product(name: "ArgumentParser", package: "swift-argument-parser"),
+        ]
+    )
+
+    // MARK: - Macros
+
+    static let MachOMacros = Target.macro(
+        name: "MachOMacros",
+        dependencies: [
+            .SwiftSyntax,
+            .SwiftSyntaxMacros,
+            .SwiftCompilerPlugin,
+            .SwiftSyntaxBuilder,
+        ]
+    )
+
+    // MARK: - Testing
+
+    static let MachOTestingSupport = Target.target(
+        name: "MachOTestingSupport",
+        dependencies: [
+            .MachOKit,
+            .target(.MachOExtensions),
+            .target(.SwiftDump),
+        ],
+        swiftSettings: testSettings
+    )
+
+    static let DemanglingTests = Target.testTarget(
+        name: "DemanglingTests",
+        dependencies: [
+            .target(.Demangling),
+        ],
+        swiftSettings: testSettings
+    )
+
+    static let MachOSymbolsTests = Target.testTarget(
+        name: "MachOSymbolsTests",
+        dependencies: [
+            .target(.MachOSymbols),
+            .target(.MachOTestingSupport),
+        ],
+        swiftSettings: testSettings
+    )
+
+    static let MachOSwiftSectionTests = Target.testTarget(
+        name: "MachOSwiftSectionTests",
+        dependencies: [
+            .target(.MachOSwiftSection),
+            .target(.MachOTestingSupport),
+            .target(.SwiftDump),
+        ],
+        swiftSettings: testSettings
+    )
+
+    static let SwiftDumpTests = Target.testTarget(
+        name: "SwiftDumpTests",
+        dependencies: [
+            .target(.SwiftDump),
+            .target(.MachOTestingSupport),
+            .product(name: "MachOObjCSection", package: "MachOObjCSection"),
+        ],
+        swiftSettings: testSettings
+    )
+
+    static let TypeIndexingTests = Target.testTarget(
+        name: "TypeIndexingTests",
+        dependencies: [
+            .target(.TypeIndexing),
+            .target(.MachOTestingSupport),
+        ],
+        swiftSettings: testSettings
+    )
+
+    static let SwiftInterfaceTests = Target.testTarget(
+        name: "SwiftInterfaceTests",
+        dependencies: [
+            .target(.SwiftInterface),
+            .target(.MachOTestingSupport),
+        ],
+        swiftSettings: testSettings
+    )
 }
 
 let package = Package(
     name: "MachOSwiftSection",
     platforms: [.macOS(.v13), .iOS(.v16), .tvOS(.v16), .watchOS(.v9), .visionOS(.v1)],
     products: [
-        .library(
-            name: "MachOSwiftSection",
-            targets: ["MachOSwiftSection"]
-        ),
-        .library(
-            name: "SwiftDump",
-            targets: ["SwiftDump"]
-        ),
-        .library(
-            name: "SwiftInterface",
-            targets: ["SwiftInterface"]
-        ),
-        .library(
-            name: "TypeIndexing",
-            targets: ["TypeIndexing"]
-        ),
-        .executable(
-            name: "swift-section",
-            targets: ["swift-section"]
-        ),
+        .library(.MachOSwiftSection),
+        .library(.SwiftDump),
+        .library(.SwiftInterface),
+        .library(.TypeIndexing),
+        .executable(.swift_section),
     ],
-    dependencies: [
-        .MachOKit,
-        .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.1.0" ..< "602.0.0"),
-        .package(url: "https://github.com/p-x9/AssociatedObject", from: "0.13.0"),
-        .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
-        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
-        .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
-        .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", branch: "main"),
-        .package(url: "https://github.com/apple/swift-collections", from: "1.2.0"),
-        .package(url: "https://github.com/MxIris-Library-Forks/swift-memberwise-init-macro", from: "0.5.3-fork"),
-        .package(url: "https://github.com/p-x9/MachOObjCSection", from: "0.4.0"),
-        .package(url: "https://github.com/Mx-Iris/SourceKitD", branch: "main"),
-        .package(url: "https://github.com/christophhagen/BinaryCodable", from: "3.1.0"),
-        .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-apinotes", branch: "main"),
-        .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.4"),
-        .package(url: "https://github.com/brightdigit/SyntaxKit", branch: "main"),
-//        .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-clang", from: "0.1.0"),
-        .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.4"),
-        .package(url: "https://github.com/MxIris-Reverse-Engineering/DyldPrivate", branch: "main"),
-    ],
+    dependencies: dependencies,
     targets: [
-        .target(
-            name: "Semantic"
-        ),
-
-        .target(
-            name: "Demangling",
-            dependencies: [
-                "Utilities",
-            ]
-        ),
-
-        .target(
-            name: "Utilities",
-            dependencies: [
-                "MachOMacros",
-                .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
-                .product(name: "AssociatedObject", package: "AssociatedObject"),
-                .product(name: "MemberwiseInit", package: "swift-memberwise-init-macro"),
-                .product(name: "OrderedCollections", package: "swift-collections"),
-                .product(name: "Dependencies", package: "swift-dependencies"),
-                .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
-            ]
-        ),
-
-        .target(
-            name: "MachOExtensions",
-            dependencies: [
-                .MachOKit,
-                "Utilities",
-            ]
-        ),
-
-        .target(
-            name: "MachOCaches",
-            dependencies: [
-                .MachOKit,
-                "MachOExtensions",
-                "Utilities",
-            ]
-        ),
-
-        .target(
-            name: "MachOReading",
-            dependencies: [
-                .MachOKit,
-                "Utilities",
-                "MachOExtensions",
-                .product(name: "FileIO", package: "swift-fileio"),
-            ]
-        ),
-
-        .target(
-            name: "MachOResolving",
-            dependencies: [
-                .MachOKit,
-                "MachOExtensions",
-                "MachOReading",
-            ]
-        ),
-
-        .target(
-            name: "MachOSymbols",
-            dependencies: [
-                .MachOKit,
-                "MachOReading",
-                "MachOResolving",
-                "Demangling",
-                "Utilities",
-                "MachOCaches",
-            ],
-            swiftSettings: [
-                .unsafeFlags(["-Xfrontend", "-enable-private-imports"]),
-            ]
-        ),
-
-        .target(
-            name: "MachOPointers",
-            dependencies: [
-                .MachOKit,
-                "MachOReading",
-                "MachOResolving",
-                "Utilities",
-            ]
-        ),
-
-        .target(
-            name: "MachOSymbolPointers",
-            dependencies: [
-                .MachOKit,
-                "MachOReading",
-                "MachOResolving",
-                "MachOPointers",
-                "MachOSymbols",
-                "Utilities",
-            ]
-        ),
-
-        .target(
-            name: "MachOFoundation",
-            dependencies: [
-                .MachOKit,
-                "MachOReading",
-                "MachOExtensions",
-                "MachOPointers",
-                "MachOSymbols",
-                "MachOResolving",
-                "MachOSymbolPointers",
-                "Utilities",
-            ]
-        ),
-
-        .target(
-            name: "MachOSwiftSection",
-            dependencies: [
-                .MachOKit,
-                "MachOFoundation",
-                "Demangling",
-                "Utilities",
-                .product(name: "DyldPrivate", package: "DyldPrivate"),
-            ],
-        ),
-
-        .target(
-            name: "SwiftDump",
-            dependencies: [
-                .MachOKit,
-                "MachOSwiftSection",
-                "Semantic",
-                "Utilities",
-                .product(name: "MachOObjCSection", package: "MachOObjCSection"),
-            ]
-        ),
-
-        .target(
-            name: "TypeIndexing",
-            dependencies: [
-                "SwiftInterface",
-                "Utilities",
-                .SwiftSyntax,
-                .SwiftParser,
-                .SwiftSyntaxBuilder,
-                .product(name: "SourceKitD", package: "SourceKitD", condition: .when(platforms: [.macOS])),
-                .product(name: "BinaryCodable", package: "BinaryCodable"),
-                .product(name: "APINotes", package: "swift-apinotes", condition: .when(platforms: [.macOS])),
-                .product(name: "MachOObjCSection", package: "MachOObjCSection"),
-            ]
-        ),
-
-        .target(
-            name: "SwiftIndex",
-            dependencies: [
-                .MachOKit,
-                "MachOSwiftSection",
-                "SwiftDump",
-                "Semantic",
-                "Utilities",
-            ]
-        ),
-
-        .target(
-            name: "SwiftInterface",
-            dependencies: [
-                .MachOKit,
-                "MachOSwiftSection",
-                "SwiftDump",
-                "Semantic",
-                "Utilities",
-            ]
-        ),
-
-        .executableTarget(
-            name: "swift-section",
-            dependencies: [
-                "SwiftDump",
-                "SwiftInterface",
-                .product(name: "Rainbow", package: "Rainbow"),
-                .product(name: "ArgumentParser", package: "swift-argument-parser"),
-            ]
-        ),
-
-        // MARK: - Macros
-
-        .macro(
-            name: "MachOMacros",
-            dependencies: [
-                .SwiftSyntax,
-                .SwiftSyntaxMacros,
-                .SwiftCompilerPlugin,
-                .SwiftSyntaxBuilder,
-            ]
-        ),
-
-        // MARK: - Testing
-
-        .target(
-            name: "MachOTestingSupport",
-            dependencies: [
-                .MachOKit,
-                "MachOExtensions",
-                "SwiftDump",
-            ],
-            swiftSettings: testSettings
-        ),
-
-        .testTarget(
-            name: "DemanglingTests",
-            dependencies: [
-                "Demangling",
-            ],
-            swiftSettings: testSettings
-        ),
-        .testTarget(
-            name: "MachOSymbolsTests",
-            dependencies: [
-                "MachOSymbols",
-                "MachOTestingSupport",
-            ],
-            swiftSettings: testSettings
-        ),
-        .testTarget(
-            name: "MachOSwiftSectionTests",
-            dependencies: [
-                "MachOSwiftSection",
-                "MachOTestingSupport",
-                "SwiftDump",
-            ],
-            swiftSettings: testSettings
-        ),
-
-        .testTarget(
-            name: "SwiftDumpTests",
-            dependencies: [
-                "SwiftDump",
-                "MachOTestingSupport",
-                .product(name: "MachOObjCSection", package: "MachOObjCSection"),
-            ],
-            swiftSettings: testSettings
-        ),
-
-        .testTarget(
-            name: "TypeIndexingTests",
-            dependencies: [
-                "TypeIndexing",
-                "MachOTestingSupport",
-            ],
-            swiftSettings: testSettings
-        ),
-
-        .testTarget(
-            name: "SwiftInterfaceTests",
-            dependencies: [
-                "SwiftInterface",
-                "MachOTestingSupport",
-            ],
-            swiftSettings: testSettings
-        ),
+        .Semantic,
+        .Demangling,
+        .Utilities,
+        .MachOExtensions,
+        .MachOCaches,
+        .MachOReading,
+        .MachOResolving,
+        .MachOSymbols,
+        .MachOPointers,
+        .MachOSymbolPointers,
+        .MachOFoundation,
+        .MachOSwiftSection,
+        .SwiftDump,
+        .SwiftIndex,
+        .SwiftInterface,
+        .TypeIndexing,
+        .swift_section,
+        .MachOMacros,
+        .MachOTestingSupport,
+        .DemanglingTests,
+        .MachOSymbolsTests,
+        .MachOSwiftSectionTests,
+        .SwiftDumpTests,
+        .TypeIndexingTests,
+        .SwiftInterfaceTests,
     ]
 )
+
+if useSwiftTUI {
+    package.dependencies.append(.package(url: "https://github.com/rensbreur/SwiftTUI", branch: "main"))
+    Target.swift_section.dependencies.append(.product(name: "SwiftTUI", package: "SwiftTUI"))
+}

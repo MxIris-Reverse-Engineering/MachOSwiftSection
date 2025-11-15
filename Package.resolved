@@ -1,5 +1,5 @@
 {
-  "originHash" : "ddaf7ce31421cd92786c1afaff38303d3b193e5beed41b3aad41d616a8c93d8e",
+  "originHash" : "25a59dda529f6ad46f62d2ce762a00ab9b029429f9d7a23e60ff3e82844f8eed",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -128,6 +128,15 @@
       }
     },
     {
+      "identity" : "swift-cmark",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftlang/swift-cmark.git",
+      "state" : {
+        "revision" : "5d9bdaa4228b381639fff09403e39a04926e2dbe",
+        "version" : "0.7.1"
+      }
+    },
+    {
       "identity" : "swift-collections",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-collections",
@@ -173,6 +182,24 @@
       }
     },
     {
+      "identity" : "swift-log",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-log.git",
+      "state" : {
+        "revision" : "ce592ae52f982c847a4efc0dd881cc9eb32d29f2",
+        "version" : "1.6.4"
+      }
+    },
+    {
+      "identity" : "swift-markdown",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-markdown",
+      "state" : {
+        "revision" : "7d9a5ce307528578dfa777d505496bd5f544ad94",
+        "version" : "0.7.3"
+      }
+    },
+    {
       "identity" : "swift-memberwise-init-macro",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/MxIris-Library-Forks/swift-memberwise-init-macro",
@@ -209,12 +236,30 @@
       }
     },
     {
-      "identity" : "syntaxkit",
+      "identity" : "swiftterm",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/brightdigit/SyntaxKit",
+      "location" : "https://github.com/migueldeicaza/SwiftTerm.git",
+      "state" : {
+        "revision" : "0b8d99bd19b694df44e1ccaa3891309719d34330",
+        "version" : "1.5.1"
+      }
+    },
+    {
+      "identity" : "termkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/migueldeicaza/TermKit",
       "state" : {
         "branch" : "main",
-        "revision" : "1bd7f84c218fd35a111c0b310cad5b32e8489acc"
+        "revision" : "6fd4a96b1f310576d8cb1894f8897cbfd4f3ed55"
+      }
+    },
+    {
+      "identity" : "textbufferkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/migueldeicaza/TextBufferKit.git",
+      "state" : {
+        "revision" : "7f3ed5b1d7288de34ad853544d802647be11cfcf",
+        "version" : "0.3.0"
       }
     },
     {
