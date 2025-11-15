@@ -10,7 +10,11 @@ package struct Indent: CustomStringConvertible, SemanticStringComponent {
     }
 
     package var description: String {
-        String(repeating: " ", count: level * 4)
+        if level > 0 {
+            String(repeating: " ", count: level * 4)
+        } else {
+            String()
+        }
     }
 }
 

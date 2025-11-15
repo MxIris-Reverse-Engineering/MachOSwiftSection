@@ -759,9 +759,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         
         let dumper = typeDefinition.type.dumper(using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: displayParentName, emitOffsetComments: configuration.emitOffsetComments), in: machO)
 
-        if level > 1 {
-            Indent(level: level - 1)
-        }
+        Indent(level: level - 1)
 
         try await dumper.declaration
 
@@ -782,7 +780,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         try await printDefinition(typeDefinition, level: level)
 
-        if level > 1, typeDefinition.hasMembers || typeDefinition.typeChildren.count > 0 || typeDefinition.protocolChildren.count > 0 {
+        if typeDefinition.hasMembers || typeDefinition.typeChildren.count > 0 || typeDefinition.protocolChildren.count > 0 {
             if !typeDefinition.hasMembers {
                 BreakLine()
             }
@@ -801,9 +799,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         
         let dumper = ProtocolDumper(protocolDefinition.protocol, using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: displayParentName, emitOffsetComments: configuration.emitOffsetComments), in: machO)
 
-        if level > 1 {
-            Indent(level: level - 1)
-        }
+        Indent(level: level - 1)
 
         try await dumper.declaration
 
@@ -826,7 +822,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             }
         }
         
-        if level > 1, protocolDefinition.hasMembers {
+        if protocolDefinition.hasMembers {
             Indent(level: level - 1)
         }
 
@@ -852,7 +848,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         Keyword(.extension)
         Space()
         extensionDefinition.extensionName.print()
-        if let protocolConformance = extensionDefinition.protocolConformance, let protocolName = try? await protocolConformance.dumpProtocolName(using: .interfaceTypeBuilderOnly, in: machO) {
+        if let protocolConformance = extensionDefinition.protocolConformance, let protocolName = try? await protocolConformance.dumpProtocolName(using: .demangleOptions(.interfaceTypeBuilderOnly), in: machO) {
             Standard(":")
             Space()
             protocolName
