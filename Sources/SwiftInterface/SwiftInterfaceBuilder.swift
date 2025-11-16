@@ -48,40 +48,44 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     private var allNames: Set<String> = []
 
     @Mutex
-    public private(set) var importedModules: OrderedSet<String> = []
+    @_spi(Support) public private(set) var importedModules: OrderedSet<String> = []
 
     @Mutex
-    public private(set) var rootTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
+    @_spi(Support) public private(set) var rootTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
 
     @Mutex
-    public private(set) var allTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
+    @_spi(Support) public private(set) var allTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
 
     @Mutex
-    public private(set) var rootProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> = [:]
+    @_spi(Support) public private(set) var rootProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> = [:]
 
     @Mutex
-    public private(set) var allProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> = [:]
+    @_spi(Support) public private(set) var allProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> = [:]
 
     @Mutex
-    public private(set) var typeExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
+    @_spi(Support) public private(set) var typeExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
 
     @Mutex
-    public private(set) var protocolExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
+    @_spi(Support) public private(set) var protocolExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
 
     @Mutex
-    public private(set) var typeAliasExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
+    @_spi(Support) public private(set) var typeAliasExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
 
     @Mutex
-    public private(set) var conformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
+    @_spi(Support) public private(set) var conformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
 
     @Mutex
-    public private(set) var globalVariableDefinitions: [VariableDefinition] = []
+    @_spi(Support) public private(set) var globalVariableDefinitions: [VariableDefinition] = []
 
     @Mutex
-    public private(set) var globalFunctionDefinitions: [FunctionDefinition] = []
+    @_spi(Support) public private(set) var globalFunctionDefinitions: [FunctionDefinition] = []
 
     @Mutex
-    public private(set) var extraDataProviders: [SwiftInterfaceBuilderExtraDataProvider] = []
+    @_spi(Support) public private(set) var extraDataProviders: [SwiftInterfaceBuilderExtraDataProvider] = []
+
+    private var allExtensionDefinitions: [ExtensionDefinition] {
+        (typeExtensionDefinitions.values.flatMap { $0 } + protocolExtensionDefinitions.values.flatMap { $0 } + typeAliasExtensionDefinitions.values.flatMap { $0 } + conformanceExtensionDefinitions.values.flatMap { $0 })
+    }
 
     /// Creates a new Swift interface builder for the given Mach-O binary.
     ///
@@ -739,10 +743,6 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 BreakLine()
             }
         }
-    }
-
-    private var allExtensionDefinitions: [ExtensionDefinition] {
-        (typeExtensionDefinitions.values.flatMap { $0 } + protocolExtensionDefinitions.values.flatMap { $0 } + typeAliasExtensionDefinitions.values.flatMap { $0 } + conformanceExtensionDefinitions.values.flatMap { $0 })
     }
 
     @_spi(Support)
