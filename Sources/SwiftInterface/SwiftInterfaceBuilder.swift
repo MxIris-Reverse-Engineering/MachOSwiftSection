@@ -16,11 +16,12 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         ["Swift", "_Concurrency", "_StringProcessing", "_SwiftConcurrencyShims"]
     }
 
-    public let configuration: SwiftInterfaceBuilderConfiguration
-
     public let machO: MachO
 
     private let eventDispatcher: SwiftInterfaceBuilderEvents.Dispatcher
+
+    @Mutex
+    public var configuration: SwiftInterfaceBuilderConfiguration = .init()
 
     @Mutex
     private var typeDemangleResolver: DemangleResolver = .using(options: .default)
@@ -92,10 +93,9 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     public init(configuration: SwiftInterfaceBuilderConfiguration = .init(), eventHandlers: [SwiftInterfaceBuilderEvents.Handler] = [], in machO: MachO) throws {
         self.eventDispatcher = .init()
         eventDispatcher.addHandlers(eventHandlers)
-
+        self.machO = machO
         self.configuration = configuration
 
-        self.machO = machO
         self.typeDemangleResolver = .using { [weak self] node in
             if let self {
                 var printer = TypeNodePrinter(delegate: self)
@@ -168,13 +168,11 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             associatedTypes = []
         }
 
-        
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
-        
+
         symbolIndexStore.prepare(in: machO)
-        
-        
+
         do {
             try await index()
         } catch {
@@ -192,7 +190,6 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         eventDispatcher.dispatch(.phaseTransition(phase: .preparation, state: .completed))
     }
 
-    
     private func indexTypes() async throws {
         eventDispatcher.dispatch(.typeIndexingStarted(totalTypes: types.count))
         var allNames: Set<String> = []
@@ -297,7 +294,6 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         eventDispatcher.dispatch(.typeIndexingCompleted(result: SwiftInterfaceBuilderEvents.TypeIndexingResult(totalProcessed: types.count, successful: successfulCount, failed: failedCount, cImportedSkipped: cImportedCount, nestedTypes: nestedTypeCount, extensionTypes: extensionTypeCount)))
     }
 
-    
     private func indexProtocols() async throws {
         eventDispatcher.dispatch(.protocolIndexingStarted(totalProtocols: protocols.count))
         var rootProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> = [:]
@@ -752,11 +748,10 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     @_spi(Support)
     @SemanticStringBuilder
     public func printTypeDefinition(_ typeDefinition: TypeDefinition, level: Int = 1, displayParentName: Bool = false) async throws -> SemanticString {
-        
         if !typeDefinition.isIndexed {
             try await typeDefinition.index(in: machO)
         }
-        
+
         let dumper = typeDefinition.type.dumper(using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: displayParentName, emitOffsetComments: configuration.emitOffsetComments), in: machO)
 
         Indent(level: level - 1)
@@ -789,14 +784,14 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         Standard("}")
     }
-    
+
     @_spi(Support)
     @SemanticStringBuilder
     public func printProtocolDefinition(_ protocolDefinition: ProtocolDefinition, level: Int = 1, displayParentName: Bool = false) async throws -> SemanticString {
         if !protocolDefinition.isIndexed {
             try await protocolDefinition.index(in: machO)
         }
-        
+
         let dumper = ProtocolDumper(protocolDefinition.protocol, using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: displayParentName, emitOffsetComments: configuration.emitOffsetComments), in: machO)
 
         Indent(level: level - 1)
@@ -821,7 +816,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 }
             }
         }
-        
+
         if protocolDefinition.hasMembers {
             Indent(level: level - 1)
         }
@@ -904,11 +899,10 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     @_spi(Support)
     @SemanticStringBuilder
     public func printDefinition(_ definition: some Definition, level: Int = 1, offsetPrefix: String = "") async throws -> SemanticString {
-        
         if let mutableDefinition = definition as? MutableDefinition, !mutableDefinition.isIndexed {
             try await mutableDefinition.index(in: machO)
         }
-        
+
         for (offset, allocator) in definition.allocators.offsetEnumerated() {
             BreakLine()
 
@@ -917,7 +911,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 Comment("\(offsetPrefix) offset: 0x\(String(offset, radix: 16))")
                 BreakLine()
             }
-            
+
             Indent(level: level)
 
             try await printFunction(allocator)
@@ -937,7 +931,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             }
 
             Indent(level: level)
-            
+
             try await printVariable(variable, level: level)
 
             if offset.isEnd {
@@ -947,7 +941,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         for (offset, function) in definition.functions.offsetEnumerated() {
             BreakLine()
-            
+
             if let offset = function.offset, configuration.emitOffsetComments {
                 Indent(level: level)
                 Comment("\(offsetPrefix) offset: 0x\(String(offset, radix: 16))")
@@ -965,13 +959,13 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         for (offset, `subscript`) in definition.subscripts.offsetEnumerated() {
             BreakLine()
-            
+
             if let offset = `subscript`.offset, configuration.emitOffsetComments {
                 Indent(level: level)
                 Comment("\(offsetPrefix) offset: 0x\(String(offset, radix: 16))")
                 BreakLine()
             }
-            
+
             Indent(level: level)
 
             try await printSubscript(`subscript`, level: level)
@@ -983,13 +977,13 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         for (offset, variable) in definition.staticVariables.offsetEnumerated() {
             BreakLine()
-            
+
             if let offset = variable.offset, configuration.emitOffsetComments {
                 Indent(level: level)
                 Comment("\(offsetPrefix) offset: 0x\(String(offset, radix: 16))")
                 BreakLine()
             }
-            
+
             Indent(level: level)
 
             try await printVariable(variable, level: level)
@@ -1001,13 +995,13 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         for (offset, function) in definition.staticFunctions.offsetEnumerated() {
             BreakLine()
-            
+
             if let offset = function.offset, configuration.emitOffsetComments {
                 Indent(level: level)
                 Comment("\(offsetPrefix) offset: 0x\(String(offset, radix: 16))")
                 BreakLine()
             }
-            
+
             Indent(level: level)
 
             try await printFunction(function)
@@ -1025,7 +1019,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 Comment("\(offsetPrefix) offset: 0x\(String(offset, radix: 16))")
                 BreakLine()
             }
-            
+
             Indent(level: level)
 
             try await printSubscript(`subscript`, level: level)
@@ -1056,7 +1050,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         var printer = SubscriptNodePrinter(isOverride: `subscript`.isOverride, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
         try await printer.printRoot(`subscript`.node)
     }
-    
+
     @_spi(Support)
     @SemanticStringBuilder
     public func printType(_ typeNode: Node, isProtocol: Bool, level: Int) async throws -> SemanticString {
