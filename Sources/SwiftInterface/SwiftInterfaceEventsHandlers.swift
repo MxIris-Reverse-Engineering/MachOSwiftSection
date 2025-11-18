@@ -2,14 +2,14 @@ import Foundation
 import os.log
 
 /// A default event handler implementation that uses `OSLog` for logging.
-public struct OSLogEventHandler: SwiftInterfaceBuilderEvents.Handler {
+public struct OSLogEventHandler: SwiftInterfaceEvents.Handler {
     private let logger: Logger
     
     public init(subsystem: String = "com.MxIris.MachOSwiftSection.SwiftInterface", category: String = "SwiftInterfaceBuilder") {
         self.logger = Logger(subsystem: subsystem, category: category)
     }
     
-    public func handle(event: SwiftInterfaceBuilderEvents.Payload) {
+    public func handle(event: SwiftInterfaceEvents.Payload) {
         switch event {
         case .phaseTransition(let phase, let state):
             logPhaseTransition(phase: phase, state: state)
@@ -147,7 +147,7 @@ public struct OSLogEventHandler: SwiftInterfaceBuilderEvents.Handler {
         }
     }
     
-    private func operationName(_ operation: SwiftInterfaceBuilderEvents.PhaseOperation) -> String {
+    private func operationName(_ operation: SwiftInterfaceEvents.PhaseOperation) -> String {
         switch operation {
         case .typeIndexing: return "Type indexing"
         case .protocolIndexing: return "Protocol indexing"
@@ -157,7 +157,7 @@ public struct OSLogEventHandler: SwiftInterfaceBuilderEvents.Handler {
         }
     }
     
-    private func logPhaseTransition(phase: SwiftInterfaceBuilderEvents.Phase, state: SwiftInterfaceBuilderEvents.State) {
+    private func logPhaseTransition(phase: SwiftInterfaceEvents.Phase, state: SwiftInterfaceEvents.State) {
         let phaseNameStr = phaseName(phase)
         switch state {
         case .started:
@@ -169,7 +169,7 @@ public struct OSLogEventHandler: SwiftInterfaceBuilderEvents.Handler {
         }
     }
     
-    private func logDiagnostic(_ message: SwiftInterfaceBuilderEvents.DiagnosticMessage) {
+    private func logDiagnostic(_ message: SwiftInterfaceEvents.DiagnosticMessage) {
         let text = message.message
         switch message.level {
         case .warning:
@@ -187,7 +187,7 @@ public struct OSLogEventHandler: SwiftInterfaceBuilderEvents.Handler {
         }
     }
     
-    private func phaseName(_ phase: SwiftInterfaceBuilderEvents.Phase) -> String {
+    private func phaseName(_ phase: SwiftInterfaceEvents.Phase) -> String {
         switch phase {
         case .initialization: return "initialization"
         case .preparation: return "preparation"
@@ -200,7 +200,7 @@ public struct OSLogEventHandler: SwiftInterfaceBuilderEvents.Handler {
         }
     }
     
-    private func sectionName(_ section: SwiftInterfaceBuilderEvents.Section) -> String {
+    private func sectionName(_ section: SwiftInterfaceEvents.Section) -> String {
         switch section {
         case .swiftTypes: return "Swift types"
         case .swiftProtocols: return "Swift protocols"
@@ -211,10 +211,10 @@ public struct OSLogEventHandler: SwiftInterfaceBuilderEvents.Handler {
 }
 
 /// A simple event handler that prints summary information to the console.
-public struct ConsoleEventHandler: SwiftInterfaceBuilderEvents.Handler {
+public struct ConsoleEventHandler: SwiftInterfaceEvents.Handler {
     public init() {}
     
-    public func handle(event: SwiftInterfaceBuilderEvents.Payload) {
+    public func handle(event: SwiftInterfaceEvents.Payload) {
         let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
         
         switch event {
@@ -275,7 +275,7 @@ public struct ConsoleEventHandler: SwiftInterfaceBuilderEvents.Handler {
         }
     }
     
-    private func phaseName(_ phase: SwiftInterfaceBuilderEvents.Phase) -> String {
+    private func phaseName(_ phase: SwiftInterfaceEvents.Phase) -> String {
         switch phase {
         case .initialization: return "initialization"
         case .preparation: return "preparation"
@@ -288,7 +288,7 @@ public struct ConsoleEventHandler: SwiftInterfaceBuilderEvents.Handler {
         }
     }
     
-    private func sectionName(_ section: SwiftInterfaceBuilderEvents.Section) -> String {
+    private func sectionName(_ section: SwiftInterfaceEvents.Section) -> String {
         switch section {
         case .swiftTypes: return "Swift types"
         case .swiftProtocols: return "Swift protocols"

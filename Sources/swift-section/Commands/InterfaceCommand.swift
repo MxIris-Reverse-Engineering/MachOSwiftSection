@@ -32,7 +32,15 @@ struct InterfaceCommand: AsyncParsableCommand {
     func run() async throws {
         let machOFile = try MachOFile.load(options: machOOptions)
 
-        let configuration = SwiftInterfaceBuilderConfiguration(showCImportedTypes: showCImportedTypes, emitOffsetComments: emitOffsetComments)
+        let configuration = SwiftInterfaceBuilderConfiguration(
+            indexConfiguration: .init(
+                showCImportedTypes: showCImportedTypes
+            ),
+            printConfiguration: .init(
+                printStrippedSymbolicItem: true,
+                emitOffsetComments: emitOffsetComments
+            )
+        )
 
         let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [ConsoleEventHandler()], in: machOFile)
 

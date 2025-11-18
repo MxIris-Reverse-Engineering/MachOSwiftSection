@@ -15,8 +15,20 @@ extension SwiftInterfaceBuilderTests {
         .documentsDirectory.appending(path: "SwiftInterfaceTests")
     }
 
+    var builderConfiguration: SwiftInterfaceBuilderConfiguration {
+        SwiftInterfaceBuilderConfiguration(
+            indexConfiguration: .init(
+                showCImportedTypes: true
+            ),
+            printConfiguration: .init(
+                printStrippedSymbolicItem: true,
+                emitOffsetComments: true
+            )
+        )
+    }
+    
     func buildFile(in machO: MachOFile) async throws {
-        let builder = try SwiftInterfaceBuilder(configuration: .init(emitOffsetComments: true), eventHandlers: [], in: machO)
+        let builder = try SwiftInterfaceBuilder(configuration: builderConfiguration, eventHandlers: [], in: machO)
         let clock = ContinuousClock()
         let duration = try await clock.measure {
             try await builder.prepare()
@@ -30,7 +42,7 @@ extension SwiftInterfaceBuilderTests {
     }
 
     func buildFile(in machO: MachOImage) async throws {
-        let builder = try SwiftInterfaceBuilder(configuration: .init(emitOffsetComments: true), eventHandlers: [], in: machO)
+        let builder = try SwiftInterfaceBuilder(configuration: builderConfiguration, eventHandlers: [], in: machO)
         let clock = ContinuousClock()
         let duration = try await clock.measure {
             try await builder.prepare()

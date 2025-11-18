@@ -2,7 +2,7 @@ import Foundation
 import SwiftStdlibToolbox
 
 /// A namespace for all event-related types used by `SwiftInterfaceBuilder`.
-public enum SwiftInterfaceBuilderEvents {
+public enum SwiftInterfaceEvents {
     /// The payload for a dispatched event, containing structured data about the builder's progress and state.
     public enum Payload {
         // Phase-based events

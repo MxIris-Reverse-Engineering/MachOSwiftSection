@@ -1,6 +1,9 @@
 import Foundation
 import MachOSymbols
+import SwiftStdlibToolbox
 
+@AssociatedValue(.public)
+@CaseCheckable(.public)
 public enum TypeContextWrapper: Sendable {
     case `enum`(Enum)
     case `struct`(Struct)
