@@ -18,7 +18,7 @@ extension SwiftInterfaceBuilderTests {
     var builderConfiguration: SwiftInterfaceBuilderConfiguration {
         SwiftInterfaceBuilderConfiguration(
             indexConfiguration: .init(
-                showCImportedTypes: true
+                showCImportedTypes: false
             ),
             printConfiguration: .init(
                 printStrippedSymbolicItem: true,
@@ -81,9 +81,9 @@ extension SwiftInterfaceBuilderTests {
 @Suite
 enum SwiftInterfaceBuilderTestSuite {
     class DyldCacheTests: MachOTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
-        override class var cacheImageName: MachOImageName { .SwiftUI }
+        override class var cacheImageName: MachOImageName { .SwiftUICore }
 
-        override class var cachePath: DyldSharedCachePath { .iOS_26_1 }
+        override class var cachePath: DyldSharedCachePath { .current }
 
         @Test func buildFile() async throws {
             try await buildFile(in: machOFileInCache)
@@ -99,7 +99,7 @@ enum SwiftInterfaceBuilderTestSuite {
     }
 
     class MachOImageTests: MachOTestingSupport.MachOImageTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
-        override class var imageName: MachOImageName { .AppKit }
+        override class var imageName: MachOImageName { .SwiftUICore }
 
         @Test func buildFile() async throws {
             try await buildFile(in: machOImage)

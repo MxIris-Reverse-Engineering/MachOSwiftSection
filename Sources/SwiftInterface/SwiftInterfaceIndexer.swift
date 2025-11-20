@@ -19,11 +19,6 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
 
     public let eventDispatcher: SwiftInterfaceEvents.Dispatcher = .init()
 
-    public init(machO: MachO, configuration: SwiftInterfaceIndexConfiguration) {
-        self.machO = machO
-        self.configuration = configuration
-    }
-
     @Mutex
     public private(set) var types: [TypeContextWrapper] = []
 
@@ -71,6 +66,12 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
 
     @Mutex
     public private(set) var globalFunctionDefinitions: [FunctionDefinition] = []
+
+    public init(configuration: SwiftInterfaceIndexConfiguration = .init(), eventHandlers: [SwiftInterfaceEvents.Handler] = [], in machO: MachO) {
+        self.machO = machO
+        self.configuration = configuration
+        eventDispatcher.addHandlers(eventHandlers)
+    }
 
     func prepare() async throws {
         eventDispatcher.dispatch(.phaseTransition(phase: .preparation, state: .started))
@@ -576,4 +577,18 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
         globalVariableDefinitions = DefinitionBuilder.variables(for: symbolIndexStore.globalSymbols(of: .variable(isStorage: false), .variable(isStorage: true), in: machO).mapToDemangledSymbolWithOffset(), fieldNames: [], isGlobalOrStatic: true)
         globalFunctionDefinitions = DefinitionBuilder.functions(for: symbolIndexStore.globalSymbols(of: .function, in: machO).mapToDemangledSymbolWithOffset(), isGlobalOrStatic: true)
     }
+}
+
+extension SwiftInterfaceIndexer {
+    public var numberOfTypes: Int { types.count }
+
+    public var numberOfEnums: Int { types.filter { $0.isEnum }.count }
+
+    public var numberOfStructs: Int { types.filter { $0.isStruct }.count }
+
+    public var numberOfClasses: Int { types.filter { $0.isClass }.count }
+
+    public var numberOfProtocols: Int { protocols.count }
+
+    public var numberOfProtocolConformances: Int { protocolConformances.count }
 }
