@@ -2,6 +2,7 @@
 
 import Foundation
 
+@available(macOS 13.0, *)
 package enum SDKPlatform: String, CaseIterable, Hashable, Codable, Sendable {
     case macOS = "macosx"
     case iOS = "iphoneos"

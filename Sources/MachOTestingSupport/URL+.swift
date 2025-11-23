@@ -2,6 +2,7 @@ import Foundation
 import Dependencies
 
 extension URL {
+    @available(macOS 13.0, *)
     package func createDirectoryIfNeeded(withIntermediateDirectories createIntermediates: Bool = true) throws {
         @Dependency(\.fileManager)
         var fileManager

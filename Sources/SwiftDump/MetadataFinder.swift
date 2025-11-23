@@ -12,7 +12,7 @@ extension MachOFile: MachOOffsetConverter {
         if cache != nil, let offset = resolveRebase(fileOffset: fileOffset) {
             return offset.cast()
         } else {
-            return self.fileOffset(of: address).cast()
+            return (self.fileOffset(of: address) ?? address).cast()
         }
     }
 }

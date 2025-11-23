@@ -17,7 +17,7 @@ func envEnable(_ key: String, default defaultValue: Bool = false) -> Bool {
     }
 }
 
-let MachOKitVersion: Version = "0.39.0"
+let MachOKitVersion: Version = "0.42.0"
 
 let isSilentTest = envEnable("MACHO_SWIFT_SECTION_SILENT_TEST", default: false)
 
@@ -41,7 +41,7 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", branch: "main"),
     .package(url: "https://github.com/apple/swift-collections", from: "1.2.0"),
     .package(url: "https://github.com/MxIris-Library-Forks/swift-memberwise-init-macro", from: "0.5.3-fork"),
-    .package(url: "https://github.com/p-x9/MachOObjCSection", from: "0.4.0"),
+    .package(url: "https://github.com/p-x9/MachOObjCSection", from: "0.5.0"),
     .package(url: "https://github.com/Mx-Iris/SourceKitD", branch: "main"),
     .package(url: "https://github.com/christophhagen/BinaryCodable", from: "3.1.0"),
     .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-apinotes", branch: "main"),
@@ -51,6 +51,7 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.4"),
     .package(url: "https://github.com/MxIris-Reverse-Engineering/DyldPrivate", branch: "main"),
     .package(url: "https://github.com/migueldeicaza/TermKit", branch: "main"),
+    .package(url: "https://github.com/modelcontextprotocol/swift-sdk", from: "0.10.2"),
 ]
 
 extension Package.Dependency {
@@ -119,15 +120,17 @@ extension Target.Dependency {
         name: "SwiftSyntaxBuilder",
         package: "swift-syntax"
     )
-
     static let SwiftTUI = Target.Dependency.product(
         name: "SwiftTUI",
         package: "SwiftTUI"
     )
-
     static let TermKit = Target.Dependency.product(
         name: "TermKit",
         package: "TermKit"
+    )
+    static let MCP = Target.Dependency.product(
+        name: "MCP",
+        package: "swift-sdk"
     )
 }
 
@@ -329,6 +332,15 @@ extension Target {
         ]
     )
 
+    static let swift_section_mcp_server = Target.executableTarget(
+        name: "swift-section-mcp-server",
+        dependencies: [
+            .target(.SwiftDump),
+            .target(.SwiftInterface),
+            .MCP,
+        ]
+    )
+    
     // MARK: - Macros
 
     static let MachOMacros = Target.macro(
@@ -411,13 +423,14 @@ extension Target {
 
 let package = Package(
     name: "MachOSwiftSection",
-    platforms: [.macOS(.v13), .iOS(.v16), .tvOS(.v16), .watchOS(.v9), .visionOS(.v1)],
+    platforms: [.macOS(.v10_15), .iOS(.v13), .tvOS(.v13), .watchOS(.v6), .visionOS(.v1)],
     products: [
         .library(.MachOSwiftSection),
         .library(.SwiftDump),
         .library(.SwiftInterface),
         .library(.TypeIndexing),
         .executable(.swift_section),
+        .executable(.swift_section_mcp_server),
     ],
     dependencies: dependencies,
     targets: [
@@ -438,6 +451,7 @@ let package = Package(
         .SwiftInterface,
         .TypeIndexing,
         .swift_section,
+        .swift_section_mcp_server,
         .MachOMacros,
         .MachOTestingSupport,
         .DemanglingTests,

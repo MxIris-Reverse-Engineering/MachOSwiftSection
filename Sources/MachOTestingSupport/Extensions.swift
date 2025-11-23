@@ -3,6 +3,7 @@ import MachOKit
 import MachOExtensions
 import UniformTypeIdentifiers
 
+@available(macOS 13.0, *)
 package func loadFromFile(named: MachOFileName) throws -> File {
     let url: URL
     let filePath = named.rawValue

@@ -1,5 +1,5 @@
 {
-  "originHash" : "25a59dda529f6ad46f62d2ce762a00ab9b029429f9d7a23e60ff3e82844f8eed",
+  "originHash" : "6f042747f9e7c56210efe7320451eb34479211f6334d6e5d76881e1a8ea865fa",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -38,12 +38,21 @@
       }
     },
     {
+      "identity" : "eventsource",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/mattt/eventsource.git",
+      "state" : {
+        "revision" : "ca2a9d90cbe49e09b92f4b6ebd922c03ebea51d0",
+        "version" : "1.3.0"
+      }
+    },
+    {
       "identity" : "frameworktoolbox",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/Mx-Iris/FrameworkToolbox",
       "state" : {
         "branch" : "main",
-        "revision" : "c9691bb68f04d5b154aa177929f6c2a920caa0d2"
+        "revision" : "d6cb4d1605aed68f6baafc14afc19950746dc543"
       }
     },
     {
@@ -51,8 +60,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/MachOKit.git",
       "state" : {
-        "revision" : "fc1f2646220b3ce9db2e415b6b8848f5a89ed865",
-        "version" : "0.39.0"
+        "revision" : "315b6e255f2bd832b1b703d0792cace746ec4b29",
+        "version" : "0.42.0"
       }
     },
     {
@@ -60,8 +69,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/MachOObjCSection",
       "state" : {
-        "revision" : "3f1bb0d9dac4fb4bd3f3ccb2eb293eac20aa8543",
-        "version" : "0.4.0"
+        "revision" : "c29eaabba18d8880851cd92339f433aa19204d91",
+        "version" : "0.5.0"
       }
     },
     {
@@ -88,7 +97,7 @@
       "location" : "https://github.com/Mx-Iris/SourceKitD",
       "state" : {
         "branch" : "main",
-        "revision" : "329d4da39453f6446226261a614f852d84bdb212"
+        "revision" : "47ddc958a3962f9bb0fe08de1c8f39723e472228"
       }
     },
     {
@@ -114,8 +123,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-async-algorithms",
       "state" : {
-        "revision" : "042e1c4d9d19748c9c228f8d4ebc97bb1e339b0b",
-        "version" : "1.0.4"
+        "revision" : "2773d4125311133a2f705ec374c363a935069d45",
+        "version" : "1.1.0"
       }
     },
     {
@@ -191,6 +200,15 @@
       }
     },
     {
+      "identity" : "swift-macro-toolkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/stackotter/swift-macro-toolkit",
+      "state" : {
+        "revision" : "d319bcc2586f7dbc6a09c05792105078263f1ed3",
+        "version" : "0.7.2"
+      }
+    },
+    {
       "identity" : "swift-markdown",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-markdown",
@@ -227,12 +245,30 @@
       }
     },
     {
+      "identity" : "swift-sdk",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/modelcontextprotocol/swift-sdk",
+      "state" : {
+        "revision" : "c0407a0b52677cb395d824cac2879b963075ba8c",
+        "version" : "0.10.2"
+      }
+    },
+    {
       "identity" : "swift-syntax",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/swiftlang/swift-syntax.git",
       "state" : {
         "revision" : "f99ae8aa18f0cf0d53481901f88a0991dc3bd4a2",
         "version" : "601.0.1"
+      }
+    },
+    {
+      "identity" : "swift-system",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-system.git",
+      "state" : {
+        "revision" : "395a77f0aa927f0ff73941d7ac35f2b46d47c9db",
+        "version" : "1.6.3"
       }
     },
     {

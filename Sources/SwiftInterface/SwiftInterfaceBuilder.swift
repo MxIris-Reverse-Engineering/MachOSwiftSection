@@ -18,7 +18,8 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     public let machO: MachO
 
-    private let indexer: SwiftInterfaceIndexer<MachO>
+    @_spi(Support)
+    public let indexer: SwiftInterfaceIndexer<MachO>
 
     private let eventDispatcher: SwiftInterfaceEvents.Dispatcher
 

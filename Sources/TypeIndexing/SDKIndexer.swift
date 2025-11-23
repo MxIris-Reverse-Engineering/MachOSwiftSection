@@ -6,6 +6,7 @@ import BinaryCodable
 import APINotes
 import os
 
+@available(macOS 13.0, *)
 struct SwiftModuleIndexer {
     let moduleName: String
     let path: String
@@ -60,6 +61,7 @@ struct SwiftInterfaceGeneratedFile: Sendable, Codable {
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
 @available(visionOS, unavailable)
+@available(macOS 13.0, *)
 struct APINotesFile: Sendable, Codable {
     let path: String
     let moduleName: String
@@ -91,6 +93,7 @@ extension APINotes.Module: @unchecked @retroactive Sendable {}
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
 @available(visionOS, unavailable)
+@available(macOS 13.0, *)
 final class SDKIndexer: Sendable {
     struct IndexOptions: OptionSet {
         let rawValue: Int
@@ -275,6 +278,7 @@ final class SDKIndexer: Sendable {
     }
 }
 
+@available(macOS 13.0, *)
 extension URL {
     var isExisted: Bool {
         let exists = FileManager.default.fileExists(atPath: path(percentEncoded: false))

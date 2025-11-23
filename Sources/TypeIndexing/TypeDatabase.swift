@@ -5,6 +5,7 @@ import FoundationToolbox
 import APINotes
 import MachOKit
 
+@available(macOS 13.0, *)
 package final class TypeDatabase<MachO: MachORepresentable & Sendable>: Sendable {
     package struct Record: Sendable {
         package let moduleName: String
