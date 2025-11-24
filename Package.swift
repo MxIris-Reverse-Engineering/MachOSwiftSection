@@ -158,10 +158,15 @@ extension Target {
         ]
     )
 
+    static let UtilitiesC = Target.target(
+        name: "UtilitiesC",
+    )
+    
     static let Utilities = Target.target(
         name: "Utilities",
         dependencies: [
             .target(.MachOMacros),
+            .target(.UtilitiesC),
             .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .product(name: "AssociatedObject", package: "AssociatedObject"),
             .product(name: "MemberwiseInit", package: "swift-memberwise-init-macro"),
@@ -422,6 +427,7 @@ let package = Package(
         .Semantic,
         .Demangling,
         .Utilities,
+        .UtilitiesC,
         .MachOExtensions,
         .MachOCaches,
         .MachOReading,

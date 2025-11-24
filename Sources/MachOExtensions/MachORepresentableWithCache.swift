@@ -24,7 +24,7 @@ extension MachOFile {
 
 extension MachOImage {
     public func resolveOffset(at address: UInt64) -> Int {
-        Int(address) - ptr.int
+        Int(stripPointerTags(of: address)) - ptr.int
     }
 }
 

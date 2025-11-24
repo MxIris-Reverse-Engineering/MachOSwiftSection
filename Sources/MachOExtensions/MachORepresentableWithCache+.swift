@@ -58,10 +58,10 @@ extension MachORepresentableWithCache {
         return vmaddr
     }
 
-    package func stripPointerTags(of ptr: UnsafeRawPointer) -> UnsafeRawPointer? {
+    package func stripPointerTags(of ptr: UnsafeRawPointer) -> UnsafeRawPointer {
         let address: UInt64 = .init(ptr.uint)
         let strippedPtr: UInt64 = stripPointerTags(of: address)
-        return UnsafeRawPointer(bitPattern: UInt(strippedPtr))
+        return UnsafeRawPointer(bitPattern: UInt(strippedPtr))!
     }
 }
 
