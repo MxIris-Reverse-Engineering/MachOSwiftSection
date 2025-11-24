@@ -204,7 +204,7 @@ package struct SpecialPointerAuthDiscriminators: RawRepresentable {
     package static let isCurrentGlobalActorFunction = SpecialPointerAuthDiscriminators(rawValue: 0xD1B8)
 }
 
-package enum _PtrAuth {
+package enum PtrAuth {
     package struct Key {
         package var _value: Int32
 

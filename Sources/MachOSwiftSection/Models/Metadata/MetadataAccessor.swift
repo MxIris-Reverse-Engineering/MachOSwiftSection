@@ -2,6 +2,7 @@ import Foundation
 import MachOFoundation
 import MachOKit
 import Utilities
+//import BuiltinWrapper
 
 public struct MetadataAccessor: Resolvable, @unchecked Sendable {
     private var raw: UnsafeRawPointer
@@ -55,7 +56,7 @@ public struct MetadataAccessor: Resolvable, @unchecked Sendable {
     private func perform0(request: MetadataRequest) -> MetadataResponse {
         #if _ptrauth(_arm64e)
         typealias Fn = @convention(c) (Int) -> UnsafeRawPointer
-        let signedPtr = _PtrAuth.sign(pointer: raw, key: .processIndependentCode)
+        let signedPtr = PtrAuth.sign(pointer: raw, key: .processIndependentCode, discriminator: 0)
         let function = unsafeBitCast(signedPtr, to: Fn.self)
         return MetadataResponse(value: .init(address: function(request.rawValue).uint.uint64))
         #else
