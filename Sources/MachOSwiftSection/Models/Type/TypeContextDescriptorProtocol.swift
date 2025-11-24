@@ -7,7 +7,7 @@ extension TypeContextDescriptorProtocol {
     public func metadataAccessor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MetadataAccessor? {
         guard let machOImage = machO as? MachOImage else { return nil }
         let offset = layout.accessFunctionPtr.resolveDirectOffset(from: offset + layout.offset(of: .accessFunctionPtr))
-        return MetadataAccessor(raw: machOImage.ptr + UnsafeRawPointer.Stride(offset))
+        return machO.stripPointerTags(of: machOImage.ptr + UnsafeRawPointer.Stride(offset)).map { MetadataAccessor(raw: $0) }
     }
 
     public func fieldDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> FieldDescriptor {

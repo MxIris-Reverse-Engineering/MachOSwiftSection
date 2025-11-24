@@ -51,7 +51,6 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.4"),
     .package(url: "https://github.com/MxIris-Reverse-Engineering/DyldPrivate", branch: "main"),
     .package(url: "https://github.com/migueldeicaza/TermKit", branch: "main"),
-    .package(url: "https://github.com/modelcontextprotocol/swift-sdk", from: "0.10.2"),
 ]
 
 extension Package.Dependency {
@@ -127,10 +126,6 @@ extension Target.Dependency {
     static let TermKit = Target.Dependency.product(
         name: "TermKit",
         package: "TermKit"
-    )
-    static let MCP = Target.Dependency.product(
-        name: "MCP",
-        package: "swift-sdk"
     )
 }
 
@@ -331,15 +326,6 @@ extension Target {
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ]
     )
-
-    static let swift_section_mcp_server = Target.executableTarget(
-        name: "swift-section-mcp-server",
-        dependencies: [
-            .target(.SwiftDump),
-            .target(.SwiftInterface),
-            .MCP,
-        ]
-    )
     
     // MARK: - Macros
 
@@ -430,7 +416,6 @@ let package = Package(
         .library(.SwiftInterface),
         .library(.TypeIndexing),
         .executable(.swift_section),
-        .executable(.swift_section_mcp_server),
     ],
     dependencies: dependencies,
     targets: [
@@ -451,7 +436,6 @@ let package = Package(
         .SwiftInterface,
         .TypeIndexing,
         .swift_section,
-        .swift_section_mcp_server,
         .MachOMacros,
         .MachOTestingSupport,
         .DemanglingTests,
