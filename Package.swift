@@ -147,13 +147,6 @@ extension Target.Dependency {
 
 @MainActor
 extension Target {
-    static let BuiltinWrapper = Target.target(
-        name: "BuiltinWrapper",
-        swiftSettings: [
-            .unsafeFlags(["-parse-stdlib"]),
-        ]
-    )
-        
     static let Semantic = Target.target(
         name: "Semantic"
     )
@@ -277,12 +270,11 @@ extension Target {
             .target(.MachOFoundation),
             .target(.Demangling),
             .target(.Utilities),
-//            .target(.BuiltinWrapper),
             .product(name: "DyldPrivate", package: "DyldPrivate"),
         ],
 //        swiftSettings: [
 //            .unsafeFlags(["-parse-stdlib"]),
-//        ]
+//        ],
     )
 
     static let SwiftDump = Target.target(
@@ -435,7 +427,6 @@ let package = Package(
     ],
     dependencies: dependencies,
     targets: [
-//        .BuiltinWrapper,
         .Semantic,
         .Demangling,
         .Utilities,
