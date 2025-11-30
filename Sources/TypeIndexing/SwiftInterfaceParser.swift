@@ -10,6 +10,7 @@ import OrderedCollections
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
 @available(visionOS, unavailable)
+@available(macOS 13.0, *)
 actor SwiftInterfaceParser {
 
     let moduleName: String

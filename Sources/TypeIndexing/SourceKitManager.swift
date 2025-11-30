@@ -5,6 +5,7 @@ import SourceKitD
 import FoundationToolbox
 import Dependencies
 
+@available(macOS 13.0, *)
 @available(iOS, unavailable)
 @available(tvOS, unavailable)
 @available(watchOS, unavailable)
@@ -45,11 +46,13 @@ actor SourceKitManager {
     }
 }
 
+@available(macOS 13.0, *)
 private enum SourceKitManagerKey: DependencyKey {
     static let liveValue: SourceKitManager = .shared
     static let testValue: SourceKitManager = .shared
 }
 
+@available(macOS 13.0, *)
 extension DependencyValues {
     var sourceKitManager: SourceKitManager {
         get { self[SourceKitManagerKey.self] }

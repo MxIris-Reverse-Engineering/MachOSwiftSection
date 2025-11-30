@@ -4,6 +4,7 @@ import Foundation
 import APINotes
 import FoundationToolbox
 
+@available(macOS 13.0, *)
 final class APINotesManager: Sendable {
     
     struct Name: Sendable {

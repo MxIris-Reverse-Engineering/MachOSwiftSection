@@ -5,6 +5,7 @@ import MachOObjCSection
 @preconcurrency import ObjCDump
 import FoundationToolbox
 
+@available(macOS 13.0, *)
 final class ObjCInterfaceIndexer<MachO: MachORepresentable & Sendable>: Sendable {
     enum Error: Swift.Error {
         case unsupportedMachO(MachO)

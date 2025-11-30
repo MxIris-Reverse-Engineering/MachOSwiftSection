@@ -11,6 +11,7 @@ package class MachOFileTests: @unchecked Sendable {
     
     package class var preferredArchitecture: CPUType { .arm64 }
         
+    @available(macOS 13.0, *)
     package init() async throws {
         let file = try loadFromFile(named: Self.fileName)
         switch file {

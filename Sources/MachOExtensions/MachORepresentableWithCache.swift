@@ -18,13 +18,13 @@ public enum MachOTargetIdentifier: Hashable {
 
 extension MachOFile {
     public func resolveOffset(at address: UInt64) -> Int {
-        numericCast(fileOffset(of: address))
+        numericCast(fileOffset(of: address) ?? address)
     }
 }
 
 extension MachOImage {
     public func resolveOffset(at address: UInt64) -> Int {
-        Int(address) - ptr.int
+        Int(stripPointerTags(of: address)) - ptr.int
     }
 }
 

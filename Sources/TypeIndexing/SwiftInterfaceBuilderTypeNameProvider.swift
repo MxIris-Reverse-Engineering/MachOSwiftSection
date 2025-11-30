@@ -3,6 +3,7 @@ import MachOKit
 import MachOSwiftSection
 import SwiftInterface
 
+@available(macOS 13.0, *)
 public final class SwiftInterfaceBuilderTypeNameProvider<MachO: MachOSwiftSectionRepresentableWithCache & Sendable>: SwiftInterfaceBuilderExtraDataProvider, Sendable {
     public let machO: MachO
 
@@ -33,6 +34,7 @@ public final class SwiftInterfaceBuilderTypeNameProvider<MachO: MachOSwiftSectio
     }
 }
 
+@available(macOS 13.0, *)
 extension MachOKit.Platform {
     var sdkPlatform: SDKPlatform? {
         switch self {

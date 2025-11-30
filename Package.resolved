@@ -1,5 +1,5 @@
 {
-  "originHash" : "25a59dda529f6ad46f62d2ce762a00ab9b029429f9d7a23e60ff3e82844f8eed",
+  "originHash" : "27826233ca0f43e74d5fd7ecc3bb378593b952a63b720fa3d35025ab87e8ac4d",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -43,7 +43,7 @@
       "location" : "https://github.com/Mx-Iris/FrameworkToolbox",
       "state" : {
         "branch" : "main",
-        "revision" : "c9691bb68f04d5b154aa177929f6c2a920caa0d2"
+        "revision" : "d6cb4d1605aed68f6baafc14afc19950746dc543"
       }
     },
     {
@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/MachOKit.git",
       "state" : {
-        "revision" : "fc1f2646220b3ce9db2e415b6b8848f5a89ed865",
-        "version" : "0.39.0"
+        "revision" : "315b6e255f2bd832b1b703d0792cace746ec4b29",
+        "version" : "0.42.0"
       }
     },
     {
@@ -60,8 +60,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/p-x9/MachOObjCSection",
       "state" : {
-        "revision" : "3f1bb0d9dac4fb4bd3f3ccb2eb293eac20aa8543",
-        "version" : "0.4.0"
+        "revision" : "c29eaabba18d8880851cd92339f433aa19204d91",
+        "version" : "0.5.0"
       }
     },
     {
@@ -88,7 +88,7 @@
       "location" : "https://github.com/Mx-Iris/SourceKitD",
       "state" : {
         "branch" : "main",
-        "revision" : "329d4da39453f6446226261a614f852d84bdb212"
+        "revision" : "47ddc958a3962f9bb0fe08de1c8f39723e472228"
       }
     },
     {
@@ -114,8 +114,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-async-algorithms",
       "state" : {
-        "revision" : "042e1c4d9d19748c9c228f8d4ebc97bb1e339b0b",
-        "version" : "1.0.4"
+        "revision" : "2773d4125311133a2f705ec374c363a935069d45",
+        "version" : "1.1.0"
       }
     },
     {
@@ -188,6 +188,15 @@
       "state" : {
         "revision" : "ce592ae52f982c847a4efc0dd881cc9eb32d29f2",
         "version" : "1.6.4"
+      }
+    },
+    {
+      "identity" : "swift-macro-toolkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/stackotter/swift-macro-toolkit",
+      "state" : {
+        "revision" : "d319bcc2586f7dbc6a09c05792105078263f1ed3",
+        "version" : "0.7.2"
       }
     },
     {
