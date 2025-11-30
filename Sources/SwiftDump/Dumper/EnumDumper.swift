@@ -66,7 +66,6 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
                 if !mangledName.isEmpty {
                     let node = try MetadataReader.demangleType(for: mangledName, in: machO)
                     let demangledName = try await demangleResolver.resolve(for: node)
-                    let demangledNameString = demangledName.string
                     if node.firstChild?.isKind(of: .tuple) ?? false {
                         demangledName
                     } else {

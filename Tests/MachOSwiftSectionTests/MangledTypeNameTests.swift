@@ -19,20 +19,15 @@ final class MangledTypeNameTests: DyldCacheTests, @unchecked Sendable {
                 } else {
                     let node = try MetadataReader.demangleType(for: mangledTypeName, in: machO)
                     let mangledTypeNameString = try mangleAsString(node)
-                    if let metadata = try _typeByName(mangledTypeNameString) {
+                    if let metadata = _typeByName(mangledTypeNameString) {
                         print(metadata)
                     } else {
                         print("NotFound:", mangledTypeNameString, node.print(using: .default))
                     }
-//                    print(node)
                 }
 
                 print("---------------------")
             }
         }
-    }
-    
-    @Test func mangledTypeName() async throws {
-        print(_typeByName("7SwiftUI8AppGraphC20LaunchProfileOptions33"))
     }
 }
