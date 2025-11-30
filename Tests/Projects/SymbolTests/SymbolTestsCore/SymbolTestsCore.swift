@@ -7,19 +7,24 @@ public struct TestsValues {}
 
 public final class TestsObjects {}
 
+public enum MultiPayloadEnumTests {
+    case closure(() -> Void)
+    case object(NSObject)
+    case tuple(a: Int, b: Double)
+    case empty
+}
+
 public protocol ProtocolTest<Body> {
     associatedtype Body: ProtocolTest
 
     var body: Body { get }
-    
-    
+
     static var body: Body? { get }
 }
 
 extension ProtocolTest {
-    
     public static var body: Body? { nil }
-    
+
     public static func test(lhs: Body, rhs: Self) -> Bool { false }
 }
 
@@ -62,7 +67,7 @@ public class ClassTest {
 }
 
 public class SubclassTest: ClassTest {
-    public final override var instanceVariable: Bool {
+    public override final var instanceVariable: Bool {
         set {}
         get { true }
     }
@@ -285,7 +290,7 @@ public protocol ProtocolWitnessTableTest {
 
 extension StructTest: ProtocolWitnessTableTest {
     public func a() {
-        print(GenericStructNonRequirement<Self>.init(field1: 0.1, field2: self, field3: 1))
+        print(GenericStructNonRequirement<Self>(field1: 0.1, field2: self, field3: 1))
     }
 
     public func b() {}

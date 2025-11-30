@@ -3,6 +3,15 @@ import MachOFoundation
 
 public struct ValueWitnessTable: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
+        public let initializeBufferWithCopyOfBuffer: StoredPointer
+        public let destroy: StoredPointer
+        public let initializeWithCopy: StoredPointer
+        public let assignWithCopy: StoredPointer
+        public let initializeWithTake: StoredPointer
+        public let assignWithTake: StoredPointer
+        public let getEnumTagSinglePayload: StoredPointer
+        public let storeEnumTagSinglePayload: StoredPointer
+
         public let size: StoredSize
         public let stride: StoredSize
         public let flags: ValueWitnessFlags
@@ -17,4 +26,16 @@ public struct ValueWitnessTable: ResolvableLocatableLayoutWrapper {
         self.layout = layout
         self.offset = offset
     }
+    
+    public var typeLayout: TypeLayout {
+        .init(size: layout.size, stride: layout.stride, flags: layout.flags, extraInhabitantCount: layout.numExtraInhabitants)
+    }
+}
+
+
+public struct TypeLayout {
+    public let size: StoredSize
+    public let stride: StoredSize
+    public let flags: ValueWitnessFlags
+    public let extraInhabitantCount: UInt32
 }

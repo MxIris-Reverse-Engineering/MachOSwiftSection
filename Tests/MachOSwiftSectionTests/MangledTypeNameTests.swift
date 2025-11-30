@@ -2,21 +2,37 @@ import Foundation
 import Testing
 @testable import SwiftDump
 @testable import MachOTestingSupport
+import Demangling
 
 final class MangledTypeNameTests: DyldCacheTests, @unchecked Sendable {
     @Test func fieldRecordMangledTypeNames() async throws {
         let machO = machOFileInMainCache
         let typeContextDescriptors = try machO.swift.typeContextDescriptors
         for typeContextDescriptor in typeContextDescriptors {
+            guard !typeContextDescriptor.typeContextDescriptor.layout.flags.isGeneric else { continue }
             let fieldDescriptor = try typeContextDescriptor.typeContextDescriptor.fieldDescriptor(in: machO)
             let records = try fieldDescriptor.records(in: machO)
             for record in records {
                 let mangledTypeName = try record.mangledTypeName(in: machO)
-                let node = try MetadataReader.demangleType(for: mangledTypeName, in: machO)
-                node.print(using: .interface).print()
-                print(node)
+                if let metadata = _typeByName(mangledTypeName.rawString) {
+                    print(metadata)
+                } else {
+                    let node = try MetadataReader.demangleType(for: mangledTypeName, in: machO)
+                    let mangledTypeNameString = try mangleAsString(node)
+                    if let metadata = try _typeByName(mangledTypeNameString) {
+                        print(metadata)
+                    } else {
+                        print("NotFound:", mangledTypeNameString, node.print(using: .default))
+                    }
+//                    print(node)
+                }
+
                 print("---------------------")
             }
         }
+    }
+    
+    @Test func mangledTypeName() async throws {
+        print(_typeByName("7SwiftUI8AppGraphC20LaunchProfileOptions33"))
     }
 }
