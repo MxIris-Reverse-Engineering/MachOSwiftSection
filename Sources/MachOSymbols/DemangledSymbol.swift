@@ -1,7 +1,7 @@
 import Demangling
 
 @dynamicMemberLookup
-public struct DemangledSymbol: Sendable {
+public struct DemangledSymbol: Codable, Sendable {
     public let symbol: Symbol
 
     public let demangledNode: Node

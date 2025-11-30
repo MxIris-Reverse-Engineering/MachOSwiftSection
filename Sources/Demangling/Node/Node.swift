@@ -17,6 +17,15 @@ public final class Node: Sendable {
     @Mutex
     public private(set) var children: [Node] = []
 
+    public init(node: Node) {
+        self.kind = node.kind
+        self.contents = node.contents
+        self.children = node.children.map { Node(node: $0) }
+        for child in children {
+            child.parent = self
+        }
+    }
+
     public init(kind: Kind, contents: Contents = .none, children: [Node] = []) {
         self.kind = kind
         self.contents = contents
@@ -30,6 +39,18 @@ public final class Node: Sendable {
         let copy = Node(kind: kind, contents: contents, children: children.map { $0.copy() })
         copy.parent = parent
         return copy
+    }
+}
+
+extension Node: Codable {
+    public convenience init(from decoder: any Decoder) throws {
+        var container = try decoder.singleValueContainer()
+        try self.init(node: demangleAsNode(container.decode(String.self)))
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(mangleAsString(self))
     }
 }
 

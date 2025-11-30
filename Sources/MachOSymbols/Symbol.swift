@@ -4,12 +4,16 @@ import MachOResolving
 import MachOExtensions
 import Demangling
 
-public struct Symbol: AsyncResolvable, SymbolProtocol, Hashable {
+public struct Symbol: AsyncResolvable, SymbolProtocol, Hashable, Codable {
+    private enum CodingKeys: CodingKey {
+        case offset
+        case name
+    }
     public let offset: Int
 
     public let name: String
     
-    public let nlist: (any NlistProtocol)?
+    public private(set) var nlist: (any NlistProtocol)?
     
     public init(offset: Int, name: String, nlist: (any NlistProtocol)? = nil) {
         self.offset = offset

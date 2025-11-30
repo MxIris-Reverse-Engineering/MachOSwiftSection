@@ -14,7 +14,12 @@ extension AccessorRepresentable {
 }
 
 @MemberwiseInit(.public)
-public struct Accessor: Sendable {
+public struct Accessor: Encodable, Sendable {
+    private enum CodingKeys: CodingKey {
+        case kind
+        case symbol
+        case offset
+    }
     public let kind: AccessorKind
     public let symbol: DemangledSymbol
     public let methodDescriptor: MethodDescriptorWrapper?

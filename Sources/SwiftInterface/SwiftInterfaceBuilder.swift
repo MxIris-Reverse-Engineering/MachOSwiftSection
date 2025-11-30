@@ -46,7 +46,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     ///   - eventDispatcher: An event dispatcher for handling logging and progress events. A new one is created by default.
     ///   - machO: The Mach-O binary to analyze and generate interfaces from.
     /// - Throws: An error if the binary cannot be read or if required Swift sections are missing.
-    public init(configuration: SwiftInterfaceBuilderConfiguration = .init(), eventHandlers: [SwiftInterfaceEvents.Handler] = [], in machO: MachO) throws {
+    public init(configuration: SwiftInterfaceBuilderConfiguration = .init(), eventHandlers: [SwiftInterfaceEvents.Handler] = [], in machO: MachO) {
         self.eventDispatcher = .init()
         self.machO = machO
         self.indexer = .init(configuration: configuration.indexConfiguration, eventHandlers: eventHandlers, in: machO)

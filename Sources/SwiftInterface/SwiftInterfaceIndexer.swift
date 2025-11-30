@@ -73,7 +73,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
         eventDispatcher.addHandlers(eventHandlers)
     }
 
-    func prepare() async throws {
+    public func prepare() async throws {
         eventDispatcher.dispatch(.phaseTransition(phase: .preparation, state: .started))
 
         do {
