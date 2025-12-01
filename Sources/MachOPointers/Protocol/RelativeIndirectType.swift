@@ -9,4 +9,7 @@ public protocol RelativeIndirectType<Resolved>: Resolvable {
     func resolve<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> Resolved
     func resolveAny<T: Resolvable, MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> T
     func resolveOffset<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) -> Int
+    
+    func resolve() throws -> Resolved
+    func resolveAny<T: Resolvable>() throws -> T
 }

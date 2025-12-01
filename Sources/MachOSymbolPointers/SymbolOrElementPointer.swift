@@ -17,6 +17,15 @@ public enum SymbolOrElementPointer<Context: Resolvable>: RelativeIndirectType {
     case symbol(Symbol)
     case address(UInt64)
 
+    public func resolve() throws -> Resolved {
+        switch self {
+        case .symbol:
+            fatalError()
+        case .address(let address):
+            return try .element(Context.resolve(from: .init(bitPattern: stripPointerTags(of: address).uint)))
+        }
+    }
+    
     public func resolve<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> Resolved {
         switch self {
         case .symbol(let unsolvedSymbol):
@@ -35,6 +44,10 @@ public enum SymbolOrElementPointer<Context: Resolvable>: RelativeIndirectType {
         }
     }
 
+    public func resolveAny<T>() throws -> T where T : Resolvable {
+        fatalError()
+    }
+    
     public func resolveAny<T: Resolvable, MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> T {
         fatalError()
     }
@@ -54,5 +67,9 @@ public enum SymbolOrElementPointer<Context: Resolvable>: RelativeIndirectType {
         } else {
             return try .address(machO.readElement(offset: offset))
         }
+    }
+    
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
+        return try .address(ptr.stripPointerTags().assumingMemoryBound(to: UInt64.self).pointee)
     }
 }

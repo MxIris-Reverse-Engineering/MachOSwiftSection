@@ -1,7 +1,9 @@
 import MachOKit
 import MachOFoundation
+import SwiftStdlibToolbox
 
-
+@CaseCheckable(.public)
+@AssociatedValue(.public)
 public enum TypeContextDescriptorWrapper {
     case `enum`(EnumDescriptor)
     case `struct`(StructDescriptor)
@@ -39,7 +41,7 @@ public enum TypeContextDescriptorWrapper {
             return classDescriptor
         }
     }
-    
+
     public func parent<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
         return try contextDescriptor.parent(in: machO)
     }
@@ -49,12 +51,12 @@ public enum TypeContextDescriptorWrapper {
     }
 }
 
-
 extension TypeContextDescriptorWrapper: Resolvable {
     public enum ResolutionError: Error {
         case invalidTypeContextDescriptor
     }
-    public static func resolve<MachO>(from offset: Int, in machO: MachO) throws -> Self where MachO : MachORepresentableWithCache, MachO : MachOReadable {
+
+    public static func resolve<MachO>(from offset: Int, in machO: MachO) throws -> Self where MachO: MachORepresentableWithCache, MachO: MachOReadable {
         let contextDescriptor: ContextDescriptor = try machO.readWrapperElement(offset: offset)
         switch contextDescriptor.flags.kind {
         case .class:
@@ -67,13 +69,27 @@ extension TypeContextDescriptorWrapper: Resolvable {
             throw ResolutionError.invalidTypeContextDescriptor
         }
     }
-    
+
     public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self? {
         do {
             return try resolve(from: offset, in: machO) as Self
         } catch {
             print("Error resolving ContextDescriptorWrapper: \(error)")
             return nil
+        }
+    }
+    
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
+        let contextDescriptor = try ContextDescriptor.resolve(from: ptr)
+        switch contextDescriptor.flags.kind {
+        case .class:
+            return try .class(.resolve(from: ptr))
+        case .enum:
+            return try .enum(.resolve(from: ptr))
+        case .struct:
+            return try .struct(.resolve(from: ptr))
+        default:
+            throw ResolutionError.invalidTypeContextDescriptor
         }
     }
 }

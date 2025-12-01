@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import FoundationToolbox
 
 extension MachORepresentableWithCache {
     /// Bitmask to get a valid range of vmaddr from raw vmaddr
@@ -58,10 +59,10 @@ extension MachORepresentableWithCache {
         return vmaddr
     }
 
-    package func stripPointerTags(of ptr: UnsafeRawPointer) -> UnsafeRawPointer {
+    package func stripPointerTags(of ptr: UnsafeRawPointer) throws -> UnsafeRawPointer {
         let address: UInt64 = .init(ptr.uint)
         let strippedPtr: UInt64 = stripPointerTags(of: address)
-        return UnsafeRawPointer(bitPattern: UInt(strippedPtr))!
+        return try UnsafeRawPointer(bitPattern: UInt(strippedPtr))
     }
 }
 
@@ -94,5 +95,15 @@ extension MachORepresentableWithCache {
         }
 
         return nil
+    }
+}
+
+package func stripPointerTags(of rawVMAddr: UInt64) -> UInt64 {
+    MachOImage.currentExecutable.stripPointerTags(of: rawVMAddr)
+}
+
+extension UnsafeRawPointer {
+    package func stripPointerTags() throws -> UnsafeRawPointer {
+        try .init(bitPattern: MachOImage.currentExecutable.stripPointerTags(of: uint.uint64).uint)
     }
 }

@@ -49,6 +49,35 @@ extension RelativeIndirectablePointerProtocol {
             return try resolveDirectAny(from: offset, in: machO)
         }
     }
+    
+    public func resolve(from ptr: UnsafeRawPointer) throws -> Pointee {
+        return try resolveIndirectable(from: ptr)
+    }
+
+    public func resolveAny<T: Resolvable>(from ptr: UnsafeRawPointer) throws -> T {
+        return try resolveIndirectableAny(from: ptr)
+    }
+
+    func resolveIndirectable(from ptr: UnsafeRawPointer) throws -> Pointee {
+        if isIndirect {
+            return try resolveIndirect(from: ptr)
+        } else {
+            return try resolveDirect(from: ptr)
+        }
+    }
+
+    public func resolveIndirectableType(from ptr: UnsafeRawPointer) throws -> IndirectType? {
+        guard isIndirect else { return nil }
+        return try resolveIndirectableType(from: ptr)
+    }
+
+    func resolveIndirectableAny<T: Resolvable>(from ptr: UnsafeRawPointer) throws -> T {
+        if isIndirect {
+            return try resolveIndirectAny(from: ptr)
+        } else {
+            return try resolveDirectAny(from: ptr)
+        }
+    }
 
     public func resolveIndirectableOffset<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Int {
         guard let indirectType = try resolveIndirectableType(from: offset, in: machO) else { return resolveDirectOffset(from: offset) }
@@ -60,5 +89,10 @@ extension RelativeIndirectablePointerProtocol where Pointee: OptionalProtocol {
     public func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Pointee {
         guard isValid else { return nil }
         return try resolve(from: offset, in: machO)
+    }
+    
+    public func resolve(from ptr: UnsafeRawPointer) throws -> Pointee {
+        guard isValid else { return nil }
+        return try resolve(from: ptr)
     }
 }

@@ -1,6 +1,5 @@
 import Foundation
 
-
 public enum FunctionMetadataConvention: UInt8 {
     case swift
     case block
@@ -32,43 +31,43 @@ public struct FunctionTypeFlags<IntType: FixedWidthInteger & Sendable>: OptionSe
         static var extendedFlagsMask:    RawValue { 0x80000000 }
     }
     // swiftformat:enable all
-    
+
     public var numberOfParameters: IntType {
         rawValue & Constants.numParametersMask
     }
-    
+
     public var isAsync: Bool {
         rawValue & Constants.asyncMask != .zero
     }
-    
+
     public var isThrowing: Bool {
         rawValue & Constants.throwsMask != .zero
     }
-    
+
     public var isEscaping: Bool {
         rawValue & Constants.escapingMask != .zero
     }
-    
+
     public var isSendable: Bool {
         rawValue & Constants.sendableMask != .zero
     }
-    
+
     public var hasParameterFlags: Bool {
         rawValue & Constants.paramFlagsMask != .zero
     }
-    
+
     public var isDifferentiable: Bool {
         rawValue & Constants.differentiableMask != .zero
     }
-    
+
     public var hasGlobalActor: Bool {
         rawValue & Constants.globalActorMask != .zero
     }
-    
+
     public var hasExtendedFlags: Bool {
         rawValue & Constants.extendedFlagsMask != .zero
     }
-    
+
     public var convention: FunctionMetadataConvention {
         .init(rawValue: UInt8(rawValue))!
     }

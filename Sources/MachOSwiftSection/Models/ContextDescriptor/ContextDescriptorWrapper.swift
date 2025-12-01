@@ -1,7 +1,6 @@
 import MachOKit
 import MachOFoundation
 
-
 public enum ContextDescriptorWrapper {
     case type(TypeContextDescriptorWrapper)
     case `protocol`(ProtocolDescriptor)
@@ -58,7 +57,7 @@ public enum ContextDescriptorWrapper {
             return false
         }
     }
-    
+
     public var isEnum: Bool {
         if case .type(.enum) = self {
             return true
@@ -66,7 +65,7 @@ public enum ContextDescriptorWrapper {
             return false
         }
     }
-    
+
     public var isStruct: Bool {
         if case .type(.struct) = self {
             return true
@@ -74,7 +73,7 @@ public enum ContextDescriptorWrapper {
             return false
         }
     }
-    
+
     public var isClass: Bool {
         if case .type(.class) = self {
             return true
@@ -135,7 +134,7 @@ public enum ContextDescriptorWrapper {
     public func genericContext<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> GenericContext? {
         return try contextDescriptor.genericContext(in: machO)
     }
-    
+
     public var contextDescriptor: any ContextDescriptorProtocol {
         switch self {
         case .type(let typeContextDescriptor):
@@ -200,7 +199,9 @@ extension ContextDescriptorWrapper: Resolvable {
     public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self {
         let contextDescriptor: ContextDescriptor = try machO.readWrapperElement(offset: offset)
         switch contextDescriptor.flags.kind {
-        case .class, .struct, .enum:
+        case .class,
+             .struct,
+             .enum:
             return try .type(.resolve(from: offset, in: machO))
         case .protocol:
             return try .protocol(machO.readWrapperElement(offset: offset))
@@ -217,9 +218,40 @@ extension ContextDescriptorWrapper: Resolvable {
         }
     }
 
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
+        let contextDescriptor: ContextDescriptor = try .resolve(from: ptr)
+        switch contextDescriptor.flags.kind {
+        case .class,
+             .struct,
+             .enum:
+            return try .type(.resolve(from: ptr))
+        case .protocol:
+            return try .protocol(.resolve(from: ptr))
+        case .anonymous:
+            return try .anonymous(.resolve(from: ptr))
+        case .extension:
+            return try .extension(.resolve(from: ptr))
+        case .module:
+            return try .module(.resolve(from: ptr))
+        case .opaqueType:
+            return try .opaqueType(.resolve(from: ptr))
+        default:
+            throw ResolutionError.invalidContextDescriptor
+        }
+    }
+
     public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self? {
         do {
             return try resolve(from: offset, in: machO) as Self
+        } catch {
+            print("Error resolving ContextDescriptorWrapper: \(error)")
+            return nil
+        }
+    }
+    
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self? {
+        do {
+            return try resolve(from: ptr) as Self
         } catch {
             print("Error resolving ContextDescriptorWrapper: \(error)")
             return nil

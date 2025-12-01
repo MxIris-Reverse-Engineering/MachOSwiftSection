@@ -9,7 +9,7 @@ public protocol MetadataProtocol: ResolvableLocatableLayoutWrapper where Layout:
 }
 
 extension MetadataProtocol {
-    public static func create(_ type: Any.Type) -> (machO: MachOImage, metadata: Self)? {
+    public static func createInMachO(_ type: Any.Type) -> (machO: MachOImage, metadata: Self)? {
         let ptr = unsafeBitCast(type, to: UnsafeRawPointer.self)
 
         guard let machHeader = dyld_image_header_containing_address(ptr) else { return nil }
@@ -19,6 +19,14 @@ extension MetadataProtocol {
         let layout: Layout = unsafeBitCast(type, to: UnsafePointer<Layout>.self).pointee
 
         return (machO, self.init(layout: layout, offset: ptr.int - machO.ptr.int))
+    }
+    
+    public static func createInProcess(_ type: Any.Type) -> Self {
+        let ptr = unsafeBitCast(type, to: UnsafeRawPointer.self)
+
+        let layout: Layout = unsafeBitCast(type, to: UnsafePointer<Layout>.self).pointee
+
+        return self.init(layout: layout, offset: ptr.int)
     }
 }
 
@@ -30,6 +38,10 @@ extension MetadataProtocol {
     public func asFullMetadata<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> FullMetadata<Self> {
         try FullMetadata<Self>.resolve(from: offset - HeaderType.layoutSize, in: machO)
     }
+    
+    public func asFullMetadata() throws -> FullMetadata<Self> {
+        try FullMetadata<Self>.resolve(from: UnsafeRawPointer(bitPattern: offset.bitPatternUInt - HeaderType.layoutSize.uint))
+    }
 }
 
 extension MetadataProtocol where HeaderType: TypeMetadataHeaderBaseProtocol {
@@ -37,4 +49,10 @@ extension MetadataProtocol where HeaderType: TypeMetadataHeaderBaseProtocol {
         let fullMetadata = try asFullMetadata(in: machO)
         return try fullMetadata.layout.header.valueWitnesses.resolve(in: machO)
     }
+    
+    public func valueWitnesses() throws -> ValueWitnessTable {
+        let fullMetadata = try asFullMetadata()
+        return try fullMetadata.layout.header.valueWitnesses.resolve()
+    }
 }
+

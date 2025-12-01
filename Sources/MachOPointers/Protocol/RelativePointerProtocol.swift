@@ -8,13 +8,20 @@ public protocol RelativePointerProtocol<Pointee>: Sendable, Equatable {
     associatedtype Offset: FixedWidthInteger & SignedInteger
     
     var relativeOffset: Offset { get }
-    
+    func resolve(from ptr: UnsafeRawPointer) throws -> Pointee
     func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Pointee
     func resolveAny<T: Resolvable, MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> T
+    func resolveAny<T: Resolvable>(from ptr: UnsafeRawPointer) throws -> T
     func resolveDirectOffset(from offset: Int) -> Int
+    func resolveDirectOffset(from ptr: UnsafeRawPointer) throws -> UnsafeRawPointer
 }
 
 extension RelativePointerProtocol {
+    
+    public func resolveDirectOffset(from ptr: UnsafeRawPointer) throws -> UnsafeRawPointer {
+        try .init(bitPattern: ptr.stripPointerTags().int + Int(relativeOffset))
+    }
+    
     public func resolveDirectOffset(from offset: Int) -> Int {
         return Int(offset) + Int(relativeOffset)
     }

@@ -70,4 +70,52 @@ public enum MetadataWrapper: Resolvable {
             fatalError()
         }
     }
+    
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> MetadataWrapper {
+        let metadata = try Metadata.resolve(from: ptr)
+        switch metadata.kind {
+        case .class:
+            return try .class(.resolve(from: ptr))
+        case .struct:
+            return try .struct(.resolve(from: ptr))
+        case .enum:
+            return try .enum(.resolve(from: ptr))
+        case .optional:
+            return try .optional(.resolve(from: ptr))
+        case .foreignClass:
+            return try .foreignClass(.resolve(from: ptr))
+        case .foreignReferenceType:
+            return try .foreignReferenceType(.resolve(from: ptr))
+        case .opaque:
+            return try .opaque(.resolve(from: ptr))
+        case .tuple:
+            return try .tuple(.resolve(from: ptr))
+        case .function:
+            return try .function(.resolve(from: ptr))
+        case .existential:
+            return try .existential(.resolve(from: ptr))
+        case .metatype:
+            return try .metatype(.resolve(from: ptr))
+        case .objcClassWrapper:
+            return try .objcClassWrapper(.resolve(from: ptr))
+        case .existentialMetatype:
+            return try .existentialMetatype(.resolve(from: ptr))
+        case .extendedExistential:
+            return try .extendedExistential(.resolve(from: ptr))
+        case .fixedArray:
+            return try .fixedArray(.resolve(from: ptr))
+        case .heapLocalVariable:
+            return try .heapLocalVariable(.resolve(from: ptr))
+        case .heapGenericLocalVariable:
+            return try .heapGenericLocalVariable(.resolve(from: ptr))
+        case .errorObject:
+            return try .errorObject(.resolve(from: ptr))
+        case .task:
+            return try .task(.resolve(from: ptr))
+        case .job:
+            return try .job(.resolve(from: ptr))
+        case .lastEnumerated:
+            fatalError()
+        }
+    }
 }

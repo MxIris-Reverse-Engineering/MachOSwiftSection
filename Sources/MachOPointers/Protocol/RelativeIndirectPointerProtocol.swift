@@ -1,5 +1,4 @@
 import MachOKit
-
 import MachOReading
 import MachOResolving
 import MachOExtensions
@@ -34,11 +33,36 @@ extension RelativeIndirectPointerProtocol {
     public func resolveIndirectOffset<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Int {
         return try resolveIndirectType(from: offset, in: machO).resolveOffset(in: machO)
     }
+
+    public func resolve(from ptr: UnsafeRawPointer) throws -> Pointee {
+        return try resolveIndirect(from: ptr)
+    }
+
+    func resolveIndirect(from ptr: UnsafeRawPointer) throws -> Pointee {
+        return try resolveIndirectType(from: ptr).resolve()
+    }
+
+    public func resolveAny<T: Resolvable>(from ptr: UnsafeRawPointer) throws -> T {
+        return try resolveIndirectAny(from: ptr)
+    }
+
+    func resolveIndirectAny<T: Resolvable>(from ptr: UnsafeRawPointer) throws -> T {
+        return try resolveIndirectType(from: ptr).resolveAny()
+    }
+
+    public func resolveIndirectType(from ptr: UnsafeRawPointer) throws -> IndirectType {
+        return try .resolve(from: ptr)
+    }
 }
 
 extension RelativeIndirectPointerProtocol where Pointee: OptionalProtocol {
     public func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Pointee {
         guard isValid else { return nil }
         return try resolve(from: offset, in: machO)
+    }
+
+    public func resolve(from ptr: UnsafeRawPointer) throws -> Pointee {
+        guard isValid else { return nil }
+        return try resolve(from: ptr)
     }
 }
