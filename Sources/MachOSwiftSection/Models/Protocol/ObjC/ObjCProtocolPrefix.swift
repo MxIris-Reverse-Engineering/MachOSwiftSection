@@ -24,6 +24,14 @@ extension ObjCProtocolPrefix {
     }
 
     public func mangledName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
-        try Pointer<MangledName>(address: layout.name.address).resolve(in: machO)
+        try layout.name.resolveAny(in: machO)
+    }
+
+    public func name() throws -> String {
+        try layout.name.resolve()
+    }
+
+    public func mangledName() throws -> MangledName {
+        try layout.name.resolveAny()
     }
 }

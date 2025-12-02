@@ -23,3 +23,10 @@ extension NonUniqueExtendedExistentialTypeShape {
         try layout.localCopy.existentialType.resolve(from: offset(of: \.localCopy.existentialType), in: machO)
     }
 }
+
+
+extension NonUniqueExtendedExistentialTypeShape {
+    public func existentialType() throws -> MangledName {
+        try layout.localCopy.existentialType.resolve(from: pointer(of: \.localCopy.existentialType))
+    }
+}

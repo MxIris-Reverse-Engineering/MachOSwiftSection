@@ -23,7 +23,9 @@ public struct FieldDescriptor: ResolvableLocatableLayoutWrapper {
 
 extension FieldDescriptor {
     public var kind: FieldDescriptorKind { .init(rawValue: layout.kind)! }
+}
 
+extension FieldDescriptor {
     public func mangledTypeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
         return try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machO)
     }
@@ -32,5 +34,17 @@ extension FieldDescriptor {
         guard layout.fieldRecordSize != 0 else { return [] }
         let offset = offset + MemoryLayout<FieldDescriptor.Layout>.size
         return try machO.readWrapperElements(offset: offset, numberOfElements: layout.numFields.cast())
+    }
+}
+
+extension FieldDescriptor {
+    public func mangledTypeName() throws -> MangledName {
+        return try layout.mangledTypeName.resolve(from: pointer(of: \.mangledTypeName))
+    }
+
+    public func records() throws -> [FieldRecord] {
+        guard layout.fieldRecordSize != 0 else { return [] }
+        let offset =  MemoryLayout<FieldDescriptor.Layout>.size
+        return try asPointer.readWrapperElements(offset: offset, numberOfElements: layout.numFields.cast())
     }
 }

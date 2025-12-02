@@ -27,3 +27,13 @@ extension AssociatedTypeRecord {
         return try layout.substitutedTypeName.resolve(from: offset(of: \.substitutedTypeName), in: machO)
     }
 }
+
+extension AssociatedTypeRecord {
+    public func name() throws -> String {
+        return try layout.name.resolve(from: pointer(of: \.name))
+    }
+
+    public func substitutedTypeName() throws -> MangledName {
+        return try layout.substitutedTypeName.resolve(from: pointer(of: \.substitutedTypeName))
+    }
+}

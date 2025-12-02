@@ -12,4 +12,9 @@ public struct BuiltinType: TopLevelType {
         self.descriptor = descriptor
         self.typeName = try descriptor.typeName(in: machO)
     }
+    
+    public init(descriptor: BuiltinTypeDescriptor) throws {
+        self.descriptor = descriptor
+        self.typeName = try descriptor.typeName()
+    }
 }

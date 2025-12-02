@@ -40,4 +40,22 @@ public enum RelativeProtocolDescriptorPointer: Sendable, Equatable {
             return try relativeContextPointerIntPair.resolve(from: offset, in: machO).map { .swift($0) }
         }
     }
+
+    public func protocolDescriptorRef(from ptr: UnsafeRawPointer) throws -> ProtocolDescriptorRef {
+        let storedPointer = try rawPointer.resolveIndirectType(from: ptr).address
+        if isObjC {
+            return .forObjC(storedPointer)
+        } else {
+            return .forSwift(storedPointer)
+        }
+    }
+
+    public func resolve(from ptr: UnsafeRawPointer) throws -> SymbolOrElement<ProtocolDescriptorWithObjCInterop> {
+        switch self {
+        case .objcPointer(let relativeIndirectablePointerIntPair):
+            return try relativeIndirectablePointerIntPair.resolve(from: ptr).map { .objc($0) }
+        case .swiftPointer(let relativeContextPointerIntPair):
+            return try relativeContextPointerIntPair.resolve(from: ptr).map { .swift($0) }
+        }
+    }
 }

@@ -11,10 +11,6 @@ public protocol Readable {
     func readWrapperElements<Element>(offset: Int, numberOfElements: Int) throws -> [Element] where Element: LocatableLayoutWrapper
 
     func readString(offset: Int) throws -> String
-    
-    func resolveOffset(at address: UInt64) -> Int
-    
-    func stripPointerTags(of rawVMAddr: UInt64) -> UInt64
 }
 
 

@@ -16,4 +16,10 @@ public struct GenericRequirement: Sendable {
         self.paramManagledName = try descriptor.paramMangledName(in: machO)
         self.content = try descriptor.resolvedContent(in: machO)
     }
+    
+    public init(descriptor: GenericRequirementDescriptor) throws {
+        self.descriptor = descriptor
+        self.paramManagledName = try descriptor.paramMangledName()
+        self.content = try descriptor.resolvedContent()
+    }
 }

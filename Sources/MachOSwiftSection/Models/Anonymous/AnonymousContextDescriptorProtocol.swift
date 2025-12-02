@@ -16,6 +16,19 @@ extension AnonymousContextDescriptorProtocol {
         return try mangledNamePointer.resolve(from: currentOffset, in: machO)
     }
 
+    public func mangledName() throws -> MangledName? {
+        guard hasMangledName else {
+            return nil
+        }
+        var currentOffset = layoutSize
+        if let genericContext = try genericContext() {
+            currentOffset += genericContext.size
+        }
+        let pointer = try asPointer
+        let mangledNamePointer: RelativeDirectPointer<MangledName> = try pointer.readElement(offset: currentOffset)
+        return try mangledNamePointer.resolve(from: pointer.advanced(by: currentOffset))
+    }
+    
     public var hasMangledName: Bool {
         guard let kindSpecificFlags = layout.flags.kindSpecificFlags, case .anonymous(let anonymousContextDescriptorFlags) = kindSpecificFlags else {
             return false

@@ -17,4 +17,11 @@ public struct AssociatedType: TopLevelType {
         self.protocolTypeName = try descriptor.protocolTypeName(in: machO)
         self.records = try descriptor.associatedTypeRecords(in: machO)
     }
+    
+    public init(descriptor: AssociatedTypeDescriptor) throws {
+        self.descriptor = descriptor
+        self.conformingTypeName = try descriptor.conformingTypeName()
+        self.protocolTypeName = try descriptor.protocolTypeName()
+        self.records = try descriptor.associatedTypeRecords()
+    }
 }

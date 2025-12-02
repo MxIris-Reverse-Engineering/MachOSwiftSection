@@ -14,4 +14,10 @@ public struct ExtensionContext: TopLevelType, ContextProtocol {
         self.extendedContextMangledName = try descriptor.extendedContext(in: machO)
         self.genericContext = try descriptor.genericContext(in: machO)
     }
+    
+    public init(descriptor: ExtensionContextDescriptor) throws {
+        self.descriptor = descriptor
+        self.extendedContextMangledName = try descriptor.extendedContext()
+        self.genericContext = try descriptor.genericContext()
+    }
 }

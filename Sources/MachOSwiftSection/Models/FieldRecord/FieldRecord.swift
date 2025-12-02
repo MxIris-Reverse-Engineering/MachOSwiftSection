@@ -28,3 +28,13 @@ extension FieldRecord {
         return try layout.fieldName.resolve(from: offset(of: \.fieldName), in: machO)
     }
 }
+
+extension FieldRecord {
+    public func mangledTypeName() throws -> MangledName {
+        return try layout.mangledTypeName.resolve(from: pointer(of: \.mangledTypeName))
+    }
+
+    public func fieldName() throws -> String {
+        return try layout.fieldName.resolve(from: pointer(of: \.fieldName))
+    }
+}

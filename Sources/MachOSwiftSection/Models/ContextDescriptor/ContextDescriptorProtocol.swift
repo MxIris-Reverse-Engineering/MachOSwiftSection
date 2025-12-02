@@ -8,6 +8,11 @@ public protocol ContextDescriptorProtocol: ResolvableLocatableLayoutWrapper wher
     func parent<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<ContextDescriptorWrapper>?
     func moduleContextDesciptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> (any ModuleContextDescriptorProtocol)?
     func isCImportedContextDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Bool
+
+    func genericContext() throws -> GenericContext?
+    func parent() throws -> SymbolOrElement<ContextDescriptorWrapper>?
+    func moduleContextDesciptor() throws -> (any ModuleContextDescriptorProtocol)?
+    func isCImportedContextDescriptor() throws -> Bool
 }
 
 extension ContextDescriptorProtocol {
@@ -41,7 +46,9 @@ extension ContextDescriptorProtocol {
         let moduleName = try moduleContextDescriptor.name(in: machO)
         return moduleName == cModule || moduleName == objcModule
     }
+}
 
+extension ContextDescriptorProtocol {
     public func parent() throws -> SymbolOrElement<ContextDescriptorWrapper>? {
         guard layout.flags.kind != .module, layout.parent.isValid else { return nil }
         return try layout.parent.resolve(from: layout.pointer(from: asPointer, of: .parent)).asOptional
@@ -72,7 +79,9 @@ extension ContextDescriptorProtocol {
         let moduleName = try moduleContextDescriptor.name()
         return moduleName == cModule || moduleName == objcModule
     }
+}
 
+extension ContextDescriptorProtocol {
     public subscript<Value>(dynamicMember keyPath: KeyPath<Layout, Value>) -> Value {
         return layout[keyPath: keyPath]
     }

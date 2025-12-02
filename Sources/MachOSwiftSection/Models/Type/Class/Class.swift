@@ -28,23 +28,23 @@ import MachOFoundation
 
 public struct Class: TopLevelType, ContextProtocol {
     public let descriptor: ClassDescriptor
-    public let genericContext: TypeGenericContext?
-    public let resilientSuperclass: ResilientSuperclass?
-    public let foreignMetadataInitialization: ForeignMetadataInitialization?
-    public let singletonMetadataInitialization: SingletonMetadataInitialization?
-    public let vTableDescriptorHeader: VTableDescriptorHeader?
-    public let methodDescriptors: [MethodDescriptor]
-    public let overrideTableHeader: OverrideTableHeader?
-    public let methodOverrideDescriptors: [MethodOverrideDescriptor]
-    public let objcResilientClassStubInfo: ObjCResilientClassStubInfo?
-    public let canonicalSpecializedMetadatasListCount: CanonicalSpecializedMetadatasListCount?
-    public let canonicalSpecializedMetadatas: [CanonicalSpecializedMetadatasListEntry]
-    public let canonicalSpecializedMetadataAccessors: [CanonicalSpecializedMetadataAccessorsListEntry]
-    public let canonicalSpecializedMetadatasCachingOnceToken: CanonicalSpecializedMetadatasCachingOnceToken?
-    public let invertibleProtocolSet: InvertibleProtocolSet?
-    public let singletonMetadataPointer: SingletonMetadataPointer?
-    public let methodDefaultOverrideTableHeader: MethodDefaultOverrideTableHeader?
-    public let methodDefaultOverrideDescriptors: [MethodDefaultOverrideDescriptor]
+    public private(set) var genericContext: TypeGenericContext?
+    public private(set) var resilientSuperclass: ResilientSuperclass?
+    public private(set) var foreignMetadataInitialization: ForeignMetadataInitialization?
+    public private(set) var singletonMetadataInitialization: SingletonMetadataInitialization?
+    public private(set) var vTableDescriptorHeader: VTableDescriptorHeader?
+    public private(set) var methodDescriptors: [MethodDescriptor] = []
+    public private(set) var overrideTableHeader: OverrideTableHeader?
+    public private(set) var methodOverrideDescriptors: [MethodOverrideDescriptor] = []
+    public private(set) var objcResilientClassStubInfo: ObjCResilientClassStubInfo?
+    public private(set) var canonicalSpecializedMetadatasListCount: CanonicalSpecializedMetadatasListCount?
+    public private(set) var canonicalSpecializedMetadatas: [CanonicalSpecializedMetadatasListEntry] = []
+    public private(set) var canonicalSpecializedMetadataAccessors: [CanonicalSpecializedMetadataAccessorsListEntry] = []
+    public private(set) var canonicalSpecializedMetadatasCachingOnceToken: CanonicalSpecializedMetadatasCachingOnceToken?
+    public private(set) var invertibleProtocolSet: InvertibleProtocolSet?
+    public private(set) var singletonMetadataPointer: SingletonMetadataPointer?
+    public private(set) var methodDefaultOverrideTableHeader: MethodDefaultOverrideTableHeader?
+    public private(set) var methodDefaultOverrideDescriptors: [MethodDefaultOverrideDescriptor] = []
 
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: ClassDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
@@ -54,8 +54,23 @@ public struct Class: TopLevelType, ContextProtocol {
         if let genericContext {
             currentOffset += genericContext.size
         }
+        try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: machO)
+    }
+    
+    public init(descriptor: ClassDescriptor) throws {
+        self.descriptor = descriptor
+        let genericContext = try descriptor.typeGenericContext()
+        self.genericContext = genericContext
+        var currentOffset = descriptor.layoutSize
+        if let genericContext {
+            currentOffset += genericContext.size
+        }
+        try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: descriptor.asPointer)
+    }
+    
+    private mutating func initialize<Reader: Readable>(descriptor: ClassDescriptor, currentOffset: inout Int, in reader: Reader) throws {
         if descriptor.hasResilientSuperclass {
-            let resilientSuperclass: ResilientSuperclass = try machO.readWrapperElement(offset: currentOffset)
+            let resilientSuperclass: ResilientSuperclass = try reader.readWrapperElement(offset: currentOffset)
             self.resilientSuperclass = resilientSuperclass
             currentOffset.offset(of: ResilientSuperclass.self)
         } else {
@@ -63,7 +78,7 @@ public struct Class: TopLevelType, ContextProtocol {
         }
 
         if descriptor.hasForeignMetadataInitialization {
-            let foreignMetadataInitialization: ForeignMetadataInitialization = try machO.readWrapperElement(offset: currentOffset)
+            let foreignMetadataInitialization: ForeignMetadataInitialization = try reader.readWrapperElement(offset: currentOffset)
             self.foreignMetadataInitialization = foreignMetadataInitialization
             currentOffset.offset(of: ForeignMetadataInitialization.self)
         } else {
@@ -71,7 +86,7 @@ public struct Class: TopLevelType, ContextProtocol {
         }
 
         if descriptor.hasSingletonMetadataInitialization {
-            let singletonMetadataInitialization: SingletonMetadataInitialization = try machO.readWrapperElement(offset: currentOffset)
+            let singletonMetadataInitialization: SingletonMetadataInitialization = try reader.readWrapperElement(offset: currentOffset)
             self.singletonMetadataInitialization = singletonMetadataInitialization
             currentOffset.offset(of: SingletonMetadataInitialization.self)
         } else {
@@ -79,10 +94,10 @@ public struct Class: TopLevelType, ContextProtocol {
         }
 
         if descriptor.hasVTable {
-            let vTableDescriptorHeader: VTableDescriptorHeader = try machO.readWrapperElement(offset: currentOffset)
+            let vTableDescriptorHeader: VTableDescriptorHeader = try reader.readWrapperElement(offset: currentOffset)
             self.vTableDescriptorHeader = vTableDescriptorHeader
             currentOffset.offset(of: VTableDescriptorHeader.self)
-            let methodDescriptors: [MethodDescriptor] = try machO.readWrapperElements(offset: currentOffset, numberOfElements: vTableDescriptorHeader.vTableSize.cast())
+            let methodDescriptors: [MethodDescriptor] = try reader.readWrapperElements(offset: currentOffset, numberOfElements: vTableDescriptorHeader.vTableSize.cast())
             self.methodDescriptors = methodDescriptors
             currentOffset.offset(of: MethodDescriptor.self, numbersOfElements: vTableDescriptorHeader.vTableSize.cast())
         } else {
@@ -91,10 +106,10 @@ public struct Class: TopLevelType, ContextProtocol {
         }
 
         if descriptor.hasOverrideTable {
-            let overrideTableHeader: OverrideTableHeader = try machO.readWrapperElement(offset: currentOffset)
+            let overrideTableHeader: OverrideTableHeader = try reader.readWrapperElement(offset: currentOffset)
             self.overrideTableHeader = overrideTableHeader
             currentOffset.offset(of: OverrideTableHeader.self)
-            let methodOverrideDescriptors: [MethodOverrideDescriptor] = try machO.readWrapperElements(offset: currentOffset, numberOfElements: overrideTableHeader.numEntries.cast())
+            let methodOverrideDescriptors: [MethodOverrideDescriptor] = try reader.readWrapperElements(offset: currentOffset, numberOfElements: overrideTableHeader.numEntries.cast())
             self.methodOverrideDescriptors = methodOverrideDescriptors
             currentOffset.offset(of: MethodOverrideDescriptor.self, numbersOfElements: overrideTableHeader.numEntries.cast())
         } else {
@@ -103,7 +118,7 @@ public struct Class: TopLevelType, ContextProtocol {
         }
 
         if descriptor.hasObjCResilientClassStub {
-            let objcResilientClassStubInfo: ObjCResilientClassStubInfo = try machO.readWrapperElement(offset: currentOffset)
+            let objcResilientClassStubInfo: ObjCResilientClassStubInfo = try reader.readWrapperElement(offset: currentOffset)
             self.objcResilientClassStubInfo = objcResilientClassStubInfo
             currentOffset.offset(of: ObjCResilientClassStubInfo.self)
         } else {
@@ -111,17 +126,17 @@ public struct Class: TopLevelType, ContextProtocol {
         }
 
         if descriptor.hasCanonicalMetadataPrespecializations {
-            let count: CanonicalSpecializedMetadatasListCount = try machO.readElement(offset: currentOffset)
+            let count: CanonicalSpecializedMetadatasListCount = try reader.readElement(offset: currentOffset)
             self.canonicalSpecializedMetadatasListCount = count
             currentOffset.offset(of: CanonicalSpecializedMetadatasListCount.self)
             let countValue = count.rawValue
-            let canonicalSpecializedMetadatas: [CanonicalSpecializedMetadatasListEntry] = try machO.readWrapperElements(offset: currentOffset, numberOfElements: countValue.cast())
+            let canonicalSpecializedMetadatas: [CanonicalSpecializedMetadatasListEntry] = try reader.readWrapperElements(offset: currentOffset, numberOfElements: countValue.cast())
             self.canonicalSpecializedMetadatas = canonicalSpecializedMetadatas
             currentOffset.offset(of: CanonicalSpecializedMetadatasListEntry.self, numbersOfElements: countValue.cast())
-            let canonicalSpecializedMetadataAccessors: [CanonicalSpecializedMetadataAccessorsListEntry] = try machO.readWrapperElements(offset: currentOffset, numberOfElements: countValue.cast())
+            let canonicalSpecializedMetadataAccessors: [CanonicalSpecializedMetadataAccessorsListEntry] = try reader.readWrapperElements(offset: currentOffset, numberOfElements: countValue.cast())
             self.canonicalSpecializedMetadataAccessors = canonicalSpecializedMetadataAccessors
             currentOffset.offset(of: CanonicalSpecializedMetadataAccessorsListEntry.self, numbersOfElements: countValue.cast())
-            let canonicalSpecializedMetadatasCachingOnceToken: CanonicalSpecializedMetadatasCachingOnceToken = try machO.readWrapperElement(offset: currentOffset)
+            let canonicalSpecializedMetadatasCachingOnceToken: CanonicalSpecializedMetadatasCachingOnceToken = try reader.readWrapperElement(offset: currentOffset)
             self.canonicalSpecializedMetadatasCachingOnceToken = canonicalSpecializedMetadatasCachingOnceToken
             currentOffset.offset(of: CanonicalSpecializedMetadatasCachingOnceToken.self)
         } else {
@@ -132,7 +147,7 @@ public struct Class: TopLevelType, ContextProtocol {
         }
 
         if descriptor.flags.contains(.hasInvertibleProtocols) {
-            let invertibleProtocolSet: InvertibleProtocolSet = try machO.readElement(offset: currentOffset)
+            let invertibleProtocolSet: InvertibleProtocolSet = try reader.readElement(offset: currentOffset)
             self.invertibleProtocolSet = invertibleProtocolSet
             currentOffset.offset(of: InvertibleProtocolSet.self)
         } else {
@@ -140,7 +155,7 @@ public struct Class: TopLevelType, ContextProtocol {
         }
 
         if descriptor.hasSingletonMetadataPointer {
-            let singletonMetadataPointer: SingletonMetadataPointer = try machO.readWrapperElement(offset: currentOffset)
+            let singletonMetadataPointer: SingletonMetadataPointer = try reader.readWrapperElement(offset: currentOffset)
             self.singletonMetadataPointer = singletonMetadataPointer
             currentOffset.offset(of: SingletonMetadataPointer.self)
         } else {
@@ -148,10 +163,10 @@ public struct Class: TopLevelType, ContextProtocol {
         }
 
         if descriptor.hasDefaultOverrideTable {
-            let methodDefaultOverrideTableHeader: MethodDefaultOverrideTableHeader = try machO.readWrapperElement(offset: currentOffset)
+            let methodDefaultOverrideTableHeader: MethodDefaultOverrideTableHeader = try reader.readWrapperElement(offset: currentOffset)
             self.methodDefaultOverrideTableHeader = methodDefaultOverrideTableHeader
             currentOffset.offset(of: MethodDefaultOverrideTableHeader.self)
-            let methodDefaultOverrideDescriptors: [MethodDefaultOverrideDescriptor] = try machO.readWrapperElements(offset: currentOffset, numberOfElements: methodDefaultOverrideTableHeader.numEntries.cast())
+            let methodDefaultOverrideDescriptors: [MethodDefaultOverrideDescriptor] = try reader.readWrapperElements(offset: currentOffset, numberOfElements: methodDefaultOverrideTableHeader.numEntries.cast())
             self.methodDefaultOverrideDescriptors = methodDefaultOverrideDescriptors
             currentOffset.offset(of: MethodDefaultOverrideDescriptor.self, numbersOfElements: methodDefaultOverrideTableHeader.numEntries.cast())
         } else {
@@ -160,7 +175,3 @@ public struct Class: TopLevelType, ContextProtocol {
         }
     }
 }
-
-// extension Class {
-//    package func method
-// }

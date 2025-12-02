@@ -8,4 +8,8 @@ extension AnyClassMetadataProtocol {
     public func asFinalClassMetadata<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> AnyClassMetadata {
         try .resolve(from: offset, in: machO)
     }
+    
+    public func asFinalClassMetadata() throws -> AnyClassMetadata {
+        try .resolve(from: asPointer)
+    }
 }

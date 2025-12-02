@@ -21,6 +21,12 @@ public struct ExtensionContextDescriptor: ExtensionContextDescriptorProtocol {
 
 extension ExtensionContextDescriptorProtocol {
     public func extendedContext<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName? {
-        try layout.extendedContext.resolve(from: offset + 8, in: machO)
+        try layout.extendedContext.resolve(from: offset + layout.offset(of: .extendedContext), in: machO)
+    }
+}
+
+extension ExtensionContextDescriptorProtocol {
+    public func extendedContext() throws -> MangledName? {
+        try layout.extendedContext.resolve(from: layout.pointer(from: asPointer, of: .extendedContext))
     }
 }

@@ -22,6 +22,10 @@ extension ResilientWitness {
     public func requirement<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<ProtocolRequirement>? {
         return try layout.requirement.resolve(from: offset(of: \.requirement), in: machO).asOptional
     }
+    
+    public func requirement() throws -> SymbolOrElement<ProtocolRequirement>? {
+        return try layout.requirement.resolve(from: pointer(of: \.requirement)).asOptional
+    }
 
     public func implementationSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Symbols? {
         return try layout.implementation.resolve(from: offset(of: \.implementation), in: machO)

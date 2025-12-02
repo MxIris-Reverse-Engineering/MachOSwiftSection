@@ -25,6 +25,12 @@ extension ExtendedExistentialTypeShape {
     }
 }
 
+extension ExtendedExistentialTypeShape {
+    public func existentialType() throws -> MangledName {
+        try layout.existentialType.resolve(from: pointer(of: \.existentialType))
+    }
+}
+
 public struct ExtendedExistentialTypeShapeFlags: OptionSet, Sendable {
     public let rawValue: UInt32
 

@@ -46,7 +46,9 @@ public struct OpaqueType: TopLevelType, ContextProtocol {
     public init(descriptor: OpaqueTypeDescriptor) throws {
         self.descriptor = descriptor
 
-        var currentOffset = try descriptor.asPointer.advanced(by: descriptor.layoutSize)
+        var currentOffset = descriptor.layoutSize
+
+        let pointer = try descriptor.asPointer
 
         let genericContext = try descriptor.genericContext()
 
@@ -56,10 +58,10 @@ public struct OpaqueType: TopLevelType, ContextProtocol {
         self.genericContext = genericContext
 
         if descriptor.numUnderlyingTypeArugments > 0 {
-            let underlyingTypeArgumentMangledNamePointers: [RelativeDirectPointer<MangledName>] = try currentOffset.readElements(numberOfElements: descriptor.numUnderlyingTypeArugments)
+            let underlyingTypeArgumentMangledNamePointers: [RelativeDirectPointer<MangledName>] = try pointer.readElements(offset: currentOffset, numberOfElements: descriptor.numUnderlyingTypeArugments)
             var underlyingTypeArgumentMangledNames: [MangledName] = []
             for underlyingTypeArgumentMangledNamePointer in underlyingTypeArgumentMangledNamePointers {
-                try underlyingTypeArgumentMangledNames.append(underlyingTypeArgumentMangledNamePointer.resolve(from: currentOffset))
+                try underlyingTypeArgumentMangledNames.append(underlyingTypeArgumentMangledNamePointer.resolve(from: pointer.advanced(by: currentOffset)))
                 currentOffset += MemoryLayout<RelativeDirectPointer<MangledName>>.size
             }
             self.underlyingTypeArgumentMangledNames = underlyingTypeArgumentMangledNames
@@ -68,7 +70,7 @@ public struct OpaqueType: TopLevelType, ContextProtocol {
         }
 
         if descriptor.flags.contains(.hasInvertibleProtocols) {
-            self.invertedProtocols = try currentOffset.readElement() as InvertibleProtocolSet
+            self.invertedProtocols = try pointer.readElement(offset: currentOffset) as InvertibleProtocolSet
             currentOffset.offset(of: InvertibleProtocolSet.self)
         } else {
             self.invertedProtocols = nil

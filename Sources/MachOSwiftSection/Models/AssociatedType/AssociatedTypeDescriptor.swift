@@ -33,6 +33,20 @@ extension AssociatedTypeDescriptor {
     }
 }
 
+extension AssociatedTypeDescriptor {
+    public func conformingTypeName() throws -> MangledName {
+        return try layout.conformingTypeName.resolve(from: pointer(of: \.conformingTypeName))
+    }
+
+    public func protocolTypeName() throws -> MangledName {
+        return try layout.protocolTypeName.resolve(from: pointer(of: \.protocolTypeName))
+    }
+
+    public func associatedTypeRecords() throws -> [AssociatedTypeRecord] {
+        return try asPointer.readWrapperElements(offset: layoutSize, numberOfElements: layout.numAssociatedTypes.cast())
+    }
+}
+
 extension AssociatedTypeDescriptor: TopLevelDescriptor {
     public var actualSize: Int { layoutSize + (layout.numAssociatedTypes * layout.associatedTypeRecordSize).cast() }
 }

@@ -3,7 +3,7 @@ import MachOFoundation
 import MachOKit
 
 public struct MetadataAccessor: Resolvable, @unchecked Sendable {
-    private var raw: UnsafeRawPointer
+    private let raw: UnsafeRawPointer
 
     package init(raw: UnsafeRawPointer) {
         self.raw = raw

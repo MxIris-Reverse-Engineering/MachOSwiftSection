@@ -23,6 +23,10 @@ extension MethodOverrideDescriptor {
     public func methodDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<MethodDescriptor>? {
         return try layout.method.resolve(from: offset(of: \.method), in: machO).asOptional
     }
+    
+    public func methodDescriptor() throws -> SymbolOrElement<MethodDescriptor>? {
+        return try layout.method.resolve(from: pointer(of: \.method)).asOptional
+    }
 
     public func implementationSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Symbols? {
         return try layout.implementation.resolve(from: offset(of: \.implementation), in: machO)

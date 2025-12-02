@@ -36,7 +36,9 @@ extension TypeContextDescriptor {
         guard layout.flags.kind == .class else { return nil }
         return try machO.readWrapperElement(offset: offset) as ClassDescriptor
     }
+}
 
+extension TypeContextDescriptor {
     public func enumDescriptor() throws -> EnumDescriptor? {
         guard layout.flags.kind == .enum else { return nil }
         return try asPointer.readWrapperElement() as EnumDescriptor

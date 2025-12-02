@@ -39,6 +39,21 @@ extension ClassDescriptor {
         return try RelativeDirectPointer<StoredClassMetadataBounds>(relativeOffset: Int32(bitPattern: layout.metadataNegativeSizeInWordsOrResilientMetadataBounds)).resolve(from: offset(of: \.metadataNegativeSizeInWordsOrResilientMetadataBounds), in: machO)
     }
 
+
+    public func resilientMetadataBounds() throws -> StoredClassMetadataBounds {
+        return try RelativeDirectPointer<StoredClassMetadataBounds>(relativeOffset: Int32(bitPattern: layout.metadataNegativeSizeInWordsOrResilientMetadataBounds)).resolve(from: pointer(of: \.metadataNegativeSizeInWordsOrResilientMetadataBounds))
+    }
+
+    public func superclassTypeMangledName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName? {
+        try layout.superclassType.resolve(from: offset(of: \.superclassType), in: machO)
+    }
+
+    public func superclassTypeMangledName() throws -> MangledName? {
+        try layout.superclassType.resolve(from: pointer(of: \.superclassType))
+    }
+}
+
+extension ClassDescriptor {
     public var hasFieldOffsetVector: Bool {
         return layout.fieldOffsetVectorOffset != 0
     }
@@ -82,13 +97,5 @@ extension ClassDescriptor {
     public var hasObjCResilientClassStub: Bool {
         guard hasResilientSuperclass else { return false }
         return ExtraClassDescriptorFlags(rawValue: layout.metadataPositiveSizeInWordsOrExtraClassFlags).hasObjCResilientClassStub
-    }
-
-    public func superclassTypeMangledName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName? {
-        try layout.superclassType.resolve(from: offset(of: \.superclassType), in: machO)
-    }
-
-    public func superclassTypeMangledName() throws -> MangledName? {
-        try layout.superclassType.resolve(from: pointer(of: \.superclassType))
     }
 }

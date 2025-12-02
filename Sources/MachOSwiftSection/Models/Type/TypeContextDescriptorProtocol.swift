@@ -23,7 +23,9 @@ extension TypeContextDescriptorProtocol {
         guard layout.flags.isGeneric else { return nil }
         return try .init(contextDescriptor: self, in: machO)
     }
+}
 
+extension TypeContextDescriptorProtocol {
     public func metadataAccessor() throws -> MetadataAccessor? {
         return try layout.accessFunctionPtr.resolve(from: layout.pointer(from: asPointer, of: .accessFunctionPtr))
     }
@@ -41,7 +43,9 @@ extension TypeContextDescriptorProtocol {
         guard layout.flags.isGeneric else { return nil }
         return try .init(contextDescriptor: self)
     }
+}
 
+extension TypeContextDescriptorProtocol {
     public var hasSingletonMetadataInitialization: Bool {
         return layout.flags.kindSpecificFlags?.typeFlags?.hasSingletonMetadataInitialization ?? false
     }
