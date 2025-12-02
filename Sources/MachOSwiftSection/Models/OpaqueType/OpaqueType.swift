@@ -42,4 +42,36 @@ public struct OpaqueType: TopLevelType, ContextProtocol {
             self.invertedProtocols = nil
         }
     }
+
+    public init(descriptor: OpaqueTypeDescriptor) throws {
+        self.descriptor = descriptor
+
+        var currentOffset = try descriptor.asPointer.advanced(by: descriptor.layoutSize)
+
+        let genericContext = try descriptor.genericContext()
+
+        if let genericContext {
+            currentOffset += genericContext.size
+        }
+        self.genericContext = genericContext
+
+        if descriptor.numUnderlyingTypeArugments > 0 {
+            let underlyingTypeArgumentMangledNamePointers: [RelativeDirectPointer<MangledName>] = try currentOffset.readElements(numberOfElements: descriptor.numUnderlyingTypeArugments)
+            var underlyingTypeArgumentMangledNames: [MangledName] = []
+            for underlyingTypeArgumentMangledNamePointer in underlyingTypeArgumentMangledNamePointers {
+                try underlyingTypeArgumentMangledNames.append(underlyingTypeArgumentMangledNamePointer.resolve(from: currentOffset))
+                currentOffset += MemoryLayout<RelativeDirectPointer<MangledName>>.size
+            }
+            self.underlyingTypeArgumentMangledNames = underlyingTypeArgumentMangledNames
+        } else {
+            self.underlyingTypeArgumentMangledNames = []
+        }
+
+        if descriptor.flags.contains(.hasInvertibleProtocols) {
+            self.invertedProtocols = try currentOffset.readElement() as InvertibleProtocolSet
+            currentOffset.offset(of: InvertibleProtocolSet.self)
+        } else {
+            self.invertedProtocols = nil
+        }
+    }
 }

@@ -20,7 +20,7 @@ extension Resolvable {
     }
 
     public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
-        try ptr.stripPointerTags().assumingMemoryBound(to: Self.self).pointee
+        try ptr.stripPointerTags().readElement()
     }
 
     public static func resolve(from ptr: UnsafeRawPointer) throws -> Self? {
@@ -55,7 +55,7 @@ extension String: Resolvable {
     }
 
     public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
-        try .init(cString: ptr.stripPointerTags().assumingMemoryBound(to: CChar.self))
+        return try ptr.stripPointerTags().readString()
     }
 }
 
@@ -65,7 +65,7 @@ extension Resolvable where Self: LocatableLayoutWrapper {
     }
 
     public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
-        try .init(layout: ptr.stripPointerTags().assumingMemoryBound(to: Layout.self).pointee, offset: ptr.int)
+        try ptr.stripPointerTags().readWrapperElement()
     }
 }
 

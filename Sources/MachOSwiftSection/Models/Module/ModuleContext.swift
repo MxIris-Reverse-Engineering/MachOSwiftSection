@@ -11,4 +11,9 @@ public struct ModuleContext: TopLevelType, ContextProtocol {
         self.descriptor = descriptor
         self.name = try descriptor.name(in: machO)
     }
+    
+    public init(descriptor: ModuleContextDescriptor) throws {
+        self.descriptor = descriptor
+        self.name = try descriptor.name()
+    }
 }

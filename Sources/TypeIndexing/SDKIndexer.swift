@@ -148,7 +148,7 @@ final class SDKIndexer: Sendable {
         let cacheCompleteURL = cacheURL.appending(component: "indexComplete")
 
         if cacheCompleteURL.isExisted, indexOptions.contains(.indexSwiftModules) {
-            Self.logger.info("Found existing cache, loading cached modules from: \(cacheURL.path)")
+            Self.logger.info("Found existing cache, loading cached modules from: \(self.cacheURL.path)")
 
             do {
                 var modules: [SwiftModule] = []
@@ -273,7 +273,7 @@ final class SDKIndexer: Sendable {
         let duration = endTime - startTime
 
         Self.logger.info("SDK indexing completed in \(String(format: "%.2f", duration)) seconds")
-        Self.logger.info("Final results: \(modules.count) Swift modules, \(apinotesFiles.count) API Notes files")
+        Self.logger.info("Final results: \(self.modules.count) Swift modules, \(apinotesFiles.count) API Notes files")
     }
 }
 

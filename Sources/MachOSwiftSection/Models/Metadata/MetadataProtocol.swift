@@ -9,7 +9,7 @@ public protocol MetadataProtocol: ResolvableLocatableLayoutWrapper where Layout:
 }
 
 extension MetadataProtocol {
-    public static func createInMachO(_ type: Any.Type) -> (machO: MachOImage, metadata: Self)? {
+    public static func createInMachO(_ type: Any.Type) throws -> (machO: MachOImage, metadata: Self)? {
         let ptr = unsafeBitCast(type, to: UnsafeRawPointer.self)
 
         guard let machHeader = dyld_image_header_containing_address(ptr) else { return nil }
@@ -21,12 +21,9 @@ extension MetadataProtocol {
         return (machO, self.init(layout: layout, offset: ptr.int - machO.ptr.int))
     }
 
-    public static func createInProcess(_ type: Any.Type) -> Self {
+    public static func createInProcess(_ type: Any.Type) throws -> Self {
         let ptr = unsafeBitCast(type, to: UnsafeRawPointer.self)
-
-        let layout: Layout = unsafeBitCast(type, to: UnsafePointer<Layout>.self).pointee
-
-        return self.init(layout: layout, offset: ptr.int)
+        return try ptr.readWrapperElement()
     }
 }
 

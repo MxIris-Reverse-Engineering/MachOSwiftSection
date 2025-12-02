@@ -3,29 +3,6 @@ import MachOKit
 import AssociatedObject
 
 extension MachOFile {
-//    public var cache: DyldCache? {
-//        guard isLoadedFromDyldCache else { return nil }
-//        if let _cache {
-//            return _cache
-//        } else {
-//            guard let cache = try? DyldCache(url: url) else {
-//                return nil
-//            }
-//            var currentCache: DyldCache? = cache
-//            if let mainCache = cache.mainCache {
-//                currentCache = try? .init(
-//                    subcacheUrl: cache.url,
-//                    mainCacheHeader: mainCache.header
-//                )
-//            }
-//            _cache = currentCache
-//            return currentCache
-//        }
-//    }
-
-//    @AssociatedObject(.retain(.nonatomic))
-//    private var _cache: DyldCache?
-
     public func cache(for address: UInt64) -> DyldCache? {
         cacheAndFileOffset(for: address)?.0
     }
