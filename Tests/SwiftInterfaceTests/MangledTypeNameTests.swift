@@ -25,7 +25,7 @@ final class MangledTypeNameTests: MachOImageTests, @unchecked Sendable {
                 defer { print("---------------------") }
                 if let metatype = _typeByName(mangledTypeName.rawString) {
                     print(metatype)
-                    let currentMetadata = Metadata.createInProcess(metatype)
+                    let currentMetadata = try Metadata.createInProcess(metatype)
                     let typeLayout = try currentMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
                     print(typeLayout)
                 } else {
@@ -33,7 +33,7 @@ final class MangledTypeNameTests: MachOImageTests, @unchecked Sendable {
                     let mangledTypeNameString = try mangleAsString(node)
                     if let metatype = _typeByName(mangledTypeNameString) {
                         print(metatype)
-                        let currentMetadata = Metadata.createInProcess(metatype)
+                        let currentMetadata = try Metadata.createInProcess(metatype)
                         let typeLayout = try currentMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
                         print(typeLayout)
 

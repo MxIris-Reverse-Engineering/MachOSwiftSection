@@ -98,7 +98,7 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
     }
 
     @Test func metadataCreate() async throws {
-        let (machO, metadata) = try #require(StructMetadata.create(Image.self))
+        let (machO, metadata) = try #require(try StructMetadata.createInMachO(Image.self))
         print(machO.ptr, metadata.offset)
     }
 }
