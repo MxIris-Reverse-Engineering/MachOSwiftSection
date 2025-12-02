@@ -32,7 +32,7 @@ extension MachOFile {
     }
 }
 
-extension MachOFile: MachOReadable {
+extension MachOFile: Readable {
     public func readElement<Element>(
         offset: Int
     ) throws -> Element {

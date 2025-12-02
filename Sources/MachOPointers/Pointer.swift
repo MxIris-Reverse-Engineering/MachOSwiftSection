@@ -12,7 +12,7 @@ public struct Pointer<Pointee: Resolvable>: RelativeIndirectType, PointerProtoco
         self.address = address
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
         if let machOFile = machO as? MachOFile, let rebase = machOFile.resolveRebase(fileOffset: offset.cast()) {
             return .init(address: rebase)
         } else {

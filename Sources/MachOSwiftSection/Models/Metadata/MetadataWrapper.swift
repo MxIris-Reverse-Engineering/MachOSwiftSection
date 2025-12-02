@@ -23,7 +23,7 @@ public enum MetadataWrapper: Resolvable {
     case task(DispatchClassMetadata)
     case job(DispatchClassMetadata)
 
-    public static func resolve<MachO>(from offset: Int, in machO: MachO) throws -> MetadataWrapper where MachO: MachORepresentableWithCache, MachO: MachOReadable {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
         let metadata = try machO.readWrapperElement(offset: offset) as Metadata
         switch metadata.kind {
         case .class:
@@ -71,7 +71,7 @@ public enum MetadataWrapper: Resolvable {
         }
     }
 
-    public static func resolve(from ptr: UnsafeRawPointer) throws -> MetadataWrapper {
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
         let metadata = try Metadata.resolve(from: ptr)
         switch metadata.kind {
         case .class:

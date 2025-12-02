@@ -36,7 +36,7 @@ extension RelativeIndirectablePointerIntPairProtocol {
 }
 
 extension RelativeIndirectablePointerIntPairProtocol where Pointee: OptionalProtocol {
-    public func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Pointee {
+    public func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Pointee {
         guard isValid else { return nil }
         return try resolve(from: offset, in: machO)
     }

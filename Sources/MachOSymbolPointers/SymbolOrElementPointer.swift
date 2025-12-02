@@ -26,7 +26,7 @@ public enum SymbolOrElementPointer<Context: Resolvable>: RelativeIndirectType {
         }
     }
 
-    public func resolve<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> Resolved {
+    public func resolve<MachO: MachORepresentableWithCache & Readable>(in machO: MachO) throws -> Resolved {
         switch self {
         case .symbol(let unsolvedSymbol):
             return .symbol(unsolvedSymbol)
@@ -35,7 +35,7 @@ public enum SymbolOrElementPointer<Context: Resolvable>: RelativeIndirectType {
         }
     }
 
-    public func resolveOffset<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) -> Int {
+    public func resolveOffset<MachO: MachORepresentableWithCache & Readable>(in machO: MachO) -> Int {
         switch self {
         case .symbol(let unsolvedSymbol):
             return unsolvedSymbol.offset
@@ -48,11 +48,11 @@ public enum SymbolOrElementPointer<Context: Resolvable>: RelativeIndirectType {
         fatalError()
     }
 
-    public func resolveAny<T: Resolvable, MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> T {
+    public func resolveAny<T: Resolvable, MachO: MachORepresentableWithCache & Readable>(in machO: MachO) throws -> T {
         fatalError()
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
         if let machOFile = machO as? MachOFile {
             if let symbol = machOFile.resolveBind(fileOffset: offset) {
                 return .symbol(.init(offset: offset, name: symbol))

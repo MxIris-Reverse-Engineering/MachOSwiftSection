@@ -1,7 +1,7 @@
 import MachOKit
 import MachOExtensions
 
-extension MachOImage: MachOReadable {
+extension MachOImage: Readable {
     public func readElement<Element>(
         offset: Int
     ) throws -> Element {
@@ -53,7 +53,27 @@ extension MachOImage: MachOReadable {
     }
 }
 
-extension UnsafeRawPointer {
+extension UnsafeRawPointer: Readable {
+    public func readElement<Element>(offset: Int) throws -> Element {
+        try advanced(by: offset).readElement()
+    }
+    
+    public func readWrapperElement<Element>(offset: Int) throws -> Element where Element : MachOExtensions.LocatableLayoutWrapper {
+        try advanced(by: offset).readWrapperElement()
+    }
+    
+    public func readElements<Element>(offset: Int, numberOfElements: Int) throws -> [Element] {
+        try advanced(by: offset).readElements(numberOfElements: numberOfElements)
+    }
+    
+    public func readWrapperElements<Element>(offset: Int, numberOfElements: Int) throws -> [Element] where Element : MachOExtensions.LocatableLayoutWrapper {
+        try advanced(by: offset).readWrapperElements(numberOfElements: numberOfElements)
+    }
+    
+    public func readString(offset: Int) throws -> String {
+        try advanced(by: offset).readString()
+    }
+    
     package func readElement<Element>() throws -> Element {
         return assumingMemoryBound(to: Element.self).pointee
     }
@@ -79,5 +99,13 @@ extension UnsafeRawPointer {
 
     package func readString() throws -> String {
         return .init(cString: assumingMemoryBound(to: CChar.self))
+    }
+    
+    public func resolveOffset(at address: UInt64) -> Int {
+        0
+    }
+    
+    public func stripPointerTags(of rawVMAddr: UInt64) -> UInt64 {
+        MachOExtensions.stripPointerTags(of: rawVMAddr)
     }
 }

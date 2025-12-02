@@ -64,7 +64,7 @@ extension TypeContextDescriptorWrapper: Resolvable {
         case invalidTypeContextDescriptor
     }
 
-    public static func resolve<MachO>(from offset: Int, in machO: MachO) throws -> Self where MachO: MachORepresentableWithCache, MachO: MachOReadable {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
         let contextDescriptor: ContextDescriptor = try machO.readWrapperElement(offset: offset)
         switch contextDescriptor.flags.kind {
         case .class:
@@ -78,7 +78,7 @@ extension TypeContextDescriptorWrapper: Resolvable {
         }
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self? {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self? {
         do {
             return try resolve(from: offset, in: machO) as Self
         } catch {
