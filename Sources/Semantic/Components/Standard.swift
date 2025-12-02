@@ -6,11 +6,11 @@ public struct Standard: SemanticStringComponent, ExpressibleByStringInterpolatio
     public init(_ string: String) {
         self.string = string
     }
-    
+
     public init(stringLiteral value: String) {
         self.string = value
     }
-    
+
     public init(stringInterpolation: StringInterpolation) {
         self.string = stringInterpolation.description
     }

@@ -179,7 +179,7 @@ extension GenericRequirementDescriptor {
 
         try await builder(dumpParameterName(in: machO))
     }
-    
+
     package func dumpParameterName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws -> Node {
         try MetadataReader.demangleType(for: paramMangledName(in: machO), in: machO)
     }
@@ -236,8 +236,6 @@ extension GenericRequirementDescriptor {
             Standard("SwiftDumpInvertedProtocols")
         }
     }
-    
-    
 }
 
 extension GenericRequirementDescriptor {
@@ -276,13 +274,13 @@ extension GenericRequirementDescriptor {
     package func dumpProtocolParameterName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
         try await dumpProtocolMangledName(paramMangledName(in: machO), in: machO, builder: builder)
     }
-    
+
     @SemanticStringBuilder
     private func dumpProtocolMangledName<MachO: MachOSwiftSectionRepresentableWithCache>(_ mangledName: MangledName, in machO: MachO, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
         let node = try MetadataReader.demangleType(for: mangledName, in: machO)
 
         let params = node.filter(of: .dependentAssociatedTypeRef).compactMap { $0.first(of: .identifier)?.text }
-        
+
         if params.isEmpty {
             if node == .firstGenericParamType {
                 Keyword(.Self)

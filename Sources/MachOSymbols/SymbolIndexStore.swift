@@ -148,42 +148,42 @@ public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry>, @unchec
         fileprivate private(set) var symbolsByOffset: OrderedDictionary<Int, [Symbol]> = [:]
         @Mutex
         fileprivate private(set) var demangledNodeBySymbol: [Symbol: Node] = [:]
-        
+
         fileprivate func appendSymbol(_ symbol: IndexedSymbol, for kind: Node.Kind) {
             symbolsByKind[kind, default: []].append(symbol)
         }
-        
+
         fileprivate func setOpaqueTypeDescriptorSymbol(_ symbol: OpaqueTypeDescriptorSymbol, for node: Node) {
             opaqueTypeDescriptorSymbolByNode[node] = symbol
         }
-        
+
         fileprivate func setDemangledNode(_ demangledNode: Node?, for symbol: Symbol) {
             demangledNodeBySymbol[symbol] = demangledNode
         }
-        
+
         fileprivate func setSymbolsByOffset(_ symbolsByOffset: OrderedDictionary<Int, [Symbol]>) {
             self.symbolsByOffset = symbolsByOffset
         }
-        
+
         fileprivate func setDemangledNodeBySymbol(_ demangledNodeBySymbol: [Symbol: Node]) {
             self.demangledNodeBySymbol = demangledNodeBySymbol
         }
-        
+
         fileprivate func setMemberSymbols(for result: ProcessMemberSymbolResult) {
             memberSymbolsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNode, default: []].append(result.indexedSymbol)
             typeInfoByName[result.typeName] = result.typeInfo
         }
-        
+
         fileprivate func setMethodDescriptorMemberSymbols(for result: ProcessMemberSymbolResult) {
             methodDescriptorMemberSymbolsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNode, default: []].append(result.indexedSymbol)
             typeInfoByName[result.typeName] = result.typeInfo
         }
-        
+
         fileprivate func setProtocolWitnessMemberSymbols(for result: ProcessMemberSymbolResult) {
             protocolWitnessMemberSymbolsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNode, default: []].append(result.indexedSymbol)
             typeInfoByName[result.typeName] = result.typeInfo
         }
-        
+
         fileprivate func setGlobalSymbols(for result: ProcessGlobalSymbolResult) {
             globalSymbolsByKind[result.kind, default: []].append(result.indexedSymbol)
         }
@@ -261,11 +261,11 @@ public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry>, @unchec
                 print(error)
             }
         }
-        
+
         entry.setSymbolsByOffset(symbolsByOffset)
-        
+
         entry.setDemangledNodeBySymbol(demangledNodeBySymbol)
-        
+
         return entry
     }
 
@@ -354,12 +354,10 @@ public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry>, @unchec
         return nil
     }
 
-    
     fileprivate struct ProcessGlobalSymbolResult: Sendable {
         let kind: GlobalKind
         let indexedSymbol: IndexedSymbol
     }
-    
 
     private func processGlobalSymbol(_ symbol: Symbol, node: Node, rootNode: Node) -> ProcessGlobalSymbolResult? {
         switch node.kind {

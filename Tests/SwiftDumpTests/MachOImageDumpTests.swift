@@ -19,7 +19,6 @@ import SwiftUI
 
 @Suite(.serialized)
 final class MachOImageDumpTests: MachOImageTests, DumpableTests, @unchecked Sendable {
-    
     override class var imageName: MachOImageName { .AppKit }
 }
 
@@ -39,12 +38,11 @@ extension MachOImageDumpTests {
     @Test func associatedTypesInImage() async throws {
         try await dumpAssociatedTypes(for: machOImage)
     }
-    
+
     @Test func symbols() async throws {
-        
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
-        
+
         let symbols = symbolIndexStore.allSymbols(in: machOImage)
         for symbol in symbols {
             print(symbol.offset, symbol.name)

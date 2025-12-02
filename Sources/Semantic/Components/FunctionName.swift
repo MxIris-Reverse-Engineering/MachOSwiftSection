@@ -7,5 +7,3 @@ public struct FunctionName: SemanticStringComponent {
         self.string = string
     }
 }
-
-

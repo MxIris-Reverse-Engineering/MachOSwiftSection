@@ -17,7 +17,7 @@ struct SwiftModule: Sendable, Codable {
     init(moduleName: String, path: String, platform: SDKPlatform) async throws {
         @Dependency(\.sourceKitManager)
         var sourceKitManager
-        
+
         self.moduleName = moduleName
         self.path = path
         let interfaceFile = try await sourceKitManager.interface(for: moduleName, in: platform)
@@ -56,6 +56,5 @@ struct SwiftModule: Sendable, Codable {
         SwiftModuleIndexer(module: self)
     }
 }
-
 
 #endif

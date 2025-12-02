@@ -58,7 +58,7 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
             }
         }
     }
-    
+
     @SemanticStringBuilder
     package var associatedTypes: SemanticString {
         get async throws {
@@ -78,7 +78,6 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
             }
         }
     }
-    
 
     package var body: SemanticString {
         get async throws {
@@ -155,7 +154,6 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
     }
 }
 
-
 extension GenericRequirement {
     var isProtocolInherited: Bool {
         paramManagledName.rawString == "x" && (flags.kind == .protocol || flags.kind == .layout || flags.kind == .baseClass)
@@ -163,30 +161,26 @@ extension GenericRequirement {
 }
 
 extension RangeReplaceableCollection {
-    
-    /**
-     * Removes and returns the elements that satisfy the given predicate.
-     * This method performs the filtering and removal in a single pass.
-     *
-     * - Parameter predicate: A closure that takes an element of the
-     *   sequence as its argument and returns a Boolean value indicating
-     *   whether the element should be extracted.
-     * - Returns: An array containing the elements that were removed from the collection.
-     * - Complexity: O(n), where n is the length of the collection.
-     */
+    /// Removes and returns the elements that satisfy the given predicate.
+    /// This method performs the filtering and removal in a single pass.
+    /// 
+    /// - Parameter predicate: A closure that takes an element of the
+    ///   sequence as its argument and returns a Boolean value indicating
+    ///   whether the element should be extracted.
+    /// - Returns: An array containing the elements that were removed from the collection.
+    /// - Complexity: O(n), where n is the length of the collection.
     @discardableResult
     mutating func extract(
         where predicate: (Element) throws -> Bool
     ) rethrows -> [Element] {
-        
         // Create a new collection to store the elements that will remain.
         // We can't modify the collection while iterating over it directly,
         // so we build a new one for the elements to keep.
         var remainingElements = Self()
-        
+
         // Create an array to store the elements that are extracted.
         var extractedElements: [Element] = []
-        
+
         // Iterate through each element of the original collection.
         for element in self {
             // Check if the element satisfies the predicate.
@@ -198,12 +192,11 @@ extension RangeReplaceableCollection {
                 remainingElements.append(element)
             }
         }
-        
+
         // Replace the original collection's content with the remaining elements.
         self = remainingElements
-        
+
         // Return the array of extracted elements.
         return extractedElements
     }
 }
-

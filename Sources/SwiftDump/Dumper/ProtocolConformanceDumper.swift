@@ -196,5 +196,3 @@ extension ProtocolConformance {
         }
     }
 }
-
-

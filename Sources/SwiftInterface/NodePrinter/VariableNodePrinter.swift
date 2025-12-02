@@ -4,13 +4,13 @@ import Semantic
 
 struct VariableNodePrinter: InterfaceNodePrintable {
     typealias Context = InterfaceNodePrinterContext
-    
+
     var target: SemanticString = ""
 
     private var isStatic: Bool = false
 
     private let isStored: Bool
-    
+
     private let isOverride: Bool
 
     private let hasSetter: Bool
@@ -20,9 +20,9 @@ struct VariableNodePrinter: InterfaceNodePrintable {
     private(set) weak var delegate: (any NodePrintableDelegate)?
 
     private(set) var targetNode: Node?
-    
+
     private(set) var isProtocol: Bool = false
-    
+
     init(isStored: Bool, isOverride: Bool, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
         self.isStored = isStored
         self.isOverride = isOverride
@@ -80,13 +80,13 @@ struct VariableNodePrinter: InterfaceNodePrintable {
         guard let identifier else {
             throw Error.onlySupportedForVariableNode(node)
         }
-        
+
         var targetNode = node
         if isStatic {
             targetNode = Node(kind: .static, child: targetNode)
         }
         self.targetNode = targetNode
-        
+
         if let first = node.children.first {
             if first.isKind(of: .extension) {
                 isProtocol = first.children.at(1)?.isKind(of: .protocol) ?? false
@@ -104,11 +104,11 @@ struct VariableNodePrinter: InterfaceNodePrintable {
 
         target.write(identifier.text ?? "", context: .context(for: identifier, state: .printIdentifier))
         target.write(": ")
-        
+
         guard let type = node.children.first(of: .type) else { return }
-        
+
         await printName(type)
-        
+
         guard !isStored else { return }
 
         target.write(" {")

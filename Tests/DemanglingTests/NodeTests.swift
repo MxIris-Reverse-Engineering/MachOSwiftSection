@@ -3,7 +3,7 @@ import Testing
 @testable import Demangling
 
 struct NodeTests {
-    @Test func testNode() {
+    @Test func node() {
         _ = Node(kind: .type, contents: .none) {
             Node(kind: .dependentMemberType) {
                 Node(kind: .dependentGenericParamType, contents: .text("A")) {

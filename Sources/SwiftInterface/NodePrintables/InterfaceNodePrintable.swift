@@ -11,9 +11,9 @@ protocol InterfaceNodePrintableContext: NodePrintableContext, FunctionTypeNodePr
 @MemberwiseInit()
 struct InterfaceNodePrinterContext: InterfaceNodePrintableContext {
     var isAllocator: Bool = false
-    
+
     var isBlockOrClosure: Bool = false
-    
+
     init() {}
 }
 

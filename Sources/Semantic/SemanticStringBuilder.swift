@@ -35,7 +35,7 @@ public enum SemanticStringBuilder {
     public static func buildPartialBlock(accumulated: [Element], next: SemanticString?) -> [Element] { accumulated + (next?.components ?? []) }
 
     public static func buildPartialBlock(accumulated: [Element], next: some CustomStringConvertible) -> [Element] { accumulated + [Standard(next.description)] }
-    
+
     public static func buildPartialBlock(accumulated: [Element], next: Void) -> [Element] { accumulated }
 
     public static func buildOptional(_ components: [Element]?) -> [Element] { components ?? [] }

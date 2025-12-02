@@ -6,9 +6,9 @@ import Utilities
 
 package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCache>: ConformedDumper {
     private let associatedType: AssociatedType
-    
+
     private let configuration: DumperConfiguration
-    
+
     private let machO: MachO
 
     package init(_ dumped: AssociatedType, using configuration: DumperConfiguration, in machO: MachO) {
@@ -20,7 +20,7 @@ package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCac
     private var demangleResolver: DemangleResolver {
         configuration.demangleResolver
     }
-    
+
     package var declaration: SemanticString {
         get async throws {
             Keyword(.extension)
@@ -65,11 +65,11 @@ package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCac
             }
         }
     }
-    
+
     package var body: SemanticString {
         get async throws {
             try await declaration
-            
+
             Space()
 
             Standard("{")

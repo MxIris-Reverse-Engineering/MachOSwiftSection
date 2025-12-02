@@ -1,7 +1,6 @@
 import Foundation
 import Testing
 import MachOKit
-
 import MachOFoundation
 
 package class XcodeMachOFileTests {

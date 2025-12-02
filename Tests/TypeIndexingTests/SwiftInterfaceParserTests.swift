@@ -12,6 +12,3 @@ class SwiftInterfaceParserTests: DyldCacheTests, @unchecked Sendable {
         }
     }
 }
-
-
-

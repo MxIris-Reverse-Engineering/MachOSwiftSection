@@ -66,8 +66,7 @@ struct DemangleOptionGroup: ParsableArguments, Sendable {
     var showClosureSignature: Bool?
     @Flag(inversion: .prefixedEnableDisable)
     var showModuleInDependentMemberType: Bool?
-    
-    
+
     func buildSwiftDumpDemangleOptions() -> SwiftDump.DemangleOptions {
         var options = demangleOptions.options
         if let synthesizeSugarOnTypes = synthesizeSugarOnTypes {

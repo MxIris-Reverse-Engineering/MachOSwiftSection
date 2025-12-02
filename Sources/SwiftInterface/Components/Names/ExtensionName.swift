@@ -5,7 +5,7 @@ import Demangling
 @MemberwiseInit(.public)
 public struct ExtensionName: DefinitionName, Hashable, Sendable {
     public let node: Node
-    
+
     public let kind: ExtensionKind
 
     @SemanticStringBuilder
@@ -24,7 +24,6 @@ public struct ExtensionName: DefinitionName, Hashable, Sendable {
         }
     }
 }
-
 
 extension ExtensionName {
     var isProtocol: Bool {

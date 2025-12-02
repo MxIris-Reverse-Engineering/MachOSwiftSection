@@ -9,9 +9,8 @@ import MachOFoundation
 
 @Suite
 final class PrimitiveTypeMappingTests: DyldCacheTests, @unchecked Sendable {
-    
     override class var cacheImageName: MachOImageName { .AttributeGraph }
-    
+
     @Test func mappingInSwiftUI() async throws {
         let mapping = try PrimitiveTypeMapping(machO: machOFileInCache)
         mapping.dump()

@@ -25,7 +25,7 @@ struct InterfaceCommand: AsyncParsableCommand {
 
     @Flag(help: "Generate field offset and PWT offset comments, if possible")
     var emitOffsetComments: Bool = false
-    
+
     @Option(name: .shortAndLong, help: "The color scheme for the output.")
     var colorScheme: SemanticColorScheme = .none
 

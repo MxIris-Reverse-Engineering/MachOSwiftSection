@@ -10,15 +10,15 @@ public struct SemanticString: Sendable, TextOutputStream, Codable, ExpressibleBy
     public init(@SemanticStringBuilder builder: () -> SemanticString) {
         self = builder()
     }
-    
+
     public init(components: any SemanticStringComponent...) {
         self.components = components.map { .init(component: $0) }
     }
-    
+
     public init(components: [any SemanticStringComponent]) {
         self.components = components.map { .init(component: $0) }
     }
-    
+
     public init(stringLiteral value: StringLiteralType) {
         if value.isEmpty {
             self.init()
@@ -38,7 +38,7 @@ public struct SemanticString: Sendable, TextOutputStream, Codable, ExpressibleBy
     public func enumerate(using block: (String, SemanticType) -> Void) {
         components.forEach { block($0.string, $0.type) }
     }
-    
+
     public mutating func write(_ string: String) {
         write(string, type: .standard)
     }
@@ -46,17 +46,17 @@ public struct SemanticString: Sendable, TextOutputStream, Codable, ExpressibleBy
     public mutating func write(_ string: String, type: SemanticType) {
         append(string, type: type)
     }
-    
+
     public func map(_ modifier: (any SemanticStringComponent) -> any SemanticStringComponent) -> SemanticString {
         .init(components: components.map { modifier($0) })
     }
-    
+
     public func replacing(_ transform: (SemanticType) -> SemanticType) -> SemanticString {
         map { component in
             return AnyComponent(string: component.string, type: transform(component.type))
         }
     }
-    
+
     public func replacing(from types: SemanticType..., to newType: SemanticType) -> SemanticString {
         map { component in
             if types.contains(component.type) {

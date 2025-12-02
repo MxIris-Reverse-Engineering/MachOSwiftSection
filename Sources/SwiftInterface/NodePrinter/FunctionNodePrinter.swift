@@ -5,13 +5,13 @@ import Semantic
 
 struct FunctionNodePrinter: InterfaceNodePrintable {
     typealias Context = InterfaceNodePrinterContext
-    
+
     var target: SemanticString = ""
 
     private var isStatic: Bool = false
 
     private let isOverride: Bool
-    
+
     private(set) weak var delegate: (any NodePrintableDelegate)?
 
     private(set) var isProtocol: Bool = false

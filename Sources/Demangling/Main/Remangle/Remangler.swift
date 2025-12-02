@@ -1719,7 +1719,7 @@ extension Remangler {
         } else {
             processedText = text
         }
-        
+
         // Use the shared Mangle.mangleIdentifier implementation
         Self.mangleIdentifier(self, processedText)
 
@@ -4208,20 +4208,19 @@ extension Remangler {
 
         try mangle(node[_child: childIt], depth: depth + 1)
         childIt += 1
-        
+
         try mangle(node[_child: childIt], depth: depth + 1)
         childIt += 1
-        
+
         append("p")
-        
+
         try mangle(node[_child: childIt], depth: depth + 1)
         childIt += 1
-        
+
         append("r")
     }
 
     private func mangleAutoDiffSubsetParametersThunk(_ node: Node, depth: Int) throws(ManglingError) {
-        
         var childIt = 0
 
         while let next = try? node[_child: childIt], next.kind != .autoDiffFunctionKind {
@@ -4233,20 +4232,20 @@ extension Remangler {
 
         try mangle(node[_child: childIt], depth: depth + 1)
         childIt += 1
-        
+
         try mangle(node[_child: childIt], depth: depth + 1)
         childIt += 1
-        
+
         append("p")
-        
+
         try mangle(node[_child: childIt], depth: depth + 1)
         childIt += 1
-        
+
         append("r")
-        
+
         try mangle(node[_child: childIt], depth: depth + 1)
         childIt += 1
-        
+
         append("P")
     }
 
@@ -4257,7 +4256,7 @@ extension Remangler {
             throw .genericError("")
         }
     }
-    
+
     private func mangleDifferentiabilityWitness(_ node: Node, depth: Int) throws(ManglingError) {
         var childIt = 0
 
@@ -4269,20 +4268,20 @@ extension Remangler {
         if let last = node.children.last, last.kind == .dependentGenericSignature {
             try mangle(last, depth: depth + 1)
         }
-        
+
         append("WJ")
-        
+
         try append(node[_child: childIt].character)
         childIt += 1
-        
+
         try mangle(node[_child: childIt], depth: depth + 1)
         childIt += 1
-        
+
         append("p")
-        
+
         try mangle(node[_child: childIt], depth: depth + 1)
         childIt += 1
-        
+
         append("r")
     }
 
@@ -5791,7 +5790,7 @@ extension Node {
 
         return true
     }
-    
+
     fileprivate var character: Character {
         get throws(ManglingError) {
             if let index, let scalar = UnicodeScalar(UInt32(index)) {
@@ -5802,7 +5801,6 @@ extension Node {
         }
     }
 }
-
 
 func getUnspecialized(_ node: Node) -> Node? {
     var numToCopy = 2

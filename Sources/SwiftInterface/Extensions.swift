@@ -161,7 +161,6 @@ extension Node {
     }
 }
 
-
 extension Sequence {
     func filterNonNil<T, E: Swift.Error>(_ filter: (Element) throws(E) -> T?) throws(E) -> [Element] {
         var results: [Element] = []

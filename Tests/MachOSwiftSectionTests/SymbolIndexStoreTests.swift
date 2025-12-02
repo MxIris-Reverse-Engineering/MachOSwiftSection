@@ -7,9 +7,8 @@ import Dependencies
 @_spi(Internals) import MachOCaches
 
 final class SymbolIndexStoreTests: DyldCacheTests, @unchecked Sendable {
-    
     override class var cacheImageName: MachOImageName { .SwiftUICore }
-    
+
     @Dependency(\.symbolIndexStore)
     var symbolIndexStore
 
@@ -46,12 +45,12 @@ final class SymbolIndexStoreTests: DyldCacheTests, @unchecked Sendable {
             print("----------------------------")
         }
     }
-    
+
     @Test func symbols() async throws {
         let clock = ContinuousClock()
         let machO = machOFileInCache
         let duration = clock.measure {
-            let _ = symbolIndexStore.allSymbols(in: machO)
+            _ = symbolIndexStore.allSymbols(in: machO)
         }
         print(duration)
         guard let memberSymbolsByKind = symbolIndexStore.entry(in: machO)?.memberSymbolsByKind else {

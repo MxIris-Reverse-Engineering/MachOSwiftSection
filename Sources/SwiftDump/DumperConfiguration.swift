@@ -12,8 +12,7 @@ public struct DumperConfiguration: Sendable {
     public var indentation: Int = 1
     public var displayParentName: Bool = true
     public var emitOffsetComments: Bool = false
-    
-    
+
     public static func demangleOptions(_ demangleOptions: DemangleOptions) -> Self {
         .init(demangleResolver: .options(demangleOptions))
     }

@@ -5,10 +5,10 @@ import SwiftStdlibToolbox
 public enum SwiftInterfaceEvents {
     /// The payload for a dispatched event, containing structured data about the builder's progress and state.
     public enum Payload {
-        // Phase-based events
+        /// Phase-based events
         case phaseTransition(phase: Phase, state: State)
 
-        // Initialization events
+        /// Initialization events
         case initialization(config: InitializationConfig)
 
         // Extraction events
@@ -70,7 +70,7 @@ public enum SwiftInterfaceEvents {
 
         case nameExtractionWarning(for: NameExtractionTarget)
 
-        // Diagnostic events (for unstructured messages only when absolutely necessary)
+        /// Diagnostic events (for unstructured messages only when absolutely necessary)
         case diagnostic(message: DiagnosticMessage)
     }
 

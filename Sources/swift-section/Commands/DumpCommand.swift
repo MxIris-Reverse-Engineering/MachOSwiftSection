@@ -9,7 +9,7 @@ import Semantic
 struct DumpCommand: AsyncParsableCommand, Sendable {
     static let configuration: CommandConfiguration = .init(
         commandName: "dump",
-        abstract: "Dump Swift information from a Mach-O file or dyld shared cache.",
+        abstract: "Dump Swift information from a Mach-O file or dyld shared cache."
     )
 
     private var dumpedString = ""
@@ -31,14 +31,14 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
 
     @Flag(help: "Generate field offset and PWT offset comments, if possible")
     var emitOffsetComments: Bool = false
-    
+
     mutating func run() async throws {
         let machOFile = try MachOFile.load(options: machOOptions)
 
         var dumpConfiguration: DumperConfiguration = .demangleOptions(demangleOptions.buildSwiftDumpDemangleOptions())
-        
+
         dumpConfiguration.emitOffsetComments = emitOffsetComments
-        
+
         for section in sections {
             switch section {
             case .types:

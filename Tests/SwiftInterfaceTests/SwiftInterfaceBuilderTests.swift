@@ -26,7 +26,7 @@ extension SwiftInterfaceBuilderTests {
             )
         )
     }
-    
+
     func buildFile(in machO: MachOFile) async throws {
         let builder = try SwiftInterfaceBuilder(configuration: builderConfiguration, eventHandlers: [], in: machO)
         let clock = ContinuousClock()

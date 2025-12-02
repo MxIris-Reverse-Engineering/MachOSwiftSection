@@ -17,13 +17,12 @@ final class AssociatedTypeTests: DyldCacheTests, @unchecked Sendable {
 //            if conformingTypeName == "SwiftUI.LeadingTrailingLabeledContentStyle", protocolTypeName == "SwiftUI.LabeledContentStyle" {
             conformingTypeName.print()
             protocolTypeName.print()
-                for record in associatedType.records {
-                    let substitutedTypeName = try record.substitutedTypeName(in: machO)
-                    try MetadataReader.demangleType(for: substitutedTypeName, in: machO).print().print()
+            for record in associatedType.records {
+                let substitutedTypeName = try record.substitutedTypeName(in: machO)
+                try MetadataReader.demangleType(for: substitutedTypeName, in: machO).print().print()
 //                    substitutedTypeName.startOffset.print()
-                    
-                }
-                "----------------".print()
+            }
+            "----------------".print()
 //            }
         }
     }

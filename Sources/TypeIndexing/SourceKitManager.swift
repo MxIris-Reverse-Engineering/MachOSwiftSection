@@ -30,12 +30,12 @@ actor SourceKitManager {
     func interface(for moduleName: String, in platform: SDKPlatform) async throws -> SwiftInterfaceGeneratedFile {
         let sourcekitd = try await sourcekitd
         let keys = sourcekitd.keys
-        let request = sourcekitd.dictionary([
+        let request = try sourcekitd.dictionary([
             keys.moduleName: moduleName,
             keys.name: UUID().uuidString,
             keys.compilerArgs: [
                 "-sdk", platform.sdkPath,
-                "-target", try platform.targetTriple,
+                "-target", platform.targetTriple,
             ],
         ])
         let response = try await sourcekitd.send(\.editorOpenInterface, request, timeout: .seconds(60), restartTimeout: .seconds(60), documentUrl: nil, fileContents: nil)

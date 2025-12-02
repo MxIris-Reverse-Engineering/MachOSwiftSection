@@ -20,7 +20,7 @@ public struct Symbols: AsyncResolvable {
     public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self? {
         return machO.symbols(offset: offset)
     }
-    
+
     public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) async throws -> Self {
         try await required(resolve(from: offset, in: machO))
     }

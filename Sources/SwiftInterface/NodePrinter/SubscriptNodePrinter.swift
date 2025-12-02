@@ -4,13 +4,13 @@ import Semantic
 
 struct SubscriptNodePrinter: InterfaceNodePrintable {
     typealias Context = InterfaceNodePrinterContext
-    
+
     var target: SemanticString = ""
 
     private var isStatic: Bool = false
 
     private let isOverride: Bool
-    
+
     private let hasSetter: Bool
 
     private let indentation: Int
@@ -20,7 +20,7 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
     private(set) var isProtocol: Bool = false
 
     private(set) var targetNode: Node?
-    
+
     init(isOverride: Bool, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
         self.isOverride = isOverride
         self.hasSetter = hasSetter
@@ -73,7 +73,7 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
             targetNode = Node(kind: .static, child: targetNode)
         }
         self.targetNode = targetNode
-        
+
         var genericFunctionTypeList: Node?
         var node = node
         if node.kind == .boundGenericFunction, let first = node.children.at(0), let second = node.children.at(1) {

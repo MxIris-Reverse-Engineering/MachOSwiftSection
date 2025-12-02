@@ -63,13 +63,13 @@ final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {
             }
         }
     }
-    
+
     @Test func subscriptNodes() async throws {
         let demangledSymbols = await symbolIndexStore.memberSymbols(
             of: .subscript(inExtension: false, isStatic: false),
-                .subscript(inExtension: true, isStatic: false),
-                .subscript(inExtension: false, isStatic: true),
-                .subscript(inExtension: true, isStatic: true),
+            .subscript(inExtension: true, isStatic: false),
+            .subscript(inExtension: false, isStatic: true),
+            .subscript(inExtension: true, isStatic: true),
             in: machOFileInCache
         )
 

@@ -243,7 +243,7 @@ extension FunctionTypeNodePrintable {
         }
         target.write(") ")
     }
-    
+
     private mutating func printReturnType(_ name: Node) async {
         if name.children.isEmpty, let t = name.text {
             target.write(t)
@@ -251,7 +251,7 @@ extension FunctionTypeNodePrintable {
             await printChildren(name)
         }
     }
-    
+
     mutating func printTypeThrowsAnnotation(_ name: Node) async {
         target.writeSpace()
         target.write("throws", context: .context(state: .printKeyword))
@@ -261,7 +261,7 @@ extension FunctionTypeNodePrintable {
         }
         target.write(")")
     }
-    
+
     mutating func printGlobalActorFunctionType(_ name: Node) async {
         if let firstChild = name.children.first {
             target.write("@")
@@ -269,7 +269,7 @@ extension FunctionTypeNodePrintable {
             target.write(" ")
         }
     }
-    
+
     mutating func printDifferentiableFunctionType(_ name: Node) async {
         target.write("@differentiable")
         switch UnicodeScalar(UInt8(name.index ?? 0)) {
@@ -279,7 +279,7 @@ extension FunctionTypeNodePrintable {
         default: break
         }
     }
-    
+
     mutating func printLabelList(name: Node, type: Node, genericFunctionTypeList: Node?) async {
         var labelList = name.children.first(of: .labelList)
 

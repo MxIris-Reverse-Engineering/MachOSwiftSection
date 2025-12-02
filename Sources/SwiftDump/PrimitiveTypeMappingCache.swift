@@ -16,8 +16,8 @@ package final class PrimitiveTypeMappingCache: MachOCache<PrimitiveTypeMapping>,
             return nil
         }
     }
-    
-    package override func entry<MachO>(in machO: MachO) -> PrimitiveTypeMapping? where MachO : MachORepresentableWithCache {
+
+    package override func entry<MachO>(in machO: MachO) -> PrimitiveTypeMapping? where MachO: MachORepresentableWithCache {
         super.entry(in: machO)
     }
 }

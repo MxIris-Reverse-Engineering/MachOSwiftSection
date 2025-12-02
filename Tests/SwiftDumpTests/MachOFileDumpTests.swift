@@ -1,7 +1,6 @@
 import Foundation
 import Testing
 import MachOKit
-
 import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump

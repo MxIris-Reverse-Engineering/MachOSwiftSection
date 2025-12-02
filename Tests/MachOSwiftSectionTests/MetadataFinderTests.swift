@@ -11,18 +11,16 @@ import Dependencies
 
 @Suite
 final class MetadataFinderTests: DyldCacheTests, @unchecked Sendable {
-
     override class var cacheImageName: MachOImageName { .AppKit }
 
     @Dependency(\.symbolIndexStore)
     private var symbolIndexStore
-    
-    
+
     @Test func dumpMetadatasInAppKit() async throws {
         let symbols = symbolIndexStore.symbols(of: .typeMetadata, in: machOFileInCache)
         for symbol in symbols {
             let metadata = try Metadata.resolve(from: symbol.offset, in: machOFileInCache)
-            print(try demangleAsNode(symbol.name).print(using: .default), terminator: " ")
+            try print(demangleAsNode(symbol.name).print(using: .default), terminator: " ")
             print(metadata.kind)
         }
     }
@@ -30,7 +28,7 @@ final class MetadataFinderTests: DyldCacheTests, @unchecked Sendable {
     @Test func dumpMetadatasInSwiftUI() async throws {
         try await dumpMetadatas(for: #require(mainCache.machOFile(named: .SwiftUI)))
     }
-    
+
     private func dumpMetadatas(for machO: MachOFile) async throws {
         let finder: MetadataFinder<MachOFile> = .init(machO: machO)
 
@@ -38,7 +36,7 @@ final class MetadataFinderTests: DyldCacheTests, @unchecked Sendable {
 
         for typeDescriptor in typeDescriptors {
             switch typeDescriptor {
-            case .enum/*(let enumDescriptor)*/:
+            case .enum /* (let enumDescriptor) */:
                 continue
             case .struct(let structDescriptor):
                 guard let metadata = try finder.metadata(for: structDescriptor) as StructMetadata? else {

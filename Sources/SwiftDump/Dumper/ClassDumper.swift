@@ -16,7 +16,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
     @Dependency(\.symbolIndexStore)
     private var symbolIndexStore
-    
+
     package init(_ dumped: Class, using configuration: DumperConfiguration, in machO: MachO) {
         self.class = dumped
         self.configuration = configuration
@@ -63,7 +63,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
             }
         }
     }
-    
+
     private var fieldOffsets: [Int]? {
         guard configuration.emitOffsetComments else { return nil }
         guard let metadataAccessor = try? `class`.descriptor.metadataAccessor(in: machO), !`class`.flags.isGeneric else { return nil }
@@ -75,13 +75,13 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
             return nil
         }
     }
-    
+
     package var fields: SemanticString {
         get async throws {
             let fieldOffsets = fieldOffsets
             for (offset, fieldRecord) in try `class`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
                 BreakLine()
-                
+
                 if let fieldOffsets, let fieldOffset = fieldOffsets[safe: offset.index] {
                     Indent(level: configuration.indentation)
                     Comment("field offset: 0x\(String(fieldOffset, radix: 16))")
@@ -168,9 +168,9 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                 BreakLine()
 
                 Indent(level: 1)
-                
+
                 let methodDescriptor = try descriptor.methodDescriptor(in: machO)
-                
+
                 if let symbols = try? descriptor.implementationSymbols(in: machO), let node = try await validNode(for: symbols, visitedNodes: methodOverrideVisitedNodes) {
                     dumpMethodKind(for: methodDescriptor?.resolved)
                     Keyword(.override)
@@ -337,7 +337,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
             Error("Symbol not found")
         }
     }
-    
+
     package func validNode(for symbols: Symbols, visitedNodes: borrowing OrderedSet<Node> = []) async throws -> Node? {
         let currentInterfaceName = try await _name(using: .options(.interfaceType)).string
         for symbol in symbols {

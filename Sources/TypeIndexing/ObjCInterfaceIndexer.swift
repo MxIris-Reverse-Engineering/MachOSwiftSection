@@ -65,5 +65,4 @@ final class ObjCInterfaceIndexer<MachO: MachORepresentable & Sendable>: Sendable
     }
 }
 
-
 #endif

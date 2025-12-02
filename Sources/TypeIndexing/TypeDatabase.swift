@@ -118,5 +118,4 @@ package final class TypeDatabase<MachO: MachORepresentable & Sendable>: Sendable
     }
 }
 
-
 #endif

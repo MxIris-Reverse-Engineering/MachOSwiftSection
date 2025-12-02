@@ -15,7 +15,7 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
             return true
         }
     }
-    
+
     public var symbol: Symbol? {
         switch self {
         case .symbol(let unsolvedSymbol):
@@ -24,7 +24,7 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
             return nil
         }
     }
-    
+
     public var resolved: Element? {
         switch self {
         case .symbol:
@@ -49,7 +49,7 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
             return try Element.resolve(from: offset, in: machO).map { .element($0) }
         }
     }
-    
+
     public func map<T, E: Swift.Error>(_ transform: (Element) throws(E) -> T) throws(E) -> SymbolOrElement<T> {
         switch self {
         case .symbol(let unsolvedSymbol):
@@ -58,7 +58,7 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
             return try .element(transform(context))
         }
     }
-    
+
     public func mapOptional<T, E: Swift.Error>(_ transform: (Element) throws(E) -> T?) throws(E) -> SymbolOrElement<T>? {
         switch self {
         case .symbol(let unsolvedSymbol):
@@ -71,7 +71,7 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
             }
         }
     }
-    
+
     public func flatMap<T, E: Swift.Error>(_ transform: (Element) throws(E) -> SymbolOrElement<T>) throws(E) -> SymbolOrElement<T> {
         switch self {
         case .symbol(let unsolvedSymbol):
