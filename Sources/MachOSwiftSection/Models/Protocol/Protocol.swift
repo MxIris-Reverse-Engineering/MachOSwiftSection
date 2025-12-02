@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-
 import MachOFoundation
 
 // using TrailingObjects
@@ -45,7 +44,7 @@ public struct `Protocol`: TopLevelType, ContextProtocol {
             let requirementInSignatures = try machO.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.numRequirementsInSignature.cast()) as [GenericRequirementDescriptor]
             self.requirementInSignatures = try requirementInSignatures.map { try .init(descriptor: $0, in: machO) }
             currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: descriptor.numRequirementsInSignature.cast())
-            currentOffset = align(address: currentOffset.cast(), alignment: 4).cast()
+            currentOffset.align(to: 4)
         } else {
             self.requirementInSignatures = []
         }

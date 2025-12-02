@@ -12,4 +12,3 @@ public protocol MachOReadable {
 
     func readString(offset: Int) throws -> String
 }
-

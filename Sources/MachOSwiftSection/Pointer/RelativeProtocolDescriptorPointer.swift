@@ -1,5 +1,4 @@
 import MachOKit
-
 import MachOFoundation
 
 public enum RelativeProtocolDescriptorPointer: Sendable, Equatable {
@@ -24,7 +23,6 @@ public enum RelativeProtocolDescriptorPointer: Sendable, Equatable {
         }
     }
 
-    
     public func protocolDescriptorRef<MachO: MachOSwiftSectionRepresentableWithCache>(from offset: Int, in machO: MachO) throws -> ProtocolDescriptorRef {
         let storedPointer = try rawPointer.resolveIndirectType(from: offset, in: machO).address
         if isObjC {

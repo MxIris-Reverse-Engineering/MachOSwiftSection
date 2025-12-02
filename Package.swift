@@ -51,6 +51,7 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.4"),
     .package(url: "https://github.com/MxIris-Reverse-Engineering/DyldPrivate", branch: "main"),
     .package(url: "https://github.com/migueldeicaza/TermKit", branch: "main"),
+    .package(url: "https://github.com/nicklockwood/SwiftFormat", from: "0.58.7"),
 ]
 
 extension Package.Dependency {

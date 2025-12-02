@@ -27,59 +27,57 @@ public struct TypeContextDescriptorFlags: FlagSet {
     public var noMetadataInitialization: Bool {
         field(firstBit: Bits.metadataInitialization, bitWidth: Bits.metadataInitializationWidth, fieldType: UInt8.self) == 0
     }
-    
+
     public var hasSingletonMetadataInitialization: Bool {
         field(firstBit: Bits.metadataInitialization, bitWidth: Bits.metadataInitializationWidth, fieldType: UInt8.self) == 1
     }
-    
+
     public var hasForeignMetadataInitialization: Bool {
         field(firstBit: Bits.metadataInitialization, bitWidth: Bits.metadataInitializationWidth, fieldType: UInt8.self) == 2
     }
-    
+
     public var hasImportInfo: Bool {
         flag(bit: Bits.hasImportInfo)
     }
-    
+
     public var hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer: Bool {
         flag(bit: Bits.hasCanonicalMetadataPrespecializationsOrSingletonMetadataPointer)
     }
-    
+
     public var hasLayoutString: Bool {
         flag(bit: Bits.hasLayoutString)
     }
-    
+
     public var classHasDefaultOverrideTable: Bool {
         flag(bit: Bits.classHasDefaultOverrideTable)
     }
-    
+
     public var classIsActor: Bool {
         flag(bit: Bits.classIsActor)
     }
-    
+
     public var classIsDefaultActor: Bool {
         flag(bit: Bits.classIsDefaultActor)
     }
-    
+
     public var classResilientSuperclassReferenceKind: TypeReferenceKind {
         let rawValue = field(firstBit: Bits.classResilientSuperclassReferenceKind, bitWidth: Bits.classResilientSuperclassReferenceKindWidth, fieldType: UInt8.self)
         return .init(rawValue: rawValue)!
     }
-    
+
     public var classAreImmdiateMembersNegative: Bool {
         flag(bit: Bits.classAreImmdiateMembersNegative)
     }
-    
+
     public var classHasResilientSuperclass: Bool {
         flag(bit: Bits.classHasResilientSuperclass)
     }
-    
+
     public var classHasOverrideTable: Bool {
         flag(bit: Bits.classHasOverrideTable)
     }
-    
+
     public var classHasVTable: Bool {
         flag(bit: Bits.classHasVTable)
     }
 }
-
-

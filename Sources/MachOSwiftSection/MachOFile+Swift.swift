@@ -23,11 +23,11 @@ extension MachOFile.Swift: SwiftSectionRepresentable {
             let typeContextDescriptors = try typeContextDescriptors
             for typeContextDescriptor in typeContextDescriptors {
                 switch typeContextDescriptor {
-                case let .enum(descriptor):
+                case .enum(let descriptor):
                     try results.append(.enum(.init(descriptor: descriptor, in: machO)))
-                case let .struct(descriptor):
+                case .struct(let descriptor):
                     try results.append(.struct(.init(descriptor: descriptor, in: machO)))
-                case let .class(descriptor):
+                case .class(let descriptor):
                     try results.append(.class(.init(descriptor: descriptor, in: machO)))
                 }
             }

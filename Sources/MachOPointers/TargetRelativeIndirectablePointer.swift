@@ -8,7 +8,7 @@ public struct TargetRelativeIndirectablePointer<Pointee: Resolvable, Offset: Fix
     public init(relativeOffsetPlusIndirect: Offset) {
         self.relativeOffsetPlusIndirect = relativeOffsetPlusIndirect
     }
-    
+
     public func withIntPairPointer<Integer: FixedWidthInteger>(_ integer: Integer.Type = Integer.self) -> TargetRelativeIndirectablePointerIntPair<Pointee, Offset, Integer, IndirectType> {
         return .init(relativeOffsetPlusIndirectAndInt: relativeOffsetPlusIndirect)
     }

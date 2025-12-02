@@ -43,14 +43,14 @@ extension LoadCommandsProtocol {
                 $0.segname == "__DATA_CONST"
             }
     }
-    
+
     package var auth64: SegmentCommand64? {
         infos(of: LoadCommand.segment64)
             .first {
                 $0.segname == "__AUTH"
             }
     }
-    
+
     package var authConst64: SegmentCommand64? {
         infos(of: LoadCommand.segment64)
             .first {

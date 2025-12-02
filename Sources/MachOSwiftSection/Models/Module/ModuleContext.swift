@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-
 import MachOFoundation
 
 public struct ModuleContext: TopLevelType, ContextProtocol {

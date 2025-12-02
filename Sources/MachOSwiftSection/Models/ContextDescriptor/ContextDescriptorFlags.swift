@@ -1,6 +1,6 @@
 import Foundation
 
-// https://github.com/apple/swift/blob/main/include/swift/ABI/MetadataValues.h#L1849
+/// https://github.com/apple/swift/blob/main/include/swift/ABI/MetadataValues.h#L1849
 public struct ContextDescriptorFlags: OptionSet, Sendable {
     public let rawValue: UInt32
 
@@ -53,15 +53,15 @@ public struct ContextDescriptorFlags: OptionSet, Sendable {
             return nil
         }
     }
-    
+
     public var hasInvertibleProtocols: Bool {
         contains(.hasInvertibleProtocols)
     }
-    
+
     public var isUnique: Bool {
         contains(.isUnique)
     }
-    
+
     public var isGeneric: Bool {
         contains(.isGeneric)
     }

@@ -2,7 +2,6 @@ import Foundation
 import MachOKit
 import MachOFoundation
 
-
 public struct FieldDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let mangledTypeName: RelativeDirectPointer<MangledName>
@@ -23,9 +22,8 @@ public struct FieldDescriptor: ResolvableLocatableLayoutWrapper {
 }
 
 extension FieldDescriptor {
-    
     public var kind: FieldDescriptorKind { .init(rawValue: layout.kind)! }
-    
+
     public func mangledTypeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
         return try layout.mangledTypeName.resolve(from: offset(of: \.mangledTypeName), in: machO)
     }

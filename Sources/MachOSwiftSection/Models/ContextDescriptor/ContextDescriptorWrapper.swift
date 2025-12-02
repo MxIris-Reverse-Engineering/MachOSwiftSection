@@ -135,6 +135,14 @@ public enum ContextDescriptorWrapper {
         return try contextDescriptor.genericContext(in: machO)
     }
 
+    public func parent() throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+        return try contextDescriptor.parent()
+    }
+
+    public func genericContext() throws -> GenericContext? {
+        return try contextDescriptor.genericContext()
+    }
+
     public var contextDescriptor: any ContextDescriptorProtocol {
         switch self {
         case .type(let typeContextDescriptor):
@@ -248,7 +256,7 @@ extension ContextDescriptorWrapper: Resolvable {
             return nil
         }
     }
-    
+
     public static func resolve(from ptr: UnsafeRawPointer) throws -> Self? {
         do {
             return try resolve(from: ptr) as Self

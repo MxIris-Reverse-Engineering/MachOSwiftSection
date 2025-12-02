@@ -17,21 +17,20 @@ public struct ValueWitnessTable: ResolvableLocatableLayoutWrapper {
         public let flags: ValueWitnessFlags
         public let numExtraInhabitants: UInt32
     }
-    
+
     public var layout: Layout
-    
+
     public let offset: Int
-    
+
     public init(layout: Layout, offset: Int) {
         self.layout = layout
         self.offset = offset
     }
-    
+
     public var typeLayout: TypeLayout {
         .init(size: layout.size, stride: layout.stride, flags: layout.flags, extraInhabitantCount: layout.numExtraInhabitants)
     }
 }
-
 
 public struct TypeLayout {
     public let size: StoredSize

@@ -1,7 +1,6 @@
 import Foundation
 import MachOSymbols
 import MachOKit
-
 import MachOFoundation
 
 public struct BuiltinType: TopLevelType {
@@ -14,5 +13,3 @@ public struct BuiltinType: TopLevelType {
         self.typeName = try descriptor.typeName(in: machO)
     }
 }
-
-

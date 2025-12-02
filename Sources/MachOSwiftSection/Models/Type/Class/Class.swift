@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-
 import MachOFoundation
 
 // template <typename Runtime>
@@ -162,7 +161,6 @@ public struct Class: TopLevelType, ContextProtocol {
     }
 }
 
-
-//extension Class {
+// extension Class {
 //    package func method
-//}
+// }

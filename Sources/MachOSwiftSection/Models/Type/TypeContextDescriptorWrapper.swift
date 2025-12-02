@@ -49,6 +49,14 @@ public enum TypeContextDescriptorWrapper {
     public func genericContext<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> GenericContext? {
         return try contextDescriptor.genericContext(in: machO)
     }
+
+    public func parent() throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+        return try contextDescriptor.parent()
+    }
+
+    public func genericContext() throws -> GenericContext? {
+        return try contextDescriptor.genericContext()
+    }
 }
 
 extension TypeContextDescriptorWrapper: Resolvable {
@@ -78,7 +86,7 @@ extension TypeContextDescriptorWrapper: Resolvable {
             return nil
         }
     }
-    
+
     public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
         let contextDescriptor = try ContextDescriptor.resolve(from: ptr)
         switch contextDescriptor.flags.kind {
@@ -90,6 +98,15 @@ extension TypeContextDescriptorWrapper: Resolvable {
             return try .struct(.resolve(from: ptr))
         default:
             throw ResolutionError.invalidTypeContextDescriptor
+        }
+    }
+
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self? {
+        do {
+            return try resolve(from: ptr) as Self
+        } catch {
+            print("Error resolving ContextDescriptorWrapper: \(error)")
+            return nil
         }
     }
 }

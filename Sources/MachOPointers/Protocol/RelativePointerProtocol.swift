@@ -6,7 +6,7 @@ import MachOExtensions
 public protocol RelativePointerProtocol<Pointee>: Sendable, Equatable {
     associatedtype Pointee: Resolvable
     associatedtype Offset: FixedWidthInteger & SignedInteger
-    
+
     var relativeOffset: Offset { get }
     func resolve(from ptr: UnsafeRawPointer) throws -> Pointee
     func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Pointee
@@ -17,15 +17,14 @@ public protocol RelativePointerProtocol<Pointee>: Sendable, Equatable {
 }
 
 extension RelativePointerProtocol {
-    
     public func resolveDirectOffset(from ptr: UnsafeRawPointer) throws -> UnsafeRawPointer {
-        try .init(bitPattern: ptr.stripPointerTags().int + Int(relativeOffset))
+        try ptr.stripPointerTags().advanced(by: .init(relativeOffset))
     }
-    
+
     public func resolveDirectOffset(from offset: Int) -> Int {
         return Int(offset) + Int(relativeOffset)
     }
-    
+
     public var isNull: Bool {
         return relativeOffset == 0
     }

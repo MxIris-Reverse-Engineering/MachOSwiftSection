@@ -70,7 +70,7 @@ public enum MetadataWrapper: Resolvable {
             fatalError()
         }
     }
-    
+
     public static func resolve(from ptr: UnsafeRawPointer) throws -> MetadataWrapper {
         let metadata = try Metadata.resolve(from: ptr)
         switch metadata.kind {

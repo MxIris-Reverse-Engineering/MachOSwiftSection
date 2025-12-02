@@ -1,9 +1,7 @@
 import MachOKit
 import MachOFoundation
 
-
 public protocol AnonymousContextDescriptorProtocol: ContextDescriptorProtocol where Layout: AnonymousContextDescriptorLayout {}
-
 
 extension AnonymousContextDescriptorProtocol {
     public func mangledName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName? {
@@ -17,7 +15,7 @@ extension AnonymousContextDescriptorProtocol {
         let mangledNamePointer: RelativeDirectPointer<MangledName> = try machO.readElement(offset: currentOffset)
         return try mangledNamePointer.resolve(from: currentOffset, in: machO)
     }
-    
+
     public var hasMangledName: Bool {
         guard let kindSpecificFlags = layout.flags.kindSpecificFlags, case .anonymous(let anonymousContextDescriptorFlags) = kindSpecificFlags else {
             return false

@@ -19,7 +19,7 @@ public struct Pointer<Pointee: Resolvable>: RelativeIndirectType, PointerProtoco
             return try machO.readElement(offset: offset)
         }
     }
-    
+
     public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
         .init(address: ptr.assumingMemoryBound(to: UInt64.self).pointee)
     }

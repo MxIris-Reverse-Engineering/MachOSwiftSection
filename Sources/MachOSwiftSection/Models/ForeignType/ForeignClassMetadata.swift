@@ -18,5 +18,3 @@ public struct ForeignClassMetadata: MetadataProtocol {
         self.offset = offset
     }
 }
-
-

@@ -16,7 +16,7 @@ package struct OffsetEnumeratedSequence<Base: Collection>: Sequence {
     package typealias Element = (offset: OffsetInfo, element: Base.Element)
 
     package typealias Iterator = TargetIterator<Base.Iterator>
-    
+
     package struct TargetIterator<BaseIterator: IteratorProtocol>: IteratorProtocol {
         package typealias Element = (offset: OffsetInfo, element: BaseIterator.Element)
 

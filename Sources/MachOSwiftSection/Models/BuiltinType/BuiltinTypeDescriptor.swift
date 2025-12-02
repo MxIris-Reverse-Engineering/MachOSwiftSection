@@ -2,7 +2,6 @@ import Foundation
 import MachOKit
 import MachOFoundation
 
-
 public struct BuiltinTypeDescriptor: ResolvableLocatableLayoutWrapper, TopLevelDescriptor {
     public struct Layout: LayoutProtocol {
         public let typeName: RelativeDirectPointer<MangledName?>

@@ -15,5 +15,4 @@ public struct SingletonMetadataInitialization: ResolvableLocatableLayoutWrapper 
         self.offset = offset
         self.layout = layout
     }
-    
 }

@@ -17,4 +17,3 @@ public struct AnonymousContextDescriptor: AnonymousContextDescriptorProtocol {
         self.layout = layout
     }
 }
-

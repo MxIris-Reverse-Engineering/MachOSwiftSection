@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-
 import MachOFoundation
 
 public struct ExtensionContextDescriptor: ExtensionContextDescriptorProtocol {
@@ -25,8 +24,3 @@ extension ExtensionContextDescriptorProtocol {
         try layout.extendedContext.resolve(from: offset + 8, in: machO)
     }
 }
-
-
-
-
-

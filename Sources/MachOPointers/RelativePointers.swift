@@ -19,4 +19,3 @@ public typealias RelativeIndirectableRawPointer = TargetRelativeIndirectablePoin
 public typealias RelativeIndirectablePointerIntPair<Pointee: Resolvable, Integer: RawRepresentable, IndirectType: RelativeIndirectType> = TargetRelativeIndirectablePointerIntPair<Pointee, RelativeOffset, Integer, IndirectType> where Pointee == IndirectType.Resolved, Integer.RawValue: FixedWidthInteger
 
 public typealias RelativeIndirectableRawPointerIntPair<Integer: RawRepresentable> = TargetRelativeIndirectablePointerIntPair<AnyResolvable, RelativeOffset, Integer, Pointer<AnyResolvable>> where Integer.RawValue: FixedWidthInteger
-

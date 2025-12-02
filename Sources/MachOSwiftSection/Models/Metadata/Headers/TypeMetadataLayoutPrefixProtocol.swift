@@ -2,5 +2,4 @@ import Foundation
 import MachOKit
 import MachOFoundation
 
-
 public protocol TypeMetadataLayoutPrefixProtocol: ResolvableLocatableLayoutWrapper where Layout: TypeMetadataLayoutPrefixLayout {}

@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-
 import MachOFoundation
 
 // template <typename Runtime>
@@ -89,5 +88,3 @@ public struct Enum: TopLevelType, ContextProtocol {
         }
     }
 }
-
-

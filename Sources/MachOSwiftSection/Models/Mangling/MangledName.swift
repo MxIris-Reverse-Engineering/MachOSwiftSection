@@ -152,7 +152,7 @@ extension MangledName: Resolvable {
 
         return .init(elements: elements, startOffset: offset, endOffset: currentOffset)
     }
-    
+
     public static func resolve(from ptr: UnsafeRawPointer) throws -> MangledName {
         var elements: [MangledName.Element] = []
         var currentOffset = try ptr.stripPointerTags()

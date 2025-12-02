@@ -21,6 +21,6 @@ public func getEnumTagCounts(payloadSize: UInt64, emptyCases: UInt32, payloadCas
     let numTagBytes: UInt32 = numTags <= 1 ? 0 :
         numTags < 256 ? 1 :
         numTags < 65536 ? 2 : 4
-    
+
     return EnumTagCounts(numTags: numTags, numTagBytes: numTagBytes)
 }

@@ -22,12 +22,3 @@ public struct ModuleContextDescriptor: ModuleContextDescriptorProtocol {
         return offset + layoutOffset(of: keyPath)
     }
 }
-
-
-
-
-
-
-
-
-

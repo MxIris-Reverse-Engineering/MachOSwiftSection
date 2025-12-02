@@ -1,7 +1,6 @@
 import Foundation
 import MachOKit
 import MachOFoundation
-
 import MemberwiseInit
 
 public typealias GenericContext = TargetGenericContext<GenericContextDescriptorHeader>
@@ -13,29 +12,29 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
     public let offset: Int
     public let size: Int
     public let header: Header
-    
+
     public let parameters: [GenericParamDescriptor]
     public let requirements: [GenericRequirementDescriptor]
     public let typePackHeader: GenericPackShapeHeader?
     public let typePacks: [GenericPackShapeDescriptor]
     public let valueHeader: GenericValueHeader?
     public let values: [GenericValueDescriptor]
-    
+
     public let parentParameters: [[GenericParamDescriptor]]
     public let parentRequirements: [[GenericRequirementDescriptor]]
     public let parentTypePacks: [[GenericPackShapeDescriptor]]
     public let parentValues: [[GenericValueDescriptor]]
-    
+
     public let conditionalInvertibleProtocolSet: InvertibleProtocolSet?
     public let conditionalInvertibleProtocolsRequirementsCount: InvertibleProtocolsRequirementCount?
     public let conditionalInvertibleProtocolsRequirements: [GenericRequirementDescriptor]
 
     public let depth: Int
-    
+
     public var currentParameters: [GenericParamDescriptor] {
         .init(parameters.dropFirst(parentParameters.flatMap { $0 }.count))
     }
-    
+
     public func currentRequirements<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) -> [GenericRequirementDescriptor] {
         let parentRequirements = parentRequirements.flatMap { $0 }
         var currentRequirements: [GenericRequirementDescriptor] = []
@@ -46,16 +45,15 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         }
         return currentRequirements
     }
-    
+
     public var currentTypePacks: [GenericPackShapeDescriptor] {
         .init(typePacks.dropFirst(parentTypePacks.flatMap { $0 }.count))
     }
-    
+
     public var currentValues: [GenericValueDescriptor] {
         .init(values.dropFirst(parentValues.flatMap { $0 }.count))
     }
-    
-    
+
     public func asGenericContext() -> GenericContext {
         .init(
             offset: offset,
@@ -98,7 +96,7 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         if header.numParams > 0 {
             let parameters: [GenericParamDescriptor] = try machO.readWrapperElements(offset: currentOffset, numberOfElements: Int(header.numParams))
             currentOffset.offset(of: GenericParamDescriptor.self, numbersOfElements: Int(header.numParams))
-            currentOffset = align(address: currentOffset, alignment: 4)
+            currentOffset.align(to: 4)
             self.parameters = parameters
         } else {
             self.parameters = []
@@ -171,6 +169,99 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
                 depth += 1
             }
             parent = try currentParent.parent(in: machO)?.resolved
+        }
+        self.parentParameters = parentParameters.reversed()
+        self.parentRequirements = parentRequirements.reversed()
+        self.parentTypePacks = parentTypePacks.reversed()
+        self.parentValues = parentValues.reversed()
+        self.depth = depth
+    }
+
+    public init(contextDescriptor: any ContextDescriptorProtocol) throws {
+        var currentPointer = try contextDescriptor.asPointer.advanced(by: contextDescriptor.layoutSize)
+        let genericContextOffset = currentPointer
+
+        let header: Header = try currentPointer.readWrapperElement()
+        currentPointer.offset(of: Header.self)
+        self.offset = genericContextOffset.int
+        self.header = header
+
+        if header.numParams > 0 {
+            let parameters: [GenericParamDescriptor] = try currentPointer.readWrapperElements(numberOfElements: Int(header.numParams))
+            currentPointer.offset(of: GenericParamDescriptor.self, numbersOfElements: Int(header.numParams))
+            currentPointer = currentPointer.alignedUp(toMultipleOf: 4)
+            self.parameters = parameters
+        } else {
+            self.parameters = []
+        }
+
+        if header.numRequirements > 0 {
+            let requirements: [GenericRequirementDescriptor] = try currentPointer.readWrapperElements(numberOfElements: Int(header.numRequirements))
+            currentPointer.offset(of: GenericRequirementDescriptor.self, numbersOfElements: Int(header.numRequirements))
+            self.requirements = requirements
+        } else {
+            self.requirements = []
+        }
+
+        if header.flags.contains(.hasTypePacks) {
+            let typePackHeader: GenericPackShapeHeader = try currentPointer.readWrapperElement()
+            currentPointer.offset(of: GenericPackShapeHeader.self)
+            self.typePackHeader = typePackHeader
+
+            let typePacks: [GenericPackShapeDescriptor] = try currentPointer.readWrapperElements(numberOfElements: Int(typePackHeader.numPacks))
+            currentPointer.offset(of: GenericPackShapeDescriptor.self, numbersOfElements: Int(typePackHeader.numPacks))
+            self.typePacks = typePacks
+        } else {
+            self.typePackHeader = nil
+            self.typePacks = []
+        }
+
+        if header.flags.contains(.hasConditionalInvertedProtocols) {
+            let conditionalInvertibleProtocolSet: InvertibleProtocolSet = try currentPointer.readElement()
+            currentPointer.offset(of: InvertibleProtocolSet.self)
+            self.conditionalInvertibleProtocolSet = conditionalInvertibleProtocolSet
+
+            let conditionalInvertibleProtocolsRequirementsCount: InvertibleProtocolsRequirementCount = try currentPointer.readElement()
+            currentPointer.offset(of: InvertibleProtocolsRequirementCount.self)
+            self.conditionalInvertibleProtocolsRequirementsCount = conditionalInvertibleProtocolsRequirementsCount
+
+            let conditionalInvertibleProtocolsRequirements: [GenericRequirementDescriptor] = try currentPointer.readWrapperElements(numberOfElements: Int(conditionalInvertibleProtocolsRequirementsCount.rawValue))
+            currentPointer.offset(of: GenericRequirementDescriptor.self, numbersOfElements: Int(conditionalInvertibleProtocolsRequirementsCount.rawValue))
+            self.conditionalInvertibleProtocolsRequirements = conditionalInvertibleProtocolsRequirements
+        } else {
+            self.conditionalInvertibleProtocolSet = nil
+            self.conditionalInvertibleProtocolsRequirementsCount = nil
+            self.conditionalInvertibleProtocolsRequirements = []
+        }
+
+        if header.flags.contains(.hasValues) {
+            let valueHeader: GenericValueHeader = try currentPointer.readWrapperElement()
+            currentPointer.offset(of: GenericValueHeader.self)
+            self.valueHeader = valueHeader
+
+            let values: [GenericValueDescriptor] = try currentPointer.readWrapperElements(numberOfElements: Int(valueHeader.numValues))
+            currentPointer.offset(of: GenericValueDescriptor.self, numbersOfElements: Int(valueHeader.numValues))
+            self.values = values
+        } else {
+            self.valueHeader = nil
+            self.values = []
+        }
+        self.size = currentPointer - genericContextOffset
+        var depth = 0
+        var parent = try contextDescriptor.parent()?.resolved
+        var parentParameters: [[GenericParamDescriptor]] = []
+        var parentRequirements: [[GenericRequirementDescriptor]] = []
+        var parentTypePacks: [[GenericPackShapeDescriptor]] = []
+        var parentValues: [[GenericValueDescriptor]] = []
+        while let currentParent = parent {
+            if let genericContext = try currentParent.validParentGenericContextDescriptor?.genericContext() {
+                parentParameters.append(genericContext.parameters)
+                parentRequirements.append(genericContext.requirements)
+                parentTypePacks.append(genericContext.typePacks)
+                parentValues.append(genericContext.values)
+                depth += 1
+            }
+            parent = try currentParent.parent()?.resolved
         }
         self.parentParameters = parentParameters.reversed()
         self.parentRequirements = parentRequirements.reversed()

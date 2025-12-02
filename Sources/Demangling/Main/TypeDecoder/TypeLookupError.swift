@@ -12,6 +12,7 @@ public struct TypeLookupError: Error, CustomStringConvertible, Sendable {
         self.file = file
         self.line = line
     }
+
     /// Initialize from a node error
     public init(node: Node, message: String, file: String = #file, line: Int = #line) {
         let nodeInfo = "Node kind \(node.kind)"

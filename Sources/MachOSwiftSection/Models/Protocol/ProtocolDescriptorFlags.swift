@@ -10,10 +10,10 @@ public struct ProtocolDescriptorFlags {
         static let classConstraint: UInt32 = 1 << 1
         static let dispatchStrategyMask: UInt32 = 0xF << 2
         static let dispatchStrategyShift: UInt32 = 2
-        static let specialProtocolMask: UInt32 = 0x000003C0
+        static let specialProtocolMask: UInt32 = 0x0000_03C0
         static let specialProtocolShift: UInt32 = 6
         static let isResilient: UInt32 = 1 << 10
-        static let objcReserved: UInt32 = 0xFFFF0000
+        static let objcReserved: UInt32 = 0xFFFF_0000
     }
 
     public var isSwift: Bool {

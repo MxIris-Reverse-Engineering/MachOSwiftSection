@@ -15,11 +15,11 @@ public struct MetadataAccessor: Resolvable, @unchecked Sendable {
 
     public func perform<each Metadata: MetadataProtocol>(request: MetadataRequest, args: repeat each Metadata, in machO: MachOImage) -> MetadataResponse {
         var pointers: [UnsafeRawPointer] = []
-        
+
         for arg in repeat each args {
             pointers.append(arg.pointer(in: machO))
         }
-        
+
         switch pointers.count {
         case 0:
             return perform0(request: request)

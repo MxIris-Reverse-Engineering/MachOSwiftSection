@@ -8,9 +8,9 @@ enum MachOSwiftSectionError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case let .sectionNotFound(section, allSectionNames):
+        case .sectionNotFound(let section, let allSectionNames):
             return "Swift section \(section.rawValue) not found in Mach-O. Available sections: \(allSectionNames.joined(separator: ", "))"
-        case let .invalidSectionAlignment(section, align):
+        case .invalidSectionAlignment(let section, let align):
             return "Invalid alignment for Swift section \(section.rawValue). Expected alignment is 4, but found \(align)."
         }
     }

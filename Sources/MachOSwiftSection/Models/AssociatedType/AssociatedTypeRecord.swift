@@ -2,7 +2,6 @@ import Foundation
 import MachOKit
 import MachOFoundation
 
-
 public struct AssociatedTypeRecord: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let name: RelativeDirectPointer<String>

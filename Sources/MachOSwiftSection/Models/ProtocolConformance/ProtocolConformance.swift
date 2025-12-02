@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-
 import MachOFoundation
 
 // using TrailingObjects = swift::ABI::TrailingObjects<
@@ -13,10 +12,10 @@ import MachOFoundation
 //                           TargetGenericWitnessTable<Runtime>,
 //                           TargetGlobalActorReference<Runtime>>;
 
-/// The structure of a protocol conformance.
-///
-/// This contains enough static information to recover the witness table for a
-/// type's conformance to a protocol.
+// The structure of a protocol conformance.
+//
+// This contains enough static information to recover the witness table for a
+// type's conformance to a protocol.
 
 public struct ProtocolConformance: TopLevelType {
     public let descriptor: ProtocolConformanceDescriptor
@@ -42,7 +41,7 @@ public struct ProtocolConformance: TopLevelType {
     public let resilientWitnesses: [ResilientWitness]
 
     public let genericWitnessTable: GenericWitnessTable?
-    
+
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: ProtocolConformanceDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
 

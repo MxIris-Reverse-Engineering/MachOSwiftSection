@@ -1,5 +1,4 @@
 import MachOKit
-
 import MachOReading
 import MachOResolving
 import MachOExtensions
@@ -49,7 +48,7 @@ extension RelativeIndirectablePointerProtocol {
             return try resolveDirectAny(from: offset, in: machO)
         }
     }
-    
+
     public func resolve(from ptr: UnsafeRawPointer) throws -> Pointee {
         return try resolveIndirectable(from: ptr)
     }
@@ -90,7 +89,7 @@ extension RelativeIndirectablePointerProtocol where Pointee: OptionalProtocol {
         guard isValid else { return nil }
         return try resolve(from: offset, in: machO)
     }
-    
+
     public func resolve(from ptr: UnsafeRawPointer) throws -> Pointee {
         guard isValid else { return nil }
         return try resolve(from: ptr)

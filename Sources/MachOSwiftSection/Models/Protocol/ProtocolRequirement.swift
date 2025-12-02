@@ -1,5 +1,4 @@
 import MachOKit
-
 import MachOFoundation
 
 public struct ProtocolRequirement: ResolvableLocatableLayoutWrapper {

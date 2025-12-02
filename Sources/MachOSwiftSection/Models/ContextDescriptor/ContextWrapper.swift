@@ -12,8 +12,7 @@ public enum ContextWrapper: Resolvable {
     case `extension`(ExtensionContext)
     case module(ModuleContext)
     case opaqueType(OpaqueType)
-    
-    
+
     public var context: any ContextProtocol {
         switch self {
         case .type(let typeWrapper):
@@ -37,8 +36,7 @@ public enum ContextWrapper: Resolvable {
             return opaqueType
         }
     }
-    
-    
+
     public static func forContextDescriptorWrapper(_ contextDescriptorWrapper: ContextDescriptorWrapper, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Self {
         switch contextDescriptorWrapper {
         case .type(let typeContextDescriptorWrapper):

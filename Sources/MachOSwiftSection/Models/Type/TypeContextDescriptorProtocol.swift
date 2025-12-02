@@ -24,6 +24,24 @@ extension TypeContextDescriptorProtocol {
         return try .init(contextDescriptor: self, in: machO)
     }
 
+    public func metadataAccessor() throws -> MetadataAccessor? {
+        return try layout.accessFunctionPtr.resolve(from: layout.pointer(from: asPointer, of: .accessFunctionPtr))
+    }
+
+    public func fieldDescriptor() throws -> FieldDescriptor {
+        return try layout.fieldDescriptor.resolve(from: layout.pointer(from: asPointer, of: .fieldDescriptor))
+    }
+
+    public func genericContext() throws -> GenericContext? {
+        guard layout.flags.isGeneric else { return nil }
+        return try typeGenericContext()?.asGenericContext()
+    }
+
+    public func typeGenericContext() throws -> TypeGenericContext? {
+        guard layout.flags.isGeneric else { return nil }
+        return try .init(contextDescriptor: self)
+    }
+
     public var hasSingletonMetadataInitialization: Bool {
         return layout.flags.kindSpecificFlags?.typeFlags?.hasSingletonMetadataInitialization ?? false
     }

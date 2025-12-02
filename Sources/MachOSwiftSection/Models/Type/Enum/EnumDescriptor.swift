@@ -26,12 +26,12 @@ extension EnumDescriptor {
     public var hasPayloadSizeOffset: Bool {
         payloadSizeOffset != 0
     }
-    
+
     public var payloadSizeOffset: Int {
-        .init((layout.numPayloadCasesAndPayloadSizeOffset & 0xFF000000) >> 24)
+        .init((layout.numPayloadCasesAndPayloadSizeOffset & 0xFF00_0000) >> 24)
     }
-    
+
     public var numberOfPayloadCases: UInt32 {
-        layout.numPayloadCasesAndPayloadSizeOffset & 0x00FFFFFF
+        layout.numPayloadCasesAndPayloadSizeOffset & 0x00FF_FFFF
     }
 }

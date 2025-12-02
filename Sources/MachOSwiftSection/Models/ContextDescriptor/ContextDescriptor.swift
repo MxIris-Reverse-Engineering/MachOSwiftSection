@@ -17,4 +17,3 @@ public struct ContextDescriptor: ContextDescriptorProtocol {
         self.layout = layout
     }
 }
-

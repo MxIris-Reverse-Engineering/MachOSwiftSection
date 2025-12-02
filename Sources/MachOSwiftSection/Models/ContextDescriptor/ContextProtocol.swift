@@ -4,7 +4,7 @@ import MachOFoundation
 
 public protocol ContextProtocol: Sendable {
     associatedtype Descriptor: ContextDescriptorProtocol
-    
+
     var descriptor: Descriptor { get }
 }
 

@@ -23,8 +23,8 @@ public enum DemanglingError: Error, Sendable {
     case integerOverflow(at: Int)
 
     case unimplementedFeature
-    
+
     case requiredNonOptional
-    
+
     case invalidSwiftMangledName
 }

@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-
 import MachOFoundation
 import Demangling
 
@@ -43,6 +42,4 @@ public struct OpaqueType: TopLevelType, ContextProtocol {
             self.invertedProtocols = nil
         }
     }
-
-    
 }

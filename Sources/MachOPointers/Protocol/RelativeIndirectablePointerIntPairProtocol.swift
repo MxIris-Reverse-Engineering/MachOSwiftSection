@@ -40,7 +40,7 @@ extension RelativeIndirectablePointerIntPairProtocol where Pointee: OptionalProt
         guard isValid else { return nil }
         return try resolve(from: offset, in: machO)
     }
-    
+
     public func resolve(from ptr: UnsafeRawPointer) throws -> Pointee {
         guard isValid else { return nil }
         return try resolve(from: ptr)

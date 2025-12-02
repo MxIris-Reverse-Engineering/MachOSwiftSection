@@ -9,7 +9,7 @@ import SwiftDiagnostics
 public struct LayoutMacro: PeerMacro, MemberMacro, ExtensionMacro {
     // MARK: - MemberMacro
 
-    // Adds `func layoutOffset(of field: ProtocolNameField) -> Int`
+    /// Adds `func layoutOffset(of field: ProtocolNameField) -> Int`
     public static func expansion(
         of node: AttributeSyntax,
         providingMembersOf declaration: some DeclGroupSyntax,
@@ -41,6 +41,8 @@ public struct LayoutMacro: PeerMacro, MemberMacro, ExtensionMacro {
             return [
                 "func offset(of field: \(raw: fieldEnumName)) -> Int",
                 "static func offset(of field: \(raw: fieldEnumName)) -> Int",
+                "func pointer(from ptr: UnsafeRawPointer, of field: \(raw: fieldEnumName)) -> UnsafeRawPointer",
+                "static func pointer(from ptr: UnsafeRawPointer, of field: \(raw: fieldEnumName)) -> UnsafeRawPointer",
             ]
         }
         return []
@@ -48,7 +50,7 @@ public struct LayoutMacro: PeerMacro, MemberMacro, ExtensionMacro {
 
     // MARK: - PeerMacro
 
-    // Generates `enum ProtocolNameField` and `extension ProtocolName`
+    /// Generates `enum ProtocolNameField` and `extension ProtocolName`
     public static func expansion(
         of node: AttributeSyntax,
         providingPeersOf declaration: some DeclSyntaxProtocol,
@@ -86,7 +88,7 @@ public struct LayoutMacro: PeerMacro, MemberMacro, ExtensionMacro {
         if isDirectFieldsEmpty {
             enumCases.append("case __empty")
         }
-        
+
         // Determine the starting offset. If inheriting, use parent's size.
         var baseOffsetInitialization = "var currentOffset = 0"
         if let inheritanceClause = protocolDecl.inheritanceClause {
@@ -189,10 +191,16 @@ public struct LayoutMacro: PeerMacro, MemberMacro, ExtensionMacro {
                     // because `currentOffset` in the cache calculation started from the parent's size.
                     return relativeOffset
                 }
+                public func pointer(from ptr: UnsafeRawPointer, of field: \(raw: fieldEnumName)) -> UnsafeRawPointer {
+                    return ptr.advanced(by: offset(of: field))
+                }
+                public static func pointer(from ptr: UnsafeRawPointer, of field: \(raw: fieldEnumName)) -> UnsafeRawPointer {
+                    return ptr.advanced(by: offset(of: field))
+                }
             }
             """
         )
-        if directFields.isEmpty && protocolDecl.inheritanceClause == nil {
+        if directFields.isEmpty, protocolDecl.inheritanceClause == nil {
             let emptyExtensionDeclSyntax: ExtensionDeclSyntax = try .init(
                 """
                 extension \(raw: protocolName) {
@@ -201,6 +209,14 @@ public struct LayoutMacro: PeerMacro, MemberMacro, ExtensionMacro {
                         fatalError("Protocol \(raw: protocolName) has no layout fields.")
                     }
                     public static func offset(of field: \(raw: fieldEnumName)) -> Int {
+                        // No fields, this should ideally not be callable with a valid field.
+                        fatalError("Protocol \(raw: protocolName) has no layout fields.")
+                    }
+                    public func pointer(from ptr: UnsafeRawPointer, of field: \(raw: fieldEnumName)) -> UnsafeRawPointer {
+                        // No fields, this should ideally not be callable with a valid field.
+                        fatalError("Protocol \(raw: protocolName) has no layout fields.")
+                    }
+                    public static func pointer(from ptr: UnsafeRawPointer, of field: \(raw: fieldEnumName)) -> UnsafeRawPointer {
                         // No fields, this should ideally not be callable with a valid field.
                         fatalError("Protocol \(raw: protocolName) has no layout fields.")
                     }

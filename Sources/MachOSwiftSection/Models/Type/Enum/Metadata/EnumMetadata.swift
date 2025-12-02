@@ -6,15 +6,13 @@ public struct EnumMetadata: EnumMetadataProtocol {
         public let kind: StoredPointer
         public let descriptor: Pointer<EnumDescriptor>
     }
-    
+
     public var layout: Layout
-    
+
     public let offset: Int
-    
+
     public init(layout: Layout, offset: Int) {
         self.layout = layout
         self.offset = offset
     }
 }
-
-

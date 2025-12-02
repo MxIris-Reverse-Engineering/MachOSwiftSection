@@ -19,13 +19,13 @@ public enum ManglingError: Error, CustomStringConvertible {
     case invalidImplParameterConvention(Node)
 
     case invalidImplCalleeConvention(Node)
-    
+
     case invalidImplCoroutineKind(Node)
-    
+
     case invalidImplFunctionAttribute(Node)
-    
+
     case invalidImplParameterAttr(Node)
-    
+
     /// Invalid generic signature
     case invalidGenericSignature(Node)
 
@@ -51,7 +51,7 @@ public enum ManglingError: Error, CustomStringConvertible {
     case genericError(String)
 
     case indexOutOfBound
-    
+
     public var description: String {
         switch self {
         case .tooComplex(let node):

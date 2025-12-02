@@ -1,6 +1,6 @@
 import Foundation
 
-// https://github.com/apple/swift/blob/main/include/swift/ABI/MetadataValues.h#L1183
+/// https://github.com/apple/swift/blob/main/include/swift/ABI/MetadataValues.h#L1183
 public enum ContextDescriptorKind: UInt8, CustomStringConvertible {
     /// This context descriptor represents a module.
     case module = 0
@@ -18,7 +18,7 @@ public enum ContextDescriptorKind: UInt8, CustomStringConvertible {
     /// This context descriptor represents an opaque type alias.
     case opaqueType = 4
 
-    /// First kind that represents a type of any sort.
+    // First kind that represents a type of any sort.
     // case Type_First = 16
 
     /// This context descriptor represents a class.

@@ -6,7 +6,6 @@ public protocol RuntimeProtocol {
     static var pointerSize: Int { get }
 }
 
-
 public enum RuntimeTarget32: RuntimeProtocol {
     public typealias StoredPointer = UInt32
     public typealias StoredSignedPointer = UInt32

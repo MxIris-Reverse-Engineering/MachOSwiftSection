@@ -1,5 +1,5 @@
 package enum TypePrinting: CaseIterable, Sendable {
-	case noType
-	case withColon
-	case functionStyle
+    case noType
+    case withColon
+    case functionStyle
 }

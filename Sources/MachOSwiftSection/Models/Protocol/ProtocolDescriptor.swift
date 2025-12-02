@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-
 import MachOFoundation
 
 /// A protocol descriptor.
@@ -41,4 +40,3 @@ extension ProtocolDescriptor {
         return try layout.associatedTypes.resolve(from: offset(of: \.associatedTypes), in: machO).components(separatedBy: " ")
     }
 }
-

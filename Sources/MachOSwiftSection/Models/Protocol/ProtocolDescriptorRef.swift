@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-
 import MachOFoundation
 
 public struct ProtocolDescriptorRef {
@@ -9,7 +8,7 @@ public struct ProtocolDescriptorRef {
     private enum Bits {
         static let isObjC: UInt64 = 0x1
     }
-    
+
     public var dispatchStrategy: ProtocolDispatchStrategy {
         if isObjC {
             return .objc
@@ -37,14 +36,12 @@ public struct ProtocolDescriptorRef {
             return try swiftProtocol(in: machO).name(in: machO)
         }
     }
-    
+
     public static func forObjC(_ storage: StoredPointer) -> Self {
         .init(storage: storage | Bits.isObjC)
     }
-    
+
     public static func forSwift(_ storage: StoredPointer) -> Self {
         .init(storage: storage)
     }
 }
-
-

@@ -11,4 +11,11 @@ extension StructMetadataProtocol {
         let offset = offset + (descriptor.fieldOffsetVector.cast() * MemoryLayout<StoredSize>.size)
         return try machO.readElements(offset: offset, numberOfElements: descriptor.numFields.cast())
     }
+
+    public func fieldOffsets(for descriptor: StructDescriptor? = nil) throws -> [UInt32] {
+        let descriptor = try descriptor ?? layout.descriptor.resolve()
+        guard descriptor.fieldOffsetVector != .zero else { return [] }
+        // Metadata.offset + fieldOffset (eg. 2 * 8)
+        return try asPointer.advanced(by: descriptor.fieldOffsetVector.cast() * MemoryLayout<StoredSize>.size).readElements(numberOfElements: descriptor.numFields.cast())
+    }
 }

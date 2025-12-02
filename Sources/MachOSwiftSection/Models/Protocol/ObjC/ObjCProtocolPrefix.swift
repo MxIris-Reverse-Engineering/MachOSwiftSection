@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-
 import MachOFoundation
 
 public struct ObjCProtocolPrefix: ResolvableLocatableLayoutWrapper {
@@ -23,7 +22,7 @@ extension ObjCProtocolPrefix {
     public func name<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> String {
         try layout.name.resolve(in: machO)
     }
-    
+
     public func mangledName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
         try Pointer<MangledName>(address: layout.name.address).resolve(in: machO)
     }

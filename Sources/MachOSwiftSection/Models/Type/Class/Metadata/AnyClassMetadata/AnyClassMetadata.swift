@@ -2,8 +2,6 @@ import Foundation
 import MachOKit
 import MachOFoundation
 
-
-
 public struct AnyClassMetadata: AnyClassMetadataProtocol {
     public struct Layout: AnyClassMetadataLayout {
         public let kind: StoredPointer

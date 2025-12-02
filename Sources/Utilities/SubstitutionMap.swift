@@ -11,12 +11,12 @@
 /// It is not based on equivalence (like a Union-Find structure) but on a directed path.
 /// It includes cycle detection to prevent infinite loops.
 package struct SubstitutionMap<T: Hashable> {
-    // Stores the forward mapping: original -> substitution
-    // e.g., [A: B] means A is substituted by B.
+    /// Stores the forward mapping: original -> substitution
+    /// e.g., [A: B] means A is substituted by B.
     private var substitutions: [T: T] = [:]
 
-    // Stores the reverse mapping: substitution -> original
-    // e.g., [B: A] means B is a substitution for A.
+    /// Stores the reverse mapping: substitution -> original
+    /// e.g., [B: A] means B is a substitution for A.
     private var originals: [T: T] = [:]
 
     package init() {}

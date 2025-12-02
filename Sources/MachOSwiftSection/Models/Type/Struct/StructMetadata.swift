@@ -18,5 +18,3 @@ public struct StructMetadata: StructMetadataProtocol {
 
     public static var descriptorOffset: Int { Layout.offset(of: .descriptor) }
 }
-
-

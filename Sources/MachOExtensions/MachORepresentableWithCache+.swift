@@ -16,33 +16,32 @@ extension MachORepresentableWithCache {
     package var vmaddrMask: UInt64? {
         switch header.cpuType {
         case .x86:
-            return 0xFFFFFFFF
+            return 0xFFFF_FFFF
         case .i386:
-            return 0xFFFFFFFF
+            return 0xFFFF_FFFF
         case .x86_64:
-            return 0x00007FFFFFFFFFFF
+            return 0x0000_7FFF_FFFF_FFFF
         case .arm:
-            return 0x7FFFFFFF
+            return 0x7FFF_FFFF
         case .arm64:
             if let platform = loadCommands.info(of: LoadCommand.buildVersion)?.platform {
                 if [
                     .macOS,
-                    .driverKit
+                    .driverKit,
                 ].contains(platform) || isMacOS == true {
-                    return 0x00007FFFFFFFFFFF
+                    return 0x0000_7FFF_FFFF_FFFF
                 } else {
-                    return 0x0000000FFFFFFFFF
+                    return 0x0000_000F_FFFF_FFFF
                 }
             }
-            return 0x0000000FFFFFFFFF // FIXME: fallback
-
+            return 0x0000_000F_FFFF_FFFF // FIXME: fallback
         case .arm64_32:
-            return 0x7FFFFFFF
+            return 0x7FFF_FFFF
         default:
             return nil
         }
     }
-    
+
     /// Strips pointer authentication codes (PAC) and Objective-C tagged pointer bits from a raw virtual memory address.
     ///
     /// This method applies the appropriate architecture-specific bitmask to remove extra bits
@@ -69,12 +68,12 @@ extension MachORepresentableWithCache {
 extension MachORepresentableWithCache {
     private var isMacOS: Bool? {
         let loadCommands = loadCommands
-        if let platform = loadCommands.info(of: LoadCommand.buildVersion)?.platform  {
+        if let platform = loadCommands.info(of: LoadCommand.buildVersion)?.platform {
             return [
                 .macOS,
                 .macOSExclaveKit,
                 .macOSExclaveCore,
-                .macCatalyst
+                .macCatalyst,
             ].contains(
                 platform
             )
@@ -90,7 +89,7 @@ extension MachORepresentableWithCache {
         }
 
         if header.isInDyldCache,
-           let cache = self.cache {
+           let cache = cache {
             return cache.header.platform == .macOS
         }
 

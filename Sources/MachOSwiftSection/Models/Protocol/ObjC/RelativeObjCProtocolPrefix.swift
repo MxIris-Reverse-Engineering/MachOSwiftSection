@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-
 import MachOFoundation
 
 public struct RelativeObjCProtocolPrefix: ResolvableLocatableLayoutWrapper {
@@ -24,5 +23,3 @@ extension RelativeObjCProtocolPrefix {
         return try layout.mangledName.resolve(from: offset(of: \.mangledName), in: machO)
     }
 }
-
-

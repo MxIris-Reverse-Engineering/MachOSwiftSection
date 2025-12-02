@@ -43,9 +43,8 @@ extension MachOFile: MachORepresentableWithCache, @unchecked @retroactive Sendab
 }
 
 extension MachOImage: MachORepresentableWithCache, @unchecked @retroactive Sendable {
-    
     public var imagePath: String { path ?? "" }
-    
+
     public var identifier: MachOTargetIdentifier {
         .image(ptr)
     }
@@ -72,7 +71,7 @@ package func address<MachO: MachORepresentableWithCache>(of fileOffset: Int, in 
     if let cache = machO.cache {
         return .init(cache.mainCacheHeader.sharedRegionStart.cast() + fileOffset)
     } else {
-        return .init(0x100000000 + fileOffset)
+        return .init(0x1_0000_0000 + fileOffset)
     }
 }
 

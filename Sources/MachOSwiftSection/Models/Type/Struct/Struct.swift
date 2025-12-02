@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-
 import MachOFoundation
 
 public struct Struct: TopLevelType, ContextProtocol {
@@ -13,7 +12,7 @@ public struct Struct: TopLevelType, ContextProtocol {
     public let canonicalSpecializedMetadatasCachingOnceToken: CanonicalSpecializedMetadatasCachingOnceToken?
     public let invertibleProtocolSet: InvertibleProtocolSet?
     public let singletonMetadataPointer: SingletonMetadataPointer?
-    
+
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: StructDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
 
@@ -74,5 +73,3 @@ public struct Struct: TopLevelType, ContextProtocol {
         }
     }
 }
-
-

@@ -3,12 +3,12 @@ import Foundation
 /// Flags that go in a TargetConformanceDescriptor structure.
 public struct ProtocolConformanceFlags: RawRepresentable, Hashable, Sendable {
     public let rawValue: UInt32
-    
+
     public init(rawValue: UInt32) {
         self.rawValue = rawValue
     }
-    
-    // historical conformance kind
+
+    /// historical conformance kind
     private static let unusedLowBits: UInt32 = 0x07
 
     // 8 type reference kinds
@@ -26,12 +26,12 @@ public struct ProtocolConformanceFlags: RawRepresentable, Hashable, Sendable {
     private static let isConformanceOfProtocolMask: UInt32 = 0x01 << 18
     private static let hasGlobalActorIsolation: UInt32 = 0x01 << 19
 
-    // Used to detect if this is a conformance to SerialExecutor that has
-    // an user defined implementation of 'isIsolatingCurrentContext'. This
-    // requirement is special in the sense that if a non-default impl is present
-    // we will avoid calling the `checkIsolated` method which would lead to a
-    // crash. In other words, this API "soft replaces" 'checkIsolated' so we
-    // must at runtime the presence of a non-default implementation.
+    /// Used to detect if this is a conformance to SerialExecutor that has
+    /// an user defined implementation of 'isIsolatingCurrentContext'. This
+    /// requirement is special in the sense that if a non-default impl is present
+    /// we will avoid calling the `checkIsolated` method which would lead to a
+    /// crash. In other words, this API "soft replaces" 'checkIsolated' so we
+    /// must at runtime the presence of a non-default implementation.
     private static let hasNonDefaultSerialExecutorIsIsolatingCurrentContext: UInt32 = 0x01 << 20
 
     private static let numConditionalPackDescriptorsMask: UInt32 = 0xFF << 24

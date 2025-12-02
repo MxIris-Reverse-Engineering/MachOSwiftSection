@@ -88,7 +88,7 @@ extension Node {
     }
 
     private struct PostorderSequence: Sequence {
-        public struct Iterator: IteratorProtocol {
+        struct Iterator: IteratorProtocol {
             private var stack: [(node: Node, visited: Bool)]
 
             fileprivate init(root: Node) {
@@ -134,7 +134,7 @@ extension Node {
                 self.queue = [root]
             }
 
-            public mutating func next() -> Node? {
+            mutating func next() -> Node? {
                 guard !queue.isEmpty else { return nil }
 
                 let current = queue.removeFirst()
@@ -194,7 +194,7 @@ extension Sequence where Element == Node {
     public func all(of kinds: [Node.Kind]) -> [Node] {
         filter { kinds.contains($0.kind) }
     }
-    
+
     public func filter(of kind: Node.Kind) -> some Sequence<Node> {
         filter { $0.kind == kind }
     }

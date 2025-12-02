@@ -2,7 +2,6 @@ import Foundation
 import MachOKit
 import MachOFoundation
 
-
 public struct AnonymousContext: TopLevelType, ContextProtocol {
     public let descriptor: AnonymousContextDescriptor
     public let genericContext: GenericContext?

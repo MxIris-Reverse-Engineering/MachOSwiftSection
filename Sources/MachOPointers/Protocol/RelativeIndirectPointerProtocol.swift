@@ -51,7 +51,7 @@ extension RelativeIndirectPointerProtocol {
     }
 
     public func resolveIndirectType(from ptr: UnsafeRawPointer) throws -> IndirectType {
-        return try .resolve(from: ptr)
+        return try .resolve(from: resolveDirectOffset(from: ptr))
     }
 }
 

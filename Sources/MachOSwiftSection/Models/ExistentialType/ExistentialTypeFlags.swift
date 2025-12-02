@@ -1,7 +1,6 @@
 import Foundation
 import MachOFoundation
 
-
 public struct ExistentialTypeFlags: OptionSet, Sendable {
     public typealias RawValue = UInt32
     public let rawValue: RawValue
@@ -10,10 +9,10 @@ public struct ExistentialTypeFlags: OptionSet, Sendable {
     }
 
     private enum Bits {
-        static let numWitnessTablesMask: RawValue = 0x00FFFFFF
-        static let classConstraintMask: RawValue = 0x80000000
-        static let hasSuperclassMask: RawValue = 0x40000000
-        static let specialProtocolMask: RawValue = 0x3F000000
+        static let numWitnessTablesMask: RawValue = 0x00FF_FFFF
+        static let classConstraintMask: RawValue = 0x8000_0000
+        static let hasSuperclassMask: RawValue = 0x4000_0000
+        static let specialProtocolMask: RawValue = 0x3F00_0000
         static let specialProtocolShift: RawValue = 24
     }
 
