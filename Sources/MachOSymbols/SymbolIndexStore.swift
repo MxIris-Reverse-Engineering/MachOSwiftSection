@@ -12,7 +12,7 @@ import SwiftStdlibToolbox
 
 @_spi(ForSymbolViewer)
 @_spi(Internals)
-public final class SymbolIndexStore: MachOCache<SymbolIndexStore.Entry>, @unchecked Sendable {
+public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Entry>, @unchecked Sendable {
     public enum MemberKind: Hashable, CaseIterable, CustomStringConvertible, Sendable {
         fileprivate struct Traits: OptionSet, Hashable, Sendable {
             fileprivate let rawValue: Int

@@ -34,7 +34,7 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
         }
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> SymbolOrElement<Element> {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
         if let machOFile = machO as? MachOFile, let symbol = machOFile.resolveBind(fileOffset: offset) {
             return .symbol(.init(offset: offset, name: symbol))
         } else {
@@ -42,12 +42,16 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
         }
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> SymbolOrElement<Element>? {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self? {
         if let machOFile = machO as? MachOFile, let symbol = machOFile.resolveBind(fileOffset: offset) {
             return .symbol(.init(offset: offset, name: symbol))
         } else {
             return try Element.resolve(from: offset, in: machO).map { .element($0) }
         }
+    }
+    
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
+        return try .element(.resolve(from: ptr))
     }
 
     public func map<T, E: Swift.Error>(_ transform: (Element) throws(E) -> T) throws(E) -> SymbolOrElement<T> {

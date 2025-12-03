@@ -47,11 +47,11 @@ public struct MangledName: Sendable, Hashable {
         case lookup(Lookup)
     }
 
-    package let elements: [Element]
+    package private(set) var elements: [Element] = []
 
-    package let startOffset: Int
+    package private(set) var startOffset: Int
 
-    package let endOffset: Int
+    package private(set) var endOffset: Int
 
     package init(elements: [Element], startOffset: Int, endOffset: Int) {
         self.elements = elements
@@ -117,7 +117,18 @@ extension MangledName: Resolvable {
     }
 
     public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
-        try resolve(from: 0, for: ptr)
+        var mangledName = try resolve(from: 0, for: ptr)
+        mangledName.startOffset = ptr.int
+        mangledName.endOffset = ptr.int + mangledName.endOffset
+        mangledName.elements = mangledName.elements.map { element in
+            switch element {
+            case .string:
+                return element
+            case .lookup(let lookup):
+                return .lookup(.init(offset: ptr.advanced(by: lookup.offset).int, reference: lookup.reference))
+            }
+        }
+        return mangledName
     }
 
     private static func resolve<Reader: Readable>(from offset: Int, for reader: Reader) throws -> MangledName {

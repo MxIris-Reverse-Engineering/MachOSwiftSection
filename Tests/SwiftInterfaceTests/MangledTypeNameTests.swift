@@ -30,7 +30,7 @@ final class MangledTypeNameTests: MachOImageTests, @unchecked Sendable {
                     let typeLayout = try currentMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
                     print(typeLayout)
                 } else {
-                    let node = try MetadataReader.demangleType(for: mangledTypeName, in: machO)
+                    let node = try MetadataReader.demangleType(for: mangledTypeName)
                     let mangledTypeNameString = try mangleAsString(node)
                     if let metatype = _typeByName(mangledTypeNameString) {
                         print(metatype)

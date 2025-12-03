@@ -4,9 +4,9 @@ import MachOResolving
 import MachOExtensions
 
 public struct Symbols: AsyncResolvable {
-    private var _storage: [Symbol] = []
-
     public let offset: Int
+
+    private var _storage: [Symbol] = []
 
     internal init(offset: Int, symbols: [Symbol]) {
         self.offset = offset
