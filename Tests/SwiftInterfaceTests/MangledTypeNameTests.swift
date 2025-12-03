@@ -16,11 +16,12 @@ final class MangledTypeNameTests: MachOImageTests, @unchecked Sendable {
         let machO = machOImage
         let typeContextDescriptorWrappers = try machO.swift.typeContextDescriptors
         for typeContextDescriptorWrapper in typeContextDescriptorWrappers {
-            guard !typeContextDescriptorWrapper.typeContextDescriptor.layout.flags.isGeneric, typeContextDescriptorWrapper.isEnum else { continue }
-            let fieldDescriptor = try typeContextDescriptorWrapper.typeContextDescriptor.fieldDescriptor(in: machO)
-            let records = try fieldDescriptor.records(in: machO)
+            let typeContextDescriptor = typeContextDescriptorWrapper.typeContextDescriptor.asPointerWrapper(in: machO)
+            guard !typeContextDescriptor.layout.flags.isGeneric, typeContextDescriptorWrapper.isEnum else { continue }
+            let fieldDescriptor = try typeContextDescriptor.fieldDescriptor()
+            let records = try fieldDescriptor.records()
             for record in records {
-                let mangledTypeName = try record.mangledTypeName(in: machO)
+                let mangledTypeName = try record.mangledTypeName()
                 guard !mangledTypeName.isEmpty else { continue }
                 defer { print("---------------------") }
                 if let metatype = _typeByName(mangledTypeName.rawString) {

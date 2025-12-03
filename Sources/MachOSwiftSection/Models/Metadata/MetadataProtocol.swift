@@ -29,6 +29,13 @@ extension MetadataProtocol {
     }
 }
 
+extension MetadataProtocol {
+    public func asMetatype<T>() throws -> T.Type {
+        let ptr = try asPointer
+        return unsafeBitCast(ptr, to: T.Type.self)
+    }
+}
+
 extension MetadataProtocol where HeaderType: TypeMetadataHeaderBaseProtocol {
     public func asFullMetadata<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> FullMetadata<Self> {
         try FullMetadata<Self>.resolve(from: offset - HeaderType.layoutSize, in: machO)
