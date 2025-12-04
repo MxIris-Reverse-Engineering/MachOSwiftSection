@@ -20,6 +20,9 @@ final class MangledTypeNameTests: MachOImageTests, @unchecked Sendable {
             guard !typeContextDescriptor.layout.flags.isGeneric, typeContextDescriptorWrapper.isEnum else { continue }
             let fieldDescriptor = try typeContextDescriptor.fieldDescriptor()
             let records = try fieldDescriptor.records()
+            
+            var typeLayouts: [TypeLayout] = []
+            
             for record in records {
                 let mangledTypeName = try record.mangledTypeName()
                 guard !mangledTypeName.isEmpty else { continue }
@@ -29,6 +32,7 @@ final class MangledTypeNameTests: MachOImageTests, @unchecked Sendable {
                     let currentMetadata = try Metadata.createInProcess(metatype)
                     let typeLayout = try currentMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
                     print(typeLayout)
+                    typeLayouts.append(typeLayout)
                 } else {
                     let node = try MetadataReader.demangleType(for: mangledTypeName)
                     let mangledTypeNameString = try mangleAsString(node)
@@ -37,12 +41,15 @@ final class MangledTypeNameTests: MachOImageTests, @unchecked Sendable {
                         let currentMetadata = try Metadata.createInProcess(metatype)
                         let typeLayout = try currentMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
                         print(typeLayout)
-
+                        typeLayouts.append(typeLayout)
                     } else {
                         print("NotFound:", mangledTypeNameString, node.print(using: .default))
                     }
                 }
             }
+            
+            let payloadSize = typeLayouts.reduce(0) { $0 + $1.size }
+            print("PayloadSize:", payloadSize)
         }
     }
 }
