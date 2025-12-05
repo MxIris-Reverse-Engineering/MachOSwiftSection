@@ -43,7 +43,7 @@
       "location" : "https://github.com/Mx-Iris/FrameworkToolbox",
       "state" : {
         "branch" : "main",
-        "revision" : "4e211b4f3de3d89d71695ac405f9878152b3e830"
+        "revision" : "a9d0d11db799d8c31566b42e3cb55358242d94d9"
       }
     },
     {
@@ -186,8 +186,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-log.git",
       "state" : {
-        "revision" : "ca538143e2dc2b5996c34b9322a1ed9def1d7747",
-        "version" : "1.7.0"
+        "revision" : "b1fa4ef41fe21b13120c034854042d12c43f66b2",
+        "version" : "1.7.1"
       }
     },
     {

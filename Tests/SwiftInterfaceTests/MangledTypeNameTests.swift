@@ -18,38 +18,50 @@ final class MangledTypeNameTests: MachOImageTests, @unchecked Sendable {
         for typeContextDescriptorWrapper in typeContextDescriptorWrappers {
             let typeContextDescriptor = typeContextDescriptorWrapper.typeContextDescriptor.asPointerWrapper(in: machO)
             guard !typeContextDescriptor.layout.flags.isGeneric, typeContextDescriptorWrapper.isEnum else { continue }
+
+            guard case .enum(let currentMetadata) = try typeContextDescriptor.metadataAccessor()?.perform(request: .init()).value.resolve() else { continue }
+
             let fieldDescriptor = try typeContextDescriptor.fieldDescriptor()
             let records = try fieldDescriptor.records()
+            guard !records.isEmpty else { continue }
+
+            try print(MetadataReader.demangleContext(for: .type(.enum(typeContextDescriptor as! EnumDescriptor))).print(using: .default))
+            
+            defer {
+                try? print("TypeSize:", currentMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout)
+                print("---------------------")
+            }
             
             var typeLayouts: [TypeLayout] = []
-            
             for record in records {
                 let mangledTypeName = try record.mangledTypeName()
                 guard !mangledTypeName.isEmpty else { continue }
-                defer { print("---------------------") }
                 if let metatype = _typeByName(mangledTypeName.rawString) {
-                    print(metatype)
+                    try print("case", record.fieldName(), metatype)
                     let currentMetadata = try Metadata.createInProcess(metatype)
                     let typeLayout = try currentMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
-                    print(typeLayout)
+                    print("   -\(typeLayout)")
                     typeLayouts.append(typeLayout)
                 } else {
                     let node = try MetadataReader.demangleType(for: mangledTypeName)
                     let mangledTypeNameString = try mangleAsString(node)
                     if let metatype = _typeByName(mangledTypeNameString) {
-                        print(metatype)
+                        try print("case", record.fieldName(), metatype)
                         let currentMetadata = try Metadata.createInProcess(metatype)
                         let typeLayout = try currentMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
-                        print(typeLayout)
+                        print("   -\(typeLayout)")
                         typeLayouts.append(typeLayout)
                     } else {
-                        print("NotFound:", mangledTypeNameString, node.print(using: .default))
+                        try print("NotFound:", "case", record.fieldName(), mangledTypeNameString, node.print(using: .default))
                     }
                 }
             }
-            
-            let payloadSize = typeLayouts.reduce(0) { $0 + $1.size }
+            guard !typeLayouts.isEmpty else {
+                continue
+            }
+            let payloadSize = typeLayouts.map(\.size).max() ?? 0
             print("PayloadSize:", payloadSize)
+            
         }
     }
 }
