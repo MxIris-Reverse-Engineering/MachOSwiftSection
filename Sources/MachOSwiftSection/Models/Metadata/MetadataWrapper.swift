@@ -1,6 +1,9 @@
 import Foundation
 import MachOFoundation
+import SwiftStdlibToolbox
 
+@CaseCheckable(.public)
+@AssociatedValue(.public)
 public enum MetadataWrapper: Resolvable {
     case `class`(ClassMetadataObjCInterop)
     case `struct`(StructMetadata)
@@ -23,6 +26,51 @@ public enum MetadataWrapper: Resolvable {
     case task(DispatchClassMetadata)
     case job(DispatchClassMetadata)
 
+    public var anyMetadata: any MetadataProtocol {
+        switch self {
+        case .class(let classMetadataObjCInterop):
+            return classMetadataObjCInterop
+        case .struct(let structMetadata):
+            return structMetadata
+        case .enum(let enumMetadata):
+            return enumMetadata
+        case .optional(let enumMetadata):
+            return enumMetadata
+        case .foreignClass(let foreignClassMetadata):
+            return foreignClassMetadata
+        case .foreignReferenceType(let foreignReferenceTypeMetadata):
+            return foreignReferenceTypeMetadata
+        case .opaque(let opaqueMetadata):
+            return opaqueMetadata
+        case .tuple(let tupleTypeMetadata):
+            return tupleTypeMetadata
+        case .function(let functionTypeMetadata):
+            return functionTypeMetadata
+        case .existential(let existentialTypeMetadata):
+            return existentialTypeMetadata
+        case .metatype(let metatypeMetadata):
+            return metatypeMetadata
+        case .objcClassWrapper(let objCClassWrapperMetadata):
+            return objCClassWrapperMetadata
+        case .existentialMetatype(let existentialMetatypeMetadata):
+            return existentialMetatypeMetadata
+        case .extendedExistential(let extendedExistentialTypeMetadata):
+            return extendedExistentialTypeMetadata
+        case .fixedArray(let fixedArrayTypeMetadata):
+            return fixedArrayTypeMetadata
+        case .heapLocalVariable(let heapLocalVariableMetadata):
+            return heapLocalVariableMetadata
+        case .heapGenericLocalVariable(let genericBoxHeapMetadata):
+            return genericBoxHeapMetadata
+        case .errorObject(let enumMetadata):
+            return enumMetadata
+        case .task(let dispatchClassMetadata):
+            return dispatchClassMetadata
+        case .job(let dispatchClassMetadata):
+            return dispatchClassMetadata
+        }
+    }
+    
     public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
         let metadata = try machO.readWrapperElement(offset: offset) as Metadata
         switch metadata.kind {

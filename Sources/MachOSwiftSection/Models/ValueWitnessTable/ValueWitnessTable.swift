@@ -32,9 +32,20 @@ public struct ValueWitnessTable: ResolvableLocatableLayoutWrapper {
     }
 }
 
+@dynamicMemberLookup
 public struct TypeLayout {
     public let size: StoredSize
     public let stride: StoredSize
     public let flags: ValueWitnessFlags
     public let extraInhabitantCount: UInt32
+    
+    public subscript<Value>(dynamicMember keyPath: KeyPath<ValueWitnessFlags, Value>) -> Value {
+        flags[keyPath: keyPath]
+    }
+}
+
+extension TypeLayout: CustomStringConvertible {
+    public var description: String {
+        "TypeLayout(size: \(size), stride: \(stride), alignment: \(flags.alignment), extraInhabitantCount: \(extraInhabitantCount), isPOD: \(flags.isPOD), isInlineStorage: \(flags.isInlineStorage), isBitwiseTakable: \(flags.isBitwiseTakable), isBitwiseBorrowable: \(flags.isBitwiseBorrowable), isCopyable: \(flags.isCopyable), hasEnumWitnesses: \(flags.hasEnumWitnesses), isIncomplete: \(flags.isIncomplete))"
+    }
 }

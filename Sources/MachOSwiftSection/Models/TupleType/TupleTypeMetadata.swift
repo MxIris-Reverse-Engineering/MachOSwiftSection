@@ -3,6 +3,7 @@ import MachOFoundation
 
 public struct TupleTypeMetadata: MetadataProtocol {
     public typealias HeaderType = TypeMetadataHeaderBase
+    
     public struct Element: TupleTypeMetadataElementLayout {
         public let type: ConstMetadataPointer<Metadata>
         public let offset: StoredSize

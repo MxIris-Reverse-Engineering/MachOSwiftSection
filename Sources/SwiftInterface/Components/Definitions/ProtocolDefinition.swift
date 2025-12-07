@@ -7,6 +7,7 @@ import Demangling
 import Semantic
 import SwiftStdlibToolbox
 @_spi(Internals) import MachOSymbols
+import SwiftInspection
 
 @MemberwiseInit()
 @dynamicMemberLookup

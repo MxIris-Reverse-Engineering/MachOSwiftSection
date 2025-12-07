@@ -10,6 +10,7 @@ import Dependencies
 import Utilities
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import MachOCaches
+import SwiftInspection
 
 @_spi(Support)
 public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWithCache>: Sendable {

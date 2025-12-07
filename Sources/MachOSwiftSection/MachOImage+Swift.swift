@@ -94,6 +94,12 @@ extension MachOImage.Swift: SwiftSectionRepresentable {
             return try _readDescriptors(from: .__swift5_builtin, in: machO)
         }
     }
+    
+    public var multiPayloadEnumDescriptors: [MultiPayloadEnumDescriptor] {
+        get throws {
+            return try _readDescriptors(from: .__swift5_mpenum, in: machO)
+        }
+    }
 }
 
 extension MachOImage.Swift {
@@ -102,7 +108,7 @@ extension MachOImage.Swift {
         var descriptors: [Descriptor] = []
         let vmaddrSlide = try required(machO.vmaddrSlide)
         let start = try required(UnsafeRawPointer(bitPattern: section.address + vmaddrSlide))
-        let offset = start.int - machO.ptr.int
+        let offset = start.bitPattern.int - machO.ptr.bitPattern.int
         var currentOffset = offset
         let endOffset = offset + section.size
         while currentOffset < endOffset {
@@ -117,7 +123,7 @@ extension MachOImage.Swift {
         let section = try machO.section(for: swiftMachOSection)
         let vmaddrSlide = try required(machO.vmaddrSlide)
         let start = try required(UnsafeRawPointer(bitPattern: section.address + vmaddrSlide))
-        let offset = start.int - machO.ptr.int
+        let offset = start.bitPattern.int - machO.ptr.bitPattern.int
         let pointerSize: Int = MemoryLayout<RelativeDirectPointer<Descriptor>>.size
         let data: [AnyLocatableLayoutWrapper<RelativeDirectPointer<Descriptor>>] = try machO.readWrapperElements(offset: offset, numberOfElements: section.size / pointerSize)
         return try data.map { try $0.layout.resolve(from: $0.offset, in: machO) }

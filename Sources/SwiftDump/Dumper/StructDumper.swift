@@ -5,6 +5,7 @@ import Semantic
 import Utilities
 import Dependencies
 @_spi(Internals) import MachOSymbols
+import SwiftInspection
 
 package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
     private let `struct`: Struct

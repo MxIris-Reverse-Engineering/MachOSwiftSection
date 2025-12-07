@@ -1,5 +1,6 @@
 import MachOKit
 import MachOFoundation
+import SwiftStdlibToolbox
 
 public enum ContextDescriptorWrapper {
     case type(TypeContextDescriptorWrapper)
@@ -8,7 +9,7 @@ public enum ContextDescriptorWrapper {
     case `extension`(ExtensionContextDescriptor)
     case module(ModuleContextDescriptor)
     case opaqueType(OpaqueTypeDescriptor)
-
+    
     public var protocolDescriptor: ProtocolDescriptor? {
         if case .protocol(let descriptor) = self {
             return descriptor

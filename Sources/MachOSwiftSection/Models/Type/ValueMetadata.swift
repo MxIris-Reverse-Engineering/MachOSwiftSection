@@ -1,8 +1,8 @@
-import Foundation
+import MachOKit
 import MachOFoundation
 
-public struct EnumMetadata: EnumMetadataProtocol {
-    public struct Layout: EnumMetadataLayout {
+public struct ValueMetadata: ValueMetadataProtocol {
+    public struct Layout: StructMetadataLayout {
         public let kind: StoredPointer
         public let descriptor: Pointer<ValueTypeDescriptorWrapper>
     }

@@ -24,7 +24,7 @@ extension MachOFile {
 
 extension MachOImage {
     public func resolveOffset(at address: UInt64) -> Int {
-        Int(stripPointerTags(of: address)) - ptr.int
+        Int(stripPointerTags(of: address)) - ptr.bitPattern.int
     }
 }
 
@@ -52,7 +52,7 @@ extension MachOImage: MachORepresentableWithCache, @unchecked @retroactive Senda
     public var cache: DyldCacheLoaded? {
         guard let currentCache = DyldCacheLoaded.current else { return nil }
 
-        if ptr.int - currentCache.mainCacheHeader.sharedRegionStart.cast() >= 0 {
+        if ptr.bitPattern.int - currentCache.mainCacheHeader.sharedRegionStart.cast() >= 0 {
             return currentCache
         }
         return nil

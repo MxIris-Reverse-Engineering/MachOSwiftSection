@@ -1,4 +1,5 @@
 import MachOKit
+import FoundationToolbox
 
 public protocol LayoutProtocol: Sendable, Equatable {}
 
@@ -29,6 +30,6 @@ extension LocatableLayoutWrapper {
     
     package func asPointerWrapper(in machO: MachOImage) -> Self {
         let pointer = pointer(in: machO)
-        return .init(layout: pointer.assumingMemoryBound(to: Layout.self).pointee, offset: pointer.int)
+        return .init(layout: pointer.assumingMemoryBound(to: Layout.self).pointee, offset: pointer.bitPattern.int)
     }
 }

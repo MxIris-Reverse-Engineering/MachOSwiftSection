@@ -5,6 +5,7 @@ import Semantic
 import Demangling
 import Utilities
 import OrderedCollections
+import SwiftInspection
 
 package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWithCache>: ConformedDumper {
     private let protocolConformance: ProtocolConformance

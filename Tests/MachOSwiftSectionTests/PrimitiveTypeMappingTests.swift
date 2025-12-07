@@ -6,6 +6,7 @@ import MachOFoundation
 @testable import MachOTestingSupport
 @testable import MachOSwiftSection
 @testable import SwiftDump
+@testable import SwiftInspection
 
 @Suite
 final class PrimitiveTypeMappingTests: DyldCacheTests, @unchecked Sendable {

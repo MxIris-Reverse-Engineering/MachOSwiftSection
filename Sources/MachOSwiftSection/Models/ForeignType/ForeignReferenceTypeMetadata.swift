@@ -17,3 +17,13 @@ public struct ForeignReferenceTypeMetadata: MetadataProtocol {
         self.offset = offset
     }
 }
+
+extension ForeignReferenceTypeMetadata {
+    public func classDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ClassDescriptor {
+        try layout.descriptor.resolve(in: machO)
+    }
+
+    public func classDescriptor() throws -> ClassDescriptor {
+        try layout.descriptor.resolve()
+    }
+}

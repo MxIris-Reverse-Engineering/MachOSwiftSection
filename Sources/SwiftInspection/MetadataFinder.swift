@@ -19,7 +19,7 @@ extension MachOFile: MachOOffsetConverter {
 
 extension MachOImage: MachOOffsetConverter {
     package func offset(of address: UInt64, at fileOffset: Int) -> Int {
-        numericCast(address - ptr.uint.cast())
+        numericCast(address - ptr.bitPattern.uint.cast())
     }
 }
 

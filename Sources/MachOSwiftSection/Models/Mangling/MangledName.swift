@@ -49,10 +49,17 @@ public struct MangledName: Sendable, Hashable {
 
     package private(set) var elements: [Element] = []
 
+    @usableFromInline
     package private(set) var startOffset: Int
 
+    @usableFromInline
     package private(set) var endOffset: Int
 
+    @inlinable
+    package var size: Int {
+        endOffset - startOffset
+    }
+    
     package init(elements: [Element], startOffset: Int, endOffset: Int) {
         self.elements = elements
         self.startOffset = startOffset
@@ -118,14 +125,14 @@ extension MangledName: Resolvable {
 
     public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
         var mangledName = try resolve(from: 0, for: ptr)
-        mangledName.startOffset = ptr.int
-        mangledName.endOffset = ptr.int + mangledName.endOffset
+        mangledName.startOffset = ptr.bitPattern.int
+        mangledName.endOffset = ptr.bitPattern.int + mangledName.endOffset
         mangledName.elements = mangledName.elements.map { element in
             switch element {
             case .string:
                 return element
             case .lookup(let lookup):
-                return .lookup(.init(offset: ptr.advanced(by: lookup.offset).int, reference: lookup.reference))
+                return .lookup(.init(offset: ptr.advanced(by: lookup.offset).bitPattern.int, reference: lookup.reference))
             }
         }
         return mangledName

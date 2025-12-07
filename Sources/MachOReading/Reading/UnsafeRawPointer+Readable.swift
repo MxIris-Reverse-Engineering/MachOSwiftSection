@@ -28,7 +28,7 @@ extension UnsafeRawPointer: Readable {
 
     public func readWrapperElement<Element>() throws -> Element where Element: LocatableLayoutWrapper {
         let layout: Element.Layout = assumingMemoryBound(to: Element.Layout.self).pointee
-        return .init(layout: layout, offset: int)
+        return .init(layout: layout, offset: box.bitPattern.int)
     }
 
     public func readElements<Element>(to: Element.Type = Element.self, numberOfElements: Int) throws -> [Element] {
@@ -36,7 +36,7 @@ extension UnsafeRawPointer: Readable {
     }
 
     public func readWrapperElements<Element>(to: Element.Type = Element.self, numberOfElements: Int) throws -> [Element] where Element: LocatableLayoutWrapper {
-        var currentOffset = int
+        var currentOffset = box.bitPattern.int
         let elements = MemorySequence<Element.Layout>(basePointer: assumingMemoryBound(to: Element.Layout.self), numberOfElements: numberOfElements).map { (layout: Element.Layout) -> Element in
             let element = Element(layout: layout, offset: currentOffset)
             currentOffset += Element.layoutSize

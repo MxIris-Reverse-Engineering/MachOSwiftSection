@@ -8,6 +8,7 @@ import Demangling
 import Semantic
 import SwiftStdlibToolbox
 @_spi(Internals) import MachOSymbols
+import SwiftInspection
 
 extension Node {
     var accessorKind: AccessorKind {

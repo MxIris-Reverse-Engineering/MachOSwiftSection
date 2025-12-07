@@ -5,6 +5,7 @@ import Semantic
 import Utilities
 import Demangling
 import OrderedCollections
+import SwiftInspection
 
 package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: NamedDumper {
     private let `protocol`: MachOSwiftSection.`Protocol`

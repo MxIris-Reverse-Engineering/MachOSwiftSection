@@ -128,6 +128,10 @@ extension Target.Dependency {
         name: "TermKit",
         package: "TermKit"
     )
+    static let MachOObjCSection = Target.Dependency.product(
+        name: "MachOObjCSection",
+        package: "MachOObjCSection"
+    )
 }
 
 extension Product {
@@ -160,9 +164,9 @@ extension Target {
     )
 
     static let UtilitiesC = Target.target(
-        name: "UtilitiesC",
+        name: "UtilitiesC"
     )
-    
+
     static let Utilities = Target.target(
         name: "Utilities",
         dependencies: [
@@ -272,10 +276,21 @@ extension Target {
             .target(.Demangling),
             .target(.Utilities),
             .product(name: "DyldPrivate", package: "DyldPrivate"),
-        ],
+        ]
 //        swiftSettings: [
 //            .unsafeFlags(["-parse-stdlib"]),
 //        ],
+    )
+
+    static let SwiftInspection = Target.target(
+        name: "SwiftInspection",
+        dependencies: [
+            .MachOKit,
+            .target(.MachOSwiftSection),
+            .target(.Semantic),
+            .target(.Utilities),
+            .MachOObjCSection,
+        ]
     )
 
     static let SwiftDump = Target.target(
@@ -283,9 +298,10 @@ extension Target {
         dependencies: [
             .MachOKit,
             .target(.MachOSwiftSection),
+            .target(.SwiftInspection),
             .target(.Semantic),
             .target(.Utilities),
-            .product(name: "MachOObjCSection", package: "MachOObjCSection"),
+            .MachOObjCSection,
         ]
     )
 
@@ -319,10 +335,10 @@ extension Target {
             .SwiftSyntax,
             .SwiftParser,
             .SwiftSyntaxBuilder,
+            .MachOObjCSection,
             .product(name: "SourceKitD", package: "SourceKitD", condition: .when(platforms: [.macOS])),
             .product(name: "BinaryCodable", package: "BinaryCodable"),
             .product(name: "APINotes", package: "swift-apinotes", condition: .when(platforms: [.macOS])),
-            .product(name: "MachOObjCSection", package: "MachOObjCSection"),
         ]
     )
 
@@ -335,7 +351,7 @@ extension Target {
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ]
     )
-    
+
     // MARK: - Macros
 
     static let MachOMacros = Target.macro(
@@ -428,6 +444,7 @@ let package = Package(
     ],
     dependencies: dependencies,
     targets: [
+        // Library
         .Semantic,
         .Demangling,
         .Utilities,
@@ -441,13 +458,18 @@ let package = Package(
         .MachOSymbolPointers,
         .MachOFoundation,
         .MachOSwiftSection,
+        .SwiftInspection,
         .SwiftDump,
         .SwiftIndex,
         .SwiftInterface,
         .TypeIndexing,
-        .swift_section,
         .MachOMacros,
         .MachOTestingSupport,
+
+        // Executable
+        .swift_section,
+
+        // Testing
         .DemanglingTests,
         .MachOSymbolsTests,
         .MachOSwiftSectionTests,

@@ -7,6 +7,7 @@ import Demangling
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
 @testable import SwiftDump
+@testable import SwiftInspection
 import Dependencies
 
 @Suite

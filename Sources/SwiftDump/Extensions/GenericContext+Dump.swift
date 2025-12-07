@@ -3,6 +3,7 @@ import MachOKit
 import MachOSwiftSection
 import Utilities
 import Demangling
+import SwiftInspection
 
 private func genericParameterName(depth: Int, index: Int) throws -> String {
     var charIndex = index

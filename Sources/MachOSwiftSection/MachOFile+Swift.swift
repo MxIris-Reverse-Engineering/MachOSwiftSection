@@ -94,6 +94,12 @@ extension MachOFile.Swift: SwiftSectionRepresentable {
             return try _readDescriptors(from: .__swift5_builtin, in: machO)
         }
     }
+    
+    public var multiPayloadEnumDescriptors: [MultiPayloadEnumDescriptor] {
+        get throws {
+            return try _readDescriptors(from: .__swift5_mpenum, in: machO)
+        }
+    }
 }
 
 extension MachOFile.Swift {

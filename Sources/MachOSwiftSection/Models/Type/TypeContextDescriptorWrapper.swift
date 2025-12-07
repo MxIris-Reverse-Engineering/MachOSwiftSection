@@ -57,6 +57,10 @@ public enum TypeContextDescriptorWrapper {
     public func genericContext() throws -> GenericContext? {
         return try contextDescriptor.genericContext()
     }
+    
+    public var asContextDescriptorWrapper: ContextDescriptorWrapper {
+        return .type(self)
+    }
 }
 
 extension TypeContextDescriptorWrapper: Resolvable {
@@ -92,6 +96,117 @@ extension TypeContextDescriptorWrapper: Resolvable {
         switch contextDescriptor.flags.kind {
         case .class:
             return try .class(.resolve(from: ptr))
+        case .enum:
+            return try .enum(.resolve(from: ptr))
+        case .struct:
+            return try .struct(.resolve(from: ptr))
+        default:
+            throw ResolutionError.invalidTypeContextDescriptor
+        }
+    }
+
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self? {
+        do {
+            return try resolve(from: ptr) as Self
+        } catch {
+            print("Error resolving ContextDescriptorWrapper: \(error)")
+            return nil
+        }
+    }
+}
+
+@CaseCheckable(.public)
+@AssociatedValue(.public)
+public enum ValueTypeDescriptorWrapper {
+    case `enum`(EnumDescriptor)
+    case `struct`(StructDescriptor)
+
+    public var contextDescriptor: any ContextDescriptorProtocol {
+        switch self {
+        case .enum(let enumDescriptor):
+            return enumDescriptor
+        case .struct(let structDescriptor):
+            return structDescriptor
+        }
+    }
+
+    public var namedContextDescriptor: any NamedContextDescriptorProtocol {
+        switch self {
+        case .enum(let enumDescriptor):
+            return enumDescriptor
+        case .struct(let structDescriptor):
+            return structDescriptor
+        }
+    }
+
+    public var typeContextDescriptor: any TypeContextDescriptorProtocol {
+        switch self {
+        case .enum(let enumDescriptor):
+            return enumDescriptor
+        case .struct(let structDescriptor):
+            return structDescriptor
+        }
+    }
+
+    public func parent<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+        return try contextDescriptor.parent(in: machO)
+    }
+
+    public func genericContext<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> GenericContext? {
+        return try contextDescriptor.genericContext(in: machO)
+    }
+
+    public func parent() throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+        return try contextDescriptor.parent()
+    }
+
+    public func genericContext() throws -> GenericContext? {
+        return try contextDescriptor.genericContext()
+    }
+    
+    public var asTypeContextDescriptorWrapper: TypeContextDescriptorWrapper {
+        switch self {
+        case .enum(let enumDescriptor):
+            return .enum(enumDescriptor)
+        case .struct(let structDescriptor):
+            return .struct(structDescriptor)
+        }
+    }
+    
+    public var asContextDescriptorWrapper: ContextDescriptorWrapper {
+        return .type(asTypeContextDescriptorWrapper)
+    }
+}
+
+extension ValueTypeDescriptorWrapper: Resolvable {
+    public enum ResolutionError: Error {
+        case invalidTypeContextDescriptor
+    }
+
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
+        let contextDescriptor: ContextDescriptor = try machO.readWrapperElement(offset: offset)
+        switch contextDescriptor.flags.kind {
+        case .enum:
+            return try .enum(machO.readWrapperElement(offset: offset))
+        case .struct:
+            return try .struct(machO.readWrapperElement(offset: offset))
+        default:
+            throw ResolutionError.invalidTypeContextDescriptor
+        }
+    }
+
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self? {
+        do {
+            return try resolve(from: offset, in: machO) as Self
+        } catch {
+            print("Error resolving ContextDescriptorWrapper: \(error)")
+            return nil
+        }
+    }
+
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
+        let contextDescriptor = try ContextDescriptor.resolve(from: ptr)
+        switch contextDescriptor.flags.kind {
         case .enum:
             return try .enum(.resolve(from: ptr))
         case .struct:

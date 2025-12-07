@@ -121,7 +121,7 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
     public init(contextDescriptor: some ContextDescriptorProtocol) throws {
         var currentOffset = contextDescriptor.layoutSize
         let pointer = try contextDescriptor.asPointer
-        let genericContextOffset = pointer.int + currentOffset
+        let genericContextOffset = pointer.bitPattern.int + currentOffset
         self.offset = genericContextOffset
 
         let header: Header = try pointer.readWrapperElement(offset: currentOffset)

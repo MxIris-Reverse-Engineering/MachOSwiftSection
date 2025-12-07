@@ -3,6 +3,7 @@ import MachOKit
 import MachOSwiftSection
 import Semantic
 import Utilities
+import SwiftInspection
 
 package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCache>: ConformedDumper {
     private let associatedType: AssociatedType

@@ -5,6 +5,7 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
 @testable import MachOTestingSupport
+@testable import SwiftInspection
 
 @Suite(.serialized)
 final class MachOFileDumpTests: MachOFileTests, DumpableTests, @unchecked Sendable {

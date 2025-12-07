@@ -6,6 +6,7 @@ import Utilities
 import Dependencies
 import OrderedCollections
 @_spi(Internals) import MachOSymbols
+import SwiftInspection
 
 package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
     private let `class`: Class

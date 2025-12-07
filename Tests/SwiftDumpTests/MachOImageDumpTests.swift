@@ -6,6 +6,7 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
 @testable import MachOTestingSupport
+@testable import SwiftInspection
 import Dependencies
 
 #if os(macOS)

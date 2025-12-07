@@ -77,7 +77,7 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
 //                    try print(structMetadata.fieldOffsets(in: machO))
                 case .enum(let enumMetadata):
 //                    guard try enumMetadata.descriptor.resolve(in: machO).name(in: machO) == "MultiPayloadEnumTests" else { continue }
-                    let descriptor = try enumMetadata.descriptor.resolve(in: machO)
+                    let descriptor = try enumMetadata.enumDescriptor(in: machO)
                     try await Enum(descriptor: descriptor, in: machO).dump(using: .demangleOptions(.default), in: machO).string.print()
                     let typeLayout = try enumMetadata.valueWitnesses(in: machO).typeLayout
                     print(typeLayout)

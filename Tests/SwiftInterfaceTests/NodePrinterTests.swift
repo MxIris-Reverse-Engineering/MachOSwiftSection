@@ -7,6 +7,7 @@ import Dependencies
 @_spi(Internals) import MachOSymbols
 @testable import SwiftDump
 @testable import SwiftInterface
+@testable import SwiftInspection
 
 @Suite
 final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {

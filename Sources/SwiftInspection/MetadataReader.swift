@@ -466,7 +466,7 @@ extension MetadataReader {
                 case .accessorFunctionReference:
                     // The symbolic reference points at a resolver function, but we can't
                     // execute code in the target process to resolve it from here.
-                    result = .init(kind: .accessorFunctionReference, contents: .index(ptr.uint.uint64))
+                    result = .init(kind: .accessorFunctionReference, contents: .index(ptr.bitPattern.uint.uint64))
                 case .uniqueExtendedExistentialTypeShape:
                     let extendedExistentialTypeShape = try RelativeDirectPointer<ExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(from: ptr)
                     result = try .init(kind: .uniqueExtendedExistentialTypeShapeSymbolicReference, children: demangle(for: extendedExistentialTypeShape.existentialType(), kind: .type).children)

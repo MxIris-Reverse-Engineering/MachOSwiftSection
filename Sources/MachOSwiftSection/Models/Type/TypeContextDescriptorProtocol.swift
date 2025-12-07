@@ -27,7 +27,6 @@ extension TypeContextDescriptorProtocol {
 
 extension TypeContextDescriptorProtocol {
     public func metadataAccessor() throws -> MetadataAccessor? {
-//        return try layout.accessFunctionPtr.resolve(from: layout.pointer(from: asPointer, of: .accessFunctionPtr))
         let ptr = try layout.pointer(from: asPointer, of: .accessFunctionPtr)
         return try .init(raw: layout.accessFunctionPtr.resolveDirectOffset(from: ptr))
     }

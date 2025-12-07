@@ -4,7 +4,7 @@ import MachOFoundation
 public struct StructMetadata: StructMetadataProtocol {
     public struct Layout: StructMetadataLayout {
         public let kind: StoredPointer
-        public let descriptor: Pointer<StructDescriptor>
+        public let descriptor: Pointer<ValueTypeDescriptorWrapper>
     }
 
     public var layout: Layout

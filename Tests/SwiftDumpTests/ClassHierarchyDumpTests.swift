@@ -8,6 +8,7 @@ import MachOFoundation
 @testable import MachOTestingSupport
 import Dependencies
 @_spi(Core) import MachOObjCSection
+@testable import SwiftInspection
 
 #if os(macOS)
 import AppKit
