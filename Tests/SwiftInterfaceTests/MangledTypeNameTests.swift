@@ -11,22 +11,6 @@ import Testing
 import SwiftUI
 @testable @_spi(Support) import SwiftInterface
 
-public func _getTypeByMangledNameInContext(
-    _ name: String,
-    genericContext: UnsafeRawPointer? = nil,
-    genericArguments: UnsafeRawPointer? = nil
-) -> Any.Type? {
-    let nameUTF8 = Array(name.utf8)
-    return unsafe nameUTF8.withUnsafeBufferPointer { nameUTF8 in
-        return unsafe _getTypeByMangledNameInContext(
-            nameUTF8.baseAddress!,
-            UInt(nameUTF8.endIndex),
-            genericContext: nil,
-            genericArguments: nil
-        )
-    }
-}
-
 final class MangledTypeNameTests: MachOImageTests, @unchecked Sendable {
     override class var imageName: MachOImageName { .SwiftUICore }
 
@@ -36,21 +20,18 @@ final class MangledTypeNameTests: MachOImageTests, @unchecked Sendable {
         for descriptor in descriptors {
             try print(MetadataReader.demangleType(for: descriptor.typeName(in: machO), in: machO).print())
             let offset = try descriptor.payloadSpareBitMaskByteOffset(in: machO)
+            let count = try descriptor.payloadSpareBitMaskByteCount(in: machO)
             let payloadSpareBits = try descriptor.payloadSpareBits(in: machO)
+            let bitMask = BitMask(bytes: payloadSpareBits)
             print("offset:", offset)
-//            for byte in try payloadSpareBits {
-//                print(String(format: "%02x", byte), terminator: "")
-//            }
-            print(payloadSpareBits.prefix(offset.cast()).map { String(format: "%02x", $0) }.joined())
-//            print(BitMask(bytes: payloadSpareBits).numSetBits)
+            print("count:", count)
+            print("numBits:", bitMask.numBits, "numSetBits:", bitMask.numSetBits, "numZeroBits:", bitMask.numZeroBits)
         }
     }
 
     @Test func mangledTypeNames() async throws {
         let machO = machOImage
         let typeContextDescriptorWrappers = try machO.swift.typeContextDescriptors
-//        let indexer = SwiftInterfaceIndexer(in: machO)
-//        try await indexer.prepare()
         for typeContextDescriptorWrapper in typeContextDescriptorWrappers {
             let typeContextDescriptor = typeContextDescriptorWrapper.typeContextDescriptor.asPointerWrapper(in: machO)
             guard !typeContextDescriptor.layout.flags.isGeneric, typeContextDescriptorWrapper.isEnum else { continue }
@@ -120,12 +101,7 @@ final class MangledTypeNameTests: MachOImageTests, @unchecked Sendable {
                     if !isIndirectCase {
                         typeLayouts.append(typeLayout)
                     }
-                } /* else if let typeDefinition = indexer.allTypeDefinitions.first(where: { $0.key.name == node.print(using: .interfaceTypeBuilderOnly) })?.value, !typeDefinition.type.typeContextDescriptorWrapper.contextDescriptor.layout.flags.isGeneric, let metadata: Metadata = try typeDefinition.type.typeContextDescriptorWrapper.typeContextDescriptor.asPointerWrapper(in: machO).metadataAccessor()?.perform(request: .init()).value.resolveAny() {
-                     try print("\(indirectCaseString)case \(record.fieldName())\(payloadString(typeDefinition.typeName.name))")
-                     let typeLayout = try metadata.asFullMetadata().valueWitnesses.resolve().typeLayout
-                     print("   - \(typeLayout)")
-                     typeLayouts.append(typeLayout)
-                 } */ else {
+                } else {
                     try print("NotFound:", "case", record.fieldName(), mangledTypeNameString, node.print(using: .default))
                 }
             }
