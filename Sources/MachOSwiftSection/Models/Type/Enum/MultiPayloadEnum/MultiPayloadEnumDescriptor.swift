@@ -29,34 +29,15 @@ extension MultiPayloadEnumDescriptor {
     }
 
     public func payloadSpareBits(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [UInt8] {
-        return try machO.readElements(offset: MemoryLayout<RelativeOffset>.size + MemoryLayout<UInt32>.size * payloadSpareBitsIndex, numberOfElements: payloadSpareBitMaskByteCount(in: machO).cast())
+        guard usesPayloadSpareBits else { return [] }
+        return try machO.readElements(offset: offset + MemoryLayout<RelativeOffset>.size + MemoryLayout<UInt32>.size * payloadSpareBitsIndex, numberOfElements: payloadSpareBitMaskByteCount(in: machO).cast())
     }
-    
-    public var contentsSizeInWord: UInt32 {
-        layout.sizeFlags >> 16
+
+    public func payloadSpareBitMask(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> BitMask? {
+        guard usesPayloadSpareBits else { return nil }
+        return try .init(bytes: payloadSpareBits(in: machO))
     }
-    
-    public var flags: UInt32 {
-        layout.sizeFlags & 0xFFFF
-    }
-    
-    public var usesPayloadSpareBits: Bool {
-        flags & 1 != 0
-    }
-    
-    public var sizeFlagsIndex: Int {
-        0
-    }
-    
-    public var payloadSpareBitMaskByteCountIndex: Int {
-        sizeFlagsIndex + 1
-    }
-    
-    public var payloadSpareBitsIndex: Int {
-        let payloadSpareBitMaskByteCountFieldSize = usesPayloadSpareBits ? 1 : 0
-        return payloadSpareBitMaskByteCountIndex + payloadSpareBitMaskByteCountFieldSize
-    }
-    
+
     public func payloadSpareBitMaskByteOffset(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> UInt32 {
         if usesPayloadSpareBits {
             return try contents(in: machO)[payloadSpareBitMaskByteCountIndex] >> 16
@@ -64,13 +45,78 @@ extension MultiPayloadEnumDescriptor {
             return 0
         }
     }
-    
+
     public func payloadSpareBitMaskByteCount(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> UInt32 {
         if usesPayloadSpareBits {
             return try contents(in: machO)[payloadSpareBitMaskByteCountIndex] & 0xFFFF
         } else {
             return 0
         }
+    }
+
+    public func typeName() throws -> MangledName {
+        return try layout.typeName.resolve(from: asPointer)
+    }
+
+    public func contents() throws -> [UInt32] {
+        return try pointer(of: \.sizeFlags).readElements(numberOfElements: contentsSizeInWord.cast())
+    }
+
+    public func payloadSpareBits() throws -> [UInt8] {
+        guard usesPayloadSpareBits else { return [] }
+        return try asPointer.readElements(offset: MemoryLayout<RelativeOffset>.size + MemoryLayout<UInt32>.size * payloadSpareBitsIndex, numberOfElements: payloadSpareBitMaskByteCount().cast())
+    }
+
+    public func payloadSpareBitMask() throws -> BitMask? {
+        guard usesPayloadSpareBits else { return nil }
+        return try .init(bytes: payloadSpareBits())
+    }
+
+    public func payloadSpareBitMaskByteOffset() throws -> UInt32 {
+        if usesPayloadSpareBits {
+            return try contents()[payloadSpareBitMaskByteCountIndex] >> 16
+        } else {
+            return 0
+        }
+    }
+
+    public func payloadSpareBitMaskByteCount() throws -> UInt32 {
+        if usesPayloadSpareBits {
+            return try contents()[payloadSpareBitMaskByteCountIndex] & 0xFFFF
+        } else {
+            return 0
+        }
+    }
+
+    @inlinable
+    public var contentsSizeInWord: UInt32 {
+        layout.sizeFlags >> 16
+    }
+
+    @inlinable
+    public var flags: UInt32 {
+        layout.sizeFlags & 0xFFFF
+    }
+
+    @inlinable
+    public var usesPayloadSpareBits: Bool {
+        flags & 1 != 0
+    }
+
+    @inlinable
+    public var sizeFlagsIndex: Int {
+        0
+    }
+
+    @inlinable
+    public var payloadSpareBitMaskByteCountIndex: Int {
+        sizeFlagsIndex + 1
+    }
+
+    @inlinable
+    public var payloadSpareBitsIndex: Int {
+        let payloadSpareBitMaskByteCountFieldSize = usesPayloadSpareBits ? 1 : 0
+        return payloadSpareBitMaskByteCountIndex + payloadSpareBitMaskByteCountFieldSize
     }
 }
 

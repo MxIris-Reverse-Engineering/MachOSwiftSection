@@ -301,3 +301,23 @@ extension StructTest: ProtocolWitnessTableTest {
 
     public func e() {}
 }
+
+public enum MultiPayloadEnumTests1 {
+    case string(String)
+    case data(Data)
+    case nsNumber(Decimal)
+    case date(Date)
+    case url(URL)
+    case attributedString(AttributedString)
+}
+
+public enum MultiPayloadEnumTests2 {
+    case string(Swift.String)
+    case data(Data)
+    case nsNumber(NSNumber)
+    case nsNumber1(NSNumber)
+    case nsNumber2(NSNumber)
+    case nsNumber3(NSNumber)
+    case nsNumber4(NSNumber)
+    case nsNumber5(NSNumber)
+}
