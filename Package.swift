@@ -148,6 +148,9 @@ extension Target.Dependency {
     static func target(_ target: Target) -> Self {
         .targetItem(name: target.name, condition: nil)
     }
+    static func product(_ dependency: Self) -> Self {
+        dependency
+    }
 }
 
 @MainActor
@@ -184,7 +187,7 @@ extension Target {
     static let MachOExtensions = Target.target(
         name: "MachOExtensions",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.Utilities),
         ]
     )
@@ -192,7 +195,7 @@ extension Target {
     static let MachOCaches = Target.target(
         name: "MachOCaches",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOExtensions),
             .target(.Utilities),
         ]
@@ -201,7 +204,7 @@ extension Target {
     static let MachOReading = Target.target(
         name: "MachOReading",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOExtensions),
             .target(.Utilities),
             .product(name: "FileIO", package: "swift-fileio"),
@@ -211,7 +214,7 @@ extension Target {
     static let MachOResolving = Target.target(
         name: "MachOResolving",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOExtensions),
             .target(.MachOReading),
         ]
@@ -220,7 +223,7 @@ extension Target {
     static let MachOSymbols = Target.target(
         name: "MachOSymbols",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOReading),
             .target(.MachOResolving),
             .target(.Utilities),
@@ -235,7 +238,7 @@ extension Target {
     static let MachOPointers = Target.target(
         name: "MachOPointers",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOReading),
             .target(.MachOResolving),
             .target(.Utilities),
@@ -245,7 +248,7 @@ extension Target {
     static let MachOSymbolPointers = Target.target(
         name: "MachOSymbolPointers",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOReading),
             .target(.MachOResolving),
             .target(.MachOPointers),
@@ -257,7 +260,7 @@ extension Target {
     static let MachOFoundation = Target.target(
         name: "MachOFoundation",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOReading),
             .target(.MachOExtensions),
             .target(.MachOPointers),
@@ -271,7 +274,7 @@ extension Target {
     static let MachOSwiftSection = Target.target(
         name: "MachOSwiftSection",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOFoundation),
             .target(.Demangling),
             .target(.Utilities),
@@ -285,7 +288,7 @@ extension Target {
     static let SwiftInspection = Target.target(
         name: "SwiftInspection",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOSwiftSection),
             .target(.Semantic),
             .target(.Utilities),
@@ -296,19 +299,19 @@ extension Target {
     static let SwiftDump = Target.target(
         name: "SwiftDump",
         dependencies: [
-            .MachOKit,
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.Semantic),
             .target(.Utilities),
-            .MachOObjCSection,
+            .product(.MachOKit),
+            .product(.MachOObjCSection),
         ]
     )
 
     static let SwiftIndex = Target.target(
         name: "SwiftIndex",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOSwiftSection),
             .target(.SwiftDump),
             .target(.Semantic),
@@ -319,7 +322,7 @@ extension Target {
     static let SwiftInterface = Target.target(
         name: "SwiftInterface",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOSwiftSection),
             .target(.SwiftDump),
             .target(.Semantic),
@@ -332,10 +335,10 @@ extension Target {
         dependencies: [
             .target(.SwiftInterface),
             .target(.Utilities),
-            .SwiftSyntax,
-            .SwiftParser,
-            .SwiftSyntaxBuilder,
-            .MachOObjCSection,
+            .product(.SwiftSyntax),
+            .product(.SwiftParser),
+            .product(.SwiftSyntaxBuilder),
+            .product(.MachOObjCSection),
             .product(name: "SourceKitD", package: "SourceKitD", condition: .when(platforms: [.macOS])),
             .product(name: "BinaryCodable", package: "BinaryCodable"),
             .product(name: "APINotes", package: "swift-apinotes", condition: .when(platforms: [.macOS])),
@@ -357,10 +360,10 @@ extension Target {
     static let MachOMacros = Target.macro(
         name: "MachOMacros",
         dependencies: [
-            .SwiftSyntax,
-            .SwiftSyntaxMacros,
-            .SwiftCompilerPlugin,
-            .SwiftSyntaxBuilder,
+            .product(.SwiftSyntax),
+            .product(.SwiftSyntaxMacros),
+            .product(.SwiftCompilerPlugin),
+            .product(.SwiftSyntaxBuilder),
         ]
     )
 
@@ -369,7 +372,7 @@ extension Target {
     static let MachOTestingSupport = Target.target(
         name: "MachOTestingSupport",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOExtensions),
             .target(.SwiftDump),
         ],
@@ -402,13 +405,22 @@ extension Target {
         ],
         swiftSettings: testSettings
     )
+    
+    static let SwiftInspectionTests = Target.testTarget(
+        name: "SwiftInspectionTests",
+        dependencies: [
+            .target(.MachOSwiftSection),
+            .target(.MachOTestingSupport),
+        ],
+        swiftSettings: testSettings
+    )
 
     static let SwiftDumpTests = Target.testTarget(
         name: "SwiftDumpTests",
         dependencies: [
             .target(.SwiftDump),
             .target(.MachOTestingSupport),
-            .product(name: "MachOObjCSection", package: "MachOObjCSection"),
+            .product(.MachOObjCSection)
         ],
         swiftSettings: testSettings
     )
@@ -473,6 +485,7 @@ let package = Package(
         .DemanglingTests,
         .MachOSymbolsTests,
         .MachOSwiftSectionTests,
+        .SwiftInspectionTests,
         .SwiftDumpTests,
         .TypeIndexingTests,
         .SwiftInterfaceTests,
