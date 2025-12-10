@@ -4,7 +4,7 @@ import MachOFoundation
 public struct MultiPayloadEnumDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
         public let typeName: RelativeDirectPointer<MangledName>
-        // let contents: [UInt32]
+        /// let contents: [UInt32]
         public let sizeFlags: UInt32
         // .....
     }
@@ -31,11 +31,6 @@ extension MultiPayloadEnumDescriptor {
     public func payloadSpareBits(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [UInt8] {
         guard usesPayloadSpareBits else { return [] }
         return try machO.readElements(offset: offset + MemoryLayout<RelativeOffset>.size + MemoryLayout<UInt32>.size * payloadSpareBitsIndex, numberOfElements: payloadSpareBitMaskByteCount(in: machO).cast())
-    }
-
-    public func payloadSpareBitMask(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> BitMask? {
-        guard usesPayloadSpareBits else { return nil }
-        return try .init(bytes: payloadSpareBits(in: machO))
     }
 
     public func payloadSpareBitMaskByteOffset(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> UInt32 {
@@ -65,11 +60,6 @@ extension MultiPayloadEnumDescriptor {
     public func payloadSpareBits() throws -> [UInt8] {
         guard usesPayloadSpareBits else { return [] }
         return try asPointer.readElements(offset: MemoryLayout<RelativeOffset>.size + MemoryLayout<UInt32>.size * payloadSpareBitsIndex, numberOfElements: payloadSpareBitMaskByteCount().cast())
-    }
-
-    public func payloadSpareBitMask() throws -> BitMask? {
-        guard usesPayloadSpareBits else { return nil }
-        return try .init(bytes: payloadSpareBits())
     }
 
     public func payloadSpareBitMaskByteOffset() throws -> UInt32 {

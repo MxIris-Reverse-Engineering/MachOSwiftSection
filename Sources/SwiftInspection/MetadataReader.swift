@@ -405,8 +405,12 @@ package enum MetadataReader {
 }
 
 extension MetadataReader {
-    package static func demangleType(for mangledName: MangledName) throws -> Node {
+    fileprivate static func _demangleType(for mangledName: MangledName) throws -> Node {
         return try demangle(for: mangledName, kind: .type)
+    }
+    
+    package static func demangleType(for mangledName: MangledName) throws -> Node {
+        return try MetadataReaderCache.shared.demangleType(for: mangledName)
     }
 
 //    public static func demangleSymbol(for mangledName: MangledName, in machO: MachO) throws -> Node {
@@ -880,8 +884,8 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Entry>,
         Entry()
     }
 
-    override func entry<MachO>(in machO: MachO) -> Entry? where MachO: MachORepresentableWithCache {
-        super.entry(in: machO)
+    override func buildEntry() -> Entry? {
+        Entry()
     }
 
     func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
@@ -890,6 +894,16 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Entry>,
         } else {
             let node = try MetadataReader._demangleType(for: mangledName, in: machO)
             entry(in: machO)?.nodeForMangledNameBox[MangledNameBox(mangledName)] = node
+            return node
+        }
+    }
+    
+    func demangleType(for mangledName: MangledName) throws -> Node {
+        if let node = entry()?.nodeForMangledNameBox[MangledNameBox(mangledName)] {
+            return node
+        } else {
+            let node = try MetadataReader._demangleType(for: mangledName)
+            entry()?.nodeForMangledNameBox[MangledNameBox(mangledName)] = node
             return node
         }
     }
