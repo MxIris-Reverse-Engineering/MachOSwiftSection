@@ -58,25 +58,27 @@ final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
             var typeLayouts: [TypeLayout] = []
             var emptyCases: UInt32 = 0
             var payloadCases: UInt32 = 0
+            var payloadSize: UInt64 = 0
             defer {
                 do {
-                    try print(currentMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout)
+                    let enumTypeLayout = try currentMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
+                    print(enumTypeLayout)
                     try printMultiPayloadEnum(multiPayloadEnumDescriptor)
-                    try EnumLayoutCalculator.calculate(spareBytes: multiPayloadEnumDescriptor.payloadSpareBits(), startOffset: multiPayloadEnumDescriptor.payloadSpareBitMaskByteOffset().cast(), numTags: .init(payloadCases + (emptyCases != 0 ? 1 : 0))).print()
+                    try EnumLayoutCalculator.calculateMultiPayload( /* enumSize: enumTypeLayout.size.cast(), */ payloadSize: payloadSize.cast(), spareBytes: multiPayloadEnumDescriptor.payloadSpareBits(), spareBytesOffset: multiPayloadEnumDescriptor.payloadSpareBitMaskByteOffset().cast(), numPayloadCases: payloadCases.cast(), numEmptyCases: emptyCases.cast()).print()
 
                 } catch {
                     print(error)
                 }
                 print("---------------------")
             }
+            var hasIndirectCase = false
             for record in records {
                 let mangledTypeName = try record.mangledTypeName()
 
                 var indirectCaseString = ""
-                var isIndirectCase = false
                 if record.flags.contains(.isIndirectCase) {
                     indirectCaseString = "indirect "
-                    isIndirectCase = true
+                    hasIndirectCase = true
                 }
                 guard !mangledTypeName.isEmpty else {
                     try print("\(indirectCaseString)case", record.fieldName())
@@ -123,9 +125,8 @@ final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
                         print(indent + "Total: ")
                     }
                     print(indent + "- " + typeLayout.description)
-                    if !isIndirectCase {
-                        typeLayouts.append(typeLayout)
-                    }
+                    typeLayouts.append(typeLayout)
+
                 } else {
                     try print("NotFound:", "case", record.fieldName(), mangledTypeNameString, node.print(using: .default))
                 }
@@ -134,7 +135,7 @@ final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
             guard !typeLayouts.isEmpty else {
                 continue
             }
-            let payloadSize = typeLayouts.map(\.size).max() ?? 0
+            payloadSize = hasIndirectCase ? 8 : typeLayouts.map(\.size).max() ?? 0
             print("PayloadSize:", payloadSize)
             print("TagCounts:", getEnumTagCounts(payloadSize: payloadSize, emptyCases: emptyCases, payloadCases: payloadCases))
         }

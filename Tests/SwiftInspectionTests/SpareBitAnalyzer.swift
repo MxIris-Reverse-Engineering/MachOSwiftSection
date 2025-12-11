@@ -31,7 +31,6 @@ enum SpareBitAnalyzer {
             } else if byte == 0xFF {
                 interpretation = "All 8 bits"
             } else {
-                // 简单的位描述
                 var parts: [String] = []
                 if (byte & 0xF0) == 0xF0 { parts.append("High 4") }
                 if (byte & 0x0F) == 0x0F { parts.append("Low 4") }
@@ -48,7 +47,6 @@ enum SpareBitAnalyzer {
 
             print(String(format: "  +%02d  | 0x%@ |     %@      | %@", absoluteOffset, hex, binary, interpretation))
 
-            // 统计区域逻辑
             if byte != 0 {
                 if currentStartOffset == nil {
                     currentStartOffset = absoluteOffset
