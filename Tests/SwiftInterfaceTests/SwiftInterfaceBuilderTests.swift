@@ -10,6 +10,7 @@ import Dependencies
 
 protocol SwiftInterfaceBuilderTests {}
 
+@available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
 extension SwiftInterfaceBuilderTests {
     var rootDirectory: URL {
         .documentsDirectory.appending(path: "SwiftInterfaceTests")
@@ -85,6 +86,7 @@ enum SwiftInterfaceBuilderTestSuite {
 
         override class var cachePath: DyldSharedCachePath { .current }
 
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func buildFile() async throws {
             try await buildFile(in: machOFileInCache)
         }
@@ -93,6 +95,7 @@ enum SwiftInterfaceBuilderTestSuite {
     class MachOFileTests: MachOTestingSupport.MachOFileTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var fileName: MachOFileName { .SymbolTestsCore }
 
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func buildFile() async throws {
             try await buildFile(in: machOFile)
         }
@@ -101,6 +104,7 @@ enum SwiftInterfaceBuilderTestSuite {
     class MachOImageTests: MachOTestingSupport.MachOImageTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var imageName: MachOImageName { .SwiftUICore }
 
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func buildFile() async throws {
             try await buildFile(in: machOImage)
         }
@@ -109,6 +113,7 @@ enum SwiftInterfaceBuilderTestSuite {
     class XcodeMachOFileTests: MachOTestingSupport.XcodeMachOFileTests, SwiftInterfaceBuilderTests {
         override class var fileName: XcodeMachOFileName { .sharedFrameworks(.SourceEditor) }
 
+        @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func buildFile() async throws {
             try await buildFile(in: machOFile)
         }

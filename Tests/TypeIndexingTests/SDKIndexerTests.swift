@@ -1,3 +1,5 @@
+#if os(macOS)
+
 import Foundation
 import Testing
 import SourceKitD
@@ -17,3 +19,5 @@ final class SDKIndexerTests {
         }
     }
 }
+
+#endif

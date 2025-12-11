@@ -1,5 +1,6 @@
 import Foundation
 import MachOFoundation
+import SwiftStdlibToolbox
 
 public struct EnumDescriptor: TypeContextDescriptorProtocol {
     public struct Layout: EnumDescriptorLayout {
@@ -23,15 +24,28 @@ public struct EnumDescriptor: TypeContextDescriptorProtocol {
 }
 
 extension EnumDescriptor {
+    @inlinable
+    public var numberOfCases: Int {
+        numberOfPayloadCases + numberOfEmptyCases
+    }
+
+    @inlinable
+    public var numberOfEmptyCases: Int {
+        layout.numEmptyCases.int
+    }
+
+    @inlinable
+    public var numberOfPayloadCases: Int {
+        (layout.numPayloadCasesAndPayloadSizeOffset & 0x00FF_FFFF).int
+    }
+
+    @inlinable
     public var hasPayloadSizeOffset: Bool {
         payloadSizeOffset != 0
     }
 
+    @inlinable
     public var payloadSizeOffset: Int {
         .init((layout.numPayloadCasesAndPayloadSizeOffset & 0xFF00_0000) >> 24)
-    }
-
-    public var numberOfPayloadCases: UInt32 {
-        layout.numPayloadCasesAndPayloadSizeOffset & 0x00FF_FFFF
     }
 }

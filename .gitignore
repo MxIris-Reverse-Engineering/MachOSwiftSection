@@ -10,3 +10,6 @@ DerivedData/
 Products
 .vscode
 Tests/Projects/SymbolTests/SymbolTests.xcodeproj/project.xcworkspace
+
+.gemini/
+gha-creds-*.json

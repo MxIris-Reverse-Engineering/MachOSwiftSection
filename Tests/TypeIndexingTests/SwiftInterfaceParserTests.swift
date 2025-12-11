@@ -1,3 +1,5 @@
+#if os(macOS)
+
 import Foundation
 import Testing
 @testable import MachOTestingSupport
@@ -12,3 +14,6 @@ class SwiftInterfaceParserTests: DyldCacheTests, @unchecked Sendable {
         }
     }
 }
+
+
+#endif

@@ -19,20 +19,13 @@ public enum MultiPayloadEnumTests {
     case empty
 }
 
+
 final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
     override class var imageName: MachOImageName { .SwiftUICore }
 
     struct TestView: View {
         var body: some View {
             EmptyView()
-        }
-    }
-
-    struct TestScene: Scene {
-        var body: some Scene {
-            WindowGroup {
-                EmptyView()
-            }
         }
     }
 
@@ -82,7 +75,7 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
                     let typeLayout = try enumMetadata.valueWitnesses(in: machO).typeLayout
                     print(typeLayout)
                     try print("PayloadSize", enumMetadata.payloadSize(in: machO) ?? 0)
-                    print(getEnumTagCounts(payloadSize: typeLayout.size, emptyCases: descriptor.numEmptyCases, payloadCases: descriptor.numberOfPayloadCases))
+                    print(getEnumTagCounts(payloadSize: typeLayout.size, emptyCases: descriptor.numEmptyCases.cast(), payloadCases: descriptor.numberOfPayloadCases.cast()))
 //                case .optional(let enumMetadata):
 //                    try print(enumMetadata.payloadSize(in: machO) ?? 0)
                 default:

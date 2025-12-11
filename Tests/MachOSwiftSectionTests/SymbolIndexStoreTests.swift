@@ -46,6 +46,7 @@ final class SymbolIndexStoreTests: DyldCacheTests, @unchecked Sendable {
         }
     }
 
+    @available(macOS 13.0, iOS 16.0, *)
     @Test func symbols() async throws {
         let clock = ContinuousClock()
         let machO = machOFileInCache
