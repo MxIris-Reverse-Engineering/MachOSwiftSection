@@ -1,12 +1,12 @@
 //extension Int {
-//    @inlinable
+//    /*@inlinable*/
 //    package var bitPatternUInt: UInt {
 //        .init(bitPattern: self)
 //    }
 //}
 //
 //extension UInt {
-//    @inlinable
+//    /*@inlinable*/
 //    package var bitPatternInt: Int {
 //        .init(bitPattern: self)
 //    }

@@ -24,27 +24,27 @@ public struct EnumDescriptor: TypeContextDescriptorProtocol {
 }
 
 extension EnumDescriptor {
-    @inlinable
+    /*@inlinable*/
     public var numberOfCases: Int {
         numberOfPayloadCases + numberOfEmptyCases
     }
 
-    @inlinable
+    /*@inlinable*/
     public var numberOfEmptyCases: Int {
         layout.numEmptyCases.int
     }
 
-    @inlinable
+    /*@inlinable*/
     public var numberOfPayloadCases: Int {
         (layout.numPayloadCasesAndPayloadSizeOffset & 0x00FF_FFFF).int
     }
 
-    @inlinable
+    /*@inlinable*/
     public var hasPayloadSizeOffset: Bool {
         payloadSizeOffset != 0
     }
 
-    @inlinable
+    /*@inlinable*/
     public var payloadSizeOffset: Int {
         .init((layout.numPayloadCasesAndPayloadSizeOffset & 0xFF00_0000) >> 24)
     }

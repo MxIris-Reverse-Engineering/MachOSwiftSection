@@ -17,7 +17,7 @@ extension UnsafeRawPointer {
         case initFailed
     }
 
-    @inlinable
+    /*@inlinable*/
     package init(bitPattern: UInt) throws {
         if let ptr = Self(bitPattern: bitPattern) {
             self = ptr
@@ -26,7 +26,7 @@ extension UnsafeRawPointer {
         }
     }
 
-    @inlinable
+    /*@inlinable*/
     package init(bitPattern: Int) throws {
         if let ptr = Self(bitPattern: bitPattern) {
             self = ptr
@@ -42,7 +42,7 @@ extension UnsafePointer {
         case initFailed
     }
 
-    @inlinable
+    /*@inlinable*/
     package init(bitPattern: UInt) throws {
         if let ptr = Self(bitPattern: bitPattern) {
             self = ptr
@@ -51,7 +51,7 @@ extension UnsafePointer {
         }
     }
 
-    @inlinable
+    /*@inlinable*/
     package init(bitPattern: Int) throws {
         if let ptr = Self(bitPattern: bitPattern) {
             self = ptr
@@ -62,22 +62,22 @@ extension UnsafePointer {
 }
 
 extension UnsafeRawPointer {
-    @inlinable
+    /*@inlinable*/
     package mutating func offset<T>(of type: T.Type, numbersOfElements: Int = 1) {
         self += numericCast(MemoryLayout<T>.size * numbersOfElements)
     }
 
-    @inlinable
+    /*@inlinable*/
     package mutating func offset<T: LayoutWrapper>(of type: T.Type, numbersOfElements: Int = 1) {
         self += numericCast(T.layoutSize * numbersOfElements)
     }
 
-    @inlinable
+    /*@inlinable*/
     package func offseting<T>(of type: T.Type, numbersOfElements: Int = 1) -> Self {
         return self + numericCast(MemoryLayout<T>.size * numbersOfElements)
     }
 
-    @inlinable
+    /*@inlinable*/
     package func offseting<T: LayoutWrapper>(of type: T.Type, numbersOfElements: Int = 1) -> Self {
         return self + numericCast(T.layoutSize * numbersOfElements)
     }

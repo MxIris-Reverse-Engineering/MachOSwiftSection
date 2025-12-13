@@ -21,7 +21,13 @@ public enum DemangleResolver: Sendable {
     public func resolve(for node: Node) async throws -> SemanticString {
         switch self {
         case .options(let options):
+            #if DEBUG
+            return await MainActor.run {
+                return node.printSemantic(using: options)
+            }
+            #else
             return node.printSemantic(using: options)
+            #endif
         case .builder(let builder):
             return try await builder(node)
         }

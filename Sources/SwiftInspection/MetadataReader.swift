@@ -408,14 +408,10 @@ extension MetadataReader {
     fileprivate static func _demangleType(for mangledName: MangledName) throws -> Node {
         return try demangle(for: mangledName, kind: .type)
     }
-    
+
     package static func demangleType(for mangledName: MangledName) throws -> Node {
         return try MetadataReaderCache.shared.demangleType(for: mangledName)
     }
-
-//    public static func demangleSymbol(for mangledName: MangledName, in machO: MachO) throws -> Node {
-//        return try demangle(for: mangledName, kind: .symbol, in: machO)
-//    }
 
     package static func demangleType(for symbol: Symbol) throws -> Node? {
         return try buildContextManglingForSymbol(symbol)
@@ -427,6 +423,68 @@ extension MetadataReader {
 
     package static func demangleContext(for context: ContextDescriptorWrapper) throws -> Node {
         return try required(buildContextMangling(context: context))
+    }
+
+    package static func buildGenericSignature(for requirement: GenericRequirementDescriptor) throws -> Node? {
+        try buildGenericSignature(for: [requirement])
+    }
+
+    package static func buildGenericSignature(for requirements: GenericRequirementDescriptor...) throws -> Node? {
+        try buildGenericSignature(for: requirements)
+    }
+
+    package static func buildGenericSignature(for requirements: [GenericRequirementDescriptor]) throws -> Node? {
+        guard !requirements.isEmpty else { return nil }
+        let signatureNode = Node(kind: .dependentGenericSignature)
+        var failed = false
+        for requirement in requirements {
+            if failed {
+                break
+            }
+            let subject = try demangle(for: requirement.paramMangledName(), kind: .type)
+            let ptr = try requirement.pointer(of: \.content)
+            switch requirement.content {
+            case .protocol(let relativeProtocolDescriptorPointer):
+                guard let proto = try? readProtocol(pointer: relativeProtocolDescriptorPointer, from: ptr) else {
+                    failed = true
+                    break
+                }
+                let requirementNode = Node(kind: .dependentGenericConformanceRequirement, children: [subject, proto])
+                signatureNode.addChild(requirementNode)
+            case .type(let relativeDirectPointer):
+                let mangledName = try relativeDirectPointer.resolve(from: ptr)
+                guard let type = try? demangle(for: mangledName, kind: .type) else {
+                    failed = true
+                    break
+                }
+                let nodeKind: Node.Kind
+
+                if requirement.flags.kind == .sameType {
+                    nodeKind = .dependentGenericSameTypeRequirement
+                } else {
+                    nodeKind = .dependentGenericConformanceRequirement
+                }
+
+                let requirementNode = Node(kind: nodeKind, children: [subject, type])
+                signatureNode.addChild(requirementNode)
+            case .layout(let genericRequirementLayoutKind):
+                if genericRequirementLayoutKind == .class {
+                    let requirementNode = Node(kind: .dependentGenericLayoutRequirement, children: [subject, .init(kind: .identifier, contents: .text("C"))])
+                    signatureNode.addChild(requirementNode)
+                } else {
+                    failed = true
+                }
+            case .conformance:
+                break
+            case .invertedProtocols:
+                break
+            }
+        }
+        if failed {
+            return nil
+        } else {
+            return signatureNode
+        }
     }
 
     private static func demangle(for mangledName: MangledName, kind: MangledNameKind, useOpaqueTypeSymbolicReferences: Bool = false) throws -> Node {
@@ -536,68 +594,6 @@ extension MetadataReader {
                 demangleSymbol = demangleSymbol?.children.first
             }
             return demangleSymbol
-        }
-    }
-
-    package static func buildGenericSignature(for requirement: GenericRequirementDescriptor) throws -> Node? {
-        try buildGenericSignature(for: [requirement])
-    }
-
-    package static func buildGenericSignature(for requirements: GenericRequirementDescriptor...) throws -> Node? {
-        try buildGenericSignature(for: requirements)
-    }
-
-    package static func buildGenericSignature(for requirements: [GenericRequirementDescriptor]) throws -> Node? {
-        guard !requirements.isEmpty else { return nil }
-        let signatureNode = Node(kind: .dependentGenericSignature)
-        var failed = false
-        for requirement in requirements {
-            if failed {
-                break
-            }
-            let subject = try demangle(for: requirement.paramMangledName(), kind: .type)
-            let ptr = try requirement.pointer(of: \.content)
-            switch requirement.content {
-            case .protocol(let relativeProtocolDescriptorPointer):
-                guard let proto = try? readProtocol(pointer: relativeProtocolDescriptorPointer, from: ptr) else {
-                    failed = true
-                    break
-                }
-                let requirementNode = Node(kind: .dependentGenericConformanceRequirement, children: [subject, proto])
-                signatureNode.addChild(requirementNode)
-            case .type(let relativeDirectPointer):
-                let mangledName = try relativeDirectPointer.resolve(from: ptr)
-                guard let type = try? demangle(for: mangledName, kind: .type) else {
-                    failed = true
-                    break
-                }
-                let nodeKind: Node.Kind
-
-                if requirement.flags.kind == .sameType {
-                    nodeKind = .dependentGenericSameTypeRequirement
-                } else {
-                    nodeKind = .dependentGenericConformanceRequirement
-                }
-
-                let requirementNode = Node(kind: nodeKind, children: [subject, type])
-                signatureNode.addChild(requirementNode)
-            case .layout(let genericRequirementLayoutKind):
-                if genericRequirementLayoutKind == .class {
-                    let requirementNode = Node(kind: .dependentGenericLayoutRequirement, children: [subject, .init(kind: .identifier, contents: .text("C"))])
-                    signatureNode.addChild(requirementNode)
-                } else {
-                    failed = true
-                }
-            case .conformance:
-                break
-            case .invertedProtocols:
-                break
-            }
-        }
-        if failed {
-            return nil
-        } else {
-            return signatureNode
         }
     }
 
@@ -897,7 +893,7 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Entry>,
             return node
         }
     }
-    
+
     func demangleType(for mangledName: MangledName) throws -> Node {
         if let node = entry()?.nodeForMangledNameBox[MangledNameBox(mangledName)] {
             return node
@@ -908,4 +904,3 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Entry>,
         }
     }
 }
-

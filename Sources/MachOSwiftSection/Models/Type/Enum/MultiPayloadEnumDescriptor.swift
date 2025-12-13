@@ -78,32 +78,32 @@ extension MultiPayloadEnumDescriptor {
         }
     }
 
-    @inlinable
+    /*@inlinable*/
     public var contentsSizeInWord: UInt32 {
         layout.sizeFlags >> 16
     }
 
-    @inlinable
+    /*@inlinable*/
     public var flags: UInt32 {
         layout.sizeFlags & 0xFFFF
     }
 
-    @inlinable
+    /*@inlinable*/
     public var usesPayloadSpareBits: Bool {
         flags & 1 != 0
     }
 
-    @inlinable
+    /*@inlinable*/
     public var sizeFlagsIndex: Int {
         0
     }
 
-    @inlinable
+    /*@inlinable*/
     public var payloadSpareBitMaskByteCountIndex: Int {
         sizeFlagsIndex + 1
     }
 
-    @inlinable
+    /*@inlinable*/
     public var payloadSpareBitsIndex: Int {
         let payloadSpareBitMaskByteCountFieldSize = usesPayloadSpareBits ? 1 : 0
         return payloadSpareBitMaskByteCountIndex + payloadSpareBitMaskByteCountFieldSize

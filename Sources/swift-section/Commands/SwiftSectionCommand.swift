@@ -1,6 +1,6 @@
 import ArgumentParser
 
-private let version = "0.7.0"
+private let version = "0.7.2"
 
 @main
 struct SwiftSectionCommand: AsyncParsableCommand {

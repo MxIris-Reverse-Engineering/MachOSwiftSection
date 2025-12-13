@@ -44,12 +44,8 @@ extension DumpableTests {
     }
 
     @MainActor
-    package func dumpTypes<MachO: MachOSwiftSectionRepresentableWithCache & MachOOffsetConverter>(for machO: MachO, isDetail: Bool = true, options: DumpableTypeOptions = [.enum, .struct, .class]) async throws {
+    package func dumpTypes<MachO: MachOSwiftSectionRepresentableWithCache>(for machO: MachO, isDetail: Bool = true, options: DumpableTypeOptions = [.enum, .struct, .class]) async throws {
         let typeContextDescriptors = try machO.swift.typeContextDescriptors
-        var metadataFinder: MetadataFinder<MachO>?
-        if isEnabledSearchMetadata {
-            metadataFinder = MetadataFinder(machO: machO)
-        }
         for typeContextDescriptor in typeContextDescriptors {
             switch typeContextDescriptor {
             case .enum(let enumDescriptor):
@@ -73,9 +69,6 @@ extension DumpableTests {
                     } else {
                         print(structDescriptor)
                     }
-                    if let metadata = try metadataFinder?.metadata(for: structDescriptor) as StructMetadata? {
-                        try metadata.fieldOffsets(for: structDescriptor, in: machO).print()
-                    }
                 } catch {
                     error.print()
                 }
@@ -88,9 +81,6 @@ extension DumpableTests {
                     } else {
                         print(classDescriptor)
                     }
-                    if let metadata = try metadataFinder?.metadata(for: classDescriptor) as ClassMetadataObjCInterop? {
-                        try metadata.fieldOffsets(for: classDescriptor, in: machO).print()
-                    }
                 } catch {
                     error.print()
                 }
@@ -99,7 +89,7 @@ extension DumpableTests {
     }
 
     @MainActor
-    package func dumpOpaqueTypes<MachO: MachOSwiftSectionRepresentableWithCache & MachOOffsetConverter>(for machO: MachO) async throws {
+    package func dumpOpaqueTypes<MachO: MachOSwiftSectionRepresentableWithCache>(for machO: MachO) async throws {
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
         let symbols = symbolIndexStore.symbols(of: .opaqueTypeDescriptor, in: machO)

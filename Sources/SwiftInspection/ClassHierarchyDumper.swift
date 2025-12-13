@@ -1,9 +1,9 @@
 import Foundation
+import Demangling
 import MachOKit
 import MachOFoundation
-@_spi(Core) import MachOObjCSection
 import MachOSwiftSection
-import Demangling
+@_spi(Core) import MachOObjCSection
 
 public struct ClassHierarchyDumper {
     public let machO: MachOImage

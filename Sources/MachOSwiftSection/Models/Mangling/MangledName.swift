@@ -55,7 +55,7 @@ public struct MangledName: Sendable, Hashable {
     @usableFromInline
     package private(set) var endOffset: Int
 
-    @inlinable
+    /*@inlinable*/
     package var size: Int {
         endOffset - startOffset
     }
