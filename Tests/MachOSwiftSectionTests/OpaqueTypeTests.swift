@@ -38,7 +38,7 @@ extension OpaqueTypeTests {
 }
 
 final class OpaqueTypeDyldCacheTests: DyldCacheTests, OpaqueTypeTests, @unchecked Sendable {
-    override class var cacheImageName: MachOImageName { .SwiftUICore }
+    override class var cacheImageName: MachOImageName { .SwiftUI }
 
     @MainActor
     @Test func opaqueTypes() async throws {

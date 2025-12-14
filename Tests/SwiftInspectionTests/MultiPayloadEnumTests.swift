@@ -11,7 +11,7 @@ import MachOKit
 import SwiftUI
 
 final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
-    override class var imageName: MachOImageName { .SwiftUI }
+    override class var imageName: MachOImageName { .SwiftUICore }
 
     private var multiPayloadEnumDescriptorByMangledName: [String: MultiPayloadEnumDescriptor] = [:]
 
@@ -59,12 +59,18 @@ final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
             var emptyCases: UInt32 = 0
             var payloadCases: UInt32 = 0
             var payloadSize: UInt64 = 0
+            var optionalSize: Int = 0
             defer {
                 do {
                     let enumTypeLayout = try currentMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
                     print(enumTypeLayout)
                     try printMultiPayloadEnum(multiPayloadEnumDescriptor)
-                    try EnumLayoutCalculator.calculateMultiPayload( /* enumSize: enumTypeLayout.size.cast(), */ payloadSize: payloadSize.cast(), spareBytes: multiPayloadEnumDescriptor.payloadSpareBits(), spareBytesOffset: multiPayloadEnumDescriptor.payloadSpareBitMaskByteOffset().cast(), numPayloadCases: payloadCases.cast(), numEmptyCases: emptyCases.cast()).print()
+                    let spareBytes = try multiPayloadEnumDescriptor.payloadSpareBits()
+                    let spareBytesOffset = try multiPayloadEnumDescriptor.payloadSpareBitMaskByteOffset()
+                    try EnumLayoutCalculator.calculateMultiPayload( /* enumSize: enumTypeLayout.size.cast(), */ payloadSize: payloadSize.cast(), spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast(), numPayloadCases: payloadCases.cast(), numEmptyCases: emptyCases.cast()).print()
+                    if optionalSize > .zero {
+                        EnumLayoutCalculator.calculateSinglePayload(size: optionalSize, payloadSize: payloadSize.cast(), numEmptyCases: 1, spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast()).print()
+                    }
 
                 } catch {
                     print(error)
@@ -126,6 +132,10 @@ final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
                     }
                     print(indent + "- " + typeLayout.description)
                     typeLayouts.append(typeLayout)
+                    
+                    let optionalMetadata = try Metadata.createInProcess(makeOptionalMetatype(metatype))
+                    let optionalTypeLayout = try optionalMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
+                    optionalSize = optionalTypeLayout.size.cast()
 
                 } else {
                     try print("NotFound:", "case", record.fieldName(), mangledTypeNameString, node.print(using: .default))
@@ -137,9 +147,14 @@ final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
             }
             payloadSize = hasIndirectCase ? 8 : typeLayouts.map(\.size).max() ?? 0
             print("PayloadSize:", payloadSize)
+            print("OptionalSize:", optionalSize)
             print("TagCounts:", getEnumTagCounts(payloadSize: payloadSize, emptyCases: emptyCases, payloadCases: payloadCases))
         }
     }
+}
+
+private func makeOptionalMetatype<T>(_ metatype: T.Type) -> Any.Type {
+    return Optional<T>.self
 }
 
 extension String {

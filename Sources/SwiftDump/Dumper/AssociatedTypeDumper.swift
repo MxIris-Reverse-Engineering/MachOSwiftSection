@@ -4,6 +4,7 @@ import MachOSwiftSection
 import Semantic
 import Utilities
 import SwiftInspection
+import Demangling
 
 package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCache>: ConformedDumper {
     private let associatedType: AssociatedType
@@ -28,7 +29,13 @@ package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCac
 
             Space()
 
-            try await typeName
+            let typeName = try await typeName
+
+            typeName
+
+            if typeName.string == "SwiftUI.FeedbackGenerator" {
+                print(typeName.string)
+            }
 
             Standard(":")
 
@@ -58,7 +65,7 @@ package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCac
 
                 Space()
 
-                try await demangleResolver.resolve(for: MetadataReader.demangleType(for: record.substitutedTypeName(in: machO), in: machO))
+                try await demangleResolver.resolve(for: MetadataReader.demangleType(for: record.substitutedTypeName(in: machO), in: machO).resolveOpaqueType(in: machO))
 
                 if offset.isEnd {
                     BreakLine()
@@ -91,5 +98,35 @@ package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCac
         get async throws {
             try await demangleResolver.resolve(for: MetadataReader.demangleType(for: associatedType.protocolTypeName, in: machO))
         }
+    }
+}
+
+extension Node {
+    private final class OpaqueTypeNodeRewriter<MachO: MachOSwiftSectionRepresentableWithCache>: Node.Rewriter {
+        let machO: MachO
+
+        init(machO: MachO) {
+            self.machO = machO
+        }
+
+        override func visit(_ node: Node) -> Node {
+            do {
+                if node.isKind(of: .opaqueType), let firstChild = node.firstChild, firstChild.isKind(of: .opaqueTypeDescriptorSymbolicReference), let offset: Int = firstChild.index?.cast() {
+                    let opaqueTypeDescriptor = try OpaqueTypeDescriptor.resolve(from: offset, in: machO)
+                    let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
+                    let underlyingTypeArgumentNode = try MetadataReader.demangleType(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO)
+                    if underlyingTypeArgumentNode.kind == .type, let firstChild = underlyingTypeArgumentNode.firstChild {
+                        return firstChild
+                    }
+                }
+            } catch {
+                Swift.print(error)
+            }
+            return node
+        }
+    }
+
+    fileprivate func resolveOpaqueType(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node {
+        OpaqueTypeNodeRewriter(machO: machO).rewrite(self)
     }
 }

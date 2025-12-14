@@ -28,13 +28,26 @@ extension ProtocolTest {
     public static func test(lhs: Body, rhs: Self) -> Bool { false }
 }
 
-public struct StructTest: ProtocolTest {
-    public var body: Never {
+private enum PrivateProtocolTest: ProtocolTest {
+    case empty
+    
+    var body: some ProtocolTest {
         fatalError()
     }
-
-    public static var body: Never {
+    
+    static var body: Body? {
         fatalError()
+    }
+}
+
+public struct StructTest: ProtocolTest {
+    
+    public var body: some ProtocolTest {
+        PrivateProtocolTest.empty
+    }
+
+    public static var body: some ProtocolTest {
+        PrivateProtocolTest.empty
     }
 }
 

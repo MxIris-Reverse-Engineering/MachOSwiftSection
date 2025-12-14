@@ -9,7 +9,7 @@ import MachOFoundation
 @Suite(.serialized)
 final class DyldCacheDumpTests: DyldCacheTests, DumpableTests, @unchecked Sendable {
     
-    override class var cachePath: DyldSharedCachePath { .iOS_18_5 }
+    override class var cachePath: DyldSharedCachePath { .current }
     
     override class var cacheImageName: MachOImageName { .SwiftUI }
 }

@@ -54,9 +54,13 @@ package enum MetadataReader {
                         if let context = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset).resolve(from: offset, in: machO) {
                             if let opaqueTypeDescriptor = context.opaqueTypeDescriptor {
                                 let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
-//                                result = try .init(kind: .opaqueReturnTypeOf, child: demangleType(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO))
-
-                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, index: address(of: opaqueType.offset, in: machO))
+//                                let underlyingTypeArgumentMangledName = try demangleType(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO)
+//                                if underlyingTypeArgumentMangledName.kind == .accessorFunctionReference {
+                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueType.offset.cast())
+//                                } else {
+//                                    result = .init(kind: .opaqueReturnTypeOf, child: underlyingTypeArgumentMangledName)
+//                                }
+//                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, index: address(of: opaqueType.offset, in: machO))
                             } else {
                                 result = try buildContextMangling(context: .element(context), in: machO)
                             }
@@ -66,8 +70,13 @@ package enum MetadataReader {
                         if let resolvableElement = try relativePointer.resolve(from: offset, in: machO).asOptional {
                             if case .element(let element) = resolvableElement, let opaqueTypeDescriptor = element.opaqueTypeDescriptor {
                                 let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
-//                                result = try .init(kind: .opaqueReturnTypeOf, child: demangleType(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO))
-                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, index: address(of: opaqueType.offset, in: machO))
+//                                let underlyingTypeArgumentMangledName = try demangleType(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO)
+//                                if underlyingTypeArgumentMangledName.kind == .accessorFunctionReference {
+                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueType.offset.cast())
+//                                } else {
+//                                    result = .init(kind: .opaqueReturnTypeOf, child: underlyingTypeArgumentMangledName)
+//                                }
+//                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, index: address(of: opaqueType.offset, in: machO))
                             } else {
                                 result = try buildContextMangling(context: resolvableElement, in: machO)
                             }
@@ -257,6 +266,7 @@ package enum MetadataReader {
             guard let extensionContext = context.extensionContextDescriptor else { return nil }
             guard let extendedContext = try extensionContext.extendedContext(in: machO) else { return nil }
             guard let demangledExtendedContext = try demangle(for: extendedContext, kind: .type, in: machO).extensionSymbol else { return nil }
+//            let demangledExtendedContext = try demangle(for: extendedContext, kind: .type, in: machO)
             let demangling = Node(kind: .extension, children: [parentDemangling, demangledExtendedContext])
             if let requirements = try extensionContext.genericContext(in: machO)?.requirements, let signatureNode = try buildGenericSignature(for: requirements, in: machO) {
                 demangling.addChild(signatureNode)

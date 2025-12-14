@@ -1128,8 +1128,10 @@ extension Demangler {
         case .otherNominalType: kind = .boundGenericOtherNominalType
         case .typeAlias: kind = .boundGenericTypeAlias
         case .function,
-             .constructor: return Node(kind: .boundGenericFunction, children: [n, args])
-        default: throw failure
+             .constructor:
+            return Node(kind: .boundGenericFunction, children: [n, args])
+        default:
+            throw failure
         }
 
         return Node(kind: kind, children: [Node(kind: .type, child: n), args])
