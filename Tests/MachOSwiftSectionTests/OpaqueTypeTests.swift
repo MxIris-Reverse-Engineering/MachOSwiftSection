@@ -14,6 +14,7 @@ extension OpaqueTypeTests {
         let symbols = SymbolIndexStore.shared.symbols(of: .opaqueTypeDescriptor, in: machO)
         for symbol in symbols {
             guard symbol.offset > 0 else { continue }
+            print("Offset:", symbol.offset)
             print("Demangled:")
             symbol.demangledNode.print(using: .default).print()
             symbol.demangledNode.description.print()
@@ -30,10 +31,14 @@ extension OpaqueTypeTests {
             print("Underlying Types:")
             for underlyingTypeArgumentMangledName in opaqueType.underlyingTypeArgumentMangledNames {
                 let node = try MetadataReader.demangleType(for: underlyingTypeArgumentMangledName, in: machO)
+                node.description.print()
                 node.print(using: .default).print()
             }
             print("--------------------")
         }
+
+//        try print(OpaqueType(descriptor: .resolve(from: 895065692, in: machO), in: machO))
+//        try await print(MetadataReader.demangleSymbol(for: Symbol.resolve(from: 895065692, in: machO), in: machO)?.print())
     }
 }
 

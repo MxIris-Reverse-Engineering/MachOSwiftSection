@@ -57,6 +57,10 @@ package enum MetadataReader {
 //                                let underlyingTypeArgumentMangledName = try demangleType(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO)
 //                                if underlyingTypeArgumentMangledName.kind == .accessorFunctionReference {
                                 result = .init(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueType.offset.cast())
+//                                if opaqueType.offset == 2879000020 {
+//                                    print(opaqueType.offset)
+//                                }
+//                                try opaqueType.underlyingTypeArgumentMangledNames.forEach { print(try demangleType(for: $0, in: machO).print()) }
 //                                } else {
 //                                    result = .init(kind: .opaqueReturnTypeOf, child: underlyingTypeArgumentMangledName)
 //                                }
@@ -73,6 +77,10 @@ package enum MetadataReader {
 //                                let underlyingTypeArgumentMangledName = try demangleType(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO)
 //                                if underlyingTypeArgumentMangledName.kind == .accessorFunctionReference {
                                 result = .init(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueType.offset.cast())
+//                                if opaqueType.offset == 2879000020 {
+//                                    print(opaqueType.offset)
+//                                }
+//                                try opaqueType.underlyingTypeArgumentMangledNames.forEach { print(try demangleType(for: $0, in: machO).print()) }
 //                                } else {
 //                                    result = .init(kind: .opaqueReturnTypeOf, child: underlyingTypeArgumentMangledName)
 //                                }
