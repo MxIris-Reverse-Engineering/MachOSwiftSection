@@ -3,10 +3,6 @@
 import Foundation
 import Dependencies
 
-@available(iOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-@available(visionOS, unavailable)
 @available(macOS 13.0, *)
 struct SwiftModule: Sendable, Codable {
     let moduleName: String

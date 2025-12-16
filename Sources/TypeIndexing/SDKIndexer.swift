@@ -39,28 +39,16 @@ struct SwiftModuleIndexer {
     }
 }
 
-@available(iOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-@available(visionOS, unavailable)
 struct SwiftInterfaceFile: Sendable, Codable {
     let moduleName: String
     let path: String
 }
 
-@available(iOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-@available(visionOS, unavailable)
 struct SwiftInterfaceGeneratedFile: Sendable, Codable {
     let moduleName: String
     let contents: String
 }
 
-@available(iOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-@available(visionOS, unavailable)
 @available(macOS 13.0, *)
 struct APINotesFile: Sendable, Codable {
     let path: String
@@ -89,10 +77,6 @@ struct APINotesFile: Sendable, Codable {
 
 extension APINotes.Module: @unchecked @retroactive Sendable {}
 
-@available(iOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-@available(visionOS, unavailable)
 @available(macOS 13.0, *)
 final class SDKIndexer: Sendable {
     struct IndexOptions: OptionSet {

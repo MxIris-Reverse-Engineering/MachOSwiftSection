@@ -6,10 +6,6 @@ import FoundationToolbox
 import Dependencies
 
 @available(macOS 13.0, *)
-@available(iOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-@available(visionOS, unavailable)
 actor SourceKitManager {
     fileprivate static let shared = SourceKitManager()
 
