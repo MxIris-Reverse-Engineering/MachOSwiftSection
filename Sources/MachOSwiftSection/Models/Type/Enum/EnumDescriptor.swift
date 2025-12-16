@@ -49,3 +49,21 @@ extension EnumDescriptor {
         .init((layout.numPayloadCasesAndPayloadSizeOffset & 0xFF00_0000) >> 24)
     }
 }
+
+extension EnumDescriptor {
+    public var isSingleEmptyCaseOnly: Bool {
+        numberOfCases == 1 && numberOfEmptyCases == 1 && numberOfPayloadCases == 0
+    }
+    
+    public var isSinglePayloadCaseOnly: Bool {
+        numberOfCases == 1 && numberOfEmptyCases == 0 && numberOfPayloadCases == 1
+    }
+    
+    public var isSinglePayload: Bool {
+        numberOfCases > 1 && numberOfEmptyCases > 0 && numberOfPayloadCases == 1
+    }
+    
+    public var isMultiPayload: Bool {
+        numberOfCases > 1 && numberOfPayloadCases > 1
+    }
+}
