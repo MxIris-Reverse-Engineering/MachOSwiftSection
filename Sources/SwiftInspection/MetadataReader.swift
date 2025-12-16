@@ -33,7 +33,7 @@ package enum MetadataReader {
         return try required(buildContextMangling(context: context, in: machO))
     }
 
-    private static func demangle<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, kind: MangledNameKind, useOpaqueTypeSymbolicReferences: Bool = false, in machO: MachO) throws -> Node {
+    private static func demangle<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, kind: MangledNameKind, in machO: MachO) throws -> Node {
         let stringValue = switch kind {
         case .type:
             mangledName.typeString
@@ -54,17 +54,7 @@ package enum MetadataReader {
                         if let context = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset).resolve(from: offset, in: machO) {
                             if let opaqueTypeDescriptor = context.opaqueTypeDescriptor {
                                 let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
-//                                let underlyingTypeArgumentMangledName = try demangleType(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO)
-//                                if underlyingTypeArgumentMangledName.kind == .accessorFunctionReference {
                                 result = .init(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueType.offset.cast())
-//                                if opaqueType.offset == 2879000020 {
-//                                    print(opaqueType.offset)
-//                                }
-//                                try opaqueType.underlyingTypeArgumentMangledNames.forEach { print(try demangleType(for: $0, in: machO).print()) }
-//                                } else {
-//                                    result = .init(kind: .opaqueReturnTypeOf, child: underlyingTypeArgumentMangledName)
-//                                }
-//                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, index: address(of: opaqueType.offset, in: machO))
                             } else {
                                 result = try buildContextMangling(context: .element(context), in: machO)
                             }
@@ -74,17 +64,7 @@ package enum MetadataReader {
                         if let resolvableElement = try relativePointer.resolve(from: offset, in: machO).asOptional {
                             if case .element(let element) = resolvableElement, let opaqueTypeDescriptor = element.opaqueTypeDescriptor {
                                 let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
-//                                let underlyingTypeArgumentMangledName = try demangleType(for: opaqueType.underlyingTypeArgumentMangledNames[0], in: machO)
-//                                if underlyingTypeArgumentMangledName.kind == .accessorFunctionReference {
                                 result = .init(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueType.offset.cast())
-//                                if opaqueType.offset == 2879000020 {
-//                                    print(opaqueType.offset)
-//                                }
-//                                try opaqueType.underlyingTypeArgumentMangledNames.forEach { print(try demangleType(for: $0, in: machO).print()) }
-//                                } else {
-//                                    result = .init(kind: .opaqueReturnTypeOf, child: underlyingTypeArgumentMangledName)
-//                                }
-//                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, index: address(of: opaqueType.offset, in: machO))
                             } else {
                                 result = try buildContextMangling(context: resolvableElement, in: machO)
                             }

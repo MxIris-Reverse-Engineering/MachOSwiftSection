@@ -104,17 +104,16 @@ package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCac
 import OrderedCollections
 
 extension Node {
-    
     private final class OpaqueTypeGenericParameterRewriter<MachO: MachOSwiftSectionRepresentableWithCache>: Node.Rewriter {
         let machO: MachO
-        
+
         let typeList: OrderedDictionary<Int, [Node]>
-        
+
         init(machO: MachO, typeList: OrderedDictionary<Int, [Node]>) {
             self.machO = machO
             self.typeList = typeList
         }
-        
+
         override func visit(_ node: Node) -> Node {
             if node.isKind(of: .dependentGenericParamType), let depth: Int = node[safeChild: 0]?.index?.cast(), let index: Int = node[safeChild: 1]?.index?.cast(), let type = typeList[depth, default: []][safe: index], type.isKind(of: .type), let firstChild = node.firstChild {
                 return firstChild.copy()
@@ -123,7 +122,7 @@ extension Node {
             }
         }
     }
-    
+
     private final class OpaqueTypeRewriter<MachO: MachOSwiftSectionRepresentableWithCache>: Node.Rewriter {
         let machO: MachO
 
@@ -136,7 +135,7 @@ extension Node {
                 if node.isKind(of: .opaqueType), let firstChild = node.firstChild, firstChild.isKind(of: .opaqueTypeDescriptorSymbolicReference), let offset: Int = firstChild.index?.cast() {
                     let opaqueTypeDescriptor = try OpaqueTypeDescriptor.resolve(from: offset, in: machO)
                     let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
-                    
+
                     var allTypeList: OrderedDictionary<Int, [Node]> = [:]
                     if let rootTypeListNode = node[safeChild: 2] {
                         for (depth, typeList) in rootTypeListNode.children.enumerated() {
