@@ -36,9 +36,6 @@ extension OpaqueTypeTests {
             }
             print("--------------------")
         }
-
-//        try print(OpaqueType(descriptor: .resolve(from: 895065692, in: machO), in: machO))
-//        try await print(MetadataReader.demangleSymbol(for: Symbol.resolve(from: 895065692, in: machO), in: machO)?.print())
     }
 }
 
@@ -48,6 +45,13 @@ final class OpaqueTypeDyldCacheTests: DyldCacheTests, OpaqueTypeTests, @unchecke
     @MainActor
     @Test func opaqueTypes() async throws {
         try await opaqueTypes(in: machOFileInCache)
+    }
+
+    @Test func test() async throws {
+        let machO = machOFileInCache
+        print(machO.startOffset)
+        try print(OpaqueType(descriptor: .resolve(from: 895065692, in: machO), in: machO))
+        try await print(Symbols.resolve(from: 895065692, in: machO) as Symbols)
     }
 }
 

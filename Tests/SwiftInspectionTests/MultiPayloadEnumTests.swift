@@ -43,16 +43,16 @@ final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
         let typeContextDescriptorWrappers = try machO.swift.typeContextDescriptors
         for typeContextDescriptorWrapper in typeContextDescriptorWrappers {
             let typeContextDescriptor = typeContextDescriptorWrapper.typeContextDescriptor.asPointerWrapper(in: machO)
-            guard !typeContextDescriptor.layout.flags.isGeneric, typeContextDescriptorWrapper.isEnum else { continue }
-
-            guard case .enum(let currentMetadata) = try typeContextDescriptor.metadataAccessor()?.perform(request: .init()).value.resolve() else { continue }
+            guard !typeContextDescriptor.layout.flags.isGeneric else { continue }
+            guard case .enum(let enumDescriptor) = typeContextDescriptorWrapper else { continue }
+            guard case .enum(let enumMetadata) = try typeContextDescriptor.metadataAccessor()?.perform(request: .init()).value.resolve() else { continue }
 
             let fieldDescriptor = try typeContextDescriptor.fieldDescriptor()
             let records = try fieldDescriptor.records()
             guard !records.isEmpty else { continue }
 
             let typeName = try MetadataReader.demangleContext(for: .type(.enum(typeContextDescriptor as! EnumDescriptor))).print(using: demangleOptions)
-            guard let multiPayloadEnumDescriptor = multiPayloadEnumDescriptorByMangledName[typeName], multiPayloadEnumDescriptor.usesPayloadSpareBits else { continue }
+            
             print(typeName)
             print("")
             var typeLayouts: [TypeLayout] = []
@@ -62,14 +62,22 @@ final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
             var optionalSize: Int = 0
             defer {
                 do {
-                    let enumTypeLayout = try currentMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
+                    let enumTypeLayout = try enumMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
                     print(enumTypeLayout)
-                    try printMultiPayloadEnum(multiPayloadEnumDescriptor)
-                    let spareBytes = try multiPayloadEnumDescriptor.payloadSpareBits()
-                    let spareBytesOffset = try multiPayloadEnumDescriptor.payloadSpareBitMaskByteOffset()
-                    try EnumLayoutCalculator.calculateMultiPayload( /* enumSize: enumTypeLayout.size.cast(), */ payloadSize: payloadSize.cast(), spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast(), numPayloadCases: payloadCases.cast(), numEmptyCases: emptyCases.cast()).print()
-                    if optionalSize > .zero {
-                        EnumLayoutCalculator.calculateSinglePayload(size: optionalSize, payloadSize: payloadSize.cast(), numEmptyCases: 1, spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast()).print()
+                    if enumDescriptor.isMultiPayload {
+                        if let multiPayloadEnumDescriptor = multiPayloadEnumDescriptorByMangledName[typeName], multiPayloadEnumDescriptor.usesPayloadSpareBits {
+                            try printMultiPayloadEnum(multiPayloadEnumDescriptor)
+                            let spareBytes = try multiPayloadEnumDescriptor.payloadSpareBits()
+                            let spareBytesOffset = try multiPayloadEnumDescriptor.payloadSpareBitMaskByteOffset()
+                            try EnumLayoutCalculator.calculateMultiPayload( /* enumSize: enumTypeLayout.size.cast(), */ payloadSize: payloadSize.cast(), spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast(), numPayloadCases: payloadCases.cast(), numEmptyCases: emptyCases.cast()).print()
+                            if optionalSize > .zero {
+                                EnumLayoutCalculator.calculateSinglePayload(size: optionalSize, payloadSize: payloadSize.cast(), numEmptyCases: 1, spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast()).print()
+                            }
+                        } else {
+                            EnumLayoutCalculator.calculateTaggedMultiPayload(payloadSize: payloadSize.cast(), numPayloadCases: payloadCases.cast(), numEmptyCases: emptyCases.cast()).print()
+                        }
+                    } else if enumDescriptor.isSinglePayload {
+                        EnumLayoutCalculator.calculateSinglePayload(size: enumTypeLayout.size.cast(), payloadSize: payloadSize.cast(), numEmptyCases: emptyCases.cast()).print()
                     }
 
                 } catch {

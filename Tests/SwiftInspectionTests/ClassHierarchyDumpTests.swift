@@ -21,7 +21,11 @@ import SwiftUI
 
 @Suite(.serialized)
 final class ClassHierarchyDumpTests: MachOImageTests, DumpableTests, @unchecked Sendable {
+    #if os(macOS)
     override class var imageName: MachOImageName { .AppKit }
+    #else
+    override class var imageName: MachOImageName { .UIKitCore }
+    #endif
 
     @Test
     func dump() async throws {
