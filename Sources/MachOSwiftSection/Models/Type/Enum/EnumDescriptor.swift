@@ -7,7 +7,7 @@ public struct EnumDescriptor: TypeContextDescriptorProtocol {
         public let flags: ContextDescriptorFlags
         public let parent: RelativeContextPointer
         public let name: RelativeDirectPointer<String>
-        public let accessFunctionPtr: RelativeDirectPointer<MetadataAccessor>
+        public let accessFunctionPtr: RelativeDirectPointer<MetadataAccessorFunction>
         public let fieldDescriptor: RelativeDirectPointer<FieldDescriptor>
         public let numPayloadCasesAndPayloadSizeOffset: UInt32
         public let numEmptyCases: UInt32

@@ -4,10 +4,10 @@ import MachOFoundation
 public protocol TypeContextDescriptorProtocol: NamedContextDescriptorProtocol where Layout: TypeContextDescriptorLayout {}
 
 extension TypeContextDescriptorProtocol {
-    public func metadataAccessor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MetadataAccessor? {
+    public func metadataAccessorFunction<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MetadataAccessorFunction? {
         guard let machOImage = machO as? MachOImage else { return nil }
         let offset = layout.accessFunctionPtr.resolveDirectOffset(from: offset + layout.offset(of: .accessFunctionPtr))
-        return MetadataAccessor(raw: machOImage.ptr + UnsafeRawPointer.Stride(offset))
+        return .init(ptr: machOImage.ptr + UnsafeRawPointer.Stride(offset))
     }
 
     public func fieldDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> FieldDescriptor {
@@ -26,9 +26,9 @@ extension TypeContextDescriptorProtocol {
 }
 
 extension TypeContextDescriptorProtocol {
-    public func metadataAccessor() throws -> MetadataAccessor? {
+    public func metadataAccessorFunction() throws -> MetadataAccessorFunction? {
         let ptr = try layout.pointer(from: asPointer, of: .accessFunctionPtr)
-        return try .init(raw: layout.accessFunctionPtr.resolveDirectOffset(from: ptr))
+        return try .init(ptr: layout.accessFunctionPtr.resolveDirectOffset(from: ptr))
     }
 
     public func fieldDescriptor() throws -> FieldDescriptor {

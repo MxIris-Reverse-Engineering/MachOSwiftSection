@@ -18,8 +18,8 @@ public struct ClassHierarchyDumper {
 
     public func dump(for classDescriptor: ClassDescriptor) throws -> [String] {
         var classes: [String] = []
-        if let metadataAccessor = try `classDescriptor`.metadataAccessor(in: machO), !`classDescriptor`.flags.isGeneric {
-            let metadata = try metadataAccessor.perform(request: .init()).value.resolve(in: machO)
+        if let metadataAccessor = try `classDescriptor`.metadataAccessorFunction(in: machO), !`classDescriptor`.flags.isGeneric {
+            let metadata = try metadataAccessor(request: .init()).value.resolve(in: machO)
             switch metadata {
             case .class(let classMetadataObjCInterop):
                 try perform(classMetadata: classMetadataObjCInterop, classDescriptor: `classDescriptor`, classes: &classes)

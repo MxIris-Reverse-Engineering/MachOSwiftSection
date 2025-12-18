@@ -34,8 +34,8 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
         let machO = machOImage
         for typeContextDescriptorWrapper in try machO.swift.typeContextDescriptors {
             guard !typeContextDescriptorWrapper.typeContextDescriptor.layout.flags.isGeneric else { continue }
-            if let metadataAccessor = try typeContextDescriptorWrapper.typeContextDescriptor.metadataAccessor(in: machO) {
-                let metadataResponse = metadataAccessor.perform(request: .init())
+            if let metadataAccessor = try typeContextDescriptorWrapper.typeContextDescriptor.metadataAccessorFunction(in: machO) {
+                let metadataResponse = metadataAccessor(request: .init())
                 print(metadataResponse.state)
                 let metadata = try metadataResponse.value.resolve(in: machO)
                 switch metadata {
@@ -60,8 +60,8 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
         for contextDescriptor in try machO.swift.contextDescriptors {
             guard let typeContextDescriptor = contextDescriptor.typeContextDescriptor else { continue }
             guard !typeContextDescriptor.layout.flags.isGeneric else { continue }
-            if let metadataAccessor = try typeContextDescriptor.metadataAccessor(in: machO) {
-                let metadataResponse = metadataAccessor.perform(request: .init(state: .complete, isBlocking: true))
+            if let metadataAccessor = try typeContextDescriptor.metadataAccessorFunction(in: machO) {
+                let metadataResponse = metadataAccessor(request: .init(state: .complete, isBlocking: true))
                 let metadata = try metadataResponse.value.resolve(in: machO)
                 switch metadata {
 //                case .class(let classMetadata):

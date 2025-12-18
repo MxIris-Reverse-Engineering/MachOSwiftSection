@@ -17,6 +17,26 @@ func envEnable(_ key: String, default defaultValue: Bool = false) -> Bool {
     }
 }
 
+extension Product {
+    static func library(_ target: Target) -> Product {
+        .library(name: target.name, targets: [target.name])
+    }
+
+    static func executable(_ target: Target) -> Product {
+        .executable(name: target.name, targets: [target.name])
+    }
+}
+
+extension Target.Dependency {
+    static func target(_ target: Target) -> Self {
+        .targetItem(name: target.name, condition: nil)
+    }
+
+    static func product(_ dependency: Self) -> Self {
+        dependency
+    }
+}
+
 let MachOKitVersion: Version = "0.42.0"
 
 let isSilentTest = envEnable("MACHO_SWIFT_SECTION_SILENT_TEST", default: false)
@@ -132,25 +152,6 @@ extension Target.Dependency {
         name: "MachOObjCSection",
         package: "MachOObjCSection"
     )
-}
-
-extension Product {
-    static func library(_ target: Target) -> Product {
-        .library(name: target.name, targets: [target.name])
-    }
-
-    static func executable(_ target: Target) -> Product {
-        .executable(name: target.name, targets: [target.name])
-    }
-}
-
-extension Target.Dependency {
-    static func target(_ target: Target) -> Self {
-        .targetItem(name: target.name, condition: nil)
-    }
-    static func product(_ dependency: Self) -> Self {
-        dependency
-    }
 }
 
 @MainActor
@@ -271,11 +272,16 @@ extension Target {
         ]
     )
 
+    static let MachOSwiftSectionC = Target.target(
+        name: "MachOSwiftSectionC"
+    )
+
     static let MachOSwiftSection = Target.target(
         name: "MachOSwiftSection",
         dependencies: [
             .product(.MachOKit),
             .target(.MachOFoundation),
+            .target(.MachOSwiftSectionC),
             .target(.Demangling),
             .target(.Utilities),
             .product(name: "DyldPrivate", package: "DyldPrivate"),
@@ -405,7 +411,7 @@ extension Target {
         ],
         swiftSettings: testSettings
     )
-    
+
     static let SwiftInspectionTests = Target.testTarget(
         name: "SwiftInspectionTests",
         dependencies: [
@@ -420,7 +426,7 @@ extension Target {
         dependencies: [
             .target(.SwiftDump),
             .target(.MachOTestingSupport),
-            .product(.MachOObjCSection)
+            .product(.MachOObjCSection),
         ],
         swiftSettings: testSettings
     )
@@ -469,6 +475,7 @@ let package = Package(
         .MachOPointers,
         .MachOSymbolPointers,
         .MachOFoundation,
+        .MachOSwiftSectionC,
         .MachOSwiftSection,
         .SwiftInspection,
         .SwiftDump,

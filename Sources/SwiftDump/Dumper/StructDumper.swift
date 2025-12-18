@@ -43,8 +43,8 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
 
     private var fieldOffsets: [Int]? {
         guard configuration.emitOffsetComments else { return nil }
-        guard let metadataAccessor = try? `struct`.descriptor.metadataAccessor(in: machO), !`struct`.flags.isGeneric else { return nil }
-        guard let metadataWrapper = try? metadataAccessor.perform(request: .init()).value.resolve(in: machO) else { return nil }
+        guard let metadataAccessor = try? `struct`.descriptor.metadataAccessorFunction(in: machO), !`struct`.flags.isGeneric else { return nil }
+        guard let metadataWrapper = try? metadataAccessor(request: .init()).value.resolve(in: machO) else { return nil }
         switch metadataWrapper {
         case .struct(let metadata):
             return try? metadata.fieldOffsets(for: `struct`.descriptor, in: machO).map { $0.cast() }

@@ -45,7 +45,7 @@ final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
             let typeContextDescriptor = typeContextDescriptorWrapper.typeContextDescriptor.asPointerWrapper(in: machO)
             guard !typeContextDescriptor.layout.flags.isGeneric else { continue }
             guard case .enum(let enumDescriptor) = typeContextDescriptorWrapper else { continue }
-            guard case .enum(let enumMetadata) = try typeContextDescriptor.metadataAccessor()?.perform(request: .init()).value.resolve() else { continue }
+            guard case .enum(let enumMetadata) = try typeContextDescriptor.metadataAccessorFunction()?(request: .init()).value.resolve() else { continue }
 
             let fieldDescriptor = try typeContextDescriptor.fieldDescriptor()
             let records = try fieldDescriptor.records()
