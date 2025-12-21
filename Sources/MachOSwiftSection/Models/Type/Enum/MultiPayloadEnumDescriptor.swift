@@ -3,7 +3,7 @@ import MachOFoundation
 
 public struct MultiPayloadEnumDescriptor: ResolvableLocatableLayoutWrapper {
     public struct Layout: LayoutProtocol {
-        public let typeName: RelativeDirectPointer<MangledName>
+        public let mangledTypeName: RelativeDirectPointer<MangledName>
         /// let contents: [UInt32]
         public let sizeFlags: UInt32
         // .....
@@ -20,8 +20,8 @@ public struct MultiPayloadEnumDescriptor: ResolvableLocatableLayoutWrapper {
 }
 
 extension MultiPayloadEnumDescriptor {
-    public func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
-        return try layout.typeName.resolve(from: offset, in: machO)
+    public func mangledTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MangledName {
+        return try layout.mangledTypeName.resolve(from: offset, in: machO)
     }
 
     public func contents(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [UInt32] {
@@ -49,8 +49,8 @@ extension MultiPayloadEnumDescriptor {
         }
     }
 
-    public func typeName() throws -> MangledName {
-        return try layout.typeName.resolve(from: asPointer)
+    public func mangledTypeName() throws -> MangledName {
+        return try layout.mangledTypeName.resolve(from: asPointer)
     }
 
     public func contents() throws -> [UInt32] {

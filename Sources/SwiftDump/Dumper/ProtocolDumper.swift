@@ -8,14 +8,14 @@ import OrderedCollections
 import SwiftInspection
 
 package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: NamedDumper {
-    private let `protocol`: MachOSwiftSection.`Protocol`
+    package let dumped: MachOSwiftSection.`Protocol`
 
-    private let configuration: DumperConfiguration
+    package let configuration: DumperConfiguration
 
-    private let machO: MachO
+    package let machO: MachO
 
     package init(_ dumped: MachOSwiftSection.`Protocol`, using configuration: DumperConfiguration, in machO: MachO) {
-        self.protocol = dumped
+        self.dumped = dumped
         self.configuration = configuration
         self.machO = machO
     }
@@ -32,8 +32,8 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
 
             try await name
 
-            if `protocol`.numberOfRequirementsInSignature > 0 {
-                var requirementInSignatures = `protocol`.requirementInSignatures
+            if dumped.numberOfRequirementsInSignature > 0 {
+                var requirementInSignatures = dumped.requirementInSignatures
                 for (offset, requirement) in requirementInSignatures.extract(where: \.isProtocolInherited).offsetEnumerated() {
                     if offset.isStart {
                         Standard(":")
@@ -63,7 +63,7 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
     @SemanticStringBuilder
     package var associatedTypes: SemanticString {
         get async throws {
-            let associatedTypes = try `protocol`.descriptor.associatedTypes(in: machO)
+            let associatedTypes = try dumped.descriptor.associatedTypes(in: machO)
 
             if !associatedTypes.isEmpty {
                 for (offset, associatedType) in associatedTypes.offsetEnumerated() {
@@ -92,7 +92,7 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
 
             var defaultImplementations: OrderedSet<Node> = []
 
-            for (offset, requirement) in `protocol`.requirements.offsetEnumerated() {
+            for (offset, requirement) in dumped.requirements.offsetEnumerated() {
                 BreakLine()
                 Indent(level: configuration.indentation)
                 if let symbols = try await Symbols.resolve(from: requirement.offset, in: machO), let validNode = try await validNode(for: symbols) {
@@ -138,9 +138,9 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
     @SemanticStringBuilder
     private func _name(using resolver: DemangleResolver) async throws -> SemanticString {
         if configuration.displayParentName {
-            try await resolver.resolve(for: MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await resolver.resolve(for: MetadataReader.demangleContext(for: .protocol(dumped.descriptor), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
-            try TypeDeclaration(kind: .protocol, `protocol`.descriptor.name(in: machO))
+            try TypeDeclaration(kind: .protocol, dumped.descriptor.name(in: machO))
         }
     }
 

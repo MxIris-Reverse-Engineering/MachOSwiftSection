@@ -23,11 +23,11 @@ extension MetadataProtocol {
 }
 
 extension MetadataProtocol {
-    func metadataWrapper(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MetadataWrapper {
+    public func asMetadataWrapper(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MetadataWrapper {
         try .resolve(from: offset, in: machO)
     }
 
-    func metadataWrapper() throws -> MetadataWrapper {
+    public func asMetadataWrapper() throws -> MetadataWrapper {
         try .resolve(from: .init(bitPattern: offset))
     }
 }
@@ -104,6 +104,28 @@ extension MetadataProtocol where HeaderType: TypeMetadataHeaderBaseProtocol {
             return try .class(ForeignClassMetadata.resolve(from: ptr).classDescriptor())
         case .foreignReferenceType:
             return try .class(ForeignReferenceTypeMetadata.resolve(from: ptr).classDescriptor())
+        default:
+            return nil
+        }
+    }
+    
+    public func typeContextDescriptorWrapper(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeContextDescriptorWrapper? {
+        switch kind {
+        case .class:
+            let cls = try AnyClassMetadataObjCInterop.resolve(from: offset, in: machO)
+            if cls.isPureObjC {
+                return nil
+            } else {
+                return try .class(ClassMetadataObjCInterop.resolve(from: offset, in: machO).descriptor(in: machO)!)
+            }
+        case .struct,
+             .enum,
+             .optional:
+            return try ValueMetadata.resolve(from: offset, in: machO).descriptor(in: machO).asTypeContextDescriptorWrapper
+        case .foreignClass:
+            return try .class(ForeignClassMetadata.resolve(from: offset, in: machO).classDescriptor(in: machO))
+        case .foreignReferenceType:
+            return try .class(ForeignReferenceTypeMetadata.resolve(from: offset, in: machO).classDescriptor(in: machO))
         default:
             return nil
         }

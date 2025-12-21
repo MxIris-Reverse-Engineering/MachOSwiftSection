@@ -66,4 +66,8 @@ extension EnumDescriptor {
     public var isMultiPayload: Bool {
         numberOfCases > 1 && numberOfPayloadCases > 1
     }
+    
+    public var hasPayloadCases: Bool {
+        numberOfPayloadCases > 0
+    }
 }

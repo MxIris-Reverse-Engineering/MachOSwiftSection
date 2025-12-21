@@ -12,8 +12,16 @@ public struct DumperConfiguration: Sendable {
     public var indentation: Int = 1
     public var displayParentName: Bool = true
     public var emitOffsetComments: Bool = false
+    public var printTypeLayout: Bool = false
+    public var printEnumLayout: Bool = false
 
     public static func demangleOptions(_ demangleOptions: DemangleOptions) -> Self {
         .init(demangleResolver: .options(demangleOptions))
+    }
+}
+
+extension DumperConfiguration {
+    package var indentString: Indent {
+        .init(level: indentation)
     }
 }

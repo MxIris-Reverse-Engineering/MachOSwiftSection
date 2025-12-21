@@ -11,9 +11,7 @@ extension MachOFile {
         }
     }
 
-    public var swift: Swift {
-        .init(machO: self)
-    }
+    public var swift: Swift { .init(machO: self) }
 }
 
 extension MachOFile.Swift: SwiftSectionRepresentable {
@@ -35,7 +33,7 @@ extension MachOFile.Swift: SwiftSectionRepresentable {
         }
     }
 
-    public var protocols: [Protocol] {
+    public var protocols: [`Protocol`] {
         get throws {
             try protocolDescriptors.map { try Protocol(descriptor: $0, in: machO) }
         }
@@ -94,7 +92,7 @@ extension MachOFile.Swift: SwiftSectionRepresentable {
             return try _readDescriptors(from: .__swift5_builtin, in: machO)
         }
     }
-    
+
     public var multiPayloadEnumDescriptors: [MultiPayloadEnumDescriptor] {
         get throws {
             return try _readDescriptors(from: .__swift5_mpenum, in: machO)

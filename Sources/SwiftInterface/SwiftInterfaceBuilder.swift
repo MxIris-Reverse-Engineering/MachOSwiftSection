@@ -208,7 +208,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             try await typeDefinition.index(in: machO)
         }
 
-        let dumper = typeDefinition.type.dumper(using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: displayParentName, emitOffsetComments: configuration.printConfiguration.emitOffsetComments), in: machO)
+        let dumper = typeDefinition.type.dumper(using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: displayParentName, emitOffsetComments: configuration.printConfiguration.emitOffsetComments, printTypeLayout: configuration.printConfiguration.printTypeLayout, printEnumLayout: configuration.printConfiguration.printEnumLayout), in: machO)
 
         Indent(level: level - 1)
 

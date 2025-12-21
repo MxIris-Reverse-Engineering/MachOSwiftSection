@@ -7,14 +7,14 @@ import SwiftInspection
 import Demangling
 
 package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCache>: ConformedDumper {
-    private let associatedType: AssociatedType
+    package let dumped: AssociatedType
 
-    private let configuration: DumperConfiguration
+    package let configuration: DumperConfiguration
 
-    private let machO: MachO
+    package let machO: MachO
 
     package init(_ dumped: AssociatedType, using configuration: DumperConfiguration, in machO: MachO) {
-        self.associatedType = dumped
+        self.dumped = dumped
         self.configuration = configuration
         self.machO = machO
     }
@@ -48,7 +48,7 @@ package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCac
     @SemanticStringBuilder
     package var records: SemanticString {
         get async throws {
-            for (offset, record) in associatedType.records.offsetEnumerated() {
+            for (offset, record) in dumped.records.offsetEnumerated() {
                 BreakLine()
 
                 Indent(level: 1)
@@ -90,13 +90,13 @@ package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCac
 
     package var typeName: SemanticString {
         get async throws {
-            try await demangleResolver.resolve(for: MetadataReader.demangleType(for: associatedType.conformingTypeName, in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await demangleResolver.resolve(for: MetadataReader.demangleType(for: dumped.conformingTypeName, in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         }
     }
 
     package var protocolName: SemanticString {
         get async throws {
-            try await demangleResolver.resolve(for: MetadataReader.demangleType(for: associatedType.protocolTypeName, in: machO))
+            try await demangleResolver.resolve(for: MetadataReader.demangleType(for: dumped.protocolTypeName, in: machO))
         }
     }
 }

@@ -71,6 +71,96 @@ public enum MetadataWrapper: Resolvable {
         }
     }
     
+    public func valueWitnessTable(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ValueWitnessTable {
+        switch self {
+        case .class(let classMetadataObjCInterop):
+            return try classMetadataObjCInterop.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        case .struct(let structMetadata):
+            return try structMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        case .enum(let enumMetadata):
+            return try enumMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        case .optional(let enumMetadata):
+            return try enumMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        case .foreignClass(let foreignClassMetadata):
+            return try foreignClassMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        case .foreignReferenceType(let foreignReferenceTypeMetadata):
+            return try foreignReferenceTypeMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        case .opaque(let opaqueMetadata):
+            return try opaqueMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        case .tuple(let tupleTypeMetadata):
+            return try tupleTypeMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        case .function(let functionTypeMetadata):
+            return try functionTypeMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        case .existential(let existentialTypeMetadata):
+            return try existentialTypeMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        case .metatype(let metatypeMetadata):
+            return try metatypeMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        case .objcClassWrapper(let objCClassWrapperMetadata):
+            return try objCClassWrapperMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        case .existentialMetatype(let existentialMetatypeMetadata):
+            return try existentialMetatypeMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        case .extendedExistential(let extendedExistentialTypeMetadata):
+            return try extendedExistentialTypeMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        case .fixedArray(let fixedArrayTypeMetadata):
+            return try fixedArrayTypeMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        case .heapLocalVariable(let heapLocalVariableMetadata):
+            return try heapLocalVariableMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        case .heapGenericLocalVariable(let genericBoxHeapMetadata):
+            return try genericBoxHeapMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        case .errorObject(let enumMetadata):
+            return try enumMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        case .task(let dispatchClassMetadata):
+            return try dispatchClassMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        case .job(let dispatchClassMetadata):
+            return try dispatchClassMetadata.asFullMetadata(in: machO).valueWitnesses.resolve(in: machO)
+        }
+    }
+    
+    public func valueWitnessTable() throws -> ValueWitnessTable {
+        switch self {
+        case .class(let classMetadataObjCInterop):
+            return try classMetadataObjCInterop.asFullMetadata().valueWitnesses.resolve()
+        case .struct(let structMetadata):
+            return try structMetadata.asFullMetadata().valueWitnesses.resolve()
+        case .enum(let enumMetadata):
+            return try enumMetadata.asFullMetadata().valueWitnesses.resolve()
+        case .optional(let enumMetadata):
+            return try enumMetadata.asFullMetadata().valueWitnesses.resolve()
+        case .foreignClass(let foreignClassMetadata):
+            return try foreignClassMetadata.asFullMetadata().valueWitnesses.resolve()
+        case .foreignReferenceType(let foreignReferenceTypeMetadata):
+            return try foreignReferenceTypeMetadata.asFullMetadata().valueWitnesses.resolve()
+        case .opaque(let opaqueMetadata):
+            return try opaqueMetadata.asFullMetadata().valueWitnesses.resolve()
+        case .tuple(let tupleTypeMetadata):
+            return try tupleTypeMetadata.asFullMetadata().valueWitnesses.resolve()
+        case .function(let functionTypeMetadata):
+            return try functionTypeMetadata.asFullMetadata().valueWitnesses.resolve()
+        case .existential(let existentialTypeMetadata):
+            return try existentialTypeMetadata.asFullMetadata().valueWitnesses.resolve()
+        case .metatype(let metatypeMetadata):
+            return try metatypeMetadata.asFullMetadata().valueWitnesses.resolve()
+        case .objcClassWrapper(let objCClassWrapperMetadata):
+            return try objCClassWrapperMetadata.asFullMetadata().valueWitnesses.resolve()
+        case .existentialMetatype(let existentialMetatypeMetadata):
+            return try existentialMetatypeMetadata.asFullMetadata().valueWitnesses.resolve()
+        case .extendedExistential(let extendedExistentialTypeMetadata):
+            return try extendedExistentialTypeMetadata.asFullMetadata().valueWitnesses.resolve()
+        case .fixedArray(let fixedArrayTypeMetadata):
+            return try fixedArrayTypeMetadata.asFullMetadata().valueWitnesses.resolve()
+        case .heapLocalVariable(let heapLocalVariableMetadata):
+            return try heapLocalVariableMetadata.asFullMetadata().valueWitnesses.resolve()
+        case .heapGenericLocalVariable(let genericBoxHeapMetadata):
+            return try genericBoxHeapMetadata.asFullMetadata().valueWitnesses.resolve()
+        case .errorObject(let enumMetadata):
+            return try enumMetadata.asFullMetadata().valueWitnesses.resolve()
+        case .task(let dispatchClassMetadata):
+            return try dispatchClassMetadata.asFullMetadata().valueWitnesses.resolve()
+        case .job(let dispatchClassMetadata):
+            return try dispatchClassMetadata.asFullMetadata().valueWitnesses.resolve()
+        }
+    }
+    
     public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
         let metadata = try machO.readWrapperElement(offset: offset) as Metadata
         switch metadata.kind {

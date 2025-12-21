@@ -15,4 +15,6 @@ public struct SwiftInterfaceIndexConfiguration: Sendable {
 public struct SwiftInterfacePrintConfiguration: Sendable {
     public var printStrippedSymbolicItem: Bool = true
     public var emitOffsetComments: Bool = false
+    public var printTypeLayout: Bool = false
+    public var printEnumLayout: Bool = false
 }

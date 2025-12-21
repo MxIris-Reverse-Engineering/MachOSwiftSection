@@ -24,7 +24,7 @@ final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
         let descriptors = try machO.swift.multiPayloadEnumDescriptors
         for descriptor in descriptors {
             let inProcessDescriptor = descriptor.asPointerWrapper(in: machO)
-            try multiPayloadEnumDescriptorByMangledName[MetadataReader.demangleType(for: inProcessDescriptor.typeName()).print(using: demangleOptions)] = inProcessDescriptor
+            try multiPayloadEnumDescriptorByMangledName[MetadataReader.demangleType(for: inProcessDescriptor.mangledTypeName()).print(using: demangleOptions)] = inProcessDescriptor
         }
     }
 
@@ -55,7 +55,6 @@ final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
             
             print(typeName)
             print("")
-            var typeLayouts: [TypeLayout] = []
             var emptyCases: UInt32 = 0
             var payloadCases: UInt32 = 0
             var payloadSize: UInt64 = 0
@@ -85,14 +84,12 @@ final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
                 }
                 print("---------------------")
             }
-            var hasIndirectCase = false
             for record in records {
                 let mangledTypeName = try record.mangledTypeName()
-
+                let isIndirectCase = record.flags.contains(.isIndirectCase)
                 var indirectCaseString = ""
-                if record.flags.contains(.isIndirectCase) {
+                if isIndirectCase {
                     indirectCaseString = "indirect "
-                    hasIndirectCase = true
                 }
                 guard !mangledTypeName.isEmpty else {
                     try print("\(indirectCaseString)case", record.fieldName())
@@ -119,10 +116,10 @@ final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
                 }
 
                 let mangledTypeNameString = try mangleAsString(node)
-                if let metatype = try _getTypeByMangledNameInContext(mangledTypeName, genericContext: nil, genericArguments: nil) {
+                if let metatype = try Runtime._getTypeByMangledNameInContext(mangledTypeName, genericContext: nil, genericArguments: nil) {
                     let currentMetadata = try Metadata.createInProcess(metatype)
                     try print("\(indirectCaseString)case \(record.fieldName())\(payloadString("\(node.print(using: .interfaceTypeBuilderOnly))"))")
-                    let metadataWrapper = try currentMetadata.metadataWrapper()
+                    let metadataWrapper = try currentMetadata.asMetadataWrapper()
                     let typeLayout = try currentMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
                     let indentLevel = 1
                     let indent = "    " * indentLevel
@@ -139,7 +136,8 @@ final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
                         print(indent + "Total: ")
                     }
                     print(indent + "- " + typeLayout.description)
-                    typeLayouts.append(typeLayout)
+                    
+                    payloadSize = isIndirectCase ? max(payloadSize, 8) : max(payloadSize, typeLayout.size)
                     
                     let optionalMetadata = try Metadata.createInProcess(makeOptionalMetatype(metatype))
                     let optionalTypeLayout = try optionalMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
@@ -150,10 +148,9 @@ final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
                 }
             }
             print("")
-            guard !typeLayouts.isEmpty else {
+            guard payloadSize != .zero else {
                 continue
             }
-            payloadSize = hasIndirectCase ? 8 : typeLayouts.map(\.size).max() ?? 0
             print("PayloadSize:", payloadSize)
             print("OptionalSize:", optionalSize)
             print("TagCounts:", getEnumTagCounts(payloadSize: payloadSize, emptyCases: emptyCases, payloadCases: payloadCases))
