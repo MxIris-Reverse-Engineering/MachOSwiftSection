@@ -22,11 +22,13 @@ import SwiftUI
 @MainActor
 final class MachOImageDumpTests: MachOImageTests, DumpableTests, @unchecked Sendable {
     override class var imageName: MachOImageName { .SwiftUI }
+    
+    private let dumperConfiguration = DumperConfiguration(demangleResolver: .using(options: .test), printEnumLayout: true)
 }
 
 extension MachOImageDumpTests {
     @Test func typesInImage() async throws {
-        try await dumpTypes(for: machOImage)
+        try await dumpTypes(for: machOImage, isDetail: true, options: .enum, using: dumperConfiguration)
     }
 
     @Test func protocolsInImage() async throws {

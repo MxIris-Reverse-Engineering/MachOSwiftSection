@@ -7,12 +7,12 @@ public struct SwiftInterfaceBuilderConfiguration: Sendable {
 }
 
 @MemberwiseInit(.public)
-public struct SwiftInterfaceIndexConfiguration: Sendable {
+public struct SwiftInterfaceIndexConfiguration: Equatable, Sendable {
     public var showCImportedTypes: Bool = false
 }
 
 @MemberwiseInit(.public)
-public struct SwiftInterfacePrintConfiguration: Sendable {
+public struct SwiftInterfacePrintConfiguration: Equatable, Sendable {
     public var printStrippedSymbolicItem: Bool = true
     public var emitOffsetComments: Bool = false
     public var printTypeLayout: Bool = false

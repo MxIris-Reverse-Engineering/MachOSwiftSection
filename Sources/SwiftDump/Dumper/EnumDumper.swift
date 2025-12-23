@@ -68,18 +68,41 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
 
     package var fields: SemanticString {
         get async throws {
+            var enumLayout: EnumLayoutCalculator.LayoutResult?
+            
+            if configuration.printEnumLayout, !dumped.flags.isGeneric {
+                enumLayout = try? await self.enumLayout
+                
+                if let strategyDescription = enumLayout?.strategyDescription {
+                    BreakLine()
+                    configuration.indentString
+                    InlineComment(strategyDescription)
+                    BreakLine()
+                }
+            }
             for (offset, fieldRecord) in try dumped.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
                 BreakLine()
 
                 let mangledTypeName = try fieldRecord.mangledTypeName(in: machO)
-
+                
+                var isTypeLayoutPrinted: Bool = false
+                
                 if !mangledTypeName.isEmpty {
                     if configuration.printTypeLayout, !dumped.flags.isGeneric, let metatype = try? Runtime._getTypeByMangledNameInContext(mangledTypeName, in: machO), let metadata = try? Metadata.createInProcess(metatype) {
                         try await metadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
+                        isTypeLayoutPrinted = true
                     }
                 }
 
-                if configuration.printEnumLayout, !dumped.flags.isGeneric {}
+                if let `case` = enumLayout?.cases[safe: offset.index] {
+                    if isTypeLayoutPrinted {
+                        BreakLine()
+                    }
+                    configuration.indentString
+                    InlineComment("Enum Layout")
+                    BreakLine()
+                    AnyComponent(string: `case`.description(indent: configuration.indentation, prefix: "//"), type: .comment)
+                }
 
                 Indent(level: configuration.indentation)
 

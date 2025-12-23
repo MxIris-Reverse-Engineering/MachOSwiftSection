@@ -19,23 +19,29 @@ public enum EnumLayoutCalculator {
         public let memoryChanges: [Int: UInt8]
 
         public var description: String {
+            description(indent: .zero)
+        }
+        
+        public func description(indent: Int, prefix: String = "") -> String {
+            let indentString = (0..<indent).reduce("") { string, _ in  string + "    " }
+            
             let hexIndex = String(format: "0x%02X", caseIndex)
-            var output = "Case \(caseIndex) (\(hexIndex)) - \(caseName):\n"
-            output += "  [Logic] Tag: \(tagValue)"
+            var output = "\(indentString)\(prefix) Case \(caseIndex) (\(hexIndex)) - \(caseName):\n"
+            output += "\(indentString)\(prefix) Tag: \(tagValue)"
             if payloadValue > 0 {
-                output += ", PayloadVal: \(payloadValue)"
+                output += ", PayloadValue: \(payloadValue)"
             }
             output += "\n"
             
             if memoryChanges.isEmpty {
-                output += "  -> (No bits set / Zero)\n"
+                output += "\(indentString)\(prefix) (No bits set / Zero)\n"
             } else {
                 for offset in memoryChanges.keys.sorted() {
-                    let byteVal = memoryChanges[offset]!
-                    let byteHex = String(format: "0x%02X", byteVal)
-                    let binaryStr = String(byteVal, radix: 2)
+                    let byteValue = memoryChanges[offset]!
+                    let byteHex = String(format: "0x%02X", byteValue)
+                    let binaryStr = String(byteValue, radix: 2)
                     let padding = String(repeating: "0", count: 8 - binaryStr.count)
-                    output += "  -> Memory Offset \(offset) = \(byteHex) (Bin: \(padding + binaryStr))\n"
+                    output += "\(indentString)\(prefix) Memory Offset \(offset) (\(String(format: "0x%02X", offset))) = \(byteHex) (Bin: \(padding + binaryStr))\n"
                 }
             }
             return output

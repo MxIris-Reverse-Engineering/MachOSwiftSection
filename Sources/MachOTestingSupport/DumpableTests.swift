@@ -44,7 +44,7 @@ extension DumpableTests {
     }
 
     @MainActor
-    package func dumpTypes<MachO: MachOSwiftSectionRepresentableWithCache>(for machO: MachO, isDetail: Bool = true, options: DumpableTypeOptions = [.enum, .struct, .class]) async throws {
+    package func dumpTypes<MachO: MachOSwiftSectionRepresentableWithCache>(for machO: MachO, isDetail: Bool = true, options: DumpableTypeOptions = [.enum, .struct, .class], using configuration: DumperConfiguration? = nil) async throws {
         let typeContextDescriptors = try machO.swift.typeContextDescriptors
         for typeContextDescriptor in typeContextDescriptors {
             switch typeContextDescriptor {
@@ -53,7 +53,7 @@ extension DumpableTests {
                 do {
                     if isDetail {
                         let enumType = try Enum(descriptor: enumDescriptor, in: machO)
-                        try await enumType.dump(using: .demangleOptions(.test), in: machO).string.print()
+                        try await enumType.dump(using: configuration ?? .demangleOptions(.test), in: machO).string.print()
                     } else {
                         print(enumDescriptor)
                     }
@@ -65,7 +65,7 @@ extension DumpableTests {
                 do {
                     if isDetail {
                         let structType = try Struct(descriptor: structDescriptor, in: machO)
-                        try await structType.dump(using: .demangleOptions(.test), in: machO).string.print()
+                        try await structType.dump(using: configuration ?? .demangleOptions(.test), in: machO).string.print()
                     } else {
                         print(structDescriptor)
                     }
@@ -77,7 +77,7 @@ extension DumpableTests {
                 do {
                     if isDetail {
                         let classType = try Class(descriptor: classDescriptor, in: machO)
-                        try await classType.dump(using: .demangleOptions(.test), in: machO).string.print()
+                        try await classType.dump(using: configuration ?? .demangleOptions(.test), in: machO).string.print()
                     } else {
                         print(classDescriptor)
                     }
