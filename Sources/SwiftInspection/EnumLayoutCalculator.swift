@@ -1,9 +1,8 @@
 import Foundation
 
 public enum EnumLayoutCalculator {
-    
     // MARK: - Result Structures
-    
+
     public struct SpareRegion: CustomStringConvertible, Sendable {
         public let range: Range<Int>
         public let bitCount: Int
@@ -21,10 +20,10 @@ public enum EnumLayoutCalculator {
         public var description: String {
             description(indent: .zero)
         }
-        
+
         public func description(indent: Int, prefix: String = "") -> String {
-            let indentString = (0..<indent).reduce("") { string, _ in  string + "    " }
-            
+            let indentString = (0 ..< indent).reduce("") { string, _ in string + "    " }
+
             let hexIndex = String(format: "0x%02X", caseIndex)
             var output = "\(indentString)\(prefix) Case \(caseIndex) (\(hexIndex)) - \(caseName):\n"
             output += "\(indentString)\(prefix) Tag: \(tagValue)"
@@ -32,7 +31,7 @@ public enum EnumLayoutCalculator {
                 output += ", PayloadValue: \(payloadValue)"
             }
             output += "\n"
-            
+
             if memoryChanges.isEmpty {
                 output += "\(indentString)\(prefix) (No bits set / Zero)\n"
             } else {
@@ -69,10 +68,10 @@ public enum EnumLayoutCalculator {
             return output
         }
     }
-    
+
     public enum LayoutError: Error, CustomStringConvertible {
         case notEnoughSpareBits(needed: Int, available: Int)
-        
+
         public var description: String {
             switch self {
             case .notEnoughSpareBits(let needed, let available):
@@ -80,9 +79,9 @@ public enum EnumLayoutCalculator {
             }
         }
     }
-    
+
     // MARK: - Strategy 1: Multi-Payload (Spare Bits)
-    
+
     public static func calculateMultiPayload(
         payloadSize: Int,
         spareBytes: [UInt8],
@@ -90,20 +89,19 @@ public enum EnumLayoutCalculator {
         numPayloadCases: Int,
         numEmptyCases: Int
     ) throws -> LayoutResult {
-        
         var commonSpareBits = BitMask(sizeInBytes: payloadSize)
         commonSpareBits.makeZero()
-        
+
         if spareBytesOffset < payloadSize {
             let copyLength = min(spareBytes.count, payloadSize - spareBytesOffset)
-            for i in 0..<copyLength {
+            for i in 0 ..< copyLength {
                 commonSpareBits[byteAt: spareBytesOffset + i] = spareBytes[i]
             }
         }
-        
+
         let commonSpareBitCount = commonSpareBits.countSetBits()
         let usedBitCount = commonSpareBits.size * 8 - commonSpareBitCount
-        
+
         var numEmptyElementTags = 0
         if numEmptyCases > 0 {
             if usedBitCount >= 32 {
@@ -113,36 +111,38 @@ public enum EnumLayoutCalculator {
                 numEmptyElementTags = (numEmptyCases + emptyElementsPerTag - 1) / emptyElementsPerTag
             }
         }
-        
+
         let numTags = numPayloadCases + numEmptyElementTags
-        
+
         var numTagBits = 0
         if numTags > 1 {
             var temp = numTags - 1
-            while temp > 0 { temp >>= 1; numTagBits += 1 }
+            while temp > 0 {
+                temp >>= 1; numTagBits += 1
+            }
         }
-        
+
         var payloadTagBitsMask = commonSpareBits
         payloadTagBitsMask.keepOnlyMostSignificantBits(numTagBits)
-        
+
         if payloadTagBitsMask.countSetBits() < numTagBits {
             throw LayoutError.notEnoughSpareBits(needed: numTagBits, available: payloadTagBitsMask.countSetBits())
         }
-        
+
         var payloadValueBitsMask = commonSpareBits
         payloadValueBitsMask.invert()
         let numPayloadValueBits = payloadValueBitsMask.countSetBits()
-        
+
         let bitsRequiredForEmptyCases = (numEmptyCases > 1) ? (Int(log2(Double(numEmptyCases - 1))) + 1) : 1
         var meaningfulPayloadMask = BitMask(sizeInBytes: payloadSize)
         meaningfulPayloadMask.makeZero()
-        
+
         var currentMeaningfulBits = 0
-        for i in 0..<payloadSize {
+        for i in 0 ..< payloadSize {
             let byte = payloadValueBitsMask[byteAt: i]
             if byte == 0 { continue }
             var newByte: UInt8 = 0
-            for b in 0..<8 {
+            for b in 0 ..< 8 {
                 if (byte & (1 << b)) != 0 {
                     if currentMeaningfulBits < bitsRequiredForEmptyCases {
                         newByte |= (1 << b)
@@ -152,14 +152,14 @@ public enum EnumLayoutCalculator {
             }
             meaningfulPayloadMask[byteAt: i] = newByte
         }
-        
+
         var cases: [EnumCaseProjection] = []
-        
+
         // A. Payload Cases
-        for i in 0..<numPayloadCases {
+        for i in 0 ..< numPayloadCases {
             let tagVal = i
             let memBytes = payloadTagBitsMask.scatterBits(value: tagVal)
-            
+
             cases.append(EnumCaseProjection(
                 caseIndex: i,
                 caseName: "Payload Case \(i)",
@@ -168,27 +168,27 @@ public enum EnumLayoutCalculator {
                 memoryChanges: extractChanges(from: memBytes, showMask: payloadTagBitsMask)
             ))
         }
-        
+
         // B. Empty Cases
         if numEmptyCases > 0 {
-            for i in 0..<numEmptyCases {
+            for i in 0 ..< numEmptyCases {
                 let globalIndex = numPayloadCases + i
                 let emptyIndex = i
-                
+
                 let payloadValueMaskInt = (numPayloadValueBits >= 64) ? -1 : (1 << numPayloadValueBits) - 1
                 let payloadVal = emptyIndex & payloadValueMaskInt
-                
+
                 let tagOffset = emptyIndex >> numPayloadValueBits
                 let finalTag = numPayloadCases + tagOffset
-                
+
                 let tagBytes = payloadTagBitsMask.scatterBits(value: finalTag)
                 let payloadBytes = payloadValueBitsMask.scatterBits(value: payloadVal)
-                
+
                 var combinedBytes = [UInt8](repeating: 0, count: payloadSize)
-                for b in 0..<payloadSize {
+                for b in 0 ..< payloadSize {
                     combinedBytes[b] = tagBytes[b] | payloadBytes[b]
                 }
-                
+
                 cases.append(EnumCaseProjection(
                     caseIndex: globalIndex,
                     caseName: "Empty Case \(i)",
@@ -202,7 +202,7 @@ public enum EnumLayoutCalculator {
                 ))
             }
         }
-        
+
         return LayoutResult(
             strategyDescription: "Multi-Payload (Spare Bits + Occupied Bits Overflow)",
             bitsNeededForTag: numTagBits,
@@ -213,66 +213,149 @@ public enum EnumLayoutCalculator {
             cases: cases
         )
     }
-    
+
     // MARK: - Strategy 2: Tagged Multi-Payload
-    
+
     public static func calculateTaggedMultiPayload(
         payloadSize: Int,
         numPayloadCases: Int,
         numEmptyCases: Int
     ) -> LayoutResult {
-        
-        let numTags = numPayloadCases + numEmptyCases
+        // 1. Calculate correct Number of Tags based on Payload Capacity
+        //
+        var numTags = numPayloadCases
+        if numEmptyCases > 0 {
+            if payloadSize >= 4 {
+                // If payload is large enough (>= 32 bits), we only need 1 extra tag
+                // to cover all empty cases (up to 4 billion).
+                numTags += 1
+            } else {
+                // If payload is small, we calculate how many tags are needed to cover empty cases.
+                let bits = payloadSize * 8
+                let capacityPerTag = 1 << bits
+                let emptyTags = (numEmptyCases + capacityPerTag - 1) / capacityPerTag
+                numTags += emptyTags
+            }
+        }
+
+        // Enum.h: getEnumTagCounts
         let numTagBytes: Int
         if numTags <= 1 { numTagBytes = 0 }
         else if numTags < 256 { numTagBytes = 1 }
         else if numTags < 65536 { numTagBytes = 2 }
         else { numTagBytes = 4 }
-        
+
         let bitsNeeded = numTagBytes * 8
         let tagOffset = payloadSize
-        
+
+        // Virtual mask for the extra tag region
         let region = SpareRegion(
-            range: tagOffset..<(tagOffset + numTagBytes),
+            range: tagOffset ..< (tagOffset + numTagBytes),
             bitCount: bitsNeeded,
             bytes: [UInt8](repeating: 0xFF, count: numTagBytes)
         )
-        
+
+        // Calculate a mask to determine which payload bytes are meaningful for empty cases.
+        // We don't want to show random 0s in high bytes if the index is small.
+        var meaningfulPayloadMask = BitMask(sizeInBytes: payloadSize)
+        meaningfulPayloadMask.makeZero()
+
+        if numEmptyCases > 0 {
+            if payloadSize >= 4 {
+                // Determine how many bits are actually needed for the max empty index
+                let maxIndex = numEmptyCases - 1
+                let bitsRequired = (maxIndex > 0) ? (Int(log2(Double(maxIndex))) + 1) : 1
+
+                var remainingBits = bitsRequired
+                for i in 0 ..< payloadSize {
+                    if remainingBits <= 0 { break }
+                    let bitsInByte = min(remainingBits, 8)
+                    meaningfulPayloadMask[byteAt: i] = UInt8((1 << bitsInByte) - 1)
+                    remainingBits -= 8
+                }
+            } else {
+                // Small payload: all bits are used/meaningful as it wraps around tags
+                meaningfulPayloadMask.invert()
+            }
+        }
+
         var cases: [EnumCaseProjection] = []
-        
-        for tagVal in 0..<numTags {
+        let totalCases = numPayloadCases + numEmptyCases
+
+        for i in 0 ..< totalCases {
+            let caseIndex = i
             var memoryChanges: [Int: UInt8] = [:]
-            var tempTag = tagVal
-            for i in 0..<numTagBytes {
-                memoryChanges[tagOffset + i] = UInt8(tempTag & 0xFF)
+
+            let tagValue: Int
+            let payloadValue: Int
+
+            if caseIndex < numPayloadCases {
+                // --- Payload Case ---
+                // Logic: Tag = CaseIndex
+                tagValue = caseIndex
+                payloadValue = 0
+            } else {
+                // --- Empty Case ---
+                // Logic:
+                let emptyIndex = caseIndex - numPayloadCases
+
+                if payloadSize >= 4 {
+                    // Use a single separate tag, store index in payload
+                    tagValue = numPayloadCases
+                    payloadValue = emptyIndex
+                } else {
+                    // Spread empty cases across multiple tags
+                    let bits = payloadSize * 8
+                    tagValue = numPayloadCases + (emptyIndex >> bits)
+                    payloadValue = emptyIndex & ((1 << bits) - 1)
+                }
+            }
+
+            // 1. Write Tag Bytes
+            var tempTag = tagValue
+            for b in 0 ..< numTagBytes {
+                memoryChanges[tagOffset + b] = UInt8(tempTag & 0xFF)
                 tempTag >>= 8
             }
-            
-            let isPayload = tagVal < numPayloadCases
-            let name = isPayload ? "Payload Case \(tagVal)" : "Empty Case \(tagVal - numPayloadCases)"
-            
+
+            // 2. Write Payload Bytes (Only for Empty Cases)
+            // Payload cases have their own data, but here we are just projecting the enum structure.
+            if caseIndex >= numPayloadCases {
+                var tempPayload = payloadValue
+                for b in 0 ..< payloadSize {
+                    let byteVal = UInt8(tempPayload & 0xFF)
+                    // Only show byte if it's within the meaningful range for the index
+                    if meaningfulPayloadMask[byteAt: b] != 0 {
+                        memoryChanges[b] = byteVal
+                    }
+                    tempPayload >>= 8
+                }
+            }
+
+            let name = (caseIndex < numPayloadCases) ? "Payload Case \(caseIndex)" : "Empty Case \(caseIndex - numPayloadCases)"
+
             cases.append(EnumCaseProjection(
-                caseIndex: tagVal,
+                caseIndex: caseIndex,
                 caseName: name,
-                tagValue: tagVal,
-                payloadValue: 0,
+                tagValue: tagValue,
+                payloadValue: (caseIndex >= numPayloadCases) ? payloadValue : 0,
                 memoryChanges: memoryChanges
             ))
         }
-        
+
         return LayoutResult(
             strategyDescription: "Tagged Multi-Payload (Extra Tag)",
             bitsNeededForTag: bitsNeeded,
-            bitsAvailableForPayload: 0,
+            bitsAvailableForPayload: 0, // Payload is used for Index, not free bits
             numTags: numTags,
             tagRegion: region,
             payloadRegion: nil,
             cases: cases
         )
     }
-    
+
     // MARK: - Strategy 3: Single Payload
-    
+
     public static func calculateSinglePayload(
         size: Int,
         payloadSize: Int,
@@ -280,27 +363,26 @@ public enum EnumLayoutCalculator {
         spareBytes: [UInt8] = [],
         spareBytesOffset: Int = 0
     ) -> LayoutResult {
-        
         let numTags = numEmptyCases + 1
-        
+
         // If we have spare bits available, we can use Extra Inhabitants (XI).
         // This is preferred over adding an extra tag byte if enough XIs exist.
         // E.g., Optional<MultiPayloadEnum> where MPE has spare bits.
         if !spareBytes.isEmpty {
             // Case B: Extra Inhabitants (XI)
-            
+
             // 1. Construct Mask from input spare bytes
             var spareBitMask = BitMask(sizeInBytes: payloadSize)
             spareBitMask.makeZero()
             if spareBytesOffset < payloadSize {
                 let copyLength = min(spareBytes.count, payloadSize - spareBytesOffset)
-                for i in 0..<copyLength {
+                for i in 0 ..< copyLength {
                     spareBitMask[byteAt: spareBytesOffset + i] = spareBytes[i]
                 }
             }
-            
+
             let spareBitCount = spareBitMask.countSetBits()
-            
+
             // Calculate mask for meaningful bytes display.
             // GenEnum.cpp caps the Extra Inhabitant usage to 32 bits (~0u).
             // We need a mask that represents only the bits actually used by the XI logic.
@@ -309,12 +391,12 @@ public enum EnumLayoutCalculator {
             meaningfulMask.makeZero()
             var bitsFound = 0
             let meaningfulLimit = min(spareBitCount, 32)
-            
-            for i in 0..<payloadSize {
+
+            for i in 0 ..< payloadSize {
                 let byte = spareBitMask[byteAt: i]
                 if byte == 0 { continue }
                 var newByte: UInt8 = 0
-                for b in 0..<8 {
+                for b in 0 ..< 8 {
                     if (byte & (1 << b)) != 0 {
                         if bitsFound < meaningfulLimit {
                             newByte |= (1 << b)
@@ -324,9 +406,9 @@ public enum EnumLayoutCalculator {
                 }
                 meaningfulMask[byteAt: i] = newByte
             }
-            
+
             var cases: [EnumCaseProjection] = []
-            
+
             // Payload Case
             cases.append(EnumCaseProjection(
                 caseIndex: 0,
@@ -335,21 +417,21 @@ public enum EnumLayoutCalculator {
                 payloadValue: 0,
                 memoryChanges: [:]
             ))
-            
+
             // Empty Cases (Extra Inhabitants)
             // Logic: XI Value = ~Index, scattered into spare bits.
             //
-            for i in 0..<numEmptyCases {
+            for i in 0 ..< numEmptyCases {
                 let xiIndex = i
                 // Invert the index (count down from all-ones)
                 // Note: GenEnum.cpp uses ~0u (unsigned int), effectively capping the mask at 32 bits.
                 // If spareBitCount >= 32, the scattered value is derived from 0xFFFFFFFF & ~index.
                 let maskCap: UInt64 = (spareBitCount >= 32) ? 0xFFFFFFFF : (1 << spareBitCount) - 1
                 let xiValue = UInt64(bitPattern: Int64(~xiIndex)) & maskCap
-                
+
                 // Scatter into spare bits
                 let memBytes = spareBitMask.scatterBits(value: Int(xiValue))
-                
+
                 // Use extractChangesForEmptyCase with the calculated meaningfulMask.
                 // This ensures we show bytes like 0x00 if they are part of the active 32-bit XI mask,
                 // but hide bytes that are part of the spare region but unused by the 32-bit cap.
@@ -365,7 +447,7 @@ public enum EnumLayoutCalculator {
                     )
                 ))
             }
-            
+
             return LayoutResult(
                 strategyDescription: "Single Payload (Extra Inhabitants)",
                 bitsNeededForTag: 0,
@@ -375,22 +457,24 @@ public enum EnumLayoutCalculator {
                 payloadRegion: nil,
                 cases: cases
             )
-            
+
         } else if size > payloadSize {
             // Case A: Extra Tag (Payload full, or no XIs available)
             let extraTagBytes = size - payloadSize
             let bitsNeeded = extraTagBytes * 8
-            
+
             let region = SpareRegion(
-                range: payloadSize..<size,
+                range: payloadSize ..< size,
                 bitCount: bitsNeeded,
                 bytes: [UInt8](repeating: 0xFF, count: extraTagBytes)
             )
-            
+
             var cases: [EnumCaseProjection] = []
-            
+
             var payloadMem: [Int: UInt8] = [:]
-            for i in 0..<extraTagBytes { payloadMem[payloadSize + i] = 0 }
+            for i in 0 ..< extraTagBytes {
+                payloadMem[payloadSize + i] = 0
+            }
             cases.append(EnumCaseProjection(
                 caseIndex: 0,
                 caseName: "Payload Case",
@@ -398,24 +482,24 @@ public enum EnumLayoutCalculator {
                 payloadValue: 0,
                 memoryChanges: payloadMem
             ))
-            
+
             let casesToShow = min(numEmptyCases, 5)
-            for i in 1...casesToShow {
+            for i in 1 ... casesToShow {
                 var mem: [Int: UInt8] = [:]
                 var tempTag = i
-                for b in 0..<extraTagBytes {
+                for b in 0 ..< extraTagBytes {
                     mem[payloadSize + b] = UInt8(tempTag & 0xFF)
                     tempTag >>= 8
                 }
                 cases.append(EnumCaseProjection(
                     caseIndex: i,
-                    caseName: "Empty Case \(i-1)",
+                    caseName: "Empty Case \(i - 1)",
                     tagValue: i,
                     payloadValue: 0,
                     memoryChanges: mem
                 ))
             }
-            
+
             return LayoutResult(
                 strategyDescription: "Single Payload (Extra Tag)",
                 bitsNeededForTag: bitsNeeded,
@@ -427,7 +511,7 @@ public enum EnumLayoutCalculator {
             )
         } else {
             // Fallback for simple cases or when logic requires it
-             return LayoutResult(
+            return LayoutResult(
                 strategyDescription: "Single Payload (Extra Inhabitants - Simple)",
                 bitsNeededForTag: 0,
                 bitsAvailableForPayload: 0,
@@ -436,57 +520,57 @@ public enum EnumLayoutCalculator {
                 payloadRegion: nil,
                 cases: [
                     EnumCaseProjection(caseIndex: 0, caseName: "Payload Case (Valid Value)", tagValue: -1, payloadValue: 0, memoryChanges: [:]),
-                    EnumCaseProjection(caseIndex: 1, caseName: "Empty Case 0 (Uses XI #0)", tagValue: 0, payloadValue: 0, memoryChanges: [:])
+                    EnumCaseProjection(caseIndex: 1, caseName: "Empty Case 0 (Uses XI #0)", tagValue: 0, payloadValue: 0, memoryChanges: [:]),
                 ]
             )
         }
     }
-    
+
     // MARK: - Helpers
-    
+
     private static func calculateRegion(from mask: BitMask, bitCount: Int) -> SpareRegion? {
         if bitCount == 0 { return nil }
         var minByte = mask.size
         var maxByte = 0
         var hasBits = false
-        
-        for i in 0..<mask.size {
+
+        for i in 0 ..< mask.size {
             if mask[byteAt: i] != 0 {
                 if i < minByte { minByte = i }
                 if i > maxByte { maxByte = i }
                 hasBits = true
             }
         }
-        
+
         guard hasBits else { return nil }
-        let range = minByte..<(maxByte + 1)
+        let range = minByte ..< (maxByte + 1)
         let bytes = Array(mask.bytes[range])
         return SpareRegion(range: range, bitCount: bitCount, bytes: bytes)
     }
-    
+
     private static func extractChanges(from data: [UInt8], showMask: BitMask) -> [Int: UInt8] {
         var changes: [Int: UInt8] = [:]
-        for i in 0..<data.count {
+        for i in 0 ..< data.count {
             if showMask[byteAt: i] != 0 {
                 changes[i] = data[i]
             }
         }
         return changes
     }
-    
+
     private static func extractChangesForEmptyCase(
         data: [UInt8],
         tagMask: BitMask,
         meaningfulPayloadMask: BitMask
     ) -> [Int: UInt8] {
         var changes: [Int: UInt8] = [:]
-        
-        for i in 0..<data.count {
+
+        for i in 0 ..< data.count {
             if tagMask[byteAt: i] != 0 || meaningfulPayloadMask[byteAt: i] != 0 {
                 changes[i] = data[i]
             }
         }
-        
+
         return changes
     }
 }
