@@ -1,10 +1,3 @@
-//
-//  SpareBitAnalyzer.swift
-//  MachOSwiftSection
-//
-//  Created by JH on 2025/12/10.
-//
-
 import Foundation
 
 enum SpareBitAnalyzer {

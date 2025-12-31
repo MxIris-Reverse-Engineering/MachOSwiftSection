@@ -16,9 +16,9 @@ public enum SemanticStringBuilder {
 
     public static func buildPartialBlock(first: [Element]?) -> [Element] { first ?? [] }
 
-    public static func buildPartialBlock(first: SemanticString) -> [Element] { first.components }
+    public static func buildPartialBlock(first: SemanticString) -> [Element] { [first] }
 
-    public static func buildPartialBlock(first: SemanticString?) -> [Element] { first?.components ?? [] }
+    public static func buildPartialBlock(first: SemanticString?) -> [Element] { first.map { [$0] } ?? [] }
 
     public static func buildPartialBlock(first: some CustomStringConvertible) -> [Element] { [Standard(first.description)] }
 
@@ -30,9 +30,9 @@ public enum SemanticStringBuilder {
 
     public static func buildPartialBlock(accumulated: [Element], next: [Element]?) -> [Element] { accumulated + (next ?? []) }
 
-    public static func buildPartialBlock(accumulated: [Element], next: SemanticString) -> [Element] { accumulated + next.components }
+    public static func buildPartialBlock(accumulated: [Element], next: SemanticString) -> [Element] { accumulated + [next] }
 
-    public static func buildPartialBlock(accumulated: [Element], next: SemanticString?) -> [Element] { accumulated + (next?.components ?? []) }
+    public static func buildPartialBlock(accumulated: [Element], next: SemanticString?) -> [Element] { accumulated + (next.map { [$0] } ?? []) }
 
     public static func buildPartialBlock(accumulated: [Element], next: some CustomStringConvertible) -> [Element] { accumulated + [Standard(next.description)] }
 

@@ -122,7 +122,7 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
     }
 
     private mutating func dumpError(_ error: Swift.Error) {
-        dumpOrPrint(SemanticString(components: Error(error.localizedDescription)))
+        dumpOrPrint(SemanticString(components: [Semantic.Error(error.localizedDescription)]))
     }
 
     private mutating func dumpOrPrint(_ semanticString: SemanticString) {

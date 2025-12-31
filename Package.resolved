@@ -1,5 +1,5 @@
 {
-  "originHash" : "a6cc299b227a967b615b2f13928fc15d731a24c055aabaf2a5a6580a5cdc217c",
+  "originHash" : "6a9b35ab565676478f245b83b4b5b037a3de742c5fc7b66c1206a3b6fb55f5c8",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -44,24 +44,6 @@
       "state" : {
         "branch" : "main",
         "revision" : "e387b1cad42b9990378dfd7b8ee3279ded2aada9"
-      }
-    },
-    {
-      "identity" : "machokit",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/p-x9/MachOKit.git",
-      "state" : {
-        "revision" : "315b6e255f2bd832b1b703d0792cace746ec4b29",
-        "version" : "0.42.0"
-      }
-    },
-    {
-      "identity" : "machoobjcsection",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/p-x9/MachOObjCSection",
-      "state" : {
-        "revision" : "c29eaabba18d8880851cd92339f433aa19204d91",
-        "version" : "0.5.0"
       }
     },
     {
@@ -116,6 +98,15 @@
       "state" : {
         "revision" : "6c050d5ef8e1aa6342528460db614e9770d7f804",
         "version" : "1.1.1"
+      }
+    },
+    {
+      "identity" : "swift-clang",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/MxIris-DeveloperTool-Forks/swift-clang",
+      "state" : {
+        "revision" : "3944b95e4458e1a1e52efcdd5ea1518fcb90a9a6",
+        "version" : "0.1.0"
       }
     },
     {
@@ -206,15 +197,6 @@
       "state" : {
         "revision" : "6121b169fb5a83d7262a69b640468606f98c6c6e",
         "version" : "0.5.3-fork.1"
-      }
-    },
-    {
-      "identity" : "swift-objc-dump",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/p-x9/swift-objc-dump.git",
-      "state" : {
-        "revision" : "1e91dfd4c332f7015f4c46f99df8a53fbb495e20",
-        "version" : "0.7.0"
       }
     },
     {
