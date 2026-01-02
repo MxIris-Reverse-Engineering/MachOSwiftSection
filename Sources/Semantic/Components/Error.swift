@@ -16,3 +16,11 @@ public struct Error: AtomicSemanticComponent {
         self.string = string
     }
 }
+
+public struct UnknownError: SemanticStringComponent {
+    public init() {}
+    
+    public func buildComponents() -> [AtomicComponent] {
+        Error("Unknown").buildComponents()
+    }
+}

@@ -10,6 +10,15 @@
 /// }
 /// ```
 ///
+/// Example usage with prefix and suffix:
+/// ```swift
+/// Joined(separator: ", ", prefix: "(", suffix: ")") {
+///     TypeName("Int")
+///     TypeName("String")
+/// }
+/// // Result: (Int, String)
+/// ```
+///
 /// Example usage with array:
 /// ```swift
 /// Joined(separator: ", ", items)
@@ -21,31 +30,124 @@ public struct Joined: SemanticStringComponent {
     @usableFromInline
     let separator: any SemanticStringComponent
 
+    @usableFromInline
+    let prefix: (any SemanticStringComponent)?
+
+    @usableFromInline
+    let suffix: (any SemanticStringComponent)?
+
+    // MARK: - Builder Initializers
+
     /// Creates a joined component from a builder with a string separator.
     @inlinable
-    public init(separator: String, @SemanticStringBuilder content: () -> SemanticString) {
+    public init(
+        separator: String = "",
+        prefix: String? = nil,
+        suffix: String? = nil,
+        @SemanticStringBuilder content: () -> SemanticString
+    ) {
         self.separator = Standard(separator)
+        self.prefix = prefix.map { Standard($0) }
+        self.suffix = suffix.map { Standard($0) }
         self.items = content().elements
     }
 
     /// Creates a joined component from a builder with a component separator.
     @inlinable
-    public init(separator: some SemanticStringComponent, @SemanticStringBuilder content: () -> SemanticString) {
+    public init(
+        separator: some SemanticStringComponent = Standard(""),
+        prefix: (some SemanticStringComponent)? = nil as Standard?,
+        suffix: (some SemanticStringComponent)? = nil as Standard?,
+        @SemanticStringBuilder content: () -> SemanticString
+    ) {
         self.separator = separator
+        self.prefix = prefix
+        self.suffix = suffix
         self.items = content().elements
     }
 
+    // MARK: - Builder Prefix/Suffix Initializers
+
+    /// Creates a joined component with result builder closures for prefix and suffix.
+    ///
+    /// Example usage:
+    /// ```swift
+    /// Joined {
+    ///     for item in items {
+    ///         item.semanticString
+    ///     }
+    /// } prefix: {
+    ///     BreakLine()
+    ///     Keyword("@required")
+    /// }
+    /// ```
+    @inlinable
+    public init(
+        separator: String = "",
+        @SemanticStringBuilder content: () -> SemanticString,
+        @SemanticStringBuilder prefix: () -> SemanticString
+    ) {
+        self.separator = Standard(separator)
+        self.prefix = prefix()
+        self.suffix = nil
+        self.items = content().elements
+    }
+
+    /// Creates a joined component with result builder closures for prefix and suffix.
+    ///
+    /// Example usage:
+    /// ```swift
+    /// Joined {
+    ///     for item in items {
+    ///         item.semanticString
+    ///     }
+    /// } prefix: {
+    ///     BreakLine()
+    ///     Keyword("@required")
+    /// } suffix: {
+    ///     BreakLine()
+    /// }
+    /// ```
+    @inlinable
+    public init(
+        separator: String = "",
+        @SemanticStringBuilder content: () -> SemanticString,
+        @SemanticStringBuilder prefix: () -> SemanticString,
+        @SemanticStringBuilder suffix: () -> SemanticString
+    ) {
+        self.separator = Standard(separator)
+        self.prefix = prefix()
+        self.suffix = suffix()
+        self.items = content().elements
+    }
+
+    // MARK: - Array Initializers
+
     /// Creates a joined component from an array of semantic strings.
     @inlinable
-    public init(separator: String, _ items: [SemanticString]) {
+    public init(
+        separator: String = "",
+        prefix: String? = nil,
+        suffix: String? = nil,
+        _ items: [SemanticString]
+    ) {
         self.separator = Standard(separator)
+        self.prefix = prefix.map { Standard($0) }
+        self.suffix = suffix.map { Standard($0) }
         self.items = items
     }
 
     /// Creates a joined component from an array with a component separator.
     @inlinable
-    public init(separator: some SemanticStringComponent, _ items: [SemanticString]) {
+    public init(
+        separator: some SemanticStringComponent = Standard(""),
+        prefix: (some SemanticStringComponent)? = nil as Standard?,
+        suffix: (some SemanticStringComponent)? = nil as Standard?,
+        _ items: [SemanticString]
+    ) {
         self.separator = separator
+        self.prefix = prefix
+        self.suffix = suffix
         self.items = items
     }
 
@@ -58,11 +160,22 @@ public struct Joined: SemanticStringComponent {
         let sepComponents = separator.buildComponents()
         var result: [AtomicComponent] = []
 
+        // Add prefix if present
+        if let prefix {
+            result.append(contentsOf: prefix.buildComponents())
+        }
+
+        // Add joined items
         for (index, components) in expanded.enumerated() {
             result.append(contentsOf: components)
             if index < expanded.count - 1 {
                 result.append(contentsOf: sepComponents)
             }
+        }
+
+        // Add suffix if present
+        if let suffix {
+            result.append(contentsOf: suffix.buildComponents())
         }
 
         return result

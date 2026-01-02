@@ -138,28 +138,35 @@ public struct BlockList: SemanticStringComponent {
     @usableFromInline
     let items: [any SemanticStringComponent]
 
+    @usableFromInline
+    let _separatedByEmptyLine: Bool
+
     /// Creates from a sync result builder.
     @inlinable
     public init(@SemanticStringBuilder content: () -> SemanticString) {
         self.items = content().elements
+        self._separatedByEmptyLine = false
     }
 
     /// Creates from pre-built content.
     @inlinable
     public init(content: SemanticString) {
         self.items = content.elements
+        self._separatedByEmptyLine = false
     }
 
     /// Creates from an array of items.
     @inlinable
     public init(_ items: [SemanticString]) {
         self.items = items
+        self._separatedByEmptyLine = false
     }
 
     /// Creates from an array of components.
     @inlinable
     public init<C: SemanticStringComponent>(_ items: [C]) {
         self.items = items
+        self._separatedByEmptyLine = false
     }
 
     /// Creates from an async result builder.
@@ -167,6 +174,19 @@ public struct BlockList: SemanticStringComponent {
     public init(@SemanticStringBuilder content: () async throws -> SemanticString) async rethrows {
         let built = try await content()
         self.items = built.elements
+        self._separatedByEmptyLine = false
+    }
+
+    @usableFromInline
+    init(items: [any SemanticStringComponent], separatedByEmptyLine: Bool) {
+        self.items = items
+        self._separatedByEmptyLine = separatedByEmptyLine
+    }
+
+    /// Returns a new BlockList that adds an empty line between each group.
+    @inlinable
+    public func separatedByEmptyLine(_ enabled: Bool = true) -> BlockList {
+        BlockList(items: items, separatedByEmptyLine: enabled)
     }
 
     @inlinable
@@ -175,8 +195,11 @@ public struct BlockList: SemanticStringComponent {
         guard !groups.isEmpty else { return [] }
 
         var result: [AtomicComponent] = []
-        for group in groups {
+        for (index, group) in groups.enumerated() {
             result.append(contentsOf: BreakLine().buildComponents())
+            if _separatedByEmptyLine && index > 0 {
+                result.append(contentsOf: BreakLine().buildComponents())
+            }
             result.append(contentsOf: group)
         }
         result.append(contentsOf: BreakLine().buildComponents())
