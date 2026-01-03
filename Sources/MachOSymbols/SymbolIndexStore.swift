@@ -196,8 +196,8 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Entry>, @unche
     public override func buildEntry<MachO>(for machO: MachO) -> Entry? where MachO: MachORepresentableWithCache {
         let entry = Entry()
         var cachedSymbols: Set<String> = []
-        var symbolsByOffset: OrderedDictionary<Int, [Symbol]> = [:]
         var symbolByName: OrderedDictionary<String, Symbol> = [:]
+        var symbolsByOffset: OrderedDictionary<Int, [Symbol]> = [:]
         var demangledNodeBySymbol: [Symbol: Node] = [:]
 
         for symbol in machO.symbols where symbol.name.isSwiftSymbol {
@@ -207,6 +207,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Entry>, @unche
                 offset -= cache.mainCacheHeader.sharedRegionStart.cast()
                 symbolsByOffset[offset, default: []].append(.init(offset: offset, name: symbol.name, nlist: symbol.nlist))
             }
+            symbolByName[symbol.name] = .init(offset: offset, name: symbol.name, nlist: symbol.nlist)
             cachedSymbols.insert(symbol.name)
         }
 
