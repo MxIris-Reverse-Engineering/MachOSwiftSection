@@ -4,6 +4,9 @@
 /// It stores a list of semantic components that can be flattened into
 /// atomic components for rendering.
 ///
+/// This type implements copy-on-write semantics for efficient copying
+/// and caches computed components to avoid redundant calculations.
+///
 /// Example:
 /// ```swift
 /// @SemanticStringBuilder
@@ -16,16 +19,61 @@
 /// }
 /// ```
 public struct SemanticString: Sendable, ExpressibleByStringLiteral, SemanticStringComponent {
+    /// Internal storage class for copy-on-write semantics
     @usableFromInline
-    internal var _elements: [any SemanticStringComponent] = []
+    final class Storage: @unchecked Sendable {
+        @usableFromInline
+        var elements: [any SemanticStringComponent]
+
+        @usableFromInline
+        var cachedComponents: [AtomicComponent]?
+
+        @usableFromInline
+        var cachedString: String?
+
+        @inlinable
+        init(elements: [any SemanticStringComponent] = []) {
+            self.elements = elements
+        }
+
+        @inlinable
+        init(copying other: Storage) {
+            self.elements = other.elements
+            self.cachedComponents = other.cachedComponents
+            self.cachedString = other.cachedString
+        }
+    }
+
+    @usableFromInline
+    var _storage: Storage
+
+    /// Ensures unique ownership of storage for mutation (copy-on-write)
+    @inlinable
+    mutating func makeUnique() {
+        if !isKnownUniquelyReferenced(&_storage) {
+            _storage = Storage(copying: _storage)
+        }
+    }
+
+    /// Invalidates cached values when elements are modified
+    @inlinable
+    mutating func invalidateCache() {
+        _storage.cachedComponents = nil
+        _storage.cachedString = nil
+    }
 
     @usableFromInline
     internal var elements: [any SemanticStringComponent] {
-        _elements
+        _storage.elements
     }
 
     public var components: [AtomicComponent] {
-        @inlinable get { _elements.flatMap { $0.buildComponents() } }
+        if let cached = _storage.cachedComponents {
+            return cached
+        }
+        let computed = _storage.elements.flatMap { $0.buildComponents() }
+        _storage.cachedComponents = computed
+        return computed
     }
 
     /// The number of components.
@@ -33,14 +81,20 @@ public struct SemanticString: Sendable, ExpressibleByStringLiteral, SemanticStri
     public var count: Int { components.count }
 
     /// The combined string of all components.
-    @inlinable
-    public var string: String { components.map(\.string).joined() }
+    public var string: String {
+        if let cached = _storage.cachedString {
+            return cached
+        }
+        let computed = components.map(\.string).joined()
+        _storage.cachedString = computed
+        return computed
+    }
 
     // MARK: - Collection-like Properties
 
     /// Returns `true` if the semantic string has no components.
     @inlinable
-    public var isEmpty: Bool { components.isEmpty }
+    public var isEmpty: Bool { _storage.elements.isEmpty }
 
     /// Returns the first component, or `nil` if empty.
     @inlinable
@@ -53,7 +107,9 @@ public struct SemanticString: Sendable, ExpressibleByStringLiteral, SemanticStri
     // MARK: - Initialization
 
     @inlinable
-    public init() {}
+    public init() {
+        self._storage = Storage()
+    }
 
     @inlinable
     public init(@SemanticStringBuilder builder: () -> SemanticString) {
@@ -62,30 +118,36 @@ public struct SemanticString: Sendable, ExpressibleByStringLiteral, SemanticStri
 
     @inlinable
     public init(components: [any SemanticStringComponent]) {
-        self._elements = components
+        self._storage = Storage(elements: components)
     }
 
     @inlinable
     public init(components: [AtomicComponent]) {
-        self._elements = components
+        self._storage = Storage(elements: components)
+        // Pre-cache since we already have atomic components
+        _storage.cachedComponents = components
     }
 
     @inlinable
     public init(components: AtomicComponent...) {
-        self._elements = components
+        self._storage = Storage(elements: components)
+        _storage.cachedComponents = components
     }
 
     @inlinable
     public init(_ component: some SemanticStringComponent) {
-        self._elements = [component]
+        self._storage = Storage(elements: [component])
     }
 
     @inlinable
     public init(stringLiteral value: StringLiteralType) {
         if value.isEmpty {
-            self.init()
+            self._storage = Storage()
         } else {
-            self.init(components: AtomicComponent(string: value, type: .standard))
+            let component = AtomicComponent(string: value, type: .standard)
+            self._storage = Storage(elements: [component])
+            _storage.cachedComponents = [component]
+            _storage.cachedString = value
         }
     }
 
@@ -101,18 +163,24 @@ public struct SemanticString: Sendable, ExpressibleByStringLiteral, SemanticStri
     @inlinable
     public mutating func append(_ string: String, type: SemanticType) {
         if !string.isEmpty {
-            _elements.append(AtomicComponent(string: string, type: type))
+            makeUnique()
+            invalidateCache()
+            _storage.elements.append(AtomicComponent(string: string, type: type))
         }
     }
 
     @inlinable
     public mutating func append(_ component: some SemanticStringComponent) {
-        _elements.append(component)
+        makeUnique()
+        invalidateCache()
+        _storage.elements.append(component)
     }
 
     @inlinable
     public mutating func append(_ semanticString: SemanticString) {
-        _elements.append(contentsOf: semanticString._elements)
+        makeUnique()
+        invalidateCache()
+        _storage.elements.append(contentsOf: semanticString._storage.elements)
     }
 
     // MARK: - Enumeration
@@ -247,7 +315,7 @@ public struct SemanticString: Sendable, ExpressibleByStringLiteral, SemanticStri
     @inlinable
     public subscript(index: Int) -> AtomicComponent? {
         let items = components
-        guard index >= 0 && index < items.count else { return nil }
+        guard index >= 0, index < items.count else { return nil }
         return items[index]
     }
 
@@ -255,7 +323,7 @@ public struct SemanticString: Sendable, ExpressibleByStringLiteral, SemanticStri
     @inlinable
     public subscript(range: Range<Int>) -> SemanticString {
         let items = components
-        let validRange = range.clamped(to: 0..<items.count)
+        let validRange = range.clamped(to: 0 ..< items.count)
         return SemanticString(components: Array(items[validRange]))
     }
 
@@ -390,7 +458,9 @@ public struct SemanticString: Sendable, ExpressibleByStringLiteral, SemanticStri
     @inlinable
     public func appending(_ other: SemanticString) -> SemanticString {
         var result = self
-        result._elements.append(contentsOf: other._elements)
+        result.makeUnique()
+        result.invalidateCache()
+        result._storage.elements.append(contentsOf: other._storage.elements)
         return result
     }
 
@@ -398,7 +468,9 @@ public struct SemanticString: Sendable, ExpressibleByStringLiteral, SemanticStri
     @inlinable
     public func appending(_ component: some SemanticStringComponent) -> SemanticString {
         var result = self
-        result._elements.append(component)
+        result.makeUnique()
+        result.invalidateCache()
+        result._storage.elements.append(component)
         return result
     }
 
@@ -407,7 +479,9 @@ public struct SemanticString: Sendable, ExpressibleByStringLiteral, SemanticStri
     public func appending(_ string: String, type: SemanticType = .standard) -> SemanticString {
         var result = self
         if !string.isEmpty {
-            result._elements.append(AtomicComponent(string: string, type: type))
+            result.makeUnique()
+            result.invalidateCache()
+            result._storage.elements.append(AtomicComponent(string: string, type: type))
         }
         return result
     }
@@ -459,7 +533,7 @@ extension SemanticString: Codable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let atomicComponents = try container.decode([AtomicComponent].self)
-        self._elements = atomicComponents
+        self.init(components: atomicComponents)
     }
 
     public func encode(to encoder: Encoder) throws {
