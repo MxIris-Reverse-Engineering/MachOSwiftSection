@@ -848,7 +848,7 @@ extension Node {
     }
 }
 
-private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Entry>, @unchecked Sendable {
+private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage>, @unchecked Sendable {
     fileprivate static let shared = MetadataReaderCache()
 
     private override init() {}
@@ -869,35 +869,35 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Entry>,
         }
     }
 
-    final class Entry {
+    final class Storage {
         @Mutex
         fileprivate var nodeForMangledNameBox: [MangledNameBox: Node] = [:]
     }
 
-    override func buildEntry<MachO>(for machO: MachO) -> Entry? where MachO: MachORepresentableWithCache {
-        Entry()
+    override func buildStorage<MachO>(for machO: MachO) -> Storage? where MachO: MachORepresentableWithCache {
+        Storage()
     }
 
-    override func buildEntry() -> Entry? {
-        Entry()
+    override func buildStorage() -> Storage? {
+        Storage()
     }
 
     func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
-        if let node = entry(in: machO)?.nodeForMangledNameBox[MangledNameBox(mangledName)] {
+        if let node = storage(in: machO)?.nodeForMangledNameBox[MangledNameBox(mangledName)] {
             return node
         } else {
             let node = try MetadataReader._demangleType(for: mangledName, in: machO)
-            entry(in: machO)?.nodeForMangledNameBox[MangledNameBox(mangledName)] = node
+            storage(in: machO)?.nodeForMangledNameBox[MangledNameBox(mangledName)] = node
             return node
         }
     }
 
     func demangleType(for mangledName: MangledName) throws -> Node {
-        if let node = entry()?.nodeForMangledNameBox[MangledNameBox(mangledName)] {
+        if let node = storage()?.nodeForMangledNameBox[MangledNameBox(mangledName)] {
             return node
         } else {
             let node = try MetadataReader._demangleType(for: mangledName)
-            entry()?.nodeForMangledNameBox[MangledNameBox(mangledName)] = node
+            storage()?.nodeForMangledNameBox[MangledNameBox(mangledName)] = node
             return node
         }
     }

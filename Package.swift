@@ -84,23 +84,28 @@ if isSilentTest {
 var dependencies: [Package.Dependency] = [
     .MachOKit,
     .MachOObjCSection,
+    
     .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.1.0" ..< "602.0.0"),
+    .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.4"),
+    .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
+    .package(url: "https://github.com/apple/swift-collections", from: "1.2.0"),
+    
     .package(url: "https://github.com/p-x9/AssociatedObject", from: "0.13.0"),
     .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
-    .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
-    .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
     .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", branch: "main"),
-    .package(url: "https://github.com/apple/swift-collections", from: "1.2.0"),
+    
     .package(url: "https://github.com/MxIris-Library-Forks/swift-memberwise-init-macro", from: "0.5.3-fork"),
     .package(url: "https://github.com/Mx-Iris/SourceKitD", branch: "main"),
     .package(url: "https://github.com/christophhagen/BinaryCodable", from: "3.1.0"),
-    .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-apinotes", branch: "main"),
+    
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.4"),
     .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-clang", from: "0.1.0"),
-    .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.4"),
+    .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-apinotes", branch: "main"),
     .package(url: "https://github.com/MxIris-Reverse-Engineering/DyldPrivate", branch: "main"),
+    
+    // CLI
+    .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
     .package(url: "https://github.com/migueldeicaza/TermKit", branch: "main"),
-    .package(url: "https://github.com/nicklockwood/SwiftFormat", from: "0.58.7"),
 ]
 
 extension Package.Dependency {

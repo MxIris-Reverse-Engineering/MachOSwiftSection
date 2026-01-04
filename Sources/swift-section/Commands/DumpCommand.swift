@@ -7,6 +7,33 @@ import SwiftDump
 import Semantic
 
 struct DumpCommand: AsyncParsableCommand, Sendable {
+    private enum TopLevelContext {
+        case type(TypeContextWrapper)
+        case `protocol`(MachOSwiftSection.`Protocol`)
+        case protocolConformance(ProtocolConformance)
+        case associatedType(AssociatedType)
+
+        var offset: Int {
+            switch self {
+            case .type(let type):
+                switch type {
+                case .enum(let `enum`):
+                    return `enum`.offset
+                case .struct(let `struct`):
+                    return `struct`.offset
+                case .class(let `class`):
+                    return `class`.offset
+                }
+            case .protocol(let `protocol`):
+                return `protocol`.offset
+            case .associatedType(let associatedType):
+                return associatedType.offset
+            case .protocolConformance(let protocolConformance):
+                return protocolConformance.offset
+            }
+        }
+    }
+
     static let configuration: CommandConfiguration = .init(
         commandName: "dump",
         abstract: "Dump Swift information from a Mach-O file or dyld shared cache."
@@ -32,6 +59,9 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
     @Flag(help: "Generate field offset and PWT offset comments, if possible")
     var emitOffsetComments: Bool = false
 
+    @Flag(help: "The definitions of types and protocols will be output in the order they are stored in the binary.")
+    var preferredBinaryOrder: Bool = false
+
     mutating func run() async throws {
         let machOFile = try MachOFile.load(options: machOOptions)
 
@@ -39,16 +69,59 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
 
         dumpConfiguration.emitOffsetComments = emitOffsetComments
 
-        for section in sections {
-            switch section {
-            case .types:
-                try await dumpTypes(using: dumpConfiguration, in: machOFile)
-            case .protocols:
-                try await dumpProtocols(using: dumpConfiguration, in: machOFile)
-            case .protocolConformances:
-                try await dumpProtocolConformances(using: dumpConfiguration, in: machOFile)
-            case .associatedTypes:
-                try await dumpAssociatedTypes(using: dumpConfiguration, in: machOFile)
+        if preferredBinaryOrder {
+            var topLevelContexts: [TopLevelContext] = []
+            if sections.contains(.types) {
+                try? topLevelContexts.append(contentsOf: machOFile.swift.types.map { .type($0) })
+            }
+
+            if sections.contains(.protocols) {
+                try? topLevelContexts.append(contentsOf: machOFile.swift.protocols.map { .protocol($0) })
+            }
+
+            topLevelContexts.sort(by: { $0.offset < $1.offset })
+
+            if sections.contains(.protocolConformances) {
+                try? topLevelContexts.append(contentsOf: machOFile.swift.protocolConformances.map { .protocolConformance($0) })
+            }
+
+            if sections.contains(.associatedTypes) {
+                try? topLevelContexts.append(contentsOf: machOFile.swift.associatedTypes.map { .associatedType($0) })
+            }
+
+            for topLevelContext in topLevelContexts {
+                switch topLevelContext {
+                case .type(let type):
+                    try? await dumpType(type, using: dumpConfiguration, in: machOFile)
+                case .protocol(let `protocol`):
+                    try? await dumpProtocol(`protocol`, using: dumpConfiguration, in: machOFile)
+                case .protocolConformance(let protocolConformance):
+                    try? await dumpProtocolConformance(protocolConformance, using: dumpConfiguration, in: machOFile)
+                case .associatedType(let associatedType):
+                    try? await dumpAssociatedType(associatedType, using: dumpConfiguration, in: machOFile)
+                }
+            }
+
+        } else {
+            for section in sections {
+                switch section {
+                case .types:
+                    for type in (try? machOFile.swift.types) ?? [] {
+                        try? await dumpType(type, using: dumpConfiguration, in: machOFile)
+                    }
+                case .protocols:
+                    for `protocol` in (try? machOFile.swift.protocols) ?? [] {
+                        try? await dumpProtocol(`protocol`, using: dumpConfiguration, in: machOFile)
+                    }
+                case .protocolConformances:
+                    for protocolConformance in (try? machOFile.swift.protocolConformances) ?? [] {
+                        try? await dumpProtocolConformance(protocolConformance, using: dumpConfiguration, in: machOFile)
+                    }
+                case .associatedTypes:
+                    for associatedType in (try? machOFile.swift.associatedTypes) ?? [] {
+                        try? await dumpAssociatedType(associatedType, using: dumpConfiguration, in: machOFile)
+                    }
+                }
             }
         }
 
@@ -59,57 +132,41 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
     }
 
     @MainActor
-    private mutating func dumpTypes(using configuration: DumperConfiguration, in machO: MachOFile) async throws {
-        let typeContextDescriptors = try machO.swift.typeContextDescriptors
-
-        for typeContextDescriptor in typeContextDescriptors {
-            switch typeContextDescriptor {
-            case .enum(let enumDescriptor):
-                await performDump {
-                    try await Enum(descriptor: enumDescriptor, in: machO).dump(using: configuration, in: machO)
-                }
-
-            case .struct(let structDescriptor):
-                await performDump {
-                    try await Struct(descriptor: structDescriptor, in: machO).dump(using: configuration, in: machO)
-                }
-
-            case .class(let classDescriptor):
-                await performDump {
-                    try await Class(descriptor: classDescriptor, in: machO).dump(using: configuration, in: machO)
-                }
+    private mutating func dumpType(_ type: TypeContextWrapper, using configuration: DumperConfiguration, in machO: MachOFile) async throws {
+        switch type {
+        case .enum(let `enum`):
+            await performDump {
+                try await `enum`.dump(using: configuration, in: machO)
+            }
+        case .struct(let `struct`):
+            await performDump {
+                try await `struct`.dump(using: configuration, in: machO)
+            }
+        case .class(let `class`):
+            await performDump {
+                try await `class`.dump(using: configuration, in: machO)
             }
         }
     }
 
     @MainActor
-    private mutating func dumpAssociatedTypes(using configuration: DumperConfiguration, in machO: MachOFile) async throws {
-        let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
-        for associatedTypeDescriptor in associatedTypeDescriptors {
-            await performDump {
-                try await AssociatedType(descriptor: associatedTypeDescriptor, in: machO).dump(using: configuration, in: machO)
-            }
+    private mutating func dumpAssociatedType(_ associatedType: AssociatedType, using configuration: DumperConfiguration, in machO: MachOFile) async throws {
+        await performDump {
+            try await associatedType.dump(using: configuration, in: machO)
         }
     }
 
     @MainActor
-    private mutating func dumpProtocols(using configuration: DumperConfiguration, in machO: MachOFile) async throws {
-        let protocolDescriptors = try machO.swift.protocolDescriptors
-        for protocolDescriptor in protocolDescriptors {
-            await performDump {
-                try await Protocol(descriptor: protocolDescriptor, in: machO).dump(using: configuration, in: machO)
-            }
+    private mutating func dumpProtocol(_ protocol: MachOSwiftSection.`Protocol`, using configuration: DumperConfiguration, in machO: MachOFile) async throws {
+        await performDump {
+            try await `protocol`.dump(using: configuration, in: machO)
         }
     }
 
     @MainActor
-    private mutating func dumpProtocolConformances(using configuration: DumperConfiguration, in machO: MachOFile) async throws {
-        let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
-
-        for protocolConformanceDescriptor in protocolConformanceDescriptors {
-            await performDump {
-                try await ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO).dump(using: configuration, in: machO)
-            }
+    private mutating func dumpProtocolConformance(_ protocolConformance: ProtocolConformance, using configuration: DumperConfiguration, in machO: MachOFile) async throws {
+        await performDump {
+            try await protocolConformance.dump(using: configuration, in: machO)
         }
     }
 

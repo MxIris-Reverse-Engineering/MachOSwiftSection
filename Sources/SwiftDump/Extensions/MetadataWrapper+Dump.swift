@@ -12,7 +12,7 @@ extension MetadataWrapper {
             configuration.indentString
             InlineComment("Type Layout")
             BreakLine()
-            for (index, element) in try tupleMetadata.elements().enumerated() {
+            for (_, element) in try tupleMetadata.elements().enumerated() {
                 let tupleElementMetadata = try element.type.resolve()
                 if let descriptor = try tupleElementMetadata.typeContextDescriptorWrapper()?.asContextDescriptorWrapper {
                     configuration.indentString

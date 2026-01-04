@@ -9,7 +9,7 @@ package final class PrimitiveTypeMappingCache: SharedCache<PrimitiveTypeMapping>
         super.init()
     }
 
-    package override func buildEntry<MachO>(for machO: MachO) -> PrimitiveTypeMapping? where MachO: MachORepresentableWithCache {
+    package override func buildStorage<MachO>(for machO: MachO) -> PrimitiveTypeMapping? where MachO: MachORepresentableWithCache {
         if let machO = machO as? any MachOSwiftSectionRepresentableWithCache {
             return try? .init(machO: machO)
         } else {
@@ -17,7 +17,7 @@ package final class PrimitiveTypeMappingCache: SharedCache<PrimitiveTypeMapping>
         }
     }
 
-    package override func entry<MachO>(in machO: MachO) -> PrimitiveTypeMapping? where MachO: MachORepresentableWithCache {
-        super.entry(in: machO)
+    package override func storage<MachO>(in machO: MachO) -> PrimitiveTypeMapping? where MachO: MachORepresentableWithCache {
+        super.storage(in: machO)
     }
 }

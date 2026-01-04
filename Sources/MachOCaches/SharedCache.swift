@@ -5,38 +5,38 @@ import Utilities
 import SwiftStdlibToolbox
 
 @_spi(Internals)
-open class SharedCache<Entry>: @unchecked Sendable {
+open class SharedCache<Storage>: @unchecked Sendable {
     private let memoryPressureMonitor = MemoryPressureMonitor()
 
     package init() {
         memoryPressureMonitor.memoryWarningHandler = { [weak self] in
-            self?.entryByIdentifier.removeAll()
+            self?.storageByIdentifier.removeAll()
         }
 
         memoryPressureMonitor.memoryCriticalHandler = { [weak self] in
-            self?.entryByIdentifier.removeAll()
+            self?.storageByIdentifier.removeAll()
         }
 
         memoryPressureMonitor.startMonitoring()
     }
 
     @Mutex
-    private var entryByIdentifier: [AnyHashable: Entry] = [:]
+    private var storageByIdentifier: [AnyHashable: Storage] = [:]
 
     @discardableResult
-    private func createEntryIfNeeded(in machO: some MachORepresentableWithCache, isForced: Bool = false) -> Bool {
-        guard isForced || (entryByIdentifier[machO.identifier] == nil) else { return false }
-        entryByIdentifier[machO.identifier] = buildEntry(for: machO)
+    private func createStorageIfNeeded(in machO: some MachORepresentableWithCache, isForced: Bool = false) -> Bool {
+        guard isForced || (storageByIdentifier[machO.identifier] == nil) else { return false }
+        storageByIdentifier[machO.identifier] = buildStorage(for: machO)
         return true
     }
 
-    open func buildEntry(for machO: some MachORepresentableWithCache) -> Entry? {
+    open func buildStorage(for machO: some MachORepresentableWithCache) -> Storage? {
         return nil
     }
 
-    open func entry(in machO: some MachORepresentableWithCache) -> Entry? {
-        createEntryIfNeeded(in: machO)
-        if let cacheEntry = entryByIdentifier[machO.identifier] {
+    open func storage(in machO: some MachORepresentableWithCache) -> Storage? {
+        createStorageIfNeeded(in: machO)
+        if let cacheEntry = storageByIdentifier[machO.identifier] {
             return cacheEntry
         } else {
             return nil
@@ -48,19 +48,19 @@ open class SharedCache<Entry>: @unchecked Sendable {
     }
 
     @discardableResult
-    private func createEntryIfNeeded(isForced: Bool = false) -> Bool {
-        guard isForced || (entryByIdentifier[currentIdentifer] == nil) else { return false }
-        entryByIdentifier[currentIdentifer] = buildEntry()
+    private func createStorageIfNeeded(isForced: Bool = false) -> Bool {
+        guard isForced || (storageByIdentifier[currentIdentifer] == nil) else { return false }
+        storageByIdentifier[currentIdentifer] = buildStorage()
         return true
     }
 
-    open func buildEntry() -> Entry? {
+    open func buildStorage() -> Storage? {
         return nil
     }
 
-    open func entry() -> Entry? {
-        createEntryIfNeeded()
-        if let cacheEntry = entryByIdentifier[currentIdentifer] {
+    open func storage() -> Storage? {
+        createStorageIfNeeded()
+        if let cacheEntry = storageByIdentifier[currentIdentifer] {
             return cacheEntry
         } else {
             return nil

@@ -200,19 +200,19 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
 @_spi(Internals) import MachOCaches
 import FoundationToolbox
 
-private final class MultiPayloadEnumDescriptorCache: SharedCache<MultiPayloadEnumDescriptorCache.Entry>, @unchecked Sendable {
+private final class MultiPayloadEnumDescriptorCache: SharedCache<MultiPayloadEnumDescriptorCache.Storage>, @unchecked Sendable {
     static let shared = MultiPayloadEnumDescriptorCache()
 
     private override init() {
         super.init()
     }
 
-    final class Entry {
+    final class Storage {
         @Mutex
         var multiPayloadEnumDescriptorByNode: [Node: MultiPayloadEnumDescriptor] = [:]
     }
 
-    override func buildEntry(for machO: some MachORepresentableWithCache) -> Entry? {
+    override func buildStorage(for machO: some MachORepresentableWithCache) -> Storage? {
         guard let machO = machO as? (any MachOSwiftSectionRepresentableWithCache) else { return nil }
         var multiPayloadEnumDescriptorByNode: [Node: MultiPayloadEnumDescriptor] = [:]
 
@@ -228,14 +228,14 @@ private final class MultiPayloadEnumDescriptorCache: SharedCache<MultiPayloadEnu
             print(error)
         }
 
-        let entry = Entry()
-        entry.multiPayloadEnumDescriptorByNode = multiPayloadEnumDescriptorByNode
-        return entry
+        let storage = Storage()
+        storage.multiPayloadEnumDescriptorByNode = multiPayloadEnumDescriptorByNode
+        return storage
     }
 
     func multiPayloadEnumDescriptor(for node: Node, in machO: some MachOSwiftSectionRepresentableWithCache) -> MultiPayloadEnumDescriptor? {
-        let entry = entry(in: machO)
-        return entry?.multiPayloadEnumDescriptorByNode[node]
+        let storage = storage(in: machO)
+        return storage?.multiPayloadEnumDescriptorByNode[node]
     }
 }
 
