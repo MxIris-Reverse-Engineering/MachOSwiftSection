@@ -36,4 +36,13 @@ extension InterfaceNodePrintable {
         }
         return nil
     }
+    
+    var needsSkipFirstNodeKinds: Set<Node.Kind> {
+        [
+            .asyncFunctionPointer,
+            .asyncSuspendResumePartialFunction,
+            .mergedFunction,
+        ]
+    }
+    
 }

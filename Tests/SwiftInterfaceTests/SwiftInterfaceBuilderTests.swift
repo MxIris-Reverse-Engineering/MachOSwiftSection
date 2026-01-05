@@ -83,7 +83,7 @@ extension SwiftInterfaceBuilderTests {
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
-        if let memberSymbolsByKind = symbolIndexStore.entry(in: machO)?.memberSymbolsByKind {
+        if let memberSymbolsByKind = symbolIndexStore.storage(in: machO)?.memberSymbolsByKind {
             for (kind, memberSymbolsByName) in memberSymbolsByKind {
                 for (name, memberSymbolsByNode) in memberSymbolsByName {
                     for (node, memberSymbols) in memberSymbolsByNode {
@@ -121,7 +121,7 @@ enum SwiftInterfaceBuilderTestSuite {
     }
 
     class MachOFileTests: MachOTestingSupport.MachOFileTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
-        override class var fileName: MachOFileName { .SymbolTestsCore }
+        override class var fileName: MachOFileName { .iOS_26_2_Simulator_SwiftUI }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func buildFile() async throws {

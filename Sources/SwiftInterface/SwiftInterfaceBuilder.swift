@@ -135,41 +135,53 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     public func printRoot() async throws -> SemanticString {
         ImportsBlock(OrderedSet(Self.internalModules + importedModules).sorted())
 
-        try await BlockList {
-            for variable in indexer.globalVariableDefinitions {
-                try await printVariable(variable, level: 0)
-            }
-        }
-
-        try await BlockList {
-            for function in indexer.globalFunctionDefinitions {
-                try await printFunction(function)
-            }
-        }
-
-        try await BlockList {
-            for typeDefinition in indexer.rootTypeDefinitions.values {
-                try await printTypeDefinition(typeDefinition)
-            }
-        }
-
-        try await BlockList {
-            for protocolDefinition in indexer.rootProtocolDefinitions.values {
-                try await printProtocolDefinition(protocolDefinition)
-            }
-        }
-
-        try await BlockList {
-            for protocolDefinition in indexer.rootProtocolDefinitions.values.filterNonNil(\.parent) {
-                for extensionDefinition in protocolDefinition.defaultImplementationExtensions {
-                    try await printExtensionDefinition(extensionDefinition)
+        await printCatchedThrowing {
+            await BlockList {
+                for variable in indexer.globalVariableDefinitions {
+                    await printVariable(variable, level: 0)
                 }
             }
         }
 
-        try await BlockList {
-            for extensionDefinition in allExtensionDefinitions {
-                try await printExtensionDefinition(extensionDefinition)
+        await printCatchedThrowing {
+            await BlockList {
+                for function in indexer.globalFunctionDefinitions {
+                    await printFunction(function)
+                }
+            }
+        }
+
+        await printCatchedThrowing {
+            try await BlockList {
+                for typeDefinition in indexer.rootTypeDefinitions.values {
+                    try await printTypeDefinition(typeDefinition)
+                }
+            }
+        }
+
+        await printCatchedThrowing {
+            try await BlockList {
+                for protocolDefinition in indexer.rootProtocolDefinitions.values {
+                    try await printProtocolDefinition(protocolDefinition)
+                }
+            }
+        }
+
+        await printCatchedThrowing {
+            try await BlockList {
+                for protocolDefinition in indexer.rootProtocolDefinitions.values.filterNonNil(\.parent) {
+                    for extensionDefinition in protocolDefinition.defaultImplementationExtensions {
+                        try await printExtensionDefinition(extensionDefinition)
+                    }
+                }
+            }
+        }
+
+        await printCatchedThrowing {
+            try await BlockList {
+                for extensionDefinition in allExtensionDefinitions {
+                    try await printExtensionDefinition(extensionDefinition)
+                }
             }
         }
     }
@@ -181,7 +193,17 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             try await typeDefinition.index(in: machO)
         }
 
-        let dumper = typeDefinition.type.dumper(using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: displayParentName, emitOffsetComments: configuration.printConfiguration.emitOffsetComments, printTypeLayout: configuration.printConfiguration.printTypeLayout, printEnumLayout: configuration.printConfiguration.printEnumLayout), in: machO)
+        let dumper = typeDefinition.type.dumper(
+            using: .init(
+                demangleResolver: typeDemangleResolver,
+                indentation: level,
+                displayParentName: displayParentName,
+                emitOffsetComments: configuration.printConfiguration.emitOffsetComments,
+                printTypeLayout: configuration.printConfiguration.printTypeLayout,
+                printEnumLayout: configuration.printConfiguration.printEnumLayout
+            ),
+            in: machO
+        )
 
         try await DeclarationBlock(level: level) {
             try await dumper.declaration
@@ -265,7 +287,9 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                         Keyword(.where)
                         Space()
                     }
-                    try await printType(node, isProtocol: extensionDefinition.extensionName.isProtocol, level: level)
+
+                    try await printThrowingType(node, isProtocol: extensionDefinition.extensionName.isProtocol, level: level)
+
                     if index < nodes.count - 1 {
                         Standard(",")
                         Space()
@@ -303,82 +327,123 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         let emitOffset = configuration.printConfiguration.emitOffsetComments
 
-        try await MemberList(level: level) {
+        await MemberList(level: level) {
             for allocator in definition.allocators {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: allocator.offset, emit: emitOffset)
-                try await printFunction(allocator)
+                await printFunction(allocator)
             }
         }
 
-        try await MemberList(level: level) {
+        await MemberList(level: level) {
             for variable in definition.variables {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: variable.offset, emit: emitOffset)
-                try await printVariable(variable, level: level)
+                await printVariable(variable, level: level)
             }
         }
 
-        try await MemberList(level: level) {
+        await MemberList(level: level) {
             for function in definition.functions {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: function.offset, emit: emitOffset)
-                try await printFunction(function)
+                await printFunction(function)
             }
         }
 
-        try await MemberList(level: level) {
+        await MemberList(level: level) {
             for `subscript` in definition.subscripts {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: `subscript`.offset, emit: emitOffset)
-                try await printSubscript(`subscript`, level: level)
+                await printSubscript(`subscript`, level: level)
             }
         }
 
-        try await MemberList(level: level) {
+        await MemberList(level: level) {
             for variable in definition.staticVariables {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: variable.offset, emit: emitOffset)
-                try await printVariable(variable, level: level)
+                await printVariable(variable, level: level)
             }
         }
 
-        try await MemberList(level: level) {
+        await MemberList(level: level) {
             for function in definition.staticFunctions {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: function.offset, emit: emitOffset)
-                try await printFunction(function)
+                await printFunction(function)
             }
         }
 
-        try await MemberList(level: level) {
+        await MemberList(level: level) {
             for `subscript` in definition.staticSubscripts {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: `subscript`.offset, emit: emitOffset)
-                try await printSubscript(`subscript`, level: level)
+                await printSubscript(`subscript`, level: level)
             }
         }
     }
 
     @_spi(Support)
     @SemanticStringBuilder
-    public func printVariable(_ variable: VariableDefinition, level: Int) async throws -> SemanticString {
+    public func printVariable(_ variable: VariableDefinition, level: Int) async -> SemanticString {
+        await printCatchedThrowing {
+            try await printThrowingVariable(variable, level: level)
+        }
+    }
+
+    @_spi(Support)
+    @SemanticStringBuilder
+    public func printFunction(_ function: FunctionDefinition) async -> SemanticString {
+        await printCatchedThrowing {
+            try await printThrowingFunction(function)
+        }
+    }
+
+    @_spi(Support)
+    @SemanticStringBuilder
+    public func printSubscript(_ `subscript`: SubscriptDefinition, level: Int) async -> SemanticString {
+        await printCatchedThrowing {
+            try await printThrowingSubscript(`subscript`, level: level)
+        }
+    }
+
+    @_spi(Support)
+    @SemanticStringBuilder
+    public func printType(_ typeNode: Node, isProtocol: Bool, level: Int) async -> SemanticString {
+        await printCatchedThrowing {
+            try await printThrowingType(typeNode, isProtocol: isProtocol, level: level)
+        }
+    }
+
+    @_spi(Support)
+    @SemanticStringBuilder
+    public func printThrowingVariable(_ variable: VariableDefinition, level: Int) async throws -> SemanticString {
         var printer = VariableNodePrinter(isStored: variable.isStored, isOverride: variable.isOverride, hasSetter: variable.hasSetter, indentation: level, delegate: self)
         try await printer.printRoot(variable.node)
     }
 
     @_spi(Support)
     @SemanticStringBuilder
-    public func printFunction(_ function: FunctionDefinition) async throws -> SemanticString {
+    public func printThrowingFunction(_ function: FunctionDefinition) async throws -> SemanticString {
         var printer = FunctionNodePrinter(isOverride: function.isOverride, delegate: self)
         try await printer.printRoot(function.node)
     }
 
     @_spi(Support)
     @SemanticStringBuilder
-    public func printSubscript(_ `subscript`: SubscriptDefinition, level: Int) async throws -> SemanticString {
+    public func printThrowingSubscript(_ `subscript`: SubscriptDefinition, level: Int) async throws -> SemanticString {
         var printer = SubscriptNodePrinter(isOverride: `subscript`.isOverride, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
         try await printer.printRoot(`subscript`.node)
     }
 
     @_spi(Support)
     @SemanticStringBuilder
-    public func printType(_ typeNode: Node, isProtocol: Bool, level: Int) async throws -> SemanticString {
+    public func printThrowingType(_ typeNode: Node, isProtocol: Bool, level: Int) async throws -> SemanticString {
         var printer = TypeNodePrinter(delegate: self, isProtocol: isProtocol)
         try await printer.printRoot(typeNode)
+    }
+
+    private func printCatchedThrowing(@SemanticStringBuilder _ body: () async throws -> SemanticString) async -> SemanticString? {
+        do {
+            return try await body()
+        } catch {
+            print(error)
+            return nil
+        }
     }
 }
 

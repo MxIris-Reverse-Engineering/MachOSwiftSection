@@ -101,7 +101,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
                     configuration.indentString
                     InlineComment("Enum Layout")
                     BreakLine()
-                    AnyComponent(string: `case`.description(indent: configuration.indentation, prefix: "//"), type: .comment)
+                    AtomicComponent(string: `case`.description(indent: configuration.indentation, prefix: "//"), type: .comment)
                 }
 
                 Indent(level: configuration.indentation)

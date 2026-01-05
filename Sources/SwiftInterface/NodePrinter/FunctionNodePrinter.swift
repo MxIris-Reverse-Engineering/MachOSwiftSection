@@ -38,7 +38,7 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
 
     private mutating func _printRoot(_ node: Node) async throws {
         if node.kind == .global, let first = node.children.first {
-            if first.isKind(of: .asyncFunctionPointer, .mergedFunction), let second = node.children.second {
+            if needsSkipFirstNodeKinds.contains(first.kind), let second = node.children.second {
                 try await _printRoot(second)
             } else {
                 try await _printRoot(first)
