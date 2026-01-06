@@ -133,7 +133,7 @@ extension Package.Dependency {
 
     static let MachOKitMain = Package.Dependency.package(
         local: .package(
-            path: "../../../../Fork/Library/MachOKit",
+            path: "../MachOKit",
             isRelative: true,
             isEnabled: true
         ),
@@ -160,7 +160,7 @@ extension Package.Dependency {
 
     static let MachOObjCSectionMain = Package.Dependency.package(
         local: .package(
-            path: "../../../../Fork/Library/MachOObjCSection",
+            path: "../MachOObjCSection",
             isRelative: true,
             isEnabled: true
         ),

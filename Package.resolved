@@ -1,5 +1,5 @@
 {
-  "originHash" : "a9fa0f9b54ecb71beb61d23fc9e7a553879f4def9ffcb5c01d5552a2d3c8db7b",
+  "originHash" : "859dc34d362440eada29b4f0d1a3cc9a001300cee98289dc69d32cec6b6ca669",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -44,6 +44,15 @@
       "state" : {
         "branch" : "main",
         "revision" : "7bdb133931d36461e8f8cc3f6987107260726140"
+      }
+    },
+    {
+      "identity" : "machokit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/MxIris-Reverse-Engineering/MachOKit.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "0ddc00a5688c99647a0078ab2aa469ed9ae076e5"
       }
     },
     {
@@ -197,6 +206,15 @@
       "state" : {
         "revision" : "6121b169fb5a83d7262a69b640468606f98c6c6e",
         "version" : "0.5.3-fork.1"
+      }
+    },
+    {
+      "identity" : "swift-objc-dump",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/MxIris-Reverse-Engineering/swift-objc-dump.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "cab0d684eb13189d0221489ec196533a16997513"
       }
     },
     {
