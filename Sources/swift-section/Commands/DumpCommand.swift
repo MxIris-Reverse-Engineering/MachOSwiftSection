@@ -72,21 +72,25 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
         if preferredBinaryOrder {
             var topLevelContexts: [TopLevelContext] = []
             if sections.contains(.types) {
-                try? topLevelContexts.append(contentsOf: machOFile.swift.types.map { .type($0) })
+                let types = (try? machOFile.swift.types.map { TopLevelContext.type($0) }) ?? []
+                topLevelContexts.append(contentsOf: types)
             }
 
             if sections.contains(.protocols) {
-                try? topLevelContexts.append(contentsOf: machOFile.swift.protocols.map { .protocol($0) })
+                let protocols = (try? machOFile.swift.protocols.map { TopLevelContext.protocol($0) }) ?? []
+                topLevelContexts.append(contentsOf: protocols)
             }
 
             topLevelContexts.sort(by: { $0.offset < $1.offset })
 
             if sections.contains(.protocolConformances) {
-                try? topLevelContexts.append(contentsOf: machOFile.swift.protocolConformances.map { .protocolConformance($0) })
+                let protocolConformances = (try? machOFile.swift.protocolConformances.map { TopLevelContext.protocolConformance($0) }) ?? []
+                topLevelContexts.append(contentsOf: protocolConformances)
             }
 
             if sections.contains(.associatedTypes) {
-                try? topLevelContexts.append(contentsOf: machOFile.swift.associatedTypes.map { .associatedType($0) })
+                let associatedTypes = (try? machOFile.swift.associatedTypes.map { TopLevelContext.associatedType($0) }) ?? []
+                topLevelContexts.append(contentsOf: associatedTypes)
             }
 
             for topLevelContext in topLevelContexts {
@@ -179,7 +183,7 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
     }
 
     private mutating func dumpError(_ error: Swift.Error) {
-        dumpOrPrint(SemanticString(components: [Semantic.Error(error.localizedDescription)]))
+        SemanticString(components: [Semantic.Error(error.localizedDescription)]).printColorfully(using: colorScheme)
     }
 
     private mutating func dumpOrPrint(_ semanticString: SemanticString) {

@@ -9,7 +9,7 @@ import MachOFoundation
 
 @Suite(.serialized)
 final class MachOFileDumpTests: MachOFileTests, DumpableTests, @unchecked Sendable {
-    override class var fileName: MachOFileName { .iOS_18_5_Simulator_SwiftUI }
+    override class var fileName: MachOFileName { .SymbolTestsCore }
 }
 
 extension MachOFileDumpTests {
