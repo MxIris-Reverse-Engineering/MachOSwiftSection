@@ -51,7 +51,7 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
     var outputPath: String?
 
     @Option(name: .shortAndLong, parsing: .upToNextOption, help: "The sections to dump. If not specified, all sections will be dumped.")
-    var sections: [SwiftSection] = SwiftSection.allCases
+    var sections: [SwiftSection] = []
 
     @Option(name: .shortAndLong, help: "The color scheme for the output.")
     var colorScheme: SemanticColorScheme = .none
@@ -69,28 +69,54 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
 
         dumpConfiguration.emitOffsetComments = emitOffsetComments
 
+        let isDefaultSections = sections.isEmpty
+        
         if preferredBinaryOrder {
             var topLevelContexts: [TopLevelContext] = []
             if sections.contains(.types) {
-                let types = (try? machOFile.swift.types.map { TopLevelContext.type($0) }) ?? []
-                topLevelContexts.append(contentsOf: types)
+                do {
+                    let types = try machOFile.swift.types.map { TopLevelContext.type($0) }
+                    topLevelContexts.append(contentsOf: types)
+                } catch {
+                    if !isDefaultSections {
+                        dumpError(error)
+                    }
+                }
             }
 
             if sections.contains(.protocols) {
-                let protocols = (try? machOFile.swift.protocols.map { TopLevelContext.protocol($0) }) ?? []
-                topLevelContexts.append(contentsOf: protocols)
+                do {
+                    let protocols = try machOFile.swift.protocols.map { TopLevelContext.protocol($0) }
+                    topLevelContexts.append(contentsOf: protocols)
+                } catch {
+                    if !isDefaultSections {
+                        dumpError(error)
+                    }
+                }
             }
 
             topLevelContexts.sort(by: { $0.offset < $1.offset })
 
             if sections.contains(.protocolConformances) {
-                let protocolConformances = (try? machOFile.swift.protocolConformances.map { TopLevelContext.protocolConformance($0) }) ?? []
-                topLevelContexts.append(contentsOf: protocolConformances)
+                do {
+                    let protocolConformances = try machOFile.swift.protocolConformances.map { TopLevelContext.protocolConformance($0) }
+                    topLevelContexts.append(contentsOf: protocolConformances)
+                } catch {
+                    if !isDefaultSections {
+                        dumpError(error)
+                    }
+                }
             }
 
             if sections.contains(.associatedTypes) {
-                let associatedTypes = (try? machOFile.swift.associatedTypes.map { TopLevelContext.associatedType($0) }) ?? []
-                topLevelContexts.append(contentsOf: associatedTypes)
+                do {
+                    let associatedTypes = try machOFile.swift.associatedTypes.map { TopLevelContext.associatedType($0) }
+                    topLevelContexts.append(contentsOf: associatedTypes)
+                } catch {
+                    if !isDefaultSections {
+                        dumpError(error)
+                    }
+                }
             }
 
             for topLevelContext in topLevelContexts {
@@ -110,20 +136,44 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
             for section in sections {
                 switch section {
                 case .types:
-                    for type in (try? machOFile.swift.types) ?? [] {
-                        try? await dumpType(type, using: dumpConfiguration, in: machOFile)
+                    do {
+                        for type in try machOFile.swift.types {
+                            try await dumpType(type, using: dumpConfiguration, in: machOFile)
+                        }
+                    } catch {
+                        if !isDefaultSections {
+                            dumpError(error)
+                        }
                     }
                 case .protocols:
-                    for `protocol` in (try? machOFile.swift.protocols) ?? [] {
-                        try? await dumpProtocol(`protocol`, using: dumpConfiguration, in: machOFile)
+                    do {
+                        for `protocol` in try machOFile.swift.protocols {
+                            try await dumpProtocol(`protocol`, using: dumpConfiguration, in: machOFile)
+                        }
+                    } catch {
+                        if !isDefaultSections {
+                            dumpError(error)
+                        }
                     }
                 case .protocolConformances:
-                    for protocolConformance in (try? machOFile.swift.protocolConformances) ?? [] {
-                        try? await dumpProtocolConformance(protocolConformance, using: dumpConfiguration, in: machOFile)
+                    do {
+                        for protocolConformance in try machOFile.swift.protocolConformances {
+                            try await dumpProtocolConformance(protocolConformance, using: dumpConfiguration, in: machOFile)
+                        }
+                    } catch {
+                        if !isDefaultSections {
+                            dumpError(error)
+                        }
                     }
                 case .associatedTypes:
-                    for associatedType in (try? machOFile.swift.associatedTypes) ?? [] {
-                        try? await dumpAssociatedType(associatedType, using: dumpConfiguration, in: machOFile)
+                    do {
+                        for associatedType in try machOFile.swift.associatedTypes {
+                            try await dumpAssociatedType(associatedType, using: dumpConfiguration, in: machOFile)
+                        }
+                    } catch {
+                        if !isDefaultSections {
+                            dumpError(error)
+                        }
                     }
                 }
             }
