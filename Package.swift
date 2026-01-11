@@ -44,12 +44,20 @@ extension Package.Dependency {
     }
 
     static func package(local localSearchPaths: LocalSearchPath..., remote: Package.Dependency) -> Package.Dependency {
+        let currentFilePath = #filePath
+        let isClonedDependency = currentFilePath.contains("/checkouts/") ||
+            currentFilePath.contains("/SourcePackages/") ||
+            currentFilePath.contains("/.build/")
+
+        if isClonedDependency {
+            return remote
+        }
         for local in localSearchPaths {
             switch local {
             case .package(let path, let isRelative, let isEnabled):
                 guard isEnabled else { continue }
                 let url = if isRelative {
-                    URL(fileURLWithPath: path, relativeTo: URL(fileURLWithPath: #filePath))
+                    URL(fileURLWithPath: path, relativeTo: URL(fileURLWithPath: currentFilePath))
                 } else {
                     URL(fileURLWithPath: path)
                 }

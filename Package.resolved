@@ -1,5 +1,5 @@
 {
-  "originHash" : "859dc34d362440eada29b4f0d1a3cc9a001300cee98289dc69d32cec6b6ca669",
+  "originHash" : "f216794fd0967f9507954bcadb8b91c245b93415acc4f51b58ad679ca675c6ba",
   "pins" : [
     {
       "identity" : "associatedobject",
@@ -44,6 +44,24 @@
       "state" : {
         "branch" : "main",
         "revision" : "f2638e3d32693704c1f46465f924c8393f48cca3"
+      }
+    },
+    {
+      "identity" : "machokit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/MxIris-Reverse-Engineering/MachOKit.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "0ddc00a5688c99647a0078ab2aa469ed9ae076e5"
+      }
+    },
+    {
+      "identity" : "machoobjcsection",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/MxIris-Reverse-Engineering/MachOObjCSection.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "238442e8a7b90af35b942eefb9d708ca552e53f1"
       }
     },
     {
@@ -197,6 +215,15 @@
       "state" : {
         "revision" : "6121b169fb5a83d7262a69b640468606f98c6c6e",
         "version" : "0.5.3-fork.1"
+      }
+    },
+    {
+      "identity" : "swift-objc-dump",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/MxIris-Reverse-Engineering/swift-objc-dump.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "cab0d684eb13189d0221489ec196533a16997513"
       }
     },
     {
