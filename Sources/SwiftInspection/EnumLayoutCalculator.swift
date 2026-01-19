@@ -160,13 +160,14 @@ public enum EnumLayoutCalculator {
             let tagVal = i
             let memBytes = payloadTagBitsMask.scatterBits(value: tagVal)
 
-            cases.append(EnumCaseProjection(
+            let `case` = EnumCaseProjection(
                 caseIndex: i,
                 caseName: "Payload Case \(i)",
                 tagValue: tagVal,
                 payloadValue: 0,
                 memoryChanges: extractChanges(from: memBytes, showMask: payloadTagBitsMask)
-            ))
+            )
+            cases.append(`case`)
         }
 
         // B. Empty Cases
@@ -189,7 +190,7 @@ public enum EnumLayoutCalculator {
                     combinedBytes[b] = tagBytes[b] | payloadBytes[b]
                 }
 
-                cases.append(EnumCaseProjection(
+                let `case` = EnumCaseProjection(
                     caseIndex: globalIndex,
                     caseName: "Empty Case \(i)",
                     tagValue: finalTag,
@@ -199,7 +200,9 @@ public enum EnumLayoutCalculator {
                         tagMask: payloadTagBitsMask,
                         meaningfulPayloadMask: meaningfulPayloadMask
                     )
-                ))
+                )
+
+                cases.append(`case`)
             }
         }
 
@@ -363,167 +366,165 @@ public enum EnumLayoutCalculator {
         spareBytes: [UInt8] = [],
         spareBytesOffset: Int = 0
     ) -> LayoutResult {
-        let numTags = numEmptyCases + 1
-
-        // If we have spare bits available, we can use Extra Inhabitants (XI).
-        // This is preferred over adding an extra tag byte if enough XIs exist.
-        // E.g., Optional<MultiPayloadEnum> where MPE has spare bits.
+        // [Fix 1] 准备 Spare Bits Mask
+        var spareBitMask = BitMask.zeroMask(sizeInBytes: payloadSize)
         if !spareBytes.isEmpty {
-            // Case B: Extra Inhabitants (XI)
+            let copyLen = min(spareBytes.count, payloadSize - spareBytesOffset)
+            for i in 0 ..< copyLen {
+                spareBitMask[byteAt: spareBytesOffset + i] = spareBytes[i]
+            }
+        }
 
-            // 1. Construct Mask from input spare bytes
-            var spareBitMask = BitMask(sizeInBytes: payloadSize)
-            spareBitMask.makeZero()
-            if spareBytesOffset < payloadSize {
-                let copyLength = min(spareBytes.count, payloadSize - spareBytesOffset)
-                for i in 0 ..< copyLength {
-                    spareBitMask[byteAt: spareBytesOffset + i] = spareBytes[i]
-                }
+        let totalSpareBits = spareBitMask.countSetBits()
+
+        // [Fix 2] 计算 Extra Inhabitants (XI) 容量
+        // Swift 运行时限制 XI 最多使用 32 位 spare bits
+        let usableSpareBits = min(totalSpareBits, 32)
+        let maxXI = (usableSpareBits >= 32) ? Int.max : (1 << usableSpareBits) - 1
+
+        // [Fix 3] 混合策略：优先 XI，溢出用 Tag
+        let numXICases = min(numEmptyCases, maxXI)
+        let numOverflowCases = numEmptyCases - numXICases
+
+        // [Fix 4] 计算 Extra Tag 需求
+        var extraTagBytes = 0
+        if numOverflowCases > 0 {
+            let capacityPerTag: Int
+            if payloadSize >= 8 {
+                // 64位系统下，8字节能存下所有 Int 索引，容量视为无限
+                capacityPerTag = Int.max
+            } else {
+                // 1 << 64 会导致崩溃，所以上面处理了 >= 8 的情况
+                // 这里处理 0...7 字节的情况
+                capacityPerTag = 1 << (payloadSize * 8)
             }
 
-            let spareBitCount = spareBitMask.countSetBits()
+            // Tag 0 保留给 Payload/XI。溢出从 Tag 1 开始。
+            // 这是一个安全的向上取整除法：ceil(numOverflowCases / capacityPerTag)
+            let tagsNeededForOverflow = (numOverflowCases / capacityPerTag) + (numOverflowCases % capacityPerTag > 0 ? 1 : 0)
 
-            // Calculate mask for meaningful bytes display.
-            // GenEnum.cpp caps the Extra Inhabitant usage to 32 bits (~0u).
-            // We need a mask that represents only the bits actually used by the XI logic.
-            // If spareBitCount >= 32, only the first 32 spare bits are used.
-            var meaningfulMask = BitMask(sizeInBytes: payloadSize)
-            meaningfulMask.makeZero()
-            var bitsFound = 0
-            let meaningfulLimit = min(spareBitCount, 32)
+            let totalTagsIndices = 1 + tagsNeededForOverflow
 
-            for i in 0 ..< payloadSize {
-                let byte = spareBitMask[byteAt: i]
-                if byte == 0 { continue }
-                var newByte: UInt8 = 0
-                for b in 0 ..< 8 {
-                    if (byte & (1 << b)) != 0 {
-                        if bitsFound < meaningfulLimit {
-                            newByte |= (1 << b)
-                            bitsFound += 1
-                        }
-                    }
-                }
-                meaningfulMask[byteAt: i] = newByte
-            }
+            if totalTagsIndices <= 256 { extraTagBytes = 1 }
+            else if totalTagsIndices <= 65536 { extraTagBytes = 2 }
+            else { extraTagBytes = 4 }
+        } else if size > payloadSize {
+            // Padding (虽然不需要 Tag 区分，但物理空间存在)
+            extraTagBytes = size - payloadSize
+        }
 
-            var cases: [EnumCaseProjection] = []
+        // 逻辑上的总 Tag 数（用于 LayoutResult 统计）
+        let numTags = 1 + numEmptyCases
 
-            // Payload Case
-            cases.append(EnumCaseProjection(
-                caseIndex: 0,
-                caseName: "Payload Case (Valid Value)",
-                tagValue: -1,
-                payloadValue: 0,
-                memoryChanges: [:]
-            ))
+        var cases: [EnumCaseProjection] = []
 
-            // Empty Cases (Extra Inhabitants)
-            // Logic: XI Value = ~Index, scattered into spare bits.
-            //
-            for i in 0 ..< numEmptyCases {
+        // --- A. Payload Case ---
+        cases.append(EnumCaseProjection(
+            caseIndex: 0,
+            caseName: "Payload Case (Valid)",
+            tagValue: 0,
+            payloadValue: 0,
+            memoryChanges: [:]
+        ))
+
+        // --- B. XI Cases ---
+        if numXICases > 0 {
+            // XI 掩码计算需要准确
+            var xiMask = spareBitMask
+            xiMask.keepOnlyLeastSignificantBytes(payloadSize)
+
+            for i in 0 ..< numXICases {
                 let xiIndex = i
-                // Invert the index (count down from all-ones)
-                // Note: GenEnum.cpp uses ~0u (unsigned int), effectively capping the mask at 32 bits.
-                // If spareBitCount >= 32, the scattered value is derived from 0xFFFFFFFF & ~index.
-                let maskCap: UInt64 = (spareBitCount >= 32) ? 0xFFFFFFFF : (1 << spareBitCount) - 1
-                let xiValue = UInt64(bitPattern: Int64(~xiIndex)) & maskCap
+                // Swift XI 逻辑: ~index 映射到 spare bits
+                let invertedIndex = ~xiIndex
+                let scatterValue = Int(bitPattern: UInt(truncatingIfNeeded: invertedIndex))
 
-                // Scatter into spare bits
-                let memBytes = spareBitMask.scatterBits(value: Int(xiValue))
+                let memBytes = spareBitMask.scatterBits(value: scatterValue)
 
-                // Use extractChangesForEmptyCase with the calculated meaningfulMask.
-                // This ensures we show bytes like 0x00 if they are part of the active 32-bit XI mask,
-                // but hide bytes that are part of the spare region but unused by the 32-bit cap.
                 cases.append(EnumCaseProjection(
                     caseIndex: i + 1,
-                    caseName: "Empty Case \(i) (XI #\(xiIndex))",
-                    tagValue: xiIndex,
+                    caseName: "Empty Case \(i) (XI #\(i))",
+                    tagValue: 0,
                     payloadValue: 0,
-                    memoryChanges: extractChangesForEmptyCase(
-                        data: memBytes,
-                        tagMask: meaningfulMask,
-                        meaningfulPayloadMask: meaningfulMask
-                    )
+                    memoryChanges: extractChanges(from: memBytes, showMask: spareBitMask)
                 ))
             }
+        }
 
-            return LayoutResult(
-                strategyDescription: "Single Payload (Extra Inhabitants)",
-                bitsNeededForTag: 0,
-                bitsAvailableForPayload: 0,
-                numTags: numTags,
-                tagRegion: calculateRegion(from: spareBitMask, bitCount: spareBitCount),
-                payloadRegion: nil,
-                cases: cases
-            )
+        // --- C. Overflow Cases (Tag + Payload) ---
+        if numOverflowCases > 0 {
+            let startEmptyIndex = numXICases
 
-        } else if size > payloadSize {
-            // Case A: Extra Tag (Payload full, or no XIs available)
-            let extraTagBytes = size - payloadSize
-            let bitsNeeded = extraTagBytes * 8
+            for i in 0 ..< numOverflowCases {
+                let overflowIndex = i
+                let globalEmptyIndex = startEmptyIndex + i
 
-            let region = SpareRegion(
-                range: payloadSize ..< size,
-                bitCount: bitsNeeded,
-                bytes: [UInt8](repeating: 0xFF, count: extraTagBytes)
-            )
+                let tagValue: Int
+                let payloadVal: Int
 
-            var cases: [EnumCaseProjection] = []
+                // [Fix 6] 核心修复：Payload 复用 & 安全计算
+                if payloadSize >= 8 {
+                    // Payload 足够大，直接存所有索引
+                    tagValue = 1
+                    payloadVal = overflowIndex
+                } else {
+                    let payloadBits = payloadSize * 8
+                    let capacity = 1 << payloadBits
 
-            var payloadMem: [Int: UInt8] = [:]
-            for i in 0 ..< extraTagBytes {
-                payloadMem[payloadSize + i] = 0
-            }
-            cases.append(EnumCaseProjection(
-                caseIndex: 0,
-                caseName: "Payload Case",
-                tagValue: 0,
-                payloadValue: 0,
-                memoryChanges: payloadMem
-            ))
-
-            let casesToShow = min(numEmptyCases, 5)
-            for i in 1 ... casesToShow {
-                var mem: [Int: UInt8] = [:]
-                var tempTag = i
-                for b in 0 ..< extraTagBytes {
-                    mem[payloadSize + b] = UInt8(tempTag & 0xFF)
-                    tempTag >>= 8
+                    payloadVal = overflowIndex & (capacity - 1)
+                    tagValue = 1 + (overflowIndex >> payloadBits)
                 }
+
+                var mem: [Int: UInt8] = [:]
+
+                // 写 Tag
+                if extraTagBytes > 0 {
+                    var t = tagValue
+                    for b in 0 ..< extraTagBytes {
+                        mem[payloadSize + b] = UInt8(t & 0xFF)
+                        t >>= 8
+                    }
+                }
+
+                // 写 Payload (即使是 Spare Bits 也会被覆盖用于存索引)
+                if payloadSize > 0 {
+                    var p = payloadVal
+                    for b in 0 ..< payloadSize {
+                        mem[b] = UInt8(p & 0xFF)
+                        p >>= 8
+                    }
+                }
+
                 cases.append(EnumCaseProjection(
-                    caseIndex: i,
-                    caseName: "Empty Case \(i - 1)",
-                    tagValue: i,
-                    payloadValue: 0,
+                    caseIndex: globalEmptyIndex + 1,
+                    caseName: "Empty Case \(globalEmptyIndex) (Overflow)",
+                    tagValue: tagValue,
+                    payloadValue: payloadVal,
                     memoryChanges: mem
                 ))
             }
+        }
 
-            return LayoutResult(
-                strategyDescription: "Single Payload (Extra Tag)",
-                bitsNeededForTag: bitsNeeded,
-                bitsAvailableForPayload: 0,
-                numTags: numTags,
-                tagRegion: region,
-                payloadRegion: nil,
-                cases: cases
+        var tagRegion: SpareRegion? = nil
+        if extraTagBytes > 0 {
+            tagRegion = SpareRegion(
+                range: payloadSize ..< (payloadSize + extraTagBytes),
+                bitCount: extraTagBytes * 8,
+                bytes: [UInt8](repeating: 0xFF, count: extraTagBytes)
             )
         } else {
-            // Fallback for simple cases or when logic requires it
-            return LayoutResult(
-                strategyDescription: "Single Payload (Extra Inhabitants - Simple)",
-                bitsNeededForTag: 0,
-                bitsAvailableForPayload: 0,
-                numTags: numTags,
-                tagRegion: nil,
-                payloadRegion: nil,
-                cases: [
-                    EnumCaseProjection(caseIndex: 0, caseName: "Payload Case (Valid Value)", tagValue: -1, payloadValue: 0, memoryChanges: [:]),
-                    EnumCaseProjection(caseIndex: 1, caseName: "Empty Case 0 (Uses XI #0)", tagValue: 0, payloadValue: 0, memoryChanges: [:]),
-                ]
-            )
+            tagRegion = calculateRegion(from: spareBitMask, bitCount: totalSpareBits)
         }
+
+        return LayoutResult(
+            strategyDescription: "Single Payload (XI: \(numXICases) + Overflow: \(numOverflowCases))",
+            bitsNeededForTag: extraTagBytes * 8,
+            bitsAvailableForPayload: 0,
+            numTags: numTags, // 使用了之前定义的变量
+            tagRegion: tagRegion,
+            payloadRegion: nil,
+            cases: cases
+        )
     }
 
     // MARK: - Helpers

@@ -94,6 +94,19 @@ public struct BitMask: Equatable, CustomStringConvertible, Sendable {
         }
     }
 
+    /// Zero all bytes except for the `n` least significant bytes (low indices).
+    /// Used to mask out spare bits that fall outside the payload size (e.g. when mask size > payload size).
+    public mutating func keepOnlyLeastSignificantBytes(_ n: Int) {
+        // If we want to keep more bytes than we have, do nothing.
+        guard n < size else { return }
+
+        // Zero out bytes from index n up to the end.
+        // In Little Endian layout (and array index order), these are the "high" bytes.
+        for i in n ..< size {
+            _bytes[i] = 0
+        }
+    }
+
     // MARK: - Queries
 
     public var isZero: Bool {

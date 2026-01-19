@@ -1,5 +1,5 @@
 import Foundation
-import os.log
+import OSLog
 
 /// A default event handler implementation that uses `OSLog` for logging.
 @available(macOS 11.0, iOS 14.0, *)
