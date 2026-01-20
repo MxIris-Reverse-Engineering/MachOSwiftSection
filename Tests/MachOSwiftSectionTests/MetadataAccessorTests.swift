@@ -12,21 +12,49 @@ import DyldPrivate
 import SwiftUI
 #endif
 
-public enum MultiPayloadEnumTests {
+enum MultiPayloadEnumTests {
     case closure(() -> Void)
     case object(NSObject)
     case tuple(a: Int, b: Double)
     case empty
 }
 
+struct GenericStructNonRequirement<A> {
+    var field1: Double
+    var field2: A
+    var field3: Int
+}
+
+struct GenericStructLayoutRequirement<A: AnyObject> {
+    var field1: Double
+    var field2: A
+    var field3: Int
+}
+
+struct GenericStructSwiftProtocolRequirement<A: Equatable & Collection> {
+    var field1: Double
+    var field2: A
+    var field3: Int
+}
+
+struct GenericStructObjCProtocolRequirement<A: NSCopying> {
+    var field1: Double
+    var field2: A
+    var field3: Int
+}
+
+struct TestView: View {
+    var body: some View {
+        EmptyView()
+    }
+}
 
 final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
     override class var imageName: MachOImageName { .SwiftUICore }
 
-    struct TestView: View {
-        var body: some View {
-            EmptyView()
-        }
+    override init() async throws {
+        try await super.init()
+//        _ = GenericStructSwiftProtocolRequirement(field1: 0.0, field2: 0, field3: 0)
     }
 
     @MainActor
@@ -93,5 +121,36 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
     @Test func metadataCreate() async throws {
         let (machO, metadata) = try #require(try StructMetadata.createInMachO(Image.self))
         print(machO.ptr, metadata.offset)
+    }
+
+    @Test func genericStruct() async throws {
+        let machO = MachOImage.current()
+        for context in try machO.swift.contextDescriptors {
+            guard let type = context.typeContextDescriptorWrapper else { continue }
+            switch type {
+            case .enum:
+                continue
+            case .struct(let `struct`):
+                let inProcessStruct = `struct`.asPointerWrapper(in: machO)
+                guard try inProcessStruct.name() == "GenericStructSwiftProtocolRequirement" else { continue }
+
+                try print(
+                    inProcessStruct.metadataAccessorFunction()!.callAsFunction(
+                        request: .init(),
+                        args:
+                        (
+                            Metadata.createInProcess([Int].self),
+                            [
+                                RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Equatable).self),
+                                RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Collection).self),
+//                                RuntimeFunctions.conformsToProtocol(metadata: Int.self, existentialTypeMetadata: (any Encodable).self),
+                            ].compactMap { $0 }
+                        )
+                    ).value.resolve()
+                )
+            case .class:
+                continue
+            }
+        }
     }
 }

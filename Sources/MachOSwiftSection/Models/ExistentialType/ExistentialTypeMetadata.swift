@@ -61,6 +61,22 @@ extension ExistentialTypeMetadata {
     }
 }
 
+extension ExistentialTypeMetadata {
+    public func superclassConstraint() throws -> ConstMetadataPointer<Metadata>? {
+        guard layout.flags.hasSuperclassConstraint else { return nil }
+        return try .resolve(from: .init(bitPattern: offset + layoutSize))
+    }
+    
+    public func protocols() throws -> [ProtocolDescriptorRef] {
+        guard layout.numberOfProtocols != .zero else { return [] }
+        var offset = layoutSize
+        if layout.flags.hasSuperclassConstraint {
+            offset.offset(of: ConstMetadataPointer<Metadata>.self)
+        }
+        return try asPointer.readElements(offset: offset, numberOfElements: layout.numberOfProtocols.cast())
+    }
+}
+
 public enum ExistentialTypeRepresentation {
     case opaque
     case `class`

@@ -90,7 +90,7 @@ extern void *swift_weakLoadStrong(void *weakRef);
 
 // WitnessTable *swift_conformsToProtocol(Metadata *type,
 //                                        ProtocolDescriptor *protocol);
-extern void *swift_conformsToProtocol(const void *type, const void *protocol);
+extern const void *swift_conformsToProtocol(const void *type, const void *protocol);
 
 //===----------------------------------------------------------------------===//
 // Casting
@@ -101,6 +101,10 @@ extern void *swift_conformsToProtocol(const void *type, const void *protocol);
 //                        DynamicCastFlags flags);
 extern bool swift_dynamicCast(void *dest, void *src, const void *srcType,
                               const void *targetType, size_t flags);
+
+extern const void *swift_getTypeByMangledNameInContext(const char *typeNameStart, size_t typeNameLength, const void *context, const void *genericArgs);
+
+extern const void *swift_getTypeByMangledNameInEnvironment(const char *typeNameStart, size_t typeNameLength, const void *environment, const void *genericArgs);
 
 //===----------------------------------------------------------------------===//
 // Obj-C Support

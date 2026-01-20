@@ -52,13 +52,13 @@ final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
             guard !records.isEmpty else { continue }
 
             let typeName = try MetadataReader.demangleContext(for: .type(.enum(typeContextDescriptor as! EnumDescriptor))).print(using: demangleOptions)
-            
+
             print(typeName)
             print("")
             var emptyCases: UInt32 = 0
             var payloadCases: UInt32 = 0
             var payloadSize: UInt64 = 0
-            var optionalSize: Int = 0
+            var optionalSize = 0
             defer {
                 do {
                     let enumTypeLayout = try enumMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
@@ -116,7 +116,7 @@ final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
                 }
 
                 let mangledTypeNameString = try mangleAsString(node)
-                if let metatype = try Runtime._getTypeByMangledNameInContext(mangledTypeName, genericContext: nil, genericArguments: nil) {
+                if let metatype = try RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, genericContext: nil, genericArguments: nil) {
                     let currentMetadata = try Metadata.createInProcess(metatype)
                     try print("\(indirectCaseString)case \(record.fieldName())\(payloadString("\(node.print(using: .interfaceTypeBuilderOnly))"))")
                     let metadataWrapper = try currentMetadata.asMetadataWrapper()
@@ -136,9 +136,9 @@ final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
                         print(indent + "Total: ")
                     }
                     print(indent + "- " + typeLayout.description)
-                    
+
                     payloadSize = isIndirectCase ? max(payloadSize, 8) : max(payloadSize, typeLayout.size)
-                    
+
                     let optionalMetadata = try Metadata.createInProcess(makeOptionalMetatype(metatype))
                     let optionalTypeLayout = try optionalMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
                     optionalSize = optionalTypeLayout.size.cast()
@@ -156,10 +156,19 @@ final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
             print("TagCounts:", getEnumTagCounts(payloadSize: payloadSize, emptyCases: emptyCases, payloadCases: payloadCases))
         }
     }
+
+//    @Test func test() async throws {
+////        print(unsafeBitCast((any Equatable).self, to: UnsafeRawPointer.self))
+////        try print(ProtocolDescriptor.createInProcess((any Equatable).self).name())
+////        for protocolRef in try ExistentialTypeMetadata.createInProcess((any Equatable).self).protocols() {
+////            try print(protocolRef.swiftProtocol(), protocolRef.swiftProtocol().name())
+////        }
+//        try print(RuntimeFunctions.conformsToProtocol(metadata: Int.self, existentialTypeMetadata: (any Equatable).self))
+//    }
 }
 
 private func makeOptionalMetatype<T>(_ metatype: T.Type) -> Any.Type {
-    return Optional<T>.self
+    return T?.self
 }
 
 extension String {

@@ -88,7 +88,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
                 var isTypeLayoutPrinted: Bool = false
                 
                 if !mangledTypeName.isEmpty {
-                    if configuration.printTypeLayout, !dumped.flags.isGeneric, let metatype = try? Runtime._getTypeByMangledNameInContext(mangledTypeName, in: machO), let metadata = try? Metadata.createInProcess(metatype) {
+                    if configuration.printTypeLayout, !dumped.flags.isGeneric, let metatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machO), let metadata = try? Metadata.createInProcess(metatype) {
                         try await metadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
                         isTypeLayoutPrinted = true
                     }
@@ -256,7 +256,7 @@ extension EnumDescriptor {
             }
             let mangledTypeName = try record.mangledTypeName(in: machO)
             guard !mangledTypeName.isEmpty else { continue }
-            guard let metatype = try Runtime._getTypeByMangledNameInContext(mangledTypeName, genericContext: nil, genericArguments: nil, in: machO) else { continue }
+            guard let metatype = try RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, genericContext: nil, genericArguments: nil, in: machO) else { continue }
 
             let metadata = try Metadata.createInProcess(metatype)
             let typeLayout = try metadata.asFullMetadata().valueWitnesses.resolve().typeLayout
