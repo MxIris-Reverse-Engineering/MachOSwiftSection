@@ -2,14 +2,31 @@ import Foundation
 import MachOSwiftSection
 
 extension TypeContextWrapper {
-    package func dumper<MachO: MachOSwiftSectionRepresentableWithCache>(using configuration: DumperConfiguration, in machO: MachO) -> any TypedDumper {
+    package func dumper(using configuration: DumperConfiguration, in machO: some MachOSwiftSectionRepresentableWithCache) -> any TypedDumper {
         switch self {
         case .enum(let `enum`):
-            return EnumDumper(`enum`, using: configuration, in: machO)
+            
+            let metadata: EnumMetadata? = if `enum`.descriptor.isGeneric {
+                nil
+            } else {
+                try? `enum`.descriptor.metadataAccessorFunction(in: machO)?(request: .init()).value.resolve(in: machO).enum
+            }
+            
+            return EnumDumper(`enum`, metadata: metadata, using: configuration, in: machO)
         case .struct(let `struct`):
-            return StructDumper(`struct`, using: configuration, in: machO)
+            let metadata: StructMetadata? = if `struct`.descriptor.isGeneric {
+                nil
+            } else {
+                try? `struct`.descriptor.metadataAccessorFunction(in: machO)?(request: .init()).value.resolve(in: machO).struct
+            }
+            return StructDumper(`struct`, metadata: metadata, using: configuration, in: machO)
         case .class(let `class`):
-            return ClassDumper(`class`, using: configuration, in: machO)
+            let metadata: ClassMetadataObjCInterop? = if `class`.descriptor.isGeneric {
+                nil
+            } else {
+                try? `class`.descriptor.metadataAccessorFunction(in: machO)?(request: .init()).value.resolve(in: machO).class
+            }
+            return ClassDumper(`class`, metadata: metadata, using: configuration, in: machO)
         }
     }
 }

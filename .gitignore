@@ -3,14 +3,10 @@
 /Packages
 xcuserdata/
 DerivedData/
-.swiftpm/configuration/registries.json
-.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .netrc
-.swiftpm
 Products
 .vscode
 Tests/Projects/SymbolTests/SymbolTests.xcodeproj/project.xcworkspace
-
 .gemini/
 gha-creds-*.json
 *.resolved
