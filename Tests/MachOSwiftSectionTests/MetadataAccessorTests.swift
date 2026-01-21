@@ -37,7 +37,7 @@ struct GenericStructSwiftProtocolRequirement<A: Equatable & Collection> {
     var field3: Int
 }
 
-struct GenericStructObjCProtocolRequirement<A: NSCopying> {
+struct GenericStructObjCProtocolRequirement<A: NSTableViewDelegate> {
     var field1: Double
     var field2: A
     var field3: Int
@@ -132,24 +132,60 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
                 continue
             case .struct(let `struct`):
                 let inProcessStruct = `struct`.asPointerWrapper(in: machO)
-                guard try inProcessStruct.name() == "GenericStructSwiftProtocolRequirement" else { continue }
-
-                try print(
-                    inProcessStruct.metadataAccessorFunction()!.callAsFunction(
+                let name = try inProcessStruct.name()
+                if name == "GenericStructSwiftProtocolRequirement" {
+//                    try print(
+//                        inProcessStruct.metadataAccessorFunction()!.callAsFunction(
+//                            request: .init(),
+//                            args:
+//                                (
+//                                    Metadata.createInProcess([Int].self),
+//                                    [
+//                                        RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Equatable).self),
+//                                        RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Collection).self),
+//                                        //                                RuntimeFunctions.conformsToProtocol(metadata: Int.self, existentialTypeMetadata: (any Encodable).self),
+//                                    ].compactMap { $0 }
+//                                )
+//                        ).value.resolve()
+//                    )
+                } else if name == "GenericStructObjCProtocolRequirement" {
+                    let metadata = try inProcessStruct.metadataAccessorFunction()!.callAsFunction(
                         request: .init(),
                         args:
-                        (
-                            Metadata.createInProcess([Int].self),
-                            [
-                                RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Equatable).self),
-                                RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Collection).self),
-//                                RuntimeFunctions.conformsToProtocol(metadata: Int.self, existentialTypeMetadata: (any Encodable).self),
-                            ].compactMap { $0 }
-                        )
+
+                        Metadata.createInProcess(Int.self)
+//                                    [
+//                                        RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Equatable).self),
+//                                        RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Collection).self),
+                        //                                RuntimeFunctions.conformsToProtocol(metadata: Int.self, existentialTypeMetadata: (any Encodable).self),
+//                                    ].compactMap { $0 }
+
                     ).value.resolve()
-                )
+                    try print(metadata.struct!.fieldOffsets())
+                }
             case .class:
                 continue
+            }
+        }
+    }
+
+    @Test func genericSignatures() async throws {
+        let machO = machOImage
+
+        for type in try machO.swift.typeContextDescriptors {
+            switch type {
+            case .enum(let enumDescriptor):
+                guard let genericContext = try enumDescriptor.genericContext(in: machO) else { continue }
+//                try mangleAsString(ContextDescriptorWrapper.type(.enum(enumDescriptor)).dumpNameNode(in: machO)).print()
+                try "\(ContextDescriptorWrapper.type(.enum(enumDescriptor)).dumpName(using: .default, in: machO).string)\(await genericContext.dumpGenericSignature(resolver: .using(options: .default), in: machO, isDumpCurrentLevelRequirements: false).string)".print()
+            case .struct(let structDescriptor):
+                guard let genericContext = try structDescriptor.genericContext(in: machO) else { continue }
+//                try mangleAsString(ContextDescriptorWrapper.type(.struct(structDescriptor)).dumpNameNode(in: machO)).print()
+                try "\(ContextDescriptorWrapper.type(.struct(structDescriptor)).dumpName(using: .default, in: machO).string)\(await genericContext.dumpGenericSignature(resolver: .using(options: .default), in: machO, isDumpCurrentLevelRequirements: false).string)".print()
+            case .class(let classDescriptor):
+                guard let genericContext = try classDescriptor.genericContext(in: machO) else { continue }
+//                try mangleAsString(ContextDescriptorWrapper.type(.class(classDescriptor)).dumpNameNode(in: machO)).print()
+                try "\(ContextDescriptorWrapper.type(.class(classDescriptor)).dumpName(using: .default, in: machO).string)\(await genericContext.dumpGenericSignature(resolver: .using(options: .default), in: machO, isDumpCurrentLevelRequirements: false).string)".print()
             }
         }
     }

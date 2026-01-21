@@ -33,29 +33,29 @@ private func genericValueName(depth: Int, index: Int) throws -> String {
 
 extension TargetGenericContext {
     @SemanticStringBuilder
-    package func dumpGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(resolver: DemangleResolver, in machO: MachO, @SemanticStringBuilder conformancesBuilder: () async throws -> SemanticString = { "" }) async throws -> SemanticString {
-        if currentParameters.count > 0 {
+    package func dumpGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(resolver: DemangleResolver, in machO: MachO, isDumpCurrentLevelParams: Bool = true, isDumpCurrentLevelRequirements: Bool = true, @SemanticStringBuilder conformancesBuilder: () async throws -> SemanticString = { "" }) async throws -> SemanticString {
+        if (isDumpCurrentLevelParams ? currentParameters : parameters).count > 0 {
             Standard("<")
-            try await dumpGenericParameters(in: machO)
+            try await dumpGenericParameters(in: machO, isDumpCurrentLevel: isDumpCurrentLevelParams)
             Standard(">")
         }
 
         try await conformancesBuilder()
 
-        if currentRequirements(in: machO).count > 0 {
+        if (isDumpCurrentLevelRequirements ? currentRequirements(in: machO) : requirements).count > 0 {
             Space()
             Keyword(.where)
             Space()
-            try await dumpGenericRequirements(resolver: resolver, in: machO)
+            try await dumpGenericRequirements(resolver: resolver, in: machO, isDumpCurrentLevel: isDumpCurrentLevelRequirements)
         }
     }
 }
 
 extension TargetGenericContext {
     @SemanticStringBuilder
-    package func dumpGenericParameters<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws -> SemanticString {
+    package func dumpGenericParameters<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO, isDumpCurrentLevel: Bool = true) async throws -> SemanticString {
         var currentValueIndex = 0
-        for (offset, parameter) in currentParameters.offsetEnumerated() {
+        for (offset, parameter) in (isDumpCurrentLevel ? currentParameters : parameters).offsetEnumerated() {
             if parameter.kind == .typePack {
                 Keyword(.each)
                 Space()
@@ -87,23 +87,23 @@ extension TargetGenericContext {
     }
 
     @SemanticStringBuilder
-    package func dumpGenericRequirements<MachO: MachOSwiftSectionRepresentableWithCache>(resolver: DemangleResolver, in machO: MachO) async throws -> SemanticString {
+    package func dumpGenericRequirements<MachO: MachOSwiftSectionRepresentableWithCache>(resolver: DemangleResolver, in machO: MachO, isDumpCurrentLevel: Bool = true) async throws -> SemanticString {
         switch resolver {
         case .options(let demangleOptions):
-            try await dumpGenericRequirements(using: demangleOptions, in: machO)
+            try await dumpGenericRequirements(using: demangleOptions, in: machO, isDumpCurrentLevel: isDumpCurrentLevel)
         case .builder(let builder):
-            try await dumpGenericRequirements(in: machO, builder: builder)
+            try await dumpGenericRequirements(in: machO, isDumpCurrentLevel: isDumpCurrentLevel, builder: builder)
         }
     }
 
     @SemanticStringBuilder
-    package func dumpGenericRequirements<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) async throws -> SemanticString {
-        try await dumpGenericRequirements(in: machO) { $0.printSemantic(using: options) }
+    package func dumpGenericRequirements<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO, isDumpCurrentLevel: Bool = true) async throws -> SemanticString {
+        try await dumpGenericRequirements(in: machO, isDumpCurrentLevel: isDumpCurrentLevel) { $0.printSemantic(using: options) }
     }
 
     @SemanticStringBuilder
-    package func dumpGenericRequirements<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
-        for (offset, requirement) in currentRequirements(in: machO).offsetEnumerated() {
+    package func dumpGenericRequirements<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO, isDumpCurrentLevel: Bool = true, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
+        for (offset, requirement) in (isDumpCurrentLevel ? currentRequirements(in: machO) : requirements).offsetEnumerated() {
             try await requirement.dump(in: machO, builder: builder)
             if !offset.isEnd {
                 Standard(",")

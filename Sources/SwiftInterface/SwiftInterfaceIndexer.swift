@@ -37,6 +37,9 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
 
     @Mutex
     public private(set) var associatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, AssociatedType>> = [:]
+    
+    @Mutex
+    public private(set) var conformingTypesByProtocolName: OrderedDictionary<ProtocolName, OrderedSet<TypeName>> = [:]
 
     @Mutex
     public private(set) var rootTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
@@ -349,6 +352,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                 protocolName = try conformance.protocolName(in: machO)
                 if let typeName, let protocolName {
                     protocolConformancesByTypeName[typeName, default: [:]][protocolName] = conformance
+                    conformingTypesByProtocolName[protocolName, default: []].append(typeName)
                     eventDispatcher.dispatch(.conformanceFound(context: SwiftInterfaceEvents.ConformanceContext(typeName: typeName.name, protocolName: protocolName.name)))
                 } else {
                     eventDispatcher.dispatch(.nameExtractionWarning(for: .protocolConformance))
