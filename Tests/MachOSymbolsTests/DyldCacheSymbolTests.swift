@@ -13,8 +13,6 @@ struct MachOSwiftSymbol {
 }
 
 class DyldCacheSymbolTests: DyldCacheTests, @unchecked Sendable {
-    
-
     func symbols(for machOImageNames: MachOImageName...) throws -> [MachOSwiftSymbol] {
         var symbols: [MachOSwiftSymbol] = []
         for machOImageName in machOImageNames {

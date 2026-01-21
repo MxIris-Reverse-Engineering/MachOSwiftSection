@@ -5,16 +5,17 @@ import Semantic
 import Utilities
 import Demangling
 import OrderedCollections
+import SwiftInspection
 
 package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: NamedDumper {
-    private let `protocol`: MachOSwiftSection.`Protocol`
+    package let dumped: MachOSwiftSection.`Protocol`
 
-    private let configuration: DumperConfiguration
+    package let configuration: DumperConfiguration
 
-    private let machO: MachO
+    package let machO: MachO
 
     package init(_ dumped: MachOSwiftSection.`Protocol`, using configuration: DumperConfiguration, in machO: MachO) {
-        self.protocol = dumped
+        self.dumped = dumped
         self.configuration = configuration
         self.machO = machO
     }
@@ -31,8 +32,8 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
 
             try await name
 
-            if `protocol`.numberOfRequirementsInSignature > 0 {
-                var requirementInSignatures = `protocol`.requirementInSignatures
+            if dumped.numberOfRequirementsInSignature > 0 {
+                var requirementInSignatures = dumped.requirementInSignatures
                 for (offset, requirement) in requirementInSignatures.extract(where: \.isProtocolInherited).offsetEnumerated() {
                     if offset.isStart {
                         Standard(":")
@@ -58,11 +59,11 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
             }
         }
     }
-    
+
     @SemanticStringBuilder
     package var associatedTypes: SemanticString {
         get async throws {
-            let associatedTypes = try `protocol`.descriptor.associatedTypes(in: machO)
+            let associatedTypes = try dumped.descriptor.associatedTypes(in: machO)
 
             if !associatedTypes.isEmpty {
                 for (offset, associatedType) in associatedTypes.offsetEnumerated() {
@@ -78,7 +79,6 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
             }
         }
     }
-    
 
     package var body: SemanticString {
         get async throws {
@@ -92,7 +92,7 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
 
             var defaultImplementations: OrderedSet<Node> = []
 
-            for (offset, requirement) in `protocol`.requirements.offsetEnumerated() {
+            for (offset, requirement) in dumped.requirements.offsetEnumerated() {
                 BreakLine()
                 Indent(level: configuration.indentation)
                 if let symbols = try await Symbols.resolve(from: requirement.offset, in: machO), let validNode = try await validNode(for: symbols) {
@@ -138,9 +138,9 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
     @SemanticStringBuilder
     private func _name(using resolver: DemangleResolver) async throws -> SemanticString {
         if configuration.displayParentName {
-            try await resolver.resolve(for: MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await resolver.resolve(for: MetadataReader.demangleContext(for: .protocol(dumped.descriptor), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
-            try TypeDeclaration(kind: .protocol, `protocol`.descriptor.name(in: machO))
+            try TypeDeclaration(kind: .protocol, dumped.descriptor.name(in: machO))
         }
     }
 
@@ -155,7 +155,6 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
     }
 }
 
-
 extension GenericRequirement {
     var isProtocolInherited: Bool {
         paramManagledName.rawString == "x" && (flags.kind == .protocol || flags.kind == .layout || flags.kind == .baseClass)
@@ -163,30 +162,26 @@ extension GenericRequirement {
 }
 
 extension RangeReplaceableCollection {
-    
-    /**
-     * Removes and returns the elements that satisfy the given predicate.
-     * This method performs the filtering and removal in a single pass.
-     *
-     * - Parameter predicate: A closure that takes an element of the
-     *   sequence as its argument and returns a Boolean value indicating
-     *   whether the element should be extracted.
-     * - Returns: An array containing the elements that were removed from the collection.
-     * - Complexity: O(n), where n is the length of the collection.
-     */
+    /// Removes and returns the elements that satisfy the given predicate.
+    /// This method performs the filtering and removal in a single pass.
+    /// 
+    /// - Parameter predicate: A closure that takes an element of the
+    ///   sequence as its argument and returns a Boolean value indicating
+    ///   whether the element should be extracted.
+    /// - Returns: An array containing the elements that were removed from the collection.
+    /// - Complexity: O(n), where n is the length of the collection.
     @discardableResult
     mutating func extract(
         where predicate: (Element) throws -> Bool
     ) rethrows -> [Element] {
-        
         // Create a new collection to store the elements that will remain.
         // We can't modify the collection while iterating over it directly,
         // so we build a new one for the elements to keep.
         var remainingElements = Self()
-        
+
         // Create an array to store the elements that are extracted.
         var extractedElements: [Element] = []
-        
+
         // Iterate through each element of the original collection.
         for element in self {
             // Check if the element satisfies the predicate.
@@ -198,12 +193,11 @@ extension RangeReplaceableCollection {
                 remainingElements.append(element)
             }
         }
-        
+
         // Replace the original collection's content with the remaining elements.
         self = remainingElements
-        
+
         // Return the array of extracted elements.
         return extractedElements
     }
 }
-

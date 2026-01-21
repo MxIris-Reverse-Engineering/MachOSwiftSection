@@ -4,10 +4,10 @@ import MachOFoundation
 public protocol TypeContextDescriptorProtocol: NamedContextDescriptorProtocol where Layout: TypeContextDescriptorLayout {}
 
 extension TypeContextDescriptorProtocol {
-    public func metadataAccessor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MetadataAccessor? {
+    public func metadataAccessorFunction<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MetadataAccessorFunction? {
         guard let machOImage = machO as? MachOImage else { return nil }
         let offset = layout.accessFunctionPtr.resolveDirectOffset(from: offset + layout.offset(of: .accessFunctionPtr))
-        return MetadataAccessor(raw: machOImage.ptr + UnsafeRawPointer.Stride(offset))
+        return .init(ptr: machOImage.ptr + UnsafeRawPointer.Stride(offset))
     }
 
     public func fieldDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> FieldDescriptor {
@@ -23,7 +23,30 @@ extension TypeContextDescriptorProtocol {
         guard layout.flags.isGeneric else { return nil }
         return try .init(contextDescriptor: self, in: machO)
     }
+}
 
+extension TypeContextDescriptorProtocol {
+    public func metadataAccessorFunction() throws -> MetadataAccessorFunction? {
+        let ptr = try layout.pointer(from: asPointer, of: .accessFunctionPtr)
+        return try .init(ptr: layout.accessFunctionPtr.resolveDirectOffset(from: ptr))
+    }
+
+    public func fieldDescriptor() throws -> FieldDescriptor {
+        return try layout.fieldDescriptor.resolve(from: layout.pointer(from: asPointer, of: .fieldDescriptor))
+    }
+
+    public func genericContext() throws -> GenericContext? {
+        guard layout.flags.isGeneric else { return nil }
+        return try typeGenericContext()?.asGenericContext()
+    }
+
+    public func typeGenericContext() throws -> TypeGenericContext? {
+        guard layout.flags.isGeneric else { return nil }
+        return try .init(contextDescriptor: self)
+    }
+}
+
+extension TypeContextDescriptorProtocol {
     public var hasSingletonMetadataInitialization: Bool {
         return layout.flags.kindSpecificFlags?.typeFlags?.hasSingletonMetadataInitialization ?? false
     }

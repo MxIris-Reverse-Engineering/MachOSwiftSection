@@ -5,9 +5,8 @@ import Testing
 @testable import MachOTestingSupport
 
 final class ProtocolRequirementSignatureTests: MachOFileTests, @unchecked Sendable {
-    
     override class var fileName: MachOFileName { .SymbolTestsCore }
-    
+
     @Test func protocols() async throws {
         let machO = machOFile
         let protocolDescriptors = try machO.swift.protocolDescriptors

@@ -5,6 +5,7 @@ import MachOSwiftSection
 import SwiftDump
 import Dependencies
 @_spi(Internals) import MachOSymbols
+@testable import SwiftInspection
 
 package protocol DumpableTests {
     var isEnabledSearchMetadata: Bool { get }
@@ -43,12 +44,8 @@ extension DumpableTests {
     }
 
     @MainActor
-    package func dumpTypes<MachO: MachOSwiftSectionRepresentableWithCache & MachOOffsetConverter>(for machO: MachO, isDetail: Bool = true, options: DumpableTypeOptions = [.enum, .struct, .class]) async throws {
+    package func dumpTypes<MachO: MachOSwiftSectionRepresentableWithCache>(for machO: MachO, isDetail: Bool = true, options: DumpableTypeOptions = [.enum, .struct, .class], using configuration: DumperConfiguration? = nil) async throws {
         let typeContextDescriptors = try machO.swift.typeContextDescriptors
-        var metadataFinder: MetadataFinder<MachO>?
-        if isEnabledSearchMetadata {
-            metadataFinder = MetadataFinder(machO: machO)
-        }
         for typeContextDescriptor in typeContextDescriptors {
             switch typeContextDescriptor {
             case .enum(let enumDescriptor):
@@ -56,7 +53,7 @@ extension DumpableTests {
                 do {
                     if isDetail {
                         let enumType = try Enum(descriptor: enumDescriptor, in: machO)
-                        try await enumType.dump(using: .demangleOptions(.test), in: machO).string.print()
+                        try await enumType.dump(using: configuration ?? .demangleOptions(.test), in: machO).string.print()
                     } else {
                         print(enumDescriptor)
                     }
@@ -68,12 +65,9 @@ extension DumpableTests {
                 do {
                     if isDetail {
                         let structType = try Struct(descriptor: structDescriptor, in: machO)
-                        try await structType.dump(using: .demangleOptions(.test), in: machO).string.print()
+                        try await structType.dump(using: configuration ?? .demangleOptions(.test), in: machO).string.print()
                     } else {
                         print(structDescriptor)
-                    }
-                    if let metadata = try metadataFinder?.metadata(for: structDescriptor) as StructMetadata? {
-                        try metadata.fieldOffsets(for: structDescriptor, in: machO).print()
                     }
                 } catch {
                     error.print()
@@ -83,12 +77,9 @@ extension DumpableTests {
                 do {
                     if isDetail {
                         let classType = try Class(descriptor: classDescriptor, in: machO)
-                        try await classType.dump(using: .demangleOptions(.test), in: machO).string.print()
+                        try await classType.dump(using: configuration ?? .demangleOptions(.test), in: machO).string.print()
                     } else {
                         print(classDescriptor)
-                    }
-                    if let metadata = try metadataFinder?.metadata(for: classDescriptor) as ClassMetadataObjCInterop? {
-                        try metadata.fieldOffsets(for: classDescriptor, in: machO).print()
                     }
                 } catch {
                     error.print()
@@ -98,7 +89,7 @@ extension DumpableTests {
     }
 
     @MainActor
-    package func dumpOpaqueTypes<MachO: MachOSwiftSectionRepresentableWithCache & MachOOffsetConverter>(for machO: MachO) async throws {
+    package func dumpOpaqueTypes<MachO: MachOSwiftSectionRepresentableWithCache>(for machO: MachO) async throws {
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
         let symbols = symbolIndexStore.symbols(of: .opaqueTypeDescriptor, in: machO)

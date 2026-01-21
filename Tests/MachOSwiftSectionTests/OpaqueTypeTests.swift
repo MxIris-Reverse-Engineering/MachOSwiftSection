@@ -5,6 +5,7 @@ import Demangling
 import MachOSwiftSection
 @testable import SwiftDump
 @_spi(Internals) import MachOSymbols
+@testable import SwiftInspection
 
 protocol OpaqueTypeTests {}
 
@@ -13,6 +14,7 @@ extension OpaqueTypeTests {
         let symbols = SymbolIndexStore.shared.symbols(of: .opaqueTypeDescriptor, in: machO)
         for symbol in symbols {
             guard symbol.offset > 0 else { continue }
+            print("Offset:", symbol.offset)
             print("Demangled:")
             symbol.demangledNode.print(using: .default).print()
             symbol.demangledNode.description.print()
@@ -29,6 +31,7 @@ extension OpaqueTypeTests {
             print("Underlying Types:")
             for underlyingTypeArgumentMangledName in opaqueType.underlyingTypeArgumentMangledNames {
                 let node = try MetadataReader.demangleType(for: underlyingTypeArgumentMangledName, in: machO)
+                node.description.print()
                 node.print(using: .default).print()
             }
             print("--------------------")
@@ -37,11 +40,18 @@ extension OpaqueTypeTests {
 }
 
 final class OpaqueTypeDyldCacheTests: DyldCacheTests, OpaqueTypeTests, @unchecked Sendable {
-    override class var cacheImageName: MachOImageName { .SwiftUICore }
+    override class var cacheImageName: MachOImageName { .SwiftUI }
 
     @MainActor
     @Test func opaqueTypes() async throws {
         try await opaqueTypes(in: machOFileInCache)
+    }
+
+    @Test func test() async throws {
+        let machO = machOFileInCache
+        print(machO.startOffset)
+        try print(OpaqueType(descriptor: .resolve(from: 895065692, in: machO), in: machO))
+        try await print(Symbols.resolve(from: 895065692, in: machO) as Symbols)
     }
 }
 

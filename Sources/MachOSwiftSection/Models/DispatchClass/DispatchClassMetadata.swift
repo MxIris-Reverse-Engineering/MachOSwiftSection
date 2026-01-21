@@ -12,11 +12,11 @@ public struct DispatchClassMetadata: HeapMetadataProtocol {
         public let vTableType: UInt64
         public let vTableInvoke: RawPointer
     }
-    
+
     public var layout: Layout
-    
+
     public let offset: Int
-    
+
     public init(layout: Layout, offset: Int) {
         self.layout = layout
         self.offset = offset

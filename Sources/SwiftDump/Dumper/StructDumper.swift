@@ -5,19 +5,20 @@ import Semantic
 import Utilities
 import Dependencies
 @_spi(Internals) import MachOSymbols
+import SwiftInspection
 
 package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
-    private let `struct`: Struct
+    package let dumped: Struct
 
-    private let configuration: DumperConfiguration
+    package let configuration: DumperConfiguration
 
-    private let machO: MachO
+    package let machO: MachO
 
     @Dependency(\.symbolIndexStore)
     private var symbolIndexStore
 
     package init(_ dumped: Struct, using configuration: DumperConfiguration, in machO: MachO) {
-        self.struct = dumped
+        self.dumped = dumped
         self.configuration = configuration
         self.machO = machO
     }
@@ -34,39 +35,44 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
 
             try await name
 
-            if let genericContext = `struct`.genericContext {
+            if let genericContext = dumped.genericContext {
                 try await genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO)
             }
         }
     }
 
+    private var metadata: StructMetadata? {
+        guard let metadataAccessorFunction = try? dumped.descriptor.metadataAccessorFunction(in: machO), !dumped.flags.isGeneric else { return nil }
+        guard let metadataWrapper = try? metadataAccessorFunction(request: .init()).value.resolve(in: machO) else { return nil }
+        return metadataWrapper.struct
+    }
+    
     private var fieldOffsets: [Int]? {
         guard configuration.emitOffsetComments else { return nil }
-        guard let metadataAccessor = try? `struct`.descriptor.metadataAccessor(in: machO), !`struct`.flags.isGeneric else { return nil }
-        guard let metadataWrapper = try? metadataAccessor.perform(request: .init()).value.resolve(in: machO) else { return nil }
-        switch metadataWrapper {
-        case .struct(let metadata):
-            return try? metadata.fieldOffsets(for: `struct`.descriptor, in: machO).map { $0.cast() }
-        default:
-            return nil
-        }
+        return try? metadata?.fieldOffsets(for: dumped.descriptor, in: machO).map { $0.cast() }
     }
 
     package var fields: SemanticString {
         get async throws {
             let fieldOffsets = fieldOffsets
-            for (offset, fieldRecord) in try `struct`.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
+            for (offset, fieldRecord) in try dumped.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
                 BreakLine()
 
+                let mangledTypeName = try fieldRecord.mangledTypeName(in: machO)
+                
                 if let fieldOffsets, let fieldOffset = fieldOffsets[safe: offset.index] {
                     Indent(level: configuration.indentation)
-                    Comment("field offset: 0x\(String(fieldOffset, radix: 16))")
+                    Comment("Field Offset: 0x\(String(fieldOffset, radix: 16))")
                     BreakLine()
                 }
 
+                if configuration.printTypeLayout, !dumped.flags.isGeneric, let metatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machO), let metadata = try? Metadata.createInProcess(metatype) {
+                    try await metadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
+                }
+                
                 Indent(level: configuration.indentation)
 
-                let demangledTypeNode = try MetadataReader.demangleType(for: fieldRecord.mangledTypeName(in: machO), in: machO)
+                let demangledTypeNode = try MetadataReader.demangleType(for: mangledTypeName, in: machO)
 
                 let fieldName = try fieldRecord.fieldName(in: machO)
 
@@ -162,9 +168,9 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
     @SemanticStringBuilder
     private func _name(using resolver: DemangleResolver) async throws -> SemanticString {
         if configuration.displayParentName {
-            try await resolver.resolve(for: MetadataReader.demangleContext(for: .type(.struct(`struct`.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+            try await resolver.resolve(for: MetadataReader.demangleContext(for: .type(.struct(dumped.descriptor)), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
-            try TypeDeclaration(kind: .struct, `struct`.descriptor.name(in: machO))
+            try TypeDeclaration(kind: .struct, dumped.descriptor.name(in: machO))
         }
     }
 }

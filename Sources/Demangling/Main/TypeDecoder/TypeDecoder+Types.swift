@@ -5,7 +5,7 @@ public struct FunctionParam<BuiltType> {
     public private(set) var flags: ParameterFlags = []
 
     public init() {}
-    
+
     public init(type: BuiltType) {
         self.type = type
     }
@@ -27,6 +27,7 @@ public struct FunctionParam<BuiltType> {
     public mutating func setOwnership(_ ownership: ParameterOwnership) {
         flags = flags.withOwnership(ownership)
     }
+
     public mutating func setNoDerivative() { flags = flags.withNoDerivative(true) }
     public mutating func setIsolated() { flags = flags.withIsolated(true) }
     public mutating func setSending() { flags = flags.withSending(true) }
@@ -247,7 +248,7 @@ public struct FunctionTypeFlags: OptionSet {
 
     // Number of parameters encoded in bits 16-31
     private static let numParametersShift: UInt32 = 16
-    private static let numParametersMask: UInt32 = 0xFFFF0000
+    private static let numParametersMask: UInt32 = 0xFFFF_0000
 
     public var convention: FunctionMetadataConvention {
         switch rawValue & Self.conventionMask {
@@ -597,7 +598,7 @@ public enum ImplFunctionDifferentiabilityKind: Sendable {
     case linear
 }
 
-// Parameter ownership modes
+/// Parameter ownership modes
 public enum ParameterOwnership: Sendable {
     case `default`
     case `inout`
@@ -605,7 +606,7 @@ public enum ParameterOwnership: Sendable {
     case owned
 }
 
-// Function metadata convention
+/// Function metadata convention
 public enum FunctionMetadataConvention: Sendable {
     case swift
     case block
@@ -613,7 +614,7 @@ public enum FunctionMetadataConvention: Sendable {
     case cFunctionPointer
 }
 
-// Function metadata differentiability
+/// Function metadata differentiability
 public enum FunctionMetadataDifferentiabilityKind: Sendable {
     case nonDifferentiable
     case forward
@@ -626,7 +627,7 @@ public enum FunctionMetadataDifferentiabilityKind: Sendable {
     }
 }
 
-// Extended function type flags
+/// Extended function type flags
 public struct ExtendedFunctionTypeFlags: OptionSet, Sendable {
     public let rawValue: UInt32
 
@@ -640,27 +641,27 @@ public struct ExtendedFunctionTypeFlags: OptionSet, Sendable {
     public static let hasTypedThrows = ExtendedFunctionTypeFlags(rawValue: 1 << 3)
 
     public func withIsolatedAny() -> ExtendedFunctionTypeFlags {
-        return self.union(.hasIsolatedAny)
+        return union(.hasIsolatedAny)
     }
 
     public func withNonIsolatedCaller() -> ExtendedFunctionTypeFlags {
-        return self.union(.hasNonIsolatedCaller)
+        return union(.hasNonIsolatedCaller)
     }
 
     public func withSendingResult() -> ExtendedFunctionTypeFlags {
-        return self.union(.hasSendingResult)
+        return union(.hasSendingResult)
     }
 
     public func withTypedThrows(_ value: Bool) -> ExtendedFunctionTypeFlags {
         if value {
-            return self.union(.hasTypedThrows)
+            return union(.hasTypedThrows)
         } else {
-            return self.subtracting(.hasTypedThrows)
+            return subtracting(.hasTypedThrows)
         }
     }
 }
 
-// Layout constraint kinds
+/// Layout constraint kinds
 public enum LayoutConstraintKind: Sendable {
     case unknownLayout
     case refCountedObject
@@ -705,7 +706,7 @@ extension LayoutConstraintKind {
     }
 }
 
-// Requirement kinds
+/// Requirement kinds
 public enum RequirementKind: Sendable {
     case conformance
     case superclass
@@ -713,12 +714,11 @@ public enum RequirementKind: Sendable {
     case layout
 }
 
-// Invertible protocol kinds
+/// Invertible protocol kinds
 public enum InvertibleProtocolKind: UInt32, Sendable {
     case copyable = 0
     case escapable = 1
 }
-
 
 extension FunctionMetadataDifferentiabilityKind {
     init(from rawValue: UInt8) {
@@ -756,7 +756,6 @@ extension ImplFunctionDifferentiabilityKind {
     }
 }
 
-
 protocol ImplFunctionParamProtocol {
     associatedtype BuiltTypeParam
     associatedtype ConventionType
@@ -790,7 +789,6 @@ extension ImplFunctionParam: ImplFunctionParamProtocol {
 extension ImplFunctionResult: ImplFunctionResultProtocol {
     typealias BuiltTypeParam = BuiltType
 }
-
 
 extension ImplMetatypeRepresentation {
     init?(from text: String) {

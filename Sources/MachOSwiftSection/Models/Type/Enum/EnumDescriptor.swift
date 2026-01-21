@@ -1,12 +1,13 @@
 import Foundation
 import MachOFoundation
+import SwiftStdlibToolbox
 
 public struct EnumDescriptor: TypeContextDescriptorProtocol {
     public struct Layout: EnumDescriptorLayout {
         public let flags: ContextDescriptorFlags
         public let parent: RelativeContextPointer
         public let name: RelativeDirectPointer<String>
-        public let accessFunctionPtr: RelativeDirectPointer<MetadataAccessor>
+        public let accessFunctionPtr: RelativeDirectPointer<MetadataAccessorFunction>
         public let fieldDescriptor: RelativeDirectPointer<FieldDescriptor>
         public let numPayloadCasesAndPayloadSizeOffset: UInt32
         public let numEmptyCases: UInt32
@@ -23,15 +24,50 @@ public struct EnumDescriptor: TypeContextDescriptorProtocol {
 }
 
 extension EnumDescriptor {
+    /*@inlinable*/
+    public var numberOfCases: Int {
+        numberOfPayloadCases + numberOfEmptyCases
+    }
+
+    /*@inlinable*/
+    public var numberOfEmptyCases: Int {
+        layout.numEmptyCases.int
+    }
+
+    /*@inlinable*/
+    public var numberOfPayloadCases: Int {
+        (layout.numPayloadCasesAndPayloadSizeOffset & 0x00FF_FFFF).int
+    }
+
+    /*@inlinable*/
     public var hasPayloadSizeOffset: Bool {
         payloadSizeOffset != 0
     }
-    
+
+    /*@inlinable*/
     public var payloadSizeOffset: Int {
-        .init((layout.numPayloadCasesAndPayloadSizeOffset & 0xFF000000) >> 24)
+        .init((layout.numPayloadCasesAndPayloadSizeOffset & 0xFF00_0000) >> 24)
+    }
+}
+
+extension EnumDescriptor {
+    public var isSingleEmptyCaseOnly: Bool {
+        numberOfCases == 1 && numberOfEmptyCases == 1 && numberOfPayloadCases == 0
     }
     
-    public var numberOfPayloadCases: UInt32 {
-        layout.numPayloadCasesAndPayloadSizeOffset & 0x00FFFFFF
+    public var isSinglePayloadCaseOnly: Bool {
+        numberOfCases == 1 && numberOfEmptyCases == 0 && numberOfPayloadCases == 1
+    }
+    
+    public var isSinglePayload: Bool {
+        numberOfCases > 1 && numberOfEmptyCases > 0 && numberOfPayloadCases == 1
+    }
+    
+    public var isMultiPayload: Bool {
+        numberOfCases > 1 && numberOfPayloadCases > 1
+    }
+    
+    public var hasPayloadCases: Bool {
+        numberOfPayloadCases > 0
     }
 }

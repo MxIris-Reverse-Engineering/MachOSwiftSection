@@ -14,20 +14,16 @@ public struct ProtocolContextDescriptorFlags: FlagSet {
         static let specialProtocolKind = 2
         static let specialProtocolKindWidth = 6
     }
-    
+
     public var isResilient: Bool {
         return flag(bit: Bits.isResilient)
     }
-    
+
     public var classConstraint: ProtocolClassConstraint {
         .init(rawValue: field(firstBit: Bits.hasClassConstraint, bitWidth: Bits.hasClassConstraintWidth, fieldType: UInt8.self))!
     }
-    
+
     public var specialProtocolKind: SpecialProtocolKind {
         .init(rawValue: field(firstBit: Bits.specialProtocolKind, bitWidth: Bits.specialProtocolKindWidth, fieldType: UInt8.self))!
     }
 }
-
-
-
-

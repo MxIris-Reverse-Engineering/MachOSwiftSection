@@ -16,11 +16,33 @@ public enum TypeContextWrapper: Sendable {
     public var typeContextDescriptorWrapper: TypeContextDescriptorWrapper {
         switch self {
         case .enum(let `enum`):
-            return .enum(`enum`.descriptor)
+            .enum(`enum`.descriptor)
         case .struct(let `struct`):
-            return .struct(`struct`.descriptor)
+            .struct(`struct`.descriptor)
         case .class(let `class`):
-            return .class(`class`.descriptor)
+            .class(`class`.descriptor)
+        }
+    }
+
+    public static func forTypeContextDescriptorWrapper(_ typeContextDescriptorWrapper: TypeContextDescriptorWrapper) throws -> Self {
+        switch typeContextDescriptorWrapper {
+        case .enum(let enumDescriptor):
+            try .enum(.init(descriptor: enumDescriptor))
+        case .struct(let structDescriptor):
+            try .struct(.init(descriptor: structDescriptor))
+        case .class(let classDescriptor):
+            try .class(.init(descriptor: classDescriptor))
+        }
+    }
+
+    public static func forTypeContextDescriptorWrapper(_ typeContextDescriptorWrapper: TypeContextDescriptorWrapper, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Self {
+        switch typeContextDescriptorWrapper {
+        case .enum(let enumDescriptor):
+            try .enum(.init(descriptor: enumDescriptor, in: machO))
+        case .struct(let structDescriptor):
+            try .struct(.init(descriptor: structDescriptor, in: machO))
+        case .class(let classDescriptor):
+            try .class(.init(descriptor: classDescriptor, in: machO))
         }
     }
 }

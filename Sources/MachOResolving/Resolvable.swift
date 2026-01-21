@@ -3,24 +3,44 @@ import MachOReading
 import MachOExtensions
 
 public protocol Resolvable: Sendable {
-    static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self
-    static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self?
+    static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self
+    static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self?
+    static func resolve(from ptr: UnsafeRawPointer) throws -> Self
+    static func resolve(from ptr: UnsafeRawPointer) throws -> Self?
 }
 
 extension Resolvable {
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
         return try machO.readElement(offset: offset)
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self? {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self? {
         let result: Self = try resolve(from: offset, in: machO)
+        return .some(result)
+    }
+
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
+        try ptr.stripPointerTags().readElement()
+    }
+
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self? {
+        let result: Self = try resolve(from: ptr)
         return .some(result)
     }
 }
 
 extension Optional: Resolvable where Wrapped: Resolvable {
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
         let result: Wrapped? = try Wrapped.resolve(from: offset, in: machO)
+        if let result {
+            return .some(result)
+        } else {
+            return .none
+        }
+    }
+
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
+        let result: Wrapped? = try Wrapped.resolve(from: ptr)
         if let result {
             return .some(result)
         } else {
@@ -30,14 +50,22 @@ extension Optional: Resolvable where Wrapped: Resolvable {
 }
 
 extension String: Resolvable {
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
         return try machO.readString(offset: offset)
+    }
+
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
+        return try ptr.stripPointerTags().readString()
     }
 }
 
 extension Resolvable where Self: LocatableLayoutWrapper {
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
         try machO.readWrapperElement(offset: offset)
+    }
+
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
+        try ptr.stripPointerTags().readWrapperElement()
     }
 }
 

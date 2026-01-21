@@ -6,10 +6,11 @@ import MachOFoundation
 @testable import MachOTestingSupport
 import Dependencies
 
-#if !SILENT_TEST
+#if !SILENT_TEST && os(macOS)
 
 final class DyldCacheSymbolSimpleTests: DyldCacheSymbolTests, @unchecked Sendable {
     @MainActor
+    @available(macOS 13.0, *)
     @Test func writeSymbolsToDesktop() async throws {
         var string = ""
         let imageName: MachOImageName = .SwiftUICore

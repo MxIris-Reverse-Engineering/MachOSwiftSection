@@ -3,9 +3,8 @@ import MachOKit
 import MachOFoundation
 
 public struct OpaqueMetadata: MetadataProtocol {
-    
     public typealias HeaderType = TypeMetadataHeaderBase
-    
+
     public struct Layout: MetadataLayout {
         public let kind: StoredPointer
     }

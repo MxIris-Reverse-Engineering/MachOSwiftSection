@@ -8,6 +8,7 @@ import Semantic
 import SwiftStdlibToolbox
 import Dependencies
 @_spi(Internals) import MachOSymbols
+import SwiftInspection
 
 public final class TypeDefinition: Definition {
     public enum ParentContext {
@@ -70,7 +71,7 @@ public final class TypeDefinition: Definition {
 
     @Mutex
     public private(set) var isIndexed: Bool = false
-    
+
     public var hasMembers: Bool {
         !fields.isEmpty || !variables.isEmpty || !functions.isEmpty ||
             !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty || hasDeallocator || hasDestructor
@@ -81,13 +82,13 @@ public final class TypeDefinition: Definition {
         let typeName = try type.typeName(in: machO)
         self.typeName = typeName
     }
-    
+
     package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
         guard !isIndexed else { return }
-        
+
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
-        
+
         var fields: [FieldDefinition] = []
         let typeContextDescriptor = try required(type.contextDescriptorWrapper.typeContextDescriptor)
         let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machO)
@@ -146,24 +147,24 @@ public final class TypeDefinition: Definition {
         let name = typeName.name
         let node = typeName.node
 
-        self.allocators = DefinitionBuilder.allocators(
+        allocators = DefinitionBuilder.allocators(
             for: symbolIndexStore.memberSymbols(of: .allocator(inExtension: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
             methodDescriptorLookup: methodDescriptorLookup
         )
 
-        self.hasDeallocator = !symbolIndexStore.memberSymbols(of: .deallocator, for: typeName.name, in: machO).isEmpty
+        hasDeallocator = !symbolIndexStore.memberSymbols(of: .deallocator, for: typeName.name, in: machO).isEmpty
 
-        self.variables = DefinitionBuilder.variables(
+        variables = DefinitionBuilder.variables(
             for: symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
             fieldNames: fieldNames,
             methodDescriptorLookup: methodDescriptorLookup,
             isGlobalOrStatic: false
         )
 
-        self.staticVariables = DefinitionBuilder.variables(
+        staticVariables = DefinitionBuilder.variables(
             for: symbolIndexStore.memberSymbols(
                 of: .variable(inExtension: false, isStatic: true, isStorage: false),
-                    .variable(inExtension: false, isStatic: true, isStorage: true),
+                .variable(inExtension: false, isStatic: true, isStorage: true),
                 for: name,
                 node: node,
                 in: machO
@@ -172,30 +173,30 @@ public final class TypeDefinition: Definition {
             isGlobalOrStatic: true
         )
 
-        self.functions = DefinitionBuilder.functions(
+        functions = DefinitionBuilder.functions(
             for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
             methodDescriptorLookup: methodDescriptorLookup,
             isGlobalOrStatic: false
         )
 
-        self.staticFunctions = DefinitionBuilder.functions(
+        staticFunctions = DefinitionBuilder.functions(
             for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: true), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
             methodDescriptorLookup: methodDescriptorLookup,
             isGlobalOrStatic: true
         )
 
-        self.subscripts = DefinitionBuilder.subscripts(
+        subscripts = DefinitionBuilder.subscripts(
             for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
             methodDescriptorLookup: methodDescriptorLookup,
             isStatic: false
         )
 
-        self.staticSubscripts = DefinitionBuilder.subscripts(
+        staticSubscripts = DefinitionBuilder.subscripts(
             for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: true), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
             methodDescriptorLookup: methodDescriptorLookup,
             isStatic: true
         )
-        
+
         isIndexed = true
     }
 }

@@ -4,28 +4,28 @@ import MachOResolving
 import MachOExtensions
 
 public struct Symbols: AsyncResolvable {
-    private var _storage: [Symbol] = []
-
     public let offset: Int
+
+    private var _storage: [Symbol] = []
 
     internal init(offset: Int, symbols: [Symbol]) {
         self.offset = offset
         self._storage = symbols
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
         try required(resolve(from: offset, in: machO))
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self? {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self? {
         return machO.symbols(offset: offset)
     }
-    
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) async throws -> Self {
+
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) async throws -> Self {
         try await required(resolve(from: offset, in: machO))
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) async throws -> Self? {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) async throws -> Self? {
         return await machO.symbols(offset: offset)
     }
 }

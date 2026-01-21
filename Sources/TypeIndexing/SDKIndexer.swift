@@ -39,28 +39,16 @@ struct SwiftModuleIndexer {
     }
 }
 
-@available(iOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-@available(visionOS, unavailable)
 struct SwiftInterfaceFile: Sendable, Codable {
     let moduleName: String
     let path: String
 }
 
-@available(iOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-@available(visionOS, unavailable)
 struct SwiftInterfaceGeneratedFile: Sendable, Codable {
     let moduleName: String
     let contents: String
 }
 
-@available(iOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-@available(visionOS, unavailable)
 @available(macOS 13.0, *)
 struct APINotesFile: Sendable, Codable {
     let path: String
@@ -89,10 +77,6 @@ struct APINotesFile: Sendable, Codable {
 
 extension APINotes.Module: @unchecked @retroactive Sendable {}
 
-@available(iOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-@available(visionOS, unavailable)
 @available(macOS 13.0, *)
 final class SDKIndexer: Sendable {
     struct IndexOptions: OptionSet {
@@ -105,7 +89,7 @@ final class SDKIndexer: Sendable {
     private static let logger = Logger(subsystem: "com.MxIris.MachOSwiftSection.TypeIndexing", category: "SDKIndexer")
 
     let platform: SDKPlatform
-    
+
     let indexOptions: IndexOptions
 
     @Mutex
@@ -124,7 +108,6 @@ final class SDKIndexer: Sendable {
         "System/Library/Frameworks",
         "System/Library/PrivateFrameworks",
     ]
-
 
     init(platform: SDKPlatform, options: IndexOptions = [.indexSwiftModules, .indexAPINotesFiles]) {
         Self.logger.info("Initializing SDKIndexer for platform: \(platform.rawValue) with options: \(options.rawValue)")
@@ -305,6 +288,5 @@ extension URL {
         }
     }
 }
-
 
 #endif

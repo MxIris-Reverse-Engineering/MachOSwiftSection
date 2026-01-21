@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-
 import MachOFoundation
 
 // template <typename Runtime>
@@ -20,53 +19,64 @@ import MachOFoundation
 
 public struct Enum: TopLevelType, ContextProtocol {
     public let descriptor: EnumDescriptor
-    public let genericContext: TypeGenericContext?
-    public let foreignMetadataInitialization: ForeignMetadataInitialization?
-    public let singletonMetadataInitialization: SingletonMetadataInitialization?
-    public let canonicalSpecializedMetadatas: [CanonicalSpecializedMetadatasListEntry]
-    public let canonicalSpecializedMetadatasListCount: CanonicalSpecializedMetadatasListCount?
-    public let canonicalSpecializedMetadatasCachingOnceToken: CanonicalSpecializedMetadatasCachingOnceToken?
-    public let invertibleProtocolSet: InvertibleProtocolSet?
-    public let singletonMetadataPointer: SingletonMetadataPointer?
+    public private(set) var genericContext: TypeGenericContext?
+    public private(set) var foreignMetadataInitialization: ForeignMetadataInitialization?
+    public private(set) var singletonMetadataInitialization: SingletonMetadataInitialization?
+    public private(set) var canonicalSpecializedMetadatas: [CanonicalSpecializedMetadatasListEntry] = []
+    public private(set) var canonicalSpecializedMetadatasListCount: CanonicalSpecializedMetadatasListCount?
+    public private(set) var canonicalSpecializedMetadatasCachingOnceToken: CanonicalSpecializedMetadatasCachingOnceToken?
+    public private(set) var invertibleProtocolSet: InvertibleProtocolSet?
+    public private(set) var singletonMetadataPointer: SingletonMetadataPointer?
 
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: EnumDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
-
         var currentOffset = descriptor.offset + descriptor.layoutSize
-
         let genericContext = try descriptor.typeGenericContext(in: machO)
-
         if let genericContext {
             currentOffset += genericContext.size
         }
-
         self.genericContext = genericContext
-
+        try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: machO)
+    }
+    
+    public init(descriptor: EnumDescriptor) throws {
+        self.descriptor = descriptor
+        var currentOffset = descriptor.layoutSize
+        let genericContext = try descriptor.typeGenericContext()
+        if let genericContext {
+            currentOffset += genericContext.size
+        }
+        self.genericContext = genericContext
+        try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: descriptor.asPointer)
+    }
+    
+    private mutating func initialize<Reader: Readable>(descriptor: EnumDescriptor, currentOffset: inout Int, in reader: Reader) throws {
+        
         let typeFlags = try required(descriptor.flags.kindSpecificFlags?.typeFlags)
 
         if typeFlags.hasForeignMetadataInitialization {
-            self.foreignMetadataInitialization = try machO.readWrapperElement(offset: currentOffset) as ForeignMetadataInitialization
+            self.foreignMetadataInitialization = try reader.readWrapperElement(offset: currentOffset) as ForeignMetadataInitialization
             currentOffset.offset(of: ForeignMetadataInitialization.self)
         } else {
             self.foreignMetadataInitialization = nil
         }
 
         if typeFlags.hasSingletonMetadataInitialization {
-            self.singletonMetadataInitialization = try machO.readWrapperElement(offset: currentOffset) as SingletonMetadataInitialization
+            self.singletonMetadataInitialization = try reader.readWrapperElement(offset: currentOffset) as SingletonMetadataInitialization
             currentOffset.offset(of: SingletonMetadataInitialization.self)
         } else {
             self.singletonMetadataInitialization = nil
         }
 
         if descriptor.hasCanonicalMetadataPrespecializations {
-            let count: CanonicalSpecializedMetadatasListCount = try machO.readElement(offset: currentOffset)
+            let count: CanonicalSpecializedMetadatasListCount = try reader.readElement(offset: currentOffset)
             currentOffset.offset(of: CanonicalSpecializedMetadatasListCount.self)
             let countValue = count.rawValue
-            let canonicalMetadataPrespecializations: [CanonicalSpecializedMetadatasListEntry] = try machO.readWrapperElements(offset: currentOffset, numberOfElements: countValue.cast())
+            let canonicalMetadataPrespecializations: [CanonicalSpecializedMetadatasListEntry] = try reader.readWrapperElements(offset: currentOffset, numberOfElements: countValue.cast())
             currentOffset.offset(of: CanonicalSpecializedMetadatasListEntry.self, numbersOfElements: countValue.cast())
             self.canonicalSpecializedMetadatas = canonicalMetadataPrespecializations
             self.canonicalSpecializedMetadatasListCount = count
-            self.canonicalSpecializedMetadatasCachingOnceToken = try machO.readWrapperElement(offset: currentOffset) as CanonicalSpecializedMetadatasCachingOnceToken
+            self.canonicalSpecializedMetadatasCachingOnceToken = try reader.readWrapperElement(offset: currentOffset) as CanonicalSpecializedMetadatasCachingOnceToken
             currentOffset.offset(of: CanonicalSpecializedMetadatasCachingOnceToken.self)
         } else {
             self.canonicalSpecializedMetadatas = []
@@ -75,19 +85,17 @@ public struct Enum: TopLevelType, ContextProtocol {
         }
 
         if descriptor.flags.hasInvertibleProtocols {
-            self.invertibleProtocolSet = try machO.readElement(offset: currentOffset) as InvertibleProtocolSet
+            self.invertibleProtocolSet = try reader.readElement(offset: currentOffset) as InvertibleProtocolSet
             currentOffset.offset(of: InvertibleProtocolSet.self)
         } else {
             self.invertibleProtocolSet = nil
         }
 
         if descriptor.hasSingletonMetadataPointer {
-            self.singletonMetadataPointer = try machO.readWrapperElement(offset: currentOffset) as SingletonMetadataPointer
+            self.singletonMetadataPointer = try reader.readWrapperElement(offset: currentOffset) as SingletonMetadataPointer
             currentOffset.offset(of: SingletonMetadataPointer.self)
         } else {
             self.singletonMetadataPointer = nil
         }
     }
 }
-
-

@@ -16,6 +16,3 @@ public struct MetatypeMetadata: MetadataProtocol {
         self.offset = offset
     }
 }
-
-
-

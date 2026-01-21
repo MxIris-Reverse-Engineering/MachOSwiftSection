@@ -6,10 +6,12 @@ public enum SemanticType: Hashable, Codable, Sendable {
         case `protocol`
         case other
     }
+
     public enum Context: CaseIterable, Hashable, Codable, Sendable {
         case declaration
         case name
     }
+
     case standard
     case comment
     case keyword

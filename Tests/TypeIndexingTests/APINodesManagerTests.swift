@@ -1,3 +1,5 @@
+#if os(macOS)
+
 import Foundation
 import Testing
 import APINotes
@@ -34,3 +36,7 @@ struct APINotesManagerTests {
 extension Bool? {
     var orFalse: Bool { self ?? false }
 }
+
+
+#endif
+

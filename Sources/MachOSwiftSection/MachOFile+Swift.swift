@@ -11,31 +11,17 @@ extension MachOFile {
         }
     }
 
-    public var swift: Swift {
-        .init(machO: self)
-    }
+    public var swift: Swift { .init(machO: self) }
 }
 
 extension MachOFile.Swift: SwiftSectionRepresentable {
     public var types: [TypeContextWrapper] {
         get throws {
-            var results: [TypeContextWrapper] = []
-            let typeContextDescriptors = try typeContextDescriptors
-            for typeContextDescriptor in typeContextDescriptors {
-                switch typeContextDescriptor {
-                case let .enum(descriptor):
-                    try results.append(.enum(.init(descriptor: descriptor, in: machO)))
-                case let .struct(descriptor):
-                    try results.append(.struct(.init(descriptor: descriptor, in: machO)))
-                case let .class(descriptor):
-                    try results.append(.class(.init(descriptor: descriptor, in: machO)))
-                }
-            }
-            return results
+            try typeContextDescriptors.map { try TypeContextWrapper.forTypeContextDescriptorWrapper($0, in: machO) }
         }
     }
 
-    public var protocols: [Protocol] {
+    public var protocols: [`Protocol`] {
         get throws {
             try protocolDescriptors.map { try Protocol(descriptor: $0, in: machO) }
         }
@@ -67,7 +53,7 @@ extension MachOFile.Swift: SwiftSectionRepresentable {
 
     public var typeContextDescriptors: [TypeContextDescriptorWrapper] {
         get throws {
-            return try _readRelativeDescriptors(from: .__swift5_types, in: machO) + (try? _readRelativeDescriptors(from: .__swift5_types2, in: machO))
+            return try contextDescriptors.compactMap { $0.typeContextDescriptorWrapper }
         }
     }
 
@@ -92,6 +78,12 @@ extension MachOFile.Swift: SwiftSectionRepresentable {
     public var builtinTypeDescriptors: [BuiltinTypeDescriptor] {
         get throws {
             return try _readDescriptors(from: .__swift5_builtin, in: machO)
+        }
+    }
+
+    public var multiPayloadEnumDescriptors: [MultiPayloadEnumDescriptor] {
+        get throws {
+            return try _readDescriptors(from: .__swift5_mpenum, in: machO)
         }
     }
 }

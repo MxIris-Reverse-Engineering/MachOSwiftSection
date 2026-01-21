@@ -1,39 +1,65 @@
-package struct Indent: CustomStringConvertible, SemanticStringComponent {
-    package let level: Int
+/// An indentation component.
+///
+/// Example:
+/// ```swift
+/// Indent(level: 2)  // produces 8 spaces (4 per level)
+/// ```
+public struct Indent: AtomicSemanticComponent, CustomStringConvertible {
+    public let level: Int
 
-    package var string: String { description }
+    @inlinable
+    public var string: String { description }
 
-    package var type: SemanticType { .standard }
+    @inlinable
+    public var type: SemanticType { .standard }
 
-    package init(level: Int) {
+    @inlinable
+    public init(level: Int) {
         self.level = level
     }
 
-    package var description: String {
-        if level > 0 {
-            String(repeating: " ", count: level * 4)
-        } else {
-            String()
-        }
+    @inlinable
+    public var description: String {
+        level > 0 ? String(repeating: " ", count: level * 4) : ""
     }
 }
 
-package struct BreakLine: CustomStringConvertible, SemanticStringComponent {
-    package var string: String { description }
+/// A line break component.
+///
+/// Example:
+/// ```swift
+/// BreakLine()  // produces "\n"
+/// ```
+public struct BreakLine: AtomicSemanticComponent, CustomStringConvertible {
+    @inlinable
+    public var string: String { "\n" }
 
-    package var type: SemanticType { .standard }
+    @inlinable
+    public var type: SemanticType { .standard }
 
-    package var description: String { "\n" }
+    @inlinable
+    public var description: String { "\n" }
 
-    package init() {}
+    @inlinable
+    public init() {}
 }
 
-package struct Space: CustomStringConvertible, SemanticStringComponent {
-    package var string: String { description }
+/// A single space component.
+///
+/// Example:
+/// ```swift
+/// Space()  // produces " "
+/// ```
+public struct Space: AtomicSemanticComponent, CustomStringConvertible {
+    @inlinable
+    public var string: String { " " }
 
-    package var type: SemanticType { .standard }
+    @inlinable
+    public var type: SemanticType { .standard }
 
-    package var description: String { " " }
+    @inlinable
+    public var description: String { " " }
 
-    package init() {}
+    @inlinable
+    public init() {}
 }

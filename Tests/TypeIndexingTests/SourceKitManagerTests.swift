@@ -1,3 +1,5 @@
+#if os(macOS)
+
 import Foundation
 import Testing
 @testable import MachOTestingSupport
@@ -10,3 +12,6 @@ struct SourceKitManagerTests {
         print(file.contents)
     }
 }
+
+
+#endif

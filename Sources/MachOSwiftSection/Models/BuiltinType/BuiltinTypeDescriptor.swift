@@ -2,7 +2,6 @@ import Foundation
 import MachOKit
 import MachOFoundation
 
-
 public struct BuiltinTypeDescriptor: ResolvableLocatableLayoutWrapper, TopLevelDescriptor {
     public struct Layout: LayoutProtocol {
         public let typeName: RelativeDirectPointer<MangledName?>
@@ -27,6 +26,10 @@ extension BuiltinTypeDescriptor {
         return try layout.typeName.resolve(from: offset(of: \.typeName), in: machO)
     }
 
+    public func typeName() throws -> MangledName? {
+        return try layout.typeName.resolve(from: pointer(of: \.typeName))
+    }
+    
     public var isBitwiseTakable: Bool {
         return (layout.alignmentAndFlags >> 16) & 0x1 != 0
     }

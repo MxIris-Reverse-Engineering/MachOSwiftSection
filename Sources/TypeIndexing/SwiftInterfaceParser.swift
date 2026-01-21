@@ -6,21 +6,16 @@ import SwiftParser
 import FoundationToolbox
 import OrderedCollections
 
-@available(iOS, unavailable)
-@available(tvOS, unavailable)
-@available(watchOS, unavailable)
-@available(visionOS, unavailable)
 @available(macOS 13.0, *)
 actor SwiftInterfaceParser {
-
     let moduleName: String
-    
+
     let sourceFileSyntax: SourceFileSyntax
 
     private(set) var typeInfos: [TypeInfo] = []
 
     private(set) var importInfos: [ImportInfo] = []
-    
+
     var subModuleNames: OrderedSet<String> {
         var results: OrderedSet<String> = []
         for importInfo in importInfos {
@@ -31,13 +26,13 @@ actor SwiftInterfaceParser {
         }
         return results
     }
-    
+
     init(file: SwiftInterfaceFile) throws {
         self.moduleName = file.moduleName
         var parser = try SwiftParser.Parser(.init(contentsOfFile: file.path, encoding: .utf8))
         self.sourceFileSyntax = .parse(from: &parser)
     }
-    
+
     init(file: SwiftInterfaceGeneratedFile) {
         self.moduleName = file.moduleName
         var parser = SwiftParser.Parser(file.contents)
@@ -53,7 +48,7 @@ actor SwiftInterfaceParser {
 
     // MARK: - Data Models to store indexed information
 
-    // Represents the kind of a type declaration
+    /// Represents the kind of a type declaration
     enum TypeKind: String, CustomStringConvertible, Sendable {
         case `struct`
         case `class`
@@ -65,7 +60,7 @@ actor SwiftInterfaceParser {
         }
     }
 
-    // Represents the kind of a member within a type
+    /// Represents the kind of a member within a type
     enum MemberKind: String, CustomStringConvertible, Sendable {
         case `property`
         case `method`
@@ -79,7 +74,7 @@ actor SwiftInterfaceParser {
         }
     }
 
-    // Stores information about a single member (property, method, etc.)
+    /// Stores information about a single member (property, method, etc.)
     struct MemberInfo: CustomStringConvertible, Sendable {
         let name: String
         let kind: MemberKind
@@ -89,7 +84,7 @@ actor SwiftInterfaceParser {
         }
     }
 
-    // Stores information about a top-level type declaration
+    /// Stores information about a top-level type declaration
     struct TypeInfo: CustomStringConvertible, Sendable {
         let name: String
         let kind: TypeKind
@@ -114,7 +109,7 @@ actor SwiftInterfaceParser {
             return "Import \(moduleName)"
         }
     }
-    
+
     // MARK: - The Core Indexer using SyntaxVisitor
 
     private final class IndexerVisitor: SyntaxVisitor, @unchecked Sendable {
@@ -125,12 +120,12 @@ actor SwiftInterfaceParser {
 
         @Mutex
         var importInfos: [ImportInfo] = []
-        
-        // The initializer requires a viewMode, `.sourceAccurate` is a good default.
+
+        /// The initializer requires a viewMode, `.sourceAccurate` is a good default.
         override init(viewMode: SyntaxTreeViewMode) {
             super.init(viewMode: viewMode)
         }
-        
+
         override func visit(_ node: ImportDeclSyntax) -> SyntaxVisitorContinueKind {
             var moduleName = ""
             for (index, component) in node.path.enumerated() {
@@ -297,6 +292,5 @@ actor SwiftInterfaceParser {
         }
     }
 }
-
 
 #endif

@@ -7,18 +7,19 @@ import Demangling
 import Semantic
 import SwiftStdlibToolbox
 @_spi(Internals) import MachOSymbols
+import SwiftInspection
 
 @MemberwiseInit()
 @dynamicMemberLookup
 struct DemangledSymbolWithOffset {
     let base: DemangledSymbol
     let offset: Int?
-    
+
     init(_ base: DemangledSymbol) {
         self.base = base
         self.offset = nil
     }
-    
+
     subscript<Value>(dynamicMember keyPath: KeyPath<DemangledSymbol, Value>) -> Value {
         base[keyPath: keyPath]
     }
@@ -79,7 +80,7 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
 
     public var hasMembers: Bool {
         !associatedTypes.isEmpty || !variables.isEmpty || !functions.isEmpty ||
-        !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty || !strippedSymbolicRequirements.isEmpty
+            !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty || !strippedSymbolicRequirements.isEmpty
     }
 
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(`protocol`: MachOSwiftSection.`Protocol`, in machO: MachO) throws {
@@ -108,7 +109,7 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
         var defaultImplementationVisitedNodes: OrderedSet<Node> = []
 
         var offsetOfPWT = 0
-        
+
         for requirement in `protocol`.requirements {
             offsetOfPWT.offset(of: StoredPointer.self)
             guard let symbols = try await Symbols.resolve(from: requirement.offset, in: machO), let symbol = try? _symbol(for: symbols, visitedNodes: requirementVisitedNodes) else {

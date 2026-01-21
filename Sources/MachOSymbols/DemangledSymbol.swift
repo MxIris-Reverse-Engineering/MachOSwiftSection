@@ -10,11 +10,11 @@ public struct DemangledSymbol: Sendable {
         self.symbol = symbol
         self.demangledNode = demangledNode
     }
-    
+
     public subscript<Value>(dynamicMember keyPath: KeyPath<Symbol, Value>) -> Value {
         return symbol[keyPath: keyPath]
     }
-    
+
     public subscript<Value>(dynamicMember keyPath: KeyPath<Node, Value>) -> Value {
         return demangledNode[keyPath: keyPath]
     }

@@ -6,6 +6,7 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
 @testable import MachOTestingSupport
+@testable import SwiftInspection
 import Dependencies
 
 #if os(macOS)
@@ -18,14 +19,16 @@ import WatchKit
 import SwiftUI
 
 @Suite(.serialized)
+@MainActor
 final class MachOImageDumpTests: MachOImageTests, DumpableTests, @unchecked Sendable {
+    override class var imageName: MachOImageName { .SwiftUI }
     
-    override class var imageName: MachOImageName { .AppKit }
+    private let dumperConfiguration = DumperConfiguration(demangleResolver: .using(options: .test), printEnumLayout: true)
 }
 
 extension MachOImageDumpTests {
     @Test func typesInImage() async throws {
-        try await dumpTypes(for: machOImage)
+        try await dumpTypes(for: machOImage, isDetail: true, options: .enum, using: dumperConfiguration)
     }
 
     @Test func protocolsInImage() async throws {
@@ -39,12 +42,11 @@ extension MachOImageDumpTests {
     @Test func associatedTypesInImage() async throws {
         try await dumpAssociatedTypes(for: machOImage)
     }
-    
+
     @Test func symbols() async throws {
-        
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
-        
+
         let symbols = symbolIndexStore.allSymbols(in: machOImage)
         for symbol in symbols {
             print(symbol.offset, symbol.name)

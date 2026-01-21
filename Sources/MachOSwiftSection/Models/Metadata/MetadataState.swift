@@ -27,7 +27,7 @@ public enum MetadataState: Int {
     /// complete nominal type metadata transitively guarantee the completion
     /// of their stored generic type arguments and superclass metadata.
     case complete = 0x00
-    
+
     /// The metadata is fully complete except for any transitive completeness
     /// guarantees.
     ///
@@ -45,7 +45,7 @@ public enum MetadataState: Int {
     ///   - the initialization of any other information kept in the metadata
     ///     object, such as a class's v-table.
     case nonTransitiveComplete = 0x01
-    
+
     /// The metadata is ready for the layout of other types that store values
     /// of this type.
     ///
@@ -54,7 +54,7 @@ public enum MetadataState: Int {
     /// alignment, and basic type properties (such as POD-ness) have been
     /// computed.
     case layoutComplete = 0x3F
-    
+
     /// The metadata has its basic identity established.  It is possible to
     /// determine what formal type it corresponds to.  Among other things, it
     /// is possible to use the runtime mangling facilities with the type.

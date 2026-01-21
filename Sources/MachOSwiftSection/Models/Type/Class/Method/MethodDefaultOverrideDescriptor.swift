@@ -32,3 +32,13 @@ extension MethodDefaultOverrideDescriptor {
         return try layout.implementation.resolve(from: offset(of: \.implementation), in: machO)
     }
 }
+
+extension MethodDefaultOverrideDescriptor {
+    public func originalMethodDescriptor() throws -> SymbolOrElement<MethodDescriptor>? {
+        return try layout.original.resolve(from: pointer(of: \.original)).asOptional
+    }
+
+    public func replacementMethodDescriptor() throws -> SymbolOrElement<MethodDescriptor>? {
+        return try layout.replacement.resolve(from: pointer(of: \.original)).asOptional
+    }
+}

@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import FoundationToolbox
 
 extension MachORepresentableWithCache {
     /// Bitmask to get a valid range of vmaddr from raw vmaddr
@@ -15,33 +16,32 @@ extension MachORepresentableWithCache {
     package var vmaddrMask: UInt64? {
         switch header.cpuType {
         case .x86:
-            return 0xFFFFFFFF
+            return 0xFFFF_FFFF
         case .i386:
-            return 0xFFFFFFFF
+            return 0xFFFF_FFFF
         case .x86_64:
-            return 0x00007FFFFFFFFFFF
+            return 0x0000_7FFF_FFFF_FFFF
         case .arm:
-            return 0x7FFFFFFF
+            return 0x7FFF_FFFF
         case .arm64:
             if let platform = loadCommands.info(of: LoadCommand.buildVersion)?.platform {
                 if [
                     .macOS,
-                    .driverKit
+                    .driverKit,
                 ].contains(platform) || isMacOS == true {
-                    return 0x00007FFFFFFFFFFF
+                    return 0x0000_7FFF_FFFF_FFFF
                 } else {
-                    return 0x0000000FFFFFFFFF
+                    return 0x0000_000F_FFFF_FFFF
                 }
             }
-            return 0x0000000FFFFFFFFF // FIXME: fallback
-
+            return 0x0000_000F_FFFF_FFFF // FIXME: fallback
         case .arm64_32:
-            return 0x7FFFFFFF
+            return 0x7FFF_FFFF
         default:
             return nil
         }
     }
-    
+
     /// Strips pointer authentication codes (PAC) and Objective-C tagged pointer bits from a raw virtual memory address.
     ///
     /// This method applies the appropriate architecture-specific bitmask to remove extra bits
@@ -58,22 +58,22 @@ extension MachORepresentableWithCache {
         return vmaddr
     }
 
-    package func stripPointerTags(of ptr: UnsafeRawPointer) -> UnsafeRawPointer {
-        let address: UInt64 = .init(ptr.uint)
+    package func stripPointerTags(of ptr: UnsafeRawPointer) throws -> UnsafeRawPointer {
+        let address: UInt64 = .init(ptr.bitPattern.uint)
         let strippedPtr: UInt64 = stripPointerTags(of: address)
-        return UnsafeRawPointer(bitPattern: UInt(strippedPtr))!
+        return try UnsafeRawPointer(bitPattern: UInt(strippedPtr))
     }
 }
 
 extension MachORepresentableWithCache {
     private var isMacOS: Bool? {
         let loadCommands = loadCommands
-        if let platform = loadCommands.info(of: LoadCommand.buildVersion)?.platform  {
+        if let platform = loadCommands.info(of: LoadCommand.buildVersion)?.platform {
             return [
                 .macOS,
                 .macOSExclaveKit,
                 .macOSExclaveCore,
-                .macCatalyst
+                .macCatalyst,
             ].contains(
                 platform
             )
@@ -89,10 +89,20 @@ extension MachORepresentableWithCache {
         }
 
         if header.isInDyldCache,
-           let cache = self.cache {
+           let cache = cache {
             return cache.header.platform == .macOS
         }
 
         return nil
+    }
+}
+
+package func stripPointerTags(of rawVMAddr: UInt64) -> UInt64 {
+    MachOImage.current().stripPointerTags(of: rawVMAddr)
+}
+
+extension UnsafeRawPointer {
+    package func stripPointerTags() throws -> UnsafeRawPointer {
+        try .init(bitPattern: MachOExtensions.stripPointerTags(of: box.bitPattern.uint.uint64).uint)
     }
 }

@@ -1,4 +1,4 @@
-/// Protocol for building types from mangled nodes
+// Protocol for building types from mangled nodes
 
 public protocol TypeBuilder {
     associatedtype BuiltType
@@ -14,7 +14,7 @@ public protocol TypeBuilder {
 
     func decodeMangledType(node: Node?, forRequirement: Bool) throws(TypeLookupError) -> BuiltType
 
-    // Get mangling flavor
+    /// Get mangling flavor
     func getManglingFlavor() -> ManglingFlavor
 
     func createRequirement(kind: RequirementKind, subjectType: BuiltType, constraintType: BuiltType) -> BuiltRequirement
@@ -44,7 +44,7 @@ public protocol TypeBuilder {
     func createConstrainedExistentialType(base: BuiltType, requirements: [BuiltRequirement], inverseRequirements: [BuiltInverseRequirement]) -> BuiltType
     func createSymbolicExtendedExistentialType(shapeNode: Node, args: [BuiltType]) -> BuiltType
 
-    // Create function types
+    /// Create function types
     func createFunctionType(
         parameters: [FunctionParam<BuiltType>],
         result: BuiltType,
@@ -106,7 +106,7 @@ public protocol TypeBuilder {
     func createIntegerType(value: Int) -> BuiltType
     func createNegativeIntegerType(value: Int) -> BuiltType
 
-    // Create builtin array types
+    /// Create builtin array types
     func createBuiltinFixedArrayType(size: BuiltType, element: BuiltType) -> BuiltType
 
     // Objective-C support
@@ -121,7 +121,7 @@ public protocol TypeBuilder {
     func getLayoutConstraint(kind: LayoutConstraintKind) -> BuiltLayoutConstraint
     func getLayoutConstraintWithSizeAlign(kind: LayoutConstraintKind, size: Int, alignment: Int) -> BuiltLayoutConstraint
 
-    // Check if type is existential
+    /// Check if type is existential
     func isExistential(type: BuiltType) -> Bool
 
     // Pack expansion support

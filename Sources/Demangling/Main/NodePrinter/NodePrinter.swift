@@ -238,7 +238,9 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
         case .implicitClosure: return printEntity(name, asPrefixContext: asPrefixContext, typePrinting: options.contains(.showFunctionArgumentTypes) ? .functionStyle : .noType, hasName: false, extraName: "implicit closure #", extraIndex: (name.children.at(1)?.index ?? 0) + 1)
         case .implInvocationSubstitutions: printImplInvocationSubstitutions(name)
         case .implParameterResultDifferentiability: printImplParameterName(name)
-        case .implParameterSending, .implParameterIsolated, .implParameterImplicitLeading: printImplParameterName(name)
+        case .implParameterSending,
+             .implParameterIsolated,
+             .implParameterImplicitLeading: printImplParameterName(name)
         case .implPatternSubstitutions: printImplPatternSubstitutions(name)
         case .implSendingResult: target.write("sending")
         case .implYield: printChildren(name, prefix: "@yields ", separator: " ")
@@ -339,7 +341,8 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
         case .outlinedEnumTagStore: printFirstChild(name, prefix: "outlined enum tag store of ")
         case .outlinedInitializeWithCopy,
              .outlinedInitializeWithCopyNoValueWitness: printFirstChild(name, prefix: "outlined init with copy of ")
-        case .outlinedInitializeWithTake, .outlinedInitializeWithTakeNoValueWitness: printFirstChild(name, prefix: "outlined init with take of ")
+        case .outlinedInitializeWithTake,
+             .outlinedInitializeWithTakeNoValueWitness: printFirstChild(name, prefix: "outlined init with take of ")
         case .outlinedReadOnlyObject: target.write("outlined read-only object #\(name.index ?? 0) of ")
         case .outlinedRelease: printFirstChild(name, prefix: "outlined release of ")
         case .outlinedRetain: printFirstChild(name, prefix: "outlined retain of ")
@@ -459,7 +462,6 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
             target.write("coro function pointer to ")
         case .defaultOverride:
             target.write("default override of ")
-        
         }
 
         return nil
@@ -575,9 +577,9 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
     private mutating func printGenericSpecializationParam(_ name: Node) {
         printFirstChild(name)
         _ = printOptional(name.children.at(1), prefix: " with ")
-        name.children.slice(2, name.children.endIndex).forEach {
+        for slouse in name.children.slice(2, name.children.endIndex) {
             target.write(" and ")
-            _ = printName($0)
+            _ = printName(slouse)
         }
     }
 
@@ -906,7 +908,7 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
         target.write(" to ")
         _ = printOptional(name.children.at(1))
     }
-    
+
     private mutating func printDependentProtocolConformanceOpaque(_ name: Node) {
         target.write("dependent result conformance ")
         printFirstChild(name)
@@ -1109,11 +1111,11 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
     }
 
     private mutating func printOpaqueType(_ name: Node) {
-//        printFirstChild(name)
-//        target.write(".")
-//        _ = printOptional(name.children.at(1))
+        printFirstChild(name)
+        target.write(".")
+        _ = printOptional(name.children.at(1))
 //        _ = printOptional(name.children.at(2))
-        printChildren(name, separator: ".")
+//        printChildren(name, separator: ".")
     }
 
     private mutating func printImplInvocationsSubstitutions(_ name: Node) {

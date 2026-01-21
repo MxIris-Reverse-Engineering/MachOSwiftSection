@@ -8,43 +8,42 @@ public struct Symbol: AsyncResolvable, SymbolProtocol, Hashable {
     public let offset: Int
 
     public let name: String
-    
+
     public let nlist: (any NlistProtocol)?
-    
+
     public init(offset: Int, name: String, nlist: (any NlistProtocol)? = nil) {
         self.offset = offset
         self.name = name
         self.nlist = nlist
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
         try required(resolve(from: offset, in: machO))
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self? {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self? {
         if let symbol = machO.symbols(offset: offset)?.first {
             return symbol
         }
         return nil
     }
-    
 
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) async throws -> Self {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) async throws -> Self {
         try await required(resolve(from: offset, in: machO))
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) async throws -> Self? {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) async throws -> Self? {
         if let symbol = await machO.symbols(offset: offset)?.first {
             return symbol
         }
         return nil
     }
-    
+
     public func hash(into hasher: inout Hasher) {
         hasher.combine(offset)
         hasher.combine(name)
     }
-    
+
     public static func == (lhs: Self, rhs: Self) -> Bool {
         return lhs.offset == rhs.offset && lhs.name == rhs.name
     }

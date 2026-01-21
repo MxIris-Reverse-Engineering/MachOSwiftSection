@@ -8,8 +8,7 @@ enum SwiftSectionCommandError: LocalizedError {
     case invalidArchitecture
     case failedFetchFromSystemDyldSharedCache
     case unsupportedSystemVersionForDyldSharedCache
-    
-    
+
     var errorDescription: String? {
         switch self {
         case .missingFilePath:

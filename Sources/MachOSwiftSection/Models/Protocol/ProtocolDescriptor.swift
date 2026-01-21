@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-
 import MachOFoundation
 
 /// A protocol descriptor.
@@ -29,10 +28,6 @@ public struct ProtocolDescriptor: ProtocolDescriptorProtocol {
         self.offset = offset
         self.layout = layout
     }
-
-    public func offset<T>(of keyPath: KeyPath<Layout, T>) -> Int {
-        return offset + layoutOffset(of: keyPath)
-    }
 }
 
 extension ProtocolDescriptor {
@@ -40,5 +35,9 @@ extension ProtocolDescriptor {
         guard layout.associatedTypes.isValid else { return [] }
         return try layout.associatedTypes.resolve(from: offset(of: \.associatedTypes), in: machO).components(separatedBy: " ")
     }
+    
+    public func associatedTypes() throws -> [String] {
+        guard layout.associatedTypes.isValid else { return [] }
+        return try layout.associatedTypes.resolve(from: pointer(of: \.associatedTypes)).components(separatedBy: " ")
+    }
 }
-

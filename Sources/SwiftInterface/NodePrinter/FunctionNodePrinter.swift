@@ -5,13 +5,13 @@ import Semantic
 
 struct FunctionNodePrinter: InterfaceNodePrintable {
     typealias Context = InterfaceNodePrinterContext
-    
+
     var target: SemanticString = ""
 
     private var isStatic: Bool = false
 
     private let isOverride: Bool
-    
+
     private(set) weak var delegate: (any NodePrintableDelegate)?
 
     private(set) var isProtocol: Bool = false
@@ -38,7 +38,7 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
 
     private mutating func _printRoot(_ node: Node) async throws {
         if node.kind == .global, let first = node.children.first {
-            if first.isKind(of: .asyncFunctionPointer, .mergedFunction), let second = node.children.second {
+            if needsSkipFirstNodeKinds.contains(first.kind), let second = node.children.second {
                 try await _printRoot(second)
             } else {
                 try await _printRoot(first)

@@ -8,6 +8,7 @@ import Demangling
 import Semantic
 import SwiftStdlibToolbox
 @_spi(Internals) import MachOSymbols
+import SwiftInspection
 
 extension Node {
     var accessorKind: AccessorKind {
@@ -25,7 +26,7 @@ extension Node {
 }
 
 extension ProtocolConformance {
-    func typeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeName? {
+    func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeName? {
         switch typeReference {
         case .directTypeDescriptor(let descriptor):
             return try descriptor?.typeContextDescriptorWrapper?.typeName(in: machO)
@@ -59,14 +60,14 @@ extension ProtocolConformance {
         }
     }
 
-    func protocolName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolName? {
+    func protocolName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolName? {
         guard let node = try protocolNode(in: machO) else { return nil }
         return ProtocolName(node: node)
     }
 }
 
 extension AssociatedType {
-    func typeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeName? {
+    func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeName? {
         let node = try MetadataReader.demangleType(for: conformingTypeName, in: machO)
         let kind: TypeKind
         if node.contains(.enum) || node.contains(.boundGenericEnum) {
@@ -81,19 +82,25 @@ extension AssociatedType {
         return TypeName(node: node, kind: kind)
     }
 
-    func protocolName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolName {
+    func protocolName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolName {
         try ProtocolName(node: MetadataReader.demangleType(for: protocolTypeName, in: machO))
     }
 }
 
 extension MachOSwiftSection.`Protocol` {
-    func protocolName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolName {
-        try ProtocolName(node: MetadataReader.demangleContext(for: .protocol(descriptor), in: machO))
+    func protocolName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolName {
+        try descriptor.protocolName(in: machO)
+    }
+}
+
+extension ProtocolDescriptor {
+    func protocolName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolName {
+        try ProtocolName(node: MetadataReader.demangleContext(for: .protocol(self), in: machO))
     }
 }
 
 extension TypeContextWrapper {
-    func typeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeName {
+    func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeName {
         try typeContextDescriptorWrapper.typeName(in: machO)
     }
 }
@@ -110,17 +117,17 @@ extension TypeContextDescriptorWrapper {
         }
     }
 
-    func typeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeName {
+    func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeName {
         return try TypeName(node: MetadataReader.demangleContext(for: .type(self), in: machO), kind: kind)
     }
 }
 
 extension FieldRecord {
-    func demangledTypeNode<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Node {
+    func demangledTypeNode(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node {
         try MetadataReader.demangleType(for: mangledTypeName(in: machO), in: machO)
     }
 
-    func demangledTypeName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SemanticString {
+    func demangledTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SemanticString {
         try demangledTypeNode(in: machO).printSemantic(using: .interfaceTypeBuilderOnly)
     }
 }
@@ -160,7 +167,6 @@ extension Node {
         }
     }
 }
-
 
 extension Sequence {
     func filterNonNil<T, E: Swift.Error>(_ filter: (Element) throws(E) -> T?) throws(E) -> [Element] {

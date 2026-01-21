@@ -133,70 +133,55 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     public func printRoot() async throws -> SemanticString {
-        for module in OrderedSet(Self.internalModules + importedModules).sorted() {
-            Standard("import \(module)")
-            BreakLine()
-        }
+        ImportsBlock(OrderedSet(Self.internalModules + importedModules).sorted())
 
-        for (offset, variable) in indexer.globalVariableDefinitions.offsetEnumerated() {
-            BreakLine()
-
-            try await printVariable(variable, level: 0)
-
-            if offset.isEnd {
-                BreakLine()
-            }
-        }
-
-        for (offset, function) in indexer.globalFunctionDefinitions.offsetEnumerated() {
-            BreakLine()
-
-            try await printFunction(function)
-
-            if offset.isEnd {
-                BreakLine()
-            }
-        }
-
-        for (offset, typeDefinition) in indexer.rootTypeDefinitions.values.offsetEnumerated() {
-            BreakLine()
-
-            try await printTypeDefinition(typeDefinition)
-
-            if offset.isEnd {
-                BreakLine()
-            }
-        }
-
-        for (offset, protocolDefinition) in indexer.rootProtocolDefinitions.values.offsetEnumerated() {
-            BreakLine()
-
-            try await printProtocolDefinition(protocolDefinition)
-
-            if offset.isEnd {
-                BreakLine()
-            }
-        }
-
-        for protocolDefinition in indexer.rootProtocolDefinitions.values.filterNonNil(\.parent) {
-            for (offset, extensionDefinition) in protocolDefinition.defaultImplementationExtensions.offsetEnumerated() {
-                BreakLine()
-
-                try await printExtensionDefinition(extensionDefinition)
-
-                if offset.isEnd {
-                    BreakLine()
+        await printCatchedThrowing {
+            await BlockList {
+                for variable in indexer.globalVariableDefinitions {
+                    await printVariable(variable, level: 0)
                 }
             }
         }
 
-        for (offset, extensionDefinition) in allExtensionDefinitions.offsetEnumerated() {
-            BreakLine()
+        await printCatchedThrowing {
+            await BlockList {
+                for function in indexer.globalFunctionDefinitions {
+                    await printFunction(function)
+                }
+            }
+        }
 
-            try await printExtensionDefinition(extensionDefinition)
+        await printCatchedThrowing {
+            try await BlockList {
+                for typeDefinition in indexer.rootTypeDefinitions.values {
+                    try await printTypeDefinition(typeDefinition)
+                }
+            }
+        }
 
-            if offset.isEnd {
-                BreakLine()
+        await printCatchedThrowing {
+            try await BlockList {
+                for protocolDefinition in indexer.rootProtocolDefinitions.values {
+                    try await printProtocolDefinition(protocolDefinition)
+                }
+            }
+        }
+
+        await printCatchedThrowing {
+            try await BlockList {
+                for protocolDefinition in indexer.rootProtocolDefinitions.values.filterNonNil(\.parent) {
+                    for extensionDefinition in protocolDefinition.defaultImplementationExtensions {
+                        try await printExtensionDefinition(extensionDefinition)
+                    }
+                }
+            }
+        }
+
+        await printCatchedThrowing {
+            try await BlockList {
+                for extensionDefinition in allExtensionDefinitions {
+                    try await printExtensionDefinition(extensionDefinition)
+                }
             }
         }
     }
@@ -208,37 +193,37 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             try await typeDefinition.index(in: machO)
         }
 
-        let dumper = typeDefinition.type.dumper(using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: displayParentName, emitOffsetComments: configuration.printConfiguration.emitOffsetComments), in: machO)
+        let dumper = typeDefinition.type.dumper(
+            using: .init(
+                demangleResolver: typeDemangleResolver,
+                indentation: level,
+                displayParentName: displayParentName,
+                emitOffsetComments: configuration.printConfiguration.emitOffsetComments,
+                printTypeLayout: configuration.printConfiguration.printTypeLayout,
+                printEnumLayout: configuration.printConfiguration.printEnumLayout
+            ),
+            in: machO
+        )
 
-        Indent(level: level - 1)
-
-        try await dumper.declaration
-
-        Space()
-        Standard("{")
-
-        for child in typeDefinition.typeChildren {
-            BreakLine()
-            try await printTypeDefinition(child, level: level + 1)
-        }
-
-        for child in typeDefinition.protocolChildren {
-            BreakLine()
-            try await printProtocolDefinition(child, level: level + 1)
-        }
-
-        try await dumper.fields
-
-        try await printDefinition(typeDefinition, level: level)
-
-        if typeDefinition.hasMembers || typeDefinition.typeChildren.count > 0 || typeDefinition.protocolChildren.count > 0 {
-            if !typeDefinition.hasMembers {
-                BreakLine()
+        try await DeclarationBlock(level: level) {
+            try await dumper.declaration
+        } body: {
+            for child in typeDefinition.typeChildren {
+                try await NestedDeclaration {
+                    try await printTypeDefinition(child, level: level + 1)
+                }
             }
-            Indent(level: level - 1)
-        }
 
-        Standard("}")
+            for child in typeDefinition.protocolChildren {
+                try await NestedDeclaration {
+                    try await printProtocolDefinition(child, level: level + 1)
+                }
+            }
+
+            try await dumper.fields
+
+            try await printDefinition(typeDefinition, level: level)
+        }
     }
 
     @_spi(Support)
@@ -250,41 +235,26 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         let dumper = ProtocolDumper(protocolDefinition.protocol, using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: displayParentName, emitOffsetComments: configuration.printConfiguration.emitOffsetComments), in: machO)
 
-        Indent(level: level - 1)
+        try await DeclarationBlock(level: level) {
+            try await dumper.declaration
+        } body: {
+            try await dumper.associatedTypes
 
-        try await dumper.declaration
+            try await printDefinition(protocolDefinition, level: level, offsetPrefix: "protocol witness table")
 
-        Space()
-
-        Standard("{")
-
-        try await dumper.associatedTypes
-
-        try await printDefinition(protocolDefinition, level: level, offsetPrefix: "protocol witness table")
-
-        if configuration.printConfiguration.printStrippedSymbolicItem, !protocolDefinition.strippedSymbolicRequirements.isEmpty {
-            for (offset, strippedSymbolicRequirement) in protocolDefinition.strippedSymbolicRequirements.offsetEnumerated() {
-                BreakLine()
-                Indent(level: level)
-                strippedSymbolicRequirement.strippedSymbolicInfo()
-                if offset.isEnd {
-                    BreakLine()
+            if configuration.printConfiguration.printStrippedSymbolicItem, !protocolDefinition.strippedSymbolicRequirements.isEmpty {
+                MemberList(level: level) {
+                    for strippedSymbolicRequirement in protocolDefinition.strippedSymbolicRequirements {
+                        strippedSymbolicRequirement.strippedSymbolicInfo()
+                    }
                 }
             }
         }
 
-        if protocolDefinition.hasMembers {
-            Indent(level: level - 1)
-        }
-
-        Standard("}")
-
         if protocolDefinition.parent == nil {
-            for (offset, extensionDefinition) in protocolDefinition.defaultImplementationExtensions.offsetEnumerated() {
-                BreakLine()
-                try await printExtensionDefinition(extensionDefinition)
-                if offset.isEnd {
-                    BreakLine()
+            try await BlockList {
+                for extensionDefinition in protocolDefinition.defaultImplementationExtensions {
+                    try await printExtensionDefinition(extensionDefinition)
                 }
             }
         }
@@ -296,60 +266,56 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         if !extensionDefinition.isIndexed {
             try await extensionDefinition.index(in: machO)
         }
-        Keyword(.extension)
-        Space()
-        extensionDefinition.extensionName.print()
-        if let protocolConformance = extensionDefinition.protocolConformance, let protocolName = try? await protocolConformance.dumpProtocolName(using: .demangleOptions(.interfaceTypeBuilderOnly), in: machO) {
-            Standard(":")
+
+        try await DeclarationBlock(level: level) {
+            Keyword(.extension)
             Space()
-            protocolName
-        }
-        if let genericSignature = extensionDefinition.genericSignature {
-            let nodes = genericSignature.all(of: .requirementKinds)
-            for (offset, node) in nodes.offsetEnumerated() {
-                if offset.isStart {
-                    Space()
-                    Keyword(.where)
-                    Space()
+            extensionDefinition.extensionName.print()
+
+            if let protocolConformance = extensionDefinition.protocolConformance,
+               let protocolName = try? await protocolConformance.dumpProtocolName(using: .demangleOptions(.interfaceTypeBuilderOnly), in: machO) {
+                Standard(":")
+                Space()
+                protocolName
+            }
+
+            if let genericSignature = extensionDefinition.genericSignature {
+                let nodes = genericSignature.all(of: .requirementKinds)
+                for (index, node) in nodes.enumerated() {
+                    if index == 0 {
+                        Space()
+                        Keyword(.where)
+                        Space()
+                    }
+
+                    try await printThrowingType(node, isProtocol: extensionDefinition.extensionName.isProtocol, level: level)
+
+                    if index < nodes.count - 1 {
+                        Standard(",")
+                        Space()
+                    }
                 }
-                try await printType(node, isProtocol: extensionDefinition.extensionName.isProtocol, level: level)
-                if !offset.isEnd {
-                    Standard(",")
-                    Space()
+            }
+        } body: {
+            for typeDefinition in extensionDefinition.types {
+                try await NestedDeclaration {
+                    try await printTypeDefinition(typeDefinition, level: level + 1)
                 }
             }
-        }
-        Space()
-        Standard("{")
 
-        for (offset, typeDefinition) in extensionDefinition.types.offsetEnumerated() {
-            BreakLine()
-
-            try await printTypeDefinition(typeDefinition, level: level + 1)
-
-            if offset.isEnd {
-                BreakLine()
+            for protocolDefinition in extensionDefinition.protocols {
+                try await NestedDeclaration {
+                    try await printProtocolDefinition(protocolDefinition, level: level + 1)
+                }
             }
-        }
 
-        for (offset, protocolDefinition) in extensionDefinition.protocols.offsetEnumerated() {
-            BreakLine()
-
-            try await printProtocolDefinition(protocolDefinition, level: level + 1)
-
-            if offset.isEnd {
-                BreakLine()
+            if let associatedType = extensionDefinition.associatedType {
+                let dumper = AssociatedTypeDumper(associatedType, using: .init(demangleResolver: typeDemangleResolver), in: machO)
+                try await dumper.records
             }
+
+            try await printDefinition(extensionDefinition, level: 1)
         }
-
-        if let associatedType = extensionDefinition.associatedType {
-            let dumper = AssociatedTypeDumper(associatedType, using: .init(demangleResolver: typeDemangleResolver), in: machO)
-            try await dumper.records
-        }
-
-        try await printDefinition(extensionDefinition, level: 1)
-
-        Standard("}")
     }
 
     @_spi(Support)
@@ -359,159 +325,125 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
             try await mutableDefinition.index(in: machO)
         }
 
-        for (offset, allocator) in definition.allocators.offsetEnumerated() {
-            BreakLine()
+        let emitOffset = configuration.printConfiguration.emitOffsetComments
 
-            if let offset = allocator.offset, configuration.printConfiguration.emitOffsetComments {
-                Indent(level: level)
-                Comment("\(offsetPrefix) offset: 0x\(String(offset, radix: 16))")
-                BreakLine()
-            }
-
-            Indent(level: level)
-
-            try await printFunction(allocator)
-
-            if offset.isEnd {
-                BreakLine()
+        await MemberList(level: level) {
+            for allocator in definition.allocators {
+                OffsetComment(prefix: "\(offsetPrefix) offset", offset: allocator.offset, emit: emitOffset)
+                await printFunction(allocator)
             }
         }
 
-        for (offset, variable) in definition.variables.offsetEnumerated() {
-            BreakLine()
-
-            if let offset = variable.offset, configuration.printConfiguration.emitOffsetComments {
-                Indent(level: level)
-                Comment("\(offsetPrefix) offset: 0x\(String(offset, radix: 16))")
-                BreakLine()
-            }
-
-            Indent(level: level)
-
-            try await printVariable(variable, level: level)
-
-            if offset.isEnd {
-                BreakLine()
+        await MemberList(level: level) {
+            for variable in definition.variables {
+                OffsetComment(prefix: "\(offsetPrefix) offset", offset: variable.offset, emit: emitOffset)
+                await printVariable(variable, level: level)
             }
         }
 
-        for (offset, function) in definition.functions.offsetEnumerated() {
-            BreakLine()
-
-            if let offset = function.offset, configuration.printConfiguration.emitOffsetComments {
-                Indent(level: level)
-                Comment("\(offsetPrefix) offset: 0x\(String(offset, radix: 16))")
-                BreakLine()
-            }
-
-            Indent(level: level)
-
-            try await printFunction(function)
-
-            if offset.isEnd {
-                BreakLine()
+        await MemberList(level: level) {
+            for function in definition.functions {
+                OffsetComment(prefix: "\(offsetPrefix) offset", offset: function.offset, emit: emitOffset)
+                await printFunction(function)
             }
         }
 
-        for (offset, `subscript`) in definition.subscripts.offsetEnumerated() {
-            BreakLine()
-
-            if let offset = `subscript`.offset, configuration.printConfiguration.emitOffsetComments {
-                Indent(level: level)
-                Comment("\(offsetPrefix) offset: 0x\(String(offset, radix: 16))")
-                BreakLine()
-            }
-
-            Indent(level: level)
-
-            try await printSubscript(`subscript`, level: level)
-
-            if offset.isEnd {
-                BreakLine()
+        await MemberList(level: level) {
+            for `subscript` in definition.subscripts {
+                OffsetComment(prefix: "\(offsetPrefix) offset", offset: `subscript`.offset, emit: emitOffset)
+                await printSubscript(`subscript`, level: level)
             }
         }
 
-        for (offset, variable) in definition.staticVariables.offsetEnumerated() {
-            BreakLine()
-
-            if let offset = variable.offset, configuration.printConfiguration.emitOffsetComments {
-                Indent(level: level)
-                Comment("\(offsetPrefix) offset: 0x\(String(offset, radix: 16))")
-                BreakLine()
-            }
-
-            Indent(level: level)
-
-            try await printVariable(variable, level: level)
-
-            if offset.isEnd {
-                BreakLine()
+        await MemberList(level: level) {
+            for variable in definition.staticVariables {
+                OffsetComment(prefix: "\(offsetPrefix) offset", offset: variable.offset, emit: emitOffset)
+                await printVariable(variable, level: level)
             }
         }
 
-        for (offset, function) in definition.staticFunctions.offsetEnumerated() {
-            BreakLine()
-
-            if let offset = function.offset, configuration.printConfiguration.emitOffsetComments {
-                Indent(level: level)
-                Comment("\(offsetPrefix) offset: 0x\(String(offset, radix: 16))")
-                BreakLine()
-            }
-
-            Indent(level: level)
-
-            try await printFunction(function)
-
-            if offset.isEnd {
-                BreakLine()
+        await MemberList(level: level) {
+            for function in definition.staticFunctions {
+                OffsetComment(prefix: "\(offsetPrefix) offset", offset: function.offset, emit: emitOffset)
+                await printFunction(function)
             }
         }
 
-        for (offset, `subscript`) in definition.staticSubscripts.offsetEnumerated() {
-            BreakLine()
-
-            if let offset = `subscript`.offset, configuration.printConfiguration.emitOffsetComments {
-                Indent(level: level)
-                Comment("\(offsetPrefix) offset: 0x\(String(offset, radix: 16))")
-                BreakLine()
-            }
-
-            Indent(level: level)
-
-            try await printSubscript(`subscript`, level: level)
-
-            if offset.isEnd {
-                BreakLine()
+        await MemberList(level: level) {
+            for `subscript` in definition.staticSubscripts {
+                OffsetComment(prefix: "\(offsetPrefix) offset", offset: `subscript`.offset, emit: emitOffset)
+                await printSubscript(`subscript`, level: level)
             }
         }
     }
 
     @_spi(Support)
     @SemanticStringBuilder
-    public func printVariable(_ variable: VariableDefinition, level: Int) async throws -> SemanticString {
+    public func printVariable(_ variable: VariableDefinition, level: Int) async -> SemanticString {
+        await printCatchedThrowing {
+            try await printThrowingVariable(variable, level: level)
+        }
+    }
+
+    @_spi(Support)
+    @SemanticStringBuilder
+    public func printFunction(_ function: FunctionDefinition) async -> SemanticString {
+        await printCatchedThrowing {
+            try await printThrowingFunction(function)
+        }
+    }
+
+    @_spi(Support)
+    @SemanticStringBuilder
+    public func printSubscript(_ `subscript`: SubscriptDefinition, level: Int) async -> SemanticString {
+        await printCatchedThrowing {
+            try await printThrowingSubscript(`subscript`, level: level)
+        }
+    }
+
+    @_spi(Support)
+    @SemanticStringBuilder
+    public func printType(_ typeNode: Node, isProtocol: Bool, level: Int) async -> SemanticString {
+        await printCatchedThrowing {
+            try await printThrowingType(typeNode, isProtocol: isProtocol, level: level)
+        }
+    }
+
+    @_spi(Support)
+    @SemanticStringBuilder
+    public func printThrowingVariable(_ variable: VariableDefinition, level: Int) async throws -> SemanticString {
         var printer = VariableNodePrinter(isStored: variable.isStored, isOverride: variable.isOverride, hasSetter: variable.hasSetter, indentation: level, delegate: self)
         try await printer.printRoot(variable.node)
     }
 
     @_spi(Support)
     @SemanticStringBuilder
-    public func printFunction(_ function: FunctionDefinition) async throws -> SemanticString {
+    public func printThrowingFunction(_ function: FunctionDefinition) async throws -> SemanticString {
         var printer = FunctionNodePrinter(isOverride: function.isOverride, delegate: self)
         try await printer.printRoot(function.node)
     }
 
     @_spi(Support)
     @SemanticStringBuilder
-    public func printSubscript(_ `subscript`: SubscriptDefinition, level: Int) async throws -> SemanticString {
+    public func printThrowingSubscript(_ `subscript`: SubscriptDefinition, level: Int) async throws -> SemanticString {
         var printer = SubscriptNodePrinter(isOverride: `subscript`.isOverride, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
         try await printer.printRoot(`subscript`.node)
     }
 
     @_spi(Support)
     @SemanticStringBuilder
-    public func printType(_ typeNode: Node, isProtocol: Bool, level: Int) async throws -> SemanticString {
+    public func printThrowingType(_ typeNode: Node, isProtocol: Bool, level: Int) async throws -> SemanticString {
         var printer = TypeNodePrinter(delegate: self, isProtocol: isProtocol)
         try await printer.printRoot(typeNode)
+    }
+
+    private func printCatchedThrowing(@SemanticStringBuilder _ body: () async throws -> SemanticString) async -> SemanticString? {
+        do {
+            return try await body()
+        } catch {
+            print(error)
+            return nil
+        }
     }
 }
 

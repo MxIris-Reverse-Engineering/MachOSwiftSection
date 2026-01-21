@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-
 import MachOFoundation
 
 public struct ProtocolConformanceDescriptor: ResolvableLocatableLayoutWrapper {
@@ -22,12 +21,14 @@ public struct ProtocolConformanceDescriptor: ResolvableLocatableLayoutWrapper {
 }
 
 extension ProtocolConformanceDescriptor {
-    public func protocolDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<ProtocolDescriptor>? {
-        try layout.protocolDescriptor.resolve(from: offset(of: \.protocolDescriptor), in: machO).asOptional
-    }
-
     public var typeReference: TypeReference {
         return .forKind(layout.flags.typeReferenceKind, at: layout.typeReference)
+    }
+}
+
+extension ProtocolConformanceDescriptor {
+    public func protocolDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<ProtocolDescriptor>? {
+        try layout.protocolDescriptor.resolve(from: offset(of: \.protocolDescriptor), in: machO).asOptional
     }
 
     public func resolvedTypeReference<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ResolvedTypeReference {
@@ -37,5 +38,19 @@ extension ProtocolConformanceDescriptor {
 
     public func witnessTablePattern<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolWitnessTable? {
         try layout.witnessTablePattern.resolve(from: offset(of: \.witnessTablePattern), in: machO)
+    }
+}
+
+extension ProtocolConformanceDescriptor {
+    public func protocolDescriptor() throws -> SymbolOrElement<ProtocolDescriptor>? {
+        try layout.protocolDescriptor.resolve(from: pointer(of: \.protocolDescriptor)).asOptional
+    }
+
+    public func resolvedTypeReference() throws -> ResolvedTypeReference {
+        return try typeReference.resolve(from: pointer(of: \.typeReference))
+    }
+
+    public func witnessTablePattern() throws -> ProtocolWitnessTable? {
+        try layout.witnessTablePattern.resolve(from: pointer(of: \.witnessTablePattern))
     }
 }

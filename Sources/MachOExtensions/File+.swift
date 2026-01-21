@@ -9,7 +9,7 @@ extension File {
         }
         return try MachOKit.loadFromFile(url: url)
     }
-    
+
     package var machOFiles: [MachOFile] {
         switch self {
         case .machO(let machOFile):

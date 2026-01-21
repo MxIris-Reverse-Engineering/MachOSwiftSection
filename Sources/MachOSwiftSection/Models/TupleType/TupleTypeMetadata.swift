@@ -3,6 +3,7 @@ import MachOFoundation
 
 public struct TupleTypeMetadata: MetadataProtocol {
     public typealias HeaderType = TypeMetadataHeaderBase
+    
     public struct Element: TupleTypeMetadataElementLayout {
         public let type: ConstMetadataPointer<Metadata>
         public let offset: StoredSize
@@ -27,5 +28,9 @@ public struct TupleTypeMetadata: MetadataProtocol {
 extension TupleTypeMetadata {
     public func elements<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> [Element] {
         try machO.readElements(offset: offset + layoutSize, numberOfElements: layout.numberOfElements.cast())
+    }
+    
+    public func elements() throws -> [Element] {
+        try asPointer.readElements(offset: layoutSize, numberOfElements: layout.numberOfElements.cast())
     }
 }

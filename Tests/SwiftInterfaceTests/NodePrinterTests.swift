@@ -7,6 +7,7 @@ import Dependencies
 @_spi(Internals) import MachOSymbols
 @testable import SwiftDump
 @testable import SwiftInterface
+@testable import SwiftInspection
 
 @Suite
 final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {
@@ -63,13 +64,13 @@ final class NodePrinterTests: DyldCacheTests, @unchecked Sendable {
             }
         }
     }
-    
+
     @Test func subscriptNodes() async throws {
         let demangledSymbols = await symbolIndexStore.memberSymbols(
             of: .subscript(inExtension: false, isStatic: false),
-                .subscript(inExtension: true, isStatic: false),
-                .subscript(inExtension: false, isStatic: true),
-                .subscript(inExtension: true, isStatic: true),
+            .subscript(inExtension: true, isStatic: false),
+            .subscript(inExtension: false, isStatic: true),
+            .subscript(inExtension: true, isStatic: true),
             in: machOFileInCache
         )
 

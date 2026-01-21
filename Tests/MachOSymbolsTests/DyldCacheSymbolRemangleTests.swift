@@ -7,7 +7,7 @@ import MachOFoundation
 import Dependencies
 
 protocol DemangleAndRemangleTests {
-    func allSymbols() throws ->[MachOSwiftSymbol]
+    func allSymbols() throws -> [MachOSwiftSymbol]
     @MainActor func mainTest() throws
 }
 
@@ -39,7 +39,7 @@ final class DyldCacheSymbolRemangleTests: DyldCacheSymbolTests, DemangleAndReman
     @Test func symbols() throws {
         try mainTest()
     }
-    
+
     @Test func test() async throws {
         let node = try demangleAsNode("_$sSis15WritableKeyPathCy17RealityFoundation23PhysicallyBasedMaterialVAE9BaseColorVGTHTm")
 //        try Demangling.mangleAsString(node).print()

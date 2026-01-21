@@ -15,10 +15,9 @@ extension Node: CustomStringConvertible {
         var printer = NodePrinter<String>(options: options)
         return printer.printRoot(self)
     }
-    
-    
+
     private func printNode(output: inout String, node: Node, depth: Int = 0) {
-        (0..<(depth * 2)).forEach { _ in output.append(" ") }
+        (0 ..< (depth * 2)).forEach { _ in output.append(" ") }
         output.append("kind=\(node.kind)")
         switch node.contents {
         case .none:

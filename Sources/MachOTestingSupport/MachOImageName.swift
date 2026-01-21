@@ -17,7 +17,7 @@ package enum MachOImageName: String {
     case ScreenSharingKit
     case DesignLibrary
     case SFSymbols
-    
+
     var path: String {
         "/\(rawValue)"
     }

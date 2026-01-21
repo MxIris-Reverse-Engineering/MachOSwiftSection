@@ -11,31 +11,17 @@ extension MachOImage {
         }
     }
 
-    public var swift: Swift {
-        .init(machO: self)
-    }
+    public var swift: Swift { .init(machO: self) }
 }
 
 extension MachOImage.Swift: SwiftSectionRepresentable {
     public var types: [TypeContextWrapper] {
         get throws {
-            var results: [TypeContextWrapper] = []
-            let typeContextDescriptors = try typeContextDescriptors
-            for typeContextDescriptor in typeContextDescriptors {
-                switch typeContextDescriptor {
-                case let .enum(descriptor):
-                    try results.append(.enum(.init(descriptor: descriptor, in: machO)))
-                case let .struct(descriptor):
-                    try results.append(.struct(.init(descriptor: descriptor, in: machO)))
-                case let .class(descriptor):
-                    try results.append(.class(.init(descriptor: descriptor, in: machO)))
-                }
-            }
-            return results
+            try typeContextDescriptors.map { try TypeContextWrapper.forTypeContextDescriptorWrapper($0, in: machO) }
         }
     }
 
-    public var protocols: [Protocol] {
+    public var protocols: [`Protocol`] {
         get throws {
             try protocolDescriptors.map { try Protocol(descriptor: $0, in: machO) }
         }
@@ -64,10 +50,10 @@ extension MachOImage.Swift: SwiftSectionRepresentable {
             return try _readRelativeDescriptors(from: .__swift5_types, in: machO) + (try? _readRelativeDescriptors(from: .__swift5_types2, in: machO))
         }
     }
-    
+
     public var typeContextDescriptors: [TypeContextDescriptorWrapper] {
         get throws {
-            return try _readRelativeDescriptors(from: .__swift5_types, in: machO) + (try? _readRelativeDescriptors(from: .__swift5_types2, in: machO))
+            return try contextDescriptors.compactMap { $0.typeContextDescriptorWrapper }
         }
     }
 
@@ -94,6 +80,12 @@ extension MachOImage.Swift: SwiftSectionRepresentable {
             return try _readDescriptors(from: .__swift5_builtin, in: machO)
         }
     }
+
+    public var multiPayloadEnumDescriptors: [MultiPayloadEnumDescriptor] {
+        get throws {
+            return try _readDescriptors(from: .__swift5_mpenum, in: machO)
+        }
+    }
 }
 
 extension MachOImage.Swift {
@@ -102,7 +94,7 @@ extension MachOImage.Swift {
         var descriptors: [Descriptor] = []
         let vmaddrSlide = try required(machO.vmaddrSlide)
         let start = try required(UnsafeRawPointer(bitPattern: section.address + vmaddrSlide))
-        let offset = start.int - machO.ptr.int
+        let offset = start.bitPattern.int - machO.ptr.bitPattern.int
         var currentOffset = offset
         let endOffset = offset + section.size
         while currentOffset < endOffset {
@@ -117,7 +109,7 @@ extension MachOImage.Swift {
         let section = try machO.section(for: swiftMachOSection)
         let vmaddrSlide = try required(machO.vmaddrSlide)
         let start = try required(UnsafeRawPointer(bitPattern: section.address + vmaddrSlide))
-        let offset = start.int - machO.ptr.int
+        let offset = start.bitPattern.int - machO.ptr.bitPattern.int
         let pointerSize: Int = MemoryLayout<RelativeDirectPointer<Descriptor>>.size
         let data: [AnyLocatableLayoutWrapper<RelativeDirectPointer<Descriptor>>] = try machO.readWrapperElements(offset: offset, numberOfElements: section.size / pointerSize)
         return try data.map { try $0.layout.resolve(from: $0.offset, in: machO) }

@@ -1,6 +1,7 @@
 import Foundation
 import Demangling
 import MachOSwiftSection
+import SwiftInspection
 
 extension OpaqueType {
     package func requirements(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> [GenericRequirementDescriptor] {
@@ -21,7 +22,7 @@ extension OpaqueType {
                     if let associatedTypeRefNode = sameTypeRequirementCopy.first(of: .dependentAssociatedTypeRef) {
                         associatedTypeRefNode.removeChild(at: 1)
                     }
-                    if !usedRequirements.contains(sameTypeRequirementNode) && !usedRequirements.contains(sameTypeRequirementCopy) {
+                    if !usedRequirements.contains(sameTypeRequirementNode), !usedRequirements.contains(sameTypeRequirementCopy) {
                         results.append(currentRequirement)
                     }
                 }

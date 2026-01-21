@@ -62,7 +62,7 @@ enum Punycode {
     /// Check if character is a letter (a-z, A-Z)
     private static func isLetter(_ ch: UInt8) -> Bool {
         return (ch >= UInt8(ascii: "a") && ch <= UInt8(ascii: "z")) ||
-               (ch >= UInt8(ascii: "A") && ch <= UInt8(ascii: "Z"))
+            (ch >= UInt8(ascii: "A") && ch <= UInt8(ascii: "Z"))
     }
 
     /// Check if character is a digit (0-9)
@@ -75,12 +75,12 @@ enum Punycode {
         var output = ""
 
         var n = UInt32(initialN)
-        var delta: Int = 0
+        var delta = 0
         var bias: Int = initialBias
 
         // Copy basic code points (< 0x80) to output
         // Using size_t equivalent (Int) for h and b to match C++
-        var h: Int = 0
+        var h = 0
         for c in inputCodePoints {
             if c < 0x80 {
                 h += 1
@@ -102,7 +102,7 @@ enum Punycode {
             // Find minimum code point >= n
             var m: UInt32 = 0x10FFFF
             for codePoint in inputCodePoints {
-                if codePoint >= n && codePoint < m {
+                if codePoint >= n, codePoint < m {
                     m = codePoint
                 }
             }

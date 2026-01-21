@@ -22,7 +22,7 @@ extension ResilientSuperclass {
         let resolvedTypeReference = try typeReference.resolve(at: offset(of: \.superclass), in: machO)
         return try resolvedTypeReference.node(in: machO)
     }
-    
+
     package func superclassResolvedTypeReference<MachO: MachOSwiftSectionRepresentableWithCache>(for kind: TypeReferenceKind, in machO: MachO) throws -> ResolvedTypeReference {
         let typeReference = TypeReference.forKind(kind, at: layout.superclass.relativeOffset)
         return try typeReference.resolve(at: offset(of: \.superclass), in: machO)

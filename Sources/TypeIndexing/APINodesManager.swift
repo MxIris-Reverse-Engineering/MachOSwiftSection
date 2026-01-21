@@ -6,12 +6,11 @@ import FoundationToolbox
 
 @available(macOS 13.0, *)
 final class APINotesManager: Sendable {
-    
     struct Name: Sendable {
         let moduleName: String
         let name: String
     }
-    
+
     @Mutex
     private(set) var files: [APINotesFile] = []
 
@@ -20,7 +19,7 @@ final class APINotesManager: Sendable {
 
     @Mutex
     private(set) var swiftNameToCName: [String: Name] = [:]
-    
+
     init() {}
 
     func addFiles(_ newFiles: [APINotesFile]) {
@@ -39,7 +38,7 @@ final class APINotesManager: Sendable {
     func cName(forSwiftName swiftName: String) -> Name? {
         swiftNameToCName[swiftName]
     }
-    
+
     func index() {
         for file in files {
             let module = file.apiNotesModule
@@ -67,6 +66,5 @@ final class APINotesManager: Sendable {
 extension Bool? {
     var orFalse: Bool { self ?? false }
 }
-
 
 #endif

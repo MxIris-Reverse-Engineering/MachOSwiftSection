@@ -17,17 +17,4 @@ public struct ModuleContextDescriptor: ModuleContextDescriptorProtocol {
         self.offset = offset
         self.layout = layout
     }
-
-    public func offset<T>(of keyPath: KeyPath<Layout, T>) -> Int {
-        return offset + layoutOffset(of: keyPath)
-    }
 }
-
-
-
-
-
-
-
-
-

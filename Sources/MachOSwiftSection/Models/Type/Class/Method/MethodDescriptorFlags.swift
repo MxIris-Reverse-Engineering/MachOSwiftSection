@@ -14,7 +14,7 @@ public struct MethodDescriptorFlags: RawRepresentable, Hashable, Sendable {
     private static let isDynamicMask: RawValue = 0x20
     private static let isAsyncMask: RawValue = 0x40
     private static let extraDiscriminatorShift: RawValue = 16
-    private static let extraDiscriminatorMask: RawValue = 0xFFFF0000
+    private static let extraDiscriminatorMask: RawValue = 0xFFFF_0000
 
     public var kind: MethodDescriptorKind {
         .init(rawValue: .init(rawValue & Self.kindMask))!

@@ -7,7 +7,7 @@ public enum MethodDescriptorKind: UInt8, CaseIterable, CustomStringConvertible {
     case setter
     case modifyCoroutine
     case readCoroutine
-    
+
     public var description: String {
         switch self {
         case .method:

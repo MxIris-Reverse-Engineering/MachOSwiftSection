@@ -1,7 +1,6 @@
 import Foundation
 import Testing
 import MachOKit
-
 import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
@@ -9,14 +8,19 @@ import MachOFoundation
 
 @Suite(.serialized)
 final class DyldCacheDumpTests: DyldCacheTests, DumpableTests, @unchecked Sendable {
-    override class var cacheImageName: MachOImageName { .AppKit }
+    
+    override class var cachePath: DyldSharedCachePath { .current }
+    
+    override class var cacheImageName: MachOImageName { .SwiftUI }
+    
+    private let dumperConfiguration = DumperConfiguration(demangleResolver: .using(options: .test), printEnumLayout: true)
 }
 
 extension DyldCacheDumpTests {
     // MARK: - Types
 
     @Test func typesInCacheFile() async throws {
-        try await dumpTypes(for: machOFileInCache, isDetail: true)
+        try await dumpTypes(for: machOFileInCache, isDetail: true, options: .enum, using: dumperConfiguration)
     }
 
     @Test func typesInMainCacheFile() async throws {

@@ -1,9 +1,8 @@
 import Foundation
 import MachOKit
-
 import MachOFoundation
 
-public struct GenericRequirement: Sendable {
+public struct GenericRequirement: Sendable, TopLevelType {
     public let descriptor: GenericRequirementDescriptor
 
     public var flags: GenericRequirementFlags { descriptor.flags }
@@ -16,5 +15,11 @@ public struct GenericRequirement: Sendable {
         self.descriptor = descriptor
         self.paramManagledName = try descriptor.paramMangledName(in: machO)
         self.content = try descriptor.resolvedContent(in: machO)
+    }
+    
+    public init(descriptor: GenericRequirementDescriptor) throws {
+        self.descriptor = descriptor
+        self.paramManagledName = try descriptor.paramMangledName()
+        self.content = try descriptor.resolvedContent()
     }
 }

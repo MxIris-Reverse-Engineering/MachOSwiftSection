@@ -1,17 +1,15 @@
 import Foundation
 import Testing
 import MachOKit
-
 import MachOFoundation
 
 package class MachOFileTests: @unchecked Sendable {
     package let machOFile: MachOFile
 
     package class var fileName: MachOFileName { .Finder }
-    
+
     package class var preferredArchitecture: CPUType { .arm64 }
-        
-    @available(macOS 13.0, *)
+
     package init() async throws {
         let file = try loadFromFile(named: Self.fileName)
         switch file {
@@ -24,5 +22,3 @@ package class MachOFileTests: @unchecked Sendable {
         }
     }
 }
-
-

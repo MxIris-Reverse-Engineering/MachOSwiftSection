@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-
 import MachOFoundation
 
 // using TrailingObjects = swift::ABI::TrailingObjects<
@@ -13,36 +12,34 @@ import MachOFoundation
 //                           TargetGenericWitnessTable<Runtime>,
 //                           TargetGlobalActorReference<Runtime>>;
 
-/// The structure of a protocol conformance.
-///
-/// This contains enough static information to recover the witness table for a
-/// type's conformance to a protocol.
+// The structure of a protocol conformance.
+//
+// This contains enough static information to recover the witness table for a
+// type's conformance to a protocol.
 
 public struct ProtocolConformance: TopLevelType {
     public let descriptor: ProtocolConformanceDescriptor
 
-    public let `protocol`: SymbolOrElement<ProtocolDescriptor>?
-
-    public let typeReference: ResolvedTypeReference
-
-    public let witnessTablePattern: ProtocolWitnessTable?
-
     public var flags: ProtocolConformanceFlags { descriptor.flags }
 
-    public let retroactiveContextDescriptor: SymbolOrElement<ContextDescriptorWrapper>?
+    public private(set) var `protocol`: SymbolOrElement<ProtocolDescriptor>?
 
-    public let conditionalRequirements: [GenericRequirementDescriptor]
+    public private(set) var typeReference: ResolvedTypeReference
 
-//    public let conditionalPackShapeHeader: GenericPackShapeHeader?
+    public private(set) var witnessTablePattern: ProtocolWitnessTable?
 
-    public let conditionalPackShapeDescriptors: [GenericPackShapeDescriptor]
+    public private(set) var retroactiveContextDescriptor: SymbolOrElement<ContextDescriptorWrapper>?
 
-    public let resilientWitnessesHeader: ResilientWitnessesHeader?
+    public private(set) var conditionalRequirements: [GenericRequirementDescriptor] = []
 
-    public let resilientWitnesses: [ResilientWitness]
+    public private(set) var conditionalPackShapeDescriptors: [GenericPackShapeDescriptor] = []
 
-    public let genericWitnessTable: GenericWitnessTable?
-    
+    public private(set) var resilientWitnessesHeader: ResilientWitnessesHeader?
+
+    public private(set) var resilientWitnesses: [ResilientWitness] = []
+
+    public private(set) var genericWitnessTable: GenericWitnessTable?
+
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: ProtocolConformanceDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
 
@@ -62,41 +59,65 @@ public struct ProtocolConformance: TopLevelType {
             self.retroactiveContextDescriptor = nil
         }
 
+        try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: machO)
+    }
+
+    public init(descriptor: ProtocolConformanceDescriptor) throws {
+        self.descriptor = descriptor
+
+        self.protocol = try descriptor.protocolDescriptor()
+
+        self.typeReference = try descriptor.resolvedTypeReference()
+
+        self.witnessTablePattern = try descriptor.witnessTablePattern()
+
+        var currentOffset = descriptor.layoutSize
+
+        let pointer = try descriptor.asPointer
+
+        if descriptor.flags.isRetroactive {
+            let retroactiveContextPointer: RelativeContextPointer = try pointer.readElement(offset: currentOffset)
+            self.retroactiveContextDescriptor = try retroactiveContextPointer.resolve(from: pointer.advanced(by: currentOffset)).asOptional
+            currentOffset.offset(of: RelativeIndirectablePointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>>.self)
+        } else {
+            self.retroactiveContextDescriptor = nil
+        }
+
+        try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: pointer)
+    }
+
+    private mutating func initialize<Reader: Readable>(descriptor: ProtocolConformanceDescriptor, currentOffset: inout Int, in reader: Reader) throws {
         if descriptor.flags.numConditionalRequirements > 0 {
-            self.conditionalRequirements = try machO.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.flags.numConditionalRequirements.cast()) as [GenericRequirementDescriptor]
+            conditionalRequirements = try reader.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.flags.numConditionalRequirements.cast()) as [GenericRequirementDescriptor]
             currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: descriptor.flags.numConditionalRequirements.cast())
         } else {
-            self.conditionalRequirements = []
+            conditionalRequirements = []
         }
 
         if descriptor.flags.numConditionalPackShapeDescriptors > 0 {
-//            let header: GenericPackShapeHeader = try machO.readWrapperElement(offset: currentOffset)
-//            self.conditionalPackShapeHeader = header
-//            currentOffset.offset(of: GenericPackShapeHeader.self)
-            self.conditionalPackShapeDescriptors = try machO.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.flags.numConditionalPackShapeDescriptors.cast()) as [GenericPackShapeDescriptor]
+            conditionalPackShapeDescriptors = try reader.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.flags.numConditionalPackShapeDescriptors.cast()) as [GenericPackShapeDescriptor]
             currentOffset.offset(of: GenericPackShapeDescriptor.self, numbersOfElements: descriptor.flags.numConditionalPackShapeDescriptors.cast())
         } else {
-//            self.conditionalPackShapeHeader = nil
-            self.conditionalPackShapeDescriptors = []
+            conditionalPackShapeDescriptors = []
         }
 
         if descriptor.flags.hasResilientWitnesses {
-            let header: ResilientWitnessesHeader = try machO.readWrapperElement(offset: currentOffset)
-            self.resilientWitnessesHeader = header
+            let header: ResilientWitnessesHeader = try reader.readWrapperElement(offset: currentOffset)
+            resilientWitnessesHeader = header
             currentOffset.offset(of: ResilientWitnessesHeader.self)
-            self.resilientWitnesses = try machO.readWrapperElements(offset: currentOffset, numberOfElements: header.numWitnesses.cast()) as [ResilientWitness]
+            resilientWitnesses = try reader.readWrapperElements(offset: currentOffset, numberOfElements: header.numWitnesses.cast()) as [ResilientWitness]
             currentOffset.offset(of: ResilientWitness.self, numbersOfElements: header.numWitnesses.cast())
         } else {
-            self.resilientWitnessesHeader = nil
-            self.resilientWitnesses = []
+            resilientWitnessesHeader = nil
+            resilientWitnesses = []
         }
 
         if descriptor.flags.hasGenericWitnessTable {
-            let genericWitnessTable: GenericWitnessTable = try machO.readWrapperElement(offset: currentOffset)
+            let genericWitnessTable: GenericWitnessTable = try reader.readWrapperElement(offset: currentOffset)
             self.genericWitnessTable = genericWitnessTable
             currentOffset.offset(of: GenericWitnessTable.self)
         } else {
-            self.genericWitnessTable = nil
+            genericWitnessTable = nil
         }
     }
 }

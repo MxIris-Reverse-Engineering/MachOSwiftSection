@@ -2,5 +2,4 @@ import Foundation
 import MachOKit
 import MachOFoundation
 
-
-public protocol HeapMetadataHeaderProtocol: ResolvableLocatableLayoutWrapper where Layout: HeapMetadataHeaderLayout {}
+public protocol HeapMetadataHeaderProtocol: TypeMetadataLayoutPrefixProtocol, HeapMetadataHeaderPrefixProtocol, TypeMetadataHeaderBaseProtocol where Layout: HeapMetadataHeaderLayout {}

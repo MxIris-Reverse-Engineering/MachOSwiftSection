@@ -19,4 +19,12 @@ public struct ForeignClassMetadata: MetadataProtocol {
     }
 }
 
-
+extension ForeignClassMetadata {
+    public func classDescriptor(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ClassDescriptor {
+        try layout.descriptor.resolve(in: machO)
+    }
+    
+    public func classDescriptor() throws -> ClassDescriptor {
+        try layout.descriptor.resolve()
+    }
+}

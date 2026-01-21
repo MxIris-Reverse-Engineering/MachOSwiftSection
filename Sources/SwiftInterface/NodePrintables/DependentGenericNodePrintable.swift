@@ -2,7 +2,7 @@ import Demangling
 
 protocol DependentGenericNodePrintable: NodePrintable {
     var isProtocol: Bool { get }
-    mutating func printNameInDependentGeneric(_ name: Node, context: Context?) async  -> Bool
+    mutating func printNameInDependentGeneric(_ name: Node, context: Context?) async -> Bool
     mutating func printGenericSignature(_ name: Node) async
     mutating func printDependentGenericConformanceRequirement(_ name: Node) async
     mutating func printDependentGenericLayoutRequirement(_ name: Node) async
@@ -60,7 +60,7 @@ extension DependentGenericNodePrintable {
             target.write(name)
         }
     }
-    
+
     mutating func printGenericSignature(_ name: Node) async {
         target.write("<")
         var numGenericParams = 0

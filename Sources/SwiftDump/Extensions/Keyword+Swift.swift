@@ -25,7 +25,7 @@ extension Keyword {
         case `each`
         case `repeat`
     }
-    
+
     package init(_ keyword: Swift) {
         self.init(keyword.rawValue)
     }

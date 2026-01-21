@@ -1,4 +1,5 @@
 import Foundation
+import FoundationToolbox
 import MachOKit
 
 extension DyldCache {
@@ -51,15 +52,9 @@ extension MachOFile {
     fileprivate func match(by mode: DyldCacheImageSearchMode) -> Bool {
         switch mode {
         case .name(let name):
-            return imagePath.nsString.lastPathComponent.nsString.deletingPathExtension == name
+            return imagePath.lastPathComponent.deletingPathExtension == name
         case .path(let path):
             return imagePath == path
         }
-    }
-}
-
-extension String {
-    fileprivate var nsString: NSString {
-        return self as NSString
     }
 }

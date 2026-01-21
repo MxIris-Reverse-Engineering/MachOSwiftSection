@@ -5,18 +5,19 @@ import Semantic
 import Demangling
 import Utilities
 import OrderedCollections
+import SwiftInspection
 
 package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWithCache>: ConformedDumper {
-    private let protocolConformance: ProtocolConformance
+    package let dumped: ProtocolConformance
 
-    private let configuration: DumperConfiguration
+    package let configuration: DumperConfiguration
 
-    private let machO: MachO
+    package let machO: MachO
 
     private var typeNameOptions: DemangleOptions { .interfaceType }
 
     package init(_ dumped: ProtocolConformance, using configuration: DumperConfiguration, in machO: MachO) {
-        self.protocolConformance = dumped
+        self.dumped = dumped
         self.configuration = configuration
         self.machO = machO
     }
@@ -39,13 +40,13 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
 
             try await protocolName
 
-            if !protocolConformance.conditionalRequirements.isEmpty {
+            if !dumped.conditionalRequirements.isEmpty {
                 Space()
                 Keyword(.where)
                 Space()
             }
 
-            for conditionalRequirement in protocolConformance.conditionalRequirements {
+            for conditionalRequirement in dumped.conditionalRequirements {
                 try await conditionalRequirement.dump(resolver: demangleResolver, in: machO)
             }
         }
@@ -57,7 +58,7 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
 
             let typeNameString = try await typeName.string
 
-            if protocolConformance.resilientWitnesses.isEmpty {
+            if dumped.resilientWitnesses.isEmpty {
                 Space()
                 Standard("{}")
             } else {
@@ -66,7 +67,7 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
 
                 var visitedNodes: OrderedSet<Node> = []
 
-                for resilientWitness in protocolConformance.resilientWitnesses {
+                for resilientWitness in dumped.resilientWitnesses {
                     BreakLine()
 
                     Indent(level: 1)
@@ -114,20 +115,20 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
     @SemanticStringBuilder
     package var typeName: SemanticString {
         get async throws {
-            try protocolConformance.typeNode(in: machO)?.printSemantic(using: typeNameOptions).replacingTypeNameOrOtherToTypeDeclaration()
+            try dumped.typeNode(in: machO)?.printSemantic(using: typeNameOptions).replacingTypeNameOrOtherToTypeDeclaration()
         }
     }
 
     @SemanticStringBuilder
     package var protocolName: SemanticString {
         get async throws {
-            try await protocolConformance.protocolNode(in: machO).asyncMap { try await demangleResolver.resolve(for: $0) }
+            try await dumped.protocolNode(in: machO).asyncMap { try await demangleResolver.resolve(for: $0) }
         }
     }
 
     private func _node(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<Node> = []) async throws -> Node? {
         for symbol in symbols {
-            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolConformanceNode = node.preorder().first(where: { $0.kind == .protocolConformance }), let symbolTypeName = protocolConformanceNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.entry(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(node) {
+            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let dumpedNode = node.preorder().first(where: { $0.kind == .protocolConformance }), let symbolTypeName = dumpedNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.storage(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(node) {
                 return node
             }
         }
@@ -137,7 +138,7 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
 
 package func protocolConformanceDemangledSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<Node> = [], in machO: MachO) throws -> DemangledSymbol? {
     for symbol in symbols {
-        if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let targetNode = node.first(of: .protocolConformance), let symbolTypeName = targetNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.entry(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(node) {
+        if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let targetNode = node.first(of: .protocolConformance), let symbolTypeName = targetNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.storage(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(node) {
             return .init(symbol: symbol, demangledNode: node)
         }
     }
@@ -196,5 +197,3 @@ extension ProtocolConformance {
         }
     }
 }
-
-

@@ -15,7 +15,7 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
             return true
         }
     }
-    
+
     public var symbol: Symbol? {
         switch self {
         case .symbol(let unsolvedSymbol):
@@ -24,7 +24,7 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
             return nil
         }
     }
-    
+
     public var resolved: Element? {
         switch self {
         case .symbol:
@@ -34,7 +34,7 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
         }
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> SymbolOrElement<Element> {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
         if let machOFile = machO as? MachOFile, let symbol = machOFile.resolveBind(fileOffset: offset) {
             return .symbol(.init(offset: offset, name: symbol))
         } else {
@@ -42,7 +42,7 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
         }
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> SymbolOrElement<Element>? {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self? {
         if let machOFile = machO as? MachOFile, let symbol = machOFile.resolveBind(fileOffset: offset) {
             return .symbol(.init(offset: offset, name: symbol))
         } else {
@@ -50,6 +50,10 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
         }
     }
     
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
+        return try .element(.resolve(from: ptr))
+    }
+
     public func map<T, E: Swift.Error>(_ transform: (Element) throws(E) -> T) throws(E) -> SymbolOrElement<T> {
         switch self {
         case .symbol(let unsolvedSymbol):
@@ -58,7 +62,7 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
             return try .element(transform(context))
         }
     }
-    
+
     public func mapOptional<T, E: Swift.Error>(_ transform: (Element) throws(E) -> T?) throws(E) -> SymbolOrElement<T>? {
         switch self {
         case .symbol(let unsolvedSymbol):
@@ -71,7 +75,7 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
             }
         }
     }
-    
+
     public func flatMap<T, E: Swift.Error>(_ transform: (Element) throws(E) -> SymbolOrElement<T>) throws(E) -> SymbolOrElement<T> {
         switch self {
         case .symbol(let unsolvedSymbol):

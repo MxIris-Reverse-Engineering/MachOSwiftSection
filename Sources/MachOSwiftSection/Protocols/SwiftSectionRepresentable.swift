@@ -10,4 +10,5 @@ public protocol SwiftSectionRepresentable {
     var protocolConformanceDescriptors: [ProtocolConformanceDescriptor] { get throws }
     var associatedTypeDescriptors: [AssociatedTypeDescriptor] { get throws }
     var builtinTypeDescriptors: [BuiltinTypeDescriptor] { get throws }
+    var multiPayloadEnumDescriptors: [MultiPayloadEnumDescriptor] { get throws }
 }

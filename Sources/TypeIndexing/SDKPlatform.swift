@@ -58,5 +58,4 @@ package enum SDKPlatform: String, CaseIterable, Hashable, Codable, Sendable {
     }
 }
 
-
 #endif

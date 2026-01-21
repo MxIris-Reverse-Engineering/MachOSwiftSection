@@ -59,9 +59,9 @@ extension NodePrintable {
     mutating func printModule(_ node: Node) async {
         var moduleName = node.text ?? ""
         if moduleName == objcModule || moduleName == cModule,
-            let identifier = node.parent?.children.at(1)?.text,
-            let delegate,
-            let updatedModuleName = await or(await delegate.moduleName(forTypeName: identifier), await delegate.moduleName(forTypeName: identifier.strippedRefSuffix)) {
+           let identifier = node.parent?.children.at(1)?.text,
+           let delegate,
+           let updatedModuleName = await or(await delegate.moduleName(forTypeName: identifier), await delegate.moduleName(forTypeName: identifier.strippedRefSuffix)) {
             moduleName = updatedModuleName
         }
         target.write(moduleName, context: .context(for: node, state: .printModule))
@@ -131,5 +131,3 @@ extension String {
         return self
     }
 }
-
-

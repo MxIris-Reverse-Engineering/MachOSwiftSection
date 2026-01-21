@@ -3,6 +3,7 @@
 
 @preconcurrency import PackageDescription
 import CompilerPluginSupport
+import Foundation
 
 func envEnable(_ key: String, default defaultValue: Bool = false) -> Bool {
     guard let value = Context.environment[key] else {
@@ -17,11 +18,68 @@ func envEnable(_ key: String, default defaultValue: Bool = false) -> Bool {
     }
 }
 
+extension Product {
+    static func library(_ target: Target) -> Product {
+        .library(name: target.name, targets: [target.name])
+    }
+
+    static func executable(_ target: Target) -> Product {
+        .executable(name: target.name, targets: [target.name])
+    }
+}
+
+extension Target.Dependency {
+    static func target(_ target: Target) -> Self {
+        .targetItem(name: target.name, condition: nil)
+    }
+
+    static func product(_ dependency: Self) -> Self {
+        dependency
+    }
+}
+
+extension Package.Dependency {
+    enum LocalSearchPath {
+        case package(path: String, isRelative: Bool, isEnabled: Bool)
+    }
+
+    static func package(local localSearchPaths: LocalSearchPath..., remote: Package.Dependency) -> Package.Dependency {
+        let currentFilePath = #filePath
+        let isClonedDependency = currentFilePath.contains("/checkouts/") ||
+            currentFilePath.contains("/SourcePackages/") ||
+            currentFilePath.contains("/.build/")
+
+        if isClonedDependency {
+            return remote
+        }
+        for local in localSearchPaths {
+            switch local {
+            case .package(let path, let isRelative, let isEnabled):
+                guard isEnabled else { continue }
+                let url = if isRelative {
+                    URL(fileURLWithPath: path, relativeTo: URL(fileURLWithPath: currentFilePath))
+                } else {
+                    URL(fileURLWithPath: path)
+                }
+
+                if FileManager.default.fileExists(atPath: url.path) {
+                    return .package(path: url.path)
+                }
+            }
+        }
+        return remote
+    }
+}
+
 let MachOKitVersion: Version = "0.42.0"
 
 let isSilentTest = envEnable("MACHO_SWIFT_SECTION_SILENT_TEST", default: false)
 
 let useSPMPrebuildVersion = envEnable("MACHO_SWIFT_SECTION_USE_SPM_PREBUILD_VERSION", default: false)
+
+let useCustomMachOKit = envEnable("USE_CUSTOM_MACHOKIT", default: true)
+
+let useCustomObjCSection = envEnable("USE_CUSTOM_OBJC_SECTION", default: true)
 
 let useSwiftTUI = envEnable("MACHO_SWIFT_SECTION_USE_SWIFTTUI", default: false)
 
@@ -33,23 +91,28 @@ if isSilentTest {
 
 var dependencies: [Package.Dependency] = [
     .MachOKit,
+    .MachOObjCSection,
+    
     .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.1.0" ..< "602.0.0"),
+    .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.4"),
+    .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
+    .package(url: "https://github.com/apple/swift-collections", from: "1.2.0"),
+    
     .package(url: "https://github.com/p-x9/AssociatedObject", from: "0.13.0"),
     .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
-    .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
-    .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
     .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", branch: "main"),
-    .package(url: "https://github.com/apple/swift-collections", from: "1.2.0"),
+    
     .package(url: "https://github.com/MxIris-Library-Forks/swift-memberwise-init-macro", from: "0.5.3-fork"),
-    .package(url: "https://github.com/p-x9/MachOObjCSection", from: "0.5.0"),
     .package(url: "https://github.com/Mx-Iris/SourceKitD", branch: "main"),
     .package(url: "https://github.com/christophhagen/BinaryCodable", from: "3.1.0"),
-    .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-apinotes", branch: "main"),
+    
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.4"),
-//        .package(url: "https://github.com/brightdigit/SyntaxKit", branch: "main"),
-//        .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-clang", from: "0.1.0"),
-    .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.4"),
+    .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-clang", from: "0.1.0"),
+    .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-apinotes", branch: "main"),
     .package(url: "https://github.com/MxIris-Reverse-Engineering/DyldPrivate", branch: "main"),
+    
+    // CLI
+    .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
     .package(url: "https://github.com/migueldeicaza/TermKit", branch: "main"),
 ]
 
@@ -58,7 +121,11 @@ extension Package.Dependency {
         if useSPMPrebuildVersion {
             return .MachOKitSPM
         } else {
-            return .MachOKitOrigin
+            if useCustomMachOKit {
+                return .MachOKitMain
+            } else {
+                return .MachOKitOrigin
+            }
         }
     }()
 
@@ -67,25 +134,61 @@ extension Package.Dependency {
         exact: MachOKitVersion
     )
 
-    static let MachOKitMain = Package.Dependency.package(
-        url: "https://github.com/MxIris-Reverse-Engineering/MachOKit",
-        branch: "main"
+    static let MachOKitSPM = Package.Dependency.package(
+        url: "https://github.com/p-x9/MachOKit-SPM.git",
+        from: MachOKitVersion
     )
 
-    static let MachOKitSPM = Package.Dependency.package(
-        url: "https://github.com/p-x9/MachOKit-SPM",
-        from: MachOKitVersion
+    static let MachOKitMain = Package.Dependency.package(
+        local: .package(
+            path: "../MachOKit",
+            isRelative: true,
+            isEnabled: true
+        ),
+        remote: .package(
+            url: "https://github.com/MxIris-Reverse-Engineering/MachOKit.git",
+            branch: "main"
+        ),
+    )
+}
+
+extension Package.Dependency {
+    static let MachOObjCSection: Package.Dependency = {
+        if useCustomObjCSection {
+            return .MachOObjCSectionMain
+        } else {
+            return .MachOObjCSectionOrigin
+        }
+    }()
+
+    static let MachOObjCSectionOrigin = Package.Dependency.package(
+        url: "https://github.com/p-x9/MachOObjCSection.git",
+        from: "0.5.0"
+    )
+
+    static let MachOObjCSectionMain = Package.Dependency.package(
+        local: .package(
+            path: "../MachOObjCSection",
+            isRelative: true,
+            isEnabled: true
+        ),
+        remote: .package(
+            url: "https://github.com/MxIris-Reverse-Engineering/MachOObjCSection.git",
+            branch: "main"
+        ),
     )
 }
 
 extension Target.Dependency {
-    static let MachOKit: Target.Dependency = {
-        if useSPMPrebuildVersion {
-            return .MachOKitSPM
-        } else {
-            return .MachOKitMain
-        }
-    }()
+    static let MachOKit = Target.Dependency.product(
+        name: "MachOKit",
+        package: "MachOKit"
+    )
+
+    static let MachOObjCSection = Target.Dependency.product(
+        name: "MachOObjCSection",
+        package: "MachOObjCSection"
+    )
 
     static let MachOKitMain = Target.Dependency.product(
         name: "MachOKit",
@@ -129,22 +232,6 @@ extension Target.Dependency {
     )
 }
 
-extension Product {
-    static func library(_ target: Target) -> Product {
-        .library(name: target.name, targets: [target.name])
-    }
-
-    static func executable(_ target: Target) -> Product {
-        .executable(name: target.name, targets: [target.name])
-    }
-}
-
-extension Target.Dependency {
-    static func target(_ target: Target) -> Self {
-        .targetItem(name: target.name, condition: nil)
-    }
-}
-
 @MainActor
 extension Target {
     static let Semantic = Target.target(
@@ -155,13 +242,16 @@ extension Target {
         name: "Demangling",
         dependencies: [
             .target(.Utilities),
+        ],
+        swiftSettings: [
+            .immutableWeakCaptures,
         ]
     )
 
     static let UtilitiesC = Target.target(
-        name: "UtilitiesC",
+        name: "UtilitiesC"
     )
-    
+
     static let Utilities = Target.target(
         name: "Utilities",
         dependencies: [
@@ -179,7 +269,7 @@ extension Target {
     static let MachOExtensions = Target.target(
         name: "MachOExtensions",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.Utilities),
         ]
     )
@@ -187,7 +277,7 @@ extension Target {
     static let MachOCaches = Target.target(
         name: "MachOCaches",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOExtensions),
             .target(.Utilities),
         ]
@@ -196,7 +286,7 @@ extension Target {
     static let MachOReading = Target.target(
         name: "MachOReading",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOExtensions),
             .target(.Utilities),
             .product(name: "FileIO", package: "swift-fileio"),
@@ -206,7 +296,7 @@ extension Target {
     static let MachOResolving = Target.target(
         name: "MachOResolving",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOExtensions),
             .target(.MachOReading),
         ]
@@ -215,7 +305,7 @@ extension Target {
     static let MachOSymbols = Target.target(
         name: "MachOSymbols",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOReading),
             .target(.MachOResolving),
             .target(.Utilities),
@@ -230,7 +320,7 @@ extension Target {
     static let MachOPointers = Target.target(
         name: "MachOPointers",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOReading),
             .target(.MachOResolving),
             .target(.Utilities),
@@ -240,7 +330,7 @@ extension Target {
     static let MachOSymbolPointers = Target.target(
         name: "MachOSymbolPointers",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOReading),
             .target(.MachOResolving),
             .target(.MachOPointers),
@@ -252,7 +342,7 @@ extension Target {
     static let MachOFoundation = Target.target(
         name: "MachOFoundation",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOReading),
             .target(.MachOExtensions),
             .target(.MachOPointers),
@@ -263,35 +353,52 @@ extension Target {
         ]
     )
 
+    static let MachOSwiftSectionC = Target.target(
+        name: "MachOSwiftSectionC"
+    )
+
     static let MachOSwiftSection = Target.target(
         name: "MachOSwiftSection",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOFoundation),
+            .target(.MachOSwiftSectionC),
             .target(.Demangling),
             .target(.Utilities),
             .product(name: "DyldPrivate", package: "DyldPrivate"),
-        ],
+        ]
 //        swiftSettings: [
 //            .unsafeFlags(["-parse-stdlib"]),
 //        ],
     )
 
-    static let SwiftDump = Target.target(
-        name: "SwiftDump",
+    static let SwiftInspection = Target.target(
+        name: "SwiftInspection",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
+            .product(.MachOObjCSection),
             .target(.MachOSwiftSection),
             .target(.Semantic),
             .target(.Utilities),
-            .product(name: "MachOObjCSection", package: "MachOObjCSection"),
+        ]
+    )
+
+    static let SwiftDump = Target.target(
+        name: "SwiftDump",
+        dependencies: [
+            .product(.MachOKit),
+            .product(.MachOObjCSection),
+            .target(.MachOSwiftSection),
+            .target(.Semantic),
+            .target(.Utilities),
+            .target(.SwiftInspection),
         ]
     )
 
     static let SwiftIndex = Target.target(
         name: "SwiftIndex",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOSwiftSection),
             .target(.SwiftDump),
             .target(.Semantic),
@@ -302,8 +409,10 @@ extension Target {
     static let SwiftInterface = Target.target(
         name: "SwiftInterface",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
+            .product(.MachOObjCSection),
             .target(.MachOSwiftSection),
+            .target(.SwiftInspection),
             .target(.SwiftDump),
             .target(.Semantic),
             .target(.Utilities),
@@ -315,13 +424,14 @@ extension Target {
         dependencies: [
             .target(.SwiftInterface),
             .target(.Utilities),
-            .SwiftSyntax,
-            .SwiftParser,
-            .SwiftSyntaxBuilder,
+            .product(.SwiftSyntax),
+            .product(.SwiftParser),
+            .product(.SwiftSyntaxBuilder),
+            .product(.MachOObjCSection),
+            .product(name: "Clang", package: "swift-clang"),
             .product(name: "SourceKitD", package: "SourceKitD", condition: .when(platforms: [.macOS])),
             .product(name: "BinaryCodable", package: "BinaryCodable"),
             .product(name: "APINotes", package: "swift-apinotes", condition: .when(platforms: [.macOS])),
-            .product(name: "MachOObjCSection", package: "MachOObjCSection"),
         ]
     )
 
@@ -334,16 +444,16 @@ extension Target {
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ]
     )
-    
+
     // MARK: - Macros
 
     static let MachOMacros = Target.macro(
         name: "MachOMacros",
         dependencies: [
-            .SwiftSyntax,
-            .SwiftSyntaxMacros,
-            .SwiftCompilerPlugin,
-            .SwiftSyntaxBuilder,
+            .product(.SwiftSyntax),
+            .product(.SwiftSyntaxMacros),
+            .product(.SwiftCompilerPlugin),
+            .product(.SwiftSyntaxBuilder),
         ]
     )
 
@@ -352,7 +462,7 @@ extension Target {
     static let MachOTestingSupport = Target.target(
         name: "MachOTestingSupport",
         dependencies: [
-            .MachOKit,
+            .product(.MachOKit),
             .target(.MachOExtensions),
             .target(.SwiftDump),
         ],
@@ -386,12 +496,21 @@ extension Target {
         swiftSettings: testSettings
     )
 
+    static let SwiftInspectionTests = Target.testTarget(
+        name: "SwiftInspectionTests",
+        dependencies: [
+            .target(.MachOSwiftSection),
+            .target(.MachOTestingSupport),
+        ],
+        swiftSettings: testSettings
+    )
+
     static let SwiftDumpTests = Target.testTarget(
         name: "SwiftDumpTests",
         dependencies: [
             .target(.SwiftDump),
             .target(.MachOTestingSupport),
-            .product(name: "MachOObjCSection", package: "MachOObjCSection"),
+            .product(.MachOObjCSection),
         ],
         swiftSettings: testSettings
     )
@@ -413,6 +532,14 @@ extension Target {
         ],
         swiftSettings: testSettings
     )
+
+    static let SemanticTests = Target.testTarget(
+        name: "SemanticTests",
+        dependencies: [
+            .target(.Semantic),
+        ],
+        swiftSettings: testSettings
+    )
 }
 
 let package = Package(
@@ -427,6 +554,7 @@ let package = Package(
     ],
     dependencies: dependencies,
     targets: [
+        // Library
         .Semantic,
         .Demangling,
         .Utilities,
@@ -439,24 +567,41 @@ let package = Package(
         .MachOPointers,
         .MachOSymbolPointers,
         .MachOFoundation,
+        .MachOSwiftSectionC,
         .MachOSwiftSection,
+        .SwiftInspection,
         .SwiftDump,
         .SwiftIndex,
         .SwiftInterface,
         .TypeIndexing,
-        .swift_section,
         .MachOMacros,
         .MachOTestingSupport,
+
+        // Executable
+        .swift_section,
+
+        // Testing
         .DemanglingTests,
         .MachOSymbolsTests,
         .MachOSwiftSectionTests,
+        .SwiftInspectionTests,
         .SwiftDumpTests,
         .TypeIndexingTests,
         .SwiftInterfaceTests,
+        .SemanticTests,
     ]
 )
 
 if useSwiftTUI {
     package.dependencies.append(.package(url: "https://github.com/rensbreur/SwiftTUI", branch: "main"))
     Target.swift_section.dependencies.append(.product(name: "SwiftTUI", package: "SwiftTUI"))
+}
+
+extension SwiftSetting {
+    static let existentialAny: Self = .enableUpcomingFeature("ExistentialAny")                                    // SE-0335, Swift 5.6,  SwiftPM 5.8+
+    static let internalImportsByDefault: Self = .enableUpcomingFeature("InternalImportsByDefault")                // SE-0409, Swift 6.0,  SwiftPM 6.0+
+    static let memberImportVisibility: Self = .enableUpcomingFeature("MemberImportVisibility")                    // SE-0444, Swift 6.1,  SwiftPM 6.1+
+    static let inferIsolatedConformances: Self = .enableUpcomingFeature("InferIsolatedConformances")              // SE-0470, Swift 6.2,  SwiftPM 6.2+
+    static let nonisolatedNonsendingByDefault: Self = .enableUpcomingFeature("NonisolatedNonsendingByDefault")    // SE-0461, Swift 6.2,  SwiftPM 6.2+
+    static let immutableWeakCaptures: Self = .enableUpcomingFeature("ImmutableWeakCaptures")                      // SE-0481, Swift 6.2,  SwiftPM 6.2+
 }

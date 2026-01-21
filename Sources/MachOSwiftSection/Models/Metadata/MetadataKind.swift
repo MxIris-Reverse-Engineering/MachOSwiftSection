@@ -72,19 +72,22 @@ public enum MetadataKind: UInt32 {
             return .init(rawValue: kind.cast()) ?? .lastEnumerated
         }
     }
-    
+
     var isAnyClass: Bool {
         switch self {
-        case .class, .objcClassWrapper, .foreignClass:
+        case .class,
+             .objcClassWrapper,
+             .foreignClass:
             return true
         default:
             return false
         }
     }
-    
+
     var isAnyExistentialType: Bool {
         switch self {
-        case .existential, .existentialMetatype:
+        case .existential,
+             .existentialMetatype:
             return true
         default:
             return false

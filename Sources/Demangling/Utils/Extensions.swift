@@ -2,7 +2,7 @@ extension String {
     package var isSwiftSymbol: Bool {
         Demangler.getManglingPrefixLength(unicodeScalars) > 0
     }
-    
+
     package var stripManglePrefix: String {
         guard isSwiftSymbol else { return self }
         return String(dropFirst(Demangler.getManglingPrefixLength(unicodeScalars)))
@@ -70,7 +70,7 @@ extension Array {
         result.reverseFirst(count)
         return result
     }
-    
+
     package var second: Element? {
         return at(1)
     }
@@ -83,21 +83,21 @@ extension BinaryInteger {
 }
 
 extension String {
-    // A computed property to capitalize the first letter of a string.
+    /// A computed property to capitalize the first letter of a string.
     var capitalizingFirstLetter: String {
         // 1. Get the first character.
-        guard let first = self.first else {
+        guard let first = first else {
             // Return an empty string if the original string is empty.
             return ""
         }
-        
+
         // 2. Uppercase the first character and concatenate it with the rest of the string.
-        return first.uppercased() + self.dropFirst()
+        return first.uppercased() + dropFirst()
     }
-    
-    // You can also create a mutating method if you want to change the string in place.
+
+    /// You can also create a mutating method if you want to change the string in place.
     mutating func capitalizeFirstLetter() {
-        self = self.capitalizingFirstLetter
+        self = capitalizingFirstLetter
     }
 }
 

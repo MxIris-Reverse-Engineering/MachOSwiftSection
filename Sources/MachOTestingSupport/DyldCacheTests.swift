@@ -1,7 +1,6 @@
 import Foundation
 import Testing
 import MachOKit
-
 import MachOFoundation
 
 package class DyldCacheTests: @unchecked Sendable {
@@ -10,7 +9,7 @@ package class DyldCacheTests: @unchecked Sendable {
     package let subCache: DyldCache
 
     package let fullCache: FullDyldCache
-    
+
     package let machOFileInMainCache: MachOFile
 
     package let machOFileInSubCache: MachOFile
@@ -18,13 +17,13 @@ package class DyldCacheTests: @unchecked Sendable {
     package let machOFileInCache: MachOFile
 
     package class var platform: MachOKit.Platform { .macOS }
-    
+
     package class var mainCacheImageName: MachOImageName { .SwiftUI }
-    
+
     package class var cacheImageName: MachOImageName { .AttributeGraph }
-    
+
     package class var cachePath: DyldSharedCachePath { .current }
-    
+
     package init() async throws {
         self.mainCache = try DyldCache(path: Self.cachePath)
         self.subCache = try required(mainCache.subCaches?.first?.subcache(for: mainCache))

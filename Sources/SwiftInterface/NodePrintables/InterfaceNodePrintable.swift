@@ -11,9 +11,9 @@ protocol InterfaceNodePrintableContext: NodePrintableContext, FunctionTypeNodePr
 @MemberwiseInit()
 struct InterfaceNodePrinterContext: InterfaceNodePrintableContext {
     var isAllocator: Bool = false
-    
+
     var isBlockOrClosure: Bool = false
-    
+
     init() {}
 }
 
@@ -36,4 +36,13 @@ extension InterfaceNodePrintable {
         }
         return nil
     }
+    
+    var needsSkipFirstNodeKinds: Set<Node.Kind> {
+        [
+            .asyncFunctionPointer,
+            .asyncSuspendResumePartialFunction,
+            .mergedFunction,
+        ]
+    }
+    
 }

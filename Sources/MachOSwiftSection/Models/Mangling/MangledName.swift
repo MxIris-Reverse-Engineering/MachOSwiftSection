@@ -47,12 +47,19 @@ public struct MangledName: Sendable, Hashable {
         case lookup(Lookup)
     }
 
-    package let elements: [Element]
+    package private(set) var elements: [Element] = []
 
-    package let startOffset: Int
+    @usableFromInline
+    package private(set) var startOffset: Int
 
-    package let endOffset: Int
+    @usableFromInline
+    package private(set) var endOffset: Int
 
+    /*@inlinable*/
+    package var size: Int {
+        endOffset - startOffset
+    }
+    
     package init(elements: [Element], startOffset: Int, endOffset: Int) {
         self.elements = elements
         self.startOffset = startOffset
@@ -112,12 +119,31 @@ public struct MangledName: Sendable, Hashable {
 }
 
 extension MangledName: Resolvable {
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> MangledName {
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
+        try resolve(from: offset, for: machO)
+    }
+
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
+        var mangledName = try resolve(from: 0, for: ptr)
+        mangledName.startOffset = ptr.bitPattern.int
+        mangledName.endOffset = ptr.bitPattern.int + mangledName.endOffset
+        mangledName.elements = mangledName.elements.map { element in
+            switch element {
+            case .string:
+                return element
+            case .lookup(let lookup):
+                return .lookup(.init(offset: ptr.advanced(by: lookup.offset).bitPattern.int, reference: lookup.reference))
+            }
+        }
+        return mangledName
+    }
+
+    private static func resolve<Reader: Readable>(from offset: Int, for reader: Reader) throws -> MangledName {
         var elements: [MangledName.Element] = []
         var currentOffset = offset
         var currentString = ""
         while true {
-            let value: UInt8 = try machO.readElement(offset: currentOffset)
+            let value: UInt8 = try reader.readElement(offset: currentOffset)
             if value == 0xFF {}
             else if value == 0 {
                 if currentString.count > 0 {
@@ -131,7 +157,7 @@ extension MangledName: Resolvable {
                     elements.append(.string(currentString))
                     currentString = ""
                 }
-                let reference: Int32 = try machO.readElement(offset: currentOffset + 1)
+                let reference: Int32 = try reader.readElement(offset: currentOffset + 1)
                 let offset = Int(offset + (currentOffset - offset))
                 elements.append(.lookup(.init(offset: offset, reference: .relative(.init(kind: value, relativeOffset: reference + 1)))))
                 currentOffset.offset(of: Int32.self)
@@ -140,7 +166,7 @@ extension MangledName: Resolvable {
                     elements.append(.string(currentString))
                     currentString = ""
                 }
-                let reference: UInt64 = try machO.readElement(offset: currentOffset + 1)
+                let reference: UInt64 = try reader.readElement(offset: currentOffset + 1)
                 let offset = Int(offset + (currentOffset - offset))
                 elements.append(.lookup(.init(offset: offset, reference: .absolute(.init(kind: value, reference: reference)))))
                 currentOffset.offset(of: UInt64.self)

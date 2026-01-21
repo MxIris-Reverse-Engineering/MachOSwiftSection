@@ -17,7 +17,16 @@ public enum SymbolOrElementPointer<Context: Resolvable>: RelativeIndirectType {
     case symbol(Symbol)
     case address(UInt64)
 
-    public func resolve<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> Resolved {
+    public func resolve() throws -> Resolved {
+        switch self {
+        case .symbol:
+            fatalError()
+        case .address(let address):
+            return try .element(Context.resolve(from: .init(bitPattern: stripPointerTags(of: address).uint)))
+        }
+    }
+
+    public func resolve<MachO: MachORepresentableWithCache & Readable>(in machO: MachO) throws -> Resolved {
         switch self {
         case .symbol(let unsolvedSymbol):
             return .symbol(unsolvedSymbol)
@@ -26,7 +35,7 @@ public enum SymbolOrElementPointer<Context: Resolvable>: RelativeIndirectType {
         }
     }
 
-    public func resolveOffset<MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) -> Int {
+    public func resolveOffset<MachO: MachORepresentableWithCache & Readable>(in machO: MachO) -> Int {
         switch self {
         case .symbol(let unsolvedSymbol):
             return unsolvedSymbol.offset
@@ -35,11 +44,15 @@ public enum SymbolOrElementPointer<Context: Resolvable>: RelativeIndirectType {
         }
     }
 
-    public func resolveAny<T: Resolvable, MachO: MachORepresentableWithCache & MachOReadable>(in machO: MachO) throws -> T {
+    public func resolveAny<T>() throws -> T where T: Resolvable {
         fatalError()
     }
 
-    public static func resolve<MachO: MachORepresentableWithCache & MachOReadable>(from offset: Int, in machO: MachO) throws -> Self {
+    public func resolveAny<T: Resolvable, MachO: MachORepresentableWithCache & Readable>(in machO: MachO) throws -> T {
+        fatalError()
+    }
+
+    public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
         if let machOFile = machO as? MachOFile {
             if let symbol = machOFile.resolveBind(fileOffset: offset) {
                 return .symbol(.init(offset: offset, name: symbol))
@@ -54,5 +67,9 @@ public enum SymbolOrElementPointer<Context: Resolvable>: RelativeIndirectType {
         } else {
             return try .address(machO.readElement(offset: offset))
         }
+    }
+
+    public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
+        return try .address(ptr.stripPointerTags().assumingMemoryBound(to: UInt64.self).pointee)
     }
 }

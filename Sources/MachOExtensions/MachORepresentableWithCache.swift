@@ -18,13 +18,17 @@ public enum MachOTargetIdentifier: Hashable {
 
 extension MachOFile {
     public func resolveOffset(at address: UInt64) -> Int {
-        numericCast(fileOffset(of: address) ?? address)
+        if let offset = fileOffset(of: address) {
+            return offset.cast()
+        } else {
+            return stripPointerTags(of: address).cast()
+        }
     }
 }
 
 extension MachOImage {
     public func resolveOffset(at address: UInt64) -> Int {
-        Int(stripPointerTags(of: address)) - ptr.int
+        Int(stripPointerTags(of: address)) - ptr.bitPattern.int
     }
 }
 
@@ -43,9 +47,8 @@ extension MachOFile: MachORepresentableWithCache, @unchecked @retroactive Sendab
 }
 
 extension MachOImage: MachORepresentableWithCache, @unchecked @retroactive Sendable {
-    
     public var imagePath: String { path ?? "" }
-    
+
     public var identifier: MachOTargetIdentifier {
         .image(ptr)
     }
@@ -53,7 +56,7 @@ extension MachOImage: MachORepresentableWithCache, @unchecked @retroactive Senda
     public var cache: DyldCacheLoaded? {
         guard let currentCache = DyldCacheLoaded.current else { return nil }
 
-        if ptr.int - currentCache.mainCacheHeader.sharedRegionStart.cast() >= 0 {
+        if ptr.bitPattern.int - currentCache.mainCacheHeader.sharedRegionStart.cast() >= 0 {
             return currentCache
         }
         return nil
@@ -72,7 +75,7 @@ package func address<MachO: MachORepresentableWithCache>(of fileOffset: Int, in 
     if let cache = machO.cache {
         return .init(cache.mainCacheHeader.sharedRegionStart.cast() + fileOffset)
     } else {
-        return .init(0x100000000 + fileOffset)
+        return .init(0x1_0000_0000 + fileOffset)
     }
 }
 

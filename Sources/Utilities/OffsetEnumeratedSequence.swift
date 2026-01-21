@@ -1,10 +1,10 @@
 import Foundation
 
-package struct OffsetEnumeratedSequence<Base: Collection>: Sequence {
-    package struct OffsetInfo {
-        package let index: Int
-        package let isStart: Bool
-        package let isEnd: Bool
+public struct OffsetEnumeratedSequence<Base: Collection>: Sequence {
+    public struct OffsetInfo {
+        public let index: Int
+        public let isStart: Bool
+        public let isEnd: Bool
 
         fileprivate init(index: Int, isStart: Bool, isEnd: Bool) {
             self.index = index
@@ -13,12 +13,12 @@ package struct OffsetEnumeratedSequence<Base: Collection>: Sequence {
         }
     }
 
-    package typealias Element = (offset: OffsetInfo, element: Base.Element)
+    public typealias Element = (offset: OffsetInfo, element: Base.Element)
 
-    package typealias Iterator = TargetIterator<Base.Iterator>
-    
-    package struct TargetIterator<BaseIterator: IteratorProtocol>: IteratorProtocol {
-        package typealias Element = (offset: OffsetInfo, element: BaseIterator.Element)
+    public typealias Iterator = TargetIterator<Base.Iterator>
+
+    public struct TargetIterator<BaseIterator: IteratorProtocol>: IteratorProtocol {
+        public typealias Element = (offset: OffsetInfo, element: BaseIterator.Element)
 
         private var baseIterator: BaseIterator
         private var currentIndex: Int
@@ -30,7 +30,7 @@ package struct OffsetEnumeratedSequence<Base: Collection>: Sequence {
             self.totalCount = count
         }
 
-        package mutating func next() -> Element? {
+        public mutating func next() -> Element? {
             guard let element = baseIterator.next() else {
                 return nil
             }
@@ -60,19 +60,19 @@ package struct OffsetEnumeratedSequence<Base: Collection>: Sequence {
         self.base = base
     }
 
-    package func makeIterator() -> Iterator {
+    public func makeIterator() -> Iterator {
         return Iterator(baseIterator: base.makeIterator(), count: base.count)
     }
 }
 
 extension Collection {
-    package func offsetEnumerated() -> OffsetEnumeratedSequence<Self> {
+    public func offsetEnumerated() -> OffsetEnumeratedSequence<Self> {
         return OffsetEnumeratedSequence(self)
     }
 }
 
 extension OffsetEnumeratedSequence.OffsetInfo: CustomStringConvertible {
-    package var description: String {
+    public var description: String {
         var parts = ["index: \(index)"]
         if isStart { parts.append("isStart") }
         if isEnd { parts.append("isEnd") }

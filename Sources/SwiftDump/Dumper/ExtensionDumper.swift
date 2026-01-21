@@ -10,11 +10,11 @@ import OrderedCollections
 package struct ExtensionDumped: Sendable {}
 
 package struct ExtensionDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Dumper {
-    private let dumped: ExtensionDumped
+    package let dumped: ExtensionDumped
 
-    private let configuration: DumperConfiguration
+    package let configuration: DumperConfiguration
 
-    private let machO: MachO
+    package let machO: MachO
 
     @Dependency(\.symbolIndexStore)
     private var symbolIndexStore
@@ -35,11 +35,11 @@ package struct ExtensionDumper<MachO: MachOSwiftSectionRepresentableWithCache>: 
 }
 
 package struct GlobalDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Dumper {
-    private let dumped: ExtensionDumped
+    package let dumped: ExtensionDumped
 
-    private let configuration: DumperConfiguration
+    package let configuration: DumperConfiguration
 
-    private let machO: MachO
+    package let machO: MachO
 
     @Dependency(\.symbolIndexStore)
     private var symbolIndexStore

@@ -3,14 +3,13 @@ import MachOKit
 import MachOExtensions
 import UniformTypeIdentifiers
 
-@available(macOS 13.0, *)
 package func loadFromFile(named: MachOFileName) throws -> File {
     let url: URL
     let filePath = named.rawValue
     if filePath.starts(with: "../") || filePath.starts(with: "./") {
-        url = URL(filePath: filePath, relativeTo: URL(filePath: #filePath))
+        url = URL(fileURLWithPath: filePath, relativeTo: URL(fileURLWithPath: #filePath))
     } else {
-        url = URL(filePath: filePath)
+        url = URL(fileURLWithPath: filePath)
     }
     return try File.loadFromFile(url: url)
 }

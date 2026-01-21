@@ -21,6 +21,6 @@ package protocol MutableDefinition: Definition {
     var staticVariables: [VariableDefinition] { get set }
     var staticFunctions: [FunctionDefinition] { get set }
     var staticSubscripts: [SubscriptDefinition] { get set }
-    
+
     func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws
 }
