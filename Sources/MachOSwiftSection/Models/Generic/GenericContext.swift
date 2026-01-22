@@ -35,7 +35,35 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         .init(parameters.dropFirst(parentParameters.flatMap { $0 }.count))
     }
 
-    public func currentRequirements<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) -> [GenericRequirementDescriptor] {
+    public var currentRequirements: [GenericRequirementDescriptor] {
+        .init(requirements.dropFirst(parentRequirements.flatMap { $0 }.count))
+    }
+
+    public var currentTypePacks: [GenericPackShapeDescriptor] {
+        .init(typePacks.dropFirst(parentTypePacks.flatMap { $0 }.count))
+    }
+
+    public var currentValues: [GenericValueDescriptor] {
+        .init(values.dropFirst(parentValues.flatMap { $0 }.count))
+    }
+
+    public var allParameters: [[GenericParamDescriptor]] {
+        currentParameters.isEmpty ? parentParameters : parentParameters.appending(currentParameters)
+    }
+
+    public var allRequirements: [[GenericRequirementDescriptor]] {
+        currentRequirements.isEmpty ? parentRequirements : parentRequirements.appending(currentRequirements)
+    }
+
+    public var allTypePacks: [[GenericPackShapeDescriptor]] {
+        currentTypePacks.isEmpty ? parentTypePacks : parentTypePacks.appending(currentTypePacks)
+    }
+
+    public var allValues: [[GenericValueDescriptor]] {
+        currentValues.isEmpty ? parentValues : parentValues.appending(currentValues)
+    }
+
+    public func uniqueCurrentRequirements(in machO: some MachOSwiftSectionRepresentableWithCache) -> [GenericRequirementDescriptor] {
         let parentRequirements = parentRequirements.flatMap { $0 }
         var currentRequirements: [GenericRequirementDescriptor] = []
         for requirement in requirements {
@@ -46,12 +74,15 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         return currentRequirements
     }
 
-    public var currentTypePacks: [GenericPackShapeDescriptor] {
-        .init(typePacks.dropFirst(parentTypePacks.flatMap { $0 }.count))
-    }
-
-    public var currentValues: [GenericValueDescriptor] {
-        .init(values.dropFirst(parentValues.flatMap { $0 }.count))
+    public func uniqueCurrentRequirementsInProcess() -> [GenericRequirementDescriptor] {
+        let parentRequirements = parentRequirements.flatMap { $0 }
+        var currentRequirements: [GenericRequirementDescriptor] = []
+        for requirement in requirements {
+            if !parentRequirements.contains(where: { $0.isContentEqual(to: requirement) }) {
+                currentRequirements.append(requirement)
+            }
+        }
+        return currentRequirements
     }
 
     public func asGenericContext() -> GenericContext {
@@ -228,5 +259,13 @@ extension ContextDescriptorWrapper {
         default:
             return nil
         }
+    }
+}
+
+extension Array {
+    func appending(_ element: Element) -> Self {
+        var copy = self
+        copy.append(element)
+        return copy
     }
 }

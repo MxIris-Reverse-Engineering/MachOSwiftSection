@@ -1,3 +1,6 @@
+import SwiftStdlibToolbox
+
+@CaseCheckable(.public)
 public enum ProtocolRequirementKind: UInt8 {
     case baseProtocol
     case method

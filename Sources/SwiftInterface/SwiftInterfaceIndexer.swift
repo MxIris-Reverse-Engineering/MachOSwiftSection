@@ -248,7 +248,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
 
                     var genericSignature: Node?
 
-                    if let currentRequirements = extensionContext.genericContext?.currentRequirements(in: machO), !currentRequirements.isEmpty {
+                    if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO), !currentRequirements.isEmpty {
                         genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO)
                     }
 
@@ -314,7 +314,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                         guard let typeKind = typeNode.typeKind else { continue }
                         let typeName = TypeName(node: typeNode, kind: typeKind)
                         var genericSignature: Node?
-                        if let currentRequirements = extensionContext.genericContext?.currentRequirements(in: machO), !currentRequirements.isEmpty {
+                        if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO), !currentRequirements.isEmpty {
                             genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO)
                         }
                         let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)

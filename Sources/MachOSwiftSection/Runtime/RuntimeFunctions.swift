@@ -41,4 +41,8 @@ public enum RuntimeFunctions {
         guard let witnessTablePointer = MachOSwiftSectionC.swift_conformsToProtocol(metadataPointer, protocolPointer) else { return nil }
         return try witnessTablePointer.readWrapperElement()
     }
+    
+    public static func getAssociatedTypeWitness(request: MetadataRequest, protocolWitnessTable: ProtocolWitnessTable, conformingTypeMetadata: Metadata, baseRequirement: ProtocolRequirement, associatedTypeRequirement: ProtocolRequirement) throws -> MetadataResponse {
+        try autoBitCast(MachOSwiftSectionC.swift_getAssociatedTypeWitness(request.rawValue, protocolWitnessTable.asPointer, conformingTypeMetadata.asPointer, baseRequirement.asPointer, associatedTypeRequirement.asPointer))
+    }
 }
