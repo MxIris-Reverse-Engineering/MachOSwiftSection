@@ -59,9 +59,46 @@ extension ProtocolConformance {
             return TypeName(node: node, kind: .class)
         }
     }
+    
+    func typeName() throws -> TypeName? {
+        switch typeReference {
+        case .directTypeDescriptor(let descriptor):
+            return try descriptor?.typeContextDescriptorWrapper?.typeName()
+        case .indirectTypeDescriptor(let descriptorOrSymbol):
+            switch descriptorOrSymbol {
+            case .symbol(let symbol):
+                guard let node = try MetadataReader.demangleType(for: symbol)?.first(of: .type) else { return nil }
+                let allChildren = node.map { $0 }
+                let kind: TypeKind
+                if allChildren.contains(.enum) || allChildren.contains(.boundGenericEnum) {
+                    kind = .enum
+                } else if allChildren.contains(.structure) || allChildren.contains(.boundGenericStructure) {
+                    kind = .struct
+                } else if allChildren.contains(.class) || allChildren.contains(.boundGenericClass) {
+                    kind = .class
+                } else {
+                    return nil
+                }
+                return TypeName(node: node, kind: kind)
+            case .element(let element):
+                return try element.typeContextDescriptorWrapper?.typeName()
+            case nil:
+                return nil
+            }
+        case .directObjCClassName,
+             .indirectObjCClass:
+            guard let node = try typeNode() else { return nil }
+            return TypeName(node: node, kind: .class)
+        }
+    }
 
     func protocolName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolName? {
         guard let node = try protocolNode(in: machO) else { return nil }
+        return ProtocolName(node: node)
+    }
+    
+    func protocolName() throws -> ProtocolName? {
+        guard let node = try protocolNode() else { return nil }
         return ProtocolName(node: node)
     }
 }
@@ -81,9 +118,28 @@ extension AssociatedType {
         }
         return TypeName(node: node, kind: kind)
     }
+    
+    func typeName() throws -> TypeName? {
+        let node = try MetadataReader.demangleType(for: conformingTypeName)
+        let kind: TypeKind
+        if node.contains(.enum) || node.contains(.boundGenericEnum) {
+            kind = .enum
+        } else if node.contains(.structure) || node.contains(.boundGenericStructure) {
+            kind = .struct
+        } else if node.contains(.class) || node.contains(.boundGenericClass) {
+            kind = .class
+        } else {
+            return nil
+        }
+        return TypeName(node: node, kind: kind)
+    }
 
     func protocolName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolName {
         try ProtocolName(node: MetadataReader.demangleType(for: protocolTypeName, in: machO))
+    }
+    
+    func protocolName() throws -> ProtocolName {
+        try ProtocolName(node: MetadataReader.demangleType(for: protocolTypeName))
     }
 }
 
@@ -91,17 +147,29 @@ extension MachOSwiftSection.`Protocol` {
     func protocolName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolName {
         try descriptor.protocolName(in: machO)
     }
+    
+    func protocolName() throws -> ProtocolName {
+        try descriptor.protocolName()
+    }
 }
 
 extension ProtocolDescriptor {
     func protocolName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolName {
         try ProtocolName(node: MetadataReader.demangleContext(for: .protocol(self), in: machO))
     }
+    
+    func protocolName() throws -> ProtocolName {
+        try ProtocolName(node: MetadataReader.demangleContext(for: .protocol(self)))
+    }
 }
 
 extension TypeContextWrapper {
     func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeName {
         try typeContextDescriptorWrapper.typeName(in: machO)
+    }
+    
+    func typeName() throws -> TypeName {
+        try typeContextDescriptorWrapper.typeName()
     }
 }
 
@@ -120,6 +188,10 @@ extension TypeContextDescriptorWrapper {
     func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeName {
         return try TypeName(node: MetadataReader.demangleContext(for: .type(self), in: machO), kind: kind)
     }
+    
+    func typeName() throws -> TypeName {
+        return try TypeName(node: MetadataReader.demangleContext(for: .type(self)), kind: kind)
+    }
 }
 
 extension FieldRecord {
@@ -129,6 +201,14 @@ extension FieldRecord {
 
     func demangledTypeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SemanticString {
         try demangledTypeNode(in: machO).printSemantic(using: .interfaceTypeBuilderOnly)
+    }
+    
+    func demangledTypeNode() throws -> Node {
+        try MetadataReader.demangleType(for: mangledTypeName())
+    }
+
+    func demangledTypeName() throws -> SemanticString {
+        try demangledTypeNode().printSemantic(using: .interfaceTypeBuilderOnly)
     }
 }
 

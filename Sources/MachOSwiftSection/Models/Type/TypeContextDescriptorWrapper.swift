@@ -61,6 +61,17 @@ public enum TypeContextDescriptorWrapper {
     public var asContextDescriptorWrapper: ContextDescriptorWrapper {
         return .type(self)
     }
+    
+    public func asPointerWrapper(in machO: MachOImage) -> Self {
+        switch self {
+        case .enum(let enumDescriptor):
+            return .enum(enumDescriptor.asPointerWrapper(in: machO))
+        case .struct(let structDescriptor):
+            return .struct(structDescriptor.asPointerWrapper(in: machO))
+        case .class(let classDescriptor):
+            return .class(classDescriptor.asPointerWrapper(in: machO))
+        }
+    }
 }
 
 extension TypeContextDescriptorWrapper: Resolvable {

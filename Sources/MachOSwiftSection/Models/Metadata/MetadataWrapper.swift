@@ -71,6 +71,53 @@ public enum MetadataWrapper: Resolvable {
         }
     }
     
+    public var metadata: Metadata {
+        get throws {
+            switch self {
+            case .class(let classMetadataObjCInterop):
+                return try classMetadataObjCInterop.asMetadata()
+            case .struct(let structMetadata):
+                return try structMetadata.asMetadata()
+            case .enum(let enumMetadata):
+                return try enumMetadata.asMetadata()
+            case .optional(let enumMetadata):
+                return try enumMetadata.asMetadata()
+            case .foreignClass(let foreignClassMetadata):
+                return try foreignClassMetadata.asMetadata()
+            case .foreignReferenceType(let foreignReferenceTypeMetadata):
+                return try foreignReferenceTypeMetadata.asMetadata()
+            case .opaque(let opaqueMetadata):
+                return try opaqueMetadata.asMetadata()
+            case .tuple(let tupleTypeMetadata):
+                return try tupleTypeMetadata.asMetadata()
+            case .function(let functionTypeMetadata):
+                return try functionTypeMetadata.asMetadata()
+            case .existential(let existentialTypeMetadata):
+                return try existentialTypeMetadata.asMetadata()
+            case .metatype(let metatypeMetadata):
+                return try metatypeMetadata.asMetadata()
+            case .objcClassWrapper(let objCClassWrapperMetadata):
+                return try objCClassWrapperMetadata.asMetadata()
+            case .existentialMetatype(let existentialMetatypeMetadata):
+                return try existentialMetatypeMetadata.asMetadata()
+            case .extendedExistential(let extendedExistentialTypeMetadata):
+                return try extendedExistentialTypeMetadata.asMetadata()
+            case .fixedArray(let fixedArrayTypeMetadata):
+                return try fixedArrayTypeMetadata.asMetadata()
+            case .heapLocalVariable(let heapLocalVariableMetadata):
+                return try heapLocalVariableMetadata.asMetadata()
+            case .heapGenericLocalVariable(let genericBoxHeapMetadata):
+                return try genericBoxHeapMetadata.asMetadata()
+            case .errorObject(let enumMetadata):
+                return try enumMetadata.asMetadata()
+            case .task(let dispatchClassMetadata):
+                return try dispatchClassMetadata.asMetadata()
+            case .job(let dispatchClassMetadata):
+                return try dispatchClassMetadata.asMetadata()
+            }
+        }
+    }
+    
     public func valueWitnessTable(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ValueWitnessTable {
         switch self {
         case .class(let classMetadataObjCInterop):

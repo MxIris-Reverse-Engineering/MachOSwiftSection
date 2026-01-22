@@ -1,4 +1,5 @@
 import Foundation
+import MachOKit
 import MachOSymbols
 import SwiftStdlibToolbox
 
@@ -21,6 +22,17 @@ public enum TypeContextWrapper: Sendable {
             .struct(`struct`.descriptor)
         case .class(let `class`):
             .class(`class`.descriptor)
+        }
+    }
+    
+    public func asPointerWrapper(in machO: MachOImage) throws -> Self {
+        switch self {
+        case .enum(let `enum`):
+            return try .enum(.init(descriptor: `enum`.descriptor.asPointerWrapper(in: machO)))
+        case .struct(let `struct`):
+            return try .struct(.init(descriptor: `struct`.descriptor.asPointerWrapper(in: machO)))
+        case .class(let `class`):
+            return try .class(.init(descriptor: `class`.descriptor.asPointerWrapper(in: machO)))
         }
     }
 

@@ -30,6 +30,14 @@ extension MetadataProtocol {
     public func asMetadataWrapper() throws -> MetadataWrapper {
         try .resolve(from: .init(bitPattern: offset))
     }
+    
+    public func asMetadata(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Metadata {
+        try .resolve(from: offset, in: machO)
+    }
+    
+    public func asMetadata() throws -> Metadata {
+        try .resolve(from: .init(bitPattern: offset))
+    }
 }
 
 extension MetadataProtocol {
