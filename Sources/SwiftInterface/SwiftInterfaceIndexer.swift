@@ -14,62 +14,71 @@ import SwiftInspection
 
 @_spi(Support)
 public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWithCache>: Sendable {
+    @usableFromInline
+    final class Storage: Sendable {
+        @usableFromInline @Mutex
+        var types: [TypeContextWrapper] = []
+
+        @usableFromInline @Mutex
+        var protocols: [MachOSwiftSection.`Protocol`] = []
+
+        @usableFromInline @Mutex
+        var protocolConformances: [ProtocolConformance] = []
+
+        @usableFromInline @Mutex
+        var associatedTypes: [AssociatedType] = []
+
+        @usableFromInline @Mutex
+        var protocolConformancesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, ProtocolConformance>> = [:]
+
+        @usableFromInline @Mutex
+        var associatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, AssociatedType>> = [:]
+
+        @usableFromInline @Mutex
+        var conformingTypesByProtocolName: OrderedDictionary<ProtocolName, OrderedSet<TypeName>> = [:]
+
+        @usableFromInline @Mutex
+        var rootTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
+
+        @usableFromInline @Mutex
+        var allTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
+
+        @usableFromInline @Mutex
+        var rootProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> = [:]
+
+        @usableFromInline @Mutex
+        var allProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> = [:]
+
+        @usableFromInline @Mutex
+        var typeExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
+
+        @usableFromInline @Mutex
+        var protocolExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
+
+        @usableFromInline @Mutex
+        var typeAliasExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
+
+        @usableFromInline @Mutex
+        var conformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
+
+        @usableFromInline @Mutex
+        var globalVariableDefinitions: [VariableDefinition] = []
+
+        @usableFromInline @Mutex
+        var globalFunctionDefinitions: [FunctionDefinition] = []
+    }
+
     public let machO: MachO
 
     public let configuration: SwiftInterfaceIndexConfiguration
 
     public let eventDispatcher: SwiftInterfaceEvents.Dispatcher = .init()
 
-    @Mutex
-    public private(set) var types: [TypeContextWrapper] = []
+    @usableFromInline
+    let currentStorage = Storage()
 
     @Mutex
-    public private(set) var protocols: [MachOSwiftSection.`Protocol`] = []
-
-    @Mutex
-    public private(set) var protocolConformances: [ProtocolConformance] = []
-
-    @Mutex
-    public private(set) var associatedTypes: [AssociatedType] = []
-
-    @Mutex
-    public private(set) var protocolConformancesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, ProtocolConformance>> = [:]
-
-    @Mutex
-    public private(set) var associatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, AssociatedType>> = [:]
-    
-    @Mutex
-    public private(set) var conformingTypesByProtocolName: OrderedDictionary<ProtocolName, OrderedSet<TypeName>> = [:]
-
-    @Mutex
-    public private(set) var rootTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
-
-    @Mutex
-    public private(set) var allTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
-
-    @Mutex
-    public private(set) var rootProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> = [:]
-
-    @Mutex
-    public private(set) var allProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> = [:]
-
-    @Mutex
-    public private(set) var typeExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
-
-    @Mutex
-    public private(set) var protocolExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
-
-    @Mutex
-    public private(set) var typeAliasExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
-
-    @Mutex
-    public private(set) var conformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
-
-    @Mutex
-    public private(set) var globalVariableDefinitions: [VariableDefinition] = []
-
-    @Mutex
-    public private(set) var globalFunctionDefinitions: [FunctionDefinition] = []
+    public private(set) var subIndexers: [SwiftInterfaceIndexer<MachO>] = []
 
     public init(configuration: SwiftInterfaceIndexConfiguration = .init(), eventHandlers: [SwiftInterfaceEvents.Handler] = [], in machO: MachO) {
         self.machO = machO
@@ -77,43 +86,51 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
         eventDispatcher.addHandlers(eventHandlers)
     }
 
-    func prepare() async throws {
+    public func addSubIndexer(_ subIndexer: SwiftInterfaceIndexer<MachO>) {
+        subIndexers.append(subIndexer)
+    }
+
+    public func prepare() async throws {
         eventDispatcher.dispatch(.phaseTransition(phase: .preparation, state: .started))
+
+        for subIndexer in subIndexers {
+            try await subIndexer.prepare()
+        }
 
         do {
             eventDispatcher.dispatch(.extractionStarted(section: .swiftTypes))
-            types = try machO.swift.types
-            eventDispatcher.dispatch(.extractionCompleted(result: SwiftInterfaceEvents.ExtractionResult(section: .swiftTypes, count: types.count)))
+            currentStorage.types = try machO.swift.types
+            eventDispatcher.dispatch(.extractionCompleted(result: SwiftInterfaceEvents.ExtractionResult(section: .swiftTypes, count: currentStorage.types.count)))
         } catch {
             eventDispatcher.dispatch(.extractionFailed(section: .swiftTypes, error: error))
-            types = []
+            currentStorage.types = []
         }
 
         do {
             eventDispatcher.dispatch(.extractionStarted(section: .swiftProtocols))
-            protocols = try machO.swift.protocols
-            eventDispatcher.dispatch(.extractionCompleted(result: SwiftInterfaceEvents.ExtractionResult(section: .swiftProtocols, count: protocols.count)))
+            currentStorage.protocols = try machO.swift.protocols
+            eventDispatcher.dispatch(.extractionCompleted(result: SwiftInterfaceEvents.ExtractionResult(section: .swiftProtocols, count: currentStorage.protocols.count)))
         } catch {
             eventDispatcher.dispatch(.extractionFailed(section: .swiftProtocols, error: error))
-            protocols = []
+            currentStorage.protocols = []
         }
 
         do {
             eventDispatcher.dispatch(.extractionStarted(section: .protocolConformances))
-            protocolConformances = try machO.swift.protocolConformances
-            eventDispatcher.dispatch(.extractionCompleted(result: SwiftInterfaceEvents.ExtractionResult(section: .protocolConformances, count: protocolConformances.count)))
+            currentStorage.protocolConformances = try machO.swift.protocolConformances
+            eventDispatcher.dispatch(.extractionCompleted(result: SwiftInterfaceEvents.ExtractionResult(section: .protocolConformances, count: currentStorage.protocolConformances.count)))
         } catch {
             eventDispatcher.dispatch(.extractionFailed(section: .protocolConformances, error: error))
-            protocolConformances = []
+            currentStorage.protocolConformances = []
         }
 
         do {
             eventDispatcher.dispatch(.extractionStarted(section: .associatedTypes))
-            associatedTypes = try machO.swift.associatedTypes
-            eventDispatcher.dispatch(.extractionCompleted(result: SwiftInterfaceEvents.ExtractionResult(section: .associatedTypes, count: associatedTypes.count)))
+            currentStorage.associatedTypes = try machO.swift.associatedTypes
+            eventDispatcher.dispatch(.extractionCompleted(result: SwiftInterfaceEvents.ExtractionResult(section: .associatedTypes, count: currentStorage.associatedTypes.count)))
         } catch {
             eventDispatcher.dispatch(.extractionFailed(section: .associatedTypes, error: error))
-            associatedTypes = []
+            currentStorage.associatedTypes = []
         }
 
         @Dependency(\.symbolIndexStore)
@@ -176,13 +193,13 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
     }
 
     private func indexTypes() async throws {
-        eventDispatcher.dispatch(.typeIndexingStarted(totalTypes: types.count))
+        eventDispatcher.dispatch(.typeIndexingStarted(totalTypes: currentStorage.types.count))
         var currentModuleTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
         var cImportedCount = 0
         var successfulCount = 0
         var failedCount = 0
 
-        for type in types {
+        for type in currentStorage.types {
             if let isCImportedContext = try? type.contextDescriptorWrapper.contextDescriptor.isCImportedContextDescriptor(in: machO), !configuration.showCImportedTypes, isCImportedContext {
                 cImportedCount += 1
                 continue
@@ -200,7 +217,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
         var nestedTypeCount = 0
         var extensionTypeCount = 0
 
-        for type in types {
+        for type in currentStorage.types {
             guard let typeName = try? type.typeName(in: machO), let childDefinition = currentModuleTypeDefinitions[typeName] else {
                 continue
             }
@@ -254,36 +271,36 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
 
                     let extensionDefinition = try ExtensionDefinition(extensionName: extensionTypeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
                     extensionDefinition.types = [typeDefinition]
-                    typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
+                    currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                 case .type(let parentType):
                     let parentTypeName = try parentType.typeName(in: machO)
                     let extensionDefinition = try ExtensionDefinition(extensionName: parentTypeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
                     extensionDefinition.types = [typeDefinition]
-                    typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
+                    currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                 case .symbol(let symbol):
                     guard let type = try MetadataReader.demangleType(for: symbol, in: machO)?.first(of: .type), let kind = type.typeKind else { continue }
                     let parentTypeName = TypeName(node: type, kind: kind)
                     let extensionDefinition = try ExtensionDefinition(extensionName: parentTypeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
                     extensionDefinition.types = [typeDefinition]
-                    typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
+                    currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                 }
             }
         }
 
-        self.rootTypeDefinitions = rootTypeDefinitions
-        allTypeDefinitions = currentModuleTypeDefinitions
+        currentStorage.rootTypeDefinitions = rootTypeDefinitions
+        currentStorage.allTypeDefinitions = currentModuleTypeDefinitions
 
-        eventDispatcher.dispatch(.typeIndexingCompleted(result: SwiftInterfaceEvents.TypeIndexingResult(totalProcessed: types.count, successful: successfulCount, failed: failedCount, cImportedSkipped: cImportedCount, nestedTypes: nestedTypeCount, extensionTypes: extensionTypeCount)))
+        eventDispatcher.dispatch(.typeIndexingCompleted(result: SwiftInterfaceEvents.TypeIndexingResult(totalProcessed: currentStorage.types.count, successful: successfulCount, failed: failedCount, cImportedSkipped: cImportedCount, nestedTypes: nestedTypeCount, extensionTypes: extensionTypeCount)))
     }
 
     private func indexProtocols() async throws {
-        eventDispatcher.dispatch(.protocolIndexingStarted(totalProtocols: protocols.count))
+        eventDispatcher.dispatch(.protocolIndexingStarted(totalProtocols: currentStorage.protocols.count))
         var rootProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> = [:]
         var allProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> = [:]
         var successfulCount = 0
         var failedCount = 0
 
-        for proto in protocols {
+        for proto in currentStorage.protocols {
             var protocolName: ProtocolName?
             do {
                 let protocolDefinition = try ProtocolDefinition(protocol: proto, in: machO)
@@ -293,7 +310,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                     var isRoot = true
                     while let currentContext = parentContext {
                         if case .type(let typeContext) = currentContext, let parentTypeName = try? typeContext.typeName(in: machO) {
-                            if let parentDefinition = allTypeDefinitions[parentTypeName] {
+                            if let parentDefinition = currentStorage.allTypeDefinitions[parentTypeName] {
                                 protocolDefinition.parent = parentDefinition
                                 parentDefinition.protocolChildren.append(protocolDefinition)
                                 isRoot = false
@@ -319,7 +336,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                         }
                         let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
                         extensionDefinition.protocols = [protocolDefinition]
-                        typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
+                        currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                     }
 
                     successfulCount += 1
@@ -334,17 +351,17 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
             }
         }
 
-        self.rootProtocolDefinitions = rootProtocolDefinitions
-        self.allProtocolDefinitions = allProtocolDefinitions
-        eventDispatcher.dispatch(.protocolIndexingCompleted(result: SwiftInterfaceEvents.ProtocolIndexingResult(totalProcessed: protocols.count, successful: successfulCount, failed: failedCount)))
+        currentStorage.rootProtocolDefinitions = rootProtocolDefinitions
+        currentStorage.allProtocolDefinitions = allProtocolDefinitions
+        eventDispatcher.dispatch(.protocolIndexingCompleted(result: SwiftInterfaceEvents.ProtocolIndexingResult(totalProcessed: currentStorage.protocols.count, successful: successfulCount, failed: failedCount)))
     }
 
     private func indexConformances() async throws {
-        eventDispatcher.dispatch(.conformanceIndexingStarted(input: SwiftInterfaceEvents.ConformanceIndexingInput(totalConformances: protocolConformances.count, totalAssociatedTypes: associatedTypes.count)))
+        eventDispatcher.dispatch(.conformanceIndexingStarted(input: SwiftInterfaceEvents.ConformanceIndexingInput(totalConformances: currentStorage.protocolConformances.count, totalAssociatedTypes: currentStorage.associatedTypes.count)))
         var protocolConformancesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, ProtocolConformance>> = [:]
         var failedConformances = 0
 
-        for conformance in protocolConformances {
+        for conformance in currentStorage.protocolConformances {
             var typeName: TypeName?
             var protocolName: ProtocolName?
             do {
@@ -352,7 +369,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                 protocolName = try conformance.protocolName(in: machO)
                 if let typeName, let protocolName {
                     protocolConformancesByTypeName[typeName, default: [:]][protocolName] = conformance
-                    conformingTypesByProtocolName[protocolName, default: []].append(typeName)
+                    currentStorage.conformingTypesByProtocolName[protocolName, default: []].append(typeName)
                     eventDispatcher.dispatch(.conformanceFound(context: SwiftInterfaceEvents.ConformanceContext(typeName: typeName.name, protocolName: protocolName.name)))
                 } else {
                     eventDispatcher.dispatch(.nameExtractionWarning(for: .protocolConformance))
@@ -365,12 +382,12 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
             }
         }
 
-        self.protocolConformancesByTypeName = protocolConformancesByTypeName
+        currentStorage.protocolConformancesByTypeName = protocolConformancesByTypeName
 
         var associatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, AssociatedType>> = [:]
         var failedAssociatedTypes = 0
 
-        for associatedType in associatedTypes {
+        for associatedType in currentStorage.associatedTypes {
             var typeName: TypeName?
             var protocolName: ProtocolName?
             do {
@@ -390,7 +407,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                 failedAssociatedTypes += 1
             }
         }
-        self.associatedTypesByTypeName = associatedTypesByTypeName
+        currentStorage.associatedTypesByTypeName = associatedTypesByTypeName
         var associatedTypesByTypeNameCopy = associatedTypesByTypeName
 
         var conformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
@@ -426,7 +443,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
             }
         }
 
-        self.conformanceExtensionDefinitions = conformanceExtensionDefinitions
+        currentStorage.conformanceExtensionDefinitions = conformanceExtensionDefinitions
         eventDispatcher.dispatch(.conformanceIndexingCompleted(result: SwiftInterfaceEvents.ConformanceIndexingResult(conformedTypes: protocolConformancesByTypeName.count, associatedTypeCount: associatedTypesByTypeName.count, extensionCount: extensionCount, failedConformances: failedConformances, failedAssociatedTypes: failedAssociatedTypes, failedExtensions: failedExtensions)))
     }
 
@@ -563,14 +580,14 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
         }
 
         for (extensionName, typeExtensionDefinition) in typeExtensionDefinitions {
-            self.typeExtensionDefinitions[extensionName, default: []].append(contentsOf: typeExtensionDefinition)
+            currentStorage.typeExtensionDefinitions[extensionName, default: []].append(contentsOf: typeExtensionDefinition)
         }
 
         for (extensionName, protocolExtensionDefinition) in protocolExtensionDefinitions {
-            self.protocolExtensionDefinitions[extensionName, default: []].append(contentsOf: protocolExtensionDefinition)
+            currentStorage.protocolExtensionDefinitions[extensionName, default: []].append(contentsOf: protocolExtensionDefinition)
         }
 
-        self.typeAliasExtensionDefinitions = typeAliasExtensionDefinitions
+        currentStorage.typeAliasExtensionDefinitions = typeAliasExtensionDefinitions
 
         eventDispatcher.dispatch(.extensionIndexingCompleted(result: SwiftInterfaceEvents.ExtensionIndexingResult(typeExtensions: typeExtensionCount, protocolExtensions: protocolExtensionCount, typeAliasExtensions: typeAliasExtensionCount, failed: failedExtensions)))
     }
@@ -579,21 +596,220 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
-        globalVariableDefinitions = DefinitionBuilder.variables(for: symbolIndexStore.globalSymbols(of: .variable(isStorage: false), .variable(isStorage: true), in: machO).mapToDemangledSymbolWithOffset(), fieldNames: [], isGlobalOrStatic: true)
-        globalFunctionDefinitions = DefinitionBuilder.functions(for: symbolIndexStore.globalSymbols(of: .function, in: machO).mapToDemangledSymbolWithOffset(), isGlobalOrStatic: true)
+        currentStorage.globalVariableDefinitions = DefinitionBuilder.variables(for: symbolIndexStore.globalSymbols(of: .variable(isStorage: false), .variable(isStorage: true), in: machO).mapToDemangledSymbolWithOffset(), fieldNames: [], isGlobalOrStatic: true)
+        currentStorage.globalFunctionDefinitions = DefinitionBuilder.functions(for: symbolIndexStore.globalSymbols(of: .function, in: machO).mapToDemangledSymbolWithOffset(), isGlobalOrStatic: true)
     }
 }
 
+// MARK: - Current Storage Property Mappings
+
 extension SwiftInterfaceIndexer {
-    public var numberOfTypes: Int { types.count }
+    @inlinable
+    public var types: [TypeContextWrapper] { currentStorage.types }
 
-    public var numberOfEnums: Int { types.filter { $0.isEnum }.count }
+    @inlinable
+    public var protocols: [MachOSwiftSection.`Protocol`] { currentStorage.protocols }
 
-    public var numberOfStructs: Int { types.filter { $0.isStruct }.count }
+    @inlinable
+    public var protocolConformances: [ProtocolConformance] { currentStorage.protocolConformances }
 
-    public var numberOfClasses: Int { types.filter { $0.isClass }.count }
+    @inlinable
+    public var associatedTypes: [AssociatedType] { currentStorage.associatedTypes }
 
-    public var numberOfProtocols: Int { protocols.count }
+    @inlinable
+    public var protocolConformancesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, ProtocolConformance>> { currentStorage.protocolConformancesByTypeName }
 
-    public var numberOfProtocolConformances: Int { protocolConformances.count }
+    @inlinable
+    public var associatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, AssociatedType>> { currentStorage.associatedTypesByTypeName }
+
+    @inlinable
+    public var conformingTypesByProtocolName: OrderedDictionary<ProtocolName, OrderedSet<TypeName>> { currentStorage.conformingTypesByProtocolName }
+
+    @inlinable
+    public var rootTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> { currentStorage.rootTypeDefinitions }
+
+    @inlinable
+    public var allTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> { currentStorage.allTypeDefinitions }
+
+    @inlinable
+    public var rootProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> { currentStorage.rootProtocolDefinitions }
+
+    @inlinable
+    public var allProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> { currentStorage.allProtocolDefinitions }
+
+    @inlinable
+    public var typeExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> { currentStorage.typeExtensionDefinitions }
+
+    @inlinable
+    public var protocolExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> { currentStorage.protocolExtensionDefinitions }
+
+    @inlinable
+    public var typeAliasExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> { currentStorage.typeAliasExtensionDefinitions }
+
+    @inlinable
+    public var conformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> { currentStorage.conformanceExtensionDefinitions }
+
+    @inlinable
+    public var globalVariableDefinitions: [VariableDefinition] { currentStorage.globalVariableDefinitions }
+
+    @inlinable
+    public var globalFunctionDefinitions: [FunctionDefinition] { currentStorage.globalFunctionDefinitions }
+}
+
+// MARK: - All Storage Property Mappings (Current + SubIndexers)
+
+extension SwiftInterfaceIndexer {
+    @inlinable
+    public var allTypes: [TypeContextWrapper] {
+        currentStorage.types + subIndexers.flatMap { $0.allTypes }
+    }
+
+    @inlinable
+    public var allProtocols: [MachOSwiftSection.`Protocol`] {
+        currentStorage.protocols + subIndexers.flatMap { $0.allProtocols }
+    }
+
+    @inlinable
+    public var allProtocolConformances: [ProtocolConformance] {
+        currentStorage.protocolConformances + subIndexers.flatMap { $0.allProtocolConformances }
+    }
+
+    @inlinable
+    public var allAssociatedTypes: [AssociatedType] {
+        currentStorage.associatedTypes + subIndexers.flatMap { $0.allAssociatedTypes }
+    }
+
+    public var allProtocolConformancesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, ProtocolConformance>> {
+        var result = currentStorage.protocolConformancesByTypeName
+        for subIndexer in subIndexers {
+            for (typeName, conformances) in subIndexer.allProtocolConformancesByTypeName {
+                result[typeName, default: [:]].merge(conformances) { current, _ in current }
+            }
+        }
+        return result
+    }
+
+    public var allAssociatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, AssociatedType>> {
+        var result = currentStorage.associatedTypesByTypeName
+        for subIndexer in subIndexers {
+            for (typeName, associatedTypes) in subIndexer.allAssociatedTypesByTypeName {
+                result[typeName, default: [:]].merge(associatedTypes) { current, _ in current }
+            }
+        }
+        return result
+    }
+
+    public var allConformingTypesByProtocolName: OrderedDictionary<ProtocolName, OrderedSet<TypeName>> {
+        var result = currentStorage.conformingTypesByProtocolName
+        for subIndexer in subIndexers {
+            for (protocolName, typeNames) in subIndexer.allConformingTypesByProtocolName {
+                result[protocolName, default: []].formUnion(typeNames)
+            }
+        }
+        return result
+    }
+
+    public var allRootTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> {
+        var result = currentStorage.rootTypeDefinitions
+        for subIndexer in subIndexers {
+            result.merge(subIndexer.allRootTypeDefinitions) { current, _ in current }
+        }
+        return result
+    }
+
+    public var allAllTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> {
+        var result = currentStorage.allTypeDefinitions
+        for subIndexer in subIndexers {
+            result.merge(subIndexer.allAllTypeDefinitions) { current, _ in current }
+        }
+        return result
+    }
+
+    public var allRootProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> {
+        var result = currentStorage.rootProtocolDefinitions
+        for subIndexer in subIndexers {
+            result.merge(subIndexer.allRootProtocolDefinitions) { current, _ in current }
+        }
+        return result
+    }
+
+    public var allAllProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> {
+        var result = currentStorage.allProtocolDefinitions
+        for subIndexer in subIndexers {
+            result.merge(subIndexer.allAllProtocolDefinitions) { current, _ in current }
+        }
+        return result
+    }
+
+    public var allTypeExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> {
+        var result = currentStorage.typeExtensionDefinitions
+        for subIndexer in subIndexers {
+            for (extensionName, definitions) in subIndexer.allTypeExtensionDefinitions {
+                result[extensionName, default: []].append(contentsOf: definitions)
+            }
+        }
+        return result
+    }
+
+    public var allProtocolExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> {
+        var result = currentStorage.protocolExtensionDefinitions
+        for subIndexer in subIndexers {
+            for (extensionName, definitions) in subIndexer.allProtocolExtensionDefinitions {
+                result[extensionName, default: []].append(contentsOf: definitions)
+            }
+        }
+        return result
+    }
+
+    public var allTypeAliasExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> {
+        var result = currentStorage.typeAliasExtensionDefinitions
+        for subIndexer in subIndexers {
+            for (extensionName, definitions) in subIndexer.allTypeAliasExtensionDefinitions {
+                result[extensionName, default: []].append(contentsOf: definitions)
+            }
+        }
+        return result
+    }
+
+    public var allConformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> {
+        var result = currentStorage.conformanceExtensionDefinitions
+        for subIndexer in subIndexers {
+            for (extensionName, definitions) in subIndexer.allConformanceExtensionDefinitions {
+                result[extensionName, default: []].append(contentsOf: definitions)
+            }
+        }
+        return result
+    }
+
+    @inlinable
+    public var allGlobalVariableDefinitions: [VariableDefinition] {
+        currentStorage.globalVariableDefinitions + subIndexers.flatMap { $0.allGlobalVariableDefinitions }
+    }
+
+    @inlinable
+    public var allGlobalFunctionDefinitions: [FunctionDefinition] {
+        currentStorage.globalFunctionDefinitions + subIndexers.flatMap { $0.allGlobalFunctionDefinitions }
+    }
+}
+
+// MARK: - Statistics
+
+extension SwiftInterfaceIndexer {
+    @inlinable
+    public var numberOfTypes: Int { currentStorage.types.count }
+
+    @inlinable
+    public var numberOfEnums: Int { currentStorage.types.filter { $0.isEnum }.count }
+
+    @inlinable
+    public var numberOfStructs: Int { currentStorage.types.filter { $0.isStruct }.count }
+
+    @inlinable
+    public var numberOfClasses: Int { currentStorage.types.filter { $0.isClass }.count }
+
+    @inlinable
+    public var numberOfProtocols: Int { currentStorage.protocols.count }
+
+    @inlinable
+    public var numberOfProtocolConformances: Int { currentStorage.protocolConformances.count }
 }

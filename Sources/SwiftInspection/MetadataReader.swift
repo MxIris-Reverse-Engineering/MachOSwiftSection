@@ -7,19 +7,16 @@ import MachOSwiftSection
 @_spi(Internals) import MachOCaches
 @_spi(Internals) import MachOSymbols
 
-package enum MetadataReader {
+package enum MetadataReader {}
+
+extension MetadataReader {
     fileprivate static func _demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
         return try demangle(for: mangledName, kind: .type, in: machO)
     }
 
     package static func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
-//        return try demangle(for: mangledName, kind: .type, in: machO)
         try MetadataReaderCache.shared.demangleType(for: mangledName, in: machO)
     }
-
-//    public static func demangleSymbol(for mangledName: MangledName, in machO: MachO) throws -> Node {
-//        return try demangle(for: mangledName, kind: .symbol, in: machO)
-//    }
 
     package static func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for symbol: Symbol, in machO: MachO) throws -> Node? {
         return try buildContextManglingForSymbol(symbol, in: machO)
@@ -33,6 +30,68 @@ package enum MetadataReader {
         return try required(buildContextMangling(context: context, in: machO))
     }
 
+    package static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirement: GenericRequirementDescriptor, in machO: MachO) throws -> Node? {
+        try buildGenericSignature(for: [requirement], in: machO)
+    }
+
+    package static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirements: GenericRequirementDescriptor..., in machO: MachO) throws -> Node? {
+        try buildGenericSignature(for: requirements, in: machO)
+    }
+
+    package static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirements: [GenericRequirementDescriptor], in machO: MachO) throws -> Node? {
+        guard !requirements.isEmpty else { return nil }
+        let signatureNode = Node(kind: .dependentGenericSignature)
+        var failed = false
+        for requirement in requirements {
+            if failed {
+                break
+            }
+            let subject = try demangle(for: requirement.paramMangledName(in: machO), kind: .type, in: machO)
+            let offset = requirement.offset(of: \.content)
+            switch requirement.content {
+            case .protocol(let relativeProtocolDescriptorPointer):
+                guard let proto = try? readProtocol(offset: offset, pointer: relativeProtocolDescriptorPointer, in: machO) else {
+                    failed = true
+                    break
+                }
+                let requirementNode = Node(kind: .dependentGenericConformanceRequirement, children: [subject, proto])
+                signatureNode.addChild(requirementNode)
+            case .type(let relativeDirectPointer):
+                let mangledName = try relativeDirectPointer.resolve(from: offset, in: machO)
+                guard let type = try? demangle(for: mangledName, kind: .type, in: machO) else {
+                    failed = true
+                    break
+                }
+                let nodeKind: Node.Kind
+
+                if requirement.flags.kind == .sameType {
+                    nodeKind = .dependentGenericSameTypeRequirement
+                } else {
+                    nodeKind = .dependentGenericConformanceRequirement
+                }
+
+                let requirementNode = Node(kind: nodeKind, children: [subject, type])
+                signatureNode.addChild(requirementNode)
+            case .layout(let genericRequirementLayoutKind):
+                if genericRequirementLayoutKind == .class {
+                    let requirementNode = Node(kind: .dependentGenericLayoutRequirement, children: [subject, .init(kind: .identifier, contents: .text("C"))])
+                    signatureNode.addChild(requirementNode)
+                } else {
+                    failed = true
+                }
+            case .conformance:
+                break
+            case .invertedProtocols:
+                break
+            }
+        }
+        if failed {
+            return nil
+        } else {
+            return signatureNode
+        }
+    }
+    
     private static func demangle<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, kind: MangledNameKind, in machO: MachO) throws -> Node {
         let stringValue = switch kind {
         case .type:
@@ -142,67 +201,7 @@ package enum MetadataReader {
         }
     }
 
-    package static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirement: GenericRequirementDescriptor, in machO: MachO) throws -> Node? {
-        try buildGenericSignature(for: [requirement], in: machO)
-    }
-
-    package static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirements: GenericRequirementDescriptor..., in machO: MachO) throws -> Node? {
-        try buildGenericSignature(for: requirements, in: machO)
-    }
-
-    package static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirements: [GenericRequirementDescriptor], in machO: MachO) throws -> Node? {
-        guard !requirements.isEmpty else { return nil }
-        let signatureNode = Node(kind: .dependentGenericSignature)
-        var failed = false
-        for requirement in requirements {
-            if failed {
-                break
-            }
-            let subject = try demangle(for: requirement.paramMangledName(in: machO), kind: .type, in: machO)
-            let offset = requirement.offset(of: \.content)
-            switch requirement.content {
-            case .protocol(let relativeProtocolDescriptorPointer):
-                guard let proto = try? readProtocol(offset: offset, pointer: relativeProtocolDescriptorPointer, in: machO) else {
-                    failed = true
-                    break
-                }
-                let requirementNode = Node(kind: .dependentGenericConformanceRequirement, children: [subject, proto])
-                signatureNode.addChild(requirementNode)
-            case .type(let relativeDirectPointer):
-                let mangledName = try relativeDirectPointer.resolve(from: offset, in: machO)
-                guard let type = try? demangle(for: mangledName, kind: .type, in: machO) else {
-                    failed = true
-                    break
-                }
-                let nodeKind: Node.Kind
-
-                if requirement.flags.kind == .sameType {
-                    nodeKind = .dependentGenericSameTypeRequirement
-                } else {
-                    nodeKind = .dependentGenericConformanceRequirement
-                }
-
-                let requirementNode = Node(kind: nodeKind, children: [subject, type])
-                signatureNode.addChild(requirementNode)
-            case .layout(let genericRequirementLayoutKind):
-                if genericRequirementLayoutKind == .class {
-                    let requirementNode = Node(kind: .dependentGenericLayoutRequirement, children: [subject, .init(kind: .identifier, contents: .text("C"))])
-                    signatureNode.addChild(requirementNode)
-                } else {
-                    failed = true
-                }
-            case .conformance:
-                break
-            case .invertedProtocols:
-                break
-            }
-        }
-        if failed {
-            return nil
-        } else {
-            return signatureNode
-        }
-    }
+    
 
     private static func buildContextDescriptorMangling<MachO: MachOSwiftSectionRepresentableWithCache>(context: ContextDescriptorWrapper, recursionLimit: Int, in machO: MachO) throws -> Node? {
         guard recursionLimit > 0 else { return nil }
