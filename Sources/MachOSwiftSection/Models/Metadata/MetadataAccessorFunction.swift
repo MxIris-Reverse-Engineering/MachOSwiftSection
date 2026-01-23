@@ -22,10 +22,10 @@ public struct MetadataAccessorFunction: Resolvable, @unchecked Sendable {
         return try perform(request: request, metadatas: metadatas.map { $0.pointer(in: machO) }, witnessTables: witnessTables.map { $0.pointer(in: machO) })
     }
 
-    public func callAsFunction<each Metadata: MetadataProtocol>(request: MetadataRequest, metadatas: repeat each Metadata, witnessTables: ProtocolWitnessTable..., in machO: MachOImage) throws -> MetadataResponse {
+    public func callAsFunction<each Metadata: MetadataProtocol>(request: MetadataRequest, eachMetadatas: repeat each Metadata, witnessTables: ProtocolWitnessTable..., in machO: MachOImage) throws -> MetadataResponse {
         var metadataPointers: [UnsafeRawPointer] = []
 
-        for metadata in repeat each metadatas {
+        for metadata in repeat each eachMetadatas {
             metadataPointers.append(metadata.pointer(in: machO))
         }
 
@@ -36,14 +36,14 @@ public struct MetadataAccessorFunction: Resolvable, @unchecked Sendable {
         return try perform(request: request, metadatas: metadatas.map { try $0.asPointer }, witnessTables: witnessTables.map { try $0.asPointer })
     }
 
-    public func callAsFunction<each Metadata: MetadataProtocol>(request: MetadataRequest, metadatas: repeat each Metadata, witnessTables: ProtocolWitnessTable...) throws -> MetadataResponse {
+    public func callAsFunction<each Metadata: MetadataProtocol>(request: MetadataRequest, eachMetadatas: repeat each Metadata, witnessTables: ProtocolWitnessTable?...) throws -> MetadataResponse {
         var metadataPointers: [UnsafeRawPointer] = []
 
-        for metadata in repeat each metadatas {
+        for metadata in repeat each eachMetadatas {
             try metadataPointers.append(metadata.asPointer)
         }
 
-        return try perform(request: request, metadatas: metadataPointers, witnessTables: witnessTables.map { try $0.asPointer })
+        return try perform(request: request, metadatas: metadataPointers, witnessTables: witnessTables.compactMap { try $0?.asPointer })
     }
 
     private func perform(request: MetadataRequest, metadatas: [UnsafeRawPointer], witnessTables: [UnsafeRawPointer]) throws -> MetadataResponse {

@@ -31,7 +31,7 @@ struct GenericStructLayoutRequirement<A: AnyObject> {
     var field3: Int
 }
 
-struct GenericStructSwiftProtocolRequirement<A: Equatable & Collection> {
+struct GenericStructSwiftProtocolRequirement<A: Equatable & Collection & Codable> {
     var field1: Double
     var field2: A
     var field3: Int
@@ -134,32 +134,20 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
                 let inProcessStruct = `struct`.asPointerWrapper(in: machO)
                 let name = try inProcessStruct.name()
                 if name == "GenericStructSwiftProtocolRequirement" {
-//                    try print(
-//                        inProcessStruct.metadataAccessorFunction()!.callAsFunction(
-//                            request: .init(),
-//                            args:
-//                                (
-//                                    Metadata.createInProcess([Int].self),
-//                                    [
-//                                        RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Equatable).self),
-//                                        RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Collection).self),
-//                                        //                                RuntimeFunctions.conformsToProtocol(metadata: Int.self, existentialTypeMetadata: (any Encodable).self),
-//                                    ].compactMap { $0 }
-//                                )
-//                        ).value.resolve()
-//                    )
+                    try print(
+                        inProcessStruct.metadataAccessorFunction()!.callAsFunction(
+                            request: .init(),
+                            eachMetadatas: Metadata.createInProcess([Int].self),
+                            witnessTables: RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Equatable).self),
+                            RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Collection).self),
+                            RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Decodable).self),
+                            RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Encodable).self)
+                        ).value.resolve()
+                    )
                 } else if name == "GenericStructObjCProtocolRequirement" {
                     let metadata = try inProcessStruct.metadataAccessorFunction()!.callAsFunction(
                         request: .init(),
-                        metadatas:
-
-                        Metadata.createInProcess(Int.self)
-//                                    [
-//                                        RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Equatable).self),
-//                                        RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Collection).self),
-                        //                                RuntimeFunctions.conformsToProtocol(metadata: Int.self, existentialTypeMetadata: (any Encodable).self),
-//                                    ].compactMap { $0 }
-
+                        eachMetadatas: Metadata.createInProcess(NSObject.self)
                     ).value.resolve()
                     try print(metadata.struct!.fieldOffsets())
                 }
