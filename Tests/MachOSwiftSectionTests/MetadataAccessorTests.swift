@@ -135,21 +135,21 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
                 let name = try inProcessStruct.name()
                 if name == "GenericStructSwiftProtocolRequirement" {
                     try print(
-                        inProcessStruct.metadataAccessorFunction()!.callAsFunction(
+                        #require(try inProcessStruct.metadataAccessorFunction()).callAsFunction(
                             request: .init(),
                             eachMetadatas: Metadata.createInProcess([Int].self),
-                            witnessTables: RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Equatable).self),
-                            RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Collection).self),
-                            RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Decodable).self),
-                            RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Encodable).self)
+                            witnessTables: RuntimeFunctions.conformsToProtocol(metatype: [Int].self, protocolType: (any Equatable).self),
+                            RuntimeFunctions.conformsToProtocol(metatype: [Int].self, protocolType: (any Collection).self),
+                            RuntimeFunctions.conformsToProtocol(metatype: [Int].self, protocolType: (any Decodable).self),
+                            RuntimeFunctions.conformsToProtocol(metatype: [Int].self, protocolType: (any Encodable).self)
                         ).value.resolve()
                     )
                 } else if name == "GenericStructObjCProtocolRequirement" {
-                    let metadata = try inProcessStruct.metadataAccessorFunction()!.callAsFunction(
+                    let metadata = try #require(try inProcessStruct.metadataAccessorFunction()).callAsFunction(
                         request: .init(),
                         eachMetadatas: Metadata.createInProcess(NSObject.self)
                     ).value.resolve()
-                    try print(metadata.struct!.fieldOffsets())
+                    try print(#require(metadata.struct).fieldOffsets())
                 }
             case .class:
                 continue

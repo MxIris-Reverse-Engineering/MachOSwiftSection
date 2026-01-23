@@ -85,23 +85,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "MachOSymbolsTests"
-               BuildableName = "MachOSymbolsTests"
-               BlueprintName = "MachOSymbolsTests"
-               ReferencedContainer = "container:">
-            </BuildableReference>
-         </BuildActionEntry>
-         <BuildActionEntry
-            buildForTesting = "YES"
-            buildForRunning = "YES"
-            buildForProfiling = "YES"
-            buildForArchiving = "YES"
-            buildForAnalyzing = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "SemanticTests"
-               BuildableName = "SemanticTests"
-               BlueprintName = "SemanticTests"
+               BlueprintIdentifier = "SwiftInspectionTests"
+               BuildableName = "SwiftInspectionTests"
+               BlueprintName = "SwiftInspectionTests"
                ReferencedContainer = "container:">
             </BuildableReference>
          </BuildActionEntry>
@@ -127,9 +113,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "SwiftInspectionTests"
-               BuildableName = "SwiftInspectionTests"
-               BlueprintName = "SwiftInspectionTests"
+               BlueprintIdentifier = "TypeIndexingTests"
+               BuildableName = "TypeIndexingTests"
+               BlueprintName = "TypeIndexingTests"
                ReferencedContainer = "container:">
             </BuildableReference>
          </BuildActionEntry>
@@ -155,6 +141,20 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
+               BlueprintIdentifier = "MachOSymbolsTests"
+               BuildableName = "MachOSymbolsTests"
+               BlueprintName = "MachOSymbolsTests"
+               ReferencedContainer = "container:">
+            </BuildableReference>
+         </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
                BlueprintIdentifier = "DemanglingTests"
                BuildableName = "DemanglingTests"
                BlueprintName = "DemanglingTests"
@@ -169,9 +169,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "SwiftInterfaceTests"
-               BuildableName = "SwiftInterfaceTests"
-               BlueprintName = "SwiftInterfaceTests"
+               BlueprintIdentifier = "SemanticTests"
+               BuildableName = "SemanticTests"
+               BlueprintName = "SemanticTests"
                ReferencedContainer = "container:">
             </BuildableReference>
          </BuildActionEntry>
@@ -183,9 +183,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "TypeIndexingTests"
-               BuildableName = "TypeIndexingTests"
-               BlueprintName = "TypeIndexingTests"
+               BlueprintIdentifier = "SwiftInterfaceTests"
+               BuildableName = "SwiftInterfaceTests"
+               BlueprintName = "SwiftInterfaceTests"
                ReferencedContainer = "container:">
             </BuildableReference>
          </BuildActionEntry>

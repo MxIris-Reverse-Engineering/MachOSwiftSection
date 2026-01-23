@@ -5,8 +5,6 @@ import MachOFoundation
 public struct GenericRequirement: Sendable, TopLevelType {
     public let descriptor: GenericRequirementDescriptor
 
-    public var flags: GenericRequirementFlags { descriptor.flags }
-
     public let paramManagledName: MangledName
 
     public let content: ResolvedGenericRequirementContent

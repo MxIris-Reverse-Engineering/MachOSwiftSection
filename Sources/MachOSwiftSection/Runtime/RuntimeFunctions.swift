@@ -25,12 +25,12 @@ public enum RuntimeFunctions {
         return autoBitCast(MachOSwiftSectionC.swift_getTypeByMangledNameInEnvironment(pointer, .init(mangledTypeName.size), nil, nil))
     }
 
-    public static func conformsToProtocol(metadata: Any.Type, existentialTypeMetadata: Any.Type) throws -> ProtocolWitnessTable? {
-        let existentialTypeMetadataInProcess = try ExistentialTypeMetadata.createInProcess(existentialTypeMetadata)
+    public static func conformsToProtocol(metatype: Any.Type, protocolType: Any.Type) throws -> ProtocolWitnessTable? {
+        let existentialTypeMetadataInProcess = try ExistentialTypeMetadata.createInProcess(protocolType)
         let protocols = try existentialTypeMetadataInProcess.protocols()
         guard let protocolRef = protocols.first else { return nil }
         guard !protocolRef.isObjC else { return nil }
-        let metadataInProcess = try Metadata.createInProcess(metadata)
+        let metadataInProcess = try Metadata.createInProcess(metatype)
         let protocolDescriptor = try protocolRef.swiftProtocol()
         return try conformsToProtocol(metadata: metadataInProcess, protocolDescriptor: protocolDescriptor)
     }

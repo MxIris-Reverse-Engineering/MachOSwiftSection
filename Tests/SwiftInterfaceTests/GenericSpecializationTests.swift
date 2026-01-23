@@ -10,8 +10,9 @@ import Dependencies
 @testable import SwiftDump
 @testable import SwiftInspection
 @testable import Demangling
+import OrderedCollections
 
-struct TestGenericStruct<A, B, C> where A: Collection, B: Equatable, C: Hashable, A.Element: Hashable {
+struct TestGenericStruct<A, B, C> where A: Collection, B: Equatable, C: Hashable, A.Element: Hashable, A.Element: Decodable, A.Element: Encodable {
     let a: A
     let b: B
     let c: C
@@ -32,31 +33,42 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         let wrapper = try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestGenericStruct" }?.struct
         let descriptor = try #require(wrapper)
 
-        let AMetadata = try Metadata.createInProcess([Int].self)
-        let BMetadata = try Metadata.createInProcess(Double.self)
-        let CMetadata = try Metadata.createInProcess(Data.self)
+        let genericContext = try #require(try descriptor.genericContext(in: machO))
 
-        let associatedTypeMetadatasAndPWTs = try await indexer.associatedTypeMetadatasAndPWTs(for: .struct(descriptor), genericParamMetadataByParamName: [
+        print(genericContext.header.numKeyArguments)
+
+        let AMetatype = [Int].self
+        let AProtocol = (any Collection).self
+        
+        let BMetatype = Double.self
+        let BProtocol = (any Equatable).self
+        
+        let CMetatype = Data.self
+        let CProtocol = (any Hashable).self
+        
+        let AMetadata = try Metadata.createInProcess(AMetatype)
+        let BMetadata = try Metadata.createInProcess(BMetatype)
+        let CMetadata = try Metadata.createInProcess(CMetatype)
+
+        let associatedTypeWitnesses = try await indexer.resolveAssociatedTypeWitnesses(for: .struct(descriptor), substituting: [
             "A": AMetadata,
             "B": BMetadata,
             "C": CMetadata,
         ], in: machO)
 
-        let metadataAccessorFunction = try #require(try descriptor.metadataAccessorFunction())
+        let metadataAccessorFunction = try #require(try descriptor.asPointerWrapper(in: machO).metadataAccessorFunction())
         let metadata = try metadataAccessorFunction(
-            request: .init(), metadatas: [
+            request: .completeAndBlocking, metadatas: [
                 AMetadata,
                 BMetadata,
                 CMetadata,
-//                #require(associatedTypeMetadatasAndPWTs.first).0,
             ], witnessTables: [
-                #require(try RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Collection).self)),
-                #require(try RuntimeFunctions.conformsToProtocol(metadata: Double.self, existentialTypeMetadata: (any Equatable).self)),
-                #require(try RuntimeFunctions.conformsToProtocol(metadata: Data.self, existentialTypeMetadata: (any Hashable).self)),
-                #require(associatedTypeMetadatasAndPWTs.first).1,
-            ]
+                #require(try RuntimeFunctions.conformsToProtocol(metatype: AMetatype, protocolType: AProtocol)),
+                #require(try RuntimeFunctions.conformsToProtocol(metatype: BMetatype, protocolType: BProtocol)),
+                #require(try RuntimeFunctions.conformsToProtocol(metatype: CMetatype, protocolType: CProtocol)),
+            ] + associatedTypeWitnesses.values.flatMap { $0 }
         )
-        try print(metadata.value.resolve().metadata)
+        try print(#require(metadata.value.resolve().struct).fieldOffsets())
     }
 }
 
@@ -123,12 +135,11 @@ extension SwiftInterfaceIndexer {
         }
     }
 
-    func associatedTypeMetadatasAndPWTs(for typeDescriptor: TypeContextDescriptorWrapper, genericParamMetadataByParamName: [String: Metadata], in machO: MachOImage) async throws -> [(Metadata, ProtocolWitnessTable)] {
-        typealias Result = (Metadata, ProtocolWitnessTable)
-        var results: [Result] = []
-
-        guard let genericContextInProcess = try typeDescriptor.asPointerWrapper(in: machO).genericContext() else {
-            throw AssociatedTypeResolutionError.missingGenericContext(typeDescriptor: typeDescriptor)
+    func resolveAssociatedTypeWitnesses(for type: TypeContextDescriptorWrapper, substituting genericArguments: [String: Metadata], in machO: MachOImage) async throws -> OrderedDictionary<Metadata, [ProtocolWitnessTable]> {
+        typealias Result = OrderedDictionary<Metadata, [ProtocolWitnessTable]>
+        var results: Result = [:]
+        guard let genericContextInProcess = try type.asPointerWrapper(in: machO).genericContext() else {
+            throw AssociatedTypeResolutionError.missingGenericContext(typeDescriptor: type)
         }
 
         if let unsupportedParameter = genericContextInProcess.parameters.first(where: { $0.kind == .typePack || $0.kind == .value }) {
@@ -137,13 +148,12 @@ extension SwiftInterfaceIndexer {
 
         let requirements = try genericContextInProcess.requirements.map { try GenericRequirement(descriptor: $0) }
         var conformingTypeMetadataByGenericParam: [String: Metadata] = [:]
-        var conformancedProtocolsByGenericParam: [String: [MachOSwiftSection.`Protocol`]] = [:]
         let allProtocolDefinitions = allAllProtocolDefinitions
 
         for requirement in requirements {
-            guard let requirementProtocol = requirement.content.protocol?.resolved, let protocolDescriptor = requirementProtocol.swift else { continue }
+            guard let requirementProtocolDescriptor = requirement.content.protocol?.resolved, let protocolDescriptor = requirementProtocolDescriptor.swift, requirement.flags.contains(.hasKeyArgument) else { continue }
 
-            let currentProtocol = try Protocol(descriptor: protocolDescriptor)
+            let requirementProtocol = try Protocol(descriptor: protocolDescriptor)
 
             let paramNode = try MetadataReader.demangleType(for: requirement.paramManagledName)
 
@@ -177,7 +187,7 @@ extension SwiftInterfaceIndexer {
                 }
 
                 guard let associatedTypeRefMachOImage = associatedTypeRefMachOAndProtocol.machO as? MachOImage else {
-                    throw AssociatedTypeResolutionError.associatedTypeRefMachONotMachOImage(machOType: String(describing: type(of: associatedTypeRefMachOAndProtocol.machO)))
+                    throw AssociatedTypeResolutionError.associatedTypeRefMachONotMachOImage(machOType: String(describing: Swift.type(of: associatedTypeRefMachOAndProtocol.machO)))
                 }
 
                 let associatedTypeRefProtocol: MachOSwiftSection.`Protocol`
@@ -212,25 +222,23 @@ extension SwiftInterfaceIndexer {
                     throw AssociatedTypeResolutionError.failedToGetAssociatedTypeWitness(conformingType: conformingTypeMetadata, protocolName: associatedTypeRefProtocolName, associatedTypeName: associatedTypeName)
                 }
 
-                let currentProtocolName = try currentProtocol.protocolName()
+                let currentProtocolName = try requirementProtocol.protocolName()
 
-                guard let associatedTypePWT = try? RuntimeFunctions.conformsToProtocol(metadata: associatedTypeMetadata, protocolDescriptor: currentProtocol.descriptor) else {
+                guard let associatedTypePWT = try? RuntimeFunctions.conformsToProtocol(metadata: associatedTypeMetadata, protocolDescriptor: requirementProtocol.descriptor) else {
                     throw AssociatedTypeResolutionError.associatedTypeDoesNotConformToProtocol(associatedType: associatedTypeMetadata, protocolName: currentProtocolName)
                 }
-
-                results.append((associatedTypeMetadata, associatedTypePWT))
-
+                
+                results[associatedTypeMetadata, default: []].append(associatedTypePWT)
             } else if let dependentGenericParamType = paramNode.first(of: .dependentGenericParamType) {
                 guard let genericParamType = dependentGenericParamType.text else {
                     throw AssociatedTypeResolutionError.missingGenericParamTypeText(dependentGenericParamType: dependentGenericParamType)
                 }
 
-                guard let conformingTypeMetadata = genericParamMetadataByParamName[genericParamType] else {
-                    throw AssociatedTypeResolutionError.missingConformingTypeMetadata(genericParam: genericParamType, availableParams: Array(genericParamMetadataByParamName.keys))
+                guard let conformingTypeMetadata = genericArguments[genericParamType] else {
+                    throw AssociatedTypeResolutionError.missingConformingTypeMetadata(genericParam: genericParamType, availableParams: Array(genericArguments.keys))
                 }
 
                 conformingTypeMetadataByGenericParam[genericParamType] = conformingTypeMetadata
-                conformancedProtocolsByGenericParam[genericParamType, default: []].append(currentProtocol)
             } else {
                 throw AssociatedTypeResolutionError.unknownParamNodeStructure(paramNode: paramNode)
             }
@@ -306,4 +314,4 @@ extension OptionSet {
 //         continue
 //     }
 // }
-// 
+//
