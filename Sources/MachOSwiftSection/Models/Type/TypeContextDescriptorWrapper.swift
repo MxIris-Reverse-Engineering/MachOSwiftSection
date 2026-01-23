@@ -50,12 +50,20 @@ public enum TypeContextDescriptorWrapper {
         return try contextDescriptor.genericContext(in: machO)
     }
 
+    public func typeGenericContext<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeGenericContext? {
+        return try typeContextDescriptor.typeGenericContext(in: machO)
+    }
+    
     public func parent() throws -> SymbolOrElement<ContextDescriptorWrapper>? {
         return try contextDescriptor.parent()
     }
 
     public func genericContext() throws -> GenericContext? {
         return try contextDescriptor.genericContext()
+    }
+    
+    public func typeGenericContext() throws -> TypeGenericContext? {
+        return try typeContextDescriptor.typeGenericContext()
     }
     
     public var asContextDescriptorWrapper: ContextDescriptorWrapper {

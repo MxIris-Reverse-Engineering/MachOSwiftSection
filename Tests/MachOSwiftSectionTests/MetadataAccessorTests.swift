@@ -63,7 +63,7 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
         for typeContextDescriptorWrapper in try machO.swift.typeContextDescriptors {
             guard !typeContextDescriptorWrapper.typeContextDescriptor.layout.flags.isGeneric else { continue }
             if let metadataAccessor = try typeContextDescriptorWrapper.typeContextDescriptor.metadataAccessorFunction(in: machO) {
-                let metadataResponse = metadataAccessor(request: .init())
+                let metadataResponse = try metadataAccessor(request: .init())
                 print(metadataResponse.state)
                 let metadata = try metadataResponse.value.resolve(in: machO)
                 switch metadata {
@@ -89,7 +89,7 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
             guard let typeContextDescriptor = contextDescriptor.typeContextDescriptor else { continue }
             guard !typeContextDescriptor.layout.flags.isGeneric else { continue }
             if let metadataAccessor = try typeContextDescriptor.metadataAccessorFunction(in: machO) {
-                let metadataResponse = metadataAccessor(request: .init(state: .complete, isBlocking: true))
+                let metadataResponse = try metadataAccessor(request: .init(state: .complete, isBlocking: true))
                 let metadata = try metadataResponse.value.resolve(in: machO)
                 switch metadata {
 //                case .class(let classMetadata):
@@ -151,7 +151,7 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
                 } else if name == "GenericStructObjCProtocolRequirement" {
                     let metadata = try inProcessStruct.metadataAccessorFunction()!.callAsFunction(
                         request: .init(),
-                        args:
+                        metadatas:
 
                         Metadata.createInProcess(Int.self)
 //                                    [

@@ -733,10 +733,10 @@ extension SwiftInterfaceIndexer {
         return result
     }
 
-    public var allAllProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> {
-        var result = currentStorage.allProtocolDefinitions
+    public var allAllProtocolDefinitions: OrderedDictionary<ProtocolName, (machO: MachO, value: ProtocolDefinition)> {
+        var result = currentStorage.allProtocolDefinitions.mapValues { (machO: machO, value: $0) }
         for subIndexer in subIndexers {
-            result.merge(subIndexer.allAllProtocolDefinitions) { current, _ in current }
+            result.merge(subIndexer.allAllProtocolDefinitions) { prevValue, nextValue in prevValue }
         }
         return result
     }

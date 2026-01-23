@@ -19,6 +19,8 @@ public struct `Protocol`: TopLevelType, ContextProtocol {
 
     public let name: String
 
+    public private(set) var baseRequirement: ProtocolBaseRequirement?
+    
     public private(set) var requirementInSignatures: [GenericRequirement] = []
 
     public private(set) var requirements: [ProtocolRequirement] = []
@@ -72,9 +74,12 @@ public struct `Protocol`: TopLevelType, ContextProtocol {
 
     private mutating func initialize<Reader: Readable>(descriptor: ProtocolDescriptor, currentOffset: inout Int, in reader: Reader) throws {
         if descriptor.numRequirements > 0 {
+            let baseRequirementOffset = currentOffset - ProtocolRequirement.layoutSize
+            baseRequirement = try reader.readWrapperElement(offset: baseRequirementOffset) as ProtocolBaseRequirement
             requirements = try reader.readWrapperElements(offset: currentOffset, numberOfElements: descriptor.numRequirements.cast()) as [ProtocolRequirement]
             currentOffset.offset(of: ProtocolRequirement.self, numbersOfElements: descriptor.numRequirements.cast())
         } else {
+            baseRequirement = nil
             requirements = []
         }
     }
