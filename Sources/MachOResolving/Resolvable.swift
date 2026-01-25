@@ -7,6 +7,8 @@ public protocol Resolvable: Sendable {
     static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self?
     static func resolve(from ptr: UnsafeRawPointer) throws -> Self
     static func resolve(from ptr: UnsafeRawPointer) throws -> Self?
+    static func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Self
+    static func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Self?
 }
 
 extension Resolvable {
@@ -25,6 +27,21 @@ extension Resolvable {
 
     public static func resolve(from ptr: UnsafeRawPointer) throws -> Self? {
         let result: Self = try resolve(from: ptr)
+        return .some(result)
+    }
+    
+    public static func resolve<Context: ReadingContext>(
+        at address: Context.Address,
+        in context: Context
+    ) throws -> Self {
+        try context.readElement(at: address)
+    }
+    
+    public static func resolve<Context: ReadingContext>(
+        at address: Context.Address,
+        in context: Context
+    ) throws -> Self? {
+        let result: Self = try resolve(at: address, in: context)
         return .some(result)
     }
 }
@@ -47,6 +64,15 @@ extension Optional: Resolvable where Wrapped: Resolvable {
             return .none
         }
     }
+    
+    public static func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Self {
+        let result: Wrapped? = try Wrapped.resolve(at: address, in: context)
+        if let result {
+            return .some(result)
+        } else {
+            return .none
+        }
+    }
 }
 
 extension String: Resolvable {
@@ -57,6 +83,10 @@ extension String: Resolvable {
     public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
         return try ptr.stripPointerTags().readString()
     }
+    
+    public static func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> String {
+        try context.readString(at: address)
+    }
 }
 
 extension Resolvable where Self: LocatableLayoutWrapper {
@@ -66,6 +96,10 @@ extension Resolvable where Self: LocatableLayoutWrapper {
 
     public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
         try ptr.stripPointerTags().readWrapperElement()
+    }
+    
+    public static func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Self {
+        try context.readWrapperElement(at: address)
     }
 }
 

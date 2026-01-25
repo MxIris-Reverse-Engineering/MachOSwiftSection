@@ -247,6 +247,115 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         }
         size = currentOffset - offset
     }
+    
+    public init<Context: ReadingContext>(contextDescriptor: some ContextDescriptorProtocol, in context: Context) throws {
+        var currentOffset = contextDescriptor.offset + contextDescriptor.layoutSize
+        let genericContextOffset = currentOffset
+        self.offset = genericContextOffset
+
+        let headerAddress = try context.addressFromOffset(currentOffset)
+        let header: Header = try context.readWrapperElement(at: headerAddress)
+        currentOffset.offset(of: Header.self)
+        self.header = header
+
+        try initializeWithContext(contextDescriptor: contextDescriptor, currentOffset: &currentOffset, in: context)
+
+        var depth = 0
+        var parent = try contextDescriptor.parent(in: context)?.resolved
+        var parentParameters: [[GenericParamDescriptor]] = []
+        var parentRequirements: [[GenericRequirementDescriptor]] = []
+        var parentTypePacks: [[GenericPackShapeDescriptor]] = []
+        var parentValues: [[GenericValueDescriptor]] = []
+        while let currentParent = parent {
+            if let genericContext = try currentParent.validParentGenericContextDescriptor?.genericContext(in: context) {
+                parentParameters.append(genericContext.parameters)
+                parentRequirements.append(genericContext.requirements)
+                parentTypePacks.append(genericContext.typePacks)
+                parentValues.append(genericContext.values)
+                depth += 1
+            }
+            parent = try currentParent.parent(in: context)?.resolved
+        }
+        self.parentParameters = parentParameters.reversed()
+        self.parentRequirements = parentRequirements.reversed()
+        self.parentTypePacks = parentTypePacks.reversed()
+        self.parentValues = parentValues.reversed()
+        self.depth = depth
+    }
+
+    private mutating func initializeWithContext<Context: ReadingContext>(contextDescriptor: some ContextDescriptorProtocol, currentOffset: inout Int, in context: Context) throws {
+        if header.numParams > 0 {
+            let parametersAddress = try context.addressFromOffset(currentOffset)
+            let parameters: [GenericParamDescriptor] = try context.readWrapperElements(at: parametersAddress, numberOfElements: .init(header.numParams))
+            
+            currentOffset.offset(of: GenericParamDescriptor.self, numbersOfElements: Int(header.numParams))
+            currentOffset.align(to: 4)
+            self.parameters = parameters
+        } else {
+            parameters = []
+        }
+
+        if header.numRequirements > 0 {
+            let requirementsAddress = try context.addressFromOffset(currentOffset)
+            let requirements: [GenericRequirementDescriptor] = try context.readWrapperElements(at: requirementsAddress, numberOfElements: .init(header.numRequirements))
+            currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: Int(header.numRequirements))
+            self.requirements = requirements
+        } else {
+            requirements = []
+        }
+
+        if header.flags.contains(.hasTypePacks) {
+            let typePackHeaderAddress = try context.addressFromOffset(currentOffset)
+            let typePackHeader: GenericPackShapeHeader = try context.readWrapperElement(at: typePackHeaderAddress)
+            currentOffset.offset(of: GenericPackShapeHeader.self)
+            self.typePackHeader = typePackHeader
+
+            let typePacksAddress = try context.addressFromOffset(currentOffset)
+            let typePacks: [GenericPackShapeDescriptor] = try context.readWrapperElements(at: typePacksAddress, numberOfElements: .init(typePackHeader.numPacks))
+            currentOffset.offset(of: GenericPackShapeDescriptor.self, numbersOfElements: Int(typePackHeader.numPacks))
+            self.typePacks = typePacks
+        } else {
+            typePackHeader = nil
+            typePacks = []
+        }
+
+        if header.flags.contains(.hasConditionalInvertedProtocols) {
+            let setAddress = try context.addressFromOffset(currentOffset)
+            let conditionalInvertibleProtocolSet: InvertibleProtocolSet = try context.readElement(at: setAddress)
+            currentOffset.offset(of: InvertibleProtocolSet.self)
+            self.conditionalInvertibleProtocolSet = conditionalInvertibleProtocolSet
+
+            let countAddress = try context.addressFromOffset(currentOffset)
+            let conditionalInvertibleProtocolsRequirementsCount: InvertibleProtocolsRequirementCount = try context.readElement(at: countAddress)
+            currentOffset.offset(of: InvertibleProtocolsRequirementCount.self)
+            self.conditionalInvertibleProtocolsRequirementsCount = conditionalInvertibleProtocolsRequirementsCount
+
+            let reqsAddress = try context.addressFromOffset(currentOffset)
+            let conditionalInvertibleProtocolsRequirements: [GenericRequirementDescriptor] = try context.readWrapperElements(at: reqsAddress, numberOfElements: .init(conditionalInvertibleProtocolsRequirementsCount.rawValue))
+            currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: Int(conditionalInvertibleProtocolsRequirementsCount.rawValue))
+            self.conditionalInvertibleProtocolsRequirements = conditionalInvertibleProtocolsRequirements
+        } else {
+            conditionalInvertibleProtocolSet = nil
+            conditionalInvertibleProtocolsRequirementsCount = nil
+            conditionalInvertibleProtocolsRequirements = []
+        }
+
+        if header.flags.contains(.hasValues) {
+            let valueHeaderAddress = try context.addressFromOffset(currentOffset)
+            let valueHeader: GenericValueHeader = try context.readWrapperElement(at: valueHeaderAddress)
+            currentOffset.offset(of: GenericValueHeader.self)
+            self.valueHeader = valueHeader
+
+            let valuesAddress = try context.addressFromOffset(currentOffset)
+            let values: [GenericValueDescriptor] = try context.readWrapperElements(at: valuesAddress, numberOfElements: .init(valueHeader.numValues))
+            currentOffset.offset(of: GenericValueDescriptor.self, numbersOfElements: Int(valueHeader.numValues))
+            self.values = values
+        } else {
+            valueHeader = nil
+            values = []
+        }
+        size = currentOffset - offset
+    }
 }
 
 extension ContextDescriptorWrapper {

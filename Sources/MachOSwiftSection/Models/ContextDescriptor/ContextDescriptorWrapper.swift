@@ -144,6 +144,16 @@ public enum ContextDescriptorWrapper {
         return try contextDescriptor.genericContext()
     }
 
+    // MARK: - ReadingContext Support
+
+    public func parent<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+        return try contextDescriptor.parent(in: context)
+    }
+
+    public func genericContext<Context: ReadingContext>(in context: Context) throws -> GenericContext? {
+        return try contextDescriptor.genericContext(in: context)
+    }
+
     public var contextDescriptor: any ContextDescriptorProtocol {
         switch self {
         case .type(let typeContextDescriptor):
@@ -261,6 +271,45 @@ extension ContextDescriptorWrapper: Resolvable {
     public static func resolve(from ptr: UnsafeRawPointer) throws -> Self? {
         do {
             return try resolve(from: ptr) as Self
+        } catch {
+            print("Error resolving ContextDescriptorWrapper: \(error)")
+            return nil
+        }
+    }
+
+    // MARK: - ReadingContext Support
+
+    public static func resolve<Context: ReadingContext>(
+        at address: Context.Address,
+        in context: Context
+    ) throws -> Self {
+        let contextDescriptor: ContextDescriptor = try context.readWrapperElement(at: address)
+        switch contextDescriptor.flags.kind {
+        case .class,
+             .struct,
+             .enum:
+            return try .type(.resolve(at: address, in: context))
+        case .protocol:
+            return try .protocol(context.readWrapperElement(at: address))
+        case .anonymous:
+            return try .anonymous(context.readWrapperElement(at: address))
+        case .extension:
+            return try .extension(context.readWrapperElement(at: address))
+        case .module:
+            return try .module(context.readWrapperElement(at: address))
+        case .opaqueType:
+            return try .opaqueType(context.readWrapperElement(at: address))
+        default:
+            throw ResolutionError.invalidContextDescriptor
+        }
+    }
+
+    public static func resolve<Context: ReadingContext>(
+        at address: Context.Address,
+        in context: Context
+    ) throws -> Self? {
+        do {
+            return try resolve(at: address, in: context) as Self
         } catch {
             print("Error resolving ContextDescriptorWrapper: \(error)")
             return nil

@@ -886,3 +886,390 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage
         }
     }
 }
+
+
+// MARK: - Symbol Lookup Protocol
+
+/// Internal protocol for symbol lookup capability in ReadingContext
+private protocol SymbolLookupContext {
+    func lookupSymbol(at offset: Int) -> (any MachOSymbols.SymbolProtocol)?
+}
+
+extension MachOContext: SymbolLookupContext {
+    func lookupSymbol(at offset: Int) -> (any MachOSymbols.SymbolProtocol)? {
+        try? Symbol.resolve(from: offset, in: machO)
+    }
+}
+
+extension InProcessContext: SymbolLookupContext {
+    func lookupSymbol(at offset: Int) -> (any MachOSymbols.SymbolProtocol)? {
+        guard let ptr = UnsafeRawPointer(bitPattern: offset) else { return nil }
+        guard let result = MachOImage.symbol(for: ptr) else { return nil }
+        return Symbol(offset: offset, name: result.1.name)
+    }
+}
+
+// MARK: - ReadingContext Support
+
+extension MetadataReader {
+    package static func demangleType<Context: ReadingContext>(for mangledName: MangledName, in context: Context) throws -> Node {
+        return try demangle(for: mangledName, kind: .type, in: context)
+    }
+
+    package static func demangleContext<Context: ReadingContext>(for contextWrapper: ContextDescriptorWrapper, in context: Context) throws -> Node {
+        return try required(buildContextMangling(context: contextWrapper, in: context))
+    }
+
+    package static func buildGenericSignature<Context: ReadingContext>(for requirement: GenericRequirementDescriptor, in context: Context) throws -> Node? {
+        try buildGenericSignature(for: [requirement], in: context)
+    }
+
+    package static func buildGenericSignature<Context: ReadingContext>(for requirements: GenericRequirementDescriptor..., in context: Context) throws -> Node? {
+        try buildGenericSignature(for: requirements, in: context)
+    }
+
+    package static func buildGenericSignature<Context: ReadingContext>(for requirements: [GenericRequirementDescriptor], in context: Context) throws -> Node? {
+        guard !requirements.isEmpty else { return nil }
+        var requirementNodes: [Node] = []
+        var failed = false
+        for requirement in requirements {
+            if failed {
+                break
+            }
+            let paramMangledName = try requirement.paramMangledName(in: context)
+            let subject = try demangle(for: paramMangledName, kind: .type, in: context)
+            let contentOffset = requirement.offset(of: \.content)
+            switch requirement.content {
+            case .protocol(let relativeProtocolDescriptorPointer):
+                guard let proto = try? readProtocol(offset: contentOffset, pointer: relativeProtocolDescriptorPointer, in: context) else {
+                    failed = true
+                    break
+                }
+                requirementNodes.append(Node(kind: .dependentGenericConformanceRequirement, children: [subject, proto]))
+            case .type(let relativeDirectPointer):
+                let typeAddress = try context.addressFromOffset(contentOffset)
+                let mangledName = try relativeDirectPointer.resolve(at: typeAddress, in: context)
+                guard let type = try? demangle(for: mangledName, kind: .type, in: context) else {
+                    failed = true
+                    break
+                }
+                let nodeKind: Node.Kind
+
+                if requirement.flags.kind == .sameType {
+                    nodeKind = .dependentGenericSameTypeRequirement
+                } else {
+                    nodeKind = .dependentGenericConformanceRequirement
+                }
+
+                requirementNodes.append(Node(kind: nodeKind, children: [subject, type]))
+            case .layout(let genericRequirementLayoutKind):
+                if genericRequirementLayoutKind == .class {
+                    requirementNodes.append(Node(kind: .dependentGenericLayoutRequirement, children: [subject, .init(kind: .identifier, contents: .text("C"))]))
+                } else {
+                    failed = true
+                }
+            case .conformance:
+                break
+            case .invertedProtocols:
+                break
+            }
+        }
+        if failed || requirementNodes.isEmpty {
+            return nil
+        } else {
+            return Node(kind: .dependentGenericSignature, children: requirementNodes)
+        }
+    }
+
+    private static func demangle<Context: ReadingContext>(for mangledName: MangledName, kind: MangledNameKind, in context: Context) throws -> Node {
+        let stringValue = switch kind {
+        case .type:
+            mangledName.typeString
+        case .symbol:
+            mangledName.symbolString
+        }
+        let symbolicReferenceResolver: DemangleSymbolicReferenceResolver = { kind, directness, index -> Node? in
+            do {
+                var result: Node?
+                let lookup = mangledName.lookupElements[index]
+                let offset = lookup.offset
+                guard case .relative(let relativeReference) = lookup.reference else { return nil }
+                let relativeOffset = relativeReference.relativeOffset
+                let baseAddress = try context.addressFromOffset(offset)
+                switch kind {
+                case .context:
+                    switch directness {
+                    case .direct:
+                        if let contextWrapper = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset).resolve(at: baseAddress, in: context) {
+                            if let opaqueTypeDescriptor = contextWrapper.opaqueTypeDescriptor {
+                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueTypeDescriptor.offset.cast())
+                            } else {
+                                result = try buildContextMangling(context: .element(contextWrapper), in: context)
+                            }
+                        }
+                    case .indirect:
+                        let relativePointer = RelativeIndirectSymbolOrElementPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset)
+                        if let resolvableElement = try relativePointer.resolve(at: baseAddress, in: context).asOptional {
+                            if case .element(let element) = resolvableElement, let opaqueTypeDescriptor = element.opaqueTypeDescriptor {
+                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueTypeDescriptor.offset.cast())
+                            } else {
+                                result = try buildContextMangling(context: resolvableElement, in: context)
+                            }
+                        }
+                    }
+                case .accessorFunctionReference:
+                    // The symbolic reference points at a resolver function, but we can't
+                    // execute code in the target process to resolve it from here.
+                    let rawPointerOffset = RelativeDirectRawPointer(relativeOffset: relativeOffset).resolveDirectOffset(from: offset)
+                    result = .init(kind: .accessorFunctionReference, contents: .index(rawPointerOffset.cast()))
+                case .uniqueExtendedExistentialTypeShape:
+                    let extendedExistentialTypeShape = try RelativeDirectPointer<ExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(at: baseAddress, in: context)
+                    let existentialType = try extendedExistentialTypeShape.existentialType(in: context)
+                    result = try .init(kind: .uniqueExtendedExistentialTypeShapeSymbolicReference, children: demangle(for: existentialType, kind: .type, in: context).children)
+                case .nonUniqueExtendedExistentialTypeShape:
+                    let nonUniqueExtendedExistentialTypeShape = try RelativeDirectPointer<NonUniqueExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(at: baseAddress, in: context)
+                    let existentialType = try nonUniqueExtendedExistentialTypeShape.existentialType(in: context)
+                    result = try .init(kind: .nonUniqueExtendedExistentialTypeShapeSymbolicReference, children: demangle(for: existentialType, kind: .type, in: context).children)
+                case .objectiveCProtocol:
+                    let relativePointer = RelativeDirectPointer<RelativeObjCProtocolPrefix>(relativeOffset: relativeOffset)
+                    let objcProtocol = try relativePointer.resolve(at: baseAddress, in: context)
+                    let protocolMangledName = try objcProtocol.mangledName(in: context)
+                    let name = protocolMangledName.symbolString
+                    result = try demangleAsNode(name).typeSymbol
+                }
+                return result
+            } catch {
+                return nil
+            }
+        }
+        let result: Node
+        switch kind {
+        case .type:
+            result = try demangleAsNode(stringValue, isType: true, symbolicReferenceResolver: symbolicReferenceResolver)
+        case .symbol:
+            result = try demangleAsNode(stringValue, isType: false, symbolicReferenceResolver: symbolicReferenceResolver)
+        }
+        return result
+    }
+
+    private static func buildContextMangling<Context: ReadingContext>(context: SymbolOrElement<ContextDescriptorWrapper>, in readingContext: Context) throws -> Node? {
+        switch context {
+        case .symbol(let symbol):
+            return try buildContextManglingForSymbol(symbol)
+        case .element(let contextDescriptorProtocol):
+            return try buildContextMangling(context: contextDescriptorProtocol, in: readingContext)
+        }
+    }
+
+    private static func buildContextMangling<Context: ReadingContext>(context: ContextDescriptorWrapper, in readingContext: Context) throws -> Node? {
+        guard let demangling = try buildContextDescriptorMangling(context: context, recursionLimit: 50, in: readingContext) else {
+            return nil
+        }
+        let top: Node
+
+        switch context {
+        case .type,
+             .protocol:
+            top = .init(kind: .type, children: [demangling])
+        default:
+            top = demangling
+        }
+
+        return top
+    }
+
+    private static func buildContextDescriptorMangling<Context: ReadingContext>(context: SymbolOrElement<ContextDescriptorWrapper>, recursionLimit: Int, in readingContext: Context) throws -> Node? {
+        guard recursionLimit > 0 else { return nil }
+        switch context {
+        case .symbol(let symbol):
+            return try buildContextManglingForSymbol(symbol)
+        case .element(let contextDescriptor):
+            var demangleSymbol = try buildContextDescriptorMangling(context: contextDescriptor, recursionLimit: recursionLimit, in: readingContext)
+
+            if demangleSymbol?.kind == .type {
+                demangleSymbol = demangleSymbol?.children.first
+            }
+            return demangleSymbol
+        }
+    }
+
+    private static func buildContextDescriptorMangling<Context: ReadingContext>(context: ContextDescriptorWrapper, recursionLimit: Int, in readingContext: Context) throws -> Node? {
+        guard recursionLimit > 0 else { return nil }
+        var parentDescriptorResult = try context.parent(in: readingContext)
+        var demangledParentNode: Node?
+        var nameNode = try adoptAnonymousContextName(context: context, parentContextRef: &parentDescriptorResult, outSymbol: &demangledParentNode, in: readingContext)
+        var parentDemangling: Node?
+
+        if let parentDescriptor = parentDescriptorResult {
+            parentDemangling = try buildContextDescriptorMangling(context: parentDescriptor, recursionLimit: recursionLimit - 1, in: readingContext)
+            if parentDemangling == nil, demangledParentNode == nil {
+                return nil
+            }
+        }
+
+        if let demangledParentNode, parentDemangling == nil || parentDemangling!.kind == .anonymousContext {
+            parentDemangling = demangledParentNode
+        }
+
+        let kind: Node.Kind
+
+        func getContextName() throws -> Bool {
+            if nameNode != nil {
+                return true
+            } else if let namedContext = context.namedContextDescriptor {
+                nameNode = try .init(kind: .identifier, contents: .text(namedContext.name(in: readingContext)))
+                return true
+            } else {
+                return false
+            }
+        }
+
+        switch context.contextDescriptor.layout.flags.kind {
+        case .class:
+            guard try getContextName() else { return nil }
+            kind = .class
+        case .struct:
+            guard try getContextName() else { return nil }
+            kind = .structure
+        case .enum:
+            guard try getContextName() else { return nil }
+            kind = .enum
+        case .protocol:
+            guard try getContextName() else { return nil }
+            kind = .protocol
+        case .extension:
+            guard let parentDemangling else { return nil }
+            guard let extensionContext = context.extensionContextDescriptor else { return nil }
+            guard let extendedContext = try extensionContext.extendedContext(in: readingContext) else { return nil }
+            guard let demangledExtendedContext = try demangle(for: extendedContext, kind: .type, in: readingContext).extensionSymbol else { return nil }
+            if let requirements = try extensionContext.genericContext(in: readingContext)?.requirements, let signatureNode = try buildGenericSignature(for: requirements, in: readingContext) {
+                return Node(kind: .extension, children: [parentDemangling, demangledExtendedContext, signatureNode])
+            } else {
+                return Node(kind: .extension, children: [parentDemangling, demangledExtendedContext])
+            }
+        case .anonymous:
+            // Look up symbol using the context's symbol lookup capability
+            if let lookupContext = readingContext as? SymbolLookupContext,
+               let symbol = lookupContext.lookupSymbol(at: context.contextDescriptor.offset),
+               let privateDeclName = try? symbol.demangledNode.first(of: Node.Kind.privateDeclName),
+               let privateDeclNameIdentifier = privateDeclName.children.first {
+                if let parentDemangling {
+                    return Node(kind: .anonymousContext, children: [privateDeclNameIdentifier, parentDemangling])
+                } else {
+                    return Node(kind: .anonymousContext, children: [privateDeclNameIdentifier])
+                }
+            }
+            return parentDemangling
+        case .module:
+            if parentDemangling != nil {
+                return nil
+            }
+            guard let moduleContext = context.moduleContextDescriptor else { return nil }
+            return try .init(kind: .module, contents: .text(moduleContext.name(in: readingContext)))
+        case .opaqueType:
+            guard let parentDescriptorResult else { return nil }
+            if parentDemangling?.kind == .anonymousContext {
+                guard var mangledNode = try demangleAnonymousContextName(context: parentDescriptorResult, in: readingContext) else {
+                    return nil
+                }
+                if mangledNode.kind == .global {
+                    mangledNode = mangledNode.children[0]
+                }
+                let opaqueNode = Node(kind: .opaqueReturnTypeOf, children: [mangledNode])
+                return opaqueNode
+            } else if let parentDemangling, parentDemangling.kind == .module {
+                let opaqueNode = Node(kind: .opaqueReturnTypeOf, children: [parentDemangling])
+                return opaqueNode
+            } else {
+                return nil
+            }
+        default:
+            return nil
+        }
+        guard var parentDemangling, var nameNode else { return nil }
+        if parentDemangling.kind == .anonymousContext, nameNode.kind == .identifier {
+            if parentDemangling.children.count < 2 {
+                return nil
+            }
+            nameNode = Node(kind: .privateDeclName, children: [parentDemangling.children[0], nameNode])
+            parentDemangling = parentDemangling.children[1]
+        }
+        let demangling = Node(kind: kind, children: [parentDemangling, nameNode])
+
+        return demangling
+    }
+
+    private static func adoptAnonymousContextName<Context: ReadingContext>(context: ContextDescriptorWrapper, parentContextRef: inout SymbolOrElement<ContextDescriptorWrapper>?, outSymbol: inout Node?, in readingContext: Context) throws -> Node? {
+        outSymbol = nil
+        guard let parentContextLocalRef = parentContextRef else { return nil }
+        guard case .element(let parentContext) = parentContextRef else { return nil }
+        guard context.isType || context.isProtocol else { return nil }
+        guard var mangledNode = try demangleAnonymousContextName(context: parentContextLocalRef, in: readingContext) else { return nil }
+        if mangledNode.kind == .global {
+            mangledNode = mangledNode.children[0]
+        }
+        guard mangledNode.children.count >= 2 else { return nil }
+
+        let nameChild = mangledNode.children[1]
+
+        guard nameChild.kind == .privateDeclName || nameChild.kind == .localDeclName, nameChild.children.count >= 2 else { return nil }
+
+        let identifierNode = nameChild.children[1]
+
+        guard identifierNode.kind == .identifier, identifierNode.hasText else { return nil }
+
+        guard let namedContext = context.namedContextDescriptor else { return nil }
+        guard try namedContext.name(in: readingContext) == identifierNode.text else { return nil }
+
+        parentContextRef = try parentContext.parent(in: readingContext)
+
+        outSymbol = mangledNode.children[0]
+
+        return nameChild
+    }
+
+    private static func demangleAnonymousContextName<Context: ReadingContext>(context: SymbolOrElement<ContextDescriptorWrapper>, in readingContext: Context) throws -> Node? {
+        guard case .element(.anonymous(let context)) = context, let mangledName = try context.mangledName(in: readingContext) else { return nil }
+        return try demangle(for: mangledName, kind: .symbol, in: readingContext)
+    }
+
+    private static func readProtocol<Context: ReadingContext>(offset: Int, pointer: RelativeProtocolDescriptorPointer, in context: Context) throws -> Node? {
+        let baseAddress = try context.addressFromOffset(offset)
+        switch pointer {
+        case .objcPointer(let objcPointer):
+            let objcPrefixElement = try objcPointer.resolve(at: baseAddress, in: context)
+            switch objcPrefixElement {
+            case .symbol(let symbol):
+                return try buildContextManglingForSymbol(symbol)
+            case .element(let objcPrefix):
+                let mangledName = try objcPrefix.mangledName(in: context)
+                let name = mangledName.symbolString
+                if name.starts(with: "_TtP") {
+                    var demangled = try demangle(for: mangledName, kind: .symbol, in: context)
+                    while demangled.kind == .global ||
+                        demangled.kind == .typeMangling ||
+                        demangled.kind == .type ||
+                        demangled.kind == .protocolList ||
+                        demangled.kind == .typeList ||
+                        demangled.kind == .type {
+                        if demangled.children.count != 1 {
+                            return nil
+                        }
+                        demangled = demangled.children.first!
+                    }
+                    return demangled
+                } else {
+                    return Node(kind: .protocol, children: [.init(kind: .module, contents: .text(objcModule)), .init(kind: .identifier, contents: .text(name))])
+                }
+            }
+        case .swiftPointer(let swiftPointer):
+            let resolvableProtocolDescriptor = try swiftPointer.resolve(at: baseAddress, in: context)
+            switch resolvableProtocolDescriptor {
+            case .symbol(let symbol):
+                return try buildContextManglingForSymbol(symbol)
+            case .element(let protocolDescriptor):
+                return try buildContextMangling(context: .protocol(protocolDescriptor), in: context)
+            }
+        }
+    }
+}

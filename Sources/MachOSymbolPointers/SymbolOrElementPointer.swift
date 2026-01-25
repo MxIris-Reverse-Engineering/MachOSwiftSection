@@ -11,8 +11,8 @@ public typealias RelativeIndirectSymbolOrElementPointer<Element: Resolvable> = R
 
 public typealias RelativeSymbolOrElementPointerIntPair<Element: Resolvable, Value: RawRepresentable> = RelativeIndirectablePointerIntPair<SymbolOrElement<Element>, Value, SymbolOrElementPointer<Element>> where Value.RawValue: FixedWidthInteger
 
-public enum SymbolOrElementPointer<Context: Resolvable>: RelativeIndirectType {
-    public typealias Resolved = SymbolOrElement<Context>
+public enum SymbolOrElementPointer<Element: Resolvable>: RelativeIndirectType {
+    public typealias Resolved = SymbolOrElement<Element>
 
     case symbol(Symbol)
     case address(UInt64)
@@ -22,7 +22,7 @@ public enum SymbolOrElementPointer<Context: Resolvable>: RelativeIndirectType {
         case .symbol:
             fatalError()
         case .address(let address):
-            return try .element(Context.resolve(from: .init(bitPattern: stripPointerTags(of: address).uint)))
+            return try .element(Element.resolve(from: .init(bitPattern: stripPointerTags(of: address).uint)))
         }
     }
 
@@ -31,16 +31,34 @@ public enum SymbolOrElementPointer<Context: Resolvable>: RelativeIndirectType {
         case .symbol(let unsolvedSymbol):
             return .symbol(unsolvedSymbol)
         case .address:
-            return try .element(Context.resolve(from: resolveOffset(in: machO), in: machO))
+            return try .element(Element.resolve(from: resolveOffset(in: machO), in: machO))
         }
     }
 
+    public func resolve<Context: ReadingContext>(in context: Context) throws -> Resolved {
+        switch self {
+        case .symbol(let unsolvedSymbol):
+            return .symbol(unsolvedSymbol)
+        case .address:
+            return try .element(Element.resolve(at: resolveAddress(in: context), in: context))
+        }
+    }
+    
     public func resolveOffset<MachO: MachORepresentableWithCache & Readable>(in machO: MachO) -> Int {
         switch self {
         case .symbol(let unsolvedSymbol):
             return unsolvedSymbol.offset
         case .address(let address):
             return numericCast(machO.resolveOffset(at: machO.stripPointerTags(of: address)))
+        }
+    }
+    
+    public func resolveAddress<Context>(in context: Context) throws -> Context.Address where Context : ReadingContext {
+        switch self {
+        case .symbol(let symbol):
+            return try context.addressFromOffset(symbol.offset)
+        case .address(let address):
+            return try context.addressFromVirtualAddress(address)
         }
     }
 
@@ -50,6 +68,10 @@ public enum SymbolOrElementPointer<Context: Resolvable>: RelativeIndirectType {
 
     public func resolveAny<T: Resolvable, MachO: MachORepresentableWithCache & Readable>(in machO: MachO) throws -> T {
         fatalError()
+    }
+
+    public func resolveAny<T: Resolvable, Context: ReadingContext>(in context: Context) throws -> T {
+        fatalError("resolveAny is not supported for SymbolOrElementPointer with ReadingContext")
     }
 
     public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
@@ -71,5 +93,13 @@ public enum SymbolOrElementPointer<Context: Resolvable>: RelativeIndirectType {
 
     public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
         return try .address(ptr.stripPointerTags().assumingMemoryBound(to: UInt64.self).pointee)
+    }
+
+    public static func resolve<Context: ReadingContext>(
+        at address: Context.Address,
+        in context: Context
+    ) throws -> Self {
+        let address: UInt64 = try context.readElement(at: address)
+        return .address(address)
     }
 }

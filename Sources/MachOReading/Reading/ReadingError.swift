@@ -1,8 +1,9 @@
 import MachOExtensions
 
-package enum ReadingError: Error {
+public enum ReadingError: Error {
     case invalidDataSize
     case invalidLayoutSize
+    case invalidAddress(Int)
 }
 
 extension MachONamespace {

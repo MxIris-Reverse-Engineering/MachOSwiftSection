@@ -54,6 +54,15 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
         return try .element(.resolve(from: ptr))
     }
 
+    // MARK: - ReadingContext Support
+
+    public static func resolve<Context: ReadingContext>(
+        at address: Context.Address,
+        in context: Context
+    ) throws -> Self {
+        return try .element(.resolve(at: address, in: context))
+    }
+
     public func map<T, E: Swift.Error>(_ transform: (Element) throws(E) -> T) throws(E) -> SymbolOrElement<T> {
         switch self {
         case .symbol(let unsolvedSymbol):

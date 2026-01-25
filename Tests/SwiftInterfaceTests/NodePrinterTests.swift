@@ -133,7 +133,6 @@ struct NodePrinterUnitTests {
     @Test func typeNodePrinterGenericArray() async throws {
         // Test with a type that should produce non-empty output
         let node = try demangleAsNode("$sSaySiGD")  // [Int] destructor
-        var printer = TypeNodePrinter()
 
         // This demangled symbol has different structure, just verify no crash
         #expect(node.kind == .global)

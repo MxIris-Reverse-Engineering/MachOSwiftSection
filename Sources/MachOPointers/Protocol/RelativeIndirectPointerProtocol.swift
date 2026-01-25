@@ -10,6 +10,7 @@ public protocol RelativeIndirectPointerProtocol<Pointee>: RelativePointerProtoco
 }
 
 extension RelativeIndirectPointerProtocol {
+    // MARK: - MachO
     public func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Pointee {
         return try resolveIndirect(from: offset, in: machO)
     }
@@ -33,7 +34,8 @@ extension RelativeIndirectPointerProtocol {
     public func resolveIndirectOffset<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Int {
         return try resolveIndirectType(from: offset, in: machO).resolveOffset(in: machO)
     }
-
+    
+    // MARK: - InProcess
     public func resolve(from ptr: UnsafeRawPointer) throws -> Pointee {
         return try resolveIndirect(from: ptr)
     }
@@ -53,6 +55,31 @@ extension RelativeIndirectPointerProtocol {
     public func resolveIndirectType(from ptr: UnsafeRawPointer) throws -> IndirectType {
         return try .resolve(from: resolveDirectOffset(from: ptr))
     }
+    
+    // MARK: - Context
+    public func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Pointee {
+        return try resolveIndirect(at: address, in: context)
+    }
+
+    func resolveIndirect<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Pointee {
+        return try resolveIndirectType(at: address, in: context).resolve(in: context)
+    }
+
+    public func resolveAny<T: Resolvable, Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> T {
+        return try resolveIndirectAny(at: address, in: context)
+    }
+
+    func resolveIndirectAny<T: Resolvable, Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> T {
+        return try resolveIndirectType(at: address, in: context).resolveAny(in: context)
+    }
+
+    public func resolveIndirectType<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> IndirectType {
+        return try .resolve(at: resolveDirectOffset(at: address, in: context), in: context)
+    }
+
+    public func resolveIndirectOffset<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Context.Address {
+        return try resolveIndirectType(at: address, in: context).resolveAddress(in: context)
+    }
 }
 
 extension RelativeIndirectPointerProtocol where Pointee: OptionalProtocol {
@@ -64,5 +91,10 @@ extension RelativeIndirectPointerProtocol where Pointee: OptionalProtocol {
     public func resolve(from ptr: UnsafeRawPointer) throws -> Pointee {
         guard isValid else { return nil }
         return try resolve(from: ptr)
+    }
+    
+    public func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Pointee {
+        guard isValid else { return nil }
+        return try resolve(at: address, in: context)
     }
 }

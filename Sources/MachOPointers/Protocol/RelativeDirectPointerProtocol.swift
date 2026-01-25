@@ -37,6 +37,34 @@ extension RelativeDirectPointerProtocol {
     func resolveDirectAny<T: Resolvable>(from ptr: UnsafeRawPointer) throws -> T {
         return try T.resolve(from: resolveDirectOffset(from: ptr))
     }
+    
+    public func resolve<Context: ReadingContext>(
+        at address: Context.Address,
+        in context: Context
+    ) throws -> Pointee {
+        return try resolveDirect(at: address, in: context)
+    }
+
+    func resolveDirect<Context: ReadingContext>(
+        at address: Context.Address,
+        in context: Context
+    ) throws -> Pointee {
+        return try Pointee.resolve(at: resolveDirectOffset(at: address, in: context), in: context)
+    }
+    
+    public func resolveAny<T: Resolvable, Context: ReadingContext>(
+        at address: Context.Address,
+        in context: Context
+    ) throws -> T {
+        return try resolveDirectAny(at: address, in: context)
+    }
+    
+    func resolveDirectAny<T: Resolvable, Context: ReadingContext>(
+        at address: Context.Address,
+        in context: Context
+    ) throws -> T {
+        return try T.resolve(at: resolveDirectOffset(at: address, in: context), in: context)
+    }
 }
 
 extension RelativeDirectPointerProtocol where Pointee: OptionalProtocol {
@@ -48,5 +76,10 @@ extension RelativeDirectPointerProtocol where Pointee: OptionalProtocol {
     public func resolve(from ptr: UnsafeRawPointer) throws -> Pointee {
         guard isValid else { return nil }
         return try resolve(from: ptr)
+    }
+    
+    public func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Pointee {
+        guard isValid else { return nil }
+        return try resolve(at: address, in: context)
     }
 }
