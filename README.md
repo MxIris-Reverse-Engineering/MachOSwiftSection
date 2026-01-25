@@ -138,6 +138,7 @@ swift-section interface [options] [file-path]
 ```
 
 **Basic usage:**
+
 ```bash
 # Generate Swift interface from a Mach-O file
 swift-section interface /path/to/binary
@@ -147,8 +148,11 @@ swift-section interface --output-path interface.swiftinterface /path/to/binary
 
 # Use specific architecture
 swift-section interface --architecture arm64 /path/to/binary
+```
 
 **Working with dyld shared cache:**
+
+```bash
 # Dump from system dyld shared cache
 swift-section interface --uses-system-dyld-shared-cache --cache-image-name SwiftUICore
 
