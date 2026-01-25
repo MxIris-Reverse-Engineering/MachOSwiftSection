@@ -1,14 +1,16 @@
 import Demangling
 import Foundation
 
-protocol NodePrintableDelegate: AnyObject {
+public protocol TypeNameResolvable: Sendable {
     func moduleName(forTypeName typeName: String) async -> String?
     func swiftName(forCName cName: String) async -> String?
     func opaqueType(forNode node: Node, index: Int?) async -> String?
 }
 
-extension NodePrintableDelegate {
-    func moduleName(forTypeName typeName: String) async -> String? { nil }
-    func swiftName(forCName cName: String) async -> String? { nil }
-    func opaqueType(forNode node: Node, index: Int?) async -> String? { nil }
+extension TypeNameResolvable {
+    public func moduleName(forTypeName typeName: String) async -> String? { nil }
+    public func swiftName(forCName cName: String) async -> String? { nil }
+    public func opaqueType(forNode node: Node, index: Int?) async -> String? { nil }
 }
+
+protocol NodePrintableDelegate: TypeNameResolvable, AnyObject {}

@@ -1,6 +1,10 @@
 import SwiftStdlibToolbox
 
-public final class Node: Sendable {
+/// A node in the demangled symbol tree.
+///
+/// Thread safety: Node is safe to read from multiple threads after demangling is complete.
+/// All modifications happen during the single-threaded demangling process.
+public final class Node: @unchecked Sendable {
     public enum Contents: Hashable, Sendable {
         case none
         case index(UInt64)
@@ -11,11 +15,11 @@ public final class Node: Sendable {
 
     public let contents: Contents
 
-    @Mutex
-    public private(set) weak var parent: Node?
+    /// The parent node in the tree. Only modified during demangling.
+    public nonisolated(unsafe) private(set) weak var parent: Node?
 
-    @Mutex
-    public private(set) var children: [Node] = []
+    /// Child nodes. Only modified during demangling.
+    public nonisolated(unsafe) private(set) var children: [Node] = []
 
     public init(kind: Kind, contents: Contents = .none, children: [Node] = []) {
         self.kind = kind
@@ -34,7 +38,7 @@ public final class Node: Sendable {
 }
 
 extension Node {
-    package func changeChild(_ newChild: Node?, at index: Int) -> Node {
+    func changeChild(_ newChild: Node?, at index: Int) -> Node {
         guard children.indices.contains(index) else { return self }
 
         var modifiedChildren = children
@@ -46,7 +50,7 @@ extension Node {
         return Node(kind: kind, contents: contents, children: modifiedChildren)
     }
 
-    package func changeKind(_ newKind: Kind, additionalChildren: [Node] = []) -> Node {
+    func changeKind(_ newKind: Kind, additionalChildren: [Node] = []) -> Node {
         if case .text(let text) = contents {
             return Node(kind: newKind, contents: .text(text), children: children + additionalChildren)
         } else if case .index(let i) = contents {
@@ -56,47 +60,113 @@ extension Node {
         }
     }
 
-    package func addChild(_ newChild: Node) {
+    func addChild(_ newChild: Node) {
         newChild.parent = self
         children.append(newChild)
     }
 
-    package func removeChild(at index: Int) {
+    func removeChild(at index: Int) {
         guard children.indices.contains(index) else { return }
         children.remove(at: index)
     }
 
-    package func insertChild(_ newChild: Node, at index: Int) {
+    func insertChild(_ newChild: Node, at index: Int) {
         guard index >= 0, index <= children.count else { return }
         newChild.parent = self
         children.insert(newChild, at: index)
     }
 
-    package func addChildren(_ newChildren: [Node]) {
+    func addChildren(_ newChildren: [Node]) {
         for child in newChildren {
             child.parent = self
         }
         children.append(contentsOf: newChildren)
     }
 
-    package func setChildren(_ newChildren: [Node]) {
+    func setChildren(_ newChildren: [Node]) {
         for child in newChildren {
             child.parent = self
         }
         children = newChildren
     }
 
-    package func setChild(_ child: Node, at index: Int) {
+    func setChild(_ child: Node, at index: Int) {
         guard children.indices.contains(index) else { return }
         child.parent = self
         children[index] = child
     }
 
-    package func reverseChildren() {
+    func reverseChildren() {
         children.reverse()
     }
 
-    package func reverseFirst(_ count: Int) {
+    func reverseFirst(_ count: Int) {
         children.reverseFirst(count)
+    }
+}
+
+// MARK: - Non-mutating (copying) versions
+// These are internal - external modules should use NodeBuilder
+
+extension Node {
+    /// Returns a new node with the child added.
+    func addingChild(_ newChild: Node) -> Node {
+        Node(kind: kind, contents: contents, children: children + [newChild])
+    }
+
+    /// Returns a new node with the child removed at the specified index.
+    func removingChild(at index: Int) -> Node {
+        guard children.indices.contains(index) else { return self }
+        var modifiedChildren = children
+        modifiedChildren.remove(at: index)
+        return Node(kind: kind, contents: contents, children: modifiedChildren)
+    }
+
+    /// Returns a new node with the child inserted at the specified index.
+    func insertingChild(_ newChild: Node, at index: Int) -> Node {
+        guard index >= 0, index <= children.count else { return self }
+        var modifiedChildren = children
+        modifiedChildren.insert(newChild, at: index)
+        return Node(kind: kind, contents: contents, children: modifiedChildren)
+    }
+
+    /// Returns a new node with the children added.
+    func addingChildren(_ newChildren: [Node]) -> Node {
+        Node(kind: kind, contents: contents, children: children + newChildren)
+    }
+
+    /// Returns a new node with the specified children.
+    func withChildren(_ newChildren: [Node]) -> Node {
+        Node(kind: kind, contents: contents, children: newChildren)
+    }
+
+    /// Returns a new node with the child replaced at the specified index.
+    func withChild(_ child: Node, at index: Int) -> Node {
+        guard children.indices.contains(index) else { return self }
+        var modifiedChildren = children
+        modifiedChildren[index] = child
+        return Node(kind: kind, contents: contents, children: modifiedChildren)
+    }
+
+    /// Returns a new node with children reversed.
+    func reversingChildren() -> Node {
+        Node(kind: kind, contents: contents, children: children.reversed())
+    }
+
+    /// Returns a new node with the first N children reversed.
+    func reversingFirst(_ count: Int) -> Node {
+        var modifiedChildren = children
+        modifiedChildren.reverseFirst(count)
+        return Node(kind: kind, contents: contents, children: modifiedChildren)
+    }
+
+    /// Returns a new tree with the descendant node replaced.
+    /// If `old` is not found in the tree, returns a copy of self.
+    func replacingDescendant(_ old: Node, with new: Node) -> Node {
+        if self === old {
+            return new
+        }
+        let newChildren = children.map { $0.replacingDescendant(old, with: new) }
+        return Node(kind: kind, contents: contents, children: newChildren)
     }
 }

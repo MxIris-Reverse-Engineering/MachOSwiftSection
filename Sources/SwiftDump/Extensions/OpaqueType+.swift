@@ -18,9 +18,12 @@ extension OpaqueType {
         for currentRequirement in currentRequirements {
             if currentRequirement.content.isType {
                 if let node = try MetadataReader.buildGenericSignature(for: currentRequirement, in: machO), let sameTypeRequirementNode = node.first(of: .dependentGenericSameTypeRequirement) {
-                    let sameTypeRequirementCopy = sameTypeRequirementNode.copy()
-                    if let associatedTypeRefNode = sameTypeRequirementCopy.first(of: .dependentAssociatedTypeRef) {
-                        associatedTypeRefNode.removeChild(at: 1)
+                    let sameTypeRequirementCopy: Node
+                    if let associatedTypeRefNode = sameTypeRequirementNode.first(of: .dependentAssociatedTypeRef) {
+                        let modifiedAssociatedTypeRef = NodeBuilder(associatedTypeRefNode).removingChild(at: 1)
+                        sameTypeRequirementCopy = NodeBuilder(sameTypeRequirementNode).replacingDescendant(associatedTypeRefNode, with: modifiedAssociatedTypeRef)
+                    } else {
+                        sameTypeRequirementCopy = NodeBuilder(sameTypeRequirementNode).copy()
                     }
                     if !usedRequirements.contains(sameTypeRequirementNode), !usedRequirements.contains(sameTypeRequirementCopy) {
                         results.append(currentRequirement)

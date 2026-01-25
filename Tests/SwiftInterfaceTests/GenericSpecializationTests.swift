@@ -30,22 +30,22 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
 
         try await indexer.prepare()
-        let wrapper = try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestGenericStruct" }?.struct
-        let descriptor = try #require(wrapper)
+
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestGenericStruct" }?.struct)
 
         let genericContext = try #require(try descriptor.genericContext(in: machO))
 
-        print(genericContext.header.numKeyArguments)
+        #expect(genericContext.header.numKeyArguments == 9)
 
         let AMetatype = [Int].self
         let AProtocol = (any Collection).self
-        
+
         let BMetatype = Double.self
         let BProtocol = (any Equatable).self
-        
+
         let CMetatype = Data.self
         let CProtocol = (any Hashable).self
-        
+
         let AMetadata = try Metadata.createInProcess(AMetatype)
         let BMetadata = try Metadata.createInProcess(BMetatype)
         let CMetadata = try Metadata.createInProcess(CMetatype)
@@ -68,7 +68,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
                 #require(try RuntimeFunctions.conformsToProtocol(metatype: CMetatype, protocolType: CProtocol)),
             ] + associatedTypeWitnesses.values.flatMap { $0 }
         )
-        try print(#require(metadata.value.resolve().struct).fieldOffsets())
+        try #expect(#require(metadata.value.resolve().struct).fieldOffsets() == [0, 8, 16])
     }
 }
 
@@ -227,7 +227,7 @@ extension SwiftInterfaceIndexer {
                 guard let associatedTypePWT = try? RuntimeFunctions.conformsToProtocol(metadata: associatedTypeMetadata, protocolDescriptor: requirementProtocol.descriptor) else {
                     throw AssociatedTypeResolutionError.associatedTypeDoesNotConformToProtocol(associatedType: associatedTypeMetadata, protocolName: currentProtocolName)
                 }
-                
+
                 results[associatedTypeMetadata, default: []].append(associatedTypePWT)
             } else if let dependentGenericParamType = paramNode.first(of: .dependentGenericParamType) {
                 guard let genericParamType = dependentGenericParamType.text else {

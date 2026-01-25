@@ -70,12 +70,13 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
 
     public let machO: MachO
 
-    public let configuration: SwiftInterfaceIndexConfiguration
-
-    public let eventDispatcher: SwiftInterfaceEvents.Dispatcher = .init()
+    @Mutex
+    public private(set) var configuration: SwiftInterfaceIndexConfiguration = .init()
 
     @usableFromInline
     let currentStorage = Storage()
+
+    let eventDispatcher: SwiftInterfaceEvents.Dispatcher = .init()
 
     @Mutex
     public private(set) var subIndexers: [SwiftInterfaceIndexer<MachO>] = []
@@ -86,6 +87,16 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
         eventDispatcher.addHandlers(eventHandlers)
     }
 
+    public func updateConfiguration(_ newConfiguration: SwiftInterfaceIndexConfiguration) async throws {
+        let oldConfiguration = self.configuration
+
+        self.configuration = newConfiguration
+
+        if oldConfiguration.showCImportedTypes != newConfiguration.showCImportedTypes {
+            try await prepare()
+        }
+    }
+    
     public func addSubIndexer(_ subIndexer: SwiftInterfaceIndexer<MachO>) {
         subIndexers.append(subIndexer)
     }
