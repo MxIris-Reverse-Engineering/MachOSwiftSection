@@ -67,6 +67,7 @@ swift-section (CLI)
 - `SwiftInterfaceBuilder` - Main builder, call `prepare()` then `printRoot()`
 - `SwiftInterfaceIndexer` - Indexes types, extensions, conformances
 - `TypeNodePrinter`, `FunctionNodePrinter` - Print demangled nodes as Swift code
+- `GenericSpecializer` - Specializes generic types with user-provided type arguments (see implementation plan below)
 
 **SwiftInspection** - Runtime metadata analysis
 - `EnumLayoutCalculator` - Calculates enum memory layouts (multi-payload enum support)
@@ -110,3 +111,28 @@ let string = node.print(using: .default) // "Swift.Int"
 Tests use `MACHO_SWIFT_SECTION_SILENT_TEST=1` to suppress verbose output.
 
 Tests read Mach-O files from Xcode frameworks and dyld shared cache for real-world validation.
+
+## Work In Progress
+
+### GenericSpecializer (feature/generic-specializer branch)
+
+Interactive API for specializing generic Swift types at runtime. Implementation plan located at:
+`Sources/SwiftInterface/GenericSpecializer/IMPLEMENTATION_PLAN.md`
+
+**Key Design Points:**
+- Only protocol constraints require Protocol Witness Tables (PWT)
+- `baseClass`, `layout`, and `sameType` constraints need validation only, no PWT
+- Two-step API: `makeRequest()` returns parameters/candidates, `specialize()` executes with user selections
+- Uses `ConformanceProvider` protocol to query type conformances from Indexer
+
+**File Structure:**
+```
+Sources/SwiftInterface/GenericSpecializer/
+├── GenericSpecializer.swift        # Main class
+├── ConformanceProvider.swift       # Protocol and implementations
+└── Models/
+    ├── SpecializationRequest.swift
+    ├── SpecializationSelection.swift
+    ├── SpecializationResult.swift
+    └── SpecializationValidation.swift
+```
