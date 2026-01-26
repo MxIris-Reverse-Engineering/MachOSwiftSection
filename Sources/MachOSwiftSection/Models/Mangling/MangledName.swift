@@ -178,6 +178,47 @@ extension MangledName: Resolvable {
 
         return .init(elements: elements, startOffset: offset, endOffset: currentOffset)
     }
+    
+    public static func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> MangledName {
+        var elements: [MangledName.Element] = []
+        var currentAddress = address
+        var currentString = ""
+        while true {
+            let value: UInt8 = try context.readElement(at: currentAddress)
+            if value == 0xFF {}
+            else if value == 0 {
+                if currentString.count > 0 {
+                    elements.append(.string(currentString))
+                    currentString = ""
+                }
+                currentAddress = context.advanceAddress(currentAddress, of: UInt8.self)
+                break
+            } else if value >= 0x01, value <= 0x17 {
+                if currentString.count > 0 {
+                    elements.append(.string(currentString))
+                    currentString = ""
+                }
+                let reference: Int32 = try context.readElement(at: context.advanceAddress(currentAddress, by: 1))
+                let offset = try context.offsetFromAddress(currentAddress)
+                elements.append(.lookup(.init(offset: offset, reference: .relative(.init(kind: value, relativeOffset: reference + 1)))))
+                currentAddress = context.advanceAddress(currentAddress, of: Int32.self)
+            } else if value >= 0x18, value <= 0x1F {
+                if currentString.count > 0 {
+                    elements.append(.string(currentString))
+                    currentString = ""
+                }
+                let reference: UInt64 = try context.readElement(at: context.advanceAddress(currentAddress, by: 1))
+                let offset = try context.offsetFromAddress(currentAddress)
+                elements.append(.lookup(.init(offset: offset, reference: .absolute(.init(kind: value, reference: reference)))))
+                currentAddress = context.advanceAddress(currentAddress, of: UInt64.self)
+            } else {
+                currentString.append(String(format: "%c", value))
+            }
+            currentAddress = context.advanceAddress(currentAddress, of: UInt8.self)
+        }
+
+        return .init(elements: elements, startOffset: try context.offsetFromAddress(address), endOffset: try context.offsetFromAddress(currentAddress))
+    }
 }
 
 extension MangledName: CustomStringConvertible {

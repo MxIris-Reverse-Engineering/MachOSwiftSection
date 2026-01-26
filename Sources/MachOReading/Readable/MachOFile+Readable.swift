@@ -4,6 +4,31 @@ import MachOExtensions
 import FileIO
 import AssociatedObject
 
+/// Extends `MachOFile` to conform to `Readable`, enabling file-based reading.
+///
+/// This extension provides file I/O based reading operations for MachO files.
+/// It handles the complexity of:
+/// - dyld shared cache support (resolving cross-file references)
+/// - Header offset adjustments
+/// - File handle management
+///
+/// ## dyld Shared Cache Support
+///
+/// When reading from a MachO file that is part of a dyld shared cache,
+/// offsets may need to be resolved to different cache files. This extension
+/// automatically handles this resolution.
+///
+/// ## Example
+///
+/// ```swift
+/// let machOFile: MachOFile = ...
+///
+/// // Read a raw element
+/// let header: mach_header_64 = try machOFile.readElement(offset: 0)
+///
+/// // Read with wrapper (preserves offset for relative pointer resolution)
+/// let descriptor: ProtocolDescriptor = try machOFile.readWrapperElement(offset: offset)
+/// ```
 extension MachOFile: Readable {
     public func readElement<Element>(
         offset: Int

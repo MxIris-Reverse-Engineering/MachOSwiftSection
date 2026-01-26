@@ -22,8 +22,17 @@ extension RelativeObjCProtocolPrefix {
     public func mangledName<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MangledName {
         return try layout.mangledName.resolve(from: offset(of: \.mangledName), in: machO)
     }
-    
+
     public func mangledName() throws -> MangledName {
         return try layout.mangledName.resolve(from: pointer(of: \.mangledName))
+    }
+}
+
+// MARK: - ReadingContext Support
+
+extension RelativeObjCProtocolPrefix {
+    public func mangledName<Context: ReadingContext>(in context: Context) throws -> MangledName {
+        let baseAddress = try context.addressFromOffset(offset(of: \.mangledName))
+        return try layout.mangledName.resolve(at: baseAddress, in: context)
     }
 }

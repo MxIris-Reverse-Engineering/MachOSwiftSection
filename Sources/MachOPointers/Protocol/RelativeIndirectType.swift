@@ -12,4 +12,8 @@ public protocol RelativeIndirectType<Resolved>: Resolvable {
 
     func resolve() throws -> Resolved
     func resolveAny<T: Resolvable>() throws -> T
+
+    func resolve<Context: ReadingContext>(in context: Context) throws -> Resolved
+    func resolveAny<T: Resolvable, Context: ReadingContext>(in context: Context) throws -> T
+    func resolveAddress<Context: ReadingContext>(in context: Context) throws -> Context.Address
 }

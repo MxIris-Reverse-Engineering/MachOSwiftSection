@@ -31,6 +31,15 @@ extension ExtendedExistentialTypeShape {
     }
 }
 
+// MARK: - ReadingContext Support
+
+extension ExtendedExistentialTypeShape {
+    public func existentialType<Context: ReadingContext>(in context: Context) throws -> MangledName {
+        let baseAddress = try context.addressFromOffset(offset(of: \.existentialType))
+        return try layout.existentialType.resolve(at: baseAddress, in: context)
+    }
+}
+
 public struct ExtendedExistentialTypeShapeFlags: OptionSet, Sendable {
     public let rawValue: UInt32
 

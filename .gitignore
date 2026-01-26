@@ -11,3 +11,4 @@ Tests/Projects/SymbolTests/SymbolTests.xcodeproj/project.xcworkspace
 gha-creds-*.json
 *.resolved
 .claude/settings.local.json
+Tests/__Snapshots__

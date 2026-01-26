@@ -45,4 +45,9 @@ extension RelativeIndirectablePointerIntPairProtocol where Pointee: OptionalProt
         guard isValid else { return nil }
         return try resolve(from: ptr)
     }
+    
+    public func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Pointee {
+        guard isValid else { return nil }
+        return try resolve(at: address, in: context)
+    }
 }

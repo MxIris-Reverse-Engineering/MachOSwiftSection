@@ -109,3 +109,34 @@ extension GenericRequirementDescriptor {
         }
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension GenericRequirementDescriptor {
+    public func paramMangledName<Context: ReadingContext>(in context: Context) throws -> MangledName {
+        let baseAddress = try context.addressFromOffset(offset(of: \.param))
+        return try layout.param.resolve(at: baseAddress, in: context)
+    }
+
+    public func type<Context: ReadingContext>(in context: Context) throws -> MangledName {
+        let baseAddress = try context.addressFromOffset(offset(of: \.content))
+        return try RelativeDirectPointer<MangledName>(relativeOffset: layout.content).resolve(at: baseAddress, in: context)
+    }
+
+    public func resolvedContent<Context: ReadingContext>(in context: Context) throws -> ResolvedGenericRequirementContent {
+        let contentOffset = offset(of: \.content)
+        let baseAddress = try context.addressFromOffset(contentOffset)
+        switch content {
+        case .type(let relativeDirectPointer):
+            return try .type(relativeDirectPointer.resolve(at: baseAddress, in: context))
+        case .protocol(let relativeProtocolDescriptorPointer):
+            return try .protocol(relativeProtocolDescriptorPointer.resolve(at: baseAddress, in: context))
+        case .layout(let genericRequirementLayoutKind):
+            return .layout(genericRequirementLayoutKind)
+        case .conformance(let relativeIndirectablePointer):
+            return try .conformance(relativeIndirectablePointer.resolve(at: baseAddress, in: context))
+        case .invertedProtocols(let invertedProtocols):
+            return .invertedProtocols(invertedProtocols)
+        }
+    }
+}

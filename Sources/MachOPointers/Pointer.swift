@@ -23,6 +23,10 @@ public struct Pointer<Pointee: Resolvable>: RelativeIndirectType, PointerProtoco
     public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
         .init(address: ptr.assumingMemoryBound(to: UInt64.self).pointee)
     }
+
+    public static func resolve<Context>(at address: Context.Address, in context: Context) throws -> Pointer<Pointee> where Context : ReadingContext {
+        return try context.readElement(at: address)
+    }
 }
 
 public typealias RawPointer = Pointer<AnyResolvable>

@@ -59,3 +59,16 @@ public enum RelativeProtocolDescriptorPointer: Sendable, Equatable {
         }
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension RelativeProtocolDescriptorPointer {
+    public func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> SymbolOrElement<ProtocolDescriptorWithObjCInterop> {
+        switch self {
+        case .objcPointer(let relativeIndirectablePointerIntPair):
+            return try relativeIndirectablePointerIntPair.resolve(at: address, in: context).map { .objc($0) }
+        case .swiftPointer(let relativeContextPointerIntPair):
+            return try relativeContextPointerIntPair.resolve(at: address, in: context).map { .swift($0) }
+        }
+    }
+}

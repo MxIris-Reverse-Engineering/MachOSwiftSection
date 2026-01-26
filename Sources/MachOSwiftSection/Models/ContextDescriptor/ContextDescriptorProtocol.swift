@@ -87,3 +87,19 @@ extension ContextDescriptorProtocol {
         return moduleName == cModule || moduleName == objcModule
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension ContextDescriptorProtocol {
+    public func parent<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+        guard layout.flags.kind != .module, layout.parent.isValid else { return nil }
+        let baseAddress = try context.addressFromOffset(offset)
+        let address = context.advanceAddress(baseAddress, by: layout.offset(of: .parent).cast())
+        return try layout.parent.resolve(at: address, in: context).asOptional
+    }
+
+    public func genericContext<Context: ReadingContext>(in context: Context) throws -> GenericContext? {
+        guard layout.flags.isGeneric else { return nil }
+        return try GenericContext(contextDescriptor: self, in: context)
+    }
+}

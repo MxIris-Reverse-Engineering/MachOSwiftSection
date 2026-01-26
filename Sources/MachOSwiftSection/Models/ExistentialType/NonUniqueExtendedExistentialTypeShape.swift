@@ -30,3 +30,12 @@ extension NonUniqueExtendedExistentialTypeShape {
         try layout.localCopy.existentialType.resolve(from: pointer(of: \.localCopy.existentialType))
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension NonUniqueExtendedExistentialTypeShape {
+    public func existentialType<Context: ReadingContext>(in context: Context) throws -> MangledName {
+        let baseAddress = try context.addressFromOffset(offset(of: \.localCopy.existentialType))
+        return try layout.localCopy.existentialType.resolve(at: baseAddress, in: context)
+    }
+}

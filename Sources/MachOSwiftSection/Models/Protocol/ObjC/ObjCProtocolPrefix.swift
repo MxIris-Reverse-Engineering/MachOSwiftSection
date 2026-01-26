@@ -35,3 +35,11 @@ extension ObjCProtocolPrefix {
         try layout.name.resolveAny()
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension ObjCProtocolPrefix {
+    public func mangledName<Context: ReadingContext>(in context: Context) throws -> MangledName {
+        try layout.name.resolveAny(in: context)
+    }
+}

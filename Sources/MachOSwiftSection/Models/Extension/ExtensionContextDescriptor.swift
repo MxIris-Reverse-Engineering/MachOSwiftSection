@@ -30,3 +30,12 @@ extension ExtensionContextDescriptorProtocol {
         try layout.extendedContext.resolve(from: layout.pointer(from: asPointer, of: .extendedContext))
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension ExtensionContextDescriptorProtocol {
+    public func extendedContext<Context: ReadingContext>(in context: Context) throws -> MangledName? {
+        let baseAddress = try context.addressFromOffset(offset)
+        return try layout.extendedContext.resolve(at: context.advanceAddress(baseAddress, by: layout.offset(of: .extendedContext)), in: context)
+    }
+}
