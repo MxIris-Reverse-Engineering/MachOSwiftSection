@@ -38,7 +38,7 @@ extension RelativeIndirectablePointerProtocol {
 
     public func resolveIndirectableType<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> IndirectType? {
         guard isIndirect else { return nil }
-        return try resolveIndirectableType(from: offset, in: machO)
+        return try resolveIndirectType(from: offset, in: machO)
     }
 
     func resolveIndirectableAny<T: Resolvable, MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> T {
@@ -50,7 +50,9 @@ extension RelativeIndirectablePointerProtocol {
     }
 
     public func resolveIndirectableOffset<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Int {
-        guard let indirectType = try resolveIndirectableType(from: offset, in: machO) else { return resolveDirectOffset(from: offset) }
+        guard let indirectType = try resolveIndirectableType(from: offset, in: machO) else {
+            return resolveDirectOffset(from: offset)
+        }
         return indirectType.resolveOffset(in: machO)
     }
 
@@ -74,7 +76,7 @@ extension RelativeIndirectablePointerProtocol {
 
     public func resolveIndirectableType(from ptr: UnsafeRawPointer) throws -> IndirectType? {
         guard isIndirect else { return nil }
-        return try resolveIndirectableType(from: ptr)
+        return try resolveIndirectType(from: ptr)
     }
 
     func resolveIndirectableAny<T: Resolvable>(from ptr: UnsafeRawPointer) throws -> T {
@@ -105,7 +107,7 @@ extension RelativeIndirectablePointerProtocol {
 
     public func resolveIndirectableType<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> IndirectType? {
         guard isIndirect else { return nil }
-        return try resolveIndirectableType(at: address, in: context)
+        return try resolveIndirectType(at: address, in: context)
     }
 
     func resolveIndirectableAny<T: Resolvable, Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> T {
