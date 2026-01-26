@@ -1120,8 +1120,8 @@ extension MetadataReader {
                 case .accessorFunctionReference:
                     // The symbolic reference points at a resolver function, but we can't
                     // execute code in the target process to resolve it from here.
-//                    let rawPointerOffset = RelativeDirectRawPointer(relativeOffset: relativeOffset).resolveDirectOffset(at: context.addressFromOffset(offset), in: context)
-                    result = .init(kind: .accessorFunctionReference, contents: .index(offset.cast()))
+                    let rawPointerOffset = try RelativeDirectRawPointer(relativeOffset: relativeOffset).resolveDirectAddress(at: context.addressFromOffset(offset), in: context)
+                    result = try .init(kind: .accessorFunctionReference, contents: .index(context.offsetFromAddress(rawPointerOffset).cast()))
                 case .uniqueExtendedExistentialTypeShape:
                     let extendedExistentialTypeShape = try RelativeDirectPointer<ExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(at: baseAddress, in: context)
                     let existentialType = try extendedExistentialTypeShape.existentialType(in: context)

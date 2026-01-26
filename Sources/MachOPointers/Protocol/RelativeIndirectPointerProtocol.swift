@@ -74,7 +74,7 @@ extension RelativeIndirectPointerProtocol {
     }
 
     public func resolveIndirectType<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> IndirectType {
-        return try .resolve(at: resolveDirectOffset(at: address, in: context), in: context)
+        return try .resolve(at: resolveDirectAddress(at: address, in: context), in: context)
     }
 
     public func resolveIndirectOffset<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Context.Address {

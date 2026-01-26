@@ -19,7 +19,7 @@ public protocol RelativePointerProtocol<Pointee>: Sendable, Equatable {
     
     func resolveDirectOffset(from offset: Int) -> Int
     func resolveDirectOffset(from ptr: UnsafeRawPointer) throws -> UnsafeRawPointer
-    func resolveDirectOffset<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Context.Address
+    func resolveDirectAddress<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Context.Address
     
 }
 
@@ -32,7 +32,7 @@ extension RelativePointerProtocol {
         return Int(offset) + Int(relativeOffset)
     }
     
-    public func resolveDirectOffset<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Context.Address {
+    public func resolveDirectAddress<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Context.Address {
         return context.advanceAddress(address, by: .init(relativeOffset))
     }
 

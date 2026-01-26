@@ -199,7 +199,7 @@ extension MangledName: Resolvable {
                     currentString = ""
                 }
                 let reference: Int32 = try context.readElement(at: context.advanceAddress(currentAddress, by: 1))
-                let offset = try context.offsetFromAddress(address + (currentAddress - address))
+                let offset = try context.offsetFromAddress(currentAddress)
                 elements.append(.lookup(.init(offset: offset, reference: .relative(.init(kind: value, relativeOffset: reference + 1)))))
                 currentAddress = context.advanceAddress(currentAddress, of: Int32.self)
             } else if value >= 0x18, value <= 0x1F {
@@ -208,7 +208,7 @@ extension MangledName: Resolvable {
                     currentString = ""
                 }
                 let reference: UInt64 = try context.readElement(at: context.advanceAddress(currentAddress, by: 1))
-                let offset = try context.offsetFromAddress(address + (currentAddress - address))
+                let offset = try context.offsetFromAddress(currentAddress)
                 elements.append(.lookup(.init(offset: offset, reference: .absolute(.init(kind: value, reference: reference)))))
                 currentAddress = context.advanceAddress(currentAddress, of: UInt64.self)
             } else {

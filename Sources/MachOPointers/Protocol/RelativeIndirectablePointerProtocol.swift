@@ -117,7 +117,9 @@ extension RelativeIndirectablePointerProtocol {
     }
 
     public func resolveIndirectableOffset<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Context.Address {
-        guard let indirectType = try resolveIndirectableType(at: address, in: context) else { return try resolveDirectOffset(at: address, in: context) }
+        guard let indirectType = try resolveIndirectableType(at: address, in: context) else {
+            return try resolveDirectAddress(at: address, in: context)
+        }
         return try indirectType.resolveAddress(in: context)
     }
 }

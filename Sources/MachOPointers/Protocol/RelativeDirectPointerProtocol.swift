@@ -49,7 +49,7 @@ extension RelativeDirectPointerProtocol {
         at address: Context.Address,
         in context: Context
     ) throws -> Pointee {
-        return try Pointee.resolve(at: resolveDirectOffset(at: address, in: context), in: context)
+        return try Pointee.resolve(at: resolveDirectAddress(at: address, in: context), in: context)
     }
     
     public func resolveAny<T: Resolvable, Context: ReadingContext>(
@@ -63,7 +63,7 @@ extension RelativeDirectPointerProtocol {
         at address: Context.Address,
         in context: Context
     ) throws -> T {
-        return try T.resolve(at: resolveDirectOffset(at: address, in: context), in: context)
+        return try T.resolve(at: resolveDirectAddress(at: address, in: context), in: context)
     }
 }
 
