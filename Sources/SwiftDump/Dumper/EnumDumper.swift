@@ -10,8 +10,14 @@ import Dependencies
 import SwiftInspection
 
 package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
+    package typealias Dumped = Enum
+
+    package typealias Metadata = EnumMetadata
+
     package let dumped: Enum
-    
+
+    package let metadata: Metadata?
+
     package let configuration: DumperConfiguration
 
     package let machO: MachO
@@ -19,8 +25,13 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
     @Dependency(\.symbolIndexStore)
     private var symbolIndexStore
 
-    package init(_ dumped: Enum, using configuration: DumperConfiguration, in machO: MachO) {
+    package init(_ dumped: Dumped, using configuration: DumperConfiguration, in machO: MachO) {
+        self.init(dumped, metadata: nil, using: configuration, in: machO)
+    }
+
+    package init(_ dumped: Dumped, metadata: Metadata?, using configuration: DumperConfiguration, in machO: MachO) {
         self.dumped = dumped
+        self.metadata = metadata
         self.configuration = configuration
         self.machO = machO
     }
@@ -42,7 +53,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
             }
         }
     }
-    
+
     private var enumLayout: EnumLayoutCalculator.LayoutResult? {
         get async throws {
             let payloadSize = try dumped.descriptor.payloadSize(in: machO)
@@ -69,10 +80,10 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
     package var fields: SemanticString {
         get async throws {
             var enumLayout: EnumLayoutCalculator.LayoutResult?
-            
+
             if configuration.printEnumLayout, !dumped.flags.isGeneric {
                 enumLayout = try? await self.enumLayout
-                
+
                 if let strategyDescription = enumLayout?.strategyDescription {
                     BreakLine()
                     configuration.indentString
@@ -84,9 +95,9 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
                 BreakLine()
 
                 let mangledTypeName = try fieldRecord.mangledTypeName(in: machO)
-                
-                var isTypeLayoutPrinted: Bool = false
-                
+
+                var isTypeLayoutPrinted = false
+
                 if !mangledTypeName.isEmpty {
                     if configuration.printTypeLayout, !dumped.flags.isGeneric, let metatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machO), let metadata = try? Metadata.createInProcess(metatype) {
                         try await metadata.asMetadataWrapper().dumpTypeLayout(using: configuration)

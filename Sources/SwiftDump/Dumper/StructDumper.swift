@@ -8,7 +8,13 @@ import Dependencies
 import SwiftInspection
 
 package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
+    package typealias Dumped = Struct
+    
+    package typealias Metadata = StructMetadata
+    
     package let dumped: Struct
+
+    package let metadata: StructMetadata?
 
     package let configuration: DumperConfiguration
 
@@ -17,8 +23,13 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
     @Dependency(\.symbolIndexStore)
     private var symbolIndexStore
 
-    package init(_ dumped: Struct, using configuration: DumperConfiguration, in machO: MachO) {
+    package init(_ dumped: Dumped, using configuration: DumperConfiguration, in machO: MachO) {
+        self.init(dumped, metadata: nil, using: configuration, in: machO)
+    }
+
+    package init(_ dumped: Dumped, metadata: Metadata?, using configuration: DumperConfiguration, in machO: MachO) {
         self.dumped = dumped
+        self.metadata = metadata
         self.configuration = configuration
         self.machO = machO
     }
@@ -41,12 +52,6 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
         }
     }
 
-    private var metadata: StructMetadata? {
-        guard let metadataAccessorFunction = try? dumped.descriptor.metadataAccessorFunction(in: machO), !dumped.flags.isGeneric else { return nil }
-        guard let metadataWrapper = try? metadataAccessorFunction(request: .init()).value.resolve(in: machO) else { return nil }
-        return metadataWrapper.struct
-    }
-    
     private var fieldOffsets: [Int]? {
         guard configuration.emitOffsetComments else { return nil }
         return try? metadata?.fieldOffsets(for: dumped.descriptor, in: machO).map { $0.cast() }
@@ -59,7 +64,7 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
                 BreakLine()
 
                 let mangledTypeName = try fieldRecord.mangledTypeName(in: machO)
-                
+
                 if let fieldOffsets, let fieldOffset = fieldOffsets[safe: offset.index] {
                     Indent(level: configuration.indentation)
                     Comment("Field Offset: 0x\(String(fieldOffset, radix: 16))")
@@ -69,7 +74,7 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
                 if configuration.printTypeLayout, !dumped.flags.isGeneric, let metatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machO), let metadata = try? Metadata.createInProcess(metatype) {
                     try await metadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
                 }
-                
+
                 Indent(level: configuration.indentation)
 
                 let demangledTypeNode = try MetadataReader.demangleType(for: mangledTypeName, in: machO)

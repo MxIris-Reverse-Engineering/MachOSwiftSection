@@ -1,4 +1,4 @@
-public enum GenericParamKind: UInt8 {
+public enum GenericParamKind: UInt8, Sendable {
     case type
     case typePack
     case value

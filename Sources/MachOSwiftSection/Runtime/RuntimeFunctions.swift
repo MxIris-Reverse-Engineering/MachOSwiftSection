@@ -25,20 +25,34 @@ public enum RuntimeFunctions {
         return autoBitCast(MachOSwiftSectionC.swift_getTypeByMangledNameInEnvironment(pointer, .init(mangledTypeName.size), nil, nil))
     }
 
-    public static func conformsToProtocol(metadata: Any.Type, existentialTypeMetadata: Any.Type) throws -> ProtocolWitnessTable? {
-        let existentialTypeMetadataInProcess = try ExistentialTypeMetadata.createInProcess(existentialTypeMetadata)
+    public static func conformsToProtocol(metatype: Any.Type, protocolType: Any.Type) throws -> ProtocolWitnessTable? {
+        let existentialTypeMetadataInProcess = try ExistentialTypeMetadata.createInProcess(protocolType)
         let protocols = try existentialTypeMetadataInProcess.protocols()
         guard let protocolRef = protocols.first else { return nil }
         guard !protocolRef.isObjC else { return nil }
-        let metadataInProcess = try Metadata.createInProcess(metadata)
+        let metadataInProcess = try Metadata.createInProcess(metatype)
         let protocolDescriptor = try protocolRef.swiftProtocol()
         return try conformsToProtocol(metadata: metadataInProcess, protocolDescriptor: protocolDescriptor)
     }
     
+    public static func conformsToProtocol(metadata: Metadata, protocolDescriptor: ProtocolDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolWitnessTable? {
+        guard let machOImage = machO as? MachOImage else { return nil }
+        guard let witnessTablePointer = MachOSwiftSectionC.swift_conformsToProtocol(metadata.pointer(in: machOImage), protocolDescriptor.pointer(in: machOImage)) else { return nil }
+        let offset = witnessTablePointer.bitPattern.uint - machOImage.ptr.bitPattern.uint
+        return try .resolve(from: .init(offset), in: machOImage)
+    }
+    
     public static func conformsToProtocol(metadata: Metadata, protocolDescriptor: ProtocolDescriptor) throws -> ProtocolWitnessTable? {
-        let metadataPointer = try metadata.asPointer
-        let protocolPointer = try protocolDescriptor.asPointer
-        guard let witnessTablePointer = MachOSwiftSectionC.swift_conformsToProtocol(metadataPointer, protocolPointer) else { return nil }
+        guard let witnessTablePointer = try MachOSwiftSectionC.swift_conformsToProtocol(metadata.asPointer, protocolDescriptor.asPointer) else { return nil }
         return try witnessTablePointer.readWrapperElement()
+    }
+    
+    public static func getAssociatedTypeWitness(request: MetadataRequest, protocolWitnessTable: ProtocolWitnessTable, conformingTypeMetadata: Metadata, baseRequirement: ProtocolBaseRequirement, associatedTypeRequirement: ProtocolRequirement) throws -> MetadataResponse {
+        try autoBitCast(MachOSwiftSectionC.swift_getAssociatedTypeWitness(request.rawValue, protocolWitnessTable.asPointer, conformingTypeMetadata.asPointer, baseRequirement.asPointer, associatedTypeRequirement.asPointer))
+    }
+    
+    public static func getAssociatedTypeWitness(request: MetadataRequest, protocolWitnessTable: ProtocolWitnessTable, conformingTypeMetadata: Metadata, baseRequirement: ProtocolBaseRequirement, associatedTypeRequirement: ProtocolRequirement, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MetadataResponse? {
+        guard let machOImage = machO as? MachOImage else { return nil }
+        return autoBitCast(MachOSwiftSectionC.swift_getAssociatedTypeWitness(request.rawValue, protocolWitnessTable.pointer(in: machOImage), conformingTypeMetadata.pointer(in: machOImage), baseRequirement.pointer(in: machOImage), associatedTypeRequirement.pointer(in: machOImage)))
     }
 }

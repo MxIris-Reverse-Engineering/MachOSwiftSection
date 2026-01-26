@@ -89,7 +89,7 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
             }
         }
         if node.children.at(1)?.isKind(of: .labelList) == false {
-            node.insertChild(Node(kind: .labelList), at: 1)
+            node = NodeBuilder(node).insertingChild(Node(kind: .labelList), at: 1)
         }
 
         if let type = node.children.first(of: .type), let functionType = type.children.first {

@@ -2,6 +2,7 @@ import MachOKit
 import MachOFoundation
 import Demangling
 
+@dynamicMemberLookup
 public protocol ContextDescriptorProtocol: ResolvableLocatableLayoutWrapper where Layout: ContextDescriptorLayout {
     func genericContext<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> GenericContext?
     func parent<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<ContextDescriptorWrapper>?
@@ -12,9 +13,16 @@ public protocol ContextDescriptorProtocol: ResolvableLocatableLayoutWrapper wher
     func parent() throws -> SymbolOrElement<ContextDescriptorWrapper>?
     func moduleContextDesciptor() throws -> (any ModuleContextDescriptorProtocol)?
     func isCImportedContextDescriptor() throws -> Bool
+    
+    subscript<T>(dynamicMember keyPath: KeyPath<ContextDescriptorFlags, T>) -> T { get }
 }
 
 extension ContextDescriptorProtocol {
+    
+    public subscript<T>(dynamicMember keyPath: KeyPath<ContextDescriptorFlags, T>) -> T {
+        layout.flags[keyPath: keyPath]
+    }
+    
     public func parent<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
         guard layout.flags.kind != .module, layout.parent.isValid else { return nil }
         return try layout.parent.resolve(from: offset + layout.offset(of: .parent), in: machO).asOptional

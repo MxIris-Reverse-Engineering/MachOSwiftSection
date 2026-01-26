@@ -19,6 +19,8 @@ public struct MetadataRequest: MutableFlagSet {
         self.isBlocking = isBlocking
     }
 
+    public static var completeAndBlocking: Self { .init(state: .complete, isBlocking: true) }
+    
     private enum Bits {
         static let stateBit: RawValue = 0
         static let stateWidth: RawValue = 8

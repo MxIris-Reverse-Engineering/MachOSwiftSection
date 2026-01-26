@@ -35,6 +35,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "CallAccessor.h"
+
 //===----------------------------------------------------------------------===//
 // Pointer Authentication
 //===----------------------------------------------------------------------===//
@@ -105,6 +107,15 @@ extern bool swift_dynamicCast(void *dest, void *src, const void *srcType,
 extern const void *swift_getTypeByMangledNameInContext(const char *typeNameStart, size_t typeNameLength, const void *context, const void *genericArgs);
 
 extern const void *swift_getTypeByMangledNameInEnvironment(const char *typeNameStart, size_t typeNameLength, const void *environment, const void *genericArgs);
+
+//MetadataResponse
+//swift::swift_getAssociatedTypeWitness(MetadataRequest request,
+//                                      WitnessTable *wtable,
+//                                      const Metadata *conformingType,
+//                                      const ProtocolRequirement *reqBase,
+//                                      const ProtocolRequirement *assocType)
+
+extern const MetadataResponse swift_getAssociatedTypeWitness(size_t request, const void *wtable, const void *conformingType, const void *reqBase, const void *assocType);
 
 //===----------------------------------------------------------------------===//
 // Obj-C Support

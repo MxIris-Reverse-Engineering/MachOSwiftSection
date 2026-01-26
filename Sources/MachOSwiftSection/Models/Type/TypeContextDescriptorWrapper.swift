@@ -50,6 +50,10 @@ public enum TypeContextDescriptorWrapper {
         return try contextDescriptor.genericContext(in: machO)
     }
 
+    public func typeGenericContext<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeGenericContext? {
+        return try typeContextDescriptor.typeGenericContext(in: machO)
+    }
+    
     public func parent() throws -> SymbolOrElement<ContextDescriptorWrapper>? {
         return try contextDescriptor.parent()
     }
@@ -58,8 +62,23 @@ public enum TypeContextDescriptorWrapper {
         return try contextDescriptor.genericContext()
     }
     
+    public func typeGenericContext() throws -> TypeGenericContext? {
+        return try typeContextDescriptor.typeGenericContext()
+    }
+    
     public var asContextDescriptorWrapper: ContextDescriptorWrapper {
         return .type(self)
+    }
+    
+    public func asPointerWrapper(in machO: MachOImage) -> Self {
+        switch self {
+        case .enum(let enumDescriptor):
+            return .enum(enumDescriptor.asPointerWrapper(in: machO))
+        case .struct(let structDescriptor):
+            return .struct(structDescriptor.asPointerWrapper(in: machO))
+        case .class(let classDescriptor):
+            return .class(classDescriptor.asPointerWrapper(in: machO))
+        }
     }
 }
 

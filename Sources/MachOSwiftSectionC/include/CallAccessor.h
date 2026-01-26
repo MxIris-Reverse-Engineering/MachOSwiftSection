@@ -41,17 +41,12 @@ typedef struct MetadataResponse {
 
 const MetadataResponse swift_section_callAccessor0(const void *ptr, size_t request);
 
-const MetadataResponse swift_section_callAccessor1(const void *ptr, size_t request,
-                                          const void *arg0);
+const MetadataResponse swift_section_callAccessor1(const void *ptr, size_t request, const void *arg0);
 
-const MetadataResponse swift_section_callAccessor2(const void *ptr, size_t request,
-                                          const void *arg0, const void *arg1);
+const MetadataResponse swift_section_callAccessor2(const void *ptr, size_t request, const void *arg0, const void *arg1);
 
-const MetadataResponse swift_section_callAccessor3(const void *ptr, size_t request,
-                                          const void *arg0, const void *arg1,
-                                          const void *arg2);
+const MetadataResponse swift_section_callAccessor3(const void *ptr, size_t request, const void *arg0, const void *arg1, const void *arg2);
 
-const MetadataResponse swift_section_callAccessor(const void *ptr, size_t request,
-                                         const void *args);
+const MetadataResponse swift_section_callAccessor(const void *ptr, size_t request, const void *args);
 
 #endif /* CALL_ACCESSOR_H */

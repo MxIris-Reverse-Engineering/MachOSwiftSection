@@ -5,7 +5,7 @@ import Utilities
 import Demangling
 import SwiftInspection
 
-private func genericParameterName(depth: Int, index: Int) throws -> String {
+package func genericParameterName(depth: Int, index: Int) throws -> String {
     var charIndex = index
     var name = ""
     repeat {
@@ -18,7 +18,7 @@ private func genericParameterName(depth: Int, index: Int) throws -> String {
     return name
 }
 
-private func genericValueName(depth: Int, index: Int) throws -> String {
+package func genericValueName(depth: Int, index: Int) throws -> String {
     var charIndex = index
     var name = ""
     repeat {
@@ -42,7 +42,7 @@ extension TargetGenericContext {
 
         try await conformancesBuilder()
 
-        if (isDumpCurrentLevelRequirements ? currentRequirements(in: machO) : requirements).count > 0 {
+        if (isDumpCurrentLevelRequirements ? uniqueCurrentRequirements(in: machO) : requirements).count > 0 {
             Space()
             Keyword(.where)
             Space()
@@ -54,34 +54,73 @@ extension TargetGenericContext {
 extension TargetGenericContext {
     @SemanticStringBuilder
     package func dumpGenericParameters<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO, isDumpCurrentLevel: Bool = true) async throws -> SemanticString {
-        var currentValueIndex = 0
-        for (offset, parameter) in (isDumpCurrentLevel ? currentParameters : parameters).offsetEnumerated() {
-            if parameter.kind == .typePack {
-                Keyword(.each)
-                Space()
-            } else if parameter.kind == .value {
-                Keyword(.let)
-                Space()
-            }
-
-            switch parameter.kind {
-            case .type,
-                 .typePack:
-                try Standard(genericParameterName(depth: depth, index: offset.index))
-            case .value:
-                try Standard(genericValueName(depth: depth, index: offset.index))
-                Standard(": ")
-                switch currentValues[currentValueIndex].type {
-                case .int:
-                    TypeName(kind: .other, "Int")
+        if isDumpCurrentLevel {
+            var currentValueIndex = 0
+            for (offset, parameter) in currentParameters.offsetEnumerated() {
+                if parameter.kind == .typePack {
+                    Keyword(.each)
+                    Space()
+                } else if parameter.kind == .value {
+                    Keyword(.let)
+                    Space()
                 }
-                currentValueIndex += 1
-            default:
-                Standard("")
-            }
 
-            if !offset.isEnd {
-                Standard(", ")
+                switch parameter.kind {
+                case .type,
+                     .typePack:
+                    try Standard(genericParameterName(depth: depth, index: offset.index))
+                case .value:
+                    try Standard(genericValueName(depth: depth, index: offset.index))
+                    Standard(": ")
+                    switch currentValues[currentValueIndex].type {
+                    case .int:
+                        TypeName(kind: .other, "Int")
+                    }
+                    currentValueIndex += 1
+                default:
+                    Standard("")
+                }
+
+                if !offset.isEnd {
+                    Standard(", ")
+                }
+            }
+        } else {
+            var currentValueIndex = 0
+            for (offsetAndDepth, depthParameters) in allParameters.offsetEnumerated() {
+                for (offset, parameter) in depthParameters.offsetEnumerated() {
+                    if parameter.kind == .typePack {
+                        Keyword(.each)
+                        Space()
+                    } else if parameter.kind == .value {
+                        Keyword(.let)
+                        Space()
+                    }
+
+                    switch parameter.kind {
+                    case .type,
+                         .typePack:
+                        try Standard(genericParameterName(depth: offsetAndDepth.index, index: offset.index))
+                    case .value:
+                        try Standard(genericValueName(depth: offsetAndDepth.index, index: offset.index))
+                        Standard(": ")
+                        switch values[currentValueIndex].type {
+                        case .int:
+                            TypeName(kind: .other, "Int")
+                        }
+                        currentValueIndex += 1
+                    default:
+                        Standard("")
+                    }
+
+                    if !offset.isEnd {
+                        Standard(", ")
+                    }
+                }
+                
+                if !offsetAndDepth.isEnd {
+                    Standard(", ")
+                }
             }
         }
     }
@@ -103,7 +142,7 @@ extension TargetGenericContext {
 
     @SemanticStringBuilder
     package func dumpGenericRequirements<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO, isDumpCurrentLevel: Bool = true, @SemanticStringBuilder builder: (Node) async throws -> SemanticString) async throws -> SemanticString {
-        for (offset, requirement) in (isDumpCurrentLevel ? currentRequirements(in: machO) : requirements).offsetEnumerated() {
+        for (offset, requirement) in (isDumpCurrentLevel ? uniqueCurrentRequirements(in: machO) : requirements).offsetEnumerated() {
             try await requirement.dump(in: machO, builder: builder)
             if !offset.isEnd {
                 Standard(",")
@@ -232,9 +271,9 @@ extension GenericRequirementDescriptor {
                 TypeName(kind: .other, "AnyObject")
             }
         case .conformance /* (let protocolConformanceDescriptor) */:
-            Standard("SwiftDumpConformance")
+            Error("SwiftDumpConformance")
         case .invertedProtocols /* (let invertedProtocols) */:
-            Standard("SwiftDumpInvertedProtocols")
+            Error("SwiftDumpInvertedProtocols")
         }
     }
 }

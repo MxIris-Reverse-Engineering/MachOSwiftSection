@@ -31,7 +31,7 @@ struct GenericStructLayoutRequirement<A: AnyObject> {
     var field3: Int
 }
 
-struct GenericStructSwiftProtocolRequirement<A: Equatable & Collection> {
+struct GenericStructSwiftProtocolRequirement<A: Equatable & Collection & Codable> {
     var field1: Double
     var field2: A
     var field3: Int
@@ -63,7 +63,7 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
         for typeContextDescriptorWrapper in try machO.swift.typeContextDescriptors {
             guard !typeContextDescriptorWrapper.typeContextDescriptor.layout.flags.isGeneric else { continue }
             if let metadataAccessor = try typeContextDescriptorWrapper.typeContextDescriptor.metadataAccessorFunction(in: machO) {
-                let metadataResponse = metadataAccessor(request: .init())
+                let metadataResponse = try metadataAccessor(request: .init())
                 print(metadataResponse.state)
                 let metadata = try metadataResponse.value.resolve(in: machO)
                 switch metadata {
@@ -89,7 +89,7 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
             guard let typeContextDescriptor = contextDescriptor.typeContextDescriptor else { continue }
             guard !typeContextDescriptor.layout.flags.isGeneric else { continue }
             if let metadataAccessor = try typeContextDescriptor.metadataAccessorFunction(in: machO) {
-                let metadataResponse = metadataAccessor(request: .init(state: .complete, isBlocking: true))
+                let metadataResponse = try metadataAccessor(request: .init(state: .complete, isBlocking: true))
                 let metadata = try metadataResponse.value.resolve(in: machO)
                 switch metadata {
 //                case .class(let classMetadata):
@@ -134,34 +134,22 @@ final class MetadataAccessorTests: MachOImageTests, @unchecked Sendable {
                 let inProcessStruct = `struct`.asPointerWrapper(in: machO)
                 let name = try inProcessStruct.name()
                 if name == "GenericStructSwiftProtocolRequirement" {
-//                    try print(
-//                        inProcessStruct.metadataAccessorFunction()!.callAsFunction(
-//                            request: .init(),
-//                            args:
-//                                (
-//                                    Metadata.createInProcess([Int].self),
-//                                    [
-//                                        RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Equatable).self),
-//                                        RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Collection).self),
-//                                        //                                RuntimeFunctions.conformsToProtocol(metadata: Int.self, existentialTypeMetadata: (any Encodable).self),
-//                                    ].compactMap { $0 }
-//                                )
-//                        ).value.resolve()
-//                    )
+                    try print(
+                        #require(try inProcessStruct.metadataAccessorFunction()).callAsFunction(
+                            request: .init(),
+                            eachMetadatas: Metadata.createInProcess([Int].self),
+                            witnessTables: RuntimeFunctions.conformsToProtocol(metatype: [Int].self, protocolType: (any Equatable).self),
+                            RuntimeFunctions.conformsToProtocol(metatype: [Int].self, protocolType: (any Collection).self),
+                            RuntimeFunctions.conformsToProtocol(metatype: [Int].self, protocolType: (any Decodable).self),
+                            RuntimeFunctions.conformsToProtocol(metatype: [Int].self, protocolType: (any Encodable).self)
+                        ).value.resolve()
+                    )
                 } else if name == "GenericStructObjCProtocolRequirement" {
-                    let metadata = try inProcessStruct.metadataAccessorFunction()!.callAsFunction(
+                    let metadata = try #require(try inProcessStruct.metadataAccessorFunction()).callAsFunction(
                         request: .init(),
-                        args:
-
-                        Metadata.createInProcess(Int.self)
-//                                    [
-//                                        RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Equatable).self),
-//                                        RuntimeFunctions.conformsToProtocol(metadata: [Int].self, existentialTypeMetadata: (any Collection).self),
-                        //                                RuntimeFunctions.conformsToProtocol(metadata: Int.self, existentialTypeMetadata: (any Encodable).self),
-//                                    ].compactMap { $0 }
-
+                        eachMetadatas: Metadata.createInProcess(NSObject.self)
                     ).value.resolve()
-                    try print(metadata.struct!.fieldOffsets())
+                    try print(#require(metadata.struct).fieldOffsets())
                 }
             case .class:
                 continue

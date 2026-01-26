@@ -1,12 +1,12 @@
 import Foundation
 import Testing
 import MachOKit
+import Dependencies
+@_spi(Internals) import MachOSymbols
+@_spi(Internals) import MachOCaches
+@_spi(Support) @testable import SwiftInterface
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
-@_spi(Support) @testable import SwiftInterface
-import Dependencies
-@_private(sourceFile: "SymbolIndexStore.swift") @_spi(Internals) import MachOSymbols
-@_spi(Internals) import MachOCaches
 
 final class SwiftInterfaceIndexerTests: MachOImageTests, @unchecked Sendable {
     override class var imageName: MachOImageName { .SwiftUICore }

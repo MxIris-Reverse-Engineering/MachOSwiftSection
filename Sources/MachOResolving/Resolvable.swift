@@ -86,3 +86,11 @@ extension UInt64: Resolvable {}
 
 extension Float: Resolvable {}
 extension Double: Resolvable {}
+
+
+extension LocatableLayoutWrapper where Self: Resolvable {
+    package func asMachOWrapper(in machO: MachOImage) throws -> Self {
+        let offset = Int(bitPattern: UInt(bitPattern: offset) - machO.ptr.bitPattern.uint)
+        return try .resolve(from: offset, in: machO)
+    }
+}

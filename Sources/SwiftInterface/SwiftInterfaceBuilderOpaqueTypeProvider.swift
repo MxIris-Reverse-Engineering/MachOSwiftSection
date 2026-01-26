@@ -8,7 +8,7 @@ import SwiftStdlibToolbox
 import SwiftDump
 import SwiftInspection
 
-public final class SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRepresentableWithCache & Sendable>: SwiftInterfaceBuilderExtraDataProvider, Sendable {
+public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRepresentableWithCache & Sendable>: SwiftInterfaceBuilderExtraDataProvider, Sendable {
     public let machO: MachO
 
     public init(machO: MachO) {

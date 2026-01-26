@@ -9,7 +9,13 @@ import OrderedCollections
 import SwiftInspection
 
 package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
-    package let dumped: Class
+    package typealias Dumped = Class
+
+    package typealias Metadata = ClassMetadataObjCInterop
+
+    package let dumped: Dumped
+
+    package let metadata: Metadata?
 
     package let configuration: DumperConfiguration
 
@@ -18,8 +24,13 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
     @Dependency(\.symbolIndexStore)
     private var symbolIndexStore
 
-    package init(_ dumped: Class, using configuration: DumperConfiguration, in machO: MachO) {
+    package init(_ dumped: Dumped, using configuration: DumperConfiguration, in machO: MachO) {
+        self.init(dumped, metadata: nil, using: configuration, in: machO)
+    }
+
+    package init(_ dumped: Dumped, metadata: Metadata?, using configuration: DumperConfiguration, in machO: MachO) {
         self.dumped = dumped
+        self.metadata = metadata
         self.configuration = configuration
         self.machO = machO
     }

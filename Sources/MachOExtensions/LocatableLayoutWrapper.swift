@@ -27,7 +27,7 @@ extension LocatableLayoutWrapper {
             return try .init(bitPattern: offset)
         }
     }
-    
+
     package func asPointerWrapper(in machO: MachOImage) -> Self {
         let pointer = pointer(in: machO)
         return .init(layout: pointer.assumingMemoryBound(to: Layout.self).pointee, offset: pointer.bitPattern.int)
