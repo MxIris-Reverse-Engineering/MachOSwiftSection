@@ -27,11 +27,13 @@
 - [x] `EmptyConformanceProvider` for testing
 - [x] `StandardLibraryConformanceProvider` for common stdlib conformances
 
-### Phase 3: GenericSpecializer Core
-- [ ] `GenericSpecializer` class definition
-- [ ] `makeRequest(for:)` - Create specialization request
-- [ ] Internal: Parse generic context and build parameter list
-- [ ] Internal: Find candidate types for each parameter
+### Phase 3: GenericSpecializer Core ✅
+- [x] `GenericSpecializer` class definition
+- [x] `makeRequest(for:)` - Create specialization request
+- [x] Internal: Parse generic context and build parameter list
+- [x] Internal: Find candidate types for each parameter
+- [x] Internal: Build constraints from requirements (protocol, sameType, baseClass, layout)
+- [x] Internal: Build associated type constraints
 
 ### Phase 4: Specialization Execution
 - [ ] `validate(selection:for:)` - Validate user selections
@@ -98,10 +100,11 @@ for field in result.fields {
 
 ## Progress Tracking
 
-- **Current Phase**: Phase 3 - GenericSpecializer Core
+- **Current Phase**: Phase 4 - Specialization Execution
 - **Last Updated**: 2026-01-26
 - **Status**: In Progress
 
 ### Completed
 - Phase 1: Core Models (SpecializationRequest, SpecializationSelection, SpecializationResult, SpecializationValidation)
 - Phase 2: ConformanceProvider (protocol + IndexerConformanceProvider, CompositeConformanceProvider, EmptyConformanceProvider, StandardLibraryConformanceProvider)
+- Phase 3: GenericSpecializer Core (makeRequest, constraint parsing, candidate finding)
