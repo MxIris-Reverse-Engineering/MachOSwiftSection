@@ -30,7 +30,7 @@ import MachOExtensions
 /// Note: This type is marked as `@unchecked Sendable` because `UnsafeRawPointer`
 /// is not `Sendable`. Thread safety must be ensured by the caller when using
 /// addresses across thread boundaries.
-public struct InProcessContext: ReadingContext, @unchecked Sendable {
+public struct InProcessContext: ReadingContext, Sendable {
     /// The runtime target for in-process access.
     public typealias Runtime = InProcess
 
@@ -46,44 +46,46 @@ public struct InProcessContext: ReadingContext, @unchecked Sendable {
     /// Creates a new in-process reading context.
     public init() {}
 
-    public func readElement<T>(at ptr: UnsafeRawPointer) throws -> T {
+    public func readElement<T>(at ptr: Address) throws -> T {
         try ptr.stripPointerTags().readElement()
     }
 
-    public func readElements<T>(at ptr: UnsafeRawPointer, numberOfElements: Int) throws -> [T] {
+    public func readElements<T>(at ptr: Address, numberOfElements: Int) throws -> [T] {
         try ptr.stripPointerTags().readElements(numberOfElements: numberOfElements)
     }
     
-    public func readWrapperElement<T: LocatableLayoutWrapper>(at ptr: UnsafeRawPointer) throws -> T {
+    public func readWrapperElement<T: LocatableLayoutWrapper>(at ptr: Address) throws -> T {
         try ptr.stripPointerTags().readWrapperElement()
     }
     
-    public func readWrapperElements<T>(at ptr: UnsafeRawPointer, numberOfElements: Int) throws -> [T] where T : LocatableLayoutWrapper {
+    public func readWrapperElements<T>(at ptr: Address, numberOfElements: Int) throws -> [T] where T : LocatableLayoutWrapper {
         try ptr.stripPointerTags().readWrapperElements(numberOfElements: numberOfElements)
     }
 
-    public func readString(at ptr: UnsafeRawPointer) throws -> String {
+    public func readString(at ptr: Address) throws -> String {
         try ptr.stripPointerTags().readString()
     }
 
-    public func advanceAddress(_ ptr: UnsafeRawPointer, by delta: Int) -> UnsafeRawPointer {
-        ptr.advanced(by: delta)
+    public func advanceAddress(_ address: Address, by delta: Int) -> Address {
+        address.advanced(by: delta)
+    }
+    
+    public func advanceAddress<T>(_ address: Address, of type: T.Type) -> Address {
+        address.advanced(by: MemoryLayout<T>.size)
     }
 
-    public func addressFromOffset(_ offset: Int) throws -> UnsafeRawPointer {
+    public func addressFromOffset(_ offset: Int) throws -> Address {
         // For InProcess context, the offset is a pointer bit pattern
-        guard let ptr = UnsafeRawPointer(bitPattern: offset) else {
-            throw ReadingError.invalidAddress(offset)
-        }
-        return ptr
+        try UnsafeRawPointer(bitPattern: offset)
     }
 
-    public func addressFromVirtualAddress(_ virtualAddress: UInt64) throws -> UnsafeRawPointer {
+    public func addressFromVirtualAddress(_ virtualAddress: UInt64) throws -> Address {
         // For InProcess context, the virtual address is a pointer bit pattern
         // Use UInt for the intermediate conversion to handle large addresses correctly
-        guard let ptr = UnsafeRawPointer(bitPattern: UInt(virtualAddress)) else {
-            throw ReadingError.invalidAddress(Int(bitPattern: UInt(virtualAddress)))
-        }
-        return ptr
+        try UnsafeRawPointer(bitPattern: UInt(virtualAddress)).stripPointerTags()
+    }
+    
+    public func offsetFromAddress(_ address: Address) throws -> Int {
+        Int(bitPattern: address)
     }
 }

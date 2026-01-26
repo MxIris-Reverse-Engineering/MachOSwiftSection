@@ -1,6 +1,37 @@
 import MachOKit
 import MachOExtensions
 
+/// Extends `UnsafeRawPointer` to conform to `Readable`, enabling direct memory reading.
+///
+/// This extension allows reading data directly from memory addresses, which is
+/// useful for in-process Swift runtime introspection where metadata is already
+/// loaded in the current process's address space.
+///
+/// ## Offset vs Direct Reading
+///
+/// This extension provides two sets of methods:
+/// - **Offset-based**: `readElement(offset:)` - reads relative to the pointer
+/// - **Direct**: `readElement()` - reads at the pointer's current location
+///
+/// ## Pointer Tags
+///
+/// The implementation handles ARM64 pointer authentication tags by stripping
+/// them before reading. This ensures compatibility with PAC-enabled systems.
+///
+/// ## Example
+///
+/// ```swift
+/// let ptr: UnsafeRawPointer = ...
+///
+/// // Read at the pointer location
+/// let flags: ContextDescriptorFlags = try ptr.readElement()
+///
+/// // Read at an offset from the pointer
+/// let name: String = try ptr.readString(offset: 4)
+///
+/// // Read with wrapper (uses bit pattern as offset for InProcess context)
+/// let descriptor: ProtocolDescriptor = try ptr.readWrapperElement()
+/// ```
 extension UnsafeRawPointer: Readable {
     public func readElement<Element>(offset: Int) throws -> Element {
         try advanced(by: offset).readElement()

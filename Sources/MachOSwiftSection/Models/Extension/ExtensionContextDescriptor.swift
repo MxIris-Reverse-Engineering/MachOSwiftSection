@@ -35,7 +35,7 @@ extension ExtensionContextDescriptorProtocol {
 
 extension ExtensionContextDescriptorProtocol {
     public func extendedContext<Context: ReadingContext>(in context: Context) throws -> MangledName? {
-        let baseAddress = try context.addressFromOffset(offset + layout.offset(of: .extendedContext))
-        return try layout.extendedContext.resolve(at: baseAddress, in: context)
+        let baseAddress = try context.addressFromOffset(offset)
+        return try layout.extendedContext.resolve(at: context.advanceAddress(baseAddress, by: layout.offset(of: .extendedContext)), in: context)
     }
 }

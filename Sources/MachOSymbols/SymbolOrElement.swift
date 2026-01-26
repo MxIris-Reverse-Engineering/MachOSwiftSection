@@ -53,16 +53,23 @@ public enum SymbolOrElement<Element: Resolvable>: Resolvable {
     public static func resolve(from ptr: UnsafeRawPointer) throws -> Self {
         return try .element(.resolve(from: ptr))
     }
-
-    // MARK: - ReadingContext Support
-
-    public static func resolve<Context: ReadingContext>(
-        at address: Context.Address,
-        in context: Context
-    ) throws -> Self {
-        return try .element(.resolve(at: address, in: context))
+    
+    public static func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Self {
+        if let machOFileContext = context as? MachOContext<MachOFile>, let offset = try? context.offsetFromAddress(address), let symbol = machOFileContext.machO.resolveBind(fileOffset: offset) {
+            return .symbol(.init(offset: offset, name: symbol))
+        } else {
+            return .element(try Element.resolve(at: address, in: context))
+        }
     }
-
+    
+    public static func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Self? {
+        if let machOFileContext = context as? MachOContext<MachOFile>, let offset = try? context.offsetFromAddress(address), let symbol = machOFileContext.machO.resolveBind(fileOffset: offset) {
+            return .symbol(.init(offset: offset, name: symbol))
+        } else {
+            return try Element.resolve(at: address, in: context).map { .element($0) }
+        }
+    }
+    
     public func map<T, E: Swift.Error>(_ transform: (Element) throws(E) -> T) throws(E) -> SymbolOrElement<T> {
         switch self {
         case .symbol(let unsolvedSymbol):

@@ -24,7 +24,7 @@ import MachOExtensions
 /// `MachOContext` uses `Int` as its address type, representing file offsets.
 /// This allows relative pointer resolution to work correctly with file-based
 /// data.
-public struct MachOContext<MachO: MachORepresentableWithCache & Readable>: ReadingContext, @unchecked Sendable {
+public struct MachOContext<MachO: MachORepresentableWithCache & Readable>: ReadingContext, Sendable {
     /// The runtime target is always 64-bit for MachO contexts.
     /// TODO: Support 32-bit MachO files by checking the header.
     public typealias Runtime = RuntimeTarget64
@@ -49,12 +49,12 @@ public struct MachOContext<MachO: MachORepresentableWithCache & Readable>: Readi
     public func readElements<T>(at address: Int, numberOfElements: Int) throws -> [T] {
         try machO.readElements(offset: address, numberOfElements: numberOfElements)
     }
-    
+
     public func readWrapperElement<T: LocatableLayoutWrapper>(at offset: Int) throws -> T {
         try machO.readWrapperElement(offset: offset)
     }
-    
-    public func readWrapperElements<T>(at address: Int, numberOfElements: Int) throws -> [T] where T : LocatableLayoutWrapper {
+
+    public func readWrapperElements<T>(at address: Int, numberOfElements: Int) throws -> [T] where T: LocatableLayoutWrapper {
         try machO.readWrapperElements(offset: address, numberOfElements: numberOfElements)
     }
 
@@ -66,14 +66,20 @@ public struct MachOContext<MachO: MachORepresentableWithCache & Readable>: Readi
         offset + delta
     }
 
+    public func advanceAddress<T>(_ address: Int, of type: T.Type) -> Int {
+        address.offseting(of: type)
+    }
+
     public func addressFromOffset(_ offset: Int) throws -> Int {
-        // For MachO context, the address is the offset itself
-        return offset
+        offset
     }
 
     public func addressFromVirtualAddress(_ virtualAddress: UInt64) throws -> Int {
-        // For MachO context, convert virtual address to file offset
-        return numericCast(machO.resolveOffset(at: machO.stripPointerTags(of: virtualAddress)))
+        machO.resolveOffset(at: machO.stripPointerTags(of: virtualAddress)).cast()
+    }
+
+    public func offsetFromAddress(_ address: Int) throws -> Int {
+        address
     }
 }
 

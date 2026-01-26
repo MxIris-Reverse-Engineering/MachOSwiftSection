@@ -43,7 +43,7 @@ public enum SymbolOrElementPointer<Element: Resolvable>: RelativeIndirectType {
             return try .element(Element.resolve(at: resolveAddress(in: context), in: context))
         }
     }
-    
+
     public func resolveOffset<MachO: MachORepresentableWithCache & Readable>(in machO: MachO) -> Int {
         switch self {
         case .symbol(let unsolvedSymbol):
@@ -52,8 +52,8 @@ public enum SymbolOrElementPointer<Element: Resolvable>: RelativeIndirectType {
             return numericCast(machO.resolveOffset(at: machO.stripPointerTags(of: address)))
         }
     }
-    
-    public func resolveAddress<Context>(in context: Context) throws -> Context.Address where Context : ReadingContext {
+
+    public func resolveAddress<Context: ReadingContext>(in context: Context) throws -> Context.Address {
         switch self {
         case .symbol(let symbol):
             return try context.addressFromOffset(symbol.offset)
@@ -95,11 +95,22 @@ public enum SymbolOrElementPointer<Element: Resolvable>: RelativeIndirectType {
         return try .address(ptr.stripPointerTags().assumingMemoryBound(to: UInt64.self).pointee)
     }
 
-    public static func resolve<Context: ReadingContext>(
-        at address: Context.Address,
-        in context: Context
-    ) throws -> Self {
-        let address: UInt64 = try context.readElement(at: address)
-        return .address(address)
+    public static func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Self {
+        if let machOFileContext = context as? MachOContext<MachOFile> {
+            let machOFile = machOFileContext.machO
+            let offset = try context.offsetFromAddress(address)
+            if let symbol = machOFile.resolveBind(fileOffset: offset) {
+                return .symbol(.init(offset: offset, name: symbol))
+            } else {
+                let resolvedFileOffset = offset
+                if let rebase = machOFile.resolveRebase(fileOffset: resolvedFileOffset) {
+                    return .address(rebase)
+                } else {
+                    return try .address(machOFile.readElement(offset: resolvedFileOffset))
+                }
+            }
+        } else {
+            return try .address(context.readElement(at: address))
+        }
     }
 }

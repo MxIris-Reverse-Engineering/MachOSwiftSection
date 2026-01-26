@@ -1,6 +1,27 @@
 import MachOKit
 import MachOExtensions
 
+/// Extends `MachOImage` to conform to `Readable`, enabling memory-based reading.
+///
+/// This extension provides direct memory access for MachO images that are
+/// already loaded in memory (e.g., via `dlopen` or the dyld image list).
+///
+/// ## Performance
+///
+/// Since `MachOImage` operates on memory-mapped data, reads are essentially
+/// pointer dereferences with no additional I/O overhead.
+///
+/// ## Example
+///
+/// ```swift
+/// let machOImage: MachOImage = ...
+///
+/// // Read a raw element from memory
+/// let header: mach_header_64 = try machOImage.readElement(offset: 0)
+///
+/// // Read with wrapper (preserves offset for relative pointer resolution)
+/// let descriptor: ProtocolDescriptor = try machOImage.readWrapperElement(offset: offset)
+/// ```
 extension MachOImage: Readable {
     public func readElement<Element>(
         offset: Int

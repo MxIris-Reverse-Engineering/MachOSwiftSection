@@ -277,12 +277,7 @@ extension ContextDescriptorWrapper: Resolvable {
         }
     }
 
-    // MARK: - ReadingContext Support
-
-    public static func resolve<Context: ReadingContext>(
-        at address: Context.Address,
-        in context: Context
-    ) throws -> Self {
+    public static func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Self {
         let contextDescriptor: ContextDescriptor = try context.readWrapperElement(at: address)
         switch contextDescriptor.flags.kind {
         case .class,
@@ -304,10 +299,7 @@ extension ContextDescriptorWrapper: Resolvable {
         }
     }
 
-    public static func resolve<Context: ReadingContext>(
-        at address: Context.Address,
-        in context: Context
-    ) throws -> Self? {
+    public static func resolve<Context: ReadingContext>(at address: Context.Address, in context: Context) throws -> Self? {
         do {
             return try resolve(at: address, in: context) as Self
         } catch {
