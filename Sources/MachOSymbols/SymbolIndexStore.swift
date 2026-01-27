@@ -1,4 +1,5 @@
 import Foundation
+import FoundationToolbox
 import MachOKit
 import MachOExtensions
 import Demangling
@@ -8,10 +9,10 @@ import Dependencies
 import MemberwiseInit
 @_spi(Internals) import MachOCaches
 import AsyncAlgorithms
-import SwiftStdlibToolbox
 
 @_spi(ForSymbolViewer)
 @_spi(Internals)
+@Loggable
 public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unchecked Sendable {
     public enum MemberKind: Hashable, CaseIterable, CustomStringConvertible, Sendable {
         fileprivate struct Traits: OptionSet, Hashable, Sendable {
@@ -259,7 +260,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
                     }
                 }
             } catch {
-                print(error)
+                #log(.default, "\(error, privacy: .public)")
             }
         }
 

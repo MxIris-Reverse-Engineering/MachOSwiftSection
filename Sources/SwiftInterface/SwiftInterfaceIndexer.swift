@@ -114,19 +114,19 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
     }
 
     public func updateConfiguration(_ newConfiguration: SwiftInterfaceIndexConfiguration) async throws {
-        let oldConfiguration = self.configuration
+        let oldConfiguration = configuration
 
-        self.configuration = newConfiguration
+        configuration = newConfiguration
 
         if oldConfiguration.showCImportedTypes != newConfiguration.showCImportedTypes {
             try await prepare()
         }
     }
-    
+
     public func addSubIndexer(_ subIndexer: SwiftInterfaceIndexer<MachO>) {
         subIndexers.append(subIndexer)
     }
-    
+
     public func removeSubIndexer(at index: Int) {
         subIndexers.remove(at: index)
     }
@@ -850,22 +850,4 @@ extension SwiftInterfaceIndexer {
 
     @inlinable
     public var numberOfProtocolConformances: Int { currentStorage.protocolConformances.count }
-}
-
-
-extension SwiftInterfaceIndexer where MachO == MachOImage {
-    /// Resolves associated type witnesses for a generic type.
-    /// - Note: This method delegates to `GenericSpecializer.resolveAssociatedTypeWitnesses`.
-    @_spi(Support)
-    func resolveAssociatedTypeWitnesses(for type: TypeContextDescriptorWrapper, substituting genericArguments: [String: Metadata], in machO: MachOImage) throws -> OrderedDictionary<Metadata, [ProtocolWitnessTable]> {
-        let specializer = GenericSpecializer(
-            machO: machO,
-            conformanceProvider: EmptyConformanceProvider(),
-            indexer: self
-        )
-        return try specializer.resolveAssociatedTypeWitnesses(
-            for: type,
-            substituting: genericArguments
-        )
-    }
 }

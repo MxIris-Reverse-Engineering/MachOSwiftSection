@@ -31,9 +31,9 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
 
         try await indexer.prepare()
 
-        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestGenericStruct" }?.struct)
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestGenericStruct" }?.struct?.asPointerWrapper(in: machO))
 
-        let genericContext = try #require(try descriptor.genericContext(in: machO))
+        let genericContext = try #require(try descriptor.genericContext())
 
         #expect(genericContext.header.numKeyArguments == 9)
 
@@ -50,13 +50,15 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         let BMetadata = try Metadata.createInProcess(BMetatype)
         let CMetadata = try Metadata.createInProcess(CMetatype)
 
-        let associatedTypeWitnesses = try indexer.resolveAssociatedTypeWitnesses(for: .struct(descriptor), substituting: [
+        let specializer = GenericSpecializer(indexer: indexer)
+
+        let associatedTypeWitnesses = try specializer.resolveAssociatedTypeWitnesses(for: .struct(descriptor), substituting: [
             "A": AMetadata,
             "B": BMetadata,
             "C": CMetadata,
-        ], in: machO)
+        ])
 
-        let metadataAccessorFunction = try #require(try descriptor.asPointerWrapper(in: machO).metadataAccessorFunction())
+        let metadataAccessorFunction = try #require(try descriptor.metadataAccessorFunction())
         let metadata = try metadataAccessorFunction(
             request: .completeAndBlocking, metadatas: [
                 AMetadata,
@@ -72,19 +74,11 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     }
 }
 
-extension OptionSet {
-    func removing(_ current: Self.Element) -> Self {
-        var copy = self
-        copy.remove(current)
-        return copy
-    }
-}
-
 // MARK: - GenericSpecializer API Tests
 
-@Suite struct GenericSpecializerAPITests {
-
-    @Test func testMakeRequest() throws {
+@Suite
+struct GenericSpecializerAPITests {
+    @Test func makeRequest() throws {
         let machO = MachOImage.current()
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestGenericStruct" }?.struct)
@@ -112,7 +106,7 @@ extension OptionSet {
         #expect(!request.associatedTypeRequirements.isEmpty)
     }
 
-    @Test func testValidation() throws {
+    @Test func validation() throws {
         let machO = MachOImage.current()
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestGenericStruct" }?.struct)
@@ -139,7 +133,7 @@ extension OptionSet {
         #expect(validValidation.isValid)
     }
 
-    @Test func testSpecialize() async throws {
+    @Test func specialize() async throws {
         let machO = MachOImage.current()
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestGenericStruct" }?.struct)
@@ -147,9 +141,9 @@ extension OptionSet {
         let indexer = SwiftInterfaceIndexer(in: machO)
         try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "Foundation"))))
         try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
-        
+
         try await indexer.prepare()
-        
+
         let specializer = GenericSpecializer(indexer: indexer)
         let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
 
@@ -181,7 +175,7 @@ extension OptionSet {
         #expect(fieldOffsets == [0, 8, 16])
     }
 
-    @Test func testSelectionBuilder() throws {
+    @Test func selectionBuilder() throws {
         let selection = SpecializationSelection.builder()
             .set("A", to: [Int].self)
             .set("B", to: String.self)
