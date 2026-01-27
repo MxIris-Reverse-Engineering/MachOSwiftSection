@@ -48,27 +48,27 @@ extension GenericSpecializer {
     /// Create a specialization request for a generic type
     ///
     /// - Parameter type: The generic type descriptor
-    /// - Returns: A request containing parameters, constraints, and candidate types
+    /// - Returns: A request containing parameters, requirements, and candidate types
     /// - Throws: If the type is not generic or cannot be analyzed
     public func makeRequest(for type: TypeContextDescriptorWrapper) throws -> SpecializationRequest {
-        let genericContext = try getGenericContext(for: type)
+        let genericContext = try genericContext(for: type)
 
         // Build parameters from generic context
         let parameters = try buildParameters(from: genericContext, for: type)
 
-        // Build associated type constraints
-        let associatedTypeConstraints = try buildAssociatedTypeConstraints(from: genericContext, for: type)
+        // Build associated type requirements
+        let associatedTypeRequirements = try buildAssociatedTypeRequirements(from: genericContext, for: type)
 
         return SpecializationRequest(
             typeDescriptor: type,
             parameters: parameters,
-            associatedTypeConstraints: associatedTypeConstraints,
+            associatedTypeRequirements: associatedTypeRequirements,
             keyArgumentCount: Int(genericContext.header.numKeyArguments)
         )
     }
 
     /// Get generic context for a type descriptor
-    private func getGenericContext(for type: TypeContextDescriptorWrapper) throws -> GenericContext {
+    private func genericContext(for type: TypeContextDescriptorWrapper) throws -> GenericContext {
         guard let genericContext = try type.genericContext(in: machO) else {
             throw SpecializerError.notGenericType(type: type)
         }
@@ -78,77 +78,65 @@ extension GenericSpecializer {
     /// Build parameter list from generic context
     private func buildParameters(from genericContext: GenericContext, for type: TypeContextDescriptorWrapper) throws -> [SpecializationRequest.Parameter] {
         var parameters: [SpecializationRequest.Parameter] = []
-        var parameterIndex = 0
 
         // Process parameters at each depth level
         for (depth, levelParams) in genericContext.allParameters.enumerated() {
-            for param in levelParams {
+            for (index, param) in levelParams.enumerated() {
                 // Skip non-key parameters (type packs, values, etc.)
                 guard param.hasKeyArgument, param.kind == .type else { continue }
 
-                // Get parameter name from demangled signature
-                let paramName = parameterName(index: parameterIndex, depth: depth)
+                // Get parameter name based on depth and index (e.g., A, B, A1, B1, A2...)
+                let paramName = genericParameterName(depth: depth.cast(), index: index.cast())
 
-                // Collect constraints for this parameter
-                let constraints = try collectConstraints(
+                // Collect requirements for this parameter (ordered for PWT passing)
+                let requirements = try collectRequirements(
                     for: paramName,
                     from: genericContext.allRequirements.flatMap { $0 },
-                    parameterIndex: parameterIndex,
+                    parameterIndex: index,
                     depth: depth
                 )
 
-                // Find candidate types that satisfy all protocol constraints
-                let protocolConstraints = constraints.compactMap { constraint -> ProtocolName? in
-                    if case .protocol(let info) = constraint {
+                // Find candidate types that satisfy all protocol requirements
+                let protocolRequirements = requirements.compactMap { requirement -> ProtocolName? in
+                    if case .protocol(let info) = requirement {
                         return info.protocolName
                     }
                     return nil
                 }
 
-                let candidates = findCandidates(satisfying: protocolConstraints)
+                let candidates = findCandidates(satisfying: protocolRequirements)
 
                 parameters.append(SpecializationRequest.Parameter(
                     name: paramName,
-                    index: parameterIndex,
+                    index: index,
                     depth: depth,
-                    constraints: constraints,
+                    requirements: requirements,
                     candidates: candidates
                 ))
-
-                parameterIndex += 1
             }
         }
 
         return parameters
     }
 
-    /// Generate parameter name based on index and depth
-    private func parameterName(index: Int, depth: Int) -> String {
-        // Standard Swift naming: T, U, V, W, then T1, U1, etc.
-        let baseNames = ["T", "U", "V", "W", "X", "Y", "Z"]
-        let cycle = index / baseNames.count
-        let position = index % baseNames.count
-        let baseName = baseNames[position]
-        return cycle == 0 ? baseName : "\(baseName)\(cycle)"
-    }
-
-    /// Collect constraints for a specific parameter
-    private func collectConstraints(
+    /// Collect requirements for a specific parameter (ordered for PWT passing)
+    private func collectRequirements(
         for paramName: String,
-        from requirements: [GenericRequirementDescriptor],
+        from genericRequirements: [GenericRequirementDescriptor],
         parameterIndex: Int,
         depth: Int
-    ) throws -> [SpecializationRequest.Constraint] {
-        var constraints: [SpecializationRequest.Constraint] = []
+    ) throws -> [SpecializationRequest.Requirement] {
+        var requirements: [SpecializationRequest.Requirement] = []
 
-        for requirement in requirements {
+        for genericRequirement in genericRequirements {
+            guard genericRequirement.flags.contains(.hasKeyArgument) else { continue }
             // Get the mangled param name and demangle it
-            let mangledParamName = try requirement.paramMangledName(in: machO)
+            let mangledParamName = try genericRequirement.paramMangledName(in: machO)
             let paramNode = try MetadataReader.demangleType(for: mangledParamName, in: machO)
 
             // Check if this requirement applies to our parameter
             guard let dependentGenericParamType = paramNode.first(of: .dependentGenericParamType) else {
-                // This might be an associated type constraint - handle separately
+                // This might be an associated type requirement - handle separately
                 continue
             }
 
@@ -156,23 +144,23 @@ extension GenericSpecializer {
                 continue
             }
 
-            // Build constraint based on kind
-            let constraint = try buildConstraint(from: requirement)
-            if let constraint = constraint {
-                constraints.append(constraint)
+            // Build requirement based on kind
+            let requirement = try buildRequirement(from: genericRequirement)
+            if let requirement = requirement {
+                requirements.append(requirement)
             }
         }
 
-        return constraints
+        return requirements
     }
 
-    /// Build a constraint from a requirement descriptor
-    private func buildConstraint(from requirement: GenericRequirementDescriptor) throws -> SpecializationRequest.Constraint? {
-        let flags = requirement.layout.flags
+    /// Build a requirement from a requirement descriptor
+    private func buildRequirement(from genericRequirement: GenericRequirementDescriptor) throws -> SpecializationRequest.Requirement? {
+        let flags = genericRequirement.layout.flags
 
         switch flags.kind {
         case .protocol:
-            let resolvedContent = try requirement.resolvedContent(in: machO)
+            let resolvedContent = try genericRequirement.resolvedContent(in: machO)
             guard case .protocol(let protocolRef) = resolvedContent,
                   let resolved = protocolRef.resolved else {
                 return nil
@@ -181,44 +169,37 @@ extension GenericSpecializer {
             // Try to get protocol name
             let protocolName: ProtocolName
             if let swiftProto = resolved.swift {
-                let proto = try MachOSwiftSection.Protocol(descriptor: swiftProto, in: machO)
+                let proto = try MachOSwiftSection.`Protocol`(descriptor: swiftProto, in: machO)
                 protocolName = try proto.protocolName(in: machO)
-            } else if let objcProto = resolved.objc {
-                // Create a minimal protocol name for ObjC protocols
-                let objcName = try objcProto.name(in: machO)
-                let typeNode = Node(kind: .type, children: [
-                    Node(kind: .protocol, children: [
-                        Node(kind: .module, contents: .text("ObjectiveC")),
-                        Node(kind: .identifier, contents: .text(objcName))
-                    ])
-                ])
-                protocolName = ProtocolName(node: typeNode)
             } else {
                 return nil
             }
 
-            return .protocol(SpecializationRequest.ProtocolConstraintInfo(
+            return .protocol(SpecializationRequest.ProtocolRequirementInfo(
                 protocolName: protocolName,
                 requiresWitnessTable: flags.contains(.hasKeyArgument)
             ))
 
         case .sameType:
-            let mangledTypeName = try requirement.type(in: machO)
-            return .sameType(mangledTypeName: mangledTypeName.rawString)
+            let mangledTypeName = try genericRequirement.type(in: machO)
+            return .sameType(demangledTypeNode: try MetadataReader.demangleType(for: mangledTypeName, in: machO))
 
         case .baseClass:
-            let mangledTypeName = try requirement.type(in: machO)
-            return .baseClass(mangledTypeName: mangledTypeName.rawString)
+            let mangledTypeName = try genericRequirement.type(in: machO)
+            return .baseClass(demangledTypeNode: try MetadataReader.demangleType(for: mangledTypeName, in: machO))
 
         case .layout:
-            let resolvedContent = try requirement.resolvedContent(in: machO)
+            let resolvedContent = try genericRequirement.resolvedContent(in: machO)
             guard case .layout(let layoutKind) = resolvedContent else {
                 return nil
             }
-            return .layout(convertLayoutKind(layoutKind))
+            switch layoutKind {
+            case .class:
+                return .layout(.class)
+            }
 
         case .sameConformance, .sameShape, .invertedProtocols:
-            // These are more advanced constraints that we don't need for basic specialization
+            // These are more advanced requirements that we don't need for basic specialization
             return nil
         }
     }
@@ -231,19 +212,19 @@ extension GenericSpecializer {
         }
     }
 
-    /// Build associated type constraints
-    private func buildAssociatedTypeConstraints(
+    /// Build associated type requirements (ordered for PWT passing)
+    private func buildAssociatedTypeRequirements(
         from genericContext: GenericContext,
         for type: TypeContextDescriptorWrapper
-    ) throws -> [SpecializationRequest.AssociatedTypeConstraint] {
-        var constraints: [SpecializationRequest.AssociatedTypeConstraint] = []
-        let requirements = genericContext.allRequirements.flatMap { $0 }
+    ) throws -> [SpecializationRequest.AssociatedTypeRequirement] {
+        var associatedTypeRequirements: [SpecializationRequest.AssociatedTypeRequirement] = []
+        let genericRequirements = genericContext.allRequirements.flatMap { $0 }
 
-        for requirement in requirements {
-            let mangledParamName = try requirement.paramMangledName(in: machO)
+        for genericRequirement in genericRequirements {
+            let mangledParamName = try genericRequirement.paramMangledName(in: machO)
             let paramNode = try MetadataReader.demangleType(for: mangledParamName, in: machO)
 
-            // Check for dependent member type (associated type constraint)
+            // Check for dependent member type (associated type requirement)
             guard let dependentMemberType = paramNode.first(of: .dependentMemberType) else {
                 continue
             }
@@ -260,17 +241,17 @@ extension GenericSpecializer {
                 continue
             }
 
-            // Build constraint for this associated type
-            if let constraint = try buildConstraint(from: requirement) {
-                constraints.append(SpecializationRequest.AssociatedTypeConstraint(
+            // Build requirement for this associated type
+            if let requirement = try buildRequirement(from: genericRequirement) {
+                associatedTypeRequirements.append(SpecializationRequest.AssociatedTypeRequirement(
                     parameterName: baseParamName,
                     path: [associatedTypeName],
-                    constraints: [constraint]
+                    requirements: [requirement]
                 ))
             }
         }
 
-        return constraints
+        return associatedTypeRequirements
     }
 
     /// Find candidate types that satisfy all protocol constraints
@@ -280,15 +261,12 @@ extension GenericSpecializer {
         guard !protocols.isEmpty else {
             // No constraints - return all indexed types
             return conformanceProvider.allTypeNames.compactMap { typeName -> SpecializationRequest.Candidate? in
-                guard let definition = conformanceProvider.typeDefinition(for: typeName) else {
+                guard conformanceProvider.typeDefinition(for: typeName) != nil else {
                     return nil
                 }
                 return SpecializationRequest.Candidate(
                     typeName: typeName,
-                    kind: definition.typeName.kind,
-                    source: .indexed(machOName: machOName),
-                    isGeneric: definition.isGeneric,
-                    genericParameterNames: definition.isGeneric ? definition.genericParameterNames : nil
+                    source: .image(machOName)
                 )
             }
         }
@@ -297,33 +275,470 @@ extension GenericSpecializer {
         let conformingTypes = conformanceProvider.types(conformingToAll: protocols)
 
         return conformingTypes.compactMap { typeName -> SpecializationRequest.Candidate? in
-            guard let definition = conformanceProvider.typeDefinition(for: typeName) else {
+            guard conformanceProvider.typeDefinition(for: typeName) != nil else {
                 return nil
             }
             return SpecializationRequest.Candidate(
                 typeName: typeName,
-                kind: definition.typeName.kind,
-                source: .indexed(machOName: machOName),
-                isGeneric: definition.isGeneric,
-                genericParameterNames: definition.isGeneric ? definition.genericParameterNames : nil
+                source: .image(machOName)
             )
         }
     }
 }
 
-// MARK: - TypeDefinition Extensions
+// MARK: - Validation
 
-extension TypeDefinition {
-    /// Whether this type is generic
-    var isGeneric: Bool {
-        !(genericParameterNames?.isEmpty ?? true)
+@_spi(Support)
+extension GenericSpecializer {
+
+    /// Validate a selection against a request
+    ///
+    /// - Parameters:
+    ///   - selection: The user's type selections
+    ///   - request: The specialization request
+    /// - Returns: Validation result with any errors or warnings
+    public func validate(selection: SpecializationSelection, for request: SpecializationRequest) -> SpecializationValidation {
+        let builder = SpecializationValidation.builder()
+
+        // Check all required parameters are provided
+        for parameter in request.parameters {
+            guard selection.hasArgument(for: parameter.name) else {
+                builder.addError(.missingArgument(parameterName: parameter.name))
+                continue
+            }
+
+            // Validate each requirement for this parameter
+            // Note: We don't validate all requirements here since some require runtime resolution
+            // Full validation happens during specialize()
+        }
+
+        // Check for extra arguments
+        for paramName in selection.selectedParameterNames {
+            if !request.parameters.contains(where: { $0.name == paramName }) {
+                builder.addWarning(.extraArgument(parameterName: paramName))
+            }
+        }
+
+        return builder.build()
+    }
+}
+
+// MARK: - Specialization Execution
+
+@_spi(Support)
+extension GenericSpecializer where MachO == MachOImage {
+
+    /// Execute specialization with user selections
+    ///
+    /// - Parameters:
+    ///   - request: The specialization request
+    ///   - selection: The user's type selections
+    /// - Returns: Specialized metadata result
+    /// - Throws: If specialization fails
+    public func specialize(_ request: SpecializationRequest, with selection: SpecializationSelection) throws -> SpecializationResult {
+        let typeDescriptor = request.typeDescriptor.asPointerWrapper(in: machO)
+        // Validate selection first
+        let validation = validate(selection: selection, for: request)
+        guard validation.isValid else {
+            let errorMessages = validation.errors.map { $0.description }.joined(separator: "; ")
+            throw SpecializerError.specializationFailed(reason: errorMessages)
+        }
+
+        // Build metadata and witness table arrays in requirement order
+        var metadatas: [Metadata] = []
+        var witnessTables: [ProtocolWitnessTable] = []
+        var resolvedArguments: [SpecializationResult.ResolvedArgument] = []
+
+        for parameter in request.parameters {
+            guard let argument = selection[parameter.name] else {
+                throw SpecializerError.specializationFailed(reason: "Missing argument for \(parameter.name)")
+            }
+
+            // Resolve metadata for this argument
+            let metadata = try resolveMetadata(for: argument, parameterName: parameter.name)
+            metadatas.append(metadata)
+
+            // Collect witness tables for protocol requirements (in order)
+            var paramWitnessTables: [ProtocolWitnessTable] = []
+            for requirement in parameter.requirements {
+                if case .protocol(let info) = requirement, info.requiresWitnessTable {
+                    let witnessTable = try resolveWitnessTable(
+                        for: metadata,
+                        conformingTo: info.protocolName,
+                        parameterName: parameter.name
+                    )
+                    witnessTables.append(witnessTable)
+                    paramWitnessTables.append(witnessTable)
+                }
+            }
+
+            resolvedArguments.append(SpecializationResult.ResolvedArgument(
+                parameterName: parameter.name,
+                metadata: metadata,
+                witnessTables: paramWitnessTables
+            ))
+        }
+
+        // Resolve associated type witness tables (in requirement order, appended after parameter PWTs)
+        let metadataByParamName = Dictionary(
+            uniqueKeysWithValues: zip(request.parameters.map(\.name), metadatas)
+        )
+        let associatedTypeWitnesses = try resolveAssociatedTypeWitnesses(
+            for: typeDescriptor,
+            substituting: metadataByParamName
+        )
+        for (_, pwts) in associatedTypeWitnesses {
+            witnessTables.append(contentsOf: pwts)
+        }
+
+        // Get metadata accessor function
+        let accessorFunction = try typeDescriptor.typeContextDescriptor.metadataAccessorFunction()
+        guard let accessorFunction else {
+            throw SpecializerError.metadataCreationFailed(
+                typeName: "unknown",
+                reason: "Cannot get metadata accessor function"
+            )
+        }
+
+        // Call accessor with metadatas and witness tables
+        let response = try accessorFunction(
+            request: .completeAndBlocking,
+            metadatas: metadatas,
+            witnessTables: witnessTables,
+        )
+
+        return SpecializationResult(
+            metadataPointer: response.value,
+            resolvedArguments: resolvedArguments
+        )
     }
 
-    /// Generic parameter names if available
-    var genericParameterNames: [String]? {
-        // This would need to be implemented based on the actual TypeDefinition structure
-        // For now, return nil as a placeholder
-        nil
+    /// Resolve metadata from a selection argument
+    private func resolveMetadata(for argument: SpecializationSelection.Argument, parameterName: String) throws -> Metadata {
+        switch argument {
+        case .metatype(let type):
+            return try Metadata.createInProcess(type)
+
+        case .metadata(let metadata):
+            return metadata
+
+        case .candidate(let candidate):
+            return try resolveCandidate(candidate, parameterName: parameterName)
+
+        case .specialized(let result):
+            return try result.metadata()
+        }
+    }
+
+    /// Resolve a candidate type to metadata
+    private func resolveCandidate(_ candidate: SpecializationRequest.Candidate, parameterName: String) throws -> Metadata {
+        // Find the type definition from indexer
+        guard let indexer else {
+            throw SpecializerError.candidateResolutionFailed(
+                candidate: candidate,
+                reason: "Indexer not available for candidate resolution"
+            )
+        }
+
+        // Look up type definition
+        guard let typeDefinitionEntry = indexer.allAllTypeDefinitions[candidate.typeName] else {
+            throw SpecializerError.candidateResolutionFailed(
+                candidate: candidate,
+                reason: "Type not found in indexer"
+            )
+        }
+
+        let typeDefinition = typeDefinitionEntry.value
+
+        // Get accessor function from type definition's type context
+        let accessorFunction = try typeDefinition.type.typeContextDescriptorWrapper.typeContextDescriptor.metadataAccessorFunction(in: typeDefinitionEntry.machO)
+        guard let accessorFunction else {
+            throw SpecializerError.candidateResolutionFailed(
+                candidate: candidate,
+                reason: "Cannot get metadata accessor function"
+            )
+        }
+
+        // For non-generic types, just call the accessor
+        let response = try accessorFunction(request: .completeAndBlocking)
+        let wrapper = try response.value.resolve()
+        return try wrapper.metadata
+    }
+
+    /// Resolve witness table for a type conforming to a protocol using runtime conformance check
+    private func resolveWitnessTable(
+        for metadata: Metadata,
+        conformingTo protocolName: ProtocolName,
+        parameterName: String
+    ) throws -> ProtocolWitnessTable {
+        // Look up the protocol descriptor from indexer
+        guard let indexer else {
+            throw SpecializerError.witnessTableNotFound(
+                typeName: parameterName,
+                protocolName: protocolName.name
+            )
+        }
+
+        guard let protocolDef = indexer.allAllProtocolDefinitions[protocolName] else {
+            throw SpecializerError.witnessTableNotFound(
+                typeName: parameterName,
+                protocolName: protocolName.name
+            )
+        }
+
+        // Create in-process protocol descriptor and use runtime conformance check
+        let protocolDescriptor = try MachOSwiftSection.`Protocol`(
+            descriptor: protocolDef.value.protocol.descriptor.asPointerWrapper(in: protocolDef.machO)
+        )
+
+        guard let witnessTable = try RuntimeFunctions.conformsToProtocol(
+            metadata: metadata,
+            protocolDescriptor: protocolDescriptor.descriptor
+        ) else {
+            throw SpecializerError.witnessTableNotFound(
+                typeName: parameterName,
+                protocolName: protocolName.name
+            )
+        }
+
+        return witnessTable
+    }
+}
+
+// MARK: - Associated Type Witness Resolution
+
+@_spi(Support)
+extension GenericSpecializer where MachO == MachOImage {
+
+    /// Resolve associated type witness tables for a generic type's requirements
+    ///
+    /// Processes the generic requirements to find associated type constraints (e.g., A.Element: Hashable)
+    /// and resolves the corresponding witness tables using runtime functions.
+    ///
+    /// - Parameters:
+    ///   - type: The generic type descriptor
+    ///   - genericArguments: Mapping from parameter name to resolved metadata
+    /// - Returns: Ordered dictionary mapping associated type metadata to their witness tables
+    func resolveAssociatedTypeWitnesses(
+        for type: TypeContextDescriptorWrapper,
+        substituting genericArguments: [String: Metadata]
+    ) throws -> OrderedDictionary<Metadata, [ProtocolWitnessTable]> {
+        guard let indexer else {
+            throw AssociatedTypeResolutionError.missingIndexer
+        }
+
+        var results: OrderedDictionary<Metadata, [ProtocolWitnessTable]> = [:]
+
+        guard let genericContextInProcess = try type.genericContext() else {
+            throw AssociatedTypeResolutionError.missingGenericContext(typeDescriptor: type)
+        }
+
+        if let unsupportedParameter = genericContextInProcess.parameters.first(where: { $0.kind == .typePack || $0.kind == .value }) {
+            throw AssociatedTypeResolutionError.unsupportedGenericParameter(parameterKind: unsupportedParameter.kind)
+        }
+
+        let requirements = try genericContextInProcess.requirements.map { try GenericRequirement(descriptor: $0) }
+        var conformingTypeMetadataByGenericParam: [String: Metadata] = [:]
+        let allProtocolDefinitions = indexer.allAllProtocolDefinitions
+
+        for requirement in requirements {
+            guard let requirementProtocolDescriptor = requirement.content.protocol?.resolved,
+                  let protocolDescriptor = requirementProtocolDescriptor.swift,
+                  requirement.flags.contains(.hasKeyArgument) else { continue }
+
+            let requirementProtocol = try MachOSwiftSection.`Protocol`(descriptor: protocolDescriptor)
+            let paramNode = try MetadataReader.demangleType(for: requirement.paramManagledName)
+
+            if let dependentMemberType = paramNode.first(of: .dependentMemberType) {
+                // Associated type requirement (e.g., A.Element: Hashable)
+                guard let dependentGenericParamType = dependentMemberType.first(of: .dependentGenericParamType) else {
+                    throw AssociatedTypeResolutionError.missingDependentGenericParamType(dependentMemberType: dependentMemberType)
+                }
+
+                guard let genericParamType = dependentGenericParamType.text else {
+                    throw AssociatedTypeResolutionError.missingGenericParamTypeText(dependentGenericParamType: dependentGenericParamType)
+                }
+
+                guard let conformingTypeMetadata = conformingTypeMetadataByGenericParam[genericParamType] else {
+                    throw AssociatedTypeResolutionError.missingConformingTypeMetadata(
+                        genericParam: genericParamType,
+                        availableParams: Array(conformingTypeMetadataByGenericParam.keys)
+                    )
+                }
+
+                guard let dependentAssociatedTypeRef = dependentMemberType.first(of: .dependentAssociatedTypeRef) else {
+                    throw AssociatedTypeResolutionError.missingDependentAssociatedTypeRef(dependentMemberType: dependentMemberType)
+                }
+
+                guard let associatedTypeName = dependentAssociatedTypeRef.children.first?.text else {
+                    throw AssociatedTypeResolutionError.missingAssociatedTypeName(dependentAssociatedTypeRef: dependentAssociatedTypeRef)
+                }
+
+                guard let associatedTypeRefProtocolTypeNode = dependentAssociatedTypeRef.children.second else {
+                    throw AssociatedTypeResolutionError.missingAssociatedTypeRefProtocolTypeNode(dependentAssociatedTypeRef: dependentAssociatedTypeRef)
+                }
+
+                guard let associatedTypeRefMachOAndProtocol = allProtocolDefinitions[.init(node: associatedTypeRefProtocolTypeNode)] else {
+                    throw AssociatedTypeResolutionError.missingAssociatedTypeRefMachOAndProtocol(protocolTypeNode: associatedTypeRefProtocolTypeNode)
+                }
+
+                let associatedTypeRefProtocol: MachOSwiftSection.`Protocol`
+                do {
+                    associatedTypeRefProtocol = try MachOSwiftSection.`Protocol`(
+                        descriptor: associatedTypeRefMachOAndProtocol.value.protocol.descriptor.asPointerWrapper(in: associatedTypeRefMachOAndProtocol.machO)
+                    )
+                } catch {
+                    throw AssociatedTypeResolutionError.failedToCreateAssociatedTypeRefProtocol(underlyingError: error)
+                }
+
+                let associatedTypeRefProtocolName = try associatedTypeRefProtocol.protocolName()
+                let availableAssociatedTypes = try associatedTypeRefProtocol.descriptor.associatedTypes()
+
+                guard let associatedTypeIndex = availableAssociatedTypes.firstIndex(of: associatedTypeName) else {
+                    throw AssociatedTypeResolutionError.missingAssociatedTypeIndex(
+                        associatedTypeName: associatedTypeName,
+                        protocolName: associatedTypeRefProtocolName,
+                        availableAssociatedTypes: availableAssociatedTypes
+                    )
+                }
+
+                guard let associatedTypeBaseRequirement = associatedTypeRefProtocol.baseRequirement else {
+                    throw AssociatedTypeResolutionError.missingAssociatedTypeBaseRequirement(protocolName: associatedTypeRefProtocolName)
+                }
+
+                let associatedTypeAccessFunctionRequirements = associatedTypeRefProtocol.requirements.filter {
+                    $0.flags.kind.isAssociatedTypeAccessFunction
+                }
+
+                guard let associatedTypeAccessFunctionRequirement = associatedTypeAccessFunctionRequirements[safe: associatedTypeIndex] else {
+                    throw AssociatedTypeResolutionError.missingAssociatedTypeAccessFunctionRequirement(
+                        index: associatedTypeIndex,
+                        protocolName: associatedTypeRefProtocolName,
+                        requirementCount: associatedTypeAccessFunctionRequirements.count
+                    )
+                }
+
+                guard let conformingTypePWT = try RuntimeFunctions.conformsToProtocol(
+                    metadata: conformingTypeMetadata,
+                    protocolDescriptor: associatedTypeRefProtocol.descriptor
+                ) else {
+                    throw AssociatedTypeResolutionError.conformingTypeDoesNotConformToProtocol(
+                        conformingType: conformingTypeMetadata,
+                        protocolName: associatedTypeRefProtocolName
+                    )
+                }
+
+                guard let associatedTypeMetadata = try? RuntimeFunctions.getAssociatedTypeWitness(
+                    request: .init(),
+                    protocolWitnessTable: conformingTypePWT,
+                    conformingTypeMetadata: conformingTypeMetadata,
+                    baseRequirement: associatedTypeBaseRequirement,
+                    associatedTypeRequirement: associatedTypeAccessFunctionRequirement
+                ).value.resolve().metadata else {
+                    throw AssociatedTypeResolutionError.failedToGetAssociatedTypeWitness(
+                        conformingType: conformingTypeMetadata,
+                        protocolName: associatedTypeRefProtocolName,
+                        associatedTypeName: associatedTypeName
+                    )
+                }
+
+                let currentProtocolName = try requirementProtocol.protocolName()
+
+                guard let associatedTypePWT = try? RuntimeFunctions.conformsToProtocol(
+                    metadata: associatedTypeMetadata,
+                    protocolDescriptor: requirementProtocol.descriptor
+                ) else {
+                    throw AssociatedTypeResolutionError.associatedTypeDoesNotConformToProtocol(
+                        associatedType: associatedTypeMetadata,
+                        protocolName: currentProtocolName
+                    )
+                }
+
+                results[associatedTypeMetadata, default: []].append(associatedTypePWT)
+
+            } else if let dependentGenericParamType = paramNode.first(of: .dependentGenericParamType) {
+                // Direct generic parameter - record metadata mapping
+                guard let genericParamType = dependentGenericParamType.text else {
+                    throw AssociatedTypeResolutionError.missingGenericParamTypeText(dependentGenericParamType: dependentGenericParamType)
+                }
+
+                guard let conformingTypeMetadata = genericArguments[genericParamType] else {
+                    throw AssociatedTypeResolutionError.missingConformingTypeMetadata(
+                        genericParam: genericParamType,
+                        availableParams: Array(genericArguments.keys)
+                    )
+                }
+
+                conformingTypeMetadataByGenericParam[genericParamType] = conformingTypeMetadata
+            } else {
+                throw AssociatedTypeResolutionError.unknownParamNodeStructure(paramNode: paramNode)
+            }
+        }
+
+        return results
+    }
+
+    /// Errors for associated type witness resolution
+    enum AssociatedTypeResolutionError: LocalizedError {
+        case missingIndexer
+        case missingGenericContext(typeDescriptor: TypeContextDescriptorWrapper)
+        case unsupportedGenericParameter(parameterKind: GenericParamKind)
+        case missingDependentGenericParamType(dependentMemberType: Node)
+        case missingGenericParamTypeText(dependentGenericParamType: Node)
+        case missingConformingTypeMetadata(genericParam: String, availableParams: [String])
+        case missingDependentAssociatedTypeRef(dependentMemberType: Node)
+        case missingAssociatedTypeName(dependentAssociatedTypeRef: Node)
+        case missingAssociatedTypeRefProtocolTypeNode(dependentAssociatedTypeRef: Node)
+        case missingAssociatedTypeRefMachOAndProtocol(protocolTypeNode: Node)
+        case failedToCreateAssociatedTypeRefProtocol(underlyingError: Swift.Error)
+        case missingAssociatedTypeIndex(associatedTypeName: String, protocolName: ProtocolName, availableAssociatedTypes: [String])
+        case missingAssociatedTypeBaseRequirement(protocolName: ProtocolName)
+        case missingAssociatedTypeAccessFunctionRequirement(index: Int, protocolName: ProtocolName, requirementCount: Int)
+        case conformingTypeDoesNotConformToProtocol(conformingType: Metadata, protocolName: ProtocolName)
+        case failedToGetAssociatedTypeWitness(conformingType: Metadata, protocolName: ProtocolName, associatedTypeName: String)
+        case associatedTypeDoesNotConformToProtocol(associatedType: Metadata, protocolName: ProtocolName)
+        case unknownParamNodeStructure(paramNode: Node)
+
+        var errorDescription: String? {
+            switch self {
+            case .missingIndexer:
+                return "Indexer is required for associated type resolution"
+            case .missingGenericContext(let typeDescriptor):
+                return "Missing generic context for type descriptor: \(typeDescriptor)"
+            case .unsupportedGenericParameter(let parameterKind):
+                return "Unsupported generic parameter kind: \(parameterKind)"
+            case .missingDependentGenericParamType(let dependentMemberType):
+                return "Missing dependent generic param type in dependent member type: \(dependentMemberType)"
+            case .missingGenericParamTypeText(let dependentGenericParamType):
+                return "Missing text in dependent generic param type: \(dependentGenericParamType)"
+            case .missingConformingTypeMetadata(let genericParam, let availableParams):
+                return "Missing conforming type metadata for generic param '\(genericParam)'. Available params: \(availableParams.joined(separator: ", "))"
+            case .missingDependentAssociatedTypeRef(let dependentMemberType):
+                return "Missing dependent associated type ref in dependent member type: \(dependentMemberType)"
+            case .missingAssociatedTypeName(let dependentAssociatedTypeRef):
+                return "Missing associated type name in dependent associated type ref: \(dependentAssociatedTypeRef)"
+            case .missingAssociatedTypeRefProtocolTypeNode(let dependentAssociatedTypeRef):
+                return "Missing protocol type node in dependent associated type ref: \(dependentAssociatedTypeRef)"
+            case .missingAssociatedTypeRefMachOAndProtocol(let protocolTypeNode):
+                return "Missing MachO and protocol definition for protocol type node: \(protocolTypeNode)"
+            case .failedToCreateAssociatedTypeRefProtocol(let underlyingError):
+                return "Failed to create associated type ref protocol: \(underlyingError.localizedDescription)"
+            case .missingAssociatedTypeIndex(let associatedTypeName, let protocolName, let availableAssociatedTypes):
+                return "Associated type '\(associatedTypeName)' not found in protocol '\(protocolName.name)'. Available: \(availableAssociatedTypes.joined(separator: ", "))"
+            case .missingAssociatedTypeBaseRequirement(let protocolName):
+                return "Missing base requirement for protocol '\(protocolName.name)'"
+            case .missingAssociatedTypeAccessFunctionRequirement(let index, let protocolName, let requirementCount):
+                return "Missing associated type access function requirement at index \(index) for protocol '\(protocolName.name)'. Total: \(requirementCount)"
+            case .conformingTypeDoesNotConformToProtocol(let conformingType, let protocolName):
+                return "Conforming type '\(conformingType)' does not conform to protocol '\(protocolName.name)'"
+            case .failedToGetAssociatedTypeWitness(let conformingType, let protocolName, let associatedTypeName):
+                return "Failed to get associated type witness for '\(associatedTypeName)' from '\(conformingType)' to '\(protocolName.name)'"
+            case .associatedTypeDoesNotConformToProtocol(let associatedType, let protocolName):
+                return "Associated type '\(associatedType)' does not conform to protocol '\(protocolName.name)'"
+            case .unknownParamNodeStructure(let paramNode):
+                return "Unknown param node structure: \(paramNode)"
+            }
+        }
     }
 }
 
@@ -336,7 +751,7 @@ extension GenericSpecializer {
         case notGenericType(type: TypeContextDescriptorWrapper)
         case missingGenericContext
         case invalidParameterIndex(index: Int, max: Int)
-        case constraintParsingFailed(reason: String)
+        case requirementParsingFailed(reason: String)
         case candidateResolutionFailed(candidate: SpecializationRequest.Candidate, reason: String)
         case metadataCreationFailed(typeName: String, reason: String)
         case witnessTableNotFound(typeName: String, protocolName: String)
@@ -350,8 +765,8 @@ extension GenericSpecializer {
                 return "Missing generic context"
             case .invalidParameterIndex(let index, let max):
                 return "Invalid parameter index \(index), maximum is \(max)"
-            case .constraintParsingFailed(let reason):
-                return "Failed to parse constraint: \(reason)"
+            case .requirementParsingFailed(let reason):
+                return "Failed to parse requirement: \(reason)"
             case .candidateResolutionFailed(let candidate, let reason):
                 return "Failed to resolve candidate \(candidate.typeName.name): \(reason)"
             case .metadataCreationFailed(let typeName, let reason):

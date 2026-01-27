@@ -50,7 +50,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         let BMetadata = try Metadata.createInProcess(BMetatype)
         let CMetadata = try Metadata.createInProcess(CMetatype)
 
-        let associatedTypeWitnesses = try await indexer.resolveAssociatedTypeWitnesses(for: .struct(descriptor), substituting: [
+        let associatedTypeWitnesses = try indexer.resolveAssociatedTypeWitnesses(for: .struct(descriptor), substituting: [
             "A": AMetadata,
             "B": BMetadata,
             "C": CMetadata,
@@ -77,5 +77,119 @@ extension OptionSet {
         var copy = self
         copy.remove(current)
         return copy
+    }
+}
+
+// MARK: - GenericSpecializer API Tests
+
+@Suite struct GenericSpecializerAPITests {
+
+    @Test func testMakeRequest() throws {
+        let machO = MachOImage.current()
+
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestGenericStruct" }?.struct)
+
+        let specializer = GenericSpecializer(
+            machO: machO,
+            conformanceProvider: EmptyConformanceProvider()
+        )
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        // Should have 3 parameters: A, B, C
+        #expect(request.parameters.count == 3)
+
+        // Check parameter names follow depth/index naming convention
+        #expect(request.parameters[0].name == "A")
+        #expect(request.parameters[1].name == "B")
+        #expect(request.parameters[2].name == "C")
+
+        // Check requirements exist
+        #expect(request.parameters[0].hasProtocolRequirements) // A: Collection
+        #expect(request.parameters[1].hasProtocolRequirements) // B: Equatable
+        #expect(request.parameters[2].hasProtocolRequirements) // C: Hashable
+
+        // Check associated type requirements
+        #expect(!request.associatedTypeRequirements.isEmpty)
+    }
+
+    @Test func testValidation() throws {
+        let machO = MachOImage.current()
+
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestGenericStruct" }?.struct)
+
+        let specializer = GenericSpecializer(
+            machO: machO,
+            conformanceProvider: EmptyConformanceProvider()
+        )
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        // Test missing arguments
+        let emptySelection: SpecializationSelection = [:]
+        let validation = specializer.validate(selection: emptySelection, for: request)
+        #expect(!validation.isValid)
+        #expect(validation.errors.count == 3) // Missing A, B, C
+
+        // Test valid selection
+        let validSelection: SpecializationSelection = [
+            "A": .metatype([Int].self),
+            "B": .metatype(Double.self),
+            "C": .metatype(Data.self),
+        ]
+        let validValidation = specializer.validate(selection: validSelection, for: request)
+        #expect(validValidation.isValid)
+    }
+
+    @Test func testSpecialize() async throws {
+        let machO = MachOImage.current()
+
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestGenericStruct" }?.struct)
+
+        let indexer = SwiftInterfaceIndexer(in: machO)
+        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "Foundation"))))
+        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
+        
+        try await indexer.prepare()
+        
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        let selection: SpecializationSelection = [
+            "A": .metatype([Int].self),
+            "B": .metatype(Double.self),
+            "C": .metatype(Data.self),
+        ]
+
+        let result = try specializer.specialize(request, with: selection)
+
+        // Verify resolved arguments
+        #expect(result.resolvedArguments.count == 3)
+        #expect(result.resolvedArguments[0].parameterName == "A")
+        #expect(result.resolvedArguments[1].parameterName == "B")
+        #expect(result.resolvedArguments[2].parameterName == "C")
+
+        // A: Collection requires a PWT
+        #expect(result.resolvedArguments[0].hasWitnessTables)
+        // B: Equatable requires a PWT
+        #expect(result.resolvedArguments[1].hasWitnessTables)
+        // C: Hashable requires a PWT
+        #expect(result.resolvedArguments[2].hasWitnessTables)
+
+        // Verify we can resolve metadata
+        let metadata = try result.resolveMetadata()
+        let structMetadata = try #require(metadata.struct)
+        let fieldOffsets = try structMetadata.fieldOffsets()
+        #expect(fieldOffsets == [0, 8, 16])
+    }
+
+    @Test func testSelectionBuilder() throws {
+        let selection = SpecializationSelection.builder()
+            .set("A", to: [Int].self)
+            .set("B", to: String.self)
+            .build()
+
+        #expect(selection.hasArgument(for: "A"))
+        #expect(selection.hasArgument(for: "B"))
+        #expect(!selection.hasArgument(for: "C"))
+        #expect(selection.selectedParameterNames.count == 2)
     }
 }

@@ -13,14 +13,12 @@ public enum RuntimeFunctions {
         autoBitCast(MachOSwiftSectionC.swift_getTypeByMangledNameInEnvironment(.init(bitPattern: mangledTypeName.startOffset), .init(mangledTypeName.size), nil, nil))
     }
 
-    public static func getTypeByMangledNameInContext(_ mangledTypeName: MangledName, genericContext: UnsafeRawPointer? = nil, genericArguments: UnsafeRawPointer? = nil, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Any.Type? {
-        guard let machOImage = machO as? MachOImage else { return nil }
+    public static func getTypeByMangledNameInContext(_ mangledTypeName: MangledName, genericContext: UnsafeRawPointer? = nil, genericArguments: UnsafeRawPointer? = nil, in machOImage: MachOImage) throws -> Any.Type? {
         let pointer = try UnsafePointer<UInt8>(bitPattern: Int(bitPattern: machOImage.ptr) + mangledTypeName.startOffset)
         return autoBitCast(MachOSwiftSectionC.swift_getTypeByMangledNameInContext(pointer, .init(mangledTypeName.size), nil, nil))
     }
 
-    public static func getTypeByMangledNameInEnvironment(_ mangledTypeName: MangledName, genericContext: UnsafeRawPointer? = nil, genericArguments: UnsafeRawPointer? = nil, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Any.Type? {
-        guard let machOImage = machO as? MachOImage else { return nil }
+    public static func getTypeByMangledNameInEnvironment(_ mangledTypeName: MangledName, genericContext: UnsafeRawPointer? = nil, genericArguments: UnsafeRawPointer? = nil, in machOImage: MachOImage) throws -> Any.Type? {
         let pointer = try UnsafePointer<UInt8>(bitPattern: Int(bitPattern: machOImage.ptr) + mangledTypeName.startOffset)
         return autoBitCast(MachOSwiftSectionC.swift_getTypeByMangledNameInEnvironment(pointer, .init(mangledTypeName.size), nil, nil))
     }
@@ -35,8 +33,7 @@ public enum RuntimeFunctions {
         return try conformsToProtocol(metadata: metadataInProcess, protocolDescriptor: protocolDescriptor)
     }
     
-    public static func conformsToProtocol(metadata: Metadata, protocolDescriptor: ProtocolDescriptor, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolWitnessTable? {
-        guard let machOImage = machO as? MachOImage else { return nil }
+    public static func conformsToProtocol(metadata: Metadata, protocolDescriptor: ProtocolDescriptor, in machOImage: MachOImage) throws -> ProtocolWitnessTable? {
         guard let witnessTablePointer = MachOSwiftSectionC.swift_conformsToProtocol(metadata.pointer(in: machOImage), protocolDescriptor.pointer(in: machOImage)) else { return nil }
         let offset = witnessTablePointer.bitPattern.uint - machOImage.ptr.bitPattern.uint
         return try .resolve(from: .init(offset), in: machOImage)
@@ -51,8 +48,7 @@ public enum RuntimeFunctions {
         try autoBitCast(MachOSwiftSectionC.swift_getAssociatedTypeWitness(request.rawValue, protocolWitnessTable.asPointer, conformingTypeMetadata.asPointer, baseRequirement.asPointer, associatedTypeRequirement.asPointer))
     }
     
-    public static func getAssociatedTypeWitness(request: MetadataRequest, protocolWitnessTable: ProtocolWitnessTable, conformingTypeMetadata: Metadata, baseRequirement: ProtocolBaseRequirement, associatedTypeRequirement: ProtocolRequirement, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> MetadataResponse? {
-        guard let machOImage = machO as? MachOImage else { return nil }
+    public static func getAssociatedTypeWitness(request: MetadataRequest, protocolWitnessTable: ProtocolWitnessTable, conformingTypeMetadata: Metadata, baseRequirement: ProtocolBaseRequirement, associatedTypeRequirement: ProtocolRequirement, in machOImage: MachOImage) throws -> MetadataResponse {
         return autoBitCast(MachOSwiftSectionC.swift_getAssociatedTypeWitness(request.rawValue, protocolWitnessTable.pointer(in: machOImage), conformingTypeMetadata.pointer(in: machOImage), baseRequirement.pointer(in: machOImage), associatedTypeRequirement.pointer(in: machOImage)))
     }
 }

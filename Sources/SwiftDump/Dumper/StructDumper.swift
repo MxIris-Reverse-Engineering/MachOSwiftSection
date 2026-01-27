@@ -71,7 +71,7 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
                     BreakLine()
                 }
 
-                if configuration.printTypeLayout, !dumped.flags.isGeneric, let metatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machO), let metadata = try? Metadata.createInProcess(metatype) {
+                if configuration.printTypeLayout, !dumped.flags.isGeneric, let machO = machO.asMachOImage, let metatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machO), let metadata = try? Metadata.createInProcess(metatype) {
                     try await metadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
                 }
 

@@ -68,7 +68,7 @@ public final class IndexerConformanceProvider<MachO: MachOSwiftSectionRepresenta
 @_spi(Support)
 extension IndexerConformanceProvider: ConformanceProvider {
     public func types(conformingTo protocolName: ProtocolName) -> [TypeName] {
-        Array(indexer.allConformingTypesByProtocolName[protocolName] ?? [])
+        (indexer.allConformingTypesByProtocolName[protocolName] ?? []).map(\.value)
     }
 
     public func doesType(_ typeName: TypeName, conformTo protocolName: ProtocolName) -> Bool {
@@ -84,7 +84,7 @@ extension IndexerConformanceProvider: ConformanceProvider {
     }
 
     public func typeDefinition(for typeName: TypeName) -> TypeDefinition? {
-        indexer.allAllTypeDefinitions[typeName]
+        indexer.allAllTypeDefinitions[typeName]?.value
     }
 }
 

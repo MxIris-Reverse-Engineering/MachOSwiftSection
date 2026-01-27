@@ -119,20 +119,25 @@ Tests read Mach-O files from Xcode frameworks and dyld shared cache for real-wor
 Interactive API for specializing generic Swift types at runtime. Implementation plan located at:
 `Sources/SwiftInterface/GenericSpecializer/IMPLEMENTATION_PLAN.md`
 
+**Status:** Core implementation complete with tests.
+
 **Key Design Points:**
-- Only protocol constraints require Protocol Witness Tables (PWT)
-- `baseClass`, `layout`, and `sameType` constraints need validation only, no PWT
+- Only protocol requirements require Protocol Witness Tables (PWT)
+- `baseClass`, `layout`, and `sameType` requirements need validation only, no PWT
+- PWT passed in requirement order (critical for correct specialization)
+- Generic parameter names derived from depth/index (A, B, A1, B1...) since names not preserved in binary
 - Two-step API: `makeRequest()` returns parameters/candidates, `specialize()` executes with user selections
 - Uses `ConformanceProvider` protocol to query type conformances from Indexer
 
 **File Structure:**
 ```
 Sources/SwiftInterface/GenericSpecializer/
+├── IMPLEMENTATION_PLAN.md          # Implementation plan
 ├── GenericSpecializer.swift        # Main class
 ├── ConformanceProvider.swift       # Protocol and implementations
 └── Models/
-    ├── SpecializationRequest.swift
-    ├── SpecializationSelection.swift
-    ├── SpecializationResult.swift
-    └── SpecializationValidation.swift
+    ├── SpecializationRequest.swift   # Request with parameters, requirements, candidates
+    ├── SpecializationSelection.swift # User selection with builder pattern
+    ├── SpecializationResult.swift    # Result with metadata, fieldOffsets, valueWitnessTable
+    └── SpecializationValidation.swift # Validation errors/warnings
 ```

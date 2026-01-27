@@ -2,7 +2,7 @@ import Foundation
 import Demangling
 import MachOSwiftSection
 
-/// Specialization request - describes generic parameters and constraints of a type
+/// Specialization request - describes generic parameters and requirements of a type
 public struct SpecializationRequest: Sendable {
     /// Target type descriptor
     public let typeDescriptor: TypeContextDescriptorWrapper
@@ -10,8 +10,8 @@ public struct SpecializationRequest: Sendable {
     /// Generic parameters in declaration order
     public let parameters: [Parameter]
 
-    /// Associated type constraints (e.g., A.Element: Hashable)
-    public let associatedTypeConstraints: [AssociatedTypeConstraint]
+    /// Associated type requirements (e.g., A.Element: Hashable)
+    public let associatedTypeRequirements: [AssociatedTypeRequirement]
 
     /// Total number of key arguments required
     public let keyArgumentCount: Int
@@ -19,12 +19,12 @@ public struct SpecializationRequest: Sendable {
     public init(
         typeDescriptor: TypeContextDescriptorWrapper,
         parameters: [Parameter],
-        associatedTypeConstraints: [AssociatedTypeConstraint],
+        associatedTypeRequirements: [AssociatedTypeRequirement],
         keyArgumentCount: Int
     ) {
         self.typeDescriptor = typeDescriptor
         self.parameters = parameters
-        self.associatedTypeConstraints = associatedTypeConstraints
+        self.associatedTypeRequirements = associatedTypeRequirements
         self.keyArgumentCount = keyArgumentCount
     }
 }
@@ -32,9 +32,9 @@ public struct SpecializationRequest: Sendable {
 // MARK: - Parameter
 
 extension SpecializationRequest {
-    /// Generic parameter with its constraints and candidate types
+    /// Generic parameter with its requirements and candidate types
     public struct Parameter: Sendable {
-        /// Parameter name (e.g., "T", "Element")
+        /// Parameter name (e.g., "A", "B", "A1" - based on depth and index)
         public let name: String
 
         /// Parameter index in generic signature
@@ -43,65 +43,65 @@ extension SpecializationRequest {
         /// Depth level (for nested generic contexts)
         public let depth: Int
 
-        /// Constraints on this parameter
-        public let constraints: [Constraint]
+        /// Requirements on this parameter (ordered - PWT passed in this order)
+        public let requirements: [Requirement]
 
-        /// Candidate types that satisfy all constraints
+        /// Candidate types that satisfy all requirements
         public var candidates: [Candidate]
 
         public init(
             name: String,
             index: Int,
             depth: Int,
-            constraints: [Constraint],
+            requirements: [Requirement],
             candidates: [Candidate] = []
         ) {
             self.name = name
             self.index = index
             self.depth = depth
-            self.constraints = constraints
+            self.requirements = requirements
             self.candidates = candidates
         }
 
-        /// Protocol constraints that require witness tables
-        public var protocolConstraints: [Constraint] {
-            constraints.filter {
+        /// Protocol requirements that require witness tables (in order)
+        public var protocolRequirements: [Requirement] {
+            requirements.filter {
                 if case .protocol = $0 { return true }
                 return false
             }
         }
 
-        /// Whether this parameter has any protocol constraints
-        public var hasProtocolConstraints: Bool {
-            !protocolConstraints.isEmpty
+        /// Whether this parameter has any protocol requirements
+        public var hasProtocolRequirements: Bool {
+            !protocolRequirements.isEmpty
         }
     }
 }
 
-// MARK: - Constraint
+// MARK: - Requirement
 
 extension SpecializationRequest {
-    /// Constraint on a generic parameter
-    public enum Constraint: Sendable, Hashable {
-        /// Protocol conformance constraint (T: SomeProtocol) - requires PWT
-        case `protocol`(ProtocolConstraintInfo)
+    /// Requirement on a generic parameter
+    public enum Requirement: Sendable, Hashable {
+        /// Protocol conformance requirement (A: SomeProtocol) - requires PWT
+        case `protocol`(ProtocolRequirementInfo)
 
-        /// Same type constraint (T == U) - validation only
-        case sameType(mangledTypeName: String)
+        /// Same type requirement (A == B) - validation only
+        case sameType(demangledTypeNode: Node)
 
-        /// Base class constraint (T: SomeClass) - validation only
-        case baseClass(mangledTypeName: String)
+        /// Base class requirement (A: SomeClass) - validation only
+        case baseClass(demangledTypeNode: Node)
 
-        /// Layout constraint (T: AnyObject, T: _Trivial) - validation only
+        /// Layout requirement (A: AnyObject) - validation only
         case layout(LayoutKind)
     }
 
-    /// Protocol constraint information
-    public struct ProtocolConstraintInfo: Sendable, Hashable {
+    /// Protocol requirement information
+    public struct ProtocolRequirementInfo: Sendable, Hashable {
         /// Protocol name
         public let protocolName: ProtocolName
 
-        /// Whether this constraint requires a witness table (is key argument)
+        /// Whether this requirement requires a witness table (is key argument)
         public let requiresWitnessTable: Bool
 
         public init(protocolName: ProtocolName, requiresWitnessTable: Bool) {
@@ -110,16 +110,9 @@ extension SpecializationRequest {
         }
     }
 
-    /// Layout constraint kind
+    /// Layout requirement kind
     public enum LayoutKind: Sendable, Hashable {
         case `class`
-        case nativeClass
-        case refCountedObject
-        case nativeRefCountedObject
-        case trivial
-        case trivialOfExactSize(Int)
-        case trivialOfAtMostSize(Int)
-        case unknown(Int)
     }
 }
 
@@ -131,68 +124,46 @@ extension SpecializationRequest {
         /// Type name
         public let typeName: TypeName
 
-        /// Type kind (enum, struct, class)
-        public let kind: TypeKind
-
         /// Source of this candidate
         public let source: Source
 
-        /// Whether this type is generic and requires further specialization
-        public let isGeneric: Bool
-
-        /// Generic parameter names if this is a generic type
-        public let genericParameterNames: [String]?
-
         public init(
             typeName: TypeName,
-            kind: TypeKind,
             source: Source,
-            isGeneric: Bool = false,
-            genericParameterNames: [String]? = nil
         ) {
             self.typeName = typeName
-            self.kind = kind
             self.source = source
-            self.isGeneric = isGeneric
-            self.genericParameterNames = genericParameterNames
         }
 
         /// Source of candidate type
         public enum Source: Sendable, Hashable {
-            /// From indexed MachO file
-            case indexed(machOName: String)
-
-            /// From Swift standard library
-            case standardLibrary
-
-            /// From runtime (user-provided)
-            case runtime
+            case image(String)
         }
     }
 }
 
-// MARK: - AssociatedTypeConstraint
+// MARK: - AssociatedTypeRequirement
 
 extension SpecializationRequest {
-    /// Constraint on an associated type (e.g., A.Element: Hashable)
-    public struct AssociatedTypeConstraint: Sendable {
+    /// Requirement on an associated type (e.g., A.Element: Hashable)
+    public struct AssociatedTypeRequirement: Sendable {
         /// Base parameter name (e.g., "A" in A.Element)
         public let parameterName: String
 
         /// Associated type path (e.g., ["Element"] or ["Iterator", "Element"])
         public let path: [String]
 
-        /// Constraints on the associated type
-        public let constraints: [Constraint]
+        /// Requirements on the associated type (ordered - PWT passed in this order)
+        public let requirements: [Requirement]
 
         public init(
             parameterName: String,
             path: [String],
-            constraints: [Constraint]
+            requirements: [Requirement]
         ) {
             self.parameterName = parameterName
             self.path = path
-            self.constraints = constraints
+            self.requirements = requirements
         }
 
         /// Full path string (e.g., "A.Element")

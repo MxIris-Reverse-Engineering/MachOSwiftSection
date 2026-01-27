@@ -13,6 +13,31 @@ import Utilities
 @_spi(Internals) import MachOCaches
 import SwiftInspection
 
+public struct MachOIndexedValue<MachO: MachOSwiftSectionRepresentableWithCache, Value> {
+    public let machO: MachO
+    public let value: Value
+
+    @inlinable
+    public init(machO: MachO, value: Value) {
+        self.machO = machO
+        self.value = value
+    }
+}
+
+extension MachOIndexedValue: Equatable where Value: Equatable {
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.value == rhs.value
+    }
+}
+
+extension MachOIndexedValue: Hashable where Value: Hashable {
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(value)
+    }
+}
+
+extension MachOIndexedValue: Sendable where Value: Sendable {}
+
 @_spi(Support)
 public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWithCache>: Sendable {
     @usableFromInline
@@ -675,28 +700,24 @@ extension SwiftInterfaceIndexer {
 // MARK: - All Storage Property Mappings (Current + SubIndexers)
 
 extension SwiftInterfaceIndexer {
-    @inlinable
-    public var allTypes: [TypeContextWrapper] {
-        currentStorage.types + subIndexers.flatMap { $0.allTypes }
+    public var allTypes: [MachOIndexedValue<MachO, TypeContextWrapper>] {
+        currentStorage.types.map { .init(machO: machO, value: $0) } + subIndexers.flatMap { $0.allTypes }
     }
 
-    @inlinable
-    public var allProtocols: [MachOSwiftSection.`Protocol`] {
-        currentStorage.protocols + subIndexers.flatMap { $0.allProtocols }
+    public var allProtocols: [MachOIndexedValue<MachO, MachOSwiftSection.`Protocol`>] {
+        currentStorage.protocols.map { .init(machO: machO, value: $0) } + subIndexers.flatMap { $0.allProtocols }
     }
 
-    @inlinable
-    public var allProtocolConformances: [ProtocolConformance] {
-        currentStorage.protocolConformances + subIndexers.flatMap { $0.allProtocolConformances }
+    public var allProtocolConformances: [MachOIndexedValue<MachO, ProtocolConformance>] {
+        currentStorage.protocolConformances.map { .init(machO: machO, value: $0) } + subIndexers.flatMap { $0.allProtocolConformances }
     }
 
-    @inlinable
-    public var allAssociatedTypes: [AssociatedType] {
-        currentStorage.associatedTypes + subIndexers.flatMap { $0.allAssociatedTypes }
+    public var allAssociatedTypes: [MachOIndexedValue<MachO, AssociatedType>] {
+        currentStorage.associatedTypes.map { .init(machO: machO, value: $0) } + subIndexers.flatMap { $0.allAssociatedTypes }
     }
 
-    public var allProtocolConformancesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, ProtocolConformance>> {
-        var result = currentStorage.protocolConformancesByTypeName
+    public var allProtocolConformancesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolConformance>>> {
+        var result: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolConformance>>> = currentStorage.protocolConformancesByTypeName.mapValues { $0.mapValues { .init(machO: machO, value: $0) } }
         for subIndexer in subIndexers {
             for (typeName, conformances) in subIndexer.allProtocolConformancesByTypeName {
                 result[typeName, default: [:]].merge(conformances) { current, _ in current }
@@ -705,8 +726,8 @@ extension SwiftInterfaceIndexer {
         return result
     }
 
-    public var allAssociatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, AssociatedType>> {
-        var result = currentStorage.associatedTypesByTypeName
+    public var allAssociatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, AssociatedType>>> {
+        var result: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, AssociatedType>>> = currentStorage.associatedTypesByTypeName.mapValues { $0.mapValues { .init(machO: machO, value: $0) } }
         for subIndexer in subIndexers {
             for (typeName, associatedTypes) in subIndexer.allAssociatedTypesByTypeName {
                 result[typeName, default: [:]].merge(associatedTypes) { current, _ in current }
@@ -715,8 +736,11 @@ extension SwiftInterfaceIndexer {
         return result
     }
 
-    public var allConformingTypesByProtocolName: OrderedDictionary<ProtocolName, OrderedSet<TypeName>> {
-        var result = currentStorage.conformingTypesByProtocolName
+    public var allConformingTypesByProtocolName: OrderedDictionary<ProtocolName, OrderedSet<MachOIndexedValue<MachO, TypeName>>> {
+        var result: OrderedDictionary<ProtocolName, OrderedSet<MachOIndexedValue<MachO, TypeName>>> = [:]
+        for (protocolName, typeNames) in currentStorage.conformingTypesByProtocolName {
+            result[protocolName] = OrderedSet(typeNames.map { .init(machO: machO, value: $0) })
+        }
         for subIndexer in subIndexers {
             for (protocolName, typeNames) in subIndexer.allConformingTypesByProtocolName {
                 result[protocolName, default: []].formUnion(typeNames)
@@ -725,40 +749,40 @@ extension SwiftInterfaceIndexer {
         return result
     }
 
-    public var allRootTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> {
-        var result = currentStorage.rootTypeDefinitions
+    public var allRootTypeDefinitions: OrderedDictionary<TypeName, MachOIndexedValue<MachO, TypeDefinition>> {
+        var result = currentStorage.rootTypeDefinitions.mapValues { MachOIndexedValue(machO: machO, value: $0) }
         for subIndexer in subIndexers {
             result.merge(subIndexer.allRootTypeDefinitions) { current, _ in current }
         }
         return result
     }
 
-    public var allAllTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> {
-        var result = currentStorage.allTypeDefinitions
+    public var allAllTypeDefinitions: OrderedDictionary<TypeName, MachOIndexedValue<MachO, TypeDefinition>> {
+        var result = currentStorage.allTypeDefinitions.mapValues { MachOIndexedValue(machO: machO, value: $0) }
         for subIndexer in subIndexers {
             result.merge(subIndexer.allAllTypeDefinitions) { current, _ in current }
         }
         return result
     }
 
-    public var allRootProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> {
-        var result = currentStorage.rootProtocolDefinitions
+    public var allRootProtocolDefinitions: OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolDefinition>> {
+        var result = currentStorage.rootProtocolDefinitions.mapValues { MachOIndexedValue(machO: machO, value: $0) }
         for subIndexer in subIndexers {
             result.merge(subIndexer.allRootProtocolDefinitions) { current, _ in current }
         }
         return result
     }
 
-    public var allAllProtocolDefinitions: OrderedDictionary<ProtocolName, (machO: MachO, value: ProtocolDefinition)> {
-        var result = currentStorage.allProtocolDefinitions.mapValues { (machO: machO, value: $0) }
+    public var allAllProtocolDefinitions: OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolDefinition>> {
+        var result = currentStorage.allProtocolDefinitions.mapValues { MachOIndexedValue(machO: machO, value: $0) }
         for subIndexer in subIndexers {
             result.merge(subIndexer.allAllProtocolDefinitions) { prevValue, nextValue in prevValue }
         }
         return result
     }
 
-    public var allTypeExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> {
-        var result = currentStorage.typeExtensionDefinitions
+    public var allTypeExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> {
+        var result: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> = currentStorage.typeExtensionDefinitions.mapValues { $0.map { .init(machO: machO, value: $0) } }
         for subIndexer in subIndexers {
             for (extensionName, definitions) in subIndexer.allTypeExtensionDefinitions {
                 result[extensionName, default: []].append(contentsOf: definitions)
@@ -767,8 +791,8 @@ extension SwiftInterfaceIndexer {
         return result
     }
 
-    public var allProtocolExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> {
-        var result = currentStorage.protocolExtensionDefinitions
+    public var allProtocolExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> {
+        var result: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> = currentStorage.protocolExtensionDefinitions.mapValues { $0.map { .init(machO: machO, value: $0) } }
         for subIndexer in subIndexers {
             for (extensionName, definitions) in subIndexer.allProtocolExtensionDefinitions {
                 result[extensionName, default: []].append(contentsOf: definitions)
@@ -777,8 +801,8 @@ extension SwiftInterfaceIndexer {
         return result
     }
 
-    public var allTypeAliasExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> {
-        var result = currentStorage.typeAliasExtensionDefinitions
+    public var allTypeAliasExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> {
+        var result: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> = currentStorage.typeAliasExtensionDefinitions.mapValues { $0.map { .init(machO: machO, value: $0) } }
         for subIndexer in subIndexers {
             for (extensionName, definitions) in subIndexer.allTypeAliasExtensionDefinitions {
                 result[extensionName, default: []].append(contentsOf: definitions)
@@ -787,8 +811,8 @@ extension SwiftInterfaceIndexer {
         return result
     }
 
-    public var allConformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> {
-        var result = currentStorage.conformanceExtensionDefinitions
+    public var allConformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> {
+        var result: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> = currentStorage.conformanceExtensionDefinitions.mapValues { $0.map { .init(machO: machO, value: $0) } }
         for subIndexer in subIndexers {
             for (extensionName, definitions) in subIndexer.allConformanceExtensionDefinitions {
                 result[extensionName, default: []].append(contentsOf: definitions)
@@ -797,14 +821,12 @@ extension SwiftInterfaceIndexer {
         return result
     }
 
-    @inlinable
-    public var allGlobalVariableDefinitions: [VariableDefinition] {
-        currentStorage.globalVariableDefinitions + subIndexers.flatMap { $0.allGlobalVariableDefinitions }
+    public var allGlobalVariableDefinitions: [MachOIndexedValue<MachO, VariableDefinition>] {
+        currentStorage.globalVariableDefinitions.map { .init(machO: machO, value: $0) } + subIndexers.flatMap { $0.allGlobalVariableDefinitions }
     }
 
-    @inlinable
-    public var allGlobalFunctionDefinitions: [FunctionDefinition] {
-        currentStorage.globalFunctionDefinitions + subIndexers.flatMap { $0.allGlobalFunctionDefinitions }
+    public var allGlobalFunctionDefinitions: [MachOIndexedValue<MachO, FunctionDefinition>] {
+        currentStorage.globalFunctionDefinitions.map { .init(machO: machO, value: $0) } + subIndexers.flatMap { $0.allGlobalFunctionDefinitions }
     }
 }
 
@@ -831,178 +853,19 @@ extension SwiftInterfaceIndexer {
 }
 
 
-extension SwiftInterfaceIndexer {
-    enum AssociatedTypeResolutionError: LocalizedError {
-        case missingGenericContext(typeDescriptor: TypeContextDescriptorWrapper)
-        case unsupportedGenericParameter(parameterKind: GenericParamKind)
-        case missingDependentGenericParamType(dependentMemberType: Node)
-        case missingGenericParamTypeText(dependentGenericParamType: Node)
-        case missingConformingTypeMetadata(genericParam: String, availableParams: [String])
-        case missingDependentAssociatedTypeRef(dependentMemberType: Node)
-        case missingAssociatedTypeName(dependentAssociatedTypeRef: Node)
-        case missingAssociatedTypeRefProtocolTypeNode(dependentAssociatedTypeRef: Node)
-        case missingAssociatedTypeRefMachOAndProtocol(protocolTypeNode: Node)
-        case associatedTypeRefMachONotMachOImage(machOType: String)
-        case failedToCreateAssociatedTypeRefProtocol(underlyingError: Swift.Error)
-        case missingAssociatedTypeIndex(associatedTypeName: String, protocolName: ProtocolName, availableAssociatedTypes: [String])
-        case missingAssociatedTypeBaseRequirement(protocolName: ProtocolName)
-        case missingAssociatedTypeAccessFunctionRequirement(index: Int, protocolName: ProtocolName, requirementCount: Int)
-        case conformingTypeDoesNotConformToProtocol(conformingType: Metadata, protocolName: ProtocolName)
-        case failedToGetAssociatedTypeWitness(conformingType: Metadata, protocolName: ProtocolName, associatedTypeName: String)
-        case associatedTypeDoesNotConformToProtocol(associatedType: Metadata, protocolName: ProtocolName)
-        case unknownParamNodeStructure(paramNode: Node)
-
-        var errorDescription: String? {
-            switch self {
-            case .missingGenericContext(let typeDescriptor):
-                return "Missing generic context for type descriptor: \(typeDescriptor)"
-            case .unsupportedGenericParameter(let parameterKind):
-                return "Unsupported generic parameter kind: \(parameterKind)"
-            case .missingDependentGenericParamType(let dependentMemberType):
-                return "Missing dependent generic param type in dependent member type: \(dependentMemberType)"
-            case .missingGenericParamTypeText(let dependentGenericParamType):
-                return "Missing text in dependent generic param type: \(dependentGenericParamType)"
-            case .missingConformingTypeMetadata(let genericParam, let availableParams):
-                return "Missing conforming type metadata for generic param '\(genericParam)'. Available params: \(availableParams.joined(separator: ", "))"
-            case .missingDependentAssociatedTypeRef(let dependentMemberType):
-                return "Missing dependent associated type ref in dependent member type: \(dependentMemberType)"
-            case .missingAssociatedTypeName(let dependentAssociatedTypeRef):
-                return "Missing associated type name in dependent associated type ref: \(dependentAssociatedTypeRef)"
-            case .missingAssociatedTypeRefProtocolTypeNode(let dependentAssociatedTypeRef):
-                return "Missing protocol type node in dependent associated type ref: \(dependentAssociatedTypeRef)"
-            case .missingAssociatedTypeRefMachOAndProtocol(let protocolTypeNode):
-                return "Missing MachO and protocol definition for protocol type node: \(protocolTypeNode)"
-            case .associatedTypeRefMachONotMachOImage(let machOType):
-                return "Associated type ref MachO is not MachOImage, actual type: \(machOType)"
-            case .failedToCreateAssociatedTypeRefProtocol(let underlyingError):
-                return "Failed to create associated type ref protocol: \(underlyingError.localizedDescription)"
-            case .missingAssociatedTypeIndex(let associatedTypeName, let protocolName, let availableAssociatedTypes):
-                return "Associated type '\(associatedTypeName)' not found in protocol '\(protocolName.name)'. Available associated types: \(availableAssociatedTypes.joined(separator: ", "))"
-            case .missingAssociatedTypeBaseRequirement(let protocolName):
-                return "Missing base requirement for protocol '\(protocolName.name)'"
-            case .missingAssociatedTypeAccessFunctionRequirement(let index, let protocolName, let requirementCount):
-                return "Missing associated type access function requirement at index \(index) for protocol '\(protocolName.name)'. Total requirements: \(requirementCount)"
-            case .conformingTypeDoesNotConformToProtocol(let conformingType, let protocolName):
-                return "Conforming type '\(conformingType)' does not conform to protocol '\(protocolName.name)'"
-            case .failedToGetAssociatedTypeWitness(let conformingType, let protocolName, let associatedTypeName):
-                return "Failed to get associated type witness for '\(associatedTypeName)' from conforming type '\(conformingType)' to protocol '\(protocolName.name)'"
-            case .associatedTypeDoesNotConformToProtocol(let associatedType, let protocolName):
-                return "Associated type '\(associatedType)' does not conform to protocol '\(protocolName.name)'"
-            case .unknownParamNodeStructure(let paramNode):
-                return "Unknown param node structure: \(paramNode)"
-            }
-        }
-    }
-
-    func resolveAssociatedTypeWitnesses(for type: TypeContextDescriptorWrapper, substituting genericArguments: [String: Metadata], in machO: MachOImage) async throws -> OrderedDictionary<Metadata, [ProtocolWitnessTable]> {
-        typealias Result = OrderedDictionary<Metadata, [ProtocolWitnessTable]>
-        var results: Result = [:]
-        guard let genericContextInProcess = try type.asPointerWrapper(in: machO).genericContext() else {
-            throw AssociatedTypeResolutionError.missingGenericContext(typeDescriptor: type)
-        }
-
-        if let unsupportedParameter = genericContextInProcess.parameters.first(where: { $0.kind == .typePack || $0.kind == .value }) {
-            throw AssociatedTypeResolutionError.unsupportedGenericParameter(parameterKind: unsupportedParameter.kind)
-        }
-
-        let requirements = try genericContextInProcess.requirements.map { try GenericRequirement(descriptor: $0) }
-        var conformingTypeMetadataByGenericParam: [String: Metadata] = [:]
-        let allProtocolDefinitions = allAllProtocolDefinitions
-
-        for requirement in requirements {
-            guard let requirementProtocolDescriptor = requirement.content.protocol?.resolved, let protocolDescriptor = requirementProtocolDescriptor.swift, requirement.flags.contains(.hasKeyArgument) else { continue }
-
-            let requirementProtocol = try Protocol(descriptor: protocolDescriptor)
-
-            let paramNode = try MetadataReader.demangleType(for: requirement.paramManagledName)
-
-            if let dependentMemberType = paramNode.first(of: .dependentMemberType) {
-                guard let dependentGenericParamType = dependentMemberType.first(of: .dependentGenericParamType) else {
-                    throw AssociatedTypeResolutionError.missingDependentGenericParamType(dependentMemberType: dependentMemberType)
-                }
-
-                guard let genericParamType = dependentGenericParamType.text else {
-                    throw AssociatedTypeResolutionError.missingGenericParamTypeText(dependentGenericParamType: dependentGenericParamType)
-                }
-
-                guard let conformingTypeMetadata = conformingTypeMetadataByGenericParam[genericParamType] else {
-                    throw AssociatedTypeResolutionError.missingConformingTypeMetadata(genericParam: genericParamType, availableParams: Array(conformingTypeMetadataByGenericParam.keys))
-                }
-
-                guard let dependentAssociatedTypeRef = dependentMemberType.first(of: .dependentAssociatedTypeRef) else {
-                    throw AssociatedTypeResolutionError.missingDependentAssociatedTypeRef(dependentMemberType: dependentMemberType)
-                }
-
-                guard let associatedTypeName = dependentAssociatedTypeRef.children.first?.text else {
-                    throw AssociatedTypeResolutionError.missingAssociatedTypeName(dependentAssociatedTypeRef: dependentAssociatedTypeRef)
-                }
-
-                guard let associatedTypeRefProtocolTypeNode = dependentAssociatedTypeRef.children.second else {
-                    throw AssociatedTypeResolutionError.missingAssociatedTypeRefProtocolTypeNode(dependentAssociatedTypeRef: dependentAssociatedTypeRef)
-                }
-
-                guard let associatedTypeRefMachOAndProtocol = allProtocolDefinitions[.init(node: associatedTypeRefProtocolTypeNode)] else {
-                    throw AssociatedTypeResolutionError.missingAssociatedTypeRefMachOAndProtocol(protocolTypeNode: associatedTypeRefProtocolTypeNode)
-                }
-
-                guard let associatedTypeRefMachOImage = associatedTypeRefMachOAndProtocol.machO as? MachOImage else {
-                    throw AssociatedTypeResolutionError.associatedTypeRefMachONotMachOImage(machOType: String(describing: Swift.type(of: associatedTypeRefMachOAndProtocol.machO)))
-                }
-
-                let associatedTypeRefProtocol: MachOSwiftSection.`Protocol`
-                do {
-                    associatedTypeRefProtocol = try MachOSwiftSection.`Protocol`(descriptor: associatedTypeRefMachOAndProtocol.value.protocol.descriptor.asPointerWrapper(in: associatedTypeRefMachOImage))
-                } catch {
-                    throw AssociatedTypeResolutionError.failedToCreateAssociatedTypeRefProtocol(underlyingError: error)
-                }
-
-                let associatedTypeRefProtocolName = try associatedTypeRefProtocol.protocolName()
-                let availableAssociatedTypes = try associatedTypeRefProtocol.descriptor.associatedTypes()
-
-                guard let associatedTypeIndex = availableAssociatedTypes.firstIndex(of: associatedTypeName) else {
-                    throw AssociatedTypeResolutionError.missingAssociatedTypeIndex(associatedTypeName: associatedTypeName, protocolName: associatedTypeRefProtocolName, availableAssociatedTypes: availableAssociatedTypes)
-                }
-
-                guard let associatedTypeBaseRequirement = associatedTypeRefProtocol.baseRequirement else {
-                    throw AssociatedTypeResolutionError.missingAssociatedTypeBaseRequirement(protocolName: associatedTypeRefProtocolName)
-                }
-
-                let associatedTypeAccessFunctionRequirements = associatedTypeRefProtocol.requirements.filter { $0.flags.kind.isAssociatedTypeAccessFunction }
-
-                guard let associatedTypeAccessFunctionRequirement = associatedTypeAccessFunctionRequirements[safe: associatedTypeIndex] else {
-                    throw AssociatedTypeResolutionError.missingAssociatedTypeAccessFunctionRequirement(index: associatedTypeIndex, protocolName: associatedTypeRefProtocolName, requirementCount: associatedTypeAccessFunctionRequirements.count)
-                }
-
-                guard let conformingTypePWT = try RuntimeFunctions.conformsToProtocol(metadata: conformingTypeMetadata, protocolDescriptor: associatedTypeRefProtocol.descriptor) else {
-                    throw AssociatedTypeResolutionError.conformingTypeDoesNotConformToProtocol(conformingType: conformingTypeMetadata, protocolName: associatedTypeRefProtocolName)
-                }
-
-                guard let associatedTypeMetadata = try? RuntimeFunctions.getAssociatedTypeWitness(request: .init(), protocolWitnessTable: conformingTypePWT, conformingTypeMetadata: conformingTypeMetadata, baseRequirement: associatedTypeBaseRequirement, associatedTypeRequirement: associatedTypeAccessFunctionRequirement).value.resolve().metadata else {
-                    throw AssociatedTypeResolutionError.failedToGetAssociatedTypeWitness(conformingType: conformingTypeMetadata, protocolName: associatedTypeRefProtocolName, associatedTypeName: associatedTypeName)
-                }
-
-                let currentProtocolName = try requirementProtocol.protocolName()
-
-                guard let associatedTypePWT = try? RuntimeFunctions.conformsToProtocol(metadata: associatedTypeMetadata, protocolDescriptor: requirementProtocol.descriptor) else {
-                    throw AssociatedTypeResolutionError.associatedTypeDoesNotConformToProtocol(associatedType: associatedTypeMetadata, protocolName: currentProtocolName)
-                }
-
-                results[associatedTypeMetadata, default: []].append(associatedTypePWT)
-            } else if let dependentGenericParamType = paramNode.first(of: .dependentGenericParamType) {
-                guard let genericParamType = dependentGenericParamType.text else {
-                    throw AssociatedTypeResolutionError.missingGenericParamTypeText(dependentGenericParamType: dependentGenericParamType)
-                }
-
-                guard let conformingTypeMetadata = genericArguments[genericParamType] else {
-                    throw AssociatedTypeResolutionError.missingConformingTypeMetadata(genericParam: genericParamType, availableParams: Array(genericArguments.keys))
-                }
-
-                conformingTypeMetadataByGenericParam[genericParamType] = conformingTypeMetadata
-            } else {
-                throw AssociatedTypeResolutionError.unknownParamNodeStructure(paramNode: paramNode)
-            }
-        }
-
-        return results
+extension SwiftInterfaceIndexer where MachO == MachOImage {
+    /// Resolves associated type witnesses for a generic type.
+    /// - Note: This method delegates to `GenericSpecializer.resolveAssociatedTypeWitnesses`.
+    @_spi(Support)
+    func resolveAssociatedTypeWitnesses(for type: TypeContextDescriptorWrapper, substituting genericArguments: [String: Metadata], in machO: MachOImage) throws -> OrderedDictionary<Metadata, [ProtocolWitnessTable]> {
+        let specializer = GenericSpecializer(
+            machO: machO,
+            conformanceProvider: EmptyConformanceProvider(),
+            indexer: self
+        )
+        return try specializer.resolveAssociatedTypeWitnesses(
+            for: type,
+            substituting: genericArguments
+        )
     }
 }

@@ -39,29 +39,29 @@ extension SpecializationValidation {
         /// A required parameter is missing from the selection
         case missingArgument(parameterName: String)
 
-        /// Selected type does not satisfy a protocol constraint
-        case protocolConstraintNotSatisfied(
+        /// Selected type does not satisfy a protocol requirement
+        case protocolRequirementNotSatisfied(
             parameterName: String,
             protocolName: String,
             actualType: String
         )
 
-        /// Selected type does not satisfy a same-type constraint
-        case sameTypeConstraintNotSatisfied(
+        /// Selected type does not satisfy a same-type requirement
+        case sameTypeRequirementNotSatisfied(
             parameterName: String,
             expectedType: String,
             actualType: String
         )
 
-        /// Selected type does not satisfy a base class constraint
-        case baseClassConstraintNotSatisfied(
+        /// Selected type does not satisfy a base class requirement
+        case baseClassRequirementNotSatisfied(
             parameterName: String,
             expectedBaseClass: String,
             actualType: String
         )
 
-        /// Selected type does not satisfy a layout constraint
-        case layoutConstraintNotSatisfied(
+        /// Selected type does not satisfy a layout requirement
+        case layoutRequirementNotSatisfied(
             parameterName: String,
             expectedLayout: SpecializationRequest.LayoutKind,
             actualType: String
@@ -96,17 +96,17 @@ extension SpecializationValidation {
             case .missingArgument(let name):
                 return "Missing argument for parameter '\(name)'"
 
-            case .protocolConstraintNotSatisfied(let param, let proto, let actual):
+            case .protocolRequirementNotSatisfied(let param, let proto, let actual):
                 return "Type '\(actual)' for parameter '\(param)' does not conform to protocol '\(proto)'"
 
-            case .sameTypeConstraintNotSatisfied(let param, let expected, let actual):
+            case .sameTypeRequirementNotSatisfied(let param, let expected, let actual):
                 return "Type '\(actual)' for parameter '\(param)' must be same as '\(expected)'"
 
-            case .baseClassConstraintNotSatisfied(let param, let base, let actual):
+            case .baseClassRequirementNotSatisfied(let param, let base, let actual):
                 return "Type '\(actual)' for parameter '\(param)' must inherit from '\(base)'"
 
-            case .layoutConstraintNotSatisfied(let param, let layout, let actual):
-                return "Type '\(actual)' for parameter '\(param)' does not satisfy layout constraint '\(layout)'"
+            case .layoutRequirementNotSatisfied(let param, let layout, let actual):
+                return "Type '\(actual)' for parameter '\(param)' does not satisfy layout requirement '\(layout)'"
 
             case .candidateResolutionFailed(let param, let candidate, let reason):
                 return "Cannot resolve candidate '\(candidate)' for parameter '\(param)': \(reason)"
