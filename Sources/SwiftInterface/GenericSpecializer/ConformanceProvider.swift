@@ -28,6 +28,9 @@ public protocol ConformanceProvider: Sendable {
 
     /// Get type definition if available
     func typeDefinition(for typeName: TypeName) -> TypeDefinition?
+
+    /// Get image path for a type
+    func imagePath(for typeName: TypeName) -> String?
 }
 
 // MARK: - Default Implementations
@@ -85,6 +88,10 @@ extension IndexerConformanceProvider: ConformanceProvider {
 
     public func typeDefinition(for typeName: TypeName) -> TypeDefinition? {
         indexer.allAllTypeDefinitions[typeName]?.value
+    }
+
+    public func imagePath(for typeName: TypeName) -> String? {
+        indexer.allAllTypeDefinitions[typeName]?.machO.imagePath
     }
 }
 
@@ -149,6 +156,15 @@ public struct CompositeConformanceProvider: ConformanceProvider {
         }
         return nil
     }
+
+    public func imagePath(for typeName: TypeName) -> String? {
+        for provider in providers {
+            if let path = provider.imagePath(for: typeName) {
+                return path
+            }
+        }
+        return nil
+    }
 }
 
 // MARK: - EmptyConformanceProvider
@@ -162,6 +178,7 @@ public struct EmptyConformanceProvider: ConformanceProvider {
     public func conformances(of typeName: TypeName) -> [ProtocolName] { [] }
     public var allTypeNames: [TypeName] { [] }
     public func typeDefinition(for typeName: TypeName) -> TypeDefinition? { nil }
+    public func imagePath(for typeName: TypeName) -> String? { nil }
 }
 
 // MARK: - StandardLibraryConformanceProvider
@@ -223,6 +240,7 @@ public struct StandardLibraryConformanceProvider: ConformanceProvider {
     public var allTypeNames: [TypeName] { [] }
 
     public func typeDefinition(for typeName: TypeName) -> TypeDefinition? { nil }
+    public func imagePath(for typeName: TypeName) -> String? { nil }
 
     private func simplifyTypeName(_ name: String) -> String {
         // Remove module prefix (e.g., "Swift.Int" -> "Int")

@@ -78,17 +78,25 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
 
 @Suite
 struct GenericSpecializerAPITests {
-    @Test func makeRequest() throws {
+    @Test func makeRequest() async throws {
         let machO = MachOImage.current()
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestGenericStruct" }?.struct)
 
+        let indexer = SwiftInterfaceIndexer(in: machO)
+        
+        try await indexer.prepare()
+        
         let specializer = GenericSpecializer(
             machO: machO,
-            conformanceProvider: EmptyConformanceProvider()
+            conformanceProvider: IndexerConformanceProvider(indexer: indexer)
         )
         let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
 
+        for candidate in request.parameters[1].candidates {
+            candidate.typeName.name.print()
+        }
+        
         // Should have 3 parameters: A, B, C
         #expect(request.parameters.count == 3)
 

@@ -256,17 +256,16 @@ extension GenericSpecializer {
 
     /// Find candidate types that satisfy all protocol constraints
     private func findCandidates(satisfying protocols: [ProtocolName]) -> [SpecializationRequest.Candidate] {
-        let machOName = "unknown"
-
         guard !protocols.isEmpty else {
             // No constraints - return all indexed types
             return conformanceProvider.allTypeNames.compactMap { typeName -> SpecializationRequest.Candidate? in
                 guard conformanceProvider.typeDefinition(for: typeName) != nil else {
                     return nil
                 }
+                let imagePath = conformanceProvider.imagePath(for: typeName) ?? ""
                 return SpecializationRequest.Candidate(
                     typeName: typeName,
-                    source: .image(machOName)
+                    source: .image(imagePath)
                 )
             }
         }
@@ -278,9 +277,10 @@ extension GenericSpecializer {
             guard conformanceProvider.typeDefinition(for: typeName) != nil else {
                 return nil
             }
+            let imagePath = conformanceProvider.imagePath(for: typeName) ?? ""
             return SpecializationRequest.Candidate(
                 typeName: typeName,
-                source: .image(machOName)
+                source: .image(imagePath)
             )
         }
     }
