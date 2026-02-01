@@ -36,6 +36,7 @@ public typealias FieldOffsetTransformer = IdentifiableClosure<(startOffset: Int,
 public typealias TypeLayoutTransformer = IdentifiableClosure<TypeLayout, SemanticString>
 public typealias EnumLayoutTransformer = IdentifiableClosure<EnumLayoutCalculator.LayoutResult, SemanticString>
 public typealias EnumLayoutCaseTransformer = IdentifiableClosure<(caseProjection: EnumLayoutCalculator.EnumCaseProjection, indentation: Int), SemanticString>
+public typealias SpareBitAnalysisTransformer = IdentifiableClosure<(analysis: SpareBitAnalyzer.Analysis, indentation: Int), SemanticString>
 
 // MARK: - Dumper Configuration
 
@@ -47,10 +48,12 @@ public struct DumperConfiguration: Sendable {
     public var printFieldOffset: Bool = false
     public var printTypeLayout: Bool = false
     public var printEnumLayout: Bool = false
+    public var printSpareBitAnalysis: Bool = false
     public var fieldOffsetTransformer: FieldOffsetTransformer? = nil
     public var typeLayoutTransformer: TypeLayoutTransformer? = nil
     public var enumLayoutTransformer: EnumLayoutTransformer? = nil
     public var enumLayoutCaseTransformer: EnumLayoutCaseTransformer? = nil
+    public var spareBitAnalysisTransformer: SpareBitAnalysisTransformer? = nil
 
     public static func demangleOptions(_ demangleOptions: DemangleOptions) -> Self {
         .init(demangleResolver: .options(demangleOptions))
@@ -84,6 +87,18 @@ extension DumperConfiguration {
         } else {
             AtomicComponent(string: caseProjection.description(indent: indentation, prefix: "//"), type: .comment)
         }
+    }
+
+    /// Builds a spare bit analysis comment block for the given analysis result.
+    @SemanticStringBuilder
+    package func spareBitAnalysisComment(analysis: SpareBitAnalyzer.Analysis) -> SemanticString {
+        indentString
+        if let spareBitAnalysisTransformer {
+            spareBitAnalysisTransformer((analysis: analysis, indentation: indentation))
+        } else {
+            InlineComment("Spare Bits: \(analysis.totalSpareBits) total")
+        }
+        BreakLine()
     }
 
     /// Builds an enum layout strategy comment line for the given layout result.

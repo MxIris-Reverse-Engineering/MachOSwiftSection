@@ -14,3 +14,4 @@ gha-creds-*.json
 Tests/__Snapshots__
 .claude
 .codex
+.opencode

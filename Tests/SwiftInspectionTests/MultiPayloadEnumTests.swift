@@ -11,6 +11,9 @@ import MachOKit
 import SwiftUI
 
 final class MultiPayloadEnumTests: MachOImageTests {
+    
+    typealias Calculator = EnumLayoutCalculator
+    
     override class var imageName: MachOImageName { .SwiftUICore }
 
     private var multiPayloadEnumDescriptorByMangledName: [String: MultiPayloadEnumDescriptor] = [:]
@@ -68,15 +71,15 @@ final class MultiPayloadEnumTests: MachOImageTests {
                             try printMultiPayloadEnum(multiPayloadEnumDescriptor)
                             let spareBytes = try multiPayloadEnumDescriptor.payloadSpareBits()
                             let spareBytesOffset = try multiPayloadEnumDescriptor.payloadSpareBitMaskByteOffset()
-                            try EnumLayoutCalculator.calculateMultiPayload( /* enumSize: enumTypeLayout.size.cast(), */ payloadSize: payloadSize.cast(), spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast(), numPayloadCases: payloadCases.cast(), numEmptyCases: emptyCases.cast()).print()
+                            try Calculator.calculateMultiPayload( /* enumSize: enumTypeLayout.size.cast(), */ payloadSize: payloadSize.cast(), spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast(), numPayloadCases: payloadCases.cast(), numEmptyCases: emptyCases.cast()).print()
                             if optionalSize > .zero {
-                                EnumLayoutCalculator.calculateSinglePayload(size: optionalSize, payloadSize: payloadSize.cast(), numEmptyCases: 1, spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast()).print()
+                                Calculator.calculateSinglePayload(size: optionalSize, payloadSize: payloadSize.cast(), numEmptyCases: 1, spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast()).print()
                             }
                         } else {
-                            EnumLayoutCalculator.calculateTaggedMultiPayload(payloadSize: payloadSize.cast(), numPayloadCases: payloadCases.cast(), numEmptyCases: emptyCases.cast()).print()
+                            Calculator.calculateTaggedMultiPayload(payloadSize: payloadSize.cast(), numPayloadCases: payloadCases.cast(), numEmptyCases: emptyCases.cast()).print()
                         }
                     } else if enumDescriptor.isSinglePayload {
-                        EnumLayoutCalculator.calculateSinglePayload(size: enumTypeLayout.size.cast(), payloadSize: payloadSize.cast(), numEmptyCases: emptyCases.cast()).print()
+                        Calculator.calculateSinglePayload(size: enumTypeLayout.size.cast(), payloadSize: payloadSize.cast(), numEmptyCases: emptyCases.cast()).print()
                     }
 
                 } catch {
@@ -156,15 +159,6 @@ final class MultiPayloadEnumTests: MachOImageTests {
             print("TagCounts:", getEnumTagCounts(payloadSize: payloadSize, emptyCases: emptyCases, payloadCases: payloadCases))
         }
     }
-
-//    @Test func test() async throws {
-////        print(unsafeBitCast((any Equatable).self, to: UnsafeRawPointer.self))
-////        try print(ProtocolDescriptor.createInProcess((any Equatable).self).name())
-////        for protocolRef in try ExistentialTypeMetadata.createInProcess((any Equatable).self).protocols() {
-////            try print(protocolRef.swiftProtocol(), protocolRef.swiftProtocol().name())
-////        }
-//        try print(RuntimeFunctions.conformsToProtocol(metadata: Int.self, existentialTypeMetadata: (any Equatable).self))
-//    }
 }
 
 private func makeOptionalMetatype<T>(_ metatype: T.Type) -> Any.Type {
