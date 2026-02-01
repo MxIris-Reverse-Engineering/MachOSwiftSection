@@ -22,4 +22,6 @@ public struct SwiftInterfacePrintConfiguration: Equatable, Sendable {
     public var printEnumLayout: Bool = false
     public var fieldOffsetTransformer: FieldOffsetTransformer? = nil
     public var typeLayoutTransformer: TypeLayoutTransformer? = nil
+    public var enumLayoutTransformer: EnumLayoutTransformer? = nil
+    public var enumLayoutCaseTransformer: EnumLayoutCaseTransformer? = nil
 }

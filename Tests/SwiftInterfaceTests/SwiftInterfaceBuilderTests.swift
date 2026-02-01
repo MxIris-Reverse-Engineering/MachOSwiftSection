@@ -23,7 +23,7 @@ extension SwiftInterfaceBuilderTests {
             ),
             printConfiguration: .init(
                 printStrippedSymbolicItem: true,
-                emitOffsetComments: true,
+                printFieldOffset: true,
                 printTypeLayout: true,
             )
         )

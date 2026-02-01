@@ -85,11 +85,9 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
             if configuration.printEnumLayout, !dumped.flags.isGeneric {
                 enumLayout = try? await self.enumLayout
 
-                if let strategyDescription = enumLayout?.strategyDescription {
+                if let enumLayout {
                     BreakLine()
-                    configuration.indentString
-                    InlineComment(strategyDescription)
-                    BreakLine()
+                    configuration.enumLayoutComment(layoutResult: enumLayout)
                 }
             }
             for (offset, fieldRecord) in try dumped.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
@@ -113,7 +111,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
                     configuration.indentString
                     InlineComment("Enum Layout")
                     BreakLine()
-                    AtomicComponent(string: `case`.description(indent: configuration.indentation, prefix: "//"), type: .comment)
+                    configuration.enumLayoutCaseComment(caseProjection: `case`)
                 }
 
                 Indent(level: configuration.indentation)

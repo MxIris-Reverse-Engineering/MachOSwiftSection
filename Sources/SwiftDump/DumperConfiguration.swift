@@ -5,6 +5,7 @@ import Semantic
 import Utilities
 import MemberwiseInit
 import Demangling
+import SwiftInspection
 
 // MARK: - Identifiable Closure
 
@@ -33,6 +34,8 @@ extension IdentifiableClosure: Equatable {
 
 public typealias FieldOffsetTransformer = IdentifiableClosure<(startOffset: Int, endOffset: Int?), SemanticString>
 public typealias TypeLayoutTransformer = IdentifiableClosure<TypeLayout, SemanticString>
+public typealias EnumLayoutTransformer = IdentifiableClosure<EnumLayoutCalculator.LayoutResult, SemanticString>
+public typealias EnumLayoutCaseTransformer = IdentifiableClosure<(caseProjection: EnumLayoutCalculator.EnumCaseProjection, indentation: Int), SemanticString>
 
 // MARK: - Dumper Configuration
 
@@ -46,6 +49,8 @@ public struct DumperConfiguration: Sendable {
     public var printEnumLayout: Bool = false
     public var fieldOffsetTransformer: FieldOffsetTransformer? = nil
     public var typeLayoutTransformer: TypeLayoutTransformer? = nil
+    public var enumLayoutTransformer: EnumLayoutTransformer? = nil
+    public var enumLayoutCaseTransformer: EnumLayoutCaseTransformer? = nil
 
     public static func demangleOptions(_ demangleOptions: DemangleOptions) -> Self {
         .init(demangleResolver: .options(demangleOptions))
@@ -67,6 +72,30 @@ extension DumperConfiguration {
             fieldOffsetTransformer((startOffset, endOffset))
         } else {
             Comment("Field Offset: 0x\(String(startOffset, radix: 16))")
+        }
+        BreakLine()
+    }
+
+    /// Builds an enum layout per-case comment block for the given case projection.
+    @SemanticStringBuilder
+    package func enumLayoutCaseComment(caseProjection: EnumLayoutCalculator.EnumCaseProjection) -> SemanticString {
+        if let enumLayoutCaseTransformer {
+            enumLayoutCaseTransformer((caseProjection: caseProjection, indentation: indentation))
+        } else {
+            AtomicComponent(string: caseProjection.description(indent: indentation, prefix: "//"), type: .comment)
+        }
+    }
+
+    /// Builds an enum layout strategy comment line for the given layout result.
+    ///
+    /// The returned ``SemanticString`` includes indentation and a trailing line break.
+    @SemanticStringBuilder
+    package func enumLayoutComment(layoutResult: EnumLayoutCalculator.LayoutResult) -> SemanticString {
+        indentString
+        if let enumLayoutTransformer {
+            enumLayoutTransformer(layoutResult)
+        } else {
+            InlineComment(layoutResult.strategyDescription)
         }
         BreakLine()
     }

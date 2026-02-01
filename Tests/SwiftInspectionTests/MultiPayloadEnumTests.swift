@@ -10,7 +10,7 @@ import MachOKit
 
 import SwiftUI
 
-final class MultiPayloadEnumTests: MachOImageTests, @unchecked Sendable {
+final class MultiPayloadEnumTests: MachOImageTests {
     override class var imageName: MachOImageName { .SwiftUICore }
 
     private var multiPayloadEnumDescriptorByMangledName: [String: MultiPayloadEnumDescriptor] = [:]

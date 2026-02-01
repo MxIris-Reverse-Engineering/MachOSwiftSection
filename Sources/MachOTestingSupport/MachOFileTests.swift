@@ -3,7 +3,8 @@ import Testing
 import MachOKit
 import MachOFoundation
 
-package class MachOFileTests: @unchecked Sendable {
+@MainActor
+package class MachOFileTests: Sendable {
     package let machOFile: MachOFile
 
     package class var fileName: MachOFileName { .Finder }

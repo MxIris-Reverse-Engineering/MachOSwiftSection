@@ -33,10 +33,6 @@ package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCac
 
             typeName
 
-            if typeName.string == "SwiftUI.FeedbackGenerator" {
-                print(typeName.string)
-            }
-
             Standard(":")
 
             Space()

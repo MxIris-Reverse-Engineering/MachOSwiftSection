@@ -32,9 +32,17 @@ public enum EnumLayoutCalculator {
             }
             output += "\n"
 
+            output += formattedMemoryChanges(indent: indent, prefix: prefix)
+            return output
+        }
+
+        /// Returns only the memory changes portion of the case description.
+        public func formattedMemoryChanges(indent: Int, prefix: String = "") -> String {
+            let indentString = (0 ..< indent).reduce("") { string, _ in string + "    " }
             if memoryChanges.isEmpty {
-                output += "\(indentString)\(prefix) (No bits set / Zero)\n"
+                return "\(indentString)\(prefix) (No bits set / Zero)\n"
             } else {
+                var output = ""
                 for offset in memoryChanges.keys.sorted() {
                     let byteValue = memoryChanges[offset]!
                     let byteHex = String(format: "0x%02X", byteValue)
@@ -42,8 +50,8 @@ public enum EnumLayoutCalculator {
                     let padding = String(repeating: "0", count: 8 - binaryStr.count)
                     output += "\(indentString)\(prefix) Memory Offset \(offset) (\(String(format: "0x%02X", offset))) = \(byteHex) (Bin: \(padding + binaryStr))\n"
                 }
+                return output
             }
-            return output
         }
     }
 

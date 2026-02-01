@@ -3,7 +3,8 @@ import Testing
 import MachOKit
 import MachOFoundation
 
-package class MachOImageTests: @unchecked Sendable {
+@MainActor
+package class MachOImageTests: Sendable {
     package let machOImage: MachOImage
 
     package class var imageName: MachOImageName { .Foundation }
