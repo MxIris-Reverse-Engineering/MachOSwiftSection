@@ -395,17 +395,6 @@ extension Target {
         ]
     )
 
-    static let SwiftIndex = Target.target(
-        name: "SwiftIndex",
-        dependencies: [
-            .product(.MachOKit),
-            .target(.MachOSwiftSection),
-            .target(.SwiftDump),
-            .target(.Semantic),
-            .target(.Utilities),
-        ]
-    )
-
     static let SwiftInterface = Target.target(
         name: "SwiftInterface",
         dependencies: [
@@ -571,7 +560,6 @@ let package = Package(
         .MachOSwiftSection,
         .SwiftInspection,
         .SwiftDump,
-        .SwiftIndex,
         .SwiftInterface,
         .TypeIndexing,
         .MachOMacros,

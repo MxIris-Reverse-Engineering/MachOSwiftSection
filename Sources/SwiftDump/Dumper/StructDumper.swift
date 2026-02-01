@@ -53,7 +53,7 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
     }
 
     private var fieldOffsets: [Int]? {
-        guard configuration.emitOffsetComments else { return nil }
+        guard configuration.printFieldOffset else { return nil }
         return try? metadata?.fieldOffsets(for: dumped.descriptor, in: machO).map { $0.cast() }
     }
 
@@ -65,10 +65,20 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
 
                 let mangledTypeName = try fieldRecord.mangledTypeName(in: machO)
 
-                if let fieldOffsets, let fieldOffset = fieldOffsets[safe: offset.index] {
-                    Indent(level: configuration.indentation)
-                    Comment("Field Offset: 0x\(String(fieldOffset, radix: 16))")
-                    BreakLine()
+                if let fieldOffsets, let startOffset = fieldOffsets[safe: offset.index] {
+                    let endOffset: Int?
+                    if let nextFieldOffset = fieldOffsets[safe: offset.index + 1] {
+                        endOffset = nextFieldOffset
+                    } else if !dumped.flags.isGeneric,
+                              let machOImage = machO.asMachOImage,
+                              let metatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machOImage),
+                              let metadata = try? Metadata.createInProcess(metatype),
+                              let typeLayout = try? metadata.asMetadataWrapper().valueWitnessTable().typeLayout {
+                        endOffset = startOffset + Int(typeLayout.size)
+                    } else {
+                        endOffset = nil
+                    }
+                    configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
                 }
 
                 if configuration.printTypeLayout, !dumped.flags.isGeneric, let machO = machO.asMachOImage, let metatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machO), let metadata = try? Metadata.createInProcess(metatype) {

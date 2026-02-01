@@ -12,3 +12,5 @@ gha-creds-*.json
 *.resolved
 .claude/settings.local.json
 Tests/__Snapshots__
+.claude
+.codex
