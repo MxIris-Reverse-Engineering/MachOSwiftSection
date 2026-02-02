@@ -490,6 +490,7 @@ extension Target {
         dependencies: [
             .target(.MachOSwiftSection),
             .target(.MachOTestingSupport),
+            .target(.SwiftInspection),
         ],
         swiftSettings: testSettings
     )

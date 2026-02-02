@@ -273,12 +273,21 @@ public enum EnumLayoutCalculator {
                 let globalIndex = numPayloadCases + i
                 let emptyIndex = i
 
-                // Guard against shift overflow on 64-bit Swift Int
-                let payloadValueMask = (numPayloadValueBits >= 64) ? -1 : (1 << numPayloadValueBits) - 1
-                let payloadValue = emptyIndex & payloadValueMask
-
-                let tagOffset = emptyIndex >> numPayloadValueBits
-                let finalTag = numPayloadCases + tagOffset
+                // TypeLowering.cpp:1101-1104: When occupied bits >= 32, all empty
+                // cases share a single tag value and the payload value alone
+                // distinguishes them. This also avoids shift overflow when
+                // numPayloadValueBits >= 63 (signed Int overflow or >= 64 trap).
+                let payloadValue: Int
+                let finalTag: Int
+                if numPayloadValueBits >= 32 {
+                    payloadValue = emptyIndex
+                    finalTag = numPayloadCases
+                } else {
+                    let payloadValueMask = (1 << numPayloadValueBits) - 1
+                    payloadValue = emptyIndex & payloadValueMask
+                    let tagOffset = emptyIndex >> numPayloadValueBits
+                    finalTag = numPayloadCases + tagOffset
+                }
 
                 // Scatter lower bits of tag into spare bits, tagIndex into occupied bits.
                 let spareTagValue = (numPayloadTagBits >= 64) ? finalTag : finalTag & ((1 << numPayloadTagBits) - 1)
@@ -532,7 +541,8 @@ public enum EnumLayoutCalculator {
             maxExtraInhabitants = numExtraInhabitants
         } else {
             let usableSpareBits = min(totalSpareBits, 32)
-            maxExtraInhabitants = (usableSpareBits >= 32) ? Int.max : (1 << usableSpareBits) - 1
+            // Cap at ValueWitnessFlags::MaxNumExtraInhabitants (0x7FFFFFFF).
+            maxExtraInhabitants = (usableSpareBits >= 32) ? 0x7FFF_FFFF : (1 << usableSpareBits) - 1
         }
 
         // Hybrid strategy: use XI first, overflow to extra tag bytes.
