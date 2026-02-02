@@ -38,7 +38,7 @@ final class MultiPayloadEnumTests: MachOImageTests {
         let payloadSpareBits = try descriptor.payloadSpareBits()
         print("SpareBitMaskByteOffset:", offset)
         print("SpareBitMaskByteCount:", count)
-        SpareBitAnalyzer.analyze(bytes: payloadSpareBits, startOffset: offset.cast())
+        SpareBitAnalyzer.printAnalysis(bytes: payloadSpareBits, startOffset: offset.cast())
     }
 
     @Test func main() async throws {
@@ -62,16 +62,15 @@ final class MultiPayloadEnumTests: MachOImageTests {
             var payloadCases: UInt32 = 0
             var payloadSize: UInt64 = 0
             var optionalSize = 0
+            let enumTypeLayout = try enumMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
             defer {
                 do {
-                    let enumTypeLayout = try enumMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
-                    print(enumTypeLayout)
                     if enumDescriptor.isMultiPayload {
                         if let multiPayloadEnumDescriptor = multiPayloadEnumDescriptorByMangledName[typeName], multiPayloadEnumDescriptor.usesPayloadSpareBits {
                             try printMultiPayloadEnum(multiPayloadEnumDescriptor)
                             let spareBytes = try multiPayloadEnumDescriptor.payloadSpareBits()
                             let spareBytesOffset = try multiPayloadEnumDescriptor.payloadSpareBitMaskByteOffset()
-                            try Calculator.calculateMultiPayload( /* enumSize: enumTypeLayout.size.cast(), */ payloadSize: payloadSize.cast(), spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast(), numPayloadCases: payloadCases.cast(), numEmptyCases: emptyCases.cast()).print()
+                            Calculator.calculateMultiPayload( /* enumSize: enumTypeLayout.size.cast(), */ payloadSize: payloadSize.cast(), spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast(), numPayloadCases: payloadCases.cast(), numEmptyCases: emptyCases.cast()).print()
                             if optionalSize > .zero {
                                 Calculator.calculateSinglePayload(size: optionalSize, payloadSize: payloadSize.cast(), numEmptyCases: 1, spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast()).print()
                             }
