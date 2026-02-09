@@ -36,46 +36,32 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
 
     public let protocolName: ProtocolName
 
-    @Mutex
-    public weak var parent: TypeDefinition?
+    public internal(set) weak var parent: TypeDefinition?
 
-    @Mutex
-    public var extensionContext: ExtensionContext? = nil
+    public internal(set) var extensionContext: ExtensionContext? = nil
 
-    @Mutex
-    public var defaultImplementationExtensions: [ExtensionDefinition] = []
+    public internal(set) var defaultImplementationExtensions: [ExtensionDefinition] = []
 
-    @Mutex
-    public var associatedTypes: [String] = []
+    public internal(set) var associatedTypes: [String] = []
 
-    @Mutex
-    public var allocators: [FunctionDefinition] = []
+    public internal(set) var allocators: [FunctionDefinition] = []
 
-    @Mutex
-    public var constructors: [FunctionDefinition] = []
+    public internal(set) var constructors: [FunctionDefinition] = []
 
-    @Mutex
-    public var variables: [VariableDefinition] = []
+    public internal(set) var variables: [VariableDefinition] = []
 
-    @Mutex
-    public var functions: [FunctionDefinition] = []
+    public internal(set) var functions: [FunctionDefinition] = []
 
-    @Mutex
-    public var subscripts: [SubscriptDefinition] = []
+    public internal(set) var subscripts: [SubscriptDefinition] = []
 
-    @Mutex
-    public var staticVariables: [VariableDefinition] = []
+    public internal(set) var staticVariables: [VariableDefinition] = []
 
-    @Mutex
-    public var staticFunctions: [FunctionDefinition] = []
+    public internal(set) var staticFunctions: [FunctionDefinition] = []
 
-    @Mutex
-    public var staticSubscripts: [SubscriptDefinition] = []
+    public internal(set) var staticSubscripts: [SubscriptDefinition] = []
 
-    @Mutex
-    public var strippedSymbolicRequirements: [ProtocolRequirement] = []
+    public internal(set) var strippedSymbolicRequirements: [ProtocolRequirement] = []
 
-    @Mutex
     public private(set) var isIndexed: Bool = false
 
     public var hasMembers: Bool {

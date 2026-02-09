@@ -18,40 +18,28 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
 
     public let associatedType: AssociatedType?
 
-    @Mutex
-    public var types: [TypeDefinition] = []
+    public internal(set) var types: [TypeDefinition] = []
 
-    @Mutex
-    public var protocols: [ProtocolDefinition] = []
+    public internal(set) var protocols: [ProtocolDefinition] = []
 
-    @Mutex
-    public var allocators: [FunctionDefinition] = []
+    public internal(set) var allocators: [FunctionDefinition] = []
 
-    @Mutex
-    public var constructors: [FunctionDefinition] = []
+    public internal(set) var constructors: [FunctionDefinition] = []
 
-    @Mutex
-    public var variables: [VariableDefinition] = []
+    public internal(set) var variables: [VariableDefinition] = []
 
-    @Mutex
-    public var functions: [FunctionDefinition] = []
+    public internal(set) var functions: [FunctionDefinition] = []
 
-    @Mutex
-    public var subscripts: [SubscriptDefinition] = []
+    public internal(set) var subscripts: [SubscriptDefinition] = []
 
-    @Mutex
-    public var staticVariables: [VariableDefinition] = []
+    public internal(set) var staticVariables: [VariableDefinition] = []
 
-    @Mutex
-    public var staticFunctions: [FunctionDefinition] = []
+    public internal(set) var staticFunctions: [FunctionDefinition] = []
 
-    @Mutex
-    public var staticSubscripts: [SubscriptDefinition] = []
+    public internal(set) var staticSubscripts: [SubscriptDefinition] = []
 
-    @Mutex
-    public var missingSymbolWitnesses: [ResilientWitness] = []
+    public internal(set) var missingSymbolWitnesses: [ResilientWitness] = []
 
-    @Mutex
     public private(set) var isIndexed: Bool = false
 
     public var hasMembers: Bool {

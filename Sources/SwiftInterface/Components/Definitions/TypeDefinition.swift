@@ -21,55 +21,38 @@ public final class TypeDefinition: Definition {
 
     public let typeName: TypeName
 
-    @Mutex
-    public weak var parent: TypeDefinition?
+    public internal(set) weak var parent: TypeDefinition?
 
-    @Mutex
-    public var typeChildren: [TypeDefinition] = []
+    public internal(set) var typeChildren: [TypeDefinition] = []
 
-    @Mutex
-    public var protocolChildren: [ProtocolDefinition] = []
+    public internal(set) var protocolChildren: [ProtocolDefinition] = []
 
-    @Mutex
-    public var parentContext: ParentContext? = nil
+    public internal(set) var parentContext: ParentContext? = nil
 
-    @Mutex
-    public var extensions: [ExtensionDefinition] = []
+    public internal(set) var extensions: [ExtensionDefinition] = []
 
-    @Mutex
-    public var fields: [FieldDefinition] = []
+    public internal(set) var fields: [FieldDefinition] = []
 
-    @Mutex
-    public var variables: [VariableDefinition] = []
+    public internal(set) var variables: [VariableDefinition] = []
 
-    @Mutex
-    public var functions: [FunctionDefinition] = []
+    public internal(set) var functions: [FunctionDefinition] = []
 
-    @Mutex
-    public var subscripts: [SubscriptDefinition] = []
+    public internal(set) var subscripts: [SubscriptDefinition] = []
 
-    @Mutex
-    public var staticVariables: [VariableDefinition] = []
+    public internal(set) var staticVariables: [VariableDefinition] = []
 
-    @Mutex
-    public var staticFunctions: [FunctionDefinition] = []
+    public internal(set) var staticFunctions: [FunctionDefinition] = []
 
-    @Mutex
-    public var staticSubscripts: [SubscriptDefinition] = []
+    public internal(set) var staticSubscripts: [SubscriptDefinition] = []
 
-    @Mutex
-    public var allocators: [FunctionDefinition] = []
+    public internal(set) var allocators: [FunctionDefinition] = []
 
-    @Mutex
-    public var constructors: [FunctionDefinition] = []
+    public internal(set) var constructors: [FunctionDefinition] = []
 
-    @Mutex
-    public var hasDeallocator: Bool = false
+    public internal(set) var hasDeallocator: Bool = false
 
-    @Mutex
-    public var hasDestructor: Bool = false
+    public internal(set) var hasDestructor: Bool = false
 
-    @Mutex
     public private(set) var isIndexed: Bool = false
 
     public var hasMembers: Bool {

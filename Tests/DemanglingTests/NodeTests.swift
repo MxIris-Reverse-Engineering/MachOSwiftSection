@@ -336,3 +336,10 @@ struct NodeDemanglingTests {
         #expect(result == "[Swift.String : Swift.Int]")
     }
 }
+
+struct NodeChildrenTests {
+    
+    @Test func size() async throws {
+        print(MemoryLayout<[Node]>.size)
+    }
+}

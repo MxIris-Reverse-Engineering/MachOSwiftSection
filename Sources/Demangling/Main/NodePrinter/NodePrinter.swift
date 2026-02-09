@@ -736,7 +736,11 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
             _ = printName(lastChild)
             dropLast = true
         }
-        printSequence(dropLast ? Array(name.children.dropLast()) : name.children, prefix: "(", suffix: ")", separator: ", ")
+        if dropLast {
+            printSequence(name.children.dropLast(), prefix: "(", suffix: ")", separator: ", ")
+        } else {
+            printSequence(name.children, prefix: "(", suffix: ")", separator: ", ")
+        }
     }
 
     private mutating func printFieldOffset(_ name: Node) {

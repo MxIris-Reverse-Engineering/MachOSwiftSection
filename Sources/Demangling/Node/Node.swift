@@ -4,7 +4,7 @@ import SwiftStdlibToolbox
 ///
 /// Thread safety: Node is safe to read from multiple threads after demangling is complete.
 /// All modifications happen during the single-threaded demangling process.
-public final class Node: @unchecked Sendable {
+public final class Node: Sendable {
     public enum Contents: Hashable, Sendable {
         case none
         case index(UInt64)
@@ -15,24 +15,40 @@ public final class Node: @unchecked Sendable {
 
     public let contents: Contents
 
-    /// The parent node in the tree. Only modified during demangling.
-    public nonisolated(unsafe) private(set) weak var parent: Node?
+    /// Raw parent pointer — avoids weak reference side table allocation (saves ~48 bytes per node).
+    /// Safety: Parent always outlives children (parent holds strong refs via `children` array).
+    nonisolated(unsafe) private var _parent: Unmanaged<Node>?
 
-    /// Child nodes. Only modified during demangling.
-    public nonisolated(unsafe) private(set) var children: [Node] = []
+    /// The parent node in the tree. Only modified during demangling.
+    public var parent: Node? {
+        _parent?.takeUnretainedValue()
+    }
+
+    /// Child nodes stored inline for 0–2 children. Only modified during demangling.
+    nonisolated(unsafe) public private(set) var children: NodeChildren = .init()
 
     public init(kind: Kind, contents: Contents = .none, children: [Node] = []) {
         self.kind = kind
         self.contents = contents
-        self.children = children
-        for child in children {
-            child.parent = self
+        self.children = NodeChildren(children)
+        for child in self.children {
+            child._parent = .passUnretained(self)
+        }
+    }
+
+    public init(kind: Kind, contents: Contents = .none, inlineChildren: NodeChildren) {
+        self.kind = kind
+        self.contents = contents
+        self.children = inlineChildren
+        for child in self.children {
+            child._parent = .passUnretained(self)
         }
     }
 
     public func copy() -> Node {
-        let copy = Node(kind: kind, contents: contents, children: children.map { $0.copy() })
-        copy.parent = parent
+        let copiedChildren = NodeChildren(children.map { $0.copy() })
+        let copy = Node(kind: kind, contents: contents, inlineChildren: copiedChildren)
+        copy._parent = _parent
         return copy
     }
 }
@@ -47,21 +63,16 @@ extension Node {
         } else {
             modifiedChildren.remove(at: index)
         }
-        return Node(kind: kind, contents: contents, children: modifiedChildren)
+        return Node(kind: kind, contents: contents, inlineChildren: modifiedChildren)
     }
 
     func changeKind(_ newKind: Kind, additionalChildren: [Node] = []) -> Node {
-        if case .text(let text) = contents {
-            return Node(kind: newKind, contents: .text(text), children: children + additionalChildren)
-        } else if case .index(let i) = contents {
-            return Node(kind: newKind, contents: .index(i), children: children + additionalChildren)
-        } else {
-            return Node(kind: newKind, contents: .none, children: children + additionalChildren)
-        }
+        let newChildren = children + additionalChildren
+        return Node(kind: newKind, contents: contents, inlineChildren: newChildren)
     }
 
     func addChild(_ newChild: Node) {
-        newChild.parent = self
+        newChild._parent = .passUnretained(self)
         children.append(newChild)
     }
 
@@ -72,27 +83,34 @@ extension Node {
 
     func insertChild(_ newChild: Node, at index: Int) {
         guard index >= 0, index <= children.count else { return }
-        newChild.parent = self
+        newChild._parent = .passUnretained(self)
         children.insert(newChild, at: index)
     }
 
     func addChildren(_ newChildren: [Node]) {
         for child in newChildren {
-            child.parent = self
+            child._parent = .passUnretained(self)
+        }
+        children.append(contentsOf: newChildren)
+    }
+
+    func addChildren(_ newChildren: NodeChildren) {
+        for child in newChildren {
+            child._parent = .passUnretained(self)
         }
         children.append(contentsOf: newChildren)
     }
 
     func setChildren(_ newChildren: [Node]) {
         for child in newChildren {
-            child.parent = self
+            child._parent = .passUnretained(self)
         }
-        children = newChildren
+        children = NodeChildren(newChildren)
     }
 
     func setChild(_ child: Node, at index: Int) {
         guard children.indices.contains(index) else { return }
-        child.parent = self
+        child._parent = .passUnretained(self)
         children[index] = child
     }
 
@@ -111,28 +129,31 @@ extension Node {
 extension Node {
     /// Returns a new node with the child added.
     func addingChild(_ newChild: Node) -> Node {
-        Node(kind: kind, contents: contents, children: children + [newChild])
+        var nc = children
+        nc.append(newChild)
+        return Node(kind: kind, contents: contents, inlineChildren: nc)
     }
 
     /// Returns a new node with the child removed at the specified index.
     func removingChild(at index: Int) -> Node {
         guard children.indices.contains(index) else { return self }
-        var modifiedChildren = children
-        modifiedChildren.remove(at: index)
-        return Node(kind: kind, contents: contents, children: modifiedChildren)
+        var nc = children
+        nc.remove(at: index)
+        return Node(kind: kind, contents: contents, inlineChildren: nc)
     }
 
     /// Returns a new node with the child inserted at the specified index.
     func insertingChild(_ newChild: Node, at index: Int) -> Node {
         guard index >= 0, index <= children.count else { return self }
-        var modifiedChildren = children
-        modifiedChildren.insert(newChild, at: index)
-        return Node(kind: kind, contents: contents, children: modifiedChildren)
+        var nc = children
+        nc.insert(newChild, at: index)
+        return Node(kind: kind, contents: contents, inlineChildren: nc)
     }
 
     /// Returns a new node with the children added.
     func addingChildren(_ newChildren: [Node]) -> Node {
-        Node(kind: kind, contents: contents, children: children + newChildren)
+        let nc = children + newChildren
+        return Node(kind: kind, contents: contents, inlineChildren: nc)
     }
 
     /// Returns a new node with the specified children.
@@ -143,21 +164,23 @@ extension Node {
     /// Returns a new node with the child replaced at the specified index.
     func withChild(_ child: Node, at index: Int) -> Node {
         guard children.indices.contains(index) else { return self }
-        var modifiedChildren = children
-        modifiedChildren[index] = child
-        return Node(kind: kind, contents: contents, children: modifiedChildren)
+        var nc = children
+        nc[index] = child
+        return Node(kind: kind, contents: contents, inlineChildren: nc)
     }
 
     /// Returns a new node with children reversed.
     func reversingChildren() -> Node {
-        Node(kind: kind, contents: contents, children: children.reversed())
+        var nc = children
+        nc.reverse()
+        return Node(kind: kind, contents: contents, inlineChildren: nc)
     }
 
     /// Returns a new node with the first N children reversed.
     func reversingFirst(_ count: Int) -> Node {
-        var modifiedChildren = children
-        modifiedChildren.reverseFirst(count)
-        return Node(kind: kind, contents: contents, children: modifiedChildren)
+        var nc = children
+        nc.reverseFirst(count)
+        return Node(kind: kind, contents: contents, inlineChildren: nc)
     }
 
     /// Returns a new tree with the descendant node replaced.
