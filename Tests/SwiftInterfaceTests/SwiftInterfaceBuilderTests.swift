@@ -1,12 +1,12 @@
 import Foundation
 import Testing
 import MachOKit
+import Dependencies
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
 @testable import SwiftInterface
-import Dependencies
-@_private(sourceFile: "SymbolIndexStore.swift") @_spi(Internals) import MachOSymbols
-@_spi(Internals) import MachOCaches
+@_spi(Internals) @testable import MachOSymbols
+@_spi(Internals) @testable import MachOCaches
 
 protocol SwiftInterfaceBuilderTests {}
 
