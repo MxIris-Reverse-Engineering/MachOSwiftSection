@@ -152,12 +152,12 @@ extension Node {
     }
 
     public subscript(safeChild childIndex: Int) -> Node? {
-        children[safe: childIndex]
+        children.at(childIndex)
     }
 
     public subscript(throwChild childIndex: Int) -> Node {
         get throws(IndexOutOfBoundError) {
-            if let child = children[safe: childIndex] {
+            if let child = children.at(childIndex) {
                 return child
             } else {
                 throw .default

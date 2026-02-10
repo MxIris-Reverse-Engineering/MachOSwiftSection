@@ -1,5 +1,4 @@
 import Foundation
-import UtilitiesC
 
 // namespace SpecialPointerAuthDiscriminators {
 //  // All of these values are the stable string hash of the corresponding

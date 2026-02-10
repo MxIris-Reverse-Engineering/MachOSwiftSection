@@ -3804,7 +3804,7 @@ extension Demangler {
         case "x": type = Node(kind: .dependentGenericParamType, contents: .text(archetypeName(0, 0)), children: [Node(kind: .index, contents: .index(0)), Node(kind: .index, contents: .index(0))])
         case "w": type = try demangleSwift3AssociatedTypeSimple()
         case "W": type = try demangleSwift3AssociatedTypeCompound()
-        case "R": type = try Node(kind: .inOut, children: demangleSwift3Type().children)
+        case "R": type = try Node(kind: .inOut, inlineChildren: demangleSwift3Type().children)
         case "S": type = try demangleSwift3SubstitutionIndex()
         case "T": type = try demangleSwift3Tuple(variadic: false)
         case "t": type = try demangleSwift3Tuple(variadic: true)

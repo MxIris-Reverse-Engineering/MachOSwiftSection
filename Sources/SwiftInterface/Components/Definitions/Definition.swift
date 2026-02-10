@@ -1,6 +1,6 @@
 import MachOSwiftSection
 
-public protocol Definition: AnyObject, Sendable {
+public protocol Definition: AnyObject {
     var isIndexed: Bool { get }
     var allocators: [FunctionDefinition] { get }
     var constructors: [FunctionDefinition] { get }
@@ -12,7 +12,7 @@ public protocol Definition: AnyObject, Sendable {
     var staticSubscripts: [SubscriptDefinition] { get }
 }
 
-package protocol MutableDefinition: Definition {
+protocol MutableDefinition: Definition {
     var allocators: [FunctionDefinition] { get set }
     var constructors: [FunctionDefinition] { get set }
     var variables: [VariableDefinition] { get set }

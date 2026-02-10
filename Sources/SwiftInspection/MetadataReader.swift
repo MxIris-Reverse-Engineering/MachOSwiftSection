@@ -213,11 +213,11 @@ extension MetadataReader {
                 case .uniqueExtendedExistentialTypeShape:
                     let extendedExistentialTypeShape = try RelativeDirectPointer<ExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(at: baseAddress, in: context)
                     let existentialType = try extendedExistentialTypeShape.existentialType(in: context)
-                    result = try .init(kind: .uniqueExtendedExistentialTypeShapeSymbolicReference, children: demangle(for: existentialType, kind: .type, in: context).children)
+                    result = try .init(kind: .uniqueExtendedExistentialTypeShapeSymbolicReference, inlineChildren: demangle(for: existentialType, kind: .type, in: context).children)
                 case .nonUniqueExtendedExistentialTypeShape:
                     let nonUniqueExtendedExistentialTypeShape = try RelativeDirectPointer<NonUniqueExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(at: baseAddress, in: context)
                     let existentialType = try nonUniqueExtendedExistentialTypeShape.existentialType(in: context)
-                    result = try .init(kind: .nonUniqueExtendedExistentialTypeShapeSymbolicReference, children: demangle(for: existentialType, kind: .type, in: context).children)
+                    result = try .init(kind: .nonUniqueExtendedExistentialTypeShapeSymbolicReference, inlineChildren: demangle(for: existentialType, kind: .type, in: context).children)
                 case .objectiveCProtocol:
                     let relativePointer = RelativeDirectPointer<RelativeObjCProtocolPrefix>(relativeOffset: relativeOffset)
                     let objcProtocol = try relativePointer.resolve(at: baseAddress, in: context)

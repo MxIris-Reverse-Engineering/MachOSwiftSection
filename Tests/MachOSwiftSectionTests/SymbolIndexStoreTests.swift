@@ -1,13 +1,15 @@
 import Foundation
 import Testing
+import Dependencies
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
-import Dependencies
-@_private(sourceFile: "SymbolIndexStore.swift") @_spi(Internals) import MachOSymbols
-@_spi(Internals) import MachOCaches
+@_spi(Internals) @testable import MachOSymbols
+@_spi(Internals) @testable import MachOCaches
 
 final class SymbolIndexStoreTests: DyldCacheTests, @unchecked Sendable {
-    override class var cacheImageName: MachOImageName { .SwiftUICore }
+    override class var cacheImageName: MachOImageName {
+        .SwiftUICore
+    }
 
     @Dependency(\.symbolIndexStore)
     var symbolIndexStore

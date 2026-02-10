@@ -112,31 +112,31 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         public let kind: Kind
     }
 
-    fileprivate typealias IndexedSymbol = DemangledSymbol
-    fileprivate typealias AllSymbols = [IndexedSymbol]
-    fileprivate typealias GlobalSymbols = [IndexedSymbol]
-    fileprivate typealias MemberSymbols = OrderedDictionary<String, OrderedDictionary<Node, [IndexedSymbol]>>
-    fileprivate typealias OpaqueTypeDescriptorSymbol = IndexedSymbol
+    typealias IndexedSymbol = DemangledSymbol
+    typealias AllSymbols = [IndexedSymbol]
+    typealias GlobalSymbols = [IndexedSymbol]
+    typealias MemberSymbols = OrderedDictionary<String, OrderedDictionary<Node, [IndexedSymbol]>>
+    typealias OpaqueTypeDescriptorSymbol = IndexedSymbol
 
     public final class Storage: @unchecked Sendable {
         
-        fileprivate private(set) var typeInfoByName: [String: TypeInfo] = [:]
+        private(set) var typeInfoByName: [String: TypeInfo] = [:]
         
-        fileprivate private(set) var globalSymbolsByKind: OrderedDictionary<GlobalKind, GlobalSymbols> = [:]
+        private(set) var globalSymbolsByKind: OrderedDictionary<GlobalKind, GlobalSymbols> = [:]
         
-        fileprivate private(set) var opaqueTypeDescriptorSymbolByNode: OrderedDictionary<Node, OpaqueTypeDescriptorSymbol> = [:]
+        private(set) var opaqueTypeDescriptorSymbolByNode: OrderedDictionary<Node, OpaqueTypeDescriptorSymbol> = [:]
         
-        fileprivate private(set) var memberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
+        private(set) var memberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
         
-        fileprivate private(set) var methodDescriptorMemberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
+        private(set) var methodDescriptorMemberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
         
-        fileprivate private(set) var protocolWitnessMemberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
+        private(set) var protocolWitnessMemberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
         
-        fileprivate private(set) var symbolsByKind: OrderedDictionary<Node.Kind, AllSymbols> = [:]
+        private(set) var symbolsByKind: OrderedDictionary<Node.Kind, AllSymbols> = [:]
         
-        fileprivate private(set) var symbolsByOffset: OrderedDictionary<Int, [Symbol]> = [:]
+        private(set) var symbolsByOffset: OrderedDictionary<Int, [Symbol]> = [:]
         
-        fileprivate private(set) var demangledNodeBySymbol: [Symbol: Node] = [:]
+        private(set) var demangledNodeBySymbol: [Symbol: Node] = [:]
 
         fileprivate func appendSymbol(_ symbol: IndexedSymbol, for kind: Node.Kind) {
             symbolsByKind[kind, default: []].append(symbol)
