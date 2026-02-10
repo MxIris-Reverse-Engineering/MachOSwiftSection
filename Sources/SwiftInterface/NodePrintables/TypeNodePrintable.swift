@@ -67,7 +67,12 @@ extension TypeNodePrintable {
 
         if shouldPrintContext(context) {
             let currentPos = target.count
-            _ = await printName(context, asPrefixContext: true)
+            if context.kind == .module {
+                let siblingIdentifier = name.children.at(1)?.text
+                await printModule(context, siblingIdentifier: siblingIdentifier)
+            } else {
+                _ = await printName(context, asPrefixContext: true)
+            }
             if target.count != currentPos {
                 target.write(".")
             }

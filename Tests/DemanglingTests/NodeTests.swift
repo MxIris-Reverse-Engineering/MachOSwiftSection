@@ -13,7 +13,6 @@ struct NodeTests {
         #expect(node.kind == .type)
         #expect(node.contents == .none)
         #expect(node.children.isEmpty)
-        #expect(node.parent == nil)
     }
 
     @Test func nodeWithTextContents() {
@@ -36,8 +35,8 @@ struct NodeTests {
         let parent = Node(kind: .type, children: [child1, child2])
 
         #expect(parent.children.count == 2)
-        #expect(child1.parent === parent)
-        #expect(child2.parent === parent)
+        #expect(parent.children[0].text == "A")
+        #expect(parent.children[1].text == "B")
     }
 
     // MARK: - Result Builder Syntax
@@ -232,27 +231,16 @@ struct NodeTests {
         #expect(contents1 != contents6)
     }
 
-    // MARK: - Parent Relationship
+    // MARK: - Child Addition
 
-    @Test func parentSetOnChildAddition() {
+    @Test func childAddition() {
         let parent = Node(kind: .type)
-        let child = Node(kind: .identifier)
+        let child = Node(kind: .identifier, contents: .text("X"))
 
         parent.addChild(child)
 
-        #expect(child.parent === parent)
-    }
-
-    @Test func parentUpdatedOnReparenting() {
-        let parent1 = Node(kind: .type)
-        let parent2 = Node(kind: .global)
-        let child = Node(kind: .identifier)
-
-        parent1.addChild(child)
-        #expect(child.parent === parent1)
-
-        parent2.addChild(child)
-        #expect(child.parent === parent2)
+        #expect(parent.children.count == 1)
+        #expect(parent.children[0].text == "X")
     }
 }
 

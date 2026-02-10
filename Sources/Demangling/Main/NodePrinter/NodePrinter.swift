@@ -3,6 +3,7 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
     private var specializationPrefixPrinted: Bool
     private var options: DemangleOptions
     private var hidingCurrentModule: String = ""
+    private var dependentMemberTypeDepth: Int = 0
 
     package init(options: DemangleOptions = .default) {
         self.target = .init()
@@ -471,7 +472,7 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
         guard options.contains(.qualifyEntities) else {
             return false
         }
-        if !options.contains(.showModuleInDependentMemberType), let dependentMemberType = context.parent?.parent?.parent?.parent, dependentMemberType.kind == .dependentMemberType {
+        if !options.contains(.showModuleInDependentMemberType), dependentMemberTypeDepth > 0 {
             return false
         }
         if context.kind == .module, let text = context.text, !text.isEmpty {
@@ -1080,6 +1081,8 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
     }
 
     private mutating func printDependentMemberType(_ name: Node) {
+        dependentMemberTypeDepth += 1
+        defer { dependentMemberTypeDepth -= 1 }
         printFirstChild(name)
         target.write(".")
         _ = printOptional(name.children.at(1))
@@ -1515,8 +1518,8 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
         _ = printOptional(name.children.at(1), prefix: "<", suffix: ">")
     }
 
-    private mutating func printIdentifier(_ name: Node, asPrefixContext: Bool = false) {
-        target.write(name.text ?? "", context: .context(for: name, state: .printIdentifier))
+    private mutating func printIdentifier(_ name: Node, asPrefixContext: Bool = false, parentKind: Node.Kind? = nil) {
+        target.write(name.text ?? "", context: .context(for: name, parentKind: parentKind, state: .printIdentifier))
     }
 
     private mutating func printAbstractStorage(_ name: Node?, asPrefixContext: Bool, extraName: String) -> Node? {
@@ -1597,7 +1600,11 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
             } else {
                 if let one = name.children.at(1) {
                     if one.kind != .privateDeclName {
-                        _ = printName(one)
+                        if one.kind == .identifier {
+                            printIdentifier(one, parentKind: name.kind)
+                        } else {
+                            _ = printName(one)
+                        }
                     }
                     if let pdn = name.children.first(where: { $0.kind == .privateDeclName }) {
                         _ = printName(pdn)

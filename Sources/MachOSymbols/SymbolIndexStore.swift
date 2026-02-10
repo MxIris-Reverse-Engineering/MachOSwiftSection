@@ -308,10 +308,16 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             }
             return processMemberSymbol(symbol, node: first, rootNode: rootNode, memberKind: .function(inExtension: traits.contains(.inExtension), isStatic: traits.contains(.isStatic)))
         case .variable:
-            guard let parent = node.parent, parent.children.first === node else { return nil }
-            node = parent
+            // Stored variable reached directly (not through getter/setter)
             traits.insert(.isStorage)
-            fallthrough
+            var first = node.children.first
+            if first?.kind == .extension, let type = first?.children.at(1) {
+                traits.insert(.inExtension)
+                first = type
+            }
+            if let first {
+                return processMemberSymbol(symbol, node: first, rootNode: rootNode, memberKind: .variable(inExtension: traits.contains(.inExtension), isStatic: traits.contains(.isStatic), isStorage: traits.contains(.isStorage)))
+            }
         case .getter,
              .setter:
             if let variableNode = node.children.first, variableNode.kind == .variable, var first = variableNode.children.first {
@@ -354,9 +360,9 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         case .function:
             return .init(kind: .function, indexedSymbol: DemangledSymbol(symbol: symbol, demangledNode: rootNode))
         case .variable:
-            guard let parent = node.parent, parent.children.first === node else { return nil }
-            let isStorage = node.parent?.isAccessor == false
-            return .init(kind: .variable(isStorage: isStorage), indexedSymbol: DemangledSymbol(symbol: symbol, demangledNode: rootNode))
+            // When we reach .variable directly (not through getter/setter),
+            // this is a stored variable declaration
+            return .init(kind: .variable(isStorage: true), indexedSymbol: DemangledSymbol(symbol: symbol, demangledNode: rootNode))
         case .getter,
              .setter:
             if let variableNode = node.children.first, variableNode.kind == .variable {

@@ -36,15 +36,6 @@ public final class Node: Sendable {
     @usableFromInline
     nonisolated(unsafe) var payload: Payload
 
-    /// Raw parent pointer — avoids weak reference side table allocation (saves ~48 bytes per node).
-    /// Safety: Parent always outlives children (parent holds strong refs via `children` array).
-    nonisolated(unsafe) private var _parent: Unmanaged<Node>?
-
-    /// The parent node in the tree. Only modified during demangling.
-    public var parent: Node? {
-        _parent?.takeUnretainedValue()
-    }
-
     /// The contents of this node (text, index, or none).
     @inlinable
     public var contents: Contents {
@@ -74,9 +65,6 @@ public final class Node: Sendable {
         }
         set {
             payload = Self.mergedPayload(contents: contents, children: newValue)
-            for child in newValue {
-                child._parent = .passUnretained(self)
-            }
         }
     }
 
@@ -101,24 +89,16 @@ public final class Node: Sendable {
     public init(kind: Kind, contents: Contents = .none, children: [Node] = []) {
         self.kind = kind
         self.payload = Self.mergedPayload(contents: contents, children: NodeChildren(children))
-        for child in self.children {
-            child._parent = .passUnretained(self)
-        }
     }
 
     public init(kind: Kind, contents: Contents = .none, inlineChildren: NodeChildren) {
         self.kind = kind
         self.payload = Self.mergedPayload(contents: contents, children: inlineChildren)
-        for child in self.children {
-            child._parent = .passUnretained(self)
-        }
     }
 
     public func copy() -> Node {
         let copiedChildren = NodeChildren(children.map { $0.copy() })
-        let copy = Node(kind: kind, contents: contents, inlineChildren: copiedChildren)
-        copy._parent = _parent
-        return copy
+        return Node(kind: kind, contents: contents, inlineChildren: copiedChildren)
     }
 }
 
@@ -143,7 +123,6 @@ extension Node {
     /// Optimized addChild that mutates payload directly for the common
     /// children-only cases, avoiding a full get/rebuild/set round-trip.
     func addChild(_ newChild: Node) {
-        newChild._parent = .passUnretained(self)
         switch payload {
         case .none:
             payload = .oneChild(newChild)
@@ -171,40 +150,29 @@ extension Node {
 
     func insertChild(_ newChild: Node, at index: Int) {
         guard index >= 0, index <= children.count else { return }
-        newChild._parent = .passUnretained(self)
         var c = children
         c.insert(newChild, at: index)
         payload = Self.mergedPayload(contents: contents, children: c)
     }
 
     func addChildren(_ newChildren: [Node]) {
-        for child in newChildren {
-            child._parent = .passUnretained(self)
-        }
         var c = children
         c.append(contentsOf: newChildren)
         payload = Self.mergedPayload(contents: contents, children: c)
     }
 
     func addChildren(_ newChildren: NodeChildren) {
-        for child in newChildren {
-            child._parent = .passUnretained(self)
-        }
         var c = children
         c.append(contentsOf: newChildren)
         payload = Self.mergedPayload(contents: contents, children: c)
     }
 
     func setChildren(_ newChildren: [Node]) {
-        for child in newChildren {
-            child._parent = .passUnretained(self)
-        }
         payload = Self.mergedPayload(contents: contents, children: NodeChildren(newChildren))
     }
 
     func setChild(_ child: Node, at index: Int) {
         guard children.indices.contains(index) else { return }
-        child._parent = .passUnretained(self)
         var c = children
         c[index] = child
         payload = Self.mergedPayload(contents: contents, children: c)

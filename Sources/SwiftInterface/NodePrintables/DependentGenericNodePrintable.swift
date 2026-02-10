@@ -3,7 +3,7 @@ import Demangling
 protocol DependentGenericNodePrintable: NodePrintable {
     var isProtocol: Bool { get }
     mutating func printNameInDependentGeneric(_ name: Node, context: Context?) async -> Bool
-    mutating func printGenericSignature(_ name: Node) async
+    mutating func printGenericSignature(_ name: Node, enclosingGenericType: Node?) async
     mutating func printDependentGenericConformanceRequirement(_ name: Node) async
     mutating func printDependentGenericLayoutRequirement(_ name: Node) async
     mutating func printDependentAssociatedTypeRef(_ name: Node) async
@@ -33,7 +33,7 @@ extension DependentGenericNodePrintable {
         case .dependentMemberType:
             await printDependentMemberType(name)
         case .dependentGenericSignature:
-            await printGenericSignature(name)
+            await printGenericSignature(name, enclosingGenericType: nil)
         case .dependentGenericInverseConformanceRequirement:
             await printDependentGenericInverseConformanceRequirement(name)
         case .dependentGenericParamPackMarker:
@@ -61,7 +61,7 @@ extension DependentGenericNodePrintable {
         }
     }
 
-    mutating func printGenericSignature(_ name: Node) async {
+    mutating func printGenericSignature(_ name: Node, enclosingGenericType: Node? = nil) async {
         target.write("<")
         var numGenericParams = 0
         for c in name.children {
@@ -120,7 +120,7 @@ extension DependentGenericNodePrintable {
             return nil
         }
 
-        let depths = name.parent?.findGenericParamsDepth()
+        let depths = enclosingGenericType?.findGenericParamsDepth()
 
         for gpDepth in 0 ..< numGenericParams {
             if gpDepth != 0 {
@@ -205,7 +205,11 @@ extension DependentGenericNodePrintable {
 
     mutating func printDependentGenericType(_ name: Node) async {
         guard let depType = name.children.at(1) else { return }
-        await printFirstChild(name)
+        if let sig = name.children.first, sig.kind == .dependentGenericSignature {
+            await printGenericSignature(sig, enclosingGenericType: name)
+        } else {
+            await printFirstChild(name)
+        }
         _ = await printOptional(depType, prefix: depType.needSpaceBeforeType ? " " : "")
     }
 

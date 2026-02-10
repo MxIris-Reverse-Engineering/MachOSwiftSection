@@ -50,13 +50,14 @@ struct NodeBuilderTests {
         #expect(builder.node.children[0].text == "Child")
     }
 
-    @Test func addChildSetsParent() {
+    @Test func addChildAddsToChildren() {
         let builder = NodeBuilder(kind: .type)
-        let child = Node(kind: .identifier)
+        let child = Node(kind: .identifier, contents: .text("X"))
 
         builder.addChild(child)
 
-        #expect(builder.node.children[0].parent === builder.node)
+        #expect(builder.node.children.count == 1)
+        #expect(builder.node.children[0].text == "X")
     }
 
     @Test func addChildren() {
