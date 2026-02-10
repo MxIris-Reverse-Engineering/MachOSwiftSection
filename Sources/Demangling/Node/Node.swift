@@ -4,16 +4,37 @@ import SwiftStdlibToolbox
 ///
 /// Thread safety: Node is safe to read from multiple threads after demangling is complete.
 /// All modifications happen during the single-threaded demangling process.
+///
+/// Internally uses a unified `Payload` enum that merges contents and children
+/// storage into a single discriminated union, mirroring the C++ Swift runtime's
+/// approach where `Text`/`Index`/`InlineChildren`/`Children` share a `union`.
+/// This saves ~24 bytes per node compared to storing them separately.
 public final class Node: Sendable {
+    /// Legacy contents type preserved for API compatibility.
     public enum Contents: Hashable, Sendable {
         case none
         case index(UInt64)
         case text(String)
     }
 
+    /// Unified storage that is either contents (text/index) or children, never both.
+    /// Mirrors the C++ Swift runtime's union where Text/Index/InlineChildren/Children
+    /// are mutually exclusive.
+    @usableFromInline
+    enum Payload: Sendable {
+        case none
+        case index(UInt64)
+        case text(String)
+        case oneChild(Node)
+        case twoChildren(Node, Node)
+        case manyChildren(ContiguousArray<Node>)
+    }
+
     public let kind: Kind
 
-    public let contents: Contents
+    /// Unified payload storage. Only modified during demangling for child mutations.
+    @usableFromInline
+    nonisolated(unsafe) var payload: Payload
 
     /// Raw parent pointer — avoids weak reference side table allocation (saves ~48 bytes per node).
     /// Safety: Parent always outlives children (parent holds strong refs via `children` array).
@@ -24,13 +45,62 @@ public final class Node: Sendable {
         _parent?.takeUnretainedValue()
     }
 
-    /// Child nodes stored inline for 0–2 children. Only modified during demangling.
-    nonisolated(unsafe) public private(set) var children: NodeChildren = .init()
+    /// The contents of this node (text, index, or none).
+    @inlinable
+    public var contents: Contents {
+        switch payload {
+        case .none, .oneChild, .twoChildren, .manyChildren:
+            return .none
+        case .index(let i):
+            return .index(i)
+        case .text(let s):
+            return .text(s)
+        }
+    }
+
+    /// Child nodes. Only modified during demangling.
+    public var children: NodeChildren {
+        @inlinable get {
+            switch payload {
+            case .none, .index, .text:
+                return NodeChildren()
+            case .oneChild(let n):
+                return NodeChildren(n)
+            case .twoChildren(let n0, let n1):
+                return NodeChildren(n0, n1)
+            case .manyChildren(let children):
+                return NodeChildren(children)
+            }
+        }
+        set {
+            payload = Self.mergedPayload(contents: contents, children: newValue)
+            for child in newValue {
+                child._parent = .passUnretained(self)
+            }
+        }
+    }
+
+    /// Merge contents and children into the most compact payload case.
+    /// When children are present, they take priority (contents and children are mutually exclusive).
+    @usableFromInline
+    static func mergedPayload(contents: Contents, children: NodeChildren) -> Payload {
+        if children.count > 0 {
+            switch children.count {
+            case 1: return .oneChild(children[0])
+            case 2: return .twoChildren(children[0], children[1])
+            default: return .manyChildren(children.toContiguousArray())
+            }
+        }
+        switch contents {
+        case .none: return .none
+        case .index(let i): return .index(i)
+        case .text(let s): return .text(s)
+        }
+    }
 
     public init(kind: Kind, contents: Contents = .none, children: [Node] = []) {
         self.kind = kind
-        self.contents = contents
-        self.children = NodeChildren(children)
+        self.payload = Self.mergedPayload(contents: contents, children: NodeChildren(children))
         for child in self.children {
             child._parent = .passUnretained(self)
         }
@@ -38,8 +108,7 @@ public final class Node: Sendable {
 
     public init(kind: Kind, contents: Contents = .none, inlineChildren: NodeChildren) {
         self.kind = kind
-        self.contents = contents
-        self.children = inlineChildren
+        self.payload = Self.mergedPayload(contents: contents, children: inlineChildren)
         for child in self.children {
             child._parent = .passUnretained(self)
         }
@@ -71,55 +140,86 @@ extension Node {
         return Node(kind: newKind, contents: contents, inlineChildren: newChildren)
     }
 
+    /// Optimized addChild that mutates payload directly for the common
+    /// children-only cases, avoiding a full get/rebuild/set round-trip.
     func addChild(_ newChild: Node) {
         newChild._parent = .passUnretained(self)
-        children.append(newChild)
+        switch payload {
+        case .none:
+            payload = .oneChild(newChild)
+        case .oneChild(let n):
+            payload = .twoChildren(n, newChild)
+        case .twoChildren(let n0, let n1):
+            payload = .manyChildren(ContiguousArray([n0, n1, newChild]))
+        case .manyChildren(var arr):
+            arr.append(newChild)
+            payload = .manyChildren(arr)
+        default:
+            // Rare path: node has both contents and children
+            var c = children
+            c.append(newChild)
+            payload = Self.mergedPayload(contents: contents, children: c)
+        }
     }
 
     func removeChild(at index: Int) {
         guard children.indices.contains(index) else { return }
-        children.remove(at: index)
+        var c = children
+        c.remove(at: index)
+        payload = Self.mergedPayload(contents: contents, children: c)
     }
 
     func insertChild(_ newChild: Node, at index: Int) {
         guard index >= 0, index <= children.count else { return }
         newChild._parent = .passUnretained(self)
-        children.insert(newChild, at: index)
+        var c = children
+        c.insert(newChild, at: index)
+        payload = Self.mergedPayload(contents: contents, children: c)
     }
 
     func addChildren(_ newChildren: [Node]) {
         for child in newChildren {
             child._parent = .passUnretained(self)
         }
-        children.append(contentsOf: newChildren)
+        var c = children
+        c.append(contentsOf: newChildren)
+        payload = Self.mergedPayload(contents: contents, children: c)
     }
 
     func addChildren(_ newChildren: NodeChildren) {
         for child in newChildren {
             child._parent = .passUnretained(self)
         }
-        children.append(contentsOf: newChildren)
+        var c = children
+        c.append(contentsOf: newChildren)
+        payload = Self.mergedPayload(contents: contents, children: c)
     }
 
     func setChildren(_ newChildren: [Node]) {
         for child in newChildren {
             child._parent = .passUnretained(self)
         }
-        children = NodeChildren(newChildren)
+        payload = Self.mergedPayload(contents: contents, children: NodeChildren(newChildren))
     }
 
     func setChild(_ child: Node, at index: Int) {
         guard children.indices.contains(index) else { return }
         child._parent = .passUnretained(self)
-        children[index] = child
+        var c = children
+        c[index] = child
+        payload = Self.mergedPayload(contents: contents, children: c)
     }
 
     func reverseChildren() {
-        children.reverse()
+        var c = children
+        c.reverse()
+        payload = Self.mergedPayload(contents: contents, children: c)
     }
 
     func reverseFirst(_ count: Int) {
-        children.reverseFirst(count)
+        var c = children
+        c.reverseFirst(count)
+        payload = Self.mergedPayload(contents: contents, children: c)
     }
 }
 

@@ -154,7 +154,7 @@ extension TargetGenericContext {
 
 extension Node {
     fileprivate static let firstGenericParamType = Node(kind: .type) {
-        Node(kind: .dependentGenericParamType, text: "A") {
+        Node(kind: .dependentGenericParamType) {
             Node(kind: .index, index: 0)
             Node(kind: .index, index: 0)
         }

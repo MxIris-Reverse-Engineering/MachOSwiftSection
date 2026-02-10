@@ -116,7 +116,7 @@ extension Demangler {
             return result
         }
 
-        return Node(kind: .suffix, contents: .text(String(String.UnicodeScalarView(scanner.scalars))), children: [])
+        return Node(kind: .suffix, text: String(String.UnicodeScalarView(scanner.scalars)))
     }
 
     private mutating func parseAndPushNames() throws(DemanglingError) {
@@ -693,9 +693,9 @@ extension Demangler {
             name = "\(name)\(depth)"
         }
 
-        return Node(kind: .dependentGenericParamType, contents: .text(name), children: [
-            Node(kind: .index, contents: .index(UInt64(depth))),
-            Node(kind: .index, contents: .index(UInt64(index))),
+        return Node(kind: .dependentGenericParamType, children: [
+            Node(kind: .index, index: UInt64(depth)),
+            Node(kind: .index, index: UInt64(index)),
         ])
     }
 
@@ -3110,7 +3110,7 @@ extension Demangler {
             case ("u", "p"): value = ValueWitnessKind.destructiveProjectEnumData.rawValue
             default: throw scanner.unexpectedError()
             }
-            return try Node(kind: .valueWitness, contents: .index(value), children: [demangleSwift3Type()])
+            return try Node(kind: .valueWitness, children: [Node(kind: .index, index: value), demangleSwift3Type()])
         case ("W", "V"): return try Node(kind: .valueWitnessTable, children: [demangleSwift3Type()])
         case ("W", "v"): return try Node(kind: .fieldOffset, children: [Node(kind: .directness, contents: .index(scanner.readScalar() == "d" ? 0 : 1)), demangleSwift3Entity()])
         case ("W", "P"): return try Node(kind: .protocolWitnessTable, children: [demangleSwift3ProtocolConformance()])
@@ -3176,7 +3176,7 @@ extension Demangler {
                     try scanner.match(scalar: "_")
                     paramChildren.append(Node(kind: .functionSignatureSpecializationParamKind, contents: .index(value)))
                 }
-                children.append(Node(kind: .functionSignatureSpecializationParam, contents: .index(count), children: paramChildren))
+                children.append(Node(kind: .functionSignatureSpecializationParam, children: paramChildren))
                 count += 1
             }
             return Node(kind: .functionSignatureSpecialization, children: children)
@@ -3418,7 +3418,7 @@ extension Demangler {
             let type = try demangleSwift3Context()
             return Node(kind: .extension, children: [module, type, signature])
         case "S": return try demangleSwift3SubstitutionIndex()
-        case "s": return Node(kind: .module, contents: .text(stdlibName), children: [])
+        case "s": return Node(kind: .module, text: stdlibName)
         case "G": return try demangleSwift3BoundGenericArgs(nominalType: demangleSwift3NominalType())
         case "F": fallthrough
         case "I": fallthrough
@@ -3439,7 +3439,7 @@ extension Demangler {
     mutating func demangleSwift3Module() throws(DemanglingError) -> Node {
         switch try scanner.readScalar() {
         case "S": return try demangleSwift3SubstitutionIndex()
-        case "s": return Node(kind: .module, contents: .text("Swift"), children: [])
+        case "s": return Node(kind: .module, text: "Swift")
         default:
             try scanner.backtrack()
             let module = try demangleSwift3Identifier(kind: .module)
@@ -3600,7 +3600,7 @@ extension Demangler {
             try scanner.backtrack()
             (depth, index) = try (0, demangleSwift3Index() + 1)
         }
-        return Node(kind: .dependentGenericParamType, contents: .text(archetypeName(index, depth)), children: [Node(kind: .index, contents: .index(depth)), Node(kind: .index, contents: .index(index))])
+        return Node(kind: .dependentGenericParamType, children: [Node(kind: .index, index: depth), Node(kind: .index, index: index)])
     }
 
     mutating func demangleSwift3DependentMemberTypeName(base: Node) throws(DemanglingError) -> Node {
@@ -3686,7 +3686,7 @@ extension Demangler {
         case "D": type = try Node(kind: .dynamicSelf, children: [demangleSwift3Type()])
         case "E":
             guard try scanner.readScalars(count: 2) == "RR" else { throw scanner.unexpectedError() }
-            type = Node(kind: .errorType, contents: .text(""), children: [])
+            type = Node(kind: .errorType, text: "")
         case "F": type = try demangleSwift3FunctionType(kind: .functionType)
         case "f": type = try demangleSwift3FunctionType(kind: .uncurriedFunctionType)
         case "G": type = try demangleSwift3BoundGenericArgs(nominalType: demangleSwift3NominalType())
@@ -3801,7 +3801,7 @@ extension Demangler {
             } else {
                 type = try demangleSwift3GenericParamIndex()
             }
-        case "x": type = Node(kind: .dependentGenericParamType, contents: .text(archetypeName(0, 0)), children: [Node(kind: .index, contents: .index(0)), Node(kind: .index, contents: .index(0))])
+        case "x": type = Node(kind: .dependentGenericParamType, children: [Node(kind: .index, index: 0), Node(kind: .index, index: 0)])
         case "w": type = try demangleSwift3AssociatedTypeSimple()
         case "W": type = try demangleSwift3AssociatedTypeCompound()
         case "R": type = try Node(kind: .inOut, inlineChildren: demangleSwift3Type().children)
@@ -3954,7 +3954,7 @@ extension Demangler {
             }
         }
 
-        return Node(kind: k, contents: .text(identifier), children: [])
+        return Node(kind: k, text: identifier)
     }
 }
 

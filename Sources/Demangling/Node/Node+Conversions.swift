@@ -1,13 +1,34 @@
 extension Node {
+    @inlinable
     public var text: String? {
-        switch contents {
+        switch payload {
         case .text(let s): return s
+        case .oneChild, .twoChildren, .manyChildren:
+            // For dependentGenericParamType nodes, derive the name from children (depth, index)
+            if kind == .dependentGenericParamType {
+                return _genericParamNameFromChildren
+            }
+            return nil
         default: return nil
         }
     }
 
+    /// Derives the generic parameter name (e.g. "A", "B", "A1") from children.
+    /// Children are [Index(depth), Index(index)].
+    @usableFromInline
+    var _genericParamNameFromChildren: String? {
+        guard let depth = firstChild?.index, let idx = children.at(1)?.index else { return nil }
+        return genericParameterName(depth: depth, index: idx)
+    }
+
+    @inlinable
     public var hasText: Bool {
-        text != nil
+        switch payload {
+        case .text: return true
+        case .oneChild, .twoChildren, .manyChildren:
+            return kind == .dependentGenericParamType
+        default: return false
+        }
     }
 
     public var indexAsCharacter: Character? {
@@ -18,38 +39,66 @@ extension Node {
         }
     }
 
+    @inlinable
     public var index: UInt64? {
-        switch contents {
+        switch payload {
         case .index(let i): return i
         default: return nil
         }
     }
 
+    @inlinable
     public var hasIndex: Bool {
-        index != nil
-    }
-
-    public var isNoneContents: Bool {
-        switch contents {
-        case .none: return true
+        switch payload {
+        case .index: return true
         default: return false
         }
     }
 
+    @inlinable
+    public var isNoneContents: Bool {
+        switch payload {
+        case .none, .oneChild, .twoChildren, .manyChildren: return true
+        default: return false
+        }
+    }
+
+    @inlinable
     public var numberOfChildren: Int {
-        children.count
+        switch payload {
+        case .none, .index, .text: return 0
+        case .oneChild: return 1
+        case .twoChildren: return 2
+        case .manyChildren(let arr): return arr.count
+        }
     }
 
+    @inlinable
     public var hasChildren: Bool {
-        numberOfChildren > 0
+        switch payload {
+        case .none, .index, .text: return false
+        default: return true
+        }
     }
 
+    @inlinable
     public var firstChild: Node? {
-        children.first
+        switch payload {
+        case .oneChild(let n): return n
+        case .twoChildren(let n, _): return n
+        case .manyChildren(let arr): return arr.first
+        default: return nil
+        }
     }
 
+    @inlinable
     public var lastChild: Node? {
-        children.last
+        switch payload {
+        case .oneChild(let n): return n
+        case .twoChildren(_, let n): return n
+        case .manyChildren(let arr): return arr.last
+        default: return nil
+        }
     }
 }
 

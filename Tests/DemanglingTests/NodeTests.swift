@@ -56,7 +56,7 @@ struct NodeTests {
     @Test func nestedResultBuilderSyntax() {
         let node = Node(kind: .type) {
             Node(kind: .dependentMemberType) {
-                Node(kind: .dependentGenericParamType, contents: .text("A")) {
+                Node(kind: .dependentGenericParamType) {
                     Node(kind: .index, contents: .index(0))
                     Node(kind: .index, contents: .index(0))
                 }
@@ -340,6 +340,6 @@ struct NodeDemanglingTests {
 struct NodeChildrenTests {
     
     @Test func size() async throws {
-        print(MemoryLayout<[Node]>.size)
+        print(MemoryLayout<Node.Kind>.size)
     }
 }
