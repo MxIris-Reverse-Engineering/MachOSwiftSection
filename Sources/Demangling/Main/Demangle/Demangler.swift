@@ -141,17 +141,17 @@ extension Demangler {
 
     private mutating func demangleTypeAnnotation() throws(DemanglingError) -> Node {
         switch try scanner.readScalar() {
-        case "a": return Node(kind: .asyncAnnotation)
-        case "A": return Node(kind: .isolatedAnyFunctionType)
-        case "b": return Node(kind: .concurrentFunctionType)
+        case "a": return NodeFactory.asyncAnnotation
+        case "A": return NodeFactory.isolatedAnyFunctionType
+        case "b": return NodeFactory.concurrentFunctionType
         case "c": return try Node(kind: .globalActorFunctionType, child: require(popTypeAndGetChild()))
-        case "C": return Node(kind: .nonIsolatedCallerFunctionType)
+        case "C": return NodeFactory.nonIsolatedCallerFunctionType
         case "i": return try Node(typeWithChildKind: .isolated, childChild: require(popTypeAndGetChild()))
         case "j": return try demangleDifferentiableFunctionType()
         case "k": return try Node(typeWithChildKind: .noDerivative, childChild: require(popTypeAndGetChild()))
         case "K": return try Node(kind: .typedThrowsAnnotation, child: require(popTypeAndGetChild()))
         case "t": return try Node(typeWithChildKind: .compileTimeConst, childChild: require(popTypeAndGetChild()))
-        case "T": return Node(kind: .sendingResultFunctionType)
+        case "T": return NodeFactory.sendingResultFunctionType
         case "u": return try Node(typeWithChildKind: .sending, childChild: require(popTypeAndGetChild()))
         case "g": return try Node(typeWithChildKind: .constValue, childChild: require(popTypeAndGetChild()))
         default: throw failure
@@ -196,13 +196,13 @@ extension Demangler {
             case "n": return try Node(kind: .nominalTypeDescriptorRecord, child: require(pop(kind: .type)))
             case "o": return try Node(kind: .opaqueTypeDescriptorRecord, child: require(pop()))
             case "r": return try Node(kind: .protocolDescriptorRecord, child: popProtocol())
-            case "F": return Node(kind: .accessibleFunctionRecord)
+            case "F": return NodeFactory.accessibleFunctionRecord
             default:
                 try scanner.backtrack(count: 2)
                 return try demangleIdentifier()
             }
         case "I": return try demangleImplFunctionType()
-        case "K": return Node(kind: .throwsAnnotation)
+        case "K": return NodeFactory.throwsAnnotation
         case "L": return try demangleLocalIdentifier()
         case "M": return try demangleMetatype()
         case "N": return try Node(kind: .typeMetadata, child: require(pop(kind: .type)))
@@ -219,7 +219,7 @@ extension Demangler {
         case "Z": return try Node(kind: .static, child: require(pop(where: { $0.isEntity })))
         case "a": return try demangleAnyGenericType(kind: .typeAlias)
         case "c": return try require(popFunctionType(kind: .functionType))
-        case "d": return Node(kind: .variadicMarker)
+        case "d": return NodeFactory.variadicMarker
         case "f": return try demangleFunctionEntity()
         case "g": return try demangleRetroactiveConformance()
         case "h": return try Node(typeWithChildKind: .shared, childChild: require(popTypeAndGetChild()))
@@ -237,9 +237,9 @@ extension Demangler {
         case "v": return try demangleVariable()
         case "w": return try demangleValueWitness()
         case "x": return try Node(kind: .type, child: getDependentGenericParamType(depth: 0, index: 0))
-        case "y": return Node(kind: .emptyList)
+        case "y": return NodeFactory.emptyList
         case "z": return try Node(typeWithChildKind: .inOut, childChild: require(popTypeAndGetChild()))
-        case "_": return Node(kind: .firstElementMarker)
+        case "_": return NodeFactory.firstElementMarker
         case ".":
             try scanner.backtrack()
             return Node(kind: .suffix, contents: .text(scanner.remainder()))
@@ -345,7 +345,7 @@ extension Demangler {
     private mutating func popFunctionParams(kind: Node.Kind) throws(DemanglingError) -> Node {
         let paramsType: Node
         if pop(kind: .emptyList) != nil {
-            return Node(kind: kind, child: Node(kind: .type, child: Node(kind: .tuple)))
+            return Node(kind: kind, child: Node(kind: .type, child: NodeFactory.tuple))
         } else {
             paramsType = try require(pop(kind: .type))
         }
@@ -359,14 +359,14 @@ extension Demangler {
                 param.removeChild(at: label.offset)
                 return Node(kind: .identifier, contents: .text(label.element.text ?? ""))
             }
-            return Node(kind: .firstElementMarker)
+            return NodeFactory.firstElementMarker
         }
         return try require(pop())
     }
 
     private mutating func popFunctionParamLabels(type: Node) throws(DemanglingError) -> Node? {
         if !isOldFunctionTypeMangling && pop(kind: .emptyList) != nil {
-            return Node(kind: .labelList)
+            return NodeFactory.labelList
         }
 
         guard type.kind == .type else { return nil }
@@ -420,7 +420,7 @@ extension Demangler {
 
         let possibleTuple = parameterType.children.first?.children.first
         guard !isOldFunctionTypeMangling, let tuple = possibleTuple, tuple.kind == .tuple else {
-            return Node(kind: .labelList)
+            return NodeFactory.labelList
         }
 
         var hasLabels = false
@@ -433,7 +433,7 @@ extension Demangler {
         }
 
         if !hasLabels {
-            return Node(kind: .labelList)
+            return NodeFactory.labelList
         }
 
         return Node(kind: .labelList, children: isOldFunctionTypeMangling ? children : children.reversed())
@@ -462,7 +462,7 @@ extension Demangler {
 
     private mutating func popPack(kind: Node.Kind = .pack) throws(DemanglingError) -> Node {
         if pop(kind: .emptyList) != nil {
-            return Node(kind: .type, child: Node(kind: .pack))
+            return Node(kind: .type, child: NodeFactory.pack)
         }
         var firstElem = false
         var children = [Node]()
@@ -593,7 +593,7 @@ extension Demangler {
     private mutating func demangleDependentConformanceIndex() throws(DemanglingError) -> Node {
         let index = try demangleIndex()
         if index == 1 {
-            return Node(kind: .unknownIndex)
+            return NodeFactory.unknownIndex
         }
         return Node(kind: .index, contents: .index(index - 2))
     }
@@ -1230,11 +1230,11 @@ extension Demangler {
         }
 
         if scanner.conditional(scalar: "e") {
-            typeChildren.append(Node(kind: .implEscaping))
+            typeChildren.append(NodeFactory.implEscaping)
         }
 
         if scanner.conditional(scalar: "A") {
-            typeChildren.append(Node(kind: .implErasedIsolation))
+            typeChildren.append(NodeFactory.implErasedIsolation)
         }
 
         if let peek = scanner.peek(), let differentiability = Differentiability(rawValue: peek) {
@@ -1303,7 +1303,7 @@ extension Demangler {
         }
 
         if scanner.conditional(scalar: "T") {
-            typeChildren.append(Node(kind: .implSendingResult))
+            typeChildren.append(NodeFactory.implSendingResult)
         }
 
         if let g = genSig {
@@ -1525,7 +1525,7 @@ extension Demangler {
         case "z":
             return try getDependentGenericParamType(depth: 0, index: 0)
         case "s":
-            return Node(kind: .constrainedExistentialSelf)
+            return NodeFactory.constrainedExistentialSelf
         default:
             try scanner.backtrack()
             return try getDependentGenericParamType(depth: 0, index: Int(demangleIndex() + 1))
@@ -1544,18 +1544,18 @@ extension Demangler {
         case "c": return try Node(kind: .curryThunk, child: require(pop(where: { $0.isEntity })))
         case "j": return try Node(kind: .dispatchThunk, child: require(pop(where: { $0.isEntity })))
         case "q": return try Node(kind: .methodDescriptor, child: require(pop(where: { $0.isEntity })))
-        case "o": return Node(kind: .objCAttribute)
-        case "O": return Node(kind: .nonObjCAttribute)
-        case "D": return Node(kind: .dynamicAttribute)
-        case "d": return Node(kind: .directMethodReferenceAttribute)
-        case "E": return Node(kind: .distributedThunk)
-        case "F": return Node(kind: .distributedAccessor)
-        case "a": return Node(kind: .partialApplyObjCForwarder)
-        case "A": return Node(kind: .partialApplyForwarder)
-        case "m": return Node(kind: .mergedFunction)
-        case "X": return Node(kind: .dynamicallyReplaceableFunctionVar)
-        case "x": return Node(kind: .dynamicallyReplaceableFunctionKey)
-        case "I": return Node(kind: .dynamicallyReplaceableFunctionImpl)
+        case "o": return NodeFactory.objCAttribute
+        case "O": return NodeFactory.nonObjCAttribute
+        case "D": return NodeFactory.dynamicAttribute
+        case "d": return NodeFactory.directMethodReferenceAttribute
+        case "E": return NodeFactory.distributedThunk
+        case "F": return NodeFactory.distributedAccessor
+        case "a": return NodeFactory.partialApplyObjCForwarder
+        case "A": return NodeFactory.partialApplyForwarder
+        case "m": return NodeFactory.mergedFunction
+        case "X": return NodeFactory.dynamicallyReplaceableFunctionVar
+        case "x": return NodeFactory.dynamicallyReplaceableFunctionKey
+        case "I": return NodeFactory.dynamicallyReplaceableFunctionImpl
         case "Y": return try Node(kind: .asyncSuspendResumePartialFunction, child: demangleIndexAsName())
         case "Q": return try Node(kind: .asyncAwaitResumePartialFunction, child: demangleIndexAsName())
         case "C": return try Node(kind: .coroutineContinuationPrototype, child: require(pop(kind: .type)))
@@ -1647,7 +1647,7 @@ extension Demangler {
                 result.addChild(t)
             }
             if isSerialized {
-                result.addChild(Node(kind: .isSerialized))
+                result.addChild(NodeFactory.isSerialized)
             }
             return result
         case "l": return try Node(kind: .associatedTypeDescriptor, child: require(popAssociatedTypeName()))
@@ -1693,7 +1693,7 @@ extension Demangler {
                 result.addChild(gs)
             }
             if isSerialized {
-                result.addChild(Node(kind: .isSerialized))
+                result.addChild(NodeFactory.isSerialized)
             }
             return result
         case "v":
@@ -1704,7 +1704,7 @@ extension Demangler {
                 return Node(kind: .outlinedVariable, contents: .index(index))
             }
         case "e": return try Node(kind: .outlinedBridgedMethod, contents: .text(demangleBridgedMethodParams()))
-        case "u": return Node(kind: .asyncFunctionPointer)
+        case "u": return NodeFactory.asyncFunctionPointer
         case "U":
             let globalActor = try require(pop(kind: .type))
             let reabstraction = try require(pop())
@@ -1720,11 +1720,11 @@ extension Demangler {
             }
         case "w":
             switch try scanner.readScalar() {
-            case "b": return Node(kind: .backDeploymentThunk)
-            case "B": return Node(kind: .backDeploymentFallback)
-            case "c": return Node(kind: .coroFunctionPointer)
-            case "d": return Node(kind: .defaultOverride)
-            case "S": return Node(kind: .hasSymbolQuery)
+            case "b": return NodeFactory.backDeploymentThunk
+            case "B": return NodeFactory.backDeploymentFallback
+            case "c": return NodeFactory.coroFunctionPointer
+            case "d": return NodeFactory.defaultOverride
+            case "S": return NodeFactory.hasSymbolQuery
             default: throw failure
             }
         default: throw failure
@@ -2010,10 +2010,10 @@ extension Demangler {
         let contents = try demangleUniqueId ? (demangleNatural().map { Node.Contents.index($0) } ?? Node.Contents.none) : Node.Contents.none
         let specName = Node(kind: kind, contents: contents)
         if isSerialized {
-            specName.addChild(Node(kind: .isSerialized))
+            specName.addChild(NodeFactory.isSerialized)
         }
         if asyncRemoved {
-            specName.addChild(Node(kind: .asyncRemoved))
+            specName.addChild(NodeFactory.asyncRemoved)
         }
         specName.addChild(Node(kind: .specializationPassID, contents: .index(UInt64(passId))))
         return specName
@@ -2214,16 +2214,16 @@ extension Demangler {
             let name = try require(pop(kind: .identifier))
             let parent = try popContext()
             return Node(kind: .anonymousContext, children: [name, parent, types])
-        case "e": return Node(kind: .type, child: Node(kind: .errorType))
+        case "e": return Node(kind: .type, child: NodeFactory.errorType)
         case "S":
             switch try scanner.readScalar() {
-            case "q": return Node(kind: .type, child: Node(kind: .sugaredOptional))
-            case "a": return Node(kind: .type, child: Node(kind: .sugaredArray))
+            case "q": return Node(kind: .type, child: NodeFactory.sugaredOptional)
+            case "a": return Node(kind: .type, child: NodeFactory.sugaredArray)
             case "D":
                 let value = try require(pop(kind: .type))
                 let key = try require(pop(kind: .type))
                 return Node(kind: .type, child: Node(kind: .sugaredDictionary, children: [key, value]))
-            case "p": return Node(kind: .type, child: Node(kind: .sugaredParen))
+            case "p": return Node(kind: .type, child: NodeFactory.sugaredParen)
             case "A":
                 let element = try require(pop(kind: .type))
                 let count = try require(pop(kind: .type))
@@ -3045,11 +3045,11 @@ extension Demangler {
                 nameStack.removeAll()
             } while scanner.conditional(string: "_TTS")
             try scanner.match(string: "_T")
-        case ("T", "o"): children.append(Node(kind: .objCAttribute))
-        case ("T", "O"): children.append(Node(kind: .nonObjCAttribute))
-        case ("T", "D"): children.append(Node(kind: .dynamicAttribute))
-        case ("T", "d"): children.append(Node(kind: .directMethodReferenceAttribute))
-        case ("T", "v"): children.append(Node(kind: .vTableAttribute))
+        case ("T", "o"): children.append(NodeFactory.objCAttribute)
+        case ("T", "O"): children.append(NodeFactory.nonObjCAttribute)
+        case ("T", "D"): children.append(NodeFactory.dynamicAttribute)
+        case ("T", "d"): children.append(NodeFactory.directMethodReferenceAttribute)
+        case ("T", "v"): children.append(NodeFactory.vTableAttribute)
         default: try scanner.backtrack(count: 2)
         }
 
@@ -3135,7 +3135,7 @@ extension Demangler {
         let c = try scanner.readScalar()
         var children = [Node]()
         if scanner.conditional(scalar: "q") {
-            children.append(Node(kind: .isSerialized))
+            children.append(NodeFactory.isSerialized)
         }
         try children.append(Node(kind: .specializationPassID, contents: .index(UInt64(scanner.readScalar().value - 48))))
         switch c {
@@ -3787,7 +3787,7 @@ extension Demangler {
             type = Node(kind: .protocolList, children: [Node(kind: .typeList, children: children)])
         case "Q":
             if scanner.conditional(scalar: "u") {
-                type = Node(kind: .opaqueReturnType)
+                type = NodeFactory.opaqueReturnType
             } else if scanner.conditional(scalar: "U") {
                 let index = try demangleIndex()
                 type = Node(kind: .opaqueReturnType, child: Node(kind: .opaqueReturnTypeIndex, contents: .index(index)))
@@ -3887,7 +3887,7 @@ extension Demangler {
             children.append(Node(kind: .tupleElement, children: elementChildren))
         }
         if variadic, let last = children.popLast() {
-            last.insertChild(Node(kind: .variadicMarker), at: 0)
+            last.insertChild(NodeFactory.variadicMarker, at: 0)
             children.append(last)
         }
         return Node(kind: .tuple, children: children)
@@ -3896,7 +3896,7 @@ extension Demangler {
     mutating func demangleSwift3FunctionType(kind: Node.Kind) throws(DemanglingError) -> Node {
         var children = [Node]()
         if scanner.conditional(scalar: "z") {
-            children.append(Node(kind: .throwsAnnotation))
+            children.append(NodeFactory.throwsAnnotation)
         }
         try children.append(Node(kind: .argumentTuple, children: [demangleSwift3Type()]))
         try children.append(Node(kind: .returnType, children: [demangleSwift3Type()]))
