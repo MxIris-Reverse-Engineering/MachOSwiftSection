@@ -3,7 +3,8 @@ import Testing
 import MachOKit
 import MachOFoundation
 
-package class DyldCacheTests: @unchecked Sendable {
+@MainActor
+package class DyldCacheTests: Sendable {
     package let mainCache: DyldCache
 
     package let subCache: DyldCache

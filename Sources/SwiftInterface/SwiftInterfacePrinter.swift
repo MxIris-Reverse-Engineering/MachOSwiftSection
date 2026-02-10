@@ -20,7 +20,7 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
 
     @Mutex
     public private(set) var typeNameResolvers: [any TypeNameResolvable] = []
-    
+
     let eventDispatcher: SwiftInterfaceEvents.Dispatcher = .init()
 
     @Mutex
@@ -41,7 +41,7 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
     public func updateConfiguration(_ configuration: SwiftInterfacePrintConfiguration) {
         self.configuration = configuration
     }
-    
+
     public func addTypeNameResolver(_ resolver: any TypeNameResolvable) {
         typeNameResolvers.append(resolver)
     }
@@ -61,9 +61,13 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
                 demangleResolver: typeDemangleResolver,
                 indentation: level,
                 displayParentName: displayParentName,
-                emitOffsetComments: configuration.emitOffsetComments,
+                printFieldOffset: configuration.printFieldOffset,
                 printTypeLayout: configuration.printTypeLayout,
-                printEnumLayout: configuration.printEnumLayout
+                printEnumLayout: configuration.printEnumLayout,
+                fieldOffsetTransformer: configuration.fieldOffsetTransformer,
+                typeLayoutTransformer: configuration.typeLayoutTransformer,
+                enumLayoutTransformer: configuration.enumLayoutTransformer,
+                enumLayoutCaseTransformer: configuration.enumLayoutCaseTransformer
             ),
             in: machO
         )
@@ -95,7 +99,16 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
             try await protocolDefinition.index(in: machO)
         }
 
-        let dumper = ProtocolDumper(protocolDefinition.protocol, using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: displayParentName, emitOffsetComments: configuration.emitOffsetComments), in: machO)
+        let dumper = ProtocolDumper(
+            protocolDefinition.protocol,
+            using: .init(
+                demangleResolver: typeDemangleResolver,
+                indentation: level,
+                displayParentName: displayParentName,
+                printFieldOffset: configuration.printFieldOffset
+            ),
+            in: machO
+        )
 
         try await DeclarationBlock(level: level) {
             try await dumper.declaration
@@ -185,53 +198,53 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
             try await mutableDefinition.index(in: machO)
         }
 
-        let emitOffset = configuration.emitOffsetComments
+        let printFieldOffset = configuration.printFieldOffset
 
         await MemberList(level: level) {
             for allocator in definition.allocators {
-                OffsetComment(prefix: "\(offsetPrefix) offset", offset: allocator.offset, emit: emitOffset)
+                OffsetComment(prefix: "\(offsetPrefix) offset", offset: allocator.offset, emit: printFieldOffset)
                 await printFunction(allocator)
             }
         }
 
         await MemberList(level: level) {
             for variable in definition.variables {
-                OffsetComment(prefix: "\(offsetPrefix) offset", offset: variable.offset, emit: emitOffset)
+                OffsetComment(prefix: "\(offsetPrefix) offset", offset: variable.offset, emit: printFieldOffset)
                 await printVariable(variable, level: level)
             }
         }
 
         await MemberList(level: level) {
             for function in definition.functions {
-                OffsetComment(prefix: "\(offsetPrefix) offset", offset: function.offset, emit: emitOffset)
+                OffsetComment(prefix: "\(offsetPrefix) offset", offset: function.offset, emit: printFieldOffset)
                 await printFunction(function)
             }
         }
 
         await MemberList(level: level) {
             for `subscript` in definition.subscripts {
-                OffsetComment(prefix: "\(offsetPrefix) offset", offset: `subscript`.offset, emit: emitOffset)
+                OffsetComment(prefix: "\(offsetPrefix) offset", offset: `subscript`.offset, emit: printFieldOffset)
                 await printSubscript(`subscript`, level: level)
             }
         }
 
         await MemberList(level: level) {
             for variable in definition.staticVariables {
-                OffsetComment(prefix: "\(offsetPrefix) offset", offset: variable.offset, emit: emitOffset)
+                OffsetComment(prefix: "\(offsetPrefix) offset", offset: variable.offset, emit: printFieldOffset)
                 await printVariable(variable, level: level)
             }
         }
 
         await MemberList(level: level) {
             for function in definition.staticFunctions {
-                OffsetComment(prefix: "\(offsetPrefix) offset", offset: function.offset, emit: emitOffset)
+                OffsetComment(prefix: "\(offsetPrefix) offset", offset: function.offset, emit: printFieldOffset)
                 await printFunction(function)
             }
         }
 
         await MemberList(level: level) {
             for `subscript` in definition.staticSubscripts {
-                OffsetComment(prefix: "\(offsetPrefix) offset", offset: `subscript`.offset, emit: emitOffset)
+                OffsetComment(prefix: "\(offsetPrefix) offset", offset: `subscript`.offset, emit: printFieldOffset)
                 await printSubscript(`subscript`, level: level)
             }
         }

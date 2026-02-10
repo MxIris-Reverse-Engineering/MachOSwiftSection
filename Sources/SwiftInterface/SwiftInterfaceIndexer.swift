@@ -1,3 +1,4 @@
+import Foundation
 import MachOSwiftSection
 import MemberwiseInit
 import OrderedCollections
@@ -11,6 +12,31 @@ import Utilities
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import MachOCaches
 import SwiftInspection
+
+public struct MachOIndexedValue<MachO: MachOSwiftSectionRepresentableWithCache, Value> {
+    public let machO: MachO
+    public let value: Value
+
+    @inlinable
+    public init(machO: MachO, value: Value) {
+        self.machO = machO
+        self.value = value
+    }
+}
+
+extension MachOIndexedValue: Equatable where Value: Equatable {
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.value == rhs.value
+    }
+}
+
+extension MachOIndexedValue: Hashable where Value: Hashable {
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(value)
+    }
+}
+
+extension MachOIndexedValue: Sendable where Value: Sendable {}
 
 @_spi(Support)
 public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWithCache>: Sendable {
@@ -88,17 +114,21 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
     }
 
     public func updateConfiguration(_ newConfiguration: SwiftInterfaceIndexConfiguration) async throws {
-        let oldConfiguration = self.configuration
+        let oldConfiguration = configuration
 
-        self.configuration = newConfiguration
+        configuration = newConfiguration
 
         if oldConfiguration.showCImportedTypes != newConfiguration.showCImportedTypes {
             try await prepare()
         }
     }
-    
+
     public func addSubIndexer(_ subIndexer: SwiftInterfaceIndexer<MachO>) {
         subIndexers.append(subIndexer)
+    }
+
+    public func removeSubIndexer(at index: Int) {
+        subIndexers.remove(at: index)
     }
 
     public func prepare() async throws {
@@ -670,28 +700,24 @@ extension SwiftInterfaceIndexer {
 // MARK: - All Storage Property Mappings (Current + SubIndexers)
 
 extension SwiftInterfaceIndexer {
-    @inlinable
-    public var allTypes: [TypeContextWrapper] {
-        currentStorage.types + subIndexers.flatMap { $0.allTypes }
+    public var allTypes: [MachOIndexedValue<MachO, TypeContextWrapper>] {
+        currentStorage.types.map { .init(machO: machO, value: $0) } + subIndexers.flatMap { $0.allTypes }
     }
 
-    @inlinable
-    public var allProtocols: [MachOSwiftSection.`Protocol`] {
-        currentStorage.protocols + subIndexers.flatMap { $0.allProtocols }
+    public var allProtocols: [MachOIndexedValue<MachO, MachOSwiftSection.`Protocol`>] {
+        currentStorage.protocols.map { .init(machO: machO, value: $0) } + subIndexers.flatMap { $0.allProtocols }
     }
 
-    @inlinable
-    public var allProtocolConformances: [ProtocolConformance] {
-        currentStorage.protocolConformances + subIndexers.flatMap { $0.allProtocolConformances }
+    public var allProtocolConformances: [MachOIndexedValue<MachO, ProtocolConformance>] {
+        currentStorage.protocolConformances.map { .init(machO: machO, value: $0) } + subIndexers.flatMap { $0.allProtocolConformances }
     }
 
-    @inlinable
-    public var allAssociatedTypes: [AssociatedType] {
-        currentStorage.associatedTypes + subIndexers.flatMap { $0.allAssociatedTypes }
+    public var allAssociatedTypes: [MachOIndexedValue<MachO, AssociatedType>] {
+        currentStorage.associatedTypes.map { .init(machO: machO, value: $0) } + subIndexers.flatMap { $0.allAssociatedTypes }
     }
 
-    public var allProtocolConformancesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, ProtocolConformance>> {
-        var result = currentStorage.protocolConformancesByTypeName
+    public var allProtocolConformancesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolConformance>>> {
+        var result: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolConformance>>> = currentStorage.protocolConformancesByTypeName.mapValues { $0.mapValues { .init(machO: machO, value: $0) } }
         for subIndexer in subIndexers {
             for (typeName, conformances) in subIndexer.allProtocolConformancesByTypeName {
                 result[typeName, default: [:]].merge(conformances) { current, _ in current }
@@ -700,8 +726,8 @@ extension SwiftInterfaceIndexer {
         return result
     }
 
-    public var allAssociatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, AssociatedType>> {
-        var result = currentStorage.associatedTypesByTypeName
+    public var allAssociatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, AssociatedType>>> {
+        var result: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, AssociatedType>>> = currentStorage.associatedTypesByTypeName.mapValues { $0.mapValues { .init(machO: machO, value: $0) } }
         for subIndexer in subIndexers {
             for (typeName, associatedTypes) in subIndexer.allAssociatedTypesByTypeName {
                 result[typeName, default: [:]].merge(associatedTypes) { current, _ in current }
@@ -710,8 +736,11 @@ extension SwiftInterfaceIndexer {
         return result
     }
 
-    public var allConformingTypesByProtocolName: OrderedDictionary<ProtocolName, OrderedSet<TypeName>> {
-        var result = currentStorage.conformingTypesByProtocolName
+    public var allConformingTypesByProtocolName: OrderedDictionary<ProtocolName, OrderedSet<MachOIndexedValue<MachO, TypeName>>> {
+        var result: OrderedDictionary<ProtocolName, OrderedSet<MachOIndexedValue<MachO, TypeName>>> = [:]
+        for (protocolName, typeNames) in currentStorage.conformingTypesByProtocolName {
+            result[protocolName] = OrderedSet(typeNames.map { .init(machO: machO, value: $0) })
+        }
         for subIndexer in subIndexers {
             for (protocolName, typeNames) in subIndexer.allConformingTypesByProtocolName {
                 result[protocolName, default: []].formUnion(typeNames)
@@ -720,40 +749,40 @@ extension SwiftInterfaceIndexer {
         return result
     }
 
-    public var allRootTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> {
-        var result = currentStorage.rootTypeDefinitions
+    public var allRootTypeDefinitions: OrderedDictionary<TypeName, MachOIndexedValue<MachO, TypeDefinition>> {
+        var result = currentStorage.rootTypeDefinitions.mapValues { MachOIndexedValue(machO: machO, value: $0) }
         for subIndexer in subIndexers {
             result.merge(subIndexer.allRootTypeDefinitions) { current, _ in current }
         }
         return result
     }
 
-    public var allAllTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> {
-        var result = currentStorage.allTypeDefinitions
+    public var allAllTypeDefinitions: OrderedDictionary<TypeName, MachOIndexedValue<MachO, TypeDefinition>> {
+        var result = currentStorage.allTypeDefinitions.mapValues { MachOIndexedValue(machO: machO, value: $0) }
         for subIndexer in subIndexers {
             result.merge(subIndexer.allAllTypeDefinitions) { current, _ in current }
         }
         return result
     }
 
-    public var allRootProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> {
-        var result = currentStorage.rootProtocolDefinitions
+    public var allRootProtocolDefinitions: OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolDefinition>> {
+        var result = currentStorage.rootProtocolDefinitions.mapValues { MachOIndexedValue(machO: machO, value: $0) }
         for subIndexer in subIndexers {
             result.merge(subIndexer.allRootProtocolDefinitions) { current, _ in current }
         }
         return result
     }
 
-    public var allAllProtocolDefinitions: OrderedDictionary<ProtocolName, (machO: MachO, value: ProtocolDefinition)> {
-        var result = currentStorage.allProtocolDefinitions.mapValues { (machO: machO, value: $0) }
+    public var allAllProtocolDefinitions: OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolDefinition>> {
+        var result = currentStorage.allProtocolDefinitions.mapValues { MachOIndexedValue(machO: machO, value: $0) }
         for subIndexer in subIndexers {
             result.merge(subIndexer.allAllProtocolDefinitions) { prevValue, nextValue in prevValue }
         }
         return result
     }
 
-    public var allTypeExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> {
-        var result = currentStorage.typeExtensionDefinitions
+    public var allTypeExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> {
+        var result: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> = currentStorage.typeExtensionDefinitions.mapValues { $0.map { .init(machO: machO, value: $0) } }
         for subIndexer in subIndexers {
             for (extensionName, definitions) in subIndexer.allTypeExtensionDefinitions {
                 result[extensionName, default: []].append(contentsOf: definitions)
@@ -762,8 +791,8 @@ extension SwiftInterfaceIndexer {
         return result
     }
 
-    public var allProtocolExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> {
-        var result = currentStorage.protocolExtensionDefinitions
+    public var allProtocolExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> {
+        var result: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> = currentStorage.protocolExtensionDefinitions.mapValues { $0.map { .init(machO: machO, value: $0) } }
         for subIndexer in subIndexers {
             for (extensionName, definitions) in subIndexer.allProtocolExtensionDefinitions {
                 result[extensionName, default: []].append(contentsOf: definitions)
@@ -772,8 +801,8 @@ extension SwiftInterfaceIndexer {
         return result
     }
 
-    public var allTypeAliasExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> {
-        var result = currentStorage.typeAliasExtensionDefinitions
+    public var allTypeAliasExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> {
+        var result: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> = currentStorage.typeAliasExtensionDefinitions.mapValues { $0.map { .init(machO: machO, value: $0) } }
         for subIndexer in subIndexers {
             for (extensionName, definitions) in subIndexer.allTypeAliasExtensionDefinitions {
                 result[extensionName, default: []].append(contentsOf: definitions)
@@ -782,8 +811,8 @@ extension SwiftInterfaceIndexer {
         return result
     }
 
-    public var allConformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> {
-        var result = currentStorage.conformanceExtensionDefinitions
+    public var allConformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> {
+        var result: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> = currentStorage.conformanceExtensionDefinitions.mapValues { $0.map { .init(machO: machO, value: $0) } }
         for subIndexer in subIndexers {
             for (extensionName, definitions) in subIndexer.allConformanceExtensionDefinitions {
                 result[extensionName, default: []].append(contentsOf: definitions)
@@ -792,14 +821,12 @@ extension SwiftInterfaceIndexer {
         return result
     }
 
-    @inlinable
-    public var allGlobalVariableDefinitions: [VariableDefinition] {
-        currentStorage.globalVariableDefinitions + subIndexers.flatMap { $0.allGlobalVariableDefinitions }
+    public var allGlobalVariableDefinitions: [MachOIndexedValue<MachO, VariableDefinition>] {
+        currentStorage.globalVariableDefinitions.map { .init(machO: machO, value: $0) } + subIndexers.flatMap { $0.allGlobalVariableDefinitions }
     }
 
-    @inlinable
-    public var allGlobalFunctionDefinitions: [FunctionDefinition] {
-        currentStorage.globalFunctionDefinitions + subIndexers.flatMap { $0.allGlobalFunctionDefinitions }
+    public var allGlobalFunctionDefinitions: [MachOIndexedValue<MachO, FunctionDefinition>] {
+        currentStorage.globalFunctionDefinitions.map { .init(machO: machO, value: $0) } + subIndexers.flatMap { $0.allGlobalFunctionDefinitions }
     }
 }
 

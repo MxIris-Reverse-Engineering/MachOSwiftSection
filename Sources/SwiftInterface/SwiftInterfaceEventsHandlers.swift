@@ -2,7 +2,7 @@ import Foundation
 import OSLog
 
 /// A default event handler implementation that uses `OSLog` for logging.
-@available(macOS 11.0, iOS 14.0, *)
+@available(macOS 11.0, iOS 14.0, watchOS 7.0, tvOS 14.0, *)
 public struct OSLogEventHandler: SwiftInterfaceEvents.Handler {
     private let logger: Logger
 

@@ -23,7 +23,7 @@ extension SwiftInterfaceBuilderTests {
             ),
             printConfiguration: .init(
                 printStrippedSymbolicItem: true,
-                emitOffsetComments: true,
+                printFieldOffset: true,
                 printTypeLayout: true,
             )
         )
@@ -61,8 +61,6 @@ extension SwiftInterfaceBuilderTests {
         let result = try await builder.printRoot()
         try rootDirectory.createDirectoryIfNeeded()
         try result.string.write(to: rootDirectory.appending(path: "\(machO.loadCommands.buildVersionCommand!)-\(machO.imagePath.lastPathComponent)-FileDump.swiftinterface"), atomically: true, encoding: .utf8)
-
-//        printNonConsumedSymbols(in: machO)
     }
 
     func buildFile(in machO: MachOImage) async throws {
@@ -75,39 +73,19 @@ extension SwiftInterfaceBuilderTests {
         let result = try await builder.printRoot()
         try rootDirectory.createDirectoryIfNeeded()
         try result.string.write(to: rootDirectory.appending(path: "\(machO.loadCommands.buildVersionCommand!)-\(machO.imagePath.lastPathComponent)-ImageDump.swiftinterface"), atomically: true, encoding: .utf8)
-
-//        printNonConsumedSymbols(in: machO)
-    }
-
-    func printNonConsumedSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) {
-        @Dependency(\.symbolIndexStore)
-        var symbolIndexStore
-
-        if let memberSymbolsByKind = symbolIndexStore.storage(in: machO)?.memberSymbolsByKind {
-            for (kind, memberSymbolsByName) in memberSymbolsByKind {
-                for (name, memberSymbolsByNode) in memberSymbolsByName {
-                    for (node, memberSymbols) in memberSymbolsByNode {
-                        for memberSymbol in memberSymbols where !memberSymbol.isConsumed {
-                            "Kind: \(kind.print())".print()
-                            "Name: \(name.print())".print()
-                            "Node: \(node.print())".print()
-                            memberSymbol.wrappedValue.demangledNode.print().print()
-                            memberSymbol.wrappedValue.demangledNode.description.print()
-                            "---------------------".print()
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
 @Suite
 enum SwiftInterfaceBuilderTestSuite {
     class DyldCacheTests: MachOTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
-        override class var cacheImageName: MachOImageName { .SwiftUI }
+        override class var cacheImageName: MachOImageName {
+            .SwiftUI
+        }
 
-        override class var cachePath: DyldSharedCachePath { .current }
+        override class var cachePath: DyldSharedCachePath {
+            .current
+        }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func buildFile() async throws {
@@ -121,7 +99,9 @@ enum SwiftInterfaceBuilderTestSuite {
     }
 
     class MachOFileTests: MachOTestingSupport.MachOFileTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
-        override class var fileName: MachOFileName { .iOS_26_2_Simulator_SwiftUICore }
+        override class var fileName: MachOFileName {
+            .iOS_26_2_Simulator_SwiftUICore
+        }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func buildFile() async throws {
@@ -135,7 +115,9 @@ enum SwiftInterfaceBuilderTestSuite {
     }
 
     class MachOImageTests: MachOTestingSupport.MachOImageTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
-        override class var imageName: MachOImageName { .SwiftUI }
+        override class var imageName: MachOImageName {
+            .SwiftUI
+        }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func buildFile() async throws {
@@ -149,7 +131,9 @@ enum SwiftInterfaceBuilderTestSuite {
     }
 
     class XcodeMachOFileTests: MachOTestingSupport.XcodeMachOFileTests, SwiftInterfaceBuilderTests {
-        override class var fileName: XcodeMachOFileName { .sharedFrameworks(.SourceEditor) }
+        override class var fileName: XcodeMachOFileName {
+            .sharedFrameworks(.SourceEditor)
+        }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func buildFile() async throws {

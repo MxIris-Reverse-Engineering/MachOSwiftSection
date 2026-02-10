@@ -19,7 +19,12 @@ extension MetadataWrapper {
                     try await Comment("Type: " + configuration.demangleResolver.resolve(for: MetadataReader.demangleContext(for: descriptor)).string)
                     BreakLine()
                     configuration.indentString
-                    try Comment(tupleElementMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout.dumpTupleDescription)
+                    let elementLayout = try tupleElementMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
+                    if let transformer = configuration.typeLayoutTransformer {
+                        transformer(elementLayout)
+                    } else {
+                        Comment(elementLayout.dumpTupleDescription)
+                    }
                     BreakLine()
                 }
             }
@@ -28,11 +33,14 @@ extension MetadataWrapper {
             BreakLine()
             isTuple = true
         }
+        let typeLayout = try valueWitnessTable().typeLayout
         configuration.indentString
-        if isTuple {
-            try Comment(valueWitnessTable().typeLayout.dumpTupleDescription)
+        if let transformer = configuration.typeLayoutTransformer {
+            transformer(typeLayout)
+        } else if isTuple {
+            Comment(typeLayout.dumpTupleDescription)
         } else {
-            try Comment(valueWitnessTable().typeLayout.dumpDescription)
+            Comment(typeLayout.dumpDescription)
         }
         BreakLine()
     }

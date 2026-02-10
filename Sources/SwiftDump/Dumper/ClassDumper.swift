@@ -77,7 +77,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
     }
 
     private var fieldOffsets: [Int]? {
-        guard configuration.emitOffsetComments else { return nil }
+        guard configuration.printFieldOffset else { return nil }
         guard let metadataAccessor = try? dumped.descriptor.metadataAccessorFunction(in: machO), !dumped.flags.isGeneric else { return nil }
         guard let metadataWrapper = try? metadataAccessor(request: .init()).value.resolve(in: machO) else { return nil }
         switch metadataWrapper {
@@ -95,13 +95,24 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                 BreakLine()
 
                 let mangledTypeName = try fieldRecord.mangledTypeName(in: machO)
-                if let fieldOffsets, let fieldOffset = fieldOffsets[safe: offset.index] {
-                    Indent(level: configuration.indentation)
-                    Comment("Field Offset: 0x\(String(fieldOffset, radix: 16))")
-                    BreakLine()
+
+                if let fieldOffsets, let startOffset = fieldOffsets[safe: offset.index] {
+                    let endOffset: Int?
+                    if let nextFieldOffset = fieldOffsets[safe: offset.index + 1] {
+                        endOffset = nextFieldOffset
+                    } else if !dumped.flags.isGeneric,
+                              let machOImage = machO.asMachOImage,
+                              let metatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machOImage),
+                              let metadata = try? Metadata.createInProcess(metatype),
+                              let typeLayout = try? metadata.asMetadataWrapper().valueWitnessTable().typeLayout {
+                        endOffset = startOffset + Int(typeLayout.size)
+                    } else {
+                        endOffset = nil
+                    }
+                    configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
                 }
 
-                if configuration.printTypeLayout, !dumped.flags.isGeneric, let metatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machO), let metadata = try? Metadata.createInProcess(metatype) {
+                if configuration.printTypeLayout, !dumped.flags.isGeneric, let machO = machO.asMachOImage, let metatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machO), let metadata = try? Metadata.createInProcess(metatype) {
                     try await metadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
                 }
 

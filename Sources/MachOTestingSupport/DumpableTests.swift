@@ -7,11 +7,12 @@ import Dependencies
 @_spi(Internals) import MachOSymbols
 @testable import SwiftInspection
 
+@MainActor
 package protocol DumpableTests {
     var isEnabledSearchMetadata: Bool { get }
 }
 
-package struct DumpableTypeOptions: OptionSet {
+package struct DumpableTypeOptions: OptionSet, Sendable {
     package let rawValue: Int
 
     package init(rawValue: Int) {
@@ -26,15 +27,13 @@ package struct DumpableTypeOptions: OptionSet {
 extension DumpableTests {
     package var isEnabledSearchMetadata: Bool { false }
 
-    @MainActor
     package func dumpProtocols<MachO: MachOSwiftSectionRepresentableWithCache>(for machO: MachO) async throws {
         let protocolDescriptors = try machO.swift.protocolDescriptors
         for protocolDescriptor in protocolDescriptors {
             try await Protocol(descriptor: protocolDescriptor, in: machO).dump(using: .demangleOptions(.test), in: machO).string.print()
         }
     }
-
-    @MainActor
+    
     package func dumpProtocolConformances<MachO: MachOSwiftSectionRepresentableWithCache>(for machO: MachO) async throws {
         let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
 
@@ -43,7 +42,6 @@ extension DumpableTests {
         }
     }
 
-    @MainActor
     package func dumpTypes<MachO: MachOSwiftSectionRepresentableWithCache>(for machO: MachO, isDetail: Bool = true, options: DumpableTypeOptions = [.enum, .struct, .class], using configuration: DumperConfiguration? = nil) async throws {
         let typeContextDescriptors = try machO.swift.typeContextDescriptors
         for typeContextDescriptor in typeContextDescriptors {
@@ -88,7 +86,6 @@ extension DumpableTests {
         }
     }
 
-    @MainActor
     package func dumpOpaqueTypes<MachO: MachOSwiftSectionRepresentableWithCache>(for machO: MachO) async throws {
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
@@ -108,7 +105,6 @@ extension DumpableTests {
         }
     }
 
-    @MainActor
     package func dumpAssociatedTypes<MachO: MachOSwiftSectionRepresentableWithCache>(for machO: MachO) async throws {
         let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
         for associatedTypeDescriptor in associatedTypeDescriptors {
@@ -116,7 +112,6 @@ extension DumpableTests {
         }
     }
 
-    @MainActor
     package func dumpBuiltinTypes<MachO: MachOSwiftSectionRepresentableWithCache>(for machO: MachO) async throws {
         let descriptors = try machO.swift.builtinTypeDescriptors
         for descriptor in descriptors {

@@ -67,7 +67,7 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
 
         var dumpConfiguration: DumperConfiguration = .demangleOptions(demangleOptions.buildSwiftDumpDemangleOptions())
 
-        dumpConfiguration.emitOffsetComments = emitOffsetComments
+        dumpConfiguration.printFieldOffset = emitOffsetComments
 
         let isDefaultSections = sections.isEmpty
         

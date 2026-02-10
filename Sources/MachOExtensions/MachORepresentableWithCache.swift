@@ -75,10 +75,17 @@ package func address<MachO: MachORepresentableWithCache>(of fileOffset: Int, in 
     if let cache = machO.cache {
         return .init(cache.mainCacheHeader.sharedRegionStart.cast() + fileOffset)
     } else {
-        return .init(0x1_0000_0000 + fileOffset)
+        return 0x1_0000_0000 + UInt64(fileOffset)
     }
 }
 
 package func addressString<MachO: MachORepresentableWithCache>(of fileOffset: Int, in machO: MachO) -> String {
     return .init(address(of: fileOffset, in: machO), radix: 16, uppercase: true)
+}
+
+
+extension MachORepresentable {
+    package var asMachOImage: MachOImage? {
+        self as? MachOImage
+    }
 }

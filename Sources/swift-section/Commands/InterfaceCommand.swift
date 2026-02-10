@@ -38,7 +38,7 @@ struct InterfaceCommand: AsyncParsableCommand {
             ),
             printConfiguration: .init(
                 printStrippedSymbolicItem: true,
-                emitOffsetComments: emitOffsetComments
+                printFieldOffset: emitOffsetComments
             )
         )
 

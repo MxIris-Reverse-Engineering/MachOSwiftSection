@@ -6,9 +6,10 @@ import MachOFoundation
 @testable import MachOTestingSupport
 import Dependencies
 
+@MainActor
 protocol DemangleAndRemangleTests {
     func allSymbols() throws -> [MachOSwiftSymbol]
-    @MainActor func mainTest() throws
+    func mainTest() throws
 }
 
 extension DemangleAndRemangleTests {
@@ -34,8 +35,7 @@ extension DemangleAndRemangleTests {
 }
 
 @Suite
-final class DyldCacheSymbolRemangleTests: DyldCacheSymbolTests, DemangleAndRemangleTests, @unchecked Sendable {
-    @MainActor
+final class DyldCacheSymbolRemangleTests: DyldCacheSymbolTests, DemangleAndRemangleTests {
     @Test func symbols() throws {
         try mainTest()
     }

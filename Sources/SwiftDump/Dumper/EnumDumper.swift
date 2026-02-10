@@ -56,6 +56,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
 
     private var enumLayout: EnumLayoutCalculator.LayoutResult? {
         get async throws {
+            guard let machO = machO.asMachOImage else { return nil }
             let payloadSize = try dumped.descriptor.payloadSize(in: machO)
             let numberOfPayloadCases = dumped.numberOfPayloadCases
             let numberOfEmptyCases = dumped.numberOfEmptyCases
@@ -64,13 +65,14 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
                 if let multiPayloadEnumDescriptor = MultiPayloadEnumDescriptorCache.shared.multiPayloadEnumDescriptor(for: node, in: machO), multiPayloadEnumDescriptor.usesPayloadSpareBits {
                     let spareBytes = try multiPayloadEnumDescriptor.payloadSpareBits(in: machO)
                     let spareBytesOffset = try multiPayloadEnumDescriptor.payloadSpareBitMaskByteOffset(in: machO)
-                    return try EnumLayoutCalculator.calculateMultiPayload( /* enumSize: enumTypeLayout.size.cast(), */ payloadSize: payloadSize.cast(), spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast(), numPayloadCases: numberOfPayloadCases.cast(), numEmptyCases: numberOfEmptyCases.cast())
+                    return EnumLayoutCalculator.calculateMultiPayload( /* enumSize: enumTypeLayout.size.cast(), */ payloadSize: payloadSize.cast(), spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast(), numPayloadCases: numberOfPayloadCases.cast(), numEmptyCases: numberOfEmptyCases.cast())
                 } else {
                     return EnumLayoutCalculator.calculateTaggedMultiPayload(payloadSize: payloadSize.cast(), numPayloadCases: numberOfPayloadCases.cast(), numEmptyCases: numberOfEmptyCases.cast())
                 }
 
             } else if dumped.isSinglePayload, let typeLayout = try typeLayout {
-                return EnumLayoutCalculator.calculateSinglePayload(size: typeLayout.size.cast(), payloadSize: payloadSize.cast(), numEmptyCases: numberOfEmptyCases.cast())
+                let payloadXI = try dumped.descriptor.payloadExtraInhabitantCount(in: machO)
+                return EnumLayoutCalculator.calculateSinglePayload(size: typeLayout.size.cast(), payloadSize: payloadSize.cast(), numEmptyCases: numberOfEmptyCases.cast(), numExtraInhabitants: payloadXI)
             } else {
                 return nil
             }
@@ -84,11 +86,25 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
             if configuration.printEnumLayout, !dumped.flags.isGeneric {
                 enumLayout = try? await self.enumLayout
 
-                if let strategyDescription = enumLayout?.strategyDescription {
+                if let enumLayout {
                     BreakLine()
-                    configuration.indentString
-                    InlineComment(strategyDescription)
+                    configuration.enumLayoutComment(layoutResult: enumLayout)
+                }
+            }
+
+            if configuration.printSpareBitAnalysis, !dumped.flags.isGeneric, dumped.isMultiPayload,
+               let machO = machO.asMachOImage {
+                let spareBitAnalysis: SpareBitAnalyzer.Analysis? = try? {
+                    let node = try MetadataReader.demangleContext(for: .type(.enum(dumped.descriptor)), in: machO)
+                    guard let multiPayloadEnumDescriptor = MultiPayloadEnumDescriptorCache.shared.multiPayloadEnumDescriptor(for: node, in: machO),
+                          multiPayloadEnumDescriptor.usesPayloadSpareBits else { return nil }
+                    let spareBytes = try multiPayloadEnumDescriptor.payloadSpareBits(in: machO)
+                    let spareBytesOffset = try multiPayloadEnumDescriptor.payloadSpareBitMaskByteOffset(in: machO)
+                    return SpareBitAnalyzer.analyze(bytes: spareBytes, startOffset: spareBytesOffset.cast())
+                }()
+                if let spareBitAnalysis {
                     BreakLine()
+                    configuration.spareBitAnalysisComment(analysis: spareBitAnalysis)
                 }
             }
             for (offset, fieldRecord) in try dumped.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
@@ -99,7 +115,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
                 var isTypeLayoutPrinted = false
 
                 if !mangledTypeName.isEmpty {
-                    if configuration.printTypeLayout, !dumped.flags.isGeneric, let metatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machO), let metadata = try? Metadata.createInProcess(metatype) {
+                    if configuration.printTypeLayout, !dumped.flags.isGeneric, let machO = machO.asMachOImage, let metatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machO), let metadata = try? Metadata.createInProcess(metatype) {
                         try await metadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
                         isTypeLayoutPrinted = true
                     }
@@ -112,7 +128,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
                     configuration.indentString
                     InlineComment("Enum Layout")
                     BreakLine()
-                    AtomicComponent(string: `case`.description(indent: configuration.indentation, prefix: "//"), type: .comment)
+                    configuration.enumLayoutCaseComment(caseProjection: `case`)
                 }
 
                 Indent(level: configuration.indentation)
@@ -253,7 +269,34 @@ private final class MultiPayloadEnumDescriptorCache: SharedCache<MultiPayloadEnu
 private struct EnumLayout {}
 
 extension EnumDescriptor {
-    fileprivate func payloadSize(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Int {
+    /// Returns the extra inhabitant count of the payload type for single-payload enums.
+    ///
+    /// For single-payload enums, this is the `numExtraInhabitants` from the payload
+    /// type's Value Witness Table. Returns `nil` if the payload type cannot be resolved.
+    fileprivate func payloadExtraInhabitantCount(in machO: MachOImage) throws -> Int? {
+        guard hasPayloadCases else { return nil }
+        let fieldDescriptor = try fieldDescriptor(in: machO)
+        let records = try fieldDescriptor.records(in: machO)
+        guard !records.isEmpty else { return nil }
+        // For single-payload enums, the first payload case is the payload type.
+        for record in records {
+            if record.flags.contains(.isIndirectCase) {
+                // Indirect cases are boxed in a pointer; XI count from pointer type.
+                // Pointers have a known XI count, but we don't have it here.
+                // Return nil to fall back to spare-bits-derived XI.
+                return nil
+            }
+            let mangledTypeName = try record.mangledTypeName(in: machO)
+            guard !mangledTypeName.isEmpty else { continue }
+            guard let metatype = try RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, genericContext: nil, genericArguments: nil, in: machO) else { continue }
+            let metadata = try Metadata.createInProcess(metatype)
+            let typeLayout = try metadata.asFullMetadata().valueWitnesses.resolve().typeLayout
+            return typeLayout.extraInhabitantCount.cast()
+        }
+        return nil
+    }
+
+    fileprivate func payloadSize(in machO: MachOImage) throws -> Int {
         guard hasPayloadCases else { return .zero }
         let fieldDescriptor = try fieldDescriptor(in: machO)
         let records = try fieldDescriptor.records(in: machO)
