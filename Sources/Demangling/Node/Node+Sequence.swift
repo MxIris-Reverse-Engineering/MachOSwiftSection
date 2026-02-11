@@ -167,38 +167,47 @@ extension Node: Sequence {
 }
 
 extension Sequence where Element == Node {
+    @inlinable
     public func first(of kind: Node.Kind) -> Node? {
         first { $0.kind == kind }
     }
 
+    @inlinable
     public func first(of kinds: Node.Kind...) -> Node? {
         first { kinds.contains($0.kind) }
     }
 
+    @inlinable
     public func contains(_ kind: Node.Kind) -> Bool {
         contains { $0.kind == kind }
     }
 
+    @inlinable
     public func contains(_ kinds: Node.Kind...) -> Bool {
         contains { kinds.contains($0.kind) }
     }
 
+    @inlinable
     public func all(of kind: Node.Kind) -> [Node] {
         filter { $0.kind == kind }
     }
 
+    @inlinable
     public func all(of kinds: Node.Kind...) -> [Node] {
         filter { kinds.contains($0.kind) }
     }
 
+    @inlinable
     public func all(of kinds: [Node.Kind]) -> [Node] {
         filter { kinds.contains($0.kind) }
     }
 
+    @inlinable
     public func filter(of kind: Node.Kind) -> some Sequence<Node> {
         filter { $0.kind == kind }
     }
 
+    @inlinable
     public func filter(of kinds: Node.Kind...) -> some Sequence<Node> {
         filter { kinds.contains($0.kind) }
     }

@@ -1,17 +1,220 @@
-/// Factory for creating and interning Node instances.
+import Foundation
+
+/// Global cache for interning Node instances.
 ///
-/// Provides two optimization strategies:
-/// 1. **Static singletons**: Pre-created instances for parameterless nodes (e.g., `.emptyList`)
-/// 2. **Post-processing interning**: Deduplicate entire node trees after parsing
+/// This cache stores nodes by their structural identity (kind + contents + children),
+/// allowing identical node structures to share the same instance in memory.
 ///
-/// These optimizations can significantly reduce memory usage when parsing large binaries
-/// like SwiftUI (4M+ nodes).
+/// ## Thread Safety
+/// The cache uses a lock for thread-safe access. For single-threaded scenarios
+/// or when you control the threading, you can use the unsynchronized methods
+/// for better performance.
+///
+/// ## Usage
+///
+/// ```swift
+/// // Get or create an interned node
+/// let node = NodeCache.shared.intern(kind: .identifier, text: "foo")
+///
+/// // Intern an existing node tree (post-processing)
+/// let interned = NodeCache.shared.intern(existingNode)
+///
+/// // Clear cache when done processing a binary
+/// NodeCache.shared.clear()
+/// ```
+public final class NodeCache: @unchecked Sendable {
+    /// The shared global cache instance.
+    public static let shared = NodeCache()
+    
+    /// Storage for interned nodes, keyed by their structural identity.
+    private var storage: [Node: Node] = [:]
+    
+    /// Lock for thread-safe access.
+    private let lock = NSLock()
+    
+    /// Number of unique nodes in the cache.
+    public var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage.count
+    }
+    
+    /// Creates a new empty cache.
+    /// Use this for isolated caching scenarios. For shared caching, use `NodeCache.shared`.
+    public init() {}
+    
+    // MARK: - Leaf Node Interning (No Children)
+    
+    /// Interns a leaf node with no contents and no children.
+    /// Returns an existing cached node if one exists, otherwise creates and caches a new one.
+    public func intern(kind: Node.Kind) -> Node {
+        let probe = Node(kind: kind)
+        return internNode(probe)
+    }
+    
+    /// Interns a leaf node with text contents.
+    public func intern(kind: Node.Kind, text: String) -> Node {
+        let probe = Node(kind: kind, text: text)
+        return internNode(probe)
+    }
+    
+    /// Interns a leaf node with index contents.
+    public func intern(kind: Node.Kind, index: UInt64) -> Node {
+        let probe = Node(kind: kind, index: index)
+        return internNode(probe)
+    }
+    
+    // MARK: - Node with Children Interning
+    
+    /// Interns a node with a single child.
+    /// The child should already be interned for maximum deduplication.
+    public func intern(kind: Node.Kind, child: Node) -> Node {
+        let probe = Node(kind: kind, child: child)
+        return internNode(probe)
+    }
+    
+    /// Interns a node with multiple children.
+    /// The children should already be interned for maximum deduplication.
+    public func intern(kind: Node.Kind, children: [Node]) -> Node {
+        let probe = Node(kind: kind, children: children)
+        return internNode(probe)
+    }
+    
+    /// Interns a node with text contents and children.
+    public func intern(kind: Node.Kind, text: String, children: [Node]) -> Node {
+        let probe = Node(kind: kind, text: text, children: children)
+        return internNode(probe)
+    }
+    
+    /// Interns a node with index contents and children.
+    public func intern(kind: Node.Kind, index: UInt64, children: [Node]) -> Node {
+        let probe = Node(kind: kind, index: index, children: children)
+        return internNode(probe)
+    }
+    
+    // MARK: - Tree Interning (Post-Processing)
+    
+    /// Recursively interns a node tree, returning deduplicated nodes.
+    ///
+    /// This traverses the tree bottom-up, ensuring identical subtrees
+    /// share the same Node instance.
+    ///
+    /// - Parameter node: The root node to intern.
+    /// - Returns: The interned node (may be the same instance if already cached,
+    ///   or a cached instance if a duplicate was found).
+    public func intern(_ node: Node) -> Node {
+        lock.lock()
+        defer { lock.unlock() }
+        return internTreeUnsafe(node)
+    }
+    
+    /// Recursively interns multiple node trees.
+    public func intern(_ nodes: [Node]) -> [Node] {
+        lock.lock()
+        defer { lock.unlock() }
+        return nodes.map { internTreeUnsafe($0) }
+    }
+    
+    // MARK: - Unsynchronized Methods (for single-threaded use)
+    
+    /// Interns a node without locking. Use only in single-threaded contexts.
+    public func internUnsafe(kind: Node.Kind) -> Node {
+        let probe = Node(kind: kind)
+        return internNodeUnsafe(probe)
+    }
+    
+    /// Interns a node with text without locking.
+    public func internUnsafe(kind: Node.Kind, text: String) -> Node {
+        let probe = Node(kind: kind, text: text)
+        return internNodeUnsafe(probe)
+    }
+    
+    /// Interns a node with index without locking.
+    public func internUnsafe(kind: Node.Kind, index: UInt64) -> Node {
+        let probe = Node(kind: kind, index: index)
+        return internNodeUnsafe(probe)
+    }
+    
+    /// Interns a node with children without locking.
+    public func internUnsafe(kind: Node.Kind, children: [Node]) -> Node {
+        let probe = Node(kind: kind, children: children)
+        return internNodeUnsafe(probe)
+    }
+    
+    /// Recursively interns a node tree without locking.
+    public func internTreeUnsafe(_ node: Node) -> Node {
+        // First, intern all children recursively
+        let internedChildren: [Node] = node.children.map { internTreeUnsafe($0) }
+        
+        // Check if any child was replaced (identity check)
+        var childrenChanged = false
+        if internedChildren.count == node.children.count {
+            for (original, interned) in zip(node.children, internedChildren) {
+                if original !== interned {
+                    childrenChanged = true
+                    break
+                }
+            }
+        } else {
+            childrenChanged = true
+        }
+        
+        // Determine the canonical node
+        let canonical: Node
+        if childrenChanged {
+            canonical = Node(kind: node.kind, contents: node.contents, children: internedChildren)
+        } else {
+            canonical = node
+        }
+        
+        return internNodeUnsafe(canonical)
+    }
+    
+    // MARK: - Cache Management
+    
+    /// Clears all cached nodes.
+    /// Call this when you're done processing a binary to free memory.
+    public func clear() {
+        lock.lock()
+        defer { lock.unlock() }
+        storage.removeAll()
+    }
+    
+    /// Reserves capacity for the expected number of unique nodes.
+    public func reserveCapacity(_ minimumCapacity: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        storage.reserveCapacity(minimumCapacity)
+    }
+    
+    // MARK: - Private Helpers
+    
+    private func internNode(_ node: Node) -> Node {
+        lock.lock()
+        defer { lock.unlock() }
+        return internNodeUnsafe(node)
+    }
+    
+    private func internNodeUnsafe(_ node: Node) -> Node {
+        if let existing = storage[node] {
+            return existing
+        }
+        storage[node] = node
+        return node
+    }
+}
+
+// MARK: - NodeFactory Static Singletons
+
+/// Factory providing pre-created singleton instances for common parameterless nodes.
+///
+/// These singletons are used directly by `Demangler` during parsing to avoid
+/// creating duplicate instances of frequently-used nodes.
+///
+/// For nodes with contents or children, use `NodeCache.shared` to intern them.
 public enum NodeFactory {
     
     // MARK: - Static Singletons (Parameterless Nodes)
-    
-    // These are the most common parameterless nodes found in Demangler.
-    // Using static constants ensures only one instance exists per kind.
     
     /// `.emptyList` - extremely common in function signatures
     public static let emptyList = Node(kind: .emptyList)
@@ -92,99 +295,14 @@ public enum NodeFactory {
     public static let vTableAttribute = Node(kind: .vTableAttribute)
 }
 
-// MARK: - Node Interning
+// MARK: - Node Interning Extension
 
 extension Node {
-    /// Recursively interns this node tree, returning deduplicated nodes.
+    /// Interns this node tree into the global cache.
     ///
-    /// This is a post-processing optimization that should be called after
-    /// demangling is complete. It traverses the tree bottom-up, ensuring
-    /// identical subtrees share the same Node instance.
-    ///
-    /// - Parameter cache: A dictionary to store interned nodes. Pass the same
-    ///   cache across multiple `intern` calls to maximize deduplication.
-    /// - Returns: The interned node (may be self if already unique, or an
-    ///   existing cached node if a duplicate was found).
-    ///
-    /// Example:
-    /// ```swift
-    /// var cache: [Node: Node] = [:]
-    /// let internedRoot = demangledNode.interned(into: &cache)
-    /// ```
-    public func interned(into cache: inout [Node: Node]) -> Node {
-        // First, intern all children recursively
-        let internedChildren: [Node] = children.map { $0.interned(into: &cache) }
-        
-        // Check if any child was replaced (identity check)
-        var childrenChanged = false
-        if internedChildren.count == children.count {
-            for (original, interned) in zip(children, internedChildren) {
-                if original !== interned {
-                    childrenChanged = true
-                    break
-                }
-            }
-        } else {
-            childrenChanged = true
-        }
-        
-        // Determine the canonical node
-        let canonical: Node
-        if childrenChanged {
-            // Children changed, need to create a new node with interned children
-            canonical = Node(kind: kind, contents: contents, children: internedChildren)
-        } else {
-            // Children unchanged, use self as canonical
-            canonical = self
-        }
-        
-        // Look up or insert into cache
-        if let existing = cache[canonical] {
-            return existing
-        }
-        cache[canonical] = canonical
-        return canonical
-    }
-    
-    /// Convenience method that creates a new cache and interns this tree.
-    ///
-    /// Use this when interning a single tree. For interning multiple trees
-    /// (e.g., all symbols in a binary), use `interned(into:)` with a shared cache.
+    /// Convenience method that calls `NodeCache.shared.intern(self)`.
     public func interned() -> Node {
-        var cache: [Node: Node] = [:]
-        return interned(into: &cache)
+        NodeCache.shared.intern(self)
     }
 }
 
-// MARK: - Batch Interning
-
-extension NodeFactory {
-    /// Interns multiple node trees, sharing a common cache for maximum deduplication.
-    ///
-    /// - Parameter nodes: An array of root nodes to intern.
-    /// - Returns: A tuple containing:
-    ///   - `nodes`: The interned nodes in the same order as input
-    ///   - `cache`: The cache used, which can be reused for additional interning
-    ///
-    /// Example:
-    /// ```swift
-    /// let demangledSymbols: [Node] = symbols.map { try demangleAsNode($0) }
-    /// let (interned, cache) = NodeFactory.intern(demangledSymbols)
-    /// print("Reduced from \(countNodes(demangledSymbols)) to \(cache.count) unique nodes")
-    /// ```
-    public static func intern(_ nodes: [Node]) -> (nodes: [Node], cache: [Node: Node]) {
-        var cache: [Node: Node] = [:]
-        let interned = nodes.map { $0.interned(into: &cache) }
-        return (interned, cache)
-    }
-    
-    /// Interns multiple node trees into an existing cache.
-    ///
-    /// - Parameters:
-    ///   - nodes: An array of root nodes to intern.
-    ///   - cache: An existing cache to use and update.
-    /// - Returns: The interned nodes in the same order as input.
-    public static func intern(_ nodes: [Node], into cache: inout [Node: Node]) -> [Node] {
-        return nodes.map { $0.interned(into: &cache) }
-    }
-}

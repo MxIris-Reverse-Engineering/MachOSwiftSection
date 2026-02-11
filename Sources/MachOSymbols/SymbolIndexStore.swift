@@ -278,7 +278,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
     private func processMemberSymbol(_ symbol: Symbol, node: Node, rootNode: Node, traits: MemberKind.Traits) -> ProcessMemberSymbolResult? {
         var traits = traits
-        var node = node
+        let node = node
         switch node.kind {
         case .allocator:
             guard var first = node.children.first else { return nil }

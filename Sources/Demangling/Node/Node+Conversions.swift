@@ -180,30 +180,36 @@ extension Node {
         }
     }
 
+    @inlinable
     public func isIdentifier(desired: String) -> Bool {
         return kind == .identifier && text == desired
     }
 
+    @inlinable
     public var isSwiftModule: Bool {
         return kind == .module && text == stdlibName
     }
 }
 
 extension Node {
+    @inlinable
     public func isKind(of kinds: Node.Kind...) -> Bool {
         return kinds.contains(kind)
     }
 }
 
 extension Node {
+    @inlinable
     public subscript(child childIndex: Int) -> Node {
         children[childIndex]
     }
 
+    @inlinable
     public subscript(safeChild childIndex: Int) -> Node? {
         children.at(childIndex)
     }
 
+    @inlinable
     public subscript(throwChild childIndex: Int) -> Node {
         get throws(IndexOutOfBoundError) {
             if let child = children.at(childIndex) {
