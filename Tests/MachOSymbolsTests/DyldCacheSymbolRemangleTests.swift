@@ -46,9 +46,14 @@ final class DyldCacheSymbolRemangleTests: DyldCacheSymbolTests, DemangleAndReman
         try await mainTest()
     }
 
-    @Test func test() async throws {
-        let node = try demangleAsNode("_$sSis15WritableKeyPathCy17RealityFoundation23PhysicallyBasedMaterialVAE9BaseColorVGTHTm")
+    @Test func demangleAsNode() async throws {
+        let node = try Demangling.demangleAsNode("_$sSis15WritableKeyPathCy17RealityFoundation23PhysicallyBasedMaterialVAE9BaseColorVGTHTm")
 //        try Demangling.mangleAsString(node).print()
         node.description.print()
+    }
+    
+    @Test func stdlib_demangleNodeTree() async throws {
+        let treeString = MachOTestingSupport.stdlib_demangleNodeTree("_$sSis15WritableKeyPathCy17RealityFoundation23PhysicallyBasedMaterialVAE9BaseColorVGTHTm")!
+        treeString.print()
     }
 }

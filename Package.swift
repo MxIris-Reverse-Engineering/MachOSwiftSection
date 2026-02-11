@@ -443,6 +443,14 @@ extension Target {
             .product(.MachOKit),
             .target(.MachOExtensions),
             .target(.SwiftDump),
+            .target(.MachOTestingSupportC),
+        ],
+        swiftSettings: testSettings
+    )
+    
+    static let MachOTestingSupportC = Target.target(
+        name: "MachOTestingSupportC",
+        dependencies: [
         ],
         swiftSettings: testSettings
     )
@@ -553,6 +561,8 @@ let package = Package(
         .TypeIndexing,
         .MachOMacros,
         .MachOTestingSupport,
+        .MachOTestingSupportC,
+        
 
         // Executable
         .swift_section,

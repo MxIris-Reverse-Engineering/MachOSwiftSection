@@ -1,4 +1,5 @@
 import Foundation
+import MachOTestingSupportC
 
 @_silgen_name("swift_demangle")
 private func _stdlib_demangleImpl(
@@ -43,4 +44,15 @@ package func stdlib_demangleName(
         return .init(demangledNamePtr)
     }
     return mangledName
+}
+
+/// Returns the node tree string for a mangled Swift symbol name,
+/// equivalent to `swift demangle --expand`.
+package func stdlib_demangleNodeTree(_ mangledName: String) -> String? {
+    guard let ptr = swift_demangle_getNodeTreeAsString(mangledName) else {
+        return nil
+    }
+    let result = String(cString: ptr)
+    free(ptr)
+    return result
 }
