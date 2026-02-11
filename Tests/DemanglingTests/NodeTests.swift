@@ -237,10 +237,10 @@ struct NodeTests {
         let parent = Node(kind: .type)
         let child = Node(kind: .identifier, contents: .text("X"))
 
-        parent.addChild(child)
+        let result = parent.addingChild(child)
 
-        #expect(parent.children.count == 1)
-        #expect(parent.children[0].text == "X")
+        #expect(result.children.count == 1)
+        #expect(result.children[0].text == "X")
     }
 }
 

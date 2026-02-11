@@ -13,7 +13,7 @@ struct MachOSwiftSymbol {
 }
 
 class DyldCacheSymbolTests: DyldCacheTests, @unchecked Sendable {
-    func symbols(for machOImageNames: MachOImageName...) throws -> [MachOSwiftSymbol] {
+    func symbols(for machOImageNames: MachOImageName...) async throws -> [MachOSwiftSymbol] {
         var symbols: [MachOSwiftSymbol] = []
         for machOImageName in machOImageNames {
             let machOFile = try #require(fullCache.machOFile(named: machOImageName))
@@ -30,7 +30,7 @@ class DyldCacheSymbolTests: DyldCacheTests, @unchecked Sendable {
         return symbols
     }
 
-    func allSymbols() throws -> [MachOSwiftSymbol] {
+    func allSymbols() async throws -> [MachOSwiftSymbol] {
         var symbols: [MachOSwiftSymbol] = []
         for machOFile in fullCache.machOFiles() {
             for symbol in machOFile.symbols where symbol.name.isSwiftSymbol {

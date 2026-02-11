@@ -58,3 +58,51 @@ extension Node {
         self.init(kind: kind, contents: .index(index), children: childrenBuilder())
     }
 }
+
+// MARK: - Factory Methods
+
+extension Node {
+    public static func create(kind: Kind, contents: Contents = .none, children: [Node] = []) -> Node {
+        Node(kind: kind, contents: contents, children: children)
+    }
+
+    public static func create(kind: Kind, contents: Contents = .none, inlineChildren: NodeChildren) -> Node {
+        Node(kind: kind, contents: contents, inlineChildren: inlineChildren)
+    }
+
+    public static func create(kind: Kind, child: Node) -> Node {
+        Node(kind: kind, child: child)
+    }
+
+    public static func create(kind: Kind, text: String, child: Node) -> Node {
+        Node(kind: kind, text: text, child: child)
+    }
+
+    public static func create(kind: Kind, text: String, children: [Node] = []) -> Node {
+        Node(kind: kind, text: text, children: children)
+    }
+
+    public static func create(kind: Kind, index: UInt64, child: Node) -> Node {
+        Node(kind: kind, index: index, child: child)
+    }
+
+    public static func create(kind: Kind, index: UInt64, children: [Node] = []) -> Node {
+        Node(kind: kind, index: index, children: children)
+    }
+
+    static func create(typeWithChildKind: Kind, childChild: Node) -> Node {
+        Node(typeWithChildKind: typeWithChildKind, childChild: childChild)
+    }
+
+    static func create(typeWithChildKind: Kind, childChildren: [Node]) -> Node {
+        Node(typeWithChildKind: typeWithChildKind, childChildren: childChildren)
+    }
+
+    static func create(swiftStdlibTypeKind: Kind, name: String) -> Node {
+        Node(swiftStdlibTypeKind: swiftStdlibTypeKind, name: name)
+    }
+
+    static func create(swiftBuiltinType: Kind, name: String) -> Node {
+        Node(swiftBuiltinType: swiftBuiltinType, name: name)
+    }
+}

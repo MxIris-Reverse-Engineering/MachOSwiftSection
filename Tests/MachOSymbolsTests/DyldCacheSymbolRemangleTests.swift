@@ -8,36 +8,42 @@ import Dependencies
 
 @MainActor
 protocol DemangleAndRemangleTests {
-    func allSymbols() throws -> [MachOSwiftSymbol]
-    func mainTest() throws
+    func allSymbols() async throws -> [MachOSwiftSymbol]
+    func mainTest() async throws
 }
 
 extension DemangleAndRemangleTests {
-    func mainTest() throws {
-        let allSwiftSymbols = try allSymbols()
+    func mainTest() async throws {
+        let allSwiftSymbols = try await allSymbols()
         "Total Swift Symbols: \(allSwiftSymbols.count)".print()
-        for symbol in allSwiftSymbols {
-            let swiftStdlibDemangledName = stdlib_demangleName(symbol.stringValue)
-            do {
-                let node = try demangleAsNode(symbol.stringValue)
-                let swiftSectionDemanlgedName = node.print()
-                #expect(swiftStdlibDemangledName == swiftSectionDemanlgedName, "\(symbol.stringValue)")
-                let remangledString = try Demangling.mangleAsString(node)
-                #expect(remangledString == symbol.stringValue)
-            } catch {
-                if symbol.stringValue != swiftStdlibDemangledName {
-                    Issue.record(error)
-                    symbol.stringValue.print()
-                }
+//        await withTaskGroup { group in
+            for symbol in allSwiftSymbols {
+//                group.addTask {
+                    let swiftStdlibDemangledName = stdlib_demangleName(symbol.stringValue)
+                    do {
+                        let node = try demangleAsNode(symbol.stringValue)
+                        let swiftSectionDemanlgedName = node.print()
+                        #expect(swiftStdlibDemangledName == swiftSectionDemanlgedName, "\(symbol.stringValue)")
+                        let remangledString = try Demangling.mangleAsString(node)
+                        #expect(remangledString == symbol.stringValue)
+                    } catch {
+                        if symbol.stringValue != swiftStdlibDemangledName {
+                            Issue.record(error)
+                            symbol.stringValue.print()
+                        }
+                    }
+//                }
             }
-        }
+            
+//            await group.waitForAll()
+//        }
     }
 }
 
 @Suite
 final class DyldCacheSymbolRemangleTests: DyldCacheSymbolTests, DemangleAndRemangleTests {
-    @Test func symbols() throws {
-        try mainTest()
+    @Test func main() async throws {
+        try await mainTest()
     }
 
     @Test func test() async throws {

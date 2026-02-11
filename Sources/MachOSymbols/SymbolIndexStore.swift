@@ -14,6 +14,9 @@ import AsyncAlgorithms
 @_spi(Internals)
 @Loggable
 public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unchecked Sendable {
+    
+    nonisolated(unsafe) package static var usesIntern: Bool = false
+    
     public enum MemberKind: Hashable, CaseIterable, CustomStringConvertible, Sendable {
         fileprivate struct Traits: OptionSet, Hashable, Sendable {
             fileprivate let rawValue: Int
@@ -211,7 +214,11 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
         for symbol in symbolByName.values {
             do {
-                let rootNode = try demangleAsNode(symbol.name)
+                let rootNode = if Self.usesIntern {
+                    try demangleAsNodeInterned(symbol.name)
+                } else {
+                    try demangleAsNode(symbol.name)
+                }
 
                 demangledNodeBySymbol[symbol] = rootNode
 

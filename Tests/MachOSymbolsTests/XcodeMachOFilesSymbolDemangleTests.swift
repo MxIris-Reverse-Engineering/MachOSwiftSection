@@ -9,8 +9,8 @@ import Dependencies
 @Suite(.serialized)
 final class XcodeMachOFilesSymbolDemangleTests: DemangleAndRemangleTests {
     @MainActor
-    @Test func symbols() throws {
-        try mainTest()
+    @Test func symbols() async throws {
+        try await mainTest()
     }
 
     func allSymbols() throws -> [MachOSwiftSymbol] {
