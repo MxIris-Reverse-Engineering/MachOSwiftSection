@@ -114,6 +114,10 @@ var dependencies: [Package.Dependency] = [
     // CLI
     .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
     .package(url: "https://github.com/migueldeicaza/TermKit", branch: "main"),
+    
+    // Testing
+    .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.18.9"),
+    .package(url: "https://github.com/MxIris-Library-Forks/swift-power-assert", branch: "main"),
 ]
 
 extension Package.Dependency {
@@ -444,6 +448,8 @@ extension Target {
             .target(.MachOExtensions),
             .target(.SwiftDump),
             .target(.MachOTestingSupportC),
+            .product(name: "PowerAssert", package: "swift-power-assert"),
+            .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
         ],
         swiftSettings: testSettings
     )

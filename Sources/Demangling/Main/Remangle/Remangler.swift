@@ -581,6 +581,8 @@ final class Remangler {
             try mangleTypeMetadataCompletionFunction(node, depth: depth)
         case .typeMetadataDemanglingCache:
             try mangleTypeMetadataDemanglingCache(node, depth: depth)
+        case .typeMetadataMangledNameRef:
+            try mangleTypeMetadataMangledNameRef(node, depth: depth)
         case .typeMetadataInstantiationCache:
             try mangleTypeMetadataInstantiationCache(node, depth: depth)
         case .typeMetadataLazyCache:
@@ -807,8 +809,8 @@ final class Remangler {
             try mangleObjCResilientClassStub(node, depth: depth)
         case .fullObjCResilientClassStub:
             try mangleFullObjCResilientClassStub(node, depth: depth)
-        case .compileTimeConst:
-            try mangleCompileTimeConst(node, depth: depth)
+        case .compileTimeLiteral:
+            try mangleCompileTimeLiteral(node, depth: depth)
         case .constValue:
             try mangleConstValue(node, depth: depth)
         case .concurrentFunctionType:
@@ -2606,6 +2608,11 @@ extension Remangler {
         append("MD")
     }
 
+    private func mangleTypeMetadataMangledNameRef(_ node: Node, depth: Int) throws(ManglingError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
+        append("MR")
+    }
+
     private func mangleTypeMetadataInstantiationCache(_ node: Node, depth: Int) throws(ManglingError) {
         try mangleSingleChildNode(node, depth: depth + 1)
         append("MI")
@@ -3718,7 +3725,7 @@ extension Remangler {
 
     // MARK: - Child + Code (15 methods)
 
-    private func mangleCompileTimeConst(_ node: Node, depth: Int) throws(ManglingError) {
+    private func mangleCompileTimeLiteral(_ node: Node, depth: Int) throws(ManglingError) {
         try mangleSingleChildNode(node, depth: depth + 1)
         append("Yt")
     }

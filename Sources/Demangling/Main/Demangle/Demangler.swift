@@ -151,7 +151,7 @@ extension Demangler {
         case "j": return try demangleDifferentiableFunctionType()
         case "k": return try Node.create(typeWithChildKind: .noDerivative, childChild: require(popTypeAndGetChild()))
         case "K": return try Node.create(kind: .typedThrowsAnnotation, child: require(popTypeAndGetChild()))
-        case "t": return try Node.create(typeWithChildKind: .compileTimeConst, childChild: require(popTypeAndGetChild()))
+        case "t": return try Node.create(typeWithChildKind: .compileTimeLiteral, childChild: require(popTypeAndGetChild()))
         case "T": return NodeFactory.sendingResultFunctionType
         case "u": return try Node.create(typeWithChildKind: .sending, childChild: require(popTypeAndGetChild()))
         case "g": return try Node.create(typeWithChildKind: .constValue, childChild: require(popTypeAndGetChild()))
@@ -984,7 +984,9 @@ extension Demangler {
     }
 
     private func getParentId(parent: Node, flavor: ManglingFlavor) -> String {
-        return "{ParentId}"
+        let remangler = Remangler(usePunycode: true)
+        guard let result = try? remangler.mangle(parent) else { return "" }
+        return result
     }
 
     private func setParentForOpaqueReturnTypeNodes(visited: Node, parentId: String) -> Node {
@@ -1026,10 +1028,16 @@ extension Demangler {
         }
         let name = try require(pop(where: { $0.isDeclName }))
         let ctx = try popContext()
-        if let ll = labelList {
-            return Node.create(kind: .function, children: [ctx, name, ll, type])
+        let result = if let ll = labelList {
+            Node.create(kind: .function, children: [ctx, name, ll, type])
+        } else {
+            Node.create(kind: .function, children: [ctx, name, type])
         }
-        return Node.create(kind: .function, children: [ctx, name, type])
+        let updatedType = setParentForOpaqueReturnTypeNodes(visited: type, parentId: getParentId(parent: result, flavor: flavor))
+        if updatedType !== type {
+            return result.withChild(updatedType, at: result.children.count - 1)
+        }
+        return result
     }
 
     private mutating func demangleRetroactiveConformance() throws(DemanglingError) -> Node {
@@ -1373,6 +1381,8 @@ extension Demangler {
             try require(t.children.first?.kind.isAnyGeneric == true)
             return try Node.create(kind: .reflectionMetadataSuperclassDescriptor, child: require(t.children.first))
         case "D": return try Node.create(kind: .typeMetadataDemanglingCache, child: require(pop(kind: .type)))
+        case "d": return try Node.create(kind: .typeMetadataDemanglingCache, child: require(pop(kind: .type)))
+        case "R": return try Node.create(kind: .typeMetadataMangledNameRef, child: require(pop(kind: .type)))
         case "f": return try Node.create(kind: .fullTypeMetadata, child: require(pop(kind: .type)))
         case "F": return try Node.create(kind: .reflectionMetadataFieldDescriptor, child: require(pop(kind: .type)))
         case "g": return try Node.create(kind: .opaqueTypeDescriptorAccessor, child: require(pop()))

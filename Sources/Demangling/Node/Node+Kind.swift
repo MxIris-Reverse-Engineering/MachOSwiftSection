@@ -49,7 +49,7 @@ extension Node {
         case clangType
         case `class`
         case classMetadataBaseOffset
-        case compileTimeConst
+        case compileTimeLiteral
         case concreteProtocolConformance
         case concurrentFunctionType
         case conformanceAttachedMacroExpansion
@@ -350,6 +350,7 @@ extension Node {
         case typeMetadataAccessFunction
         case typeMetadataCompletionFunction
         case typeMetadataDemanglingCache
+        case typeMetadataMangledNameRef
         case typeMetadataInstantiationCache
         case typeMetadataInstantiationFunction
         case typeMetadataLazyCache
@@ -555,7 +556,12 @@ extension Node.Kind {
 
 extension Node.Kind: CustomStringConvertible {
     public var description: String {
-        rawValue.capitalizingFirstLetter
+        let base = rawValue.capitalizingFirstLetter
+        // Match Swift stdlib convention: "SIL" prefix is all-caps, not "Sil"
+        if base.hasPrefix("Sil") {
+            return "SIL" + base.dropFirst(3)
+        }
+        return base
     }
 }
 

@@ -118,7 +118,7 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
              .protocol,
              .typeAlias: return printEntity(name, asPrefixContext: asPrefixContext, typePrinting: .noType, hasName: true)
         case .classMetadataBaseOffset: printFirstChild(name, prefix: "class metadata base offset for ")
-        case .compileTimeConst: printFirstChild(name, prefix: "_const ")
+        case .compileTimeLiteral: printFirstChild(name, prefix: "_const ")
         case .constValue: printFirstChild(name, prefix: "@const ")
         case .concreteProtocolConformance: printConcreteProtocolConformance(name)
         case .concurrentFunctionType: target.write("@Sendable ")
@@ -436,6 +436,7 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
         case .typeMetadataAccessFunction: printFirstChild(name, prefix: "type metadata accessor for ")
         case .typeMetadataCompletionFunction: printFirstChild(name, prefix: "type metadata completion function for ")
         case .typeMetadataDemanglingCache: printFirstChild(name, prefix: "demangling cache variable for type metadata for ")
+        case .typeMetadataMangledNameRef: printFirstChild(name, prefix: "mangled name ref for type metadata for ")
         case .typeMetadataInstantiationCache: printFirstChild(name, prefix: "type metadata instantiation cache for ")
         case .typeMetadataInstantiationFunction: printFirstChild(name, prefix: "type metadata instantiation function for ")
         case .typeMetadataLazyCache: printFirstChild(name, prefix: "lazy cache variable for type metadata for ")
