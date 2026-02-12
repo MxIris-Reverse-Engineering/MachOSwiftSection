@@ -30,10 +30,12 @@ private func demangleAsNode<C: Collection & Sendable>(_ mangled: C, isType: Bool
 
 // MARK: - Demangling with Global Cache
 
-/// Demangles a symbol and interns the result into the global `NodeCache`.
+/// Demangles a symbol with inline interning into the global `NodeCache`.
 ///
-/// Use this when you want automatic deduplication of node trees across
-/// multiple demangle calls. The global cache persists until explicitly cleared.
+/// Uses inline interning: nodes are interned at creation time during demangling,
+/// eliminating the need for a separate post-processing `intern()` pass.
+/// This is more efficient than `demangleAsNode()` + `intern()` because it avoids
+/// the O(N) recursive traversal of the completed tree.
 ///
 /// - Parameters:
 ///   - mangled: The mangled symbol string to demangle.
@@ -59,16 +61,39 @@ public func demangleAsNodeInterned(
     isType: Bool = false,
     symbolicReferenceResolver: DemangleSymbolicReferenceResolver? = nil
 ) throws(DemanglingError) -> Node {
-    let node = try demangleAsNode(mangled, isType: isType, symbolicReferenceResolver: symbolicReferenceResolver)
-    return NodeCache.shared.intern(node)
+    let previous = NodeCache.active
+    NodeCache.active = .shared
+    defer { NodeCache.active = previous }
+    return try demangleAsNode(mangled, isType: isType, symbolicReferenceResolver: symbolicReferenceResolver)
+}
+
+/// Demangles a symbol with inline interning into the specified `NodeCache`.
+///
+/// - Parameters:
+///   - mangled: The mangled symbol string to demangle.
+///   - cache: The cache to intern nodes into.
+///   - isType: If true, parses as a type without prefix.
+///   - symbolicReferenceResolver: Optional resolver for symbolic references.
+/// - Returns: The demangled and interned node.
+/// - Throws: `DemanglingError` if demangling fails.
+public func demangleAsNodeInterned(
+    _ mangled: String,
+    cache: NodeCache,
+    isType: Bool = false,
+    symbolicReferenceResolver: DemangleSymbolicReferenceResolver? = nil
+) throws(DemanglingError) -> Node {
+    let previous = NodeCache.active
+    NodeCache.active = cache
+    defer { NodeCache.active = previous }
+    return try demangleAsNode(mangled, isType: isType, symbolicReferenceResolver: symbolicReferenceResolver)
 }
 
 // MARK: - Batch Demangling
 
-/// Demangles multiple symbols and interns them into the global `NodeCache`.
+/// Demangles multiple symbols with inline interning into the global `NodeCache`.
 ///
-/// This is optimized for processing large numbers of symbols (e.g., all symbols
-/// in a binary). Identical subtrees will share the same Node instances.
+/// Uses inline interning for efficient deduplication during demangling.
+/// Identical subtrees will share the same Node instances.
 ///
 /// - Parameters:
 ///   - symbols: An array of mangled symbol strings to demangle.
@@ -88,7 +113,9 @@ public func demangleBatch(
     isType: Bool = false,
     symbolicReferenceResolver: DemangleSymbolicReferenceResolver? = nil
 ) -> [Node?] {
-    symbols.map { symbol in
-        try? demangleAsNodeInterned(symbol, isType: isType, symbolicReferenceResolver: symbolicReferenceResolver)
+    NodeCache.withActive(.shared) {
+        symbols.map { symbol in
+            try? demangleAsNode(symbol, isType: isType, symbolicReferenceResolver: symbolicReferenceResolver)
+        }
     }
 }

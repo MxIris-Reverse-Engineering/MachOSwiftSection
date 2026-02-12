@@ -1,5 +1,15 @@
 import Foundation
 
+// MARK: - Thread-Local Active Cache
+
+/// pthread key for thread-local active NodeCache storage.
+/// Using pthread_getspecific/pthread_setspecific for minimal overhead (~1-2ns per access).
+private let _activeNodeCacheKey: pthread_key_t = {
+    var key: pthread_key_t = 0
+    pthread_key_create(&key, nil)
+    return key
+}()
+
 /// Global cache for interning Node instances.
 ///
 /// This cache stores nodes by their structural identity (kind + contents + children),
@@ -64,10 +74,16 @@ public final class NodeCache: @unchecked Sendable {
         let precomputedHash: Int
 
         init(_ node: Node) {
-            self.kind = node.kind
-            self.contents = node.contents
-            self.childCount = node.children.count
-            self.childIdentities = node.children.map { ObjectIdentifier($0) }
+            self.init(kind: node.kind, contents: node.contents, children: node.children)
+        }
+
+        /// Memberwise init that computes identity from parameters directly,
+        /// avoiding the need to allocate a Node first.
+        init(kind: Node.Kind, contents: Node.Contents, children: some Collection<Node>) {
+            self.kind = kind
+            self.contents = contents
+            self.childCount = children.count
+            self.childIdentities = children.map { ObjectIdentifier($0) }
 
             // Precompute hash
             var hasher = Hasher()
@@ -115,6 +131,84 @@ public final class NodeCache: @unchecked Sendable {
     /// Creates a new empty cache.
     /// Use this for isolated caching scenarios. For shared caching, use `NodeCache.shared`.
     public init() {}
+
+    // MARK: - Thread-Local Active Cache
+
+    /// The active cache for inline interning on the current thread.
+    ///
+    /// When set, `Node.create()` and non-mutating node methods (e.g. `addingChild`)
+    /// will automatically intern nodes through this cache, eliminating the need
+    /// for a separate post-processing `intern()` pass.
+    ///
+    /// Thread-safe: each thread has its own active cache via pthread thread-local storage.
+    @usableFromInline
+    static var active: NodeCache? {
+        get {
+            guard let raw = pthread_getspecific(_activeNodeCacheKey) else { return nil }
+            return Unmanaged<NodeCache>.fromOpaque(raw).takeUnretainedValue()
+        }
+        set {
+            if let cache = newValue {
+                pthread_setspecific(_activeNodeCacheKey, Unmanaged.passUnretained(cache).toOpaque())
+            } else {
+                pthread_setspecific(_activeNodeCacheKey, nil)
+            }
+        }
+    }
+
+    /// Executes the closure with the specified cache as the active inline interning cache.
+    ///
+    /// All `Node.create()` calls within the closure will automatically intern through the cache.
+    /// This eliminates the need for a separate `intern()` pass after demangling.
+    ///
+    /// On first activation, registers `NodeFactory` singletons into the cache to ensure
+    /// identity consistency between singletons and cache-created nodes of the same kind.
+    ///
+    /// - Parameters:
+    ///   - cache: The cache to use for inline interning.
+    ///   - body: The closure to execute with inline interning enabled.
+    /// - Returns: The result of the closure.
+    @discardableResult
+    public static func withActive<T, E: Error>(_ cache: NodeCache, _ body: () throws(E) -> T) throws(E) -> T {
+        cache.registerFactorySingletonsIfNeeded()
+        let previous = active
+        active = cache
+        defer { active = previous }
+        return try body()
+    }
+
+    /// Non-throwing overload for closures that don't throw.
+    @discardableResult
+    public static func withActive<T>(_ cache: NodeCache, _ body: () -> T) -> T {
+        cache.registerFactorySingletonsIfNeeded()
+        let previous = active
+        active = cache
+        defer { active = previous }
+        return body()
+    }
+
+    // MARK: - Inline Interning (used by Node.create)
+
+    /// Creates or retrieves an interned node without locking.
+    /// Called by `Node.create()` when inline interning is active.
+    /// Checks the cache before allocating a Node to avoid wasted allocation on cache hit.
+    @usableFromInline
+    func createInterned(kind: Node.Kind, contents: Node.Contents, children: [Node]) -> Node {
+        if children.isEmpty {
+            return internLeafUnsafe(kind: kind, contents: contents)
+        }
+        return internTreeNodeUnsafe(kind: kind, contents: contents, children: children)
+    }
+
+    /// Creates or retrieves an interned node from inline children without locking.
+    /// Checks the cache before allocating a Node to avoid wasted allocation on cache hit.
+    @usableFromInline
+    func createInterned(kind: Node.Kind, contents: Node.Contents, inlineChildren: NodeChildren) -> Node {
+        if inlineChildren.isEmpty {
+            return internLeafUnsafe(kind: kind, contents: contents)
+        }
+        return internTreeNodeUnsafe(kind: kind, contents: contents, inlineChildren: inlineChildren)
+    }
 
     // MARK: - Leaf Node Interning (No Children)
 
@@ -291,8 +385,25 @@ public final class NodeCache: @unchecked Sendable {
     }
 
     private func internTreeNodeUnsafe(kind: Node.Kind, contents: Node.Contents, children: [Node]) -> Node {
+        // Check cache BEFORE allocating a Node to avoid wasted allocation on cache hit.
+        let key = TreeKey(kind: kind, contents: contents, children: children)
+        if let existing = treeStorage[key] {
+            return existing
+        }
         let node = Node(kind: kind, contents: contents, children: children)
-        return internTreeNodeUnsafe(node)
+        treeStorage[key] = node
+        return node
+    }
+
+    private func internTreeNodeUnsafe(kind: Node.Kind, contents: Node.Contents, inlineChildren: NodeChildren) -> Node {
+        // Check cache BEFORE allocating a Node.
+        let key = TreeKey(kind: kind, contents: contents, children: inlineChildren)
+        if let existing = treeStorage[key] {
+            return existing
+        }
+        let node = Node(kind: kind, contents: contents, inlineChildren: inlineChildren)
+        treeStorage[key] = node
+        return node
     }
 
     private func internTreeNodeUnsafe(_ node: Node) -> Node {

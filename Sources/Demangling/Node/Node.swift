@@ -199,9 +199,13 @@ extension Node {
 
 extension Node {
     /// Returns a new node with the child added.
+    /// Interns the result through the active `NodeCache` if one is set.
     func addingChild(_ newChild: Node) -> Node {
         var nc = children
         nc.append(newChild)
+        if let cache = NodeCache.active {
+            return cache.createInterned(kind: kind, contents: contents, inlineChildren: nc)
+        }
         return Node(kind: kind, contents: contents, inlineChildren: nc)
     }
 
@@ -210,6 +214,9 @@ extension Node {
         guard children.indices.contains(index) else { return self }
         var nc = children
         nc.remove(at: index)
+        if let cache = NodeCache.active {
+            return cache.createInterned(kind: kind, contents: contents, inlineChildren: nc)
+        }
         return Node(kind: kind, contents: contents, inlineChildren: nc)
     }
 
@@ -218,18 +225,27 @@ extension Node {
         guard index >= 0, index <= children.count else { return self }
         var nc = children
         nc.insert(newChild, at: index)
+        if let cache = NodeCache.active {
+            return cache.createInterned(kind: kind, contents: contents, inlineChildren: nc)
+        }
         return Node(kind: kind, contents: contents, inlineChildren: nc)
     }
 
     /// Returns a new node with the children added.
     func addingChildren(_ newChildren: [Node]) -> Node {
         let nc = children + newChildren
+        if let cache = NodeCache.active {
+            return cache.createInterned(kind: kind, contents: contents, inlineChildren: nc)
+        }
         return Node(kind: kind, contents: contents, inlineChildren: nc)
     }
 
     /// Returns a new node with the specified children.
     func withChildren(_ newChildren: [Node]) -> Node {
-        Node(kind: kind, contents: contents, children: newChildren)
+        if let cache = NodeCache.active {
+            return cache.createInterned(kind: kind, contents: contents, children: newChildren)
+        }
+        return Node(kind: kind, contents: contents, children: newChildren)
     }
 
     /// Returns a new node with the child replaced at the specified index.
@@ -237,6 +253,9 @@ extension Node {
         guard children.indices.contains(index) else { return self }
         var nc = children
         nc[index] = child
+        if let cache = NodeCache.active {
+            return cache.createInterned(kind: kind, contents: contents, inlineChildren: nc)
+        }
         return Node(kind: kind, contents: contents, inlineChildren: nc)
     }
 
@@ -244,6 +263,9 @@ extension Node {
     func reversingChildren() -> Node {
         var nc = children
         nc.reverse()
+        if let cache = NodeCache.active {
+            return cache.createInterned(kind: kind, contents: contents, inlineChildren: nc)
+        }
         return Node(kind: kind, contents: contents, inlineChildren: nc)
     }
 
@@ -251,6 +273,9 @@ extension Node {
     func reversingFirst(_ count: Int) -> Node {
         var nc = children
         nc.reverseFirst(count)
+        if let cache = NodeCache.active {
+            return cache.createInterned(kind: kind, contents: contents, inlineChildren: nc)
+        }
         return Node(kind: kind, contents: contents, inlineChildren: nc)
     }
 
@@ -261,6 +286,9 @@ extension Node {
             return new
         }
         let newChildren = children.map { $0.replacingDescendant(old, with: new) }
+        if let cache = NodeCache.active {
+            return cache.createInterned(kind: kind, contents: contents, children: newChildren)
+        }
         return Node(kind: kind, contents: contents, children: newChildren)
     }
 }

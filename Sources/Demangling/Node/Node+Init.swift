@@ -59,50 +59,73 @@ extension Node {
     }
 }
 
-// MARK: - Factory Methods
+// MARK: - Factory Methods (with inline interning support)
 
 extension Node {
+    /// Creates a node, interning it through the active `NodeCache` if one is set.
+    @inlinable
     public static func create(kind: Kind, contents: Contents = .none, children: [Node] = []) -> Node {
-        Node(kind: kind, contents: contents, children: children)
+        if let cache = NodeCache.active {
+            return cache.createInterned(kind: kind, contents: contents, children: children)
+        }
+        return Node(kind: kind, contents: contents, children: children)
     }
 
+    /// Creates a node from inline children, interning if an active cache is set.
+    @inlinable
     public static func create(kind: Kind, contents: Contents = .none, inlineChildren: NodeChildren) -> Node {
-        Node(kind: kind, contents: contents, inlineChildren: inlineChildren)
+        if let cache = NodeCache.active {
+            return cache.createInterned(kind: kind, contents: contents, inlineChildren: inlineChildren)
+        }
+        return Node(kind: kind, contents: contents, inlineChildren: inlineChildren)
     }
 
+    @inlinable
     public static func create(kind: Kind, child: Node) -> Node {
-        Node(kind: kind, child: child)
+        create(kind: kind, contents: .none, children: [child])
     }
 
+    @inlinable
     public static func create(kind: Kind, text: String, child: Node) -> Node {
-        Node(kind: kind, text: text, child: child)
+        create(kind: kind, contents: .text(text), children: [child])
     }
 
+    @inlinable
     public static func create(kind: Kind, text: String, children: [Node] = []) -> Node {
-        Node(kind: kind, text: text, children: children)
+        create(kind: kind, contents: .text(text), children: children)
     }
 
+    @inlinable
     public static func create(kind: Kind, index: UInt64, child: Node) -> Node {
-        Node(kind: kind, index: index, child: child)
+        create(kind: kind, contents: .index(index), children: [child])
     }
 
+    @inlinable
     public static func create(kind: Kind, index: UInt64, children: [Node] = []) -> Node {
-        Node(kind: kind, index: index, children: children)
+        create(kind: kind, contents: .index(index), children: children)
     }
 
+    /// Compound factory: creates `.type` wrapping a node of `typeWithChildKind` with a single child.
+    /// Uses `create()` for intermediate nodes to ensure inline interning.
     static func create(typeWithChildKind: Kind, childChild: Node) -> Node {
-        Node(typeWithChildKind: typeWithChildKind, childChild: childChild)
+        create(kind: .type, children: [create(kind: typeWithChildKind, children: [childChild])])
     }
 
+    /// Compound factory: creates `.type` wrapping a node of `typeWithChildKind` with children.
     static func create(typeWithChildKind: Kind, childChildren: [Node]) -> Node {
-        Node(typeWithChildKind: typeWithChildKind, childChildren: childChildren)
+        create(kind: .type, children: [create(kind: typeWithChildKind, children: childChildren)])
     }
 
+    /// Compound factory: creates a Swift stdlib type node (`.type` > `kind` > [`.module("Swift")`, `.identifier(name)`]).
     static func create(swiftStdlibTypeKind: Kind, name: String) -> Node {
-        Node(swiftStdlibTypeKind: swiftStdlibTypeKind, name: name)
+        create(kind: .type, children: [create(kind: swiftStdlibTypeKind, children: [
+            create(kind: .module, text: stdlibName),
+            create(kind: .identifier, text: name),
+        ])])
     }
 
+    /// Compound factory: creates a Swift builtin type node (`.type` > `kind(name)`).
     static func create(swiftBuiltinType: Kind, name: String) -> Node {
-        Node(swiftBuiltinType: swiftBuiltinType, name: name)
+        create(kind: .type, children: [create(kind: swiftBuiltinType, text: name)])
     }
 }
