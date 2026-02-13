@@ -111,8 +111,14 @@ public enum ProcessMemory {
 
 @Suite
 final class SymbolIndexStoreTests: MachOImageTests {
-    @Test func main() async throws {
+    @Test func usesIntern() async throws {
         SymbolIndexStore.usesIntern = true
+        SymbolIndexStore.shared.prepare(in: machOImage)
+        ProcessMemory.report()
+    }
+    
+    @Test func unusesIntern() async throws {
+        SymbolIndexStore.usesIntern = false
         SymbolIndexStore.shared.prepare(in: machOImage)
         ProcessMemory.report()
     }

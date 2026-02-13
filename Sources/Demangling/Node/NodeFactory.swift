@@ -10,17 +10,12 @@ private let _activeNodeCacheKey: pthread_key_t = {
     return key
 }()
 
-/// Global cache for interning Node instances.
+/// Global cache for interning leaf Node instances (nodes without children).
 ///
-/// This cache stores nodes by their structural identity (kind + contents + children),
-/// allowing identical node structures to share the same instance in memory.
-///
-/// ## Performance Optimization
-/// This implementation avoids the O(n²) recursive hash problem by:
-/// 1. Separating leaf nodes (no children) from tree nodes (with children)
-/// 2. Using ObjectIdentifier-based hashing for tree nodes, which is O(1) per child
-///    since children are already interned
-/// 3. Using lightweight key structs instead of Node for dictionary lookup
+/// Leaf nodes like `.module("Swift")` and `.identifier("Int")` have the highest
+/// deduplication rate across symbols and lowest cache overhead (~32 bytes per key).
+/// Tree nodes (with children) are not cached because their low dedup rate and high
+/// metadata overhead negate any memory savings.
 ///
 /// ## Thread Safety
 /// The cache uses a lock for thread-safe access. For single-threaded scenarios
@@ -30,10 +25,10 @@ private let _activeNodeCacheKey: pthread_key_t = {
 /// ## Usage
 ///
 /// ```swift
-/// // Get or create an interned node
+/// // Get or create an interned leaf node
 /// let node = NodeCache.shared.intern(kind: .identifier, text: "foo")
 ///
-/// // Intern an existing node tree (post-processing)
+/// // Intern leaves within an existing node tree (post-processing)
 /// let interned = NodeCache.shared.intern(existingNode)
 ///
 /// // Clear cache when done processing a binary
@@ -43,7 +38,7 @@ public final class NodeCache: @unchecked Sendable {
     /// The shared global cache instance.
     public static let shared = NodeCache()
 
-    // MARK: - Key Types for O(1) Lookup
+    // MARK: - Key Types
 
     /// Key for leaf nodes (no children). Uses kind + contents for identity.
     private struct LeafKey: Hashable {
@@ -61,71 +56,22 @@ public final class NodeCache: @unchecked Sendable {
         }
     }
 
-    /// Key for tree nodes (with children). Uses ObjectIdentifier for children
-    /// since they are already interned, making hash computation O(n) where n
-    /// is the number of direct children, not the entire subtree.
-    private struct TreeKey: Hashable {
-        let kind: Node.Kind
-        let contents: Node.Contents
-        let childCount: Int
-        // Store ObjectIdentifiers of children for O(1) identity-based hashing
-        let childIdentities: [ObjectIdentifier]
-        // Precomputed hash for fast lookup
-        let precomputedHash: Int
-
-        init(_ node: Node) {
-            self.init(kind: node.kind, contents: node.contents, children: node.children)
-        }
-
-        /// Memberwise init that computes identity from parameters directly,
-        /// avoiding the need to allocate a Node first.
-        init(kind: Node.Kind, contents: Node.Contents, children: some Collection<Node>) {
-            self.kind = kind
-            self.contents = contents
-            self.childCount = children.count
-            self.childIdentities = children.map { ObjectIdentifier($0) }
-
-            // Precompute hash
-            var hasher = Hasher()
-            hasher.combine(kind)
-            hasher.combine(contents)
-            hasher.combine(childCount)
-            for id in childIdentities {
-                hasher.combine(id)
-            }
-            self.precomputedHash = hasher.finalize()
-        }
-
-        func hash(into hasher: inout Hasher) {
-            hasher.combine(precomputedHash)
-        }
-
-        static func == (lhs: TreeKey, rhs: TreeKey) -> Bool {
-            // Fast path: check precomputed hash first
-            guard lhs.precomputedHash == rhs.precomputedHash else { return false }
-            guard lhs.kind == rhs.kind else { return false }
-            guard lhs.contents == rhs.contents else { return false }
-            guard lhs.childCount == rhs.childCount else { return false }
-            return lhs.childIdentities == rhs.childIdentities
-        }
-    }
-
     // MARK: - Storage
 
     /// Storage for leaf nodes (no children).
     private var leafStorage: [LeafKey: Node] = [:]
 
-    /// Storage for tree nodes (with children).
-    private var treeStorage: [TreeKey: Node] = [:]
-
     /// Lock for thread-safe access.
     private let lock = NSLock()
 
-    /// Number of unique nodes in the cache.
+    /// Whether NodeFactory singletons have been registered in this cache.
+    private var singletonsRegistered = false
+
+    /// Number of unique leaf nodes in the cache.
     public var count: Int {
         lock.lock()
         defer { lock.unlock() }
-        return leafStorage.count + treeStorage.count
+        return leafStorage.count
     }
 
     /// Creates a new empty cache.
@@ -136,9 +82,8 @@ public final class NodeCache: @unchecked Sendable {
 
     /// The active cache for inline interning on the current thread.
     ///
-    /// When set, `Node.create()` and non-mutating node methods (e.g. `addingChild`)
-    /// will automatically intern nodes through this cache, eliminating the need
-    /// for a separate post-processing `intern()` pass.
+    /// When set, `Node.create()` will automatically intern nodes through this cache,
+    /// eliminating the need for a separate post-processing `intern()` pass.
     ///
     /// Thread-safe: each thread has its own active cache via pthread thread-local storage.
     @usableFromInline
@@ -191,23 +136,23 @@ public final class NodeCache: @unchecked Sendable {
 
     /// Creates or retrieves an interned node without locking.
     /// Called by `Node.create()` when inline interning is active.
-    /// Checks the cache before allocating a Node to avoid wasted allocation on cache hit.
+    /// Only leaf nodes (no children) are cached; tree nodes are created directly.
     @usableFromInline
     func createInterned(kind: Node.Kind, contents: Node.Contents, children: [Node]) -> Node {
         if children.isEmpty {
             return internLeafUnsafe(kind: kind, contents: contents)
         }
-        return internTreeNodeUnsafe(kind: kind, contents: contents, children: children)
+        return Node(kind: kind, contents: contents, children: children)
     }
 
     /// Creates or retrieves an interned node from inline children without locking.
-    /// Checks the cache before allocating a Node to avoid wasted allocation on cache hit.
+    /// Only leaf nodes (no children) are cached; tree nodes are created directly.
     @usableFromInline
     func createInterned(kind: Node.Kind, contents: Node.Contents, inlineChildren: NodeChildren) -> Node {
         if inlineChildren.isEmpty {
             return internLeafUnsafe(kind: kind, contents: contents)
         }
-        return internTreeNodeUnsafe(kind: kind, contents: contents, inlineChildren: inlineChildren)
+        return Node(kind: kind, contents: contents, inlineChildren: inlineChildren)
     }
 
     // MARK: - Leaf Node Interning (No Children)
@@ -234,45 +179,41 @@ public final class NodeCache: @unchecked Sendable {
         return internLeafUnsafe(kind: kind, contents: .index(index))
     }
 
-    // MARK: - Node with Children Interning
+    // MARK: - Node with Children
 
-    /// Interns a node with a single child.
-    /// The child should already be interned for maximum deduplication.
+    /// Creates a node with a single child. Only leaf nodes are cached.
     public func intern(kind: Node.Kind, child: Node) -> Node {
-        lock.lock()
-        defer { lock.unlock() }
-        return internTreeNodeUnsafe(kind: kind, contents: .none, children: [child])
+        Node(kind: kind, contents: .none, children: [child])
     }
 
-    /// Interns a node with multiple children.
-    /// The children should already be interned for maximum deduplication.
+    /// Creates a node with multiple children. Interns if leaf (no children), otherwise creates directly.
     public func intern(kind: Node.Kind, children: [Node]) -> Node {
-        lock.lock()
-        defer { lock.unlock() }
         if children.isEmpty {
+            lock.lock()
+            defer { lock.unlock() }
             return internLeafUnsafe(kind: kind, contents: .none)
         }
-        return internTreeNodeUnsafe(kind: kind, contents: .none, children: children)
+        return Node(kind: kind, contents: .none, children: children)
     }
 
-    /// Interns a node with text contents and children.
+    /// Creates a node with text contents and children. Interns if leaf, otherwise creates directly.
     public func intern(kind: Node.Kind, text: String, children: [Node]) -> Node {
-        lock.lock()
-        defer { lock.unlock() }
         if children.isEmpty {
+            lock.lock()
+            defer { lock.unlock() }
             return internLeafUnsafe(kind: kind, contents: .text(text))
         }
-        return internTreeNodeUnsafe(kind: kind, contents: .text(text), children: children)
+        return Node(kind: kind, contents: .text(text), children: children)
     }
 
-    /// Interns a node with index contents and children.
+    /// Creates a node with index contents and children. Interns if leaf, otherwise creates directly.
     public func intern(kind: Node.Kind, index: UInt64, children: [Node]) -> Node {
-        lock.lock()
-        defer { lock.unlock() }
         if children.isEmpty {
+            lock.lock()
+            defer { lock.unlock() }
             return internLeafUnsafe(kind: kind, contents: .index(index))
         }
-        return internTreeNodeUnsafe(kind: kind, contents: .index(index), children: children)
+        return Node(kind: kind, contents: .index(index), children: children)
     }
 
     // MARK: - Tree Interning (Post-Processing)
@@ -315,22 +256,25 @@ public final class NodeCache: @unchecked Sendable {
         internLeafUnsafe(kind: kind, contents: .index(index))
     }
 
-    /// Interns a node with children without locking.
+    /// Creates a node with children without locking. Interns if leaf, otherwise creates directly.
     public func internUnsafe(kind: Node.Kind, children: [Node]) -> Node {
         if children.isEmpty {
             return internLeafUnsafe(kind: kind, contents: .none)
         }
-        return internTreeNodeUnsafe(kind: kind, contents: .none, children: children)
+        return Node(kind: kind, contents: .none, children: children)
     }
 
-    /// Recursively interns a node tree without locking.
+    /// Recursively interns leaf nodes within a tree without locking.
+    /// Tree nodes (with children) are not cached, but their leaf descendants are deduplicated.
+    /// If any leaf child was replaced with a cached instance, a new tree node is created
+    /// with the updated children to maintain structural sharing.
     public func internTreeUnsafe(_ node: Node) -> Node {
-        // Leaf node: use leaf storage
+        // Leaf node: intern it
         if node.children.isEmpty {
             return internLeafUnsafe(kind: node.kind, contents: node.contents)
         }
 
-        // First, intern all children recursively (bottom-up)
+        // Recursively intern leaf children (bottom-up)
         var childrenChanged = false
         var internedChildren = [Node]()
         internedChildren.reserveCapacity(node.children.count)
@@ -343,13 +287,11 @@ public final class NodeCache: @unchecked Sendable {
             }
         }
 
-        // If children changed, create a node with interned children for lookup
+        // Only reconstruct if a leaf child was deduplicated
         if childrenChanged {
-            return internTreeNodeUnsafe(kind: node.kind, contents: node.contents, children: internedChildren)
-        } else {
-            // Children are already canonical, try to intern this node as-is
-            return internTreeNodeUnsafe(node)
+            return Node(kind: node.kind, contents: node.contents, children: internedChildren)
         }
+        return node
     }
 
     // MARK: - Cache Management
@@ -360,16 +302,79 @@ public final class NodeCache: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         leafStorage.removeAll()
-        treeStorage.removeAll()
+        singletonsRegistered = false
     }
 
-    /// Reserves capacity for the expected number of unique nodes.
+    /// Reserves capacity for the expected number of unique leaf nodes.
     public func reserveCapacity(_ minimumCapacity: Int) {
         lock.lock()
         defer { lock.unlock() }
-        // Assume roughly 60% leaf nodes, 40% tree nodes
-        leafStorage.reserveCapacity(minimumCapacity * 6 / 10)
-        treeStorage.reserveCapacity(minimumCapacity * 4 / 10)
+        leafStorage.reserveCapacity(minimumCapacity)
+    }
+
+    // MARK: - NodeFactory Singleton Registration
+
+    /// Registers all `NodeFactory` singletons into the leaf cache.
+    ///
+    /// This ensures identity consistency: when `Node.create(kind: .emptyList)` is called
+    /// with inline interning active, it returns the same instance as `NodeFactory.emptyList`.
+    /// Without this, parent nodes using the singleton vs a cache-created duplicate would
+    /// have different identities, breaking deduplication.
+    func registerFactorySingletonsIfNeeded() {
+        guard !singletonsRegistered else { return }
+        singletonsRegistered = true
+
+        let singletons: [Node] = [
+            NodeFactory.emptyList,
+            NodeFactory.firstElementMarker,
+            NodeFactory.labelList,
+            NodeFactory.throwsAnnotation,
+            NodeFactory.asyncAnnotation,
+            NodeFactory.variadicMarker,
+            NodeFactory.concurrentFunctionType,
+            NodeFactory.isolatedAnyFunctionType,
+            NodeFactory.nonIsolatedCallerFunctionType,
+            NodeFactory.sendingResultFunctionType,
+            NodeFactory.unknownIndex,
+            NodeFactory.constrainedExistentialSelf,
+            NodeFactory.objCAttribute,
+            NodeFactory.nonObjCAttribute,
+            NodeFactory.dynamicAttribute,
+            NodeFactory.directMethodReferenceAttribute,
+            NodeFactory.distributedThunk,
+            NodeFactory.distributedAccessor,
+            NodeFactory.partialApplyObjCForwarder,
+            NodeFactory.partialApplyForwarder,
+            NodeFactory.mergedFunction,
+            NodeFactory.dynamicallyReplaceableFunctionVar,
+            NodeFactory.dynamicallyReplaceableFunctionKey,
+            NodeFactory.dynamicallyReplaceableFunctionImpl,
+            NodeFactory.asyncFunctionPointer,
+            NodeFactory.backDeploymentThunk,
+            NodeFactory.backDeploymentFallback,
+            NodeFactory.coroFunctionPointer,
+            NodeFactory.defaultOverride,
+            NodeFactory.hasSymbolQuery,
+            NodeFactory.accessibleFunctionRecord,
+            NodeFactory.implEscaping,
+            NodeFactory.implErasedIsolation,
+            NodeFactory.implSendingResult,
+            NodeFactory.isSerialized,
+            NodeFactory.asyncRemoved,
+            NodeFactory.tuple,
+            NodeFactory.pack,
+            NodeFactory.errorType,
+            NodeFactory.sugaredOptional,
+            NodeFactory.sugaredArray,
+            NodeFactory.sugaredParen,
+            NodeFactory.opaqueReturnType,
+            NodeFactory.vTableAttribute,
+        ]
+
+        for singleton in singletons {
+            let key = LeafKey(singleton)
+            leafStorage[key] = singleton
+        }
     }
 
     // MARK: - Private Helpers
@@ -383,37 +388,6 @@ public final class NodeCache: @unchecked Sendable {
         leafStorage[key] = node
         return node
     }
-
-    private func internTreeNodeUnsafe(kind: Node.Kind, contents: Node.Contents, children: [Node]) -> Node {
-        // Check cache BEFORE allocating a Node to avoid wasted allocation on cache hit.
-        let key = TreeKey(kind: kind, contents: contents, children: children)
-        if let existing = treeStorage[key] {
-            return existing
-        }
-        let node = Node(kind: kind, contents: contents, children: children)
-        treeStorage[key] = node
-        return node
-    }
-
-    private func internTreeNodeUnsafe(kind: Node.Kind, contents: Node.Contents, inlineChildren: NodeChildren) -> Node {
-        // Check cache BEFORE allocating a Node.
-        let key = TreeKey(kind: kind, contents: contents, children: inlineChildren)
-        if let existing = treeStorage[key] {
-            return existing
-        }
-        let node = Node(kind: kind, contents: contents, inlineChildren: inlineChildren)
-        treeStorage[key] = node
-        return node
-    }
-
-    private func internTreeNodeUnsafe(_ node: Node) -> Node {
-        let key = TreeKey(node)
-        if let existing = treeStorage[key] {
-            return existing
-        }
-        treeStorage[key] = node
-        return node
-    }
 }
 
 // MARK: - NodeFactory Static Singletons
@@ -425,45 +399,45 @@ public final class NodeCache: @unchecked Sendable {
 ///
 /// For nodes with contents or children, use `NodeCache.shared` to intern them.
 public enum NodeFactory {
-    
+
     // MARK: - Static Singletons (Parameterless Nodes)
-    
+
     /// `.emptyList` - extremely common in function signatures
     public static let emptyList = Node(kind: .emptyList)
-    
+
     /// `.firstElementMarker` - used in tuple/label processing
     public static let firstElementMarker = Node(kind: .firstElementMarker)
-    
+
     /// `.labelList` - used in function parameter labels
     public static let labelList = Node(kind: .labelList)
-    
+
     /// `.throwsAnnotation` - function throws marker
     public static let throwsAnnotation = Node(kind: .throwsAnnotation)
-    
+
     /// `.asyncAnnotation` - async function marker
     public static let asyncAnnotation = Node(kind: .asyncAnnotation)
-    
+
     /// `.variadicMarker` - variadic parameter marker
     public static let variadicMarker = Node(kind: .variadicMarker)
-    
+
     /// `.concurrentFunctionType` - @Sendable function marker
     public static let concurrentFunctionType = Node(kind: .concurrentFunctionType)
-    
+
     /// `.isolatedAnyFunctionType` - @isolated(any) marker
     public static let isolatedAnyFunctionType = Node(kind: .isolatedAnyFunctionType)
-    
+
     /// `.nonIsolatedCallerFunctionType` - nonisolated(unsafe) marker
     public static let nonIsolatedCallerFunctionType = Node(kind: .nonIsolatedCallerFunctionType)
-    
+
     /// `.sendingResultFunctionType` - sending result marker
     public static let sendingResultFunctionType = Node(kind: .sendingResultFunctionType)
-    
+
     /// `.unknownIndex` - placeholder for unknown indices
     public static let unknownIndex = Node(kind: .unknownIndex)
-    
+
     /// `.constrainedExistentialSelf` - Self in constrained existential
     public static let constrainedExistentialSelf = Node(kind: .constrainedExistentialSelf)
-    
+
     // Function attributes
     public static let objCAttribute = Node(kind: .objCAttribute)
     public static let nonObjCAttribute = Node(kind: .nonObjCAttribute)
@@ -477,7 +451,7 @@ public enum NodeFactory {
     public static let dynamicallyReplaceableFunctionVar = Node(kind: .dynamicallyReplaceableFunctionVar)
     public static let dynamicallyReplaceableFunctionKey = Node(kind: .dynamicallyReplaceableFunctionKey)
     public static let dynamicallyReplaceableFunctionImpl = Node(kind: .dynamicallyReplaceableFunctionImpl)
-    
+
     // Async/thunk related
     public static let asyncFunctionPointer = Node(kind: .asyncFunctionPointer)
     public static let backDeploymentThunk = Node(kind: .backDeploymentThunk)
@@ -486,16 +460,16 @@ public enum NodeFactory {
     public static let defaultOverride = Node(kind: .defaultOverride)
     public static let hasSymbolQuery = Node(kind: .hasSymbolQuery)
     public static let accessibleFunctionRecord = Node(kind: .accessibleFunctionRecord)
-    
+
     // Impl function markers
     public static let implEscaping = Node(kind: .implEscaping)
     public static let implErasedIsolation = Node(kind: .implErasedIsolation)
     public static let implSendingResult = Node(kind: .implSendingResult)
-    
+
     // Serialization/async markers
     public static let isSerialized = Node(kind: .isSerialized)
     public static let asyncRemoved = Node(kind: .asyncRemoved)
-    
+
     // Common type nodes
     public static let tuple = Node(kind: .tuple)
     public static let pack = Node(kind: .pack)
@@ -517,4 +491,3 @@ extension Node {
         NodeCache.shared.intern(self)
     }
 }
-

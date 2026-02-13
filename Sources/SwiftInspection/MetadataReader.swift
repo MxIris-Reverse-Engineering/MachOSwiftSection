@@ -10,8 +10,14 @@ import MachOSwiftSection
 package enum MetadataReader {}
 
 extension MetadataReader {
+    package nonisolated(unsafe) static var isCahceEnabled: Bool = true
+
     package static func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
-        try MetadataReaderCache.shared.demangleType(for: mangledName, in: machO)
+        if isCahceEnabled {
+            return try MetadataReaderCache.shared.demangleType(for: mangledName, in: machO)
+        } else {
+            return try _demangleType(for: mangledName, in: machO)
+        }
     }
 
     fileprivate static func _demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
@@ -45,7 +51,11 @@ extension MetadataReader {
 
 extension MetadataReader {
     package static func demangleType(for mangledName: MangledName) throws -> Node {
-        return try MetadataReaderCache.shared.demangleType(for: mangledName)
+        if isCahceEnabled {
+            return try MetadataReaderCache.shared.demangleType(for: mangledName)
+        } else {
+            return try _demangleType(for: mangledName)
+        }
     }
 
     fileprivate static func _demangleType(for mangledName: MangledName) throws -> Node {

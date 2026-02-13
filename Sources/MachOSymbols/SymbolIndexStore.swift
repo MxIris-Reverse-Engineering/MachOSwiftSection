@@ -15,7 +15,7 @@ import AsyncAlgorithms
 @Loggable
 public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unchecked Sendable {
     
-    nonisolated(unsafe) package static var usesIntern: Bool = false
+    nonisolated(unsafe) package static var usesIntern: Bool = true
     
     public enum MemberKind: Hashable, CaseIterable, CustomStringConvertible, Sendable {
         fileprivate struct Traits: OptionSet, Hashable, Sendable {

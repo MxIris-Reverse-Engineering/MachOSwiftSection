@@ -984,9 +984,10 @@ extension Demangler {
     }
 
     private func getParentId(parent: Node, flavor: ManglingFlavor) -> String {
-        let remangler = Remangler(usePunycode: true)
-        guard let result = try? remangler.mangle(parent) else { return "" }
-        return result
+        return "{ParentId}"
+//        let remangler = Remangler(usePunycode: true)
+//        guard let result = try? remangler.mangle(parent) else { return "" }
+//        return result
     }
 
     private func setParentForOpaqueReturnTypeNodes(visited: Node, parentId: String) -> Node {
