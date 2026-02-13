@@ -59,25 +59,19 @@ extension Node {
     }
 }
 
-// MARK: - Factory Methods (with inline interning support)
+// MARK: - Factory Methods (with automatic leaf interning)
 
 extension Node {
-    /// Creates a node, interning it through the active `NodeCache` if one is set.
+    /// Creates a node. Leaf nodes (no children) are automatically interned via `NodeCache.shared`.
     @inlinable
     public static func create(kind: Kind, contents: Contents = .none, children: [Node] = []) -> Node {
-        if let cache = NodeCache.active {
-            return cache.createInterned(kind: kind, contents: contents, children: children)
-        }
-        return Node(kind: kind, contents: contents, children: children)
+        NodeCache.shared.createInterned(kind: kind, contents: contents, children: children)
     }
 
-    /// Creates a node from inline children, interning if an active cache is set.
+    /// Creates a node from inline children. Leaf nodes are automatically interned.
     @inlinable
     public static func create(kind: Kind, contents: Contents = .none, inlineChildren: NodeChildren) -> Node {
-        if let cache = NodeCache.active {
-            return cache.createInterned(kind: kind, contents: contents, inlineChildren: inlineChildren)
-        }
-        return Node(kind: kind, contents: contents, inlineChildren: inlineChildren)
+        NodeCache.shared.createInterned(kind: kind, contents: contents, inlineChildren: inlineChildren)
     }
 
     @inlinable

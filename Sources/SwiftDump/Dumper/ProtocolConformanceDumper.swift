@@ -161,12 +161,12 @@ extension ResolvedTypeReference {
             }
         case .directObjCClassName(let objcClassName):
             guard let objcClassName, !objcClassName.isEmpty else { return nil }
-            return Node(kind: .type) {
-                Node(kind: .class) {
-                    Node(kind: .module, text: objcModule)
-                    Node(kind: .identifier, text: objcClassName)
-                }
-            }
+            return Node(kind: .type, children: [
+                Node(kind: .class, children: [
+                    .create(kind: .module, text: objcModule),
+                    .create(kind: .identifier, text: objcClassName),
+                ])
+            ])
         case .indirectObjCClass(let objcClass):
             switch objcClass {
             case .symbol(let symbol):
@@ -195,12 +195,12 @@ extension ResolvedTypeReference {
             }
         case .directObjCClassName(let objcClassName):
             guard let objcClassName, !objcClassName.isEmpty else { return nil }
-            return Node(kind: .type) {
-                Node(kind: .class) {
-                    Node(kind: .module, text: objcModule)
-                    Node(kind: .identifier, text: objcClassName)
-                }
-            }
+            return Node(kind: .type, children: [
+                Node(kind: .class, children: [
+                    .create(kind: .module, text: objcModule),
+                    .create(kind: .identifier, text: objcClassName),
+                ])
+            ])
         case .indirectObjCClass(let objcClass):
             switch objcClass {
             case .symbol(let symbol):

@@ -209,70 +209,22 @@ struct NodeCacheTests {
 @Suite
 struct NodeCacheDemangleTests {
 
-    @Test func demangleAsNodeInternedDeduplicates() throws {
-        // Clear shared cache first
-        NodeCache.shared.clear()
+    @Test func demangleAsNodeDeduplicatesLeaves() throws {
+        // Demangle the same symbol twice — leaf nodes should be shared
+        let node1 = try demangleAsNode("$sSiD")
+        let node2 = try demangleAsNode("$sSiD")
 
-        // Demangle the same symbol twice
-        let node1 = try demangleAsNodeInterned("$sSiD")
-        let node2 = try demangleAsNodeInterned("$sSiD")
-
-        #expect(node1 === node2, "Same symbol should produce same interned node")
-
-        // Clean up
-        NodeCache.shared.clear()
-    }
-
-    @Test func demangleBatchDeduplicates() throws {
-        // Clear shared cache first
-        NodeCache.shared.clear()
-
-        let symbols = [
-            "$sSiD",  // Swift.Int
-            "$sSSD",  // Swift.String
-            "$sSiD",  // Swift.Int (duplicate)
-            "$sSbD",  // Swift.Bool
-            "$sSSD",  // Swift.String (duplicate)
-        ]
-
-        let nodes = demangleBatch(symbols)
-
-        #expect(nodes.count == 5)
-        #expect(nodes[0] === nodes[2], "Duplicate symbols should produce same node")
-        #expect(nodes[1] === nodes[4], "Duplicate symbols should produce same node")
-
-        // Clean up
-        NodeCache.shared.clear()
-    }
-
-    @Test func demangleBatchHandlesFailures() {
-        // Clear shared cache first
-        NodeCache.shared.clear()
-
-        let symbols = [
-            "$sSiD",       // Valid
-            "invalid",    // Invalid
-            "$sSSD",      // Valid
-        ]
-
-        let nodes = demangleBatch(symbols)
-
-        #expect(nodes.count == 3)
-        #expect(nodes[0] != nil)
-        #expect(nodes[1] == nil, "Invalid symbol should produce nil")
-        #expect(nodes[2] != nil)
-
-        // Clean up
-        NodeCache.shared.clear()
+        // Leaf nodes (e.g. .module("Swift")) should be the same instance
+        let module1 = node1.first(of: .module)
+        let module2 = node2.first(of: .module)
+        #expect(module1 != nil)
+        #expect(module1 === module2, "Same leaf nodes should be deduplicated")
     }
 
     @Test func sharedSubtreesAreInterned() throws {
-        // Clear shared cache first
-        NodeCache.shared.clear()
-
         // These symbols both contain Swift module
-        let node1 = try demangleAsNodeInterned("$sSiD")  // Swift.Int
-        let node2 = try demangleAsNodeInterned("$sSaySSGD")  // Array<String>
+        let node1 = try demangleAsNode("$sSiD")  // Swift.Int
+        let node2 = try demangleAsNode("$sSaySSGD")  // Array<String>
 
         // Both should have Swift module node interned
         let module1 = node1.first(of: .module)

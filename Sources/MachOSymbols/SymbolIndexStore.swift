@@ -15,8 +15,6 @@ import AsyncAlgorithms
 @Loggable
 public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unchecked Sendable {
     
-    nonisolated(unsafe) package static var usesIntern: Bool = true
-    
     public enum MemberKind: Hashable, CaseIterable, CustomStringConvertible, Sendable {
         fileprivate struct Traits: OptionSet, Hashable, Sendable {
             fileprivate let rawValue: Int
@@ -214,11 +212,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
         for symbol in symbolByName.values {
             do {
-                let rootNode = if Self.usesIntern {
-                    try demangleAsNodeInterned(symbol.name)
-                } else {
-                    try demangleAsNode(symbol.name)
-                }
+                let rootNode = try demangleAsNode(symbol.name)
 
                 demangledNodeBySymbol[symbol] = rootNode
 
@@ -347,7 +341,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     }
 
     private func processMemberSymbol(_ symbol: Symbol, node: Node, rootNode: Node, memberKind: MemberKind) -> ProcessMemberSymbolResult? {
-        let typeNode = Node(kind: .type, child: node)
+        let typeNode = Node.create(kind: .type, child: node)
         let typeName = typeNode.print(using: .interfaceTypeBuilderOnly)
         if let typeKind = node.kind.typeKind {
 //            typeInfoByName[typeName] = .init(name: typeName, kind: typeKind)

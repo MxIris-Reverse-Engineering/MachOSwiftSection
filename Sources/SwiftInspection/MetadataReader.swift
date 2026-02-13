@@ -162,7 +162,7 @@ extension MetadataReader {
                 requirementNodes.append(Node(kind: nodeKind, children: [subject, type]))
             case .layout(let genericRequirementLayoutKind):
                 if genericRequirementLayoutKind == .class {
-                    requirementNodes.append(Node(kind: .dependentGenericLayoutRequirement, children: [subject, .init(kind: .identifier, contents: .text("C"))]))
+                    requirementNodes.append(Node(kind: .dependentGenericLayoutRequirement, children: [subject, .create(kind: .identifier, text: "C")]))
                 } else {
                     failed = true
                 }
@@ -200,7 +200,7 @@ extension MetadataReader {
                     case .direct:
                         if let contextWrapper = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset).resolve(at: baseAddress, in: context) {
                             if let opaqueTypeDescriptor = contextWrapper.opaqueTypeDescriptor {
-                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueTypeDescriptor.offset.cast())
+                                result = .create(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueTypeDescriptor.offset.cast())
                             } else {
                                 result = try buildContextMangling(context: .element(contextWrapper), in: context)
                             }
@@ -209,7 +209,7 @@ extension MetadataReader {
                         let relativePointer = RelativeIndirectSymbolOrElementPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset)
                         if let resolvableElement = try relativePointer.resolve(at: baseAddress, in: context).asOptional {
                             if case .element(let element) = resolvableElement, let opaqueTypeDescriptor = element.opaqueTypeDescriptor {
-                                result = .init(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueTypeDescriptor.offset.cast())
+                                result = .create(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueTypeDescriptor.offset.cast())
                             } else {
                                 result = try buildContextMangling(context: resolvableElement, in: context)
                             }
@@ -219,7 +219,7 @@ extension MetadataReader {
                     // The symbolic reference points at a resolver function, but we can't
                     // execute code in the target process to resolve it from here.
                     let rawPointerOffset = try RelativeDirectRawPointer(relativeOffset: relativeOffset).resolveDirectAddress(at: context.addressFromOffset(offset), in: context)
-                    result = try .init(kind: .accessorFunctionReference, contents: .index(context.offsetFromAddress(rawPointerOffset).cast()))
+                    result = try .create(kind: .accessorFunctionReference, index: context.offsetFromAddress(rawPointerOffset).cast())
                 case .uniqueExtendedExistentialTypeShape:
                     let extendedExistentialTypeShape = try RelativeDirectPointer<ExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(at: baseAddress, in: context)
                     let existentialType = try extendedExistentialTypeShape.existentialType(in: context)
@@ -315,7 +315,7 @@ extension MetadataReader {
             if nameNode != nil {
                 return true
             } else if let namedContext = context.namedContextDescriptor {
-                nameNode = try .init(kind: .identifier, contents: .text(namedContext.name(in: readingContext)))
+                nameNode = try .create(kind: .identifier, text: namedContext.name(in: readingContext))
                 return true
             } else {
                 return false
@@ -363,7 +363,7 @@ extension MetadataReader {
                 return nil
             }
             guard let moduleContext = context.moduleContextDescriptor else { return nil }
-            return try .init(kind: .module, contents: .text(moduleContext.name(in: readingContext)))
+            return try .create(kind: .module, text: moduleContext.name(in: readingContext))
         case .opaqueType:
             guard let parentDescriptorResult else { return nil }
             if parentDemangling?.kind == .anonymousContext {
@@ -457,7 +457,7 @@ extension MetadataReader {
                     }
                     return demangled
                 } else {
-                    return Node(kind: .protocol, children: [.init(kind: .module, contents: .text(objcModule)), .init(kind: .identifier, contents: .text(name))])
+                    return Node(kind: .protocol, children: [.create(kind: .module, text: objcModule), .create(kind: .identifier, text: name)])
                 }
             }
         case .swiftPointer(let swiftPointer):

@@ -1,15 +1,5 @@
 import Foundation
 
-// MARK: - Thread-Local Active Cache
-
-/// pthread key for thread-local active NodeCache storage.
-/// Using pthread_getspecific/pthread_setspecific for minimal overhead (~1-2ns per access).
-private let _activeNodeCacheKey: pthread_key_t = {
-    var key: pthread_key_t = 0
-    pthread_key_create(&key, nil)
-    return key
-}()
-
 /// Global cache for interning leaf Node instances (nodes without children).
 ///
 /// Leaf nodes like `.module("Swift")` and `.identifier("Int")` have the highest
@@ -17,26 +7,29 @@ private let _activeNodeCacheKey: pthread_key_t = {
 /// Tree nodes (with children) are not cached because their low dedup rate and high
 /// metadata overhead negate any memory savings.
 ///
+/// All `Node.create()` calls automatically intern leaf nodes through `NodeCache.shared`.
+///
 /// ## Thread Safety
-/// The cache uses a lock for thread-safe access. For single-threaded scenarios
-/// or when you control the threading, you can use the unsynchronized methods
-/// for better performance.
+/// The cache uses a lock for thread-safe access.
 ///
 /// ## Usage
 ///
 /// ```swift
-/// // Get or create an interned leaf node
-/// let node = NodeCache.shared.intern(kind: .identifier, text: "foo")
-///
-/// // Intern leaves within an existing node tree (post-processing)
-/// let interned = NodeCache.shared.intern(existingNode)
+/// // Node.create() automatically interns leaf nodes
+/// let node = Node.create(kind: .module, text: "Swift") // interned
+/// let tree = Node.create(kind: .type, children: [node]) // not interned (has children)
 ///
 /// // Clear cache when done processing a binary
 /// NodeCache.shared.clear()
 /// ```
 public final class NodeCache: @unchecked Sendable {
     /// The shared global cache instance.
-    public static let shared = NodeCache()
+    /// NodeFactory singletons are registered at initialization time.
+    public static let shared: NodeCache = {
+        let cache = NodeCache()
+        cache.registerFactorySingletons()
+        return cache
+    }()
 
     // MARK: - Key Types
 
@@ -64,9 +57,6 @@ public final class NodeCache: @unchecked Sendable {
     /// Lock for thread-safe access.
     private let lock = NSLock()
 
-    /// Whether NodeFactory singletons have been registered in this cache.
-    private var singletonsRegistered = false
-
     /// Number of unique leaf nodes in the cache.
     public var count: Int {
         lock.lock()
@@ -78,78 +68,27 @@ public final class NodeCache: @unchecked Sendable {
     /// Use this for isolated caching scenarios. For shared caching, use `NodeCache.shared`.
     public init() {}
 
-    // MARK: - Thread-Local Active Cache
-
-    /// The active cache for inline interning on the current thread.
-    ///
-    /// When set, `Node.create()` will automatically intern nodes through this cache,
-    /// eliminating the need for a separate post-processing `intern()` pass.
-    ///
-    /// Thread-safe: each thread has its own active cache via pthread thread-local storage.
-    @usableFromInline
-    static var active: NodeCache? {
-        get {
-            guard let raw = pthread_getspecific(_activeNodeCacheKey) else { return nil }
-            return Unmanaged<NodeCache>.fromOpaque(raw).takeUnretainedValue()
-        }
-        set {
-            if let cache = newValue {
-                pthread_setspecific(_activeNodeCacheKey, Unmanaged.passUnretained(cache).toOpaque())
-            } else {
-                pthread_setspecific(_activeNodeCacheKey, nil)
-            }
-        }
-    }
-
-    /// Executes the closure with the specified cache as the active inline interning cache.
-    ///
-    /// All `Node.create()` calls within the closure will automatically intern through the cache.
-    /// This eliminates the need for a separate `intern()` pass after demangling.
-    ///
-    /// On first activation, registers `NodeFactory` singletons into the cache to ensure
-    /// identity consistency between singletons and cache-created nodes of the same kind.
-    ///
-    /// - Parameters:
-    ///   - cache: The cache to use for inline interning.
-    ///   - body: The closure to execute with inline interning enabled.
-    /// - Returns: The result of the closure.
-    @discardableResult
-    public static func withActive<T, E: Error>(_ cache: NodeCache, _ body: () throws(E) -> T) throws(E) -> T {
-        cache.registerFactorySingletonsIfNeeded()
-        let previous = active
-        active = cache
-        defer { active = previous }
-        return try body()
-    }
-
-    /// Non-throwing overload for closures that don't throw.
-    @discardableResult
-    public static func withActive<T>(_ cache: NodeCache, _ body: () -> T) -> T {
-        cache.registerFactorySingletonsIfNeeded()
-        let previous = active
-        active = cache
-        defer { active = previous }
-        return body()
-    }
-
     // MARK: - Inline Interning (used by Node.create)
 
-    /// Creates or retrieves an interned node without locking.
-    /// Called by `Node.create()` when inline interning is active.
-    /// Only leaf nodes (no children) are cached; tree nodes are created directly.
+    /// Creates or retrieves an interned node.
+    /// Called by `Node.create()`. Only leaf nodes (no children) are cached.
     @usableFromInline
     func createInterned(kind: Node.Kind, contents: Node.Contents, children: [Node]) -> Node {
         if children.isEmpty {
+            lock.lock()
+            defer { lock.unlock() }
             return internLeafUnsafe(kind: kind, contents: contents)
         }
         return Node(kind: kind, contents: contents, children: children)
     }
 
-    /// Creates or retrieves an interned node from inline children without locking.
-    /// Only leaf nodes (no children) are cached; tree nodes are created directly.
+    /// Creates or retrieves an interned node from inline children.
+    /// Called by `Node.create()`. Only leaf nodes (no children) are cached.
     @usableFromInline
     func createInterned(kind: Node.Kind, contents: Node.Contents, inlineChildren: NodeChildren) -> Node {
         if inlineChildren.isEmpty {
+            lock.lock()
+            defer { lock.unlock() }
             return internLeafUnsafe(kind: kind, contents: contents)
         }
         return Node(kind: kind, contents: contents, inlineChildren: inlineChildren)
@@ -218,21 +157,21 @@ public final class NodeCache: @unchecked Sendable {
 
     // MARK: - Tree Interning (Post-Processing)
 
-    /// Recursively interns a node tree, returning deduplicated nodes.
+    /// Recursively interns leaf nodes within a tree.
     ///
-    /// This traverses the tree bottom-up, ensuring identical subtrees
-    /// share the same Node instance.
+    /// Tree nodes (with children) are not cached, but their leaf descendants are deduplicated.
+    /// If any leaf child was replaced with a cached instance, a new tree node is created
+    /// with the updated children.
     ///
     /// - Parameter node: The root node to intern.
-    /// - Returns: The interned node (may be the same instance if already cached,
-    ///   or a cached instance if a duplicate was found).
+    /// - Returns: The node with deduplicated leaves.
     public func intern(_ node: Node) -> Node {
         lock.lock()
         defer { lock.unlock() }
         return internTreeUnsafe(node)
     }
 
-    /// Recursively interns multiple node trees.
+    /// Recursively interns leaf nodes within multiple trees.
     public func intern(_ nodes: [Node]) -> [Node] {
         lock.lock()
         defer { lock.unlock() }
@@ -265,9 +204,6 @@ public final class NodeCache: @unchecked Sendable {
     }
 
     /// Recursively interns leaf nodes within a tree without locking.
-    /// Tree nodes (with children) are not cached, but their leaf descendants are deduplicated.
-    /// If any leaf child was replaced with a cached instance, a new tree node is created
-    /// with the updated children to maintain structural sharing.
     public func internTreeUnsafe(_ node: Node) -> Node {
         // Leaf node: intern it
         if node.children.isEmpty {
@@ -302,7 +238,7 @@ public final class NodeCache: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         leafStorage.removeAll()
-        singletonsRegistered = false
+        registerFactorySingletons()
     }
 
     /// Reserves capacity for the expected number of unique leaf nodes.
@@ -312,18 +248,13 @@ public final class NodeCache: @unchecked Sendable {
         leafStorage.reserveCapacity(minimumCapacity)
     }
 
-    // MARK: - NodeFactory Singleton Registration
+    // MARK: - Private Helpers
 
     /// Registers all `NodeFactory` singletons into the leaf cache.
     ///
-    /// This ensures identity consistency: when `Node.create(kind: .emptyList)` is called
-    /// with inline interning active, it returns the same instance as `NodeFactory.emptyList`.
-    /// Without this, parent nodes using the singleton vs a cache-created duplicate would
-    /// have different identities, breaking deduplication.
-    func registerFactorySingletonsIfNeeded() {
-        guard !singletonsRegistered else { return }
-        singletonsRegistered = true
-
+    /// Ensures identity consistency: `Node.create(kind: .emptyList)` returns the same
+    /// instance as `NodeFactory.emptyList`.
+    private func registerFactorySingletons() {
         let singletons: [Node] = [
             NodeFactory.emptyList,
             NodeFactory.firstElementMarker,
@@ -376,8 +307,6 @@ public final class NodeCache: @unchecked Sendable {
             leafStorage[key] = singleton
         }
     }
-
-    // MARK: - Private Helpers
 
     private func internLeafUnsafe(kind: Node.Kind, contents: Node.Contents) -> Node {
         let key = LeafKey(kind: kind, contents: contents)

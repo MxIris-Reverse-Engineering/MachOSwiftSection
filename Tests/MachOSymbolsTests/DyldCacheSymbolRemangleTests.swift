@@ -40,7 +40,7 @@ extension DemangleAndRemangleTests {
             let stdlibTree = MachOTestingSupport.stdlib_demangleNodeTree(mangledName)
 
             do {
-                let node = try demangleAsNodeInterned(mangledName)
+                let node = try demangleAsNode(mangledName)
                 var allPassed = true
 
                 // 1. Node tree check
