@@ -102,7 +102,7 @@ struct VariableNodePrinter: InterfaceNodePrintable {
             target.writeSpace()
         }
 
-        target.write(identifier.text ?? "", context: .context(for: identifier, state: .printIdentifier))
+        target.write(identifier.text ?? "", context: .context(for: identifier, parentKind: .variable, state: .printIdentifier))
         target.write(": ")
 
         guard let type = node.children.first(of: .type) else { return }

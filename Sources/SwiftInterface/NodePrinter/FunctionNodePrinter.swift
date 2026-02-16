@@ -83,9 +83,9 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
             target.write("func", context: .context(state: .printKeyword))
             target.writeSpace()
             if let identifier = function.children.first(of: .identifier) {
-                await printIdentifier(identifier)
+                await printIdentifier(identifier, parentKind: .function)
             } else if let privateDeclName = function.children.first(of: .privateDeclName) {
-                await printPrivateDeclName(privateDeclName)
+                await printPrivateDeclName(privateDeclName, parentKind: .function)
             } else if let `operator` = function.children.first(of: .prefixOperator, .infixOperator, .postfixOperator), let text = `operator`.text {
                 target.write(text + " ")
             }

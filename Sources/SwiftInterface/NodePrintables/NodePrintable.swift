@@ -64,13 +64,13 @@ extension NodePrintable {
         target.write(moduleName, context: .context(for: node, state: .printModule))
     }
 
-    mutating func printIdentifier(_ node: Node) async {
-        target.write(node.text ?? "", context: .context(for: node, state: .printIdentifier))
+    mutating func printIdentifier(_ node: Node, parentKind: Node.Kind? = nil) async {
+        target.write(node.text ?? "", context: .context(for: node, parentKind: parentKind, state: .printIdentifier))
     }
 
-    mutating func printPrivateDeclName(_ node: Node) async {
+    mutating func printPrivateDeclName(_ node: Node, parentKind: Node.Kind? = nil) async {
         guard let child = node.children.at(1) else { return }
-        await printIdentifier(child)
+        await printIdentifier(child, parentKind: parentKind)
     }
 
     @discardableResult
