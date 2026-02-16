@@ -52,7 +52,7 @@ extension SwiftInterfaceBuilderTests {
     }
 
     func buildFile(in machO: MachOFile) async throws {
-        let builder = try SwiftInterfaceBuilder(configuration: builderConfiguration, eventHandlers: [], in: machO)
+        let builder = try SwiftInterfaceBuilder(configuration: builderConfiguration, eventHandlers: [OSLogEventHandler()], in: machO)
         let clock = ContinuousClock()
         let duration = try await clock.measure {
             try await builder.prepare()
@@ -64,7 +64,7 @@ extension SwiftInterfaceBuilderTests {
     }
 
     func buildFile(in machO: MachOImage) async throws {
-        let builder = try SwiftInterfaceBuilder(configuration: builderConfiguration, eventHandlers: [], in: machO)
+        let builder = try SwiftInterfaceBuilder(configuration: builderConfiguration, eventHandlers: [OSLogEventHandler()], in: machO)
         let clock = ContinuousClock()
         let duration = try await clock.measure {
             try await builder.prepare()

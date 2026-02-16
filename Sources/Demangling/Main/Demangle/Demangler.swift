@@ -983,19 +983,38 @@ extension Demangler {
         }
     }
 
-    private func getParentId(parent: Node, flavor: ManglingFlavor) -> String {
-        return "{ParentId}"
-//        let remangler = Remangler(usePunycode: true)
-//        guard let result = try? remangler.mangle(parent) else { return "" }
-//        return result
+    /// Associate any `OpaqueReturnType` nodes with the declaration whose opaque
+    /// return type they refer back to.
+    ///
+    /// The `getParentID` closure is evaluated lazily — only when an
+    /// `OpaqueReturnType` node is actually found — and cached so that the
+    /// (expensive) remangling happens at most once.  This matches the C++
+    /// Swift runtime implementation and avoids compounding Demangler + Remangler
+    /// recursion, which would overflow the small cooperative-thread stack.
+    private func setParentForOpaqueReturnTypeNodes(
+        visited: Node,
+        parent: Node
+    ) -> Node {
+        var cachedParentId: String?
+        func getParentId() -> String {
+            if let cached = cachedParentId { return cached }
+            let remangler = Remangler(usePunycode: true)
+            let id = (try? remangler.mangle(parent)) ?? ""
+            cachedParentId = id
+            return id
+        }
+        return setParentForOpaqueReturnTypeNodesImpl(visited: visited, getParentId: getParentId)
     }
 
-    private func setParentForOpaqueReturnTypeNodes(visited: Node, parentId: String) -> Node {
+    private func setParentForOpaqueReturnTypeNodesImpl(
+        visited: Node,
+        getParentId: () -> String
+    ) -> Node {
         if visited.kind == .opaqueReturnType {
             if visited.children.last?.kind == .opaqueReturnTypeParent {
                 return visited
             }
-            return visited.addingChild(Node.create(kind: .opaqueReturnTypeParent, contents: .text(parentId)))
+            return visited.addingChild(Node.create(kind: .opaqueReturnTypeParent, contents: .text(getParentId())))
         }
 
         switch visited.kind {
@@ -1009,7 +1028,7 @@ extension Demangler {
         var newChildren = [Node]()
         newChildren.reserveCapacity(visited.children.count)
         for child in visited.children {
-            let newChild = setParentForOpaqueReturnTypeNodes(visited: child, parentId: parentId)
+            let newChild = setParentForOpaqueReturnTypeNodesImpl(visited: child, getParentId: getParentId)
             if newChild !== child { changed = true }
             newChildren.append(newChild)
         }
@@ -1034,7 +1053,7 @@ extension Demangler {
         } else {
             Node.create(kind: .function, children: [ctx, name, type])
         }
-        let updatedType = setParentForOpaqueReturnTypeNodes(visited: type, parentId: getParentId(parent: result, flavor: flavor))
+        let updatedType = setParentForOpaqueReturnTypeNodes(visited: type, parent: result)
         if updatedType !== type {
             return result.withChild(updatedType, at: result.children.count - 1)
         }
@@ -2384,7 +2403,7 @@ extension Demangler {
         } else {
             Node.create(kind: kind, children: [context, name, type])
         }
-        let updatedType = setParentForOpaqueReturnTypeNodes(visited: type, parentId: getParentId(parent: result, flavor: flavor))
+        let updatedType = setParentForOpaqueReturnTypeNodes(visited: type, parent: result)
         if updatedType !== type {
             return result.withChild(updatedType, at: result.children.count - 1)
         }
@@ -2410,7 +2429,7 @@ extension Demangler {
             children.append(pn)
         }
         var ss = Node.create(kind: .subscript, children: children)
-        let updatedType = setParentForOpaqueReturnTypeNodes(visited: type, parentId: getParentId(parent: ss, flavor: flavor))
+        let updatedType = setParentForOpaqueReturnTypeNodes(visited: type, parent: ss)
         if updatedType !== type {
             let typeIndex = labelList != nil ? 2 : 1
             ss = ss.withChild(updatedType, at: typeIndex)

@@ -70,7 +70,7 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
         // Setup target node for opaque return type lookup
         var targetNode = node
         if isStatic {
-            targetNode = Node(kind: .static, child: targetNode)
+            targetNode = Node.create(kind: .static, child: targetNode)
         }
         self.targetNode = targetNode
 
@@ -89,7 +89,7 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
             }
         }
         if node.children.at(1)?.isKind(of: .labelList) == false {
-            node = NodeBuilder(node).insertingChild(Node(kind: .labelList), at: 1)
+            node = NodeBuilder(node).insertingChild(Node.create(kind: .labelList), at: 1)
         }
 
         if let type = node.children.first(of: .type), let functionType = type.children.first {

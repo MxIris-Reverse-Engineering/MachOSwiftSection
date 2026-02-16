@@ -98,6 +98,9 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
 
     @Mutex
     public private(set) var configuration: SwiftInterfaceIndexConfiguration = .init()
+    
+    @Mutex
+    public private(set) var subIndexers: [SwiftInterfaceIndexer<MachO>] = []
 
     @usableFromInline
     let currentStorage = Storage()
@@ -105,7 +108,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
     let eventDispatcher: SwiftInterfaceEvents.Dispatcher = .init()
 
     @Mutex
-    public private(set) var subIndexers: [SwiftInterfaceIndexer<MachO>] = []
+    private var isPrepared: Bool = false
 
     public init(configuration: SwiftInterfaceIndexConfiguration = .init(), eventHandlers: [SwiftInterfaceEvents.Handler] = [], in machO: MachO) {
         self.machO = machO
@@ -132,6 +135,8 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
     }
 
     public func prepare() async throws {
+        if isPrepared { return }
+        
         eventDispatcher.dispatch(.phaseTransition(phase: .preparation, state: .started))
 
         for subIndexer in subIndexers {
@@ -187,6 +192,8 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
         }
 
         eventDispatcher.dispatch(.phaseTransition(phase: .preparation, state: .completed))
+        
+        isPrepared = true
     }
 
     private func index() async throws {

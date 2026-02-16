@@ -161,8 +161,8 @@ extension ResolvedTypeReference {
             }
         case .directObjCClassName(let objcClassName):
             guard let objcClassName, !objcClassName.isEmpty else { return nil }
-            return Node(kind: .type, children: [
-                Node(kind: .class, children: [
+            return Node.create(kind: .type, children: [
+                Node.create(kind: .class, children: [
                     .create(kind: .module, text: objcModule),
                     .create(kind: .identifier, text: objcClassName),
                 ])
@@ -195,8 +195,8 @@ extension ResolvedTypeReference {
             }
         case .directObjCClassName(let objcClassName):
             guard let objcClassName, !objcClassName.isEmpty else { return nil }
-            return Node(kind: .type, children: [
-                Node(kind: .class, children: [
+            return Node.create(kind: .type, children: [
+                Node.create(kind: .class, children: [
                     .create(kind: .module, text: objcModule),
                     .create(kind: .identifier, text: objcClassName),
                 ])

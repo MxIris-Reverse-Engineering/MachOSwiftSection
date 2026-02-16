@@ -25,7 +25,11 @@ extension MetadataReader {
     }
 
     package static func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for symbol: Symbol, in machO: MachO) throws -> Node? {
-        return try buildContextManglingForSymbol(symbol, in: machO.context)
+        if isCahceEnabled {
+            return try MetadataReaderCache.shared.buildContextManglingForSymbol(symbol, in: machO)
+        } else {
+            return try _buildContextManglingForSymbol(symbol, in: machO.context)
+        }
     }
 
     package static func demangleSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(for symbol: Symbol, in machO: MachO) throws -> Node? {
@@ -33,6 +37,14 @@ extension MetadataReader {
     }
 
     package static func demangleContext<MachO: MachOSwiftSectionRepresentableWithCache>(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
+        if isCahceEnabled {
+            return try MetadataReaderCache.shared.demangleContext(for: context, in: machO)
+        } else {
+            return try _demangleContext(for: context, in: machO)
+        }
+    }
+
+    fileprivate static func _demangleContext<MachO: MachOSwiftSectionRepresentableWithCache>(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
         return try required(buildContextMangling(context: context, in: machO.context))
     }
 
@@ -63,7 +75,11 @@ extension MetadataReader {
     }
 
     package static func demangleType(for symbol: Symbol) throws -> Node? {
-        return try buildContextManglingForSymbol(symbol, in: InProcessContext.shared)
+        if isCahceEnabled {
+            return try MetadataReaderCache.shared.buildContextManglingForSymbol(symbol)
+        } else {
+            return try _buildContextManglingForSymbol(symbol, in: InProcessContext.shared)
+        }
     }
 
     package static func demangleSymbol(for symbol: Symbol) throws -> Node? {
@@ -71,6 +87,14 @@ extension MetadataReader {
     }
 
     package static func demangleContext(for context: ContextDescriptorWrapper) throws -> Node {
+        if isCahceEnabled {
+            return try MetadataReaderCache.shared.demangleContext(for: context)
+        } else {
+            return try _demangleContext(for: context)
+        }
+    }
+
+    fileprivate static func _demangleContext(for context: ContextDescriptorWrapper) throws -> Node {
         return try required(buildContextMangling(context: context, in: InProcessContext.shared))
     }
 
@@ -143,7 +167,7 @@ extension MetadataReader {
                     failed = true
                     break
                 }
-                requirementNodes.append(Node(kind: .dependentGenericConformanceRequirement, children: [subject, proto]))
+                requirementNodes.append(Node.create(kind: .dependentGenericConformanceRequirement, children: [subject, proto]))
             case .type(let relativeDirectPointer):
                 let typeAddress = try context.addressFromOffset(contentOffset)
                 let mangledName = try relativeDirectPointer.resolve(at: typeAddress, in: context)
@@ -159,10 +183,10 @@ extension MetadataReader {
                     nodeKind = .dependentGenericConformanceRequirement
                 }
 
-                requirementNodes.append(Node(kind: nodeKind, children: [subject, type]))
+                requirementNodes.append(Node.create(kind: nodeKind, children: [subject, type]))
             case .layout(let genericRequirementLayoutKind):
                 if genericRequirementLayoutKind == .class {
-                    requirementNodes.append(Node(kind: .dependentGenericLayoutRequirement, children: [subject, .create(kind: .identifier, text: "C")]))
+                    requirementNodes.append(Node.create(kind: .dependentGenericLayoutRequirement, children: [subject, .create(kind: .identifier, text: "C")]))
                 } else {
                     failed = true
                 }
@@ -175,7 +199,7 @@ extension MetadataReader {
         if failed || requirementNodes.isEmpty {
             return nil
         } else {
-            return Node(kind: .dependentGenericSignature, children: requirementNodes)
+            return Node.create(kind: .dependentGenericSignature, children: requirementNodes)
         }
     }
 
@@ -223,11 +247,11 @@ extension MetadataReader {
                 case .uniqueExtendedExistentialTypeShape:
                     let extendedExistentialTypeShape = try RelativeDirectPointer<ExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(at: baseAddress, in: context)
                     let existentialType = try extendedExistentialTypeShape.existentialType(in: context)
-                    result = try .init(kind: .uniqueExtendedExistentialTypeShapeSymbolicReference, inlineChildren: demangle(for: existentialType, kind: .type, in: context).children)
+                    result = try .create(kind: .uniqueExtendedExistentialTypeShapeSymbolicReference, inlineChildren: demangle(for: existentialType, kind: .type, in: context).children)
                 case .nonUniqueExtendedExistentialTypeShape:
                     let nonUniqueExtendedExistentialTypeShape = try RelativeDirectPointer<NonUniqueExtendedExistentialTypeShape>(relativeOffset: relativeOffset).resolve(at: baseAddress, in: context)
                     let existentialType = try nonUniqueExtendedExistentialTypeShape.existentialType(in: context)
-                    result = try .init(kind: .nonUniqueExtendedExistentialTypeShapeSymbolicReference, inlineChildren: demangle(for: existentialType, kind: .type, in: context).children)
+                    result = try .create(kind: .nonUniqueExtendedExistentialTypeShapeSymbolicReference, inlineChildren: demangle(for: existentialType, kind: .type, in: context).children)
                 case .objectiveCProtocol:
                     let relativePointer = RelativeDirectPointer<RelativeObjCProtocolPrefix>(relativeOffset: relativeOffset)
                     let objcProtocol = try relativePointer.resolve(at: baseAddress, in: context)
@@ -253,7 +277,7 @@ extension MetadataReader {
     private static func buildContextMangling<Context: ReadingContext>(context: SymbolOrElement<ContextDescriptorWrapper>, in readingContext: Context) throws -> Node? {
         switch context {
         case .symbol(let symbol):
-            return try buildContextManglingForSymbol(symbol, in: readingContext)
+            return try _buildContextManglingForSymbol(symbol, in: readingContext)
         case .element(let contextDescriptorProtocol):
             return try buildContextMangling(context: contextDescriptorProtocol, in: readingContext)
         }
@@ -268,7 +292,7 @@ extension MetadataReader {
         switch context {
         case .type,
              .protocol:
-            top = .init(kind: .type, children: [demangling])
+            top = .create(kind: .type, children: [demangling])
         default:
             top = demangling
         }
@@ -280,7 +304,7 @@ extension MetadataReader {
         guard recursionLimit > 0 else { return nil }
         switch context {
         case .symbol(let symbol):
-            return try buildContextManglingForSymbol(symbol, in: readingContext)
+            return try _buildContextManglingForSymbol(symbol, in: readingContext)
         case .element(let contextDescriptor):
             var demangleSymbol = try buildContextDescriptorMangling(context: contextDescriptor, recursionLimit: recursionLimit, in: readingContext)
 
@@ -341,9 +365,9 @@ extension MetadataReader {
             guard let extendedContext = try extensionContext.extendedContext(in: readingContext) else { return nil }
             guard let demangledExtendedContext = try demangle(for: extendedContext, kind: .type, in: readingContext).extensionSymbol else { return nil }
             if let requirements = try extensionContext.genericContext(in: readingContext)?.requirements, let signatureNode = try buildGenericSignature(for: requirements, in: readingContext) {
-                return Node(kind: .extension, children: [parentDemangling, demangledExtendedContext, signatureNode])
+                return Node.create(kind: .extension, children: [parentDemangling, demangledExtendedContext, signatureNode])
             } else {
-                return Node(kind: .extension, children: [parentDemangling, demangledExtendedContext])
+                return Node.create(kind: .extension, children: [parentDemangling, demangledExtendedContext])
             }
         case .anonymous:
             // Look up symbol using the context's symbol lookup capability
@@ -352,9 +376,9 @@ extension MetadataReader {
                let privateDeclName = try? symbol.demangledNode.first(of: Node.Kind.privateDeclName),
                let privateDeclNameIdentifier = privateDeclName.children.first {
                 if let parentDemangling {
-                    return Node(kind: .anonymousContext, children: [privateDeclNameIdentifier, parentDemangling])
+                    return Node.create(kind: .anonymousContext, children: [privateDeclNameIdentifier, parentDemangling])
                 } else {
-                    return Node(kind: .anonymousContext, children: [privateDeclNameIdentifier])
+                    return Node.create(kind: .anonymousContext, children: [privateDeclNameIdentifier])
                 }
             }
             return parentDemangling
@@ -373,10 +397,10 @@ extension MetadataReader {
                 if mangledNode.kind == .global {
                     mangledNode = mangledNode.children[0]
                 }
-                let opaqueNode = Node(kind: .opaqueReturnTypeOf, children: [mangledNode])
+                let opaqueNode = Node.create(kind: .opaqueReturnTypeOf, children: [mangledNode])
                 return opaqueNode
             } else if let parentDemangling, parentDemangling.kind == .module {
-                let opaqueNode = Node(kind: .opaqueReturnTypeOf, children: [parentDemangling])
+                let opaqueNode = Node.create(kind: .opaqueReturnTypeOf, children: [parentDemangling])
                 return opaqueNode
             } else {
                 return nil
@@ -389,10 +413,10 @@ extension MetadataReader {
             if parentDemangling.children.count < 2 {
                 return nil
             }
-            nameNode = Node(kind: .privateDeclName, children: [parentDemangling.children[0], nameNode])
+            nameNode = Node.create(kind: .privateDeclName, children: [parentDemangling.children[0], nameNode])
             parentDemangling = parentDemangling.children[1]
         }
-        let demangling = Node(kind: kind, children: [parentDemangling, nameNode])
+        let demangling = Node.create(kind: kind, children: [parentDemangling, nameNode])
 
         return demangling
     }
@@ -438,7 +462,7 @@ extension MetadataReader {
             let objcPrefixElement = try objcPointer.resolve(at: baseAddress, in: context)
             switch objcPrefixElement {
             case .symbol(let symbol):
-                return try buildContextManglingForSymbol(symbol, in: context)
+                return try _buildContextManglingForSymbol(symbol, in: context)
             case .element(let objcPrefix):
                 let mangledName = try objcPrefix.mangledName(in: context)
                 let name = mangledName.symbolString
@@ -457,21 +481,21 @@ extension MetadataReader {
                     }
                     return demangled
                 } else {
-                    return Node(kind: .protocol, children: [.create(kind: .module, text: objcModule), .create(kind: .identifier, text: name)])
+                    return Node.create(kind: .protocol, children: [.create(kind: .module, text: objcModule), .create(kind: .identifier, text: name)])
                 }
             }
         case .swiftPointer(let swiftPointer):
             let resolvableProtocolDescriptor = try swiftPointer.resolve(at: baseAddress, in: context)
             switch resolvableProtocolDescriptor {
             case .symbol(let symbol):
-                return try buildContextManglingForSymbol(symbol, in: context)
+                return try _buildContextManglingForSymbol(symbol, in: context)
             case .element(let protocolDescriptor):
                 return try buildContextMangling(context: .protocol(protocolDescriptor), in: context)
             }
         }
     }
 
-    private static func buildContextManglingForSymbol<Context: ReadingContext>(_ symbol: Symbol, in context: Context) throws -> Node? {
+    fileprivate static func _buildContextManglingForSymbol<Context: ReadingContext>(_ symbol: Symbol, in context: Context) throws -> Node? {
         var demangledSymbol = try demangleAsNode(symbol.name)
         if demangledSymbol.kind == .global {
             demangledSymbol = demangledSymbol.children[0]
@@ -497,7 +521,7 @@ extension Node {
             }
 
             if child.kind == .enum || child.kind == .structure || child.kind == .class || child.kind == .protocol {
-                return .init(kind: .type, contents: .none, children: [child])
+                return .create(kind: .type, contents: .none, children: [child])
             }
 
             for child in child.children {
@@ -569,6 +593,14 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage
     final class Storage {
         @Mutex
         fileprivate var nodeForMangledNameBox: [MangledNameBox: Node] = [:]
+
+        /// Cache for context descriptor demangling results, keyed by descriptor offset.
+        @Mutex
+        fileprivate var nodeForContextOffset: [Int: Node] = [:]
+
+        /// Cache for symbol-based context mangling results, keyed by symbol name.
+        @Mutex
+        fileprivate var nodeForSymbolName: [String: Node?] = [:]
     }
 
     override func buildStorage<MachO: MachORepresentableWithCache>(for machO: MachO) -> Storage? {
@@ -595,6 +627,54 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage
         } else {
             let node = try MetadataReader._demangleType(for: mangledName)
             storage()?.nodeForMangledNameBox[MangledNameBox(mangledName)] = node
+            return node
+        }
+    }
+
+    // MARK: - Context Descriptor Cache
+
+    func demangleContext<MachO: MachOSwiftSectionRepresentableWithCache>(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
+        let key = context.contextDescriptor.offset
+        if let node = storage(in: machO)?.nodeForContextOffset[key] {
+            return node
+        } else {
+            let node = try MetadataReader._demangleContext(for: context, in: machO)
+            storage(in: machO)?.nodeForContextOffset[key] = node
+            return node
+        }
+    }
+
+    func demangleContext(for context: ContextDescriptorWrapper) throws -> Node {
+        let key = context.contextDescriptor.offset
+        if let node = storage()?.nodeForContextOffset[key] {
+            return node
+        } else {
+            let node = try MetadataReader._demangleContext(for: context)
+            storage()?.nodeForContextOffset[key] = node
+            return node
+        }
+    }
+
+    // MARK: - Symbol Context Mangling Cache
+
+    func buildContextManglingForSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(_ symbol: Symbol, in machO: MachO) throws -> Node? {
+        let key = symbol.name
+        if let cached = storage(in: machO)?.nodeForSymbolName[key] {
+            return cached
+        } else {
+            let node = try MetadataReader._buildContextManglingForSymbol(symbol, in: machO.context)
+            storage(in: machO)?.nodeForSymbolName[key] = node
+            return node
+        }
+    }
+
+    func buildContextManglingForSymbol(_ symbol: Symbol) throws -> Node? {
+        let key = symbol.name
+        if let cached = storage()?.nodeForSymbolName[key] {
+            return cached
+        } else {
+            let node = try MetadataReader._buildContextManglingForSymbol(symbol, in: InProcessContext.shared)
+            storage()?.nodeForSymbolName[key] = node
             return node
         }
     }

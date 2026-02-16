@@ -8,12 +8,12 @@ import MachOFoundation
 import Dependencies
 
 @MainActor
-protocol DemangleAndRemangleTests {
+protocol DemanglingTests {
     func allSymbols() async throws -> [MachOSwiftSymbol]
     func mainTest() async throws
 }
 
-extension DemangleAndRemangleTests {
+extension DemanglingTests {
     func mainTest() async throws {
         let allSwiftSymbols = try await allSymbols()
 
@@ -75,8 +75,8 @@ extension DemangleAndRemangleTests {
                 let remangled = try Demangling.mangleAsString(node)
                 if remangled != mangledName {
                     // Known issue: Md vs MD (Apple-internal lowercase 'd')
-                    if mangledName.hasSuffix("Md") && remangled.hasSuffix("MD")
-                        && mangledName.dropLast(2) == remangled.dropLast(2) {
+                    if mangledName.hasSuffix("Md"), remangled.hasSuffix("MD"),
+                       mangledName.dropLast(2) == remangled.dropLast(2) {
                         knownIssueCount += 1
                     } else {
                         allPassed = false
@@ -117,19 +117,27 @@ extension DemangleAndRemangleTests {
 
         if !demangleFailSamples.isEmpty {
             print("--- Demangle Failures (first \(demangleFailSamples.count)) ---")
-            for sample in demangleFailSamples { print(sample) }
+            for sample in demangleFailSamples {
+                print(sample)
+            }
         }
         if !nodeTreeMismatchSamples.isEmpty {
             print("--- Node Tree Mismatches (first \(nodeTreeMismatchSamples.count)) ---")
-            for sample in nodeTreeMismatchSamples { print(sample) }
+            for sample in nodeTreeMismatchSamples {
+                print(sample)
+            }
         }
         if !nodePrintMismatchSamples.isEmpty {
             print("--- Node Print Mismatches (first \(nodePrintMismatchSamples.count)) ---")
-            for sample in nodePrintMismatchSamples { print(sample) }
+            for sample in nodePrintMismatchSamples {
+                print(sample)
+            }
         }
         if !remangleMismatchSamples.isEmpty {
             print("--- Remangle Mismatches (first \(remangleMismatchSamples.count)) ---")
-            for sample in remangleMismatchSamples { print(sample) }
+            for sample in remangleMismatchSamples {
+                print(sample)
+            }
         }
     }
 
@@ -140,26 +148,5 @@ extension DemangleAndRemangleTests {
         let filteredRhs = rhs.split(separator: "\n", omittingEmptySubsequences: false)
             .filter { !$0.contains("OpaqueReturnTypeParent") }
         return filteredLhs == filteredRhs
-    }
-}
-
-@Suite
-final class DyldCacheSymbolRemangleTests: DyldCacheSymbolTests, DemangleAndRemangleTests {
-    @Test func main() async throws {
-        try await mainTest()
-    }
-
-    @Test func demangle() async throws {
-        let node = try Demangling.demangleAsNode("_$sSis15WritableKeyPathCy17RealityFoundation23PhysicallyBasedMaterialVAE9BaseColorVGTHTm")
-//        try Demangling.mangleAsString(node).print()
-        node.description.print()
-    }
-
-    @Test func stdlib_demangleNodeTree() async throws {
-        let mangledName = "_$s7SwiftUI11DisplayListV10PropertiesVs9OptionSetAAsAFP8rawValuex03RawI0Qz_tcfCTW"
-        let demangleNodeTree = MachOTestingSupport.stdlib_demangleNodeTree(mangledName)
-        let stdlibNodeDescription = try #require(demangleNodeTree)
-        let swiftSectionNodeDescription = try demangleAsNode(mangledName).description + "\n"
-        #expect(stdlibNodeDescription == swiftSectionNodeDescription)
     }
 }

@@ -153,10 +153,10 @@ extension TargetGenericContext {
 }
 
 extension Node {
-    fileprivate static let firstGenericParamType = Node(kind: .type) {
-        Node(kind: .dependentGenericParamType) {
-            Node(kind: .index, index: 0)
-            Node(kind: .index, index: 0)
+    fileprivate static let firstGenericParamType: Node = .create(kind: .type) {
+        Node.create(kind: .dependentGenericParamType) {
+            Node.create(kind: .index, index: 0)
+            Node.create(kind: .index, index: 0)
         }
     }
 }
@@ -252,9 +252,9 @@ extension GenericRequirementDescriptor {
                 switch element {
                 case .objc(let objc):
                     let objcName = try objc.mangledName(in: machO).rawString
-                    let node = Node(kind: .global, children: [
-                        Node(kind: .type, children: [
-                            Node(kind: .protocol, children: [
+                    let node = Node.create(kind: .global, children: [
+                        Node.create(kind: .type, children: [
+                            Node.create(kind: .protocol, children: [
                                 .create(kind: .module, text: objcModule),
                                 .create(kind: .identifier, text: objcName),
                             ])
@@ -355,9 +355,9 @@ extension GenericRequirementDescriptor {
                 switch element {
                 case .objc(let objc):
                     let objcName = try objc.mangledName(in: machO).rawString
-                    let node = Node(kind: .global, children: [
-                        Node(kind: .type, children: [
-                            Node(kind: .protocol, children: [
+                    let node = Node.create(kind: .global, children: [
+                        Node.create(kind: .type, children: [
+                            Node.create(kind: .protocol, children: [
                                 .create(kind: .module, text: objcModule),
                                 .create(kind: .identifier, text: objcName),
                             ])

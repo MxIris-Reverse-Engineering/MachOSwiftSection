@@ -285,7 +285,7 @@ extension FunctionTypeNodePrintable {
 
         if let argumentTuple = name.first(of: .argumentTuple), let tuple = argumentTuple.first(of: .tuple) {
             if !tuple.children.isEmpty, labelList == nil || labelList!.children.isEmpty {
-                labelList = Node(kind: .labelList, children: (0 ..< tuple.children.count).map { _ in NodeFactory.firstElementMarker })
+                labelList = Node.create(kind: .labelList, children: (0 ..< tuple.children.count).map { _ in NodeFactory.firstElementMarker })
             }
         }
 

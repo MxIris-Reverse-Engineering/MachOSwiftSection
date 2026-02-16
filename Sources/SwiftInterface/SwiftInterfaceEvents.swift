@@ -8,9 +8,6 @@ public enum SwiftInterfaceEvents {
         /// Phase-based events
         case phaseTransition(phase: Phase, state: State)
 
-        /// Initialization events
-        case initialization(config: InitializationConfig)
-
         // Extraction events
         case extractionStarted(section: Section)
         case extractionCompleted(result: ExtractionResult)
@@ -29,16 +26,6 @@ public enum SwiftInterfaceEvents {
         // Module collection events
         case moduleCollectionStarted
         case moduleCollectionCompleted(result: ModuleCollectionResult)
-
-        // Dependency loading events
-        case dependencyLoadingStarted(input: DependencyLoadingInput)
-        case dependencyLoadingCompleted(result: DependencyLoadingResult)
-        case dependencyLoadingFailed(failure: DependencyLoadingFailure)
-
-        // Type database indexing events
-        case typeDatabaseIndexingStarted(input: TypeDatabaseIndexingInput)
-        case typeDatabaseIndexingCompleted
-        case typeDatabaseIndexingFailed(error: any Error)
 
         // Structured operation events
         case phaseOperationStarted(phase: Phase, operation: PhaseOperation)
@@ -63,15 +50,12 @@ public enum SwiftInterfaceEvents {
         case moduleFound(context: ModuleContext)
         case symbolScanStarted(context: SymbolScanContext)
 
-        case dependencyLoadSuccess(context: DependencyContext)
-        case dependencyLoadWarning(warning: DependencyLoadWarning)
-
-        case typeDatabaseSkipped(reason: TypeDatabaseSkipReason)
-
         case nameExtractionWarning(for: NameExtractionTarget)
 
-        /// Diagnostic events (for unstructured messages only when absolutely necessary)
-        case diagnostic(message: DiagnosticMessage)
+        // Printing events
+        case definitionPrintStarted(context: PrintingContext)
+        case definitionPrintCompleted(context: PrintingContext)
+        case definitionPrintFailed(context: PrintingContext, error: any Error)
     }
 
     /// A protocol for types that can handle events dispatched from `SwiftInterfaceBuilder`.
@@ -109,13 +93,10 @@ public enum SwiftInterfaceEvents {
 
     /// Represents different phases of the Swift interface building process.
     public enum Phase: Sendable {
-        case initialization
         case preparation
         case extraction
         case indexing
         case moduleCollection
-        case dependencyLoading
-        case typeDatabaseIndexing
         case build
     }
 
@@ -140,7 +121,6 @@ public enum SwiftInterfaceEvents {
         case protocolIndexing
         case conformanceIndexing
         case extensionIndexing
-        case dependencyIndexing
     }
 
     /// Identifies the target for a name extraction operation that resulted in a warning.
@@ -156,43 +136,7 @@ public enum SwiftInterfaceEvents {
         }
     }
 
-    /// The reason why the type database was not used.
-    public enum TypeDatabaseSkipReason: Sendable, CustomStringConvertible {
-        case notEnabled
-        case notAvailable
-
-        public var description: String {
-            switch self {
-            case .notEnabled: return "indexing is not enabled in configuration"
-            case .notAvailable: return "platform is not supported or not found"
-            }
-        }
-    }
-
-    /// A warning related to loading dependencies.
-    public struct DependencyLoadWarning: Sendable {
-        public let path: String
-        public let reason: Reason
-
-        public enum Reason: Sendable, CustomStringConvertible {
-            case noMachOFileFound
-            case systemCacheNotAvailable
-
-            public var description: String {
-                switch self {
-                case .noMachOFileFound: return "No Mach-O file found"
-                case .systemCacheNotAvailable: return "System dyld cache is not available"
-                }
-            }
-        }
-    }
-
     // MARK: - Context and Result Structs
-
-    public struct InitializationConfig: Sendable {
-        public let isTypeIndexingEnabled: Bool
-        public let showCImportedTypes: Bool
-    }
 
     public struct ExtractionResult: Sendable {
         public let section: Section
@@ -240,37 +184,6 @@ public enum SwiftInterfaceEvents {
         public let modules: [String]
     }
 
-    public struct DependencyLoadingInput: Sendable {
-        public let paths: Int
-    }
-
-    public struct DependencyLoadingResult: Sendable {
-        public let loadedCount: Int
-    }
-
-    public struct DependencyLoadingFailure: Sendable {
-        public let path: String
-        public let error: any Error
-    }
-
-    public struct TypeDatabaseIndexingInput: Sendable {
-        public let dependencyModules: [String]
-    }
-
-    public enum DiagnosticLevel: Sendable {
-        case warning
-        case error
-        case debug
-        case trace
-    }
-
-    public struct DiagnosticMessage: Sendable {
-        public let level: DiagnosticLevel
-        public let message: String
-        public let error: (any Error)?
-        public let context: [String: any Sendable]?
-    }
-
     public struct ConformanceContext: Sendable {
         public let typeName: String
         public let protocolName: String
@@ -290,13 +203,33 @@ public enum SwiftInterfaceEvents {
         public let moduleName: String
     }
 
-    public struct DependencyContext: Sendable {
-        public let path: String
-        public let count: Int?
-    }
-
     public struct SymbolScanContext: Sendable {
         public let totalSymbols: Int
         public let filterModules: [String]
+    }
+
+    public struct PrintingContext: Sendable {
+        public let name: String
+        public let kind: PrintingDefinitionKind
+    }
+
+    public enum PrintingDefinitionKind: Sendable, CustomStringConvertible {
+        case type
+        case `protocol`
+        case `extension`
+        case variable
+        case function
+        case `subscript`
+
+        public var description: String {
+            switch self {
+            case .type: return "type"
+            case .protocol: return "protocol"
+            case .extension: return "extension"
+            case .variable: return "variable"
+            case .function: return "function"
+            case .subscript: return "subscript"
+            }
+        }
     }
 }

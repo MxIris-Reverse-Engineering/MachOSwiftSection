@@ -15,9 +15,6 @@ public struct OSLogEventHandler: SwiftInterfaceEvents.Handler {
         case .phaseTransition(let phase, let state):
             logPhaseTransition(phase: phase, state: state)
 
-        case .initialization(let config):
-            logger.info("Initializing SwiftInterfaceBuilder with configuration: isTypeIndexingEnabled=\(config.isTypeIndexingEnabled), showCImportedTypes=\(config.showCImportedTypes)")
-
         case .extractionStarted(let section):
             logger.debug("Extracting \(sectionName(section)) from Mach-O binary")
 
@@ -59,25 +56,6 @@ public struct OSLogEventHandler: SwiftInterfaceEvents.Handler {
 
         case .moduleCollectionCompleted(let result):
             logger.info("Module collection completed: found \(result.moduleCount) modules to import: \(result.modules.joined(separator: ", "))")
-
-        case .dependencyLoadingStarted(let input):
-            logger.debug("Loading dependencies from \(input.paths) paths")
-
-        case .dependencyLoadingCompleted(let result):
-            logger.info("Successfully loaded \(result.loadedCount) total dependencies")
-
-        case .dependencyLoadingFailed(let failure):
-            logger.error("Failed to load dependency from path '\(failure.path)': \(String(describing: failure.error))")
-
-        case .typeDatabaseIndexingStarted(let input):
-            logger.debug("Indexing type database dependencies")
-            logger.debug("Found \(input.dependencyModules.count) dependency modules: \(input.dependencyModules.joined(separator: ", "))")
-
-        case .typeDatabaseIndexingCompleted:
-            logger.debug("Type database indexing completed successfully")
-
-        case .typeDatabaseIndexingFailed(let error):
-            logger.error("Failed to index type database dependencies: \(String(describing: error))")
 
         case .phaseOperationStarted(let phase, let operation):
             logger.debug("Starting \(operationName(operation)) in \(phaseName(phase)) phase")
@@ -128,24 +106,17 @@ public struct OSLogEventHandler: SwiftInterfaceEvents.Handler {
             logger.debug("Scanning \(context.totalSymbols) symbols for module references")
             logger.debug("Filtering out internal modules: \(context.filterModules.joined(separator: ", "))")
 
-        case .dependencyLoadSuccess(let context):
-            if let count = context.count {
-                logger.debug("Successfully loaded \(count) dependencies from: \(context.path)")
-            } else {
-                logger.debug("Successfully loaded Mach-O dependency from: \(context.path)")
-            }
-
-        case .dependencyLoadWarning(let warning):
-            logger.warning("\(warning.reason.description) at path: \(warning.path)")
-
-        case .typeDatabaseSkipped(let reason):
-            logger.debug("Type database operation skipped: \(reason.description)")
-
         case .nameExtractionWarning(let target):
             logger.warning("Failed to extract type name or protocol name from \(target.description).")
 
-        case .diagnostic(let message):
-            logDiagnostic(message)
+        case .definitionPrintStarted(let context):
+            logger.trace("Printing \(context.kind.description): \(context.name)")
+
+        case .definitionPrintCompleted(let context):
+            logger.trace("Printed \(context.kind.description): \(context.name)")
+
+        case .definitionPrintFailed(let context, let error):
+            logger.error("Failed to print \(context.kind.description) '\(context.name)': \(String(describing: error))")
         }
     }
 
@@ -155,7 +126,6 @@ public struct OSLogEventHandler: SwiftInterfaceEvents.Handler {
         case .protocolIndexing: return "Protocol indexing"
         case .conformanceIndexing: return "Conformance indexing"
         case .extensionIndexing: return "Extension indexing"
-        case .dependencyIndexing: return "Dependency indexing"
         }
     }
 
@@ -171,33 +141,12 @@ public struct OSLogEventHandler: SwiftInterfaceEvents.Handler {
         }
     }
 
-    private func logDiagnostic(_ message: SwiftInterfaceEvents.DiagnosticMessage) {
-        let text = message.message
-        switch message.level {
-        case .warning:
-            logger.warning("\(text)")
-        case .error:
-            if let error = message.error {
-                logger.error("\(text): \(String(describing: error))")
-            } else {
-                logger.error("\(text)")
-            }
-        case .debug:
-            logger.debug("\(text)")
-        case .trace:
-            logger.trace("\(text)")
-        }
-    }
-
     private func phaseName(_ phase: SwiftInterfaceEvents.Phase) -> String {
         switch phase {
-        case .initialization: return "initialization"
         case .preparation: return "preparation"
         case .extraction: return "extraction"
         case .indexing: return "indexing"
         case .moduleCollection: return "module collection"
-        case .dependencyLoading: return "dependency loading"
-        case .typeDatabaseIndexing: return "type database indexing"
         case .build: return "build"
         }
     }
@@ -220,9 +169,6 @@ public struct ConsoleEventHandler: SwiftInterfaceEvents.Handler {
         let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
 
         switch event {
-        case .initialization(let config):
-            print("[\(timestamp)] [INFO] Initializing SwiftInterfaceBuilder (indexing: \(config.isTypeIndexingEnabled), showCImported: \(config.showCImportedTypes))")
-
         case .extractionCompleted(let result):
             print("[\(timestamp)] [INFO] Extracted \(result.count) \(sectionName(result.section))")
 
@@ -241,9 +187,6 @@ public struct ConsoleEventHandler: SwiftInterfaceEvents.Handler {
         case .moduleCollectionCompleted(let result):
             print("[\(timestamp)] [INFO] Found \(result.moduleCount) modules to import")
 
-        case .dependencyLoadingCompleted(let result):
-            print("[\(timestamp)] [INFO] Loaded \(result.loadedCount) dependencies")
-
         case .phaseTransition(let phase, let state):
             let phaseName = phaseName(phase)
             switch state {
@@ -255,23 +198,8 @@ public struct ConsoleEventHandler: SwiftInterfaceEvents.Handler {
                 break // Ignore started events for console output
             }
 
-        case .dependencyLoadWarning(let warning):
-            print("[\(timestamp)] [WARNING] \(warning.reason.description) at path: \(warning.path)")
-
-        case .diagnostic(let message):
-            switch message.level {
-            case .error:
-                if let error = message.error {
-                    print("[\(timestamp)] [ERROR] \(message.message): \(String(describing: error))")
-                } else {
-                    print("[\(timestamp)] [ERROR] \(message.message)")
-                }
-            case .warning:
-                print("[\(timestamp)] [WARNING] \(message.message)")
-            case .debug,
-                 .trace:
-                break // Ignore debug/trace for console output
-            }
+        case .definitionPrintFailed(let context, let error):
+            print("[\(timestamp)] [ERROR] Failed to print \(context.kind.description) '\(context.name)': \(String(describing: error))")
 
         default:
             break // Ignore other detailed events
@@ -280,13 +208,10 @@ public struct ConsoleEventHandler: SwiftInterfaceEvents.Handler {
 
     private func phaseName(_ phase: SwiftInterfaceEvents.Phase) -> String {
         switch phase {
-        case .initialization: return "initialization"
         case .preparation: return "preparation"
         case .extraction: return "extraction"
         case .indexing: return "indexing"
         case .moduleCollection: return "module collection"
-        case .dependencyLoading: return "dependency loading"
-        case .typeDatabaseIndexing: return "type database indexing"
         case .build: return "build"
         }
     }

@@ -7,7 +7,7 @@ import MachOFoundation
 import Dependencies
 
 @Suite(.serialized)
-final class XcodeMachOFilesSymbolDemangleTests: DemangleAndRemangleTests {
+final class XcodeMachOFilesSymbolDemanglingTests: DemanglingTests {
     @MainActor
     @Test func symbols() async throws {
         try await mainTest()

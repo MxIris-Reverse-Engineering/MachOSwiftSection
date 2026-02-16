@@ -113,7 +113,7 @@ var dependencies: [Package.Dependency] = [
     
     // CLI
     .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
-    .package(url: "https://github.com/migueldeicaza/TermKit", branch: "main"),
+//    .package(url: "https://github.com/migueldeicaza/TermKit", branch: "main"),
     
     // Testing
     .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.18.9"),
@@ -584,11 +584,6 @@ let package = Package(
         .SemanticTests,
     ]
 )
-
-if useSwiftTUI {
-    package.dependencies.append(.package(url: "https://github.com/rensbreur/SwiftTUI", branch: "main"))
-    Target.swift_section.dependencies.append(.product(name: "SwiftTUI", package: "SwiftTUI"))
-}
 
 extension SwiftSetting {
     static let existentialAny: Self = .enableUpcomingFeature("ExistentialAny")                                    // SE-0335, Swift 5.6,  SwiftPM 5.8+

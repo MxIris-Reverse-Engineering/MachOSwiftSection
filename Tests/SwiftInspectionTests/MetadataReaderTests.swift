@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-import Demangling
+@testable import Demangling
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
 @testable import SwiftInspection

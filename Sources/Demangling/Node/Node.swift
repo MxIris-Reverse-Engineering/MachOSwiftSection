@@ -88,12 +88,12 @@ public final class Node: Sendable {
         }
     }
 
-    public init(kind: Kind, contents: Contents = .none, children: [Node] = []) {
+    init(kind: Kind, contents: Contents = .none, children: [Node] = []) {
         self.kind = kind
         self.payload = Self.mergedPayload(contents: contents, children: NodeChildren(children))
     }
 
-    public init(kind: Kind, contents: Contents = .none, inlineChildren: NodeChildren) {
+    init(kind: Kind, contents: Contents = .none, inlineChildren: NodeChildren) {
         self.kind = kind
         self.payload = Self.mergedPayload(contents: contents, children: inlineChildren)
     }

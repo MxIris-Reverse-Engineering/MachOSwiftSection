@@ -111,6 +111,9 @@ public enum ProcessMemory {
 
 @Suite
 final class SymbolIndexStoreTests: MachOImageTests {
+    
+    override class var imageName: MachOImageName { .SwiftUI }
+    
     @Test func main() async throws {
         SymbolIndexStore.shared.prepare(in: machOImage)
         ProcessMemory.report()

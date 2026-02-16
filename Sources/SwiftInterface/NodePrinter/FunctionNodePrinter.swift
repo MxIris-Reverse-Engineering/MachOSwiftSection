@@ -62,7 +62,7 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
     private mutating func printFunction(_ function: Node) async {
         var targetNode = function
         if isStatic {
-            targetNode = Node(kind: .static, child: targetNode)
+            targetNode = Node.create(kind: .static, child: targetNode)
         }
         self.targetNode = targetNode
 
@@ -119,9 +119,9 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
 extension Node {
     var isReturnOptional: Bool {
         if let returnType = first(of: .returnType), let type = returnType.children.first, let boundGenericEnum = type.children.first, boundGenericEnum.isKind(of: .boundGenericEnum), let first = boundGenericEnum.children.first?.children.first {
-            return first == Node(kind: .enum) {
-                Node(kind: .module, contents: .text("Swift"))
-                Node(kind: .identifier, contents: .text("Optional"))
+            return first == Node.create(kind: .enum) {
+                Node.create(kind: .module, contents: .text("Swift"))
+                Node.create(kind: .identifier, contents: .text("Optional"))
             }
         } else {
             return false

@@ -83,7 +83,7 @@ struct VariableNodePrinter: InterfaceNodePrintable {
 
         var targetNode = node
         if isStatic {
-            targetNode = Node(kind: .static, child: targetNode)
+            targetNode = Node.create(kind: .static, child: targetNode)
         }
         self.targetNode = targetNode
 

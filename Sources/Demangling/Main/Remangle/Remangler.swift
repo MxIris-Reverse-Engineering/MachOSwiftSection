@@ -4386,13 +4386,13 @@ extension Remangler {
             let field = layoutChild
             var fieldType = try field[_child: 0]
             if field.kind == .silBoxMutableField {
-                let inoutNode = try Node(kind: .inOut, child: fieldType[_child: 0])
-                fieldType = Node(kind: .type, child: inoutNode)
+                let inoutNode = try Node.create(kind: .inOut, child: fieldType[_child: 0])
+                fieldType = Node.create(kind: .type, child: inoutNode)
             }
 
             layoutTypeListChildren.append(fieldType)
         }
-        let layoutTypeList = Node(kind: .typeList, children: layoutTypeListChildren)
+        let layoutTypeList = Node.create(kind: .typeList, children: layoutTypeListChildren)
 
         try mangleTypeList(layoutTypeList, depth: depth + 1)
 
