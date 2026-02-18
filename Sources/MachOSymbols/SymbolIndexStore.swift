@@ -204,7 +204,9 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         for exportedSymbol in machO.exportedSymbols where exportedSymbol.name.isSwiftSymbol {
             if var offset = exportedSymbol.offset, symbolByName[exportedSymbol.name] == nil {
                 symbolsByOffset[offset, default: []].append(.init(offset: offset, name: exportedSymbol.name))
-                offset += machO.startOffset
+                if machO is MachOFile {
+                    offset += machO.startOffset
+                }
                 symbolsByOffset[offset, default: []].append(.init(offset: offset, name: exportedSymbol.name))
                 symbolByName[exportedSymbol.name] = .init(offset: offset, name: exportedSymbol.name)
             }
