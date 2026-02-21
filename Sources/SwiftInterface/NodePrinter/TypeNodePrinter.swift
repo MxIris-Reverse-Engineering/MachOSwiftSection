@@ -11,6 +11,8 @@ struct TypeNodePrinter: InterfaceNodePrintable {
 
     private(set) var isProtocol: Bool
 
+    var dependentMemberTypeDepth: Int = 0
+
     private(set) weak var delegate: (any NodePrintableDelegate)?
 
     init(delegate: (any NodePrintableDelegate)? = nil, isProtocol: Bool = false) {

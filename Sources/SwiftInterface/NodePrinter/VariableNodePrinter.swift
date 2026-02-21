@@ -23,6 +23,8 @@ struct VariableNodePrinter: InterfaceNodePrintable {
 
     private(set) var isProtocol: Bool = false
 
+    var dependentMemberTypeDepth: Int = 0
+
     init(isStored: Bool, isOverride: Bool, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
         self.isStored = isStored
         self.isOverride = isOverride

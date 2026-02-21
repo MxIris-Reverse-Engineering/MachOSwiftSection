@@ -214,6 +214,8 @@ extension DependentGenericNodePrintable {
     }
 
     mutating func printDependentMemberType(_ name: Node) async {
+        dependentMemberTypeDepth += 1
+        defer { dependentMemberTypeDepth -= 1 }
         await printFirstChild(name)
         target.write(".")
         _ = await printOptional(name.children.at(1))
