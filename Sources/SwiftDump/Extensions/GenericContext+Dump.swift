@@ -153,10 +153,10 @@ extension TargetGenericContext {
 }
 
 extension Node {
-    fileprivate static let firstGenericParamType = Node(kind: .type) {
-        Node(kind: .dependentGenericParamType, text: "A") {
-            Node(kind: .index, index: 0)
-            Node(kind: .index, index: 0)
+    fileprivate static let firstGenericParamType: Node = .create(kind: .type) {
+        Node.create(kind: .dependentGenericParamType) {
+            Node.create(kind: .index, index: 0)
+            Node.create(kind: .index, index: 0)
         }
     }
 }
@@ -252,14 +252,14 @@ extension GenericRequirementDescriptor {
                 switch element {
                 case .objc(let objc):
                     let objcName = try objc.mangledName(in: machO).rawString
-                    let node = Node(kind: .global) {
-                        Node(kind: .type) {
-                            Node(kind: .protocol) {
-                                Node(kind: .module, contents: .text(objcModule))
-                                Node(kind: .identifier, contents: .text(objcName))
-                            }
-                        }
-                    }
+                    let node = Node.create(kind: .global, children: [
+                        Node.create(kind: .type, children: [
+                            Node.create(kind: .protocol, children: [
+                                .create(kind: .module, text: objcModule),
+                                .create(kind: .identifier, text: objcName),
+                            ])
+                        ])
+                    ])
                     try await builder(node)
                 case .swift(let protocolDescriptor):
                     try await builder(MetadataReader.demangleContext(for: .protocol(protocolDescriptor), in: machO))
@@ -355,14 +355,14 @@ extension GenericRequirementDescriptor {
                 switch element {
                 case .objc(let objc):
                     let objcName = try objc.mangledName(in: machO).rawString
-                    let node = Node(kind: .global) {
-                        Node(kind: .type) {
-                            Node(kind: .protocol) {
-                                Node(kind: .module, contents: .text(objcModule))
-                                Node(kind: .identifier, contents: .text(objcName))
-                            }
-                        }
-                    }
+                    let node = Node.create(kind: .global, children: [
+                        Node.create(kind: .type, children: [
+                            Node.create(kind: .protocol, children: [
+                                .create(kind: .module, text: objcModule),
+                                .create(kind: .identifier, text: objcName),
+                            ])
+                        ])
+                    ])
                     try await builder(node)
                 case .swift(let protocolDescriptor):
                     try await builder(MetadataReader.demangleContext(for: .protocol(protocolDescriptor), in: machO))

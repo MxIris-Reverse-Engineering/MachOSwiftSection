@@ -91,12 +91,7 @@ extension DumpableTests {
         var symbolIndexStore
         let symbols = symbolIndexStore.symbols(of: .opaqueTypeDescriptor, in: machO)
         for symbol in symbols where symbol.offset != 0 {
-            var offset = symbol.offset
-
-            if let cache = machO.cache {
-                offset -= cache.mainCacheHeader.sharedRegionStart.cast()
-            }
-            let opaqueTypeDescriptor = try machO.readWrapperElement(offset: offset) as OpaqueTypeDescriptor
+            let opaqueTypeDescriptor = try machO.readWrapperElement(offset: symbol.offset) as OpaqueTypeDescriptor
             let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
             for underlyingTypeArgumentMangledName in opaqueType.underlyingTypeArgumentMangledNames {
                 try MetadataReader.demangleType(for: underlyingTypeArgumentMangledName, in: machO).print(using: .interface).print()

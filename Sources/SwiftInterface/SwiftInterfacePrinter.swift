@@ -52,6 +52,9 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     public func printTypeDefinition(_ typeDefinition: TypeDefinition, level: Int = 1, displayParentName: Bool = false) async throws -> SemanticString {
+        let printingContext = SwiftInterfaceEvents.PrintingContext(name: typeDefinition.typeName.name, kind: .type)
+        eventDispatcher.dispatch(.definitionPrintStarted(context: printingContext))
+
         if !typeDefinition.isIndexed {
             try await typeDefinition.index(in: machO)
         }
@@ -91,10 +94,15 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
 
             try await printDefinition(typeDefinition, level: level)
         }
+
+        eventDispatcher.dispatch(.definitionPrintCompleted(context: printingContext))
     }
 
     @SemanticStringBuilder
     public func printProtocolDefinition(_ protocolDefinition: ProtocolDefinition, level: Int = 1, displayParentName: Bool = false) async throws -> SemanticString {
+        let printingContext = SwiftInterfaceEvents.PrintingContext(name: protocolDefinition.protocol.name, kind: .protocol)
+        eventDispatcher.dispatch(.definitionPrintStarted(context: printingContext))
+
         if !protocolDefinition.isIndexed {
             try await protocolDefinition.index(in: machO)
         }
@@ -133,10 +141,15 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
                 }
             }
         }
+
+        eventDispatcher.dispatch(.definitionPrintCompleted(context: printingContext))
     }
 
     @SemanticStringBuilder
     public func printExtensionDefinition(_ extensionDefinition: ExtensionDefinition, level: Int = 1) async throws -> SemanticString {
+        let printingContext = SwiftInterfaceEvents.PrintingContext(name: extensionDefinition.extensionName.name, kind: .extension)
+        eventDispatcher.dispatch(.definitionPrintStarted(context: printingContext))
+
         if !extensionDefinition.isIndexed {
             try await extensionDefinition.index(in: machO)
         }
@@ -190,6 +203,8 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
 
             try await printDefinition(extensionDefinition, level: 1)
         }
+
+        eventDispatcher.dispatch(.definitionPrintCompleted(context: printingContext))
     }
 
     @SemanticStringBuilder
@@ -252,21 +267,21 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     public func printVariable(_ variable: VariableDefinition, level: Int) async -> SemanticString {
-        await printCatchedThrowing {
+        await dispatchingCatchedThrowing(.init(name: variable.name, kind: .variable)) {
             try await printThrowingVariable(variable, level: level)
         }
     }
 
     @SemanticStringBuilder
     public func printFunction(_ function: FunctionDefinition) async -> SemanticString {
-        await printCatchedThrowing {
+        await dispatchingCatchedThrowing(.init(name: function.name, kind: .function)) {
             try await printThrowingFunction(function)
         }
     }
 
     @SemanticStringBuilder
     public func printSubscript(_ `subscript`: SubscriptDefinition, level: Int) async -> SemanticString {
-        await printCatchedThrowing {
+        await dispatchingCatchedThrowing(.init(name: "subscript", kind: .subscript)) {
             try await printThrowingSubscript(`subscript`, level: level)
         }
     }
@@ -275,6 +290,15 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
     public func printType(_ typeNode: Node, isProtocol: Bool, level: Int) async -> SemanticString {
         await printCatchedThrowing {
             try await printThrowingType(typeNode, isProtocol: isProtocol, level: level)
+        }
+    }
+
+    private func dispatchingCatchedThrowing(_ context: SwiftInterfaceEvents.PrintingContext, @SemanticStringBuilder _ body: () async throws -> SemanticString) async -> SemanticString? {
+        do {
+            return try await body()
+        } catch {
+            eventDispatcher.dispatch(.definitionPrintFailed(context: context, error: error))
+            return nil
         }
     }
 

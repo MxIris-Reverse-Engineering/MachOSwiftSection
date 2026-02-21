@@ -13,7 +13,7 @@ extension SemanticString: NodePrinterTarget {
             write(content, type: .function(.declaration))
         case .printIdentifier:
             let semanticType: SemanticType
-            switch context.node?.parent?.kind {
+            switch context.parentKind {
             case .function:
                 semanticType = .function(.declaration)
             case .variable:

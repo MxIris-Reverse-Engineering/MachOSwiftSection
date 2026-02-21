@@ -67,7 +67,12 @@ extension TypeNodePrintable {
 
         if shouldPrintContext(context) {
             let currentPos = target.count
-            _ = await printName(context, asPrefixContext: true)
+            if context.kind == .module {
+                let siblingIdentifier = name.children.at(1)?.text
+                await printModule(context, siblingIdentifier: siblingIdentifier)
+            } else {
+                _ = await printName(context, asPrefixContext: true)
+            }
             if target.count != currentPos {
                 target.write(".")
             }
@@ -75,10 +80,14 @@ extension TypeNodePrintable {
 
         if let one = name.children.at(1) {
             if one.kind != .privateDeclName {
-                _ = await printName(one)
+                if one.kind == .identifier {
+                    await printIdentifier(one, parentKind: name.kind)
+                } else {
+                    _ = await printName(one)
+                }
             }
             if let pdn = name.children.first(where: { $0.kind == .privateDeclName }) {
-                _ = await printName(pdn)
+                await printPrivateDeclName(pdn, parentKind: name.kind)
             }
         }
     }
@@ -111,7 +120,7 @@ extension TypeNodePrintable {
         }
         target.write("Swift", context: .context(for: name, state: .printModule))
         target.write(".")
-        target.write("AnyObject", context: .context(for: name, state: .printIdentifier))
+        target.write("AnyObject", context: .context(for: name, parentKind: .protocol, state: .printIdentifier))
     }
 
     mutating func printTuple(_ name: Node) async {

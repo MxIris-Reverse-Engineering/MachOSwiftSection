@@ -14,6 +14,7 @@ import AsyncAlgorithms
 @_spi(Internals)
 @Loggable
 public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unchecked Sendable {
+    
     public enum MemberKind: Hashable, CaseIterable, CustomStringConvertible, Sendable {
         fileprivate struct Traits: OptionSet, Hashable, Sendable {
             fileprivate let rawValue: Int
@@ -203,7 +204,9 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         for exportedSymbol in machO.exportedSymbols where exportedSymbol.name.isSwiftSymbol {
             if var offset = exportedSymbol.offset, symbolByName[exportedSymbol.name] == nil {
                 symbolsByOffset[offset, default: []].append(.init(offset: offset, name: exportedSymbol.name))
-                offset += machO.startOffset
+                if machO is MachOFile {
+                    offset += machO.startOffset
+                }
                 symbolsByOffset[offset, default: []].append(.init(offset: offset, name: exportedSymbol.name))
                 symbolByName[exportedSymbol.name] = .init(offset: offset, name: exportedSymbol.name)
             }
@@ -278,7 +281,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
     private func processMemberSymbol(_ symbol: Symbol, node: Node, rootNode: Node, traits: MemberKind.Traits) -> ProcessMemberSymbolResult? {
         var traits = traits
-        var node = node
+        let node = node
         switch node.kind {
         case .allocator:
             guard var first = node.children.first else { return nil }
@@ -308,10 +311,16 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             }
             return processMemberSymbol(symbol, node: first, rootNode: rootNode, memberKind: .function(inExtension: traits.contains(.inExtension), isStatic: traits.contains(.isStatic)))
         case .variable:
-            guard let parent = node.parent, parent.children.first === node else { return nil }
-            node = parent
+            // Stored variable reached directly (not through getter/setter)
             traits.insert(.isStorage)
-            fallthrough
+            var first = node.children.first
+            if first?.kind == .extension, let type = first?.children.at(1) {
+                traits.insert(.inExtension)
+                first = type
+            }
+            if let first {
+                return processMemberSymbol(symbol, node: first, rootNode: rootNode, memberKind: .variable(inExtension: traits.contains(.inExtension), isStatic: traits.contains(.isStatic), isStorage: traits.contains(.isStorage)))
+            }
         case .getter,
              .setter:
             if let variableNode = node.children.first, variableNode.kind == .variable, var first = variableNode.children.first {
@@ -334,7 +343,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     }
 
     private func processMemberSymbol(_ symbol: Symbol, node: Node, rootNode: Node, memberKind: MemberKind) -> ProcessMemberSymbolResult? {
-        let typeNode = Node(kind: .type, child: node)
+        let typeNode = Node.create(kind: .type, child: node)
         let typeName = typeNode.print(using: .interfaceTypeBuilderOnly)
         if let typeKind = node.kind.typeKind {
 //            typeInfoByName[typeName] = .init(name: typeName, kind: typeKind)
@@ -354,9 +363,9 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         case .function:
             return .init(kind: .function, indexedSymbol: DemangledSymbol(symbol: symbol, demangledNode: rootNode))
         case .variable:
-            guard let parent = node.parent, parent.children.first === node else { return nil }
-            let isStorage = node.parent?.isAccessor == false
-            return .init(kind: .variable(isStorage: isStorage), indexedSymbol: DemangledSymbol(symbol: symbol, demangledNode: rootNode))
+            // When we reach .variable directly (not through getter/setter),
+            // this is a stored variable declaration
+            return .init(kind: .variable(isStorage: true), indexedSymbol: DemangledSymbol(symbol: symbol, demangledNode: rootNode))
         case .getter,
              .setter:
             if let variableNode = node.children.first, variableNode.kind == .variable {

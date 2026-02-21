@@ -47,19 +47,16 @@ extension NodePrintable {
     }
 
     func shouldPrintContext(_ context: Node) -> Bool {
-        if let dependentMemberType = context.parent?.parent?.parent?.parent, dependentMemberType.kind == .dependentMemberType {
-            return false
-        }
         if context.kind == .module, let text = context.text, !text.isEmpty {
             return true
         }
         return true
     }
 
-    mutating func printModule(_ node: Node) async {
+    mutating func printModule(_ node: Node, siblingIdentifier: String? = nil) async {
         var moduleName = node.text ?? ""
         if moduleName == objcModule || moduleName == cModule,
-           let identifier = node.parent?.children.at(1)?.text,
+           let identifier = siblingIdentifier,
            let delegate,
            let updatedModuleName = await or(await delegate.moduleName(forTypeName: identifier), await delegate.moduleName(forTypeName: identifier.strippedRefSuffix)) {
             moduleName = updatedModuleName
@@ -67,13 +64,13 @@ extension NodePrintable {
         target.write(moduleName, context: .context(for: node, state: .printModule))
     }
 
-    mutating func printIdentifier(_ node: Node) async {
-        target.write(node.text ?? "", context: .context(for: node, state: .printIdentifier))
+    mutating func printIdentifier(_ node: Node, parentKind: Node.Kind? = nil) async {
+        target.write(node.text ?? "", context: .context(for: node, parentKind: parentKind, state: .printIdentifier))
     }
 
-    mutating func printPrivateDeclName(_ node: Node) async {
+    mutating func printPrivateDeclName(_ node: Node, parentKind: Node.Kind? = nil) async {
         guard let child = node.children.at(1) else { return }
-        await printIdentifier(child)
+        await printIdentifier(child, parentKind: parentKind)
     }
 
     @discardableResult

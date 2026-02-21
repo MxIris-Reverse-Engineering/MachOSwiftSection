@@ -55,6 +55,16 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         eventDispatcher.addHandlers(eventHandlers)
     }
 
+    @_spi(Support)
+    public init(indexer: SwiftInterfaceIndexer<MachO>, printer: SwiftInterfacePrinter<MachO>, eventHandlers: [SwiftInterfaceEvents.Handler] = [], in machO: MachO) {
+        self.eventDispatcher = .init()
+        self.machO = machO
+        self.indexer = indexer
+        self.printer = printer
+        self.configuration = .init(indexConfiguration: indexer.configuration, printConfiguration: printer.configuration)
+        eventDispatcher.addHandlers(eventHandlers)
+    }
+    
     public func addExtraDataProvider(_ extraDataProvider: some SwiftInterfaceBuilderExtraDataProvider) {
         extraDataProviders.append(extraDataProvider)
         printer.addTypeNameResolver(extraDataProvider)

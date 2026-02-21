@@ -6,6 +6,7 @@ extension Node: Hashable {
     }
 
     public static func == (lhs: Node, rhs: Node) -> Bool {
+        if lhs === rhs { return true }
         return lhs.kind == rhs.kind && lhs.contents == rhs.contents && lhs.children == rhs.children
     }
 }

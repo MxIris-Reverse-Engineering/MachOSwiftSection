@@ -113,7 +113,11 @@ var dependencies: [Package.Dependency] = [
     
     // CLI
     .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
-    .package(url: "https://github.com/migueldeicaza/TermKit", branch: "main"),
+//    .package(url: "https://github.com/migueldeicaza/TermKit", branch: "main"),
+    
+    // Testing
+    .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.18.9"),
+    .package(url: "https://github.com/MxIris-Library-Forks/swift-power-assert", branch: "main"),
 ]
 
 extension Package.Dependency {
@@ -443,6 +447,16 @@ extension Target {
             .product(.MachOKit),
             .target(.MachOExtensions),
             .target(.SwiftDump),
+            .target(.MachOTestingSupportC),
+            .product(name: "PowerAssert", package: "swift-power-assert"),
+            .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+        ],
+        swiftSettings: testSettings
+    )
+    
+    static let MachOTestingSupportC = Target.target(
+        name: "MachOTestingSupportC",
+        dependencies: [
         ],
         swiftSettings: testSettings
     )
@@ -553,6 +567,8 @@ let package = Package(
         .TypeIndexing,
         .MachOMacros,
         .MachOTestingSupport,
+        .MachOTestingSupportC,
+        
 
         // Executable
         .swift_section,
@@ -568,11 +584,6 @@ let package = Package(
         .SemanticTests,
     ]
 )
-
-if useSwiftTUI {
-    package.dependencies.append(.package(url: "https://github.com/rensbreur/SwiftTUI", branch: "main"))
-    Target.swift_section.dependencies.append(.product(name: "SwiftTUI", package: "SwiftTUI"))
-}
 
 extension SwiftSetting {
     static let existentialAny: Self = .enableUpcomingFeature("ExistentialAny")                                    // SE-0335, Swift 5.6,  SwiftPM 5.8+

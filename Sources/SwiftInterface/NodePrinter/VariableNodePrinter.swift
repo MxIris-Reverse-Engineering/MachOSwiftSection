@@ -83,7 +83,7 @@ struct VariableNodePrinter: InterfaceNodePrintable {
 
         var targetNode = node
         if isStatic {
-            targetNode = Node(kind: .static, child: targetNode)
+            targetNode = Node.create(kind: .static, child: targetNode)
         }
         self.targetNode = targetNode
 
@@ -102,7 +102,7 @@ struct VariableNodePrinter: InterfaceNodePrintable {
             target.writeSpace()
         }
 
-        target.write(identifier.text ?? "", context: .context(for: identifier, state: .printIdentifier))
+        target.write(identifier.text ?? "", context: .context(for: identifier, parentKind: .variable, state: .printIdentifier))
         target.write(": ")
 
         guard let type = node.children.first(of: .type) else { return }

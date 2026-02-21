@@ -59,7 +59,8 @@ enum DefinitionBuilder {
 
 extension Node {
     var isStoredVariable: Bool {
-        guard let variableNode = first(of: .variable) else { return false }
-        return variableNode.parent?.isAccessor == false
+        guard first(of: .variable) != nil else { return false }
+        // A stored variable is one not wrapped in an accessor (getter/setter/etc.)
+        return !hasAccessor
     }
 }

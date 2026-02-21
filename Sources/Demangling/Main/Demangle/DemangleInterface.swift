@@ -1,5 +1,8 @@
 /// This is likely to be the primary entry point to this file. Pass a string containing a Swift mangled symbol or type, get a parsed SwiftSymbol structure which can then be directly examined or printed.
 ///
+/// Leaf nodes are automatically interned via `NodeCache.shared` during demangling,
+/// deduplicating common nodes like `.module("Swift")` and `.identifier("Int")`.
+///
 /// - Parameters:
 ///   - mangled: the string to be parsed ("isType` is false, the string should start with a Swift Symbol prefix, _T, _$S or $S).
 ///   - isType: if true, no prefix is parsed and, on completion, the first item on the parse stack is returned.

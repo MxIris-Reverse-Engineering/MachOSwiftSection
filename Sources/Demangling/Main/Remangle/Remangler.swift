@@ -581,6 +581,8 @@ final class Remangler {
             try mangleTypeMetadataCompletionFunction(node, depth: depth)
         case .typeMetadataDemanglingCache:
             try mangleTypeMetadataDemanglingCache(node, depth: depth)
+        case .typeMetadataMangledNameRef:
+            try mangleTypeMetadataMangledNameRef(node, depth: depth)
         case .typeMetadataInstantiationCache:
             try mangleTypeMetadataInstantiationCache(node, depth: depth)
         case .typeMetadataLazyCache:
@@ -807,8 +809,8 @@ final class Remangler {
             try mangleObjCResilientClassStub(node, depth: depth)
         case .fullObjCResilientClassStub:
             try mangleFullObjCResilientClassStub(node, depth: depth)
-        case .compileTimeConst:
-            try mangleCompileTimeConst(node, depth: depth)
+        case .compileTimeLiteral:
+            try mangleCompileTimeLiteral(node, depth: depth)
         case .constValue:
             try mangleConstValue(node, depth: depth)
         case .concurrentFunctionType:
@@ -2606,6 +2608,11 @@ extension Remangler {
         append("MD")
     }
 
+    private func mangleTypeMetadataMangledNameRef(_ node: Node, depth: Int) throws(ManglingError) {
+        try mangleSingleChildNode(node, depth: depth + 1)
+        append("MR")
+    }
+
     private func mangleTypeMetadataInstantiationCache(_ node: Node, depth: Int) throws(ManglingError) {
         try mangleSingleChildNode(node, depth: depth + 1)
         append("MI")
@@ -3718,7 +3725,7 @@ extension Remangler {
 
     // MARK: - Child + Code (15 methods)
 
-    private func mangleCompileTimeConst(_ node: Node, depth: Int) throws(ManglingError) {
+    private func mangleCompileTimeLiteral(_ node: Node, depth: Int) throws(ManglingError) {
         try mangleSingleChildNode(node, depth: depth + 1)
         append("Yt")
     }
@@ -4373,20 +4380,19 @@ extension Remangler {
     private func mangleSILBoxTypeWithLayout(_ node: Node, depth: Int) throws(ManglingError) {
         let layout = try node[_child: 0]
 
-        let layoutTypeList = Node(kind: .typeList)
+        var layoutTypeListChildren: [Node] = []
 
         for layoutChild in layout.children {
             let field = layoutChild
             var fieldType = try field[_child: 0]
             if field.kind == .silBoxMutableField {
-                let inoutNode = Node(kind: .inOut)
-                try inoutNode.addChild(fieldType[_child: 0])
-                fieldType = Node(kind: .type)
-                fieldType.addChild(inoutNode)
+                let inoutNode = try Node.create(kind: .inOut, child: fieldType[_child: 0])
+                fieldType = Node.create(kind: .type, child: inoutNode)
             }
 
-            layoutTypeList.addChild(fieldType)
+            layoutTypeListChildren.append(fieldType)
         }
+        let layoutTypeList = Node.create(kind: .typeList, children: layoutTypeListChildren)
 
         try mangleTypeList(layoutTypeList, depth: depth + 1)
 
@@ -5837,19 +5843,19 @@ func getUnspecialized(_ node: Node) -> Node? {
          .otherNominalType:
         guard node.children.count > 0 else { return nil }
 
-        let result = Node(kind: node.kind)
+        var resultChildren: [Node] = []
         var parentOrModule = node.children[0]
         if isSpecialized(parentOrModule) {
             guard let unspec = getUnspecialized(parentOrModule) else { return nil }
             parentOrModule = unspec
         }
-        result.addChild(parentOrModule)
+        resultChildren.append(parentOrModule)
         for idx in 1 ..< numToCopy {
             if idx < node.children.count {
-                result.addChild(node.children[idx])
+                resultChildren.append(node.children[idx])
             }
         }
-        return result
+        return Node(kind: node.kind, children: resultChildren)
 
     case .boundGenericStructure,
          .boundGenericEnum,
@@ -5890,13 +5896,11 @@ func getUnspecialized(_ node: Node) -> Node? {
             return node
         }
         guard let unspec = getUnspecialized(parent) else { return nil }
-        let result = Node(kind: .extension)
-        result.addChild(node.children[0])
-        result.addChild(unspec)
+        var resultChildren: [Node] = [node.children[0], unspec]
         if node.children.count == 3 {
-            result.addChild(node.children[2])
+            resultChildren.append(node.children[2])
         }
-        return result
+        return Node(kind: .extension, children: resultChildren)
 
     default:
         return nil

@@ -14,7 +14,7 @@ final class DyldCacheSymbolSimpleTests: DyldCacheSymbolTests, @unchecked Sendabl
     @Test func writeSymbolsToDesktop() async throws {
         var string = ""
         let imageName: MachOImageName = .SwiftUICore
-        let symbols = try symbols(for: imageName)
+        let symbols = try await symbols(for: imageName)
         for symbol in symbols {
             let node = try demangleAsNode(symbol.stringValue)
             guard !symbol.stringValue.hasSuffix("$delayInitStub") else { continue }

@@ -62,7 +62,7 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
     private mutating func printFunction(_ function: Node) async {
         var targetNode = function
         if isStatic {
-            targetNode = Node(kind: .static, child: targetNode)
+            targetNode = Node.create(kind: .static, child: targetNode)
         }
         self.targetNode = targetNode
 
@@ -83,9 +83,9 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
             target.write("func", context: .context(state: .printKeyword))
             target.writeSpace()
             if let identifier = function.children.first(of: .identifier) {
-                await printIdentifier(identifier)
+                await printIdentifier(identifier, parentKind: .function)
             } else if let privateDeclName = function.children.first(of: .privateDeclName) {
-                await printPrivateDeclName(privateDeclName)
+                await printPrivateDeclName(privateDeclName, parentKind: .function)
             } else if let `operator` = function.children.first(of: .prefixOperator, .infixOperator, .postfixOperator), let text = `operator`.text {
                 target.write(text + " ")
             }
@@ -119,9 +119,9 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
 extension Node {
     var isReturnOptional: Bool {
         if let returnType = first(of: .returnType), let type = returnType.children.first, let boundGenericEnum = type.children.first, boundGenericEnum.isKind(of: .boundGenericEnum), let first = boundGenericEnum.children.first?.children.first {
-            return first == Node(kind: .enum) {
-                Node(kind: .module, contents: .text("Swift"))
-                Node(kind: .identifier, contents: .text("Optional"))
+            return first == Node.create(kind: .enum) {
+                Node.create(kind: .module, contents: .text("Swift"))
+                Node.create(kind: .identifier, contents: .text("Optional"))
             }
         } else {
             return false
