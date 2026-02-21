@@ -16,6 +16,8 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
 
     private(set) var isProtocol: Bool = false
 
+    var dependentMemberTypeDepth: Int = 0
+
     private(set) var targetNode: Node?
 
     init(isOverride: Bool, delegate: (any NodePrintableDelegate)? = nil) {

@@ -1476,7 +1476,7 @@ extension Demangler {
             if let retroactiveConformances {
                 opaqueChildren.append(retroactiveConformances)
             }
-            let opaque = Node(kind: .opaqueType, children: opaqueChildren)
+            let opaque = Node.create(kind: .opaqueType, children: opaqueChildren)
             let opaqueType = Node.create(kind: .type, child: opaque)
             substitutions.append(opaqueType)
             return opaqueType

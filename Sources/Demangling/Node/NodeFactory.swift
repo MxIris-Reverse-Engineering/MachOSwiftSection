@@ -448,22 +448,22 @@ extension Node {
     }
 
     convenience init(typeWithChildKind: Kind, childChild: Node) {
-        self.init(kind: .type, contents: .none, children: [Node(kind: typeWithChildKind, children: [childChild])])
+        self.init(kind: .type, contents: .none, children: [Node.create(kind: typeWithChildKind, children: [childChild])])
     }
 
     convenience init(typeWithChildKind: Kind, childChildren: [Node]) {
-        self.init(kind: .type, contents: .none, children: [Node(kind: typeWithChildKind, children: childChildren)])
+        self.init(kind: .type, contents: .none, children: [Node.create(kind: typeWithChildKind, children: childChildren)])
     }
 
     convenience init(swiftStdlibTypeKind: Kind, name: String) {
-        self.init(kind: .type, contents: .none, children: [Node(kind: swiftStdlibTypeKind, children: [
-            Node(kind: .module, contents: .text(stdlibName)),
-            Node(kind: .identifier, contents: .text(name)),
+        self.init(kind: .type, contents: .none, children: [Node.create(kind: swiftStdlibTypeKind, children: [
+            Node.create(kind: .module, text: stdlibName),
+            Node.create(kind: .identifier, text: name),
         ])])
     }
 
     convenience init(swiftBuiltinType: Kind, name: String) {
-        self.init(kind: .type, children: [Node(kind: swiftBuiltinType, contents: .text(name))])
+        self.init(kind: .type, children: [Node.create(kind: swiftBuiltinType, text: name)])
     }
 }
 

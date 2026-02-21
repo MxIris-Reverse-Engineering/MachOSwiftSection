@@ -15,6 +15,8 @@ protocol NodePrintable {
 
     var targetNode: Node? { get }
 
+    var dependentMemberTypeDepth: Int { get set }
+
     @discardableResult
     mutating func printName(_ name: Node, asPrefixContext: Bool, context: Context?) async -> Node?
 }
@@ -47,6 +49,9 @@ extension NodePrintable {
     }
 
     func shouldPrintContext(_ context: Node) -> Bool {
+        if dependentMemberTypeDepth > 0 {
+            return false
+        }
         if context.kind == .module, let text = context.text, !text.isEmpty {
             return true
         }

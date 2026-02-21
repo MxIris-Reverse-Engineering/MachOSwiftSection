@@ -10,10 +10,10 @@ import MachOSwiftSection
 package enum MetadataReader {}
 
 extension MetadataReader {
-    package nonisolated(unsafe) static var isCahceEnabled: Bool = true
+    package nonisolated(unsafe) static var isCacheEnabled: Bool = true
 
     package static func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
-        if isCahceEnabled {
+        if isCacheEnabled {
             return try MetadataReaderCache.shared.demangleType(for: mangledName, in: machO)
         } else {
             return try _demangleType(for: mangledName, in: machO)
@@ -25,7 +25,7 @@ extension MetadataReader {
     }
 
     package static func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for symbol: Symbol, in machO: MachO) throws -> Node? {
-        if isCahceEnabled {
+        if isCacheEnabled {
             return try MetadataReaderCache.shared.buildContextManglingForSymbol(symbol, in: machO)
         } else {
             return try _buildContextManglingForSymbol(symbol, in: machO.context)
@@ -37,7 +37,7 @@ extension MetadataReader {
     }
 
     package static func demangleContext<MachO: MachOSwiftSectionRepresentableWithCache>(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
-        if isCahceEnabled {
+        if isCacheEnabled {
             return try MetadataReaderCache.shared.demangleContext(for: context, in: machO)
         } else {
             return try _demangleContext(for: context, in: machO)
@@ -63,7 +63,7 @@ extension MetadataReader {
 
 extension MetadataReader {
     package static func demangleType(for mangledName: MangledName) throws -> Node {
-        if isCahceEnabled {
+        if isCacheEnabled {
             return try MetadataReaderCache.shared.demangleType(for: mangledName)
         } else {
             return try _demangleType(for: mangledName)
@@ -75,7 +75,7 @@ extension MetadataReader {
     }
 
     package static func demangleType(for symbol: Symbol) throws -> Node? {
-        if isCahceEnabled {
+        if isCacheEnabled {
             return try MetadataReaderCache.shared.buildContextManglingForSymbol(symbol)
         } else {
             return try _buildContextManglingForSymbol(symbol, in: InProcessContext.shared)
@@ -87,7 +87,7 @@ extension MetadataReader {
     }
 
     package static func demangleContext(for context: ContextDescriptorWrapper) throws -> Node {
-        if isCahceEnabled {
+        if isCacheEnabled {
             return try MetadataReaderCache.shared.demangleContext(for: context)
         } else {
             return try _demangleContext(for: context)
