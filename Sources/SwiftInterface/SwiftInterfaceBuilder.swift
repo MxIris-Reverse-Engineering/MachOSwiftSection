@@ -127,7 +127,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         await printCatchedThrowing {
             await BlockList {
                 for function in indexer.globalFunctionDefinitions {
-                    await printer.printFunction(function)
+                    await printer.printFunction(function, level: 0)
                 }
             }
         }

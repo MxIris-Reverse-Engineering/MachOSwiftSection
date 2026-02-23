@@ -47,6 +47,20 @@ public struct Symbol: AsyncResolvable, SymbolProtocol, Hashable {
     public static func == (lhs: Self, rhs: Self) -> Bool {
         return lhs.offset == rhs.offset && lhs.name == rhs.name
     }
+    
+    public enum AddressFormat {
+        case hex
+        case decimal
+    }
+    
+    public func addressString(format: AddressFormat, in machO: some MachORepresentableWithCache) -> String {
+        switch format {
+        case .hex:
+            return "0x" + String(address(of: offset, in: machO), radix: 16, uppercase: true)
+        case .decimal:
+            return String(address(of: offset, in: machO), radix: 10)
+        }
+    }
 }
 
 public protocol SymbolProtocol {
@@ -70,3 +84,5 @@ extension MachOKit.SymbolProtocol {
 }
 
 extension MachOKit.ExportedSymbol: MachOSymbols.SymbolProtocol {}
+extension MachOKit.MachOFile.Symbol: MachOSymbols.SymbolProtocol {}
+extension MachOKit.MachOImage.Symbol: MachOSymbols.SymbolProtocol {}

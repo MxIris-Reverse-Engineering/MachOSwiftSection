@@ -47,7 +47,9 @@ extension MachOFile: MachORepresentableWithCache, @unchecked @retroactive Sendab
 }
 
 extension MachOImage: MachORepresentableWithCache, @unchecked @retroactive Sendable {
-    public var imagePath: String { path ?? "" }
+    public var imagePath: String {
+        path ?? ""
+    }
 
     public var identifier: MachOTargetIdentifier {
         .image(ptr)
@@ -71,18 +73,20 @@ extension MachOImage: MachORepresentableWithCache, @unchecked @retroactive Senda
     }
 }
 
-package func address<MachO: MachORepresentableWithCache>(of fileOffset: Int, in machO: MachO) -> UInt64 {
-    if let cache = machO.cache {
-        return .init(cache.mainCacheHeader.sharedRegionStart.cast() + fileOffset)
+package func address<MachO: MachORepresentableWithCache>(of offset: Int, in machO: MachO) -> UInt64 {
+    if let machOImage = machO.asMachOImage, let cache = machOImage.cache, let slide = cache.slide {
+        let startOffset = machOImage.ptr.bitPattern.int - slide
+        return .init(startOffset + offset)
+    } else if let cache = machO.cache {
+        return .init(cache.mainCacheHeader.sharedRegionStart.cast() + offset)
     } else {
-        return 0x1_0000_0000 + UInt64(fileOffset)
+        return 0x1_0000_0000 + UInt64(offset)
     }
 }
 
-package func addressString<MachO: MachORepresentableWithCache>(of fileOffset: Int, in machO: MachO) -> String {
-    return .init(address(of: fileOffset, in: machO), radix: 16, uppercase: true)
+package func addressString<MachO: MachORepresentableWithCache>(of offset: Int, in machO: MachO) -> String {
+    return .init(address(of: offset, in: machO), radix: 16, uppercase: true)
 }
-
 
 extension MachORepresentable {
     package var asMachOImage: MachOImage? {
