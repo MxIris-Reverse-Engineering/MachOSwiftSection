@@ -12,9 +12,8 @@ import AsyncAlgorithms
 
 @_spi(ForSymbolViewer)
 @_spi(Internals)
-@Loggable
+@Loggable(.private)
 public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unchecked Sendable {
-    
     public enum MemberKind: Hashable, CaseIterable, CustomStringConvertible, Sendable {
         fileprivate struct Traits: OptionSet, Hashable, Sendable {
             fileprivate let rawValue: Int
@@ -120,23 +119,22 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     typealias OpaqueTypeDescriptorSymbol = IndexedSymbol
 
     public final class Storage: @unchecked Sendable {
-        
         private(set) var typeInfoByName: [String: TypeInfo] = [:]
-        
+
         private(set) var globalSymbolsByKind: OrderedDictionary<GlobalKind, GlobalSymbols> = [:]
-        
+
         private(set) var opaqueTypeDescriptorSymbolByNode: OrderedDictionary<Node, OpaqueTypeDescriptorSymbol> = [:]
-        
+
         private(set) var memberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
-        
+
         private(set) var methodDescriptorMemberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
-        
+
         private(set) var protocolWitnessMemberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
-        
+
         private(set) var symbolsByKind: OrderedDictionary<Node.Kind, AllSymbols> = [:]
-        
+
         private(set) var symbolsByOffset: OrderedDictionary<Int, [Symbol]> = [:]
-        
+
         private(set) var demangledNodeBySymbol: [Symbol: Node] = [:]
 
         fileprivate func appendSymbol(_ symbol: IndexedSymbol, for kind: Node.Kind) {
@@ -181,9 +179,11 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
     public static let shared = SymbolIndexStore()
 
-    private override init() { super.init() }
+    private override init() {
+        super.init()
+    }
 
-    public override func buildStorage<MachO>(for machO: MachO) -> Storage? where MachO: MachORepresentableWithCache {
+    public override func buildStorage<MachO: MachORepresentableWithCache>(for machO: MachO) -> Storage? {
         let storage = Storage()
         var cachedSymbols: Set<String> = []
         var symbolByName: OrderedDictionary<String, Symbol> = [:]
