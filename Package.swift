@@ -543,6 +543,7 @@ let package = Package(
         .library(.SwiftDump),
         .library(.SwiftInterface),
         .library(.TypeIndexing),
+        .library(.Demangling),
         .executable(.swift_section),
     ],
     dependencies: dependencies,
