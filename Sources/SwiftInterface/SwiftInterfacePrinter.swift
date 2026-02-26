@@ -311,7 +311,7 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
     @SemanticStringBuilder
     public func printThrowingFunction(_ function: FunctionDefinition, level: Int) async throws -> SemanticString {
         var printer = FunctionNodePrinter(isOverride: function.isOverride, delegate: self)
-//        Comment("Address: 0x\(addressString(of: function.symbol.offset, in: machO))")
+//        Comment("Address: 0x\(machO.addressString(forOffset: function.symbol.offset))")
 //        BreakLine()
 //        Indent(level: level)
         try await printer.printRoot(function.node)
