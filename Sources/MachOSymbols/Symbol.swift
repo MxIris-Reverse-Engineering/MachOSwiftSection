@@ -56,9 +56,9 @@ public struct Symbol: AsyncResolvable, SymbolProtocol, Hashable {
     public func addressString(format: AddressFormat, in machO: some MachORepresentableWithCache) -> String {
         switch format {
         case .hex:
-            return "0x" + String(address(of: offset, in: machO), radix: 16, uppercase: true)
+            return "0x" + String(machO.address(forOffset: offset), radix: 16, uppercase: true)
         case .decimal:
-            return String(address(of: offset, in: machO), radix: 10)
+            return String(machO.address(forOffset: offset), radix: 10)
         }
     }
 }

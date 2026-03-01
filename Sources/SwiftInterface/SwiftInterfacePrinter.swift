@@ -67,6 +67,8 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
                 printFieldOffset: configuration.printFieldOffset,
                 printTypeLayout: configuration.printTypeLayout,
                 printEnumLayout: configuration.printEnumLayout,
+                printMemberAddress: configuration.printMemberAddress,
+                memberAddressTransformer: configuration.memberAddressTransformer,
                 fieldOffsetTransformer: configuration.fieldOffsetTransformer,
                 typeLayoutTransformer: configuration.typeLayoutTransformer,
                 enumLayoutTransformer: configuration.enumLayoutTransformer,
@@ -113,7 +115,9 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
                 demangleResolver: typeDemangleResolver,
                 indentation: level,
                 displayParentName: displayParentName,
-                printFieldOffset: configuration.printFieldOffset
+                printFieldOffset: configuration.printFieldOffset,
+                printMemberAddress: configuration.printMemberAddress,
+                memberAddressTransformer: configuration.memberAddressTransformer
             ),
             in: machO
         )
@@ -214,10 +218,12 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
         }
 
         let printFieldOffset = configuration.printFieldOffset
+        let printMemberAddress = configuration.printMemberAddress
 
         await MemberList(level: level) {
             for allocator in definition.allocators {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: allocator.offset, emit: printFieldOffset)
+                AddressComment(addressString: memberAddressString(forOffset: allocator.symbol.offset), emit: printMemberAddress)
                 await printFunction(allocator, level: level)
             }
         }
@@ -225,6 +231,9 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
         await MemberList(level: level) {
             for variable in definition.variables {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: variable.offset, emit: printFieldOffset)
+                for accessor in variable.accessors {
+                    AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
+                }
                 await printVariable(variable, level: level)
             }
         }
@@ -232,6 +241,7 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
         await MemberList(level: level) {
             for function in definition.functions {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: function.offset, emit: printFieldOffset)
+                AddressComment(addressString: memberAddressString(forOffset: function.symbol.offset), emit: printMemberAddress)
                 await printFunction(function, level: level)
             }
         }
@@ -239,6 +249,9 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
         await MemberList(level: level) {
             for `subscript` in definition.subscripts {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: `subscript`.offset, emit: printFieldOffset)
+                for accessor in `subscript`.accessors {
+                    AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
+                }
                 await printSubscript(`subscript`, level: level)
             }
         }
@@ -246,6 +259,9 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
         await MemberList(level: level) {
             for variable in definition.staticVariables {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: variable.offset, emit: printFieldOffset)
+                for accessor in variable.accessors {
+                    AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
+                }
                 await printVariable(variable, level: level)
             }
         }
@@ -253,6 +269,7 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
         await MemberList(level: level) {
             for function in definition.staticFunctions {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: function.offset, emit: printFieldOffset)
+                AddressComment(addressString: memberAddressString(forOffset: function.symbol.offset), emit: printMemberAddress)
                 await printFunction(function, level: level)
             }
         }
@@ -260,6 +277,9 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
         await MemberList(level: level) {
             for `subscript` in definition.staticSubscripts {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: `subscript`.offset, emit: printFieldOffset)
+                for accessor in `subscript`.accessors {
+                    AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
+                }
                 await printSubscript(`subscript`, level: level)
             }
         }
@@ -311,9 +331,6 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
     @SemanticStringBuilder
     public func printThrowingFunction(_ function: FunctionDefinition, level: Int) async throws -> SemanticString {
         var printer = FunctionNodePrinter(isOverride: function.isOverride, delegate: self)
-//        Comment("Address: 0x\(addressString(of: function.symbol.offset, in: machO))")
-//        BreakLine()
-//        Indent(level: level)
         try await printer.printRoot(function.node)
     }
 
@@ -327,6 +344,11 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
     public func printThrowingType(_ typeNode: Node, isProtocol: Bool, level: Int) async throws -> SemanticString {
         var printer = TypeNodePrinter(delegate: self, isProtocol: isProtocol)
         try await printer.printRoot(typeNode)
+    }
+
+    private func memberAddressString(forOffset offset: Int?) -> String? {
+        guard let offset else { return nil }
+        return machO.addressString(forOffset: offset)
     }
 }
 

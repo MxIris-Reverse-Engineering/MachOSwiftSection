@@ -297,6 +297,38 @@ public struct OffsetComment: SemanticStringComponent {
     }
 }
 
+// MARK: - Address Comment
+
+/// An address comment that outputs a member address comment when enabled.
+public struct AddressComment: SemanticStringComponent {
+    @usableFromInline
+    let addressString: String?
+
+    @usableFromInline
+    let label: String?
+
+    @usableFromInline
+    let emit: Bool
+
+    @inlinable
+    public init(addressString: String?, label: String? = nil, emit: Bool) {
+        self.addressString = addressString
+        self.label = label
+        self.emit = emit
+    }
+
+    @inlinable
+    public func buildComponents() -> [AtomicComponent] {
+        guard emit, let addressString else { return [] }
+
+        if let label {
+            return Comment("Address (\(label)): 0x\(addressString)").buildComponents()
+        } else {
+            return Comment("Address: 0x\(addressString)").buildComponents()
+        }
+    }
+}
+
 // MARK: - Imports Block
 
 /// A block of import statements.

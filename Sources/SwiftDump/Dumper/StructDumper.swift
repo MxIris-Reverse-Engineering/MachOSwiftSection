@@ -154,6 +154,10 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
 
                     BreakLine()
 
+                    if configuration.printMemberAddress {
+                        configuration.memberAddressComment(offset: symbol.offset, addressString: machO.addressString(forOffset: symbol.offset))
+                    }
+
                     Indent(level: 1)
 
                     try await demangleResolver.resolve(for: symbol.demangledNode)

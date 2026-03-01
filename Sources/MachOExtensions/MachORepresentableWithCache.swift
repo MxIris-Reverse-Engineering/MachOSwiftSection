@@ -73,19 +73,21 @@ extension MachOImage: MachORepresentableWithCache, @unchecked @retroactive Senda
     }
 }
 
-package func address<MachO: MachORepresentableWithCache>(of offset: Int, in machO: MachO) -> UInt64 {
-    if let machOImage = machO.asMachOImage, let cache = machOImage.cache, let slide = cache.slide {
-        let startOffset = machOImage.ptr.bitPattern.int - slide
-        return .init(startOffset + offset)
-    } else if let cache = machO.cache {
-        return .init(cache.mainCacheHeader.sharedRegionStart.cast() + offset)
-    } else {
-        return 0x1_0000_0000 + UInt64(offset)
+extension MachORepresentableWithCache {
+    public func address(forOffset offset: Int) -> UInt64 {
+        if let machOImage = asMachOImage, let cache = machOImage.cache, let slide = cache.slide {
+            let startOffset = machOImage.ptr.bitPattern.int - slide
+            return .init(startOffset + offset)
+        } else if let cache {
+            return .init(cache.mainCacheHeader.sharedRegionStart.cast() + offset)
+        } else {
+            return 0x1_0000_0000 + UInt64(offset)
+        }
     }
-}
 
-package func addressString<MachO: MachORepresentableWithCache>(of offset: Int, in machO: MachO) -> String {
-    return .init(address(of: offset, in: machO), radix: 16, uppercase: true)
+    public func addressString(forOffset offset: Int) -> String {
+        String(address(forOffset: offset), radix: 16, uppercase: true)
+    }
 }
 
 extension MachORepresentable {

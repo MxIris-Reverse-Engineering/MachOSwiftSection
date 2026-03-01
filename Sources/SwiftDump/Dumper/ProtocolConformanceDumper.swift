@@ -87,19 +87,19 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
                                 _ = visitedNodes.append(node)
                                 try await demangleResolver.resolve(for: node)
                             } else if !element.defaultImplementation.isNull {
-                                FunctionDeclaration(addressString(of: element.defaultImplementation.resolveDirectOffset(from: element.offset(of: \.defaultImplementation)), in: machO).insertSubFunctionPrefix)
+                                FunctionDeclaration(machO.addressString(forOffset: element.defaultImplementation.resolveDirectOffset(from: element.offset(of: \.defaultImplementation))).insertSubFunctionPrefix)
                             } else if !resilientWitness.implementation.isNull {
 //                                do {
 //                                try demangleResolver.resolve(for: MetadataReader.demangle(for: MangledName.resolve(from: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation)) - 1, in: machO), in: machO))
 //                                } catch {
-                                FunctionDeclaration(addressString(of: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation)), in: machO).insertSubFunctionPrefix)
+                                FunctionDeclaration(machO.addressString(forOffset: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation))).insertSubFunctionPrefix)
 //                                }
                             } else {
                                 Error("Symbol not found")
                             }
                         }
                     } else if !resilientWitness.implementation.isNull {
-                        FunctionDeclaration(addressString(of: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation)), in: machO).insertSubFunctionPrefix)
+                        FunctionDeclaration(machO.addressString(forOffset: resilientWitness.implementation.resolveDirectOffset(from: resilientWitness.offset(of: \.implementation))).insertSubFunctionPrefix)
                     } else {
                         Error("Symbol not found")
                     }

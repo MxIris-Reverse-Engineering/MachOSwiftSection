@@ -178,6 +178,11 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
             for (offset, descriptor) in dumped.methodDescriptors.offsetEnumerated() {
                 BreakLine()
 
+                if configuration.printMemberAddress, !descriptor.implementation.isNull {
+                    let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
+                    configuration.memberAddressComment(offset: implOffset, addressString: machO.addressString(forOffset: implOffset))
+                }
+
                 Indent(level: 1)
 
                 dumpMethodKind(for: descriptor)
@@ -195,6 +200,11 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
             for (offset, descriptor) in dumped.methodOverrideDescriptors.offsetEnumerated() {
                 BreakLine()
 
+                if configuration.printMemberAddress, !descriptor.implementation.isNull {
+                    let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
+                    configuration.memberAddressComment(offset: implOffset, addressString: machO.addressString(forOffset: implOffset))
+                }
+
                 Indent(level: 1)
 
                 let methodDescriptor = try descriptor.methodDescriptor(in: machO)
@@ -209,7 +219,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                     dumpMethodKind(for: methodDescriptor?.resolved)
                     Keyword(.override)
                     Space()
-                    FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machO).insertSubFunctionPrefix)
+                    FunctionDeclaration(machO.addressString(forOffset: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))).insertSubFunctionPrefix)
                 } else if let methodDescriptor {
                     switch methodDescriptor {
                     case .symbol(let symbol):
@@ -236,6 +246,11 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
             for (offset, descriptor) in dumped.methodDefaultOverrideDescriptors.offsetEnumerated() {
                 BreakLine()
 
+                if configuration.printMemberAddress, !descriptor.implementation.isNull {
+                    let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
+                    configuration.memberAddressComment(offset: implOffset, addressString: machO.addressString(forOffset: implOffset))
+                }
+
                 Indent(level: 1)
 
                 Keyword(.override)
@@ -246,7 +261,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                     try await demangleResolver.resolve(for: node)
                     _ = methodDefaultOverrideVisitedNodes.append(node)
                 } else if !descriptor.implementation.isNull {
-                    FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machO).insertSubFunctionPrefix)
+                    FunctionDeclaration(machO.addressString(forOffset: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))).insertSubFunctionPrefix)
                 } else {
                     Error("Symbol not found")
                 }
@@ -270,6 +285,10 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
                     BreakLine()
 
+                    if configuration.printMemberAddress {
+                        configuration.memberAddressComment(offset: symbol.offset, addressString: machO.addressString(forOffset: symbol.offset))
+                    }
+
                     Indent(level: 1)
 
                     try await demangleResolver.resolve(for: symbol.demangledNode)
@@ -291,6 +310,10 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                     }
 
                     BreakLine()
+
+                    if configuration.printMemberAddress {
+                        configuration.memberAddressComment(offset: symbol.offset, addressString: machO.addressString(forOffset: symbol.offset))
+                    }
 
                     Indent(level: 1)
 
@@ -360,7 +383,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
             try await demangleResolver.resolve(for: node)
             _ = visitedNodes.append(node)
         } else if !descriptor.implementation.isNull {
-            FunctionDeclaration(addressString(of: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation)), in: machO).insertSubFunctionPrefix)
+            FunctionDeclaration(machO.addressString(forOffset: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))).insertSubFunctionPrefix)
         } else {
             Error("Symbol not found")
         }

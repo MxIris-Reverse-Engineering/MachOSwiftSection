@@ -18,8 +18,10 @@ public struct SwiftInterfaceIndexConfiguration: Equatable, Sendable {
 public struct SwiftInterfacePrintConfiguration: Equatable, Sendable {
     public var printStrippedSymbolicItem: Bool = true
     public var printFieldOffset: Bool = false
+    public var printMemberAddress: Bool = false
     public var printTypeLayout: Bool = false
     public var printEnumLayout: Bool = false
+    public var memberAddressTransformer: MemberAddressTransformer? = nil
     public var fieldOffsetTransformer: FieldOffsetTransformer? = nil
     public var typeLayoutTransformer: TypeLayoutTransformer? = nil
     public var enumLayoutTransformer: EnumLayoutTransformer? = nil
