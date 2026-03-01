@@ -218,7 +218,7 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
         await MemberList(level: level) {
             for allocator in definition.allocators {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: allocator.offset, emit: printFieldOffset)
-                await printFunction(allocator)
+                await printFunction(allocator, level: level)
             }
         }
 
@@ -232,7 +232,7 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
         await MemberList(level: level) {
             for function in definition.functions {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: function.offset, emit: printFieldOffset)
-                await printFunction(function)
+                await printFunction(function, level: level)
             }
         }
 
@@ -253,7 +253,7 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
         await MemberList(level: level) {
             for function in definition.staticFunctions {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: function.offset, emit: printFieldOffset)
-                await printFunction(function)
+                await printFunction(function, level: level)
             }
         }
 
@@ -273,9 +273,9 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
     }
 
     @SemanticStringBuilder
-    public func printFunction(_ function: FunctionDefinition) async -> SemanticString {
+    public func printFunction(_ function: FunctionDefinition, level: Int) async -> SemanticString {
         await dispatchingCatchedThrowing(.init(name: function.name, kind: .function)) {
-            try await printThrowingFunction(function)
+            try await printThrowingFunction(function, level: level)
         }
     }
 
@@ -309,8 +309,11 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
     }
 
     @SemanticStringBuilder
-    public func printThrowingFunction(_ function: FunctionDefinition) async throws -> SemanticString {
+    public func printThrowingFunction(_ function: FunctionDefinition, level: Int) async throws -> SemanticString {
         var printer = FunctionNodePrinter(isOverride: function.isOverride, delegate: self)
+//        Comment("Address: 0x\(addressString(of: function.symbol.offset, in: machO))")
+//        BreakLine()
+//        Indent(level: level)
         try await printer.printRoot(function.node)
     }
 
