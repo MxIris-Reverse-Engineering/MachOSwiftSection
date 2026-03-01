@@ -81,7 +81,7 @@ extension MachORepresentableWithCache {
         } else if let cache {
             return .init(cache.mainCacheHeader.sharedRegionStart.cast() + offset)
         } else {
-            return 0x1_0000_0000 + UInt64(offset)
+            return UInt64(offset)
         }
     }
 
