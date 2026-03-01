@@ -59,6 +59,9 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
     @Flag(help: "Generate field offset and PWT offset comments, if possible")
     var emitOffsetComments: Bool = false
 
+    @Flag(help: "Generate member address comments for each member symbol")
+    var emitMemberAddresses: Bool = false
+
     @Flag(help: "The definitions of types and protocols will be output in the order they are stored in the binary.")
     var preferredBinaryOrder: Bool = false
 
@@ -68,6 +71,7 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
         var dumpConfiguration: DumperConfiguration = .demangleOptions(demangleOptions.buildSwiftDumpDemangleOptions())
 
         dumpConfiguration.printFieldOffset = emitOffsetComments
+        dumpConfiguration.printMemberAddress = emitMemberAddresses
 
         let isDefaultSections = sections.isEmpty
         

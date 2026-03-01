@@ -36,6 +36,7 @@ public typealias FieldOffsetTransformer = IdentifiableClosure<(startOffset: Int,
 public typealias TypeLayoutTransformer = IdentifiableClosure<TypeLayout, SemanticString>
 public typealias EnumLayoutTransformer = IdentifiableClosure<EnumLayoutCalculator.LayoutResult, SemanticString>
 public typealias EnumLayoutCaseTransformer = IdentifiableClosure<(caseProjection: EnumLayoutCalculator.EnumCaseProjection, indentation: Int), SemanticString>
+public typealias MemberAddressTransformer = IdentifiableClosure<Int, SemanticString>
 public typealias SpareBitAnalysisTransformer = IdentifiableClosure<(analysis: SpareBitAnalyzer.Analysis, indentation: Int), SemanticString>
 
 // MARK: - Dumper Configuration
@@ -49,6 +50,8 @@ public struct DumperConfiguration: Sendable {
     public var printTypeLayout: Bool = false
     public var printEnumLayout: Bool = false
     public var printSpareBitAnalysis: Bool = false
+    public var printMemberAddress: Bool = false
+    public var memberAddressTransformer: MemberAddressTransformer? = nil
     public var fieldOffsetTransformer: FieldOffsetTransformer? = nil
     public var typeLayoutTransformer: TypeLayoutTransformer? = nil
     public var enumLayoutTransformer: EnumLayoutTransformer? = nil
@@ -63,6 +66,22 @@ public struct DumperConfiguration: Sendable {
 extension DumperConfiguration {
     package var indentString: Indent {
         .init(level: indentation)
+    }
+
+    /// Builds a member address comment line for the given symbol offset.
+    ///
+    /// The returned ``SemanticString`` includes indentation and a trailing line break.
+    @SemanticStringBuilder
+    package func memberAddressComment(offset: Int, addressString: String, label: String? = nil) -> SemanticString {
+        indentString
+        if let memberAddressTransformer {
+            memberAddressTransformer(offset)
+        } else if let label {
+            Comment("Address (\(label)): 0x\(addressString)")
+        } else {
+            Comment("Address: 0x\(addressString)")
+        }
+        BreakLine()
     }
 
     /// Builds a field offset comment line for the given start and end offsets.

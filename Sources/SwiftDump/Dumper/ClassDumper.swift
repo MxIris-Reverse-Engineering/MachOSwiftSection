@@ -178,6 +178,11 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
             for (offset, descriptor) in dumped.methodDescriptors.offsetEnumerated() {
                 BreakLine()
 
+                if configuration.printMemberAddress, !descriptor.implementation.isNull {
+                    let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
+                    configuration.memberAddressComment(offset: implOffset, addressString: machO.addressString(forOffset: implOffset))
+                }
+
                 Indent(level: 1)
 
                 dumpMethodKind(for: descriptor)
@@ -194,6 +199,11 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
             var methodOverrideVisitedNodes: OrderedSet<Node> = []
             for (offset, descriptor) in dumped.methodOverrideDescriptors.offsetEnumerated() {
                 BreakLine()
+
+                if configuration.printMemberAddress, !descriptor.implementation.isNull {
+                    let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
+                    configuration.memberAddressComment(offset: implOffset, addressString: machO.addressString(forOffset: implOffset))
+                }
 
                 Indent(level: 1)
 
@@ -236,6 +246,11 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
             for (offset, descriptor) in dumped.methodDefaultOverrideDescriptors.offsetEnumerated() {
                 BreakLine()
 
+                if configuration.printMemberAddress, !descriptor.implementation.isNull {
+                    let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
+                    configuration.memberAddressComment(offset: implOffset, addressString: machO.addressString(forOffset: implOffset))
+                }
+
                 Indent(level: 1)
 
                 Keyword(.override)
@@ -270,6 +285,10 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
                     BreakLine()
 
+                    if configuration.printMemberAddress {
+                        configuration.memberAddressComment(offset: symbol.offset, addressString: machO.addressString(forOffset: symbol.offset))
+                    }
+
                     Indent(level: 1)
 
                     try await demangleResolver.resolve(for: symbol.demangledNode)
@@ -291,6 +310,10 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                     }
 
                     BreakLine()
+
+                    if configuration.printMemberAddress {
+                        configuration.memberAddressComment(offset: symbol.offset, addressString: machO.addressString(forOffset: symbol.offset))
+                    }
 
                     Indent(level: 1)
 
