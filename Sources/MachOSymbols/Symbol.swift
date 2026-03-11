@@ -75,13 +75,13 @@ extension MachOSymbols.SymbolProtocol {
     }
 }
 
-extension MachOKit.SymbolProtocol {
-    public var demangledNode: Node {
-        get throws {
-            try demangleAsNode(name)
-        }
-    }
-}
+//extension MachOKit.SymbolProtocol {
+//    public var demangledNode: Node {
+//        get throws {
+//            try demangleAsNode(name)
+//        }
+//    }
+//}
 
 extension MachOKit.ExportedSymbol: MachOSymbols.SymbolProtocol {}
 extension MachOKit.MachOFile.Symbol: MachOSymbols.SymbolProtocol {}
