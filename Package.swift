@@ -446,6 +446,7 @@ extension Target {
             .product(.MachOKit),
             .target(.MachOExtensions),
             .target(.SwiftDump),
+            .target(.SwiftInterface),
             .target(.MachOTestingSupportC),
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
         ],

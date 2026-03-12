@@ -1,0 +1,313 @@
+import Swift
+import SymbolTests
+import SymbolTestsCore
+import SymbolTestsHelper
+import _Concurrency
+import _StringProcessing
+import _SwiftConcurrencyShims
+
+struct TestsValues {}
+class TestsObjects {}
+struct StructTest {
+    var body: Swift.Never {
+        get
+    }
+
+    func a()
+    func b()
+    func c()
+    func d()
+    func e()
+
+    static var body: Swift.Never {
+        get
+    }
+}
+class ExternalSwiftSubclassTest: SymbolTestsHelper.Object {
+    override init()
+
+    override func instanceMethod() -> Swift.String
+}
+class ExternalObjCSubclassTest: __C.NSObject {
+    init()
+
+    func isKind(of: Swift.AnyObject.Type) -> Swift.Bool
+}
+class ClassTest {
+    var dynamicVariable: Swift.Bool {
+        get
+        set
+    }
+    var instanceVariable: Swift.Bool {
+        get
+        set
+    }
+
+    func dynamicMethod()
+    func instanceMethod() -> Self
+}
+class SubclassTest: SymbolTestsCore.ClassTest {
+    override var dynamicVariable: Swift.Bool {
+        get
+        set
+    }
+    override var instanceVariable: Swift.Bool {
+        get
+        set
+    }
+
+    func dynamicMethod()
+    override func instanceMethod() -> Self
+}
+class FinalClassTest: SymbolTestsCore.SubclassTest {
+    override var dynamicVariable: Swift.Bool {
+        get
+        set
+    }
+
+    override func dynamicMethod()
+    override func instanceMethod() -> Self
+}
+struct GenericRequirementTest<A> where A: SymbolTestsCore.ProtocolTest {
+    var content: A
+
+    init(content: A)
+
+    var body: A {
+        get
+    }
+
+    static func test(lhs: A, rhs: SymbolTestsCore.GenericRequirementTest<A>) -> Swift.Bool
+}
+struct GenericPackTest<A, each B, C> where repeat each B: SymbolTestsCore.ProtocolTest {
+    var _content: (repeat B)
+
+    var body: Swift.Never {
+        get
+    }
+}
+struct GenericValueTest<A, let b: Int, C> {
+    var content: C
+
+    var body: Swift.Never {
+        get
+    }
+
+    func function(value: C) -> Swift.Bool
+}
+struct OpaqueReturnTypeTest {
+    struct AnyProtocolTest<A, B> where A: SymbolTestsCore.ProtocolTest, B == B.ProtocolTest.Body, A.ProtocolTest.Body == SymbolTestsCore.GenericRequirementTest<B> {
+        init()
+
+        var body: A {
+            get
+        }
+    }
+    var variable: some {
+        get
+    }
+
+    func function<A>() -> some where A: SymbolTestsCore.ProtocolTest
+    func functionTuple<A>() -> (some, A?) where A: SymbolTestsCore.ProtocolTest
+    func functionWhere<A, B>() -> (some, (some)?, some)? where A: SymbolTestsCore.ProtocolTest, B == B.Body, A.Body == SymbolTestsCore.GenericRequirementTest<B>
+    func functionNested<A, B>(_: A, _: B) -> (some, (some)?, some)? where A: Swift.Equatable, A: SymbolTestsCore.ProtocolTest, B: Swift.Equatable, B == B.ProtocolTest.Body, A.ProtocolTest.Body == SymbolTestsCore.GenericRequirementTest<B>
+    func functionOptional<A>() -> (some)? where A: SymbolTestsCore.ProtocolTest
+}
+enum ProtocolPrimaryAssociatedTypeFirst {
+    var body: SymbolTestsCore.ProtocolPrimaryAssociatedTypeFirst {
+        get
+    }
+}
+enum ProtocolPrimaryAssociatedTypeSecond {
+    var body: SymbolTestsCore.ProtocolPrimaryAssociatedTypeFirst {
+        get
+    }
+}
+enum UnderlyingPrimaryAssociatedTypeTest<A, B> where A: SymbolTestsCore.ProtocolTest, B: SymbolTestsCore.ProtocolTest, A.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body == B.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body {
+    case none
+
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+
+    static func == (_: SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest<A, B>, _: SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest<A, B>) -> Swift.Bool
+}
+struct OpaquePrimaryAssociatedTypeReturnTypeTest {
+    var body: some {
+        get
+    }
+}
+struct GenericStructNonRequirement<A> {
+    var field1: Swift.Double
+    var field2: A
+    var field3: Swift.Int
+}
+struct GenericStructLayoutRequirement<A> where A: AnyObject {
+    var field1: Swift.Double
+    var field2: A
+    var field3: Swift.Int
+}
+class GenericClassNonRequirement<A> {
+    var field1: Swift.Double
+    var field2: A
+    var field3: Swift.Int
+
+    init(field1: Swift.Double, field2: A, field3: Swift.Int)
+}
+class GenericClassLayoutRequirement<A> where A: AnyObject {
+    var field1: Swift.Double
+    var field2: A
+    var field3: Swift.Int
+
+    init(field1: Swift.Double, field2: A, field3: Swift.Int)
+}
+class GenericClassNonRequirementInheritNSObject<A>: __C.NSObject {
+    var field1: Swift.Double
+    var field2: A
+    var field3: Swift.Int
+
+    init(field1: Swift.Double, field2: A, field3: Swift.Int)
+    init()
+}
+class GenericClassLayoutRequirementInheritNSObject<A>: __C.NSObject where A: AnyObject {
+    var field1: Swift.Double
+    var field2: A
+    var field3: Swift.Int
+
+    init(field1: Swift.Double, field2: A, field3: Swift.Int)
+    init()
+}
+
+protocol ProtocolTest where Self.Body: SymbolTestsCore.ProtocolTest {
+    associatedtype Body
+
+    // protocol witness table offset: 0x18
+    var body: Self.Body {
+        get
+    }
+}
+protocol TestCollection {
+    associatedtype Element
+}
+protocol ProtocolPrimaryAssociatedTypeTest where Self.First: SymbolTestsCore.ProtocolTest, Self.Second: SymbolTestsCore.ProtocolTest, Self.First.Body.Body.Body.Body.Body.Body == Self.Second.Body.Body.Body.Body.Body.Body {
+    associatedtype First
+    associatedtype Second
+}
+protocol ProtocolWitnessTableTest {
+    // protocol witness table offset: 0x8
+    func a()
+    // protocol witness table offset: 0x10
+    func b()
+    // protocol witness table offset: 0x18
+    func c()
+    // protocol witness table offset: 0x20
+    func d()
+    // protocol witness table offset: 0x28
+    func e()
+}
+
+extension SymbolTestsCore.GenericRequirementTest where A: Swift.RawRepresentable, A: SymbolTestsCore.ProtocolTest {
+    struct RawRepresentableNestedStruct {
+        struct NestedStruct {}
+    }
+}
+extension SymbolTestsCore.GenericRequirementTest where A: Swift.RawRepresentable {
+    var rawValue: A {
+        get
+    }
+}
+extension SymbolTestsCore.GenericRequirementTest {
+    init?(rawValue: A) where A: Swift.RawRepresentable
+
+    static func == (_: SymbolTestsCore.GenericRequirementTest<A>, _: SymbolTestsCore.GenericRequirementTest<A>) -> Swift.Bool where A: Swift.Equatable
+}
+extension Swift.Never {
+    var body: Swift.Never {
+        get
+    }
+
+    func next() -> Swift.Never?
+    func makeIterator() -> Swift.Never
+}
+extension Swift.Sequence {
+    func withContiguousStorageIfAvailable<Self>(_: (_: Swift.UnsafeBufferPointer<Self.Element>) throws -> A1) throws -> A1?
+}
+extension SymbolTestsCore.ProtocolTest {
+    static func test(lhs: Self.Body, rhs: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.StructTest: SymbolTestsCore.ProtocolTest {
+    typealias Body = Swift.Never
+}
+extension SymbolTestsCore.StructTest: SymbolTestsCore.ProtocolWitnessTableTest {}
+extension SymbolTestsCore.GenericRequirementTest: SymbolTestsCore.ProtocolTest {
+    typealias Body = A
+}
+extension SymbolTestsCore.GenericRequirementTest: Swift.RawRepresentable where A: Swift.RawRepresentable {
+    typealias RawValue = A
+
+    init?(rawValue: Self.RawValue)
+
+    var body: Self.Body {
+        get
+    }
+}
+extension SymbolTestsCore.GenericRequirementTest: Swift.Equatable where A: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.GenericPackTest: SymbolTestsCore.ProtocolTest {
+    typealias Body = Swift.Never
+}
+extension SymbolTestsCore.GenericValueTest: SymbolTestsCore.ProtocolTest {
+    typealias Body = Swift.Never
+}
+extension Swift.Array: SymbolTestsCore.TestCollection {
+    typealias Element = A
+}
+extension SymbolTestsCore.OpaqueReturnTypeTest.AnyProtocolTest: SymbolTestsCore.ProtocolTest {
+    typealias Body = A
+}
+extension SymbolTestsCore.ProtocolPrimaryAssociatedTypeFirst: SymbolTestsCore.ProtocolTest {
+    typealias Body = SymbolTestsCore.ProtocolPrimaryAssociatedTypeFirst
+}
+extension SymbolTestsCore.ProtocolPrimaryAssociatedTypeSecond: SymbolTestsCore.ProtocolTest {
+    typealias Body = SymbolTestsCore.ProtocolPrimaryAssociatedTypeFirst
+}
+extension SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest: SymbolTestsCore.ProtocolPrimaryAssociatedTypeTest {
+    typealias First = A
+    typealias Second = B
+}
+extension Swift.Never: SymbolTestsCore.ProtocolTest {
+    typealias Body = Swift.Never
+}
+extension Swift.Never: Swift.IteratorProtocol {
+    typealias Element = Swift.Never
+
+    func next() -> Self.Element?
+}
+extension Swift.Never: Swift.Sequence {
+    typealias Element = Swift.Never
+    typealias Iterator = Swift.Never
+
+    var underestimatedCount: Swift.Int {
+        get
+    }
+
+    func makeIterator() -> Self.Iterator
+    func _customContainsEquatableElement(_: Self.Element) -> Swift.Bool?
+    func _copyToContiguousArray() -> Swift.ContiguousArray<Self.Element>
+    func _copyContents(initializing: Swift.UnsafeMutableBufferPointer<Self.Element>) -> (Self.Iterator, Swift.Int)
+    func withContiguousStorageIfAvailable<Self>(_: (_: Swift.UnsafeBufferPointer<Self.Element>) throws -> A1) throws -> A1?
+}

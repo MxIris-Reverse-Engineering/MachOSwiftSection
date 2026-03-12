@@ -13,7 +13,7 @@ enum DefinitionBuilder {
             accessorsByName[name, default: []].append(.init(kind: kind, symbol: demangledSymbol.base, methodDescriptor: methodDescriptorLookup[demangledSymbol.demangledNode], offset: demangledSymbol.offset))
         }
 
-        for (name, accessors) in accessorsByName {
+        for (name, accessors) in accessorsByName.sorted(by: { $0.key < $1.key }) {
             guard !fieldNames.contains(name) else { continue }
             let nodes = accessors.map(\.symbol.demangledNode)
             guard let node = nodes.first(where: { $0.contains(.getter) || !$0.hasAccessor }) else { continue }
