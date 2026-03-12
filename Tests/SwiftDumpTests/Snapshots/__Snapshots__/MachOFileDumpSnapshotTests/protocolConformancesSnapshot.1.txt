@@ -1,0 +1,43 @@
+extension SymbolTestsCore.StructTest: SymbolTestsCore.ProtocolTest {}
+extension SymbolTestsCore.GenericRequirementTest: SymbolTestsCore.ProtocolTest {}
+extension SymbolTestsCore.GenericRequirementTest: Swift.RawRepresentable where A: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    method descriptor for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A?
+    protocol witness for SymbolTestsCore.ProtocolTest.body.getter : A.Body in conformance SymbolTestsCore.GenericRequirementTest<A> : SymbolTestsCore.ProtocolTest in SymbolTestsCore
+}
+extension SymbolTestsCore.GenericRequirementTest: Swift.Equatable where A: Swift.Equatable {
+    method descriptor for static Swift.Equatable.== infix(A, A) -> Swift.Bool
+}
+extension SymbolTestsCore.GenericPackTest: SymbolTestsCore.ProtocolTest {}
+extension SymbolTestsCore.GenericValueTest: SymbolTestsCore.ProtocolTest {}
+extension Swift.Array: SymbolTestsCore.TestCollection {}
+extension SymbolTestsCore.OpaqueReturnTypeTest.AnyProtocolTest: SymbolTestsCore.ProtocolTest {}
+extension SymbolTestsCore.ProtocolPrimaryAssociatedTypeFirst: SymbolTestsCore.ProtocolTest {}
+extension SymbolTestsCore.ProtocolPrimaryAssociatedTypeSecond: SymbolTestsCore.ProtocolTest {}
+extension SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest<A, B> : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest<A, B> : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest<A, B> : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest<A, B> : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest: SymbolTestsCore.ProtocolPrimaryAssociatedTypeTest {}
+extension Swift.Never: SymbolTestsCore.ProtocolTest {}
+extension Swift.Never: Swift.IteratorProtocol {
+    associated type descriptor for Swift.IteratorProtocol.Element
+    protocol witness for Swift.IteratorProtocol.next() -> A.Element? in conformance Swift.Never : Swift.IteratorProtocol in SymbolTestsCore
+}
+extension Swift.Never: Swift.Sequence {
+    associated conformance descriptor for Swift.Sequence.Swift.Sequence.Iterator: Swift.IteratorProtocol
+    associated type descriptor for Swift.Sequence.Element
+    associated type descriptor for Swift.Sequence.Iterator
+    protocol witness for Swift.Sequence.makeIterator() -> A.Iterator in conformance Swift.Never : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence.underestimatedCount.getter : Swift.Int in conformance Swift.Never : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._customContainsEquatableElement(A.Element) -> Swift.Bool? in conformance Swift.Never : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._copyToContiguousArray() -> Swift.ContiguousArray<A.Element> in conformance Swift.Never : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._copyContents(initializing: Swift.UnsafeMutableBufferPointer<A.Element>) -> (A.Iterator, Swift.Int) in conformance Swift.Never : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence.withContiguousStorageIfAvailable<A>((Swift.UnsafeBufferPointer<A.Element>) throws -> A1) throws -> A1? in conformance Swift.Never : Swift.Sequence in SymbolTestsCore
+}
+extension SymbolTestsCore.StructTest: SymbolTestsCore.ProtocolWitnessTableTest {}

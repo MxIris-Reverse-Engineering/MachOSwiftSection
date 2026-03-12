@@ -502,6 +502,7 @@ extension Target {
             .target(.SwiftDump),
             .target(.MachOTestingSupport),
             .product(.MachOObjCSection),
+            .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
         ],
         swiftSettings: testSettings
     )
@@ -520,6 +521,7 @@ extension Target {
         dependencies: [
             .target(.SwiftInterface),
             .target(.MachOTestingSupport),
+            .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
         ],
         swiftSettings: testSettings
     )
