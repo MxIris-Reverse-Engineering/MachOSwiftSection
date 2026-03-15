@@ -55,9 +55,13 @@ extension SnapshotDumpableTests {
         let protocolDescriptors = try machO.swift.protocolDescriptors
         var results: [String] = []
         for protocolDescriptor in protocolDescriptors {
-            let output = try await Protocol(descriptor: protocolDescriptor, in: machO)
-                .dump(using: .demangleOptions(.test), in: machO).string
-            results.append(output)
+            do {
+                let output = try await Protocol(descriptor: protocolDescriptor, in: machO)
+                    .dump(using: .demangleOptions(.test), in: machO).string
+                results.append(output)
+            } catch {
+                results.append("Error: \(error)")
+            }
         }
         return results.joined(separator: "\n")
     }
@@ -68,9 +72,13 @@ extension SnapshotDumpableTests {
         let protocolConformanceDescriptors = try machO.swift.protocolConformanceDescriptors
         var results: [String] = []
         for protocolConformanceDescriptor in protocolConformanceDescriptors {
-            let output = try await ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO)
-                .dump(using: .demangleOptions(.test), in: machO).string
-            results.append(output)
+            do {
+                let output = try await ProtocolConformance(descriptor: protocolConformanceDescriptor, in: machO)
+                    .dump(using: .demangleOptions(.test), in: machO).string
+                results.append(output)
+            } catch {
+                results.append("Error: \(error)")
+            }
         }
         return results.joined(separator: "\n")
     }
@@ -81,9 +89,13 @@ extension SnapshotDumpableTests {
         let associatedTypeDescriptors = try machO.swift.associatedTypeDescriptors
         var results: [String] = []
         for associatedTypeDescriptor in associatedTypeDescriptors {
-            let output = try await AssociatedType(descriptor: associatedTypeDescriptor, in: machO)
-                .dump(using: .demangleOptions(.test), in: machO).string
-            results.append(output)
+            do {
+                let output = try await AssociatedType(descriptor: associatedTypeDescriptor, in: machO)
+                    .dump(using: .demangleOptions(.test), in: machO).string
+                results.append(output)
+            } catch {
+                results.append("Error: \(error)")
+            }
         }
         return results.joined(separator: "\n")
     }
