@@ -1,7 +1,6 @@
 import Foundation
 import Testing
 import Dependencies
-import PowerAssert
 import MachOKit
 import MachOFoundation
 @testable import Demangling

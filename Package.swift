@@ -109,7 +109,7 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.4"),
     .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-clang", from: "0.1.0"),
     .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-apinotes", from: "0.1.0"),
-    .package(url: "https://github.com/MxIris-Reverse-Engineering/DyldPrivate", branch: "main"),
+    .package(url: "https://github.com/MxIris-Reverse-Engineering/DyldPrivate", from: "1330.0.0"),
     
     // CLI
     .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
