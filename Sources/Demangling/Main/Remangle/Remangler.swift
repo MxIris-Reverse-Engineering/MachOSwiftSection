@@ -787,6 +787,8 @@ final class Remangler {
             try mangleBackDeploymentFallback(node, depth: depth)
         case .backDeploymentThunk:
             try mangleBackDeploymentThunk(node, depth: depth)
+        case .builtinBorrow:
+            try mangleBuiltinBorrow(node, depth: depth)
         case .builtinTupleType:
             try mangleBuiltinTupleType(node, depth: depth)
         case .builtinFixedArray:
@@ -1813,6 +1815,8 @@ extension Remangler {
             append("w")
         } else if name == "Builtin.PackIndex" {
             append("P")
+        } else if name == "Builtin.ImplicitActor" {
+            append("A")
         } else if name.hasPrefix("Builtin.Int") {
             // Int types: Builtin.Int<width>
             let width = name.dropFirst("Builtin.Int".count)
@@ -3657,6 +3661,11 @@ extension Remangler {
 
     private func mangleBackDeploymentThunk(_ node: Node, depth: Int) throws(ManglingError) {
         append("Twb")
+    }
+
+    private func mangleBuiltinBorrow(_ node: Node, depth: Int) throws(ManglingError) {
+        try mangleChildNodes(node, depth: depth + 1)
+        append("BW")
     }
 
     private func mangleBuiltinTupleType(_ node: Node, depth: Int) throws(ManglingError) {

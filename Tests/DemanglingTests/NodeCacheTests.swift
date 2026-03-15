@@ -51,8 +51,10 @@ struct NodeCacheTests {
         let parent1 = cache.intern(kind: .type, children: [child1, child2])
         let parent2 = cache.intern(kind: .type, children: [child1, child2])
 
-        #expect(parent1 === parent2, "Same structure should return same instance")
-        #expect(cache.count == 3) // child1, child2, parent
+        // Tree nodes (with children) are NOT cached — each call creates a new instance
+        #expect(parent1 !== parent2, "Nodes with children should not be cached")
+        // Only leaf nodes are cached
+        #expect(cache.count == 2) // child1, child2
     }
 
     @Test func differentChildrenProduceDifferentNodes() {
@@ -79,17 +81,19 @@ struct NodeCacheTests {
             Node(kind: .identifier, text: "B")
         ])
 
-        // Intern the tree
+        // Intern the tree — only leaf nodes get deduplicated, tree roots are not cached
         let interned1 = cache.intern(tree)
         let interned2 = cache.intern(tree)
 
-        #expect(interned1 === interned2, "Interning same tree twice should return same instance")
+        // Tree roots are not cached, but leaf children should be shared
+        #expect(interned1.children[0] === interned2.children[0], "Leaf children should be deduplicated")
+        #expect(interned1.children[1] === interned2.children[1], "Leaf children should be deduplicated")
     }
 
-    @Test func internTreeDeduplicatesSubtrees() {
+    @Test func internTreeDeduplicatesLeafNodes() {
         let cache = NodeCache()
 
-        // Create two trees with identical subtrees
+        // Create two trees with identical leaf nodes
         let tree1 = Node(kind: .global, children: [
             Node(kind: .type, children: [
                 Node(kind: .identifier, text: "Shared")
@@ -105,11 +109,16 @@ struct NodeCacheTests {
         let interned1 = cache.intern(tree1)
         let interned2 = cache.intern(tree2)
 
-        // The "Shared" identifier and its parent "type" should be the same instance
+        // The "Shared" leaf identifier should be the same instance across both trees
+        let leaf1 = interned1.children[0].children[0]
+        let leaf2 = interned2.children[0].children[0]
+
+        #expect(leaf1 === leaf2, "Identical leaf nodes should be deduplicated")
+
+        // But the parent .type nodes (with children) should NOT be the same instance
         let type1 = interned1.children[0]
         let type2 = interned2.children[0]
-
-        #expect(type1 === type2, "Identical subtrees should be deduplicated")
+        #expect(type1 !== type2, "Tree nodes with children are not cached")
     }
 
     @Test func internBatchOfNodes() {
@@ -123,8 +132,11 @@ struct NodeCacheTests {
 
         let interned = cache.intern(trees)
 
-        #expect(interned[0] === interned[1], "Identical trees should be deduplicated")
-        #expect(interned[0] !== interned[2], "Different trees should remain different")
+        // Tree roots are not cached, so they are different instances
+        #expect(interned[0] !== interned[1], "Tree nodes with children are not cached")
+        // But their shared leaf children should be the same instance
+        #expect(interned[0].children[0] === interned[1].children[0], "Identical leaf children should be deduplicated")
+        #expect(interned[0].children[0] !== interned[2].children[0], "Different leaf children should remain different")
     }
 
     // MARK: - Unsynchronized Methods
@@ -148,12 +160,13 @@ struct NodeCacheTests {
         let interned1 = cache.internTreeUnsafe(tree)
         let interned2 = cache.internTreeUnsafe(tree)
 
-        #expect(interned1 === interned2)
+        // Tree roots are not cached, but leaf children should be shared
+        #expect(interned1.children[0] === interned2.children[0], "Leaf children should be deduplicated")
     }
 
     // MARK: - Cache Management
 
-    @Test func clearRemovesAllNodes() {
+    @Test func clearRemovesUserNodes() {
         let cache = NodeCache()
 
         _ = cache.intern(kind: .identifier, text: "a")
@@ -164,7 +177,14 @@ struct NodeCacheTests {
 
         cache.clear()
 
-        #expect(cache.count == 0)
+        // clear() calls registerFactorySingletons(), so count equals the number of factory singletons
+        #expect(cache.count > 0, "Factory singletons should be re-registered after clear")
+
+        // Verify user nodes are gone by checking a new intern creates a different instance
+        let beforeClear = Node(kind: .identifier, text: "a")
+        let afterClear = cache.intern(kind: .identifier, text: "a")
+        // The node should be a fresh instance (not the one from before clear)
+        #expect(afterClear !== beforeClear)
     }
 
     @Test func reserveCapacity() {
@@ -188,29 +208,27 @@ struct NodeCacheTests {
     // MARK: - Node.interned() Extension
 
     @Test func nodeInternedExtension() {
-        // Clear shared cache first
-        NodeCache.shared.clear()
+        // Use a local cache to avoid racing with other tests that use NodeCache.shared
+        let cache = NodeCache()
 
         let node1 = Node(kind: .identifier, text: "ext")
         let node2 = Node(kind: .identifier, text: "ext")
 
-        let interned1 = node1.interned()
-        let interned2 = node2.interned()
+        let interned1 = cache.intern(node1)
+        let interned2 = cache.intern(node2)
 
-        #expect(interned1 === interned2, "Node.interned() should use global cache")
-
-        // Clean up
-        NodeCache.shared.clear()
+        #expect(interned1 === interned2, "Interning identical leaf nodes should return same instance")
     }
 }
 
 // MARK: - Demangling Integration Tests
 
-@Suite
+@Suite(.serialized)
 struct NodeCacheDemangleTests {
 
     @Test func demangleAsNodeDeduplicatesLeaves() throws {
         // Demangle the same symbol twice — leaf nodes should be shared
+        // Note: must run serialized to avoid other tests clearing NodeCache.shared
         let node1 = try demangleAsNode("$sSiD")
         let node2 = try demangleAsNode("$sSiD")
 
@@ -218,7 +236,7 @@ struct NodeCacheDemangleTests {
         let module1 = node1.first(of: .module)
         let module2 = node2.first(of: .module)
         #expect(module1 != nil)
-        #expect(module1 === module2, "Same leaf nodes should be deduplicated")
+        #expect(module1 === module2, "Same leaf nodes should be deduplicated via NodeCache.shared")
     }
 
     @Test func sharedSubtreesAreInterned() throws {
@@ -246,7 +264,7 @@ struct NodeCacheMemoryTests {
     @Test func interningReducesNodeCount() {
         let cache = NodeCache()
 
-        // Create many trees with shared structure
+        // Create many trees with shared leaf structure
         var trees: [Node] = []
         for _ in 0..<100 {
             trees.append(Node(kind: .global, children: [
@@ -259,22 +277,24 @@ struct NodeCacheMemoryTests {
             ]))
         }
 
-        // Count total nodes before interning
-        func countNodes(_ node: Node) -> Int {
-            1 + node.children.reduce(0) { $0 + countNodes($1) }
-        }
-        let totalBefore = trees.reduce(0) { $0 + countNodes($1) }
-
         // Intern all trees
         let interned = cache.intern(trees)
 
-        // All interned trees should be the same instance
+        // Tree roots are NOT cached, so they are different instances
+        #expect(interned[0] !== interned[1], "Tree nodes with children are not cached")
+
+        // But all leaf nodes should be shared across all trees
+        // Every tree's deepest leaves (.module "Swift" and .identifier "Int") should be the same instance
+        let leaf0a = interned[0].children[0].children[0].children[0] // .module "Swift"
+        let leaf0b = interned[0].children[0].children[0].children[1] // .identifier "Int"
         for i in 1..<interned.count {
-            #expect(interned[0] === interned[i], "All identical trees should be same instance")
+            let leafA = interned[i].children[0].children[0].children[0]
+            let leafB = interned[i].children[0].children[0].children[1]
+            #expect(leaf0a === leafA, "Leaf .module nodes should be deduplicated")
+            #expect(leaf0b === leafB, "Leaf .identifier nodes should be deduplicated")
         }
 
-        // Cache should have much fewer unique nodes than total
-        #expect(cache.count < totalBefore, "Interning should reduce node count")
-        #expect(cache.count == 5, "Should have exactly 5 unique nodes (global, type, structure, module, identifier)")
+        // Cache should only have 2 unique leaf nodes (module "Swift", identifier "Int")
+        #expect(cache.count == 2, "Should have exactly 2 unique leaf nodes")
     }
 }

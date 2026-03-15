@@ -926,6 +926,7 @@ extension Demangler {
     private mutating func demangleBuiltinType() throws(DemanglingError) -> Node {
         let maxTypeSize: UInt64 = 4096
         switch try scanner.readScalar() {
+        case "A": return Node.create(swiftBuiltinType: .builtinTypeName, name: "Builtin.ImplicitActor")
         case "b": return Node.create(swiftBuiltinType: .builtinTypeName, name: "Builtin.BridgeObject")
         case "B": return Node.create(swiftBuiltinType: .builtinTypeName, name: "Builtin.UnsafeValueBuffer")
         case "e": return Node.create(swiftBuiltinType: .builtinTypeName, name: "Builtin.Executor")
@@ -960,6 +961,10 @@ extension Demangler {
         case "d": return Node.create(swiftBuiltinType: .builtinTypeName, name: "Builtin.NonDefaultDistributedActorStorage")
         case "j": return Node.create(swiftBuiltinType: .builtinTypeName, name: "Builtin.Job")
         case "P": return Node.create(swiftBuiltinType: .builtinTypeName, name: "Builtin.PackIndex")
+        case "T": return Node.create(kind: .type, children: [Node.create(kind: .builtinTupleType)])
+        case "W":
+            let referent = try require(pop(kind: .type))
+            return Node.create(typeWithChildKind: .builtinBorrow, childChildren: [referent])
         default: throw failure
         }
     }
@@ -1231,7 +1236,7 @@ extension Demangler {
 
     private mutating func demangleImplParameterImplicitLeading() -> Node? {
         guard scanner.conditional(scalar: "L") else { return nil }
-        return Node.create(kind: .implParameterIsolated, contents: .text("sil_implicit_leading_param"))
+        return Node.create(kind: .implParameterImplicitLeading, contents: .text("sil_implicit_leading_param"))
     }
 
     private mutating func demangleImplResultDifferentiability() -> Node {
