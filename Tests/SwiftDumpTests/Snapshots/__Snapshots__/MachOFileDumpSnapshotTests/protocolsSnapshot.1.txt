@@ -1,0 +1,28 @@
+protocol SymbolTestsCore.ProtocolTest where Self.Body: SymbolTestsCore.ProtocolTest {
+    associatedtype Body
+
+    associated conformance descriptor for SymbolTestsCore.ProtocolTest.SymbolTestsCore.ProtocolTest.Body: SymbolTestsCore.ProtocolTest
+    associated type descriptor for SymbolTestsCore.ProtocolTest.Body
+    method descriptor for SymbolTestsCore.ProtocolTest.body.getter : A.Body
+}
+protocol SymbolTestsCore.TestCollection {
+    associatedtype Element
+
+    associated type descriptor for SymbolTestsCore.TestCollection.Element
+}
+protocol SymbolTestsCore.ProtocolPrimaryAssociatedTypeTest where Self.First: SymbolTestsCore.ProtocolTest, Self.Second: SymbolTestsCore.ProtocolTest, Self.First.Body.Body.Body.Body.Body.Body == Self.Second.Body.Body.Body.Body.Body.Body {
+    associatedtype First
+    associatedtype Second
+
+    associated conformance descriptor for SymbolTestsCore.ProtocolPrimaryAssociatedTypeTest.SymbolTestsCore.ProtocolPrimaryAssociatedTypeTest.First: SymbolTestsCore.ProtocolTest
+    associated conformance descriptor for SymbolTestsCore.ProtocolPrimaryAssociatedTypeTest.SymbolTestsCore.ProtocolPrimaryAssociatedTypeTest.Second: SymbolTestsCore.ProtocolTest
+    associated type descriptor for SymbolTestsCore.ProtocolPrimaryAssociatedTypeTest.First
+    associated type descriptor for SymbolTestsCore.ProtocolPrimaryAssociatedTypeTest.Second
+}
+protocol SymbolTestsCore.ProtocolWitnessTableTest {
+    method descriptor for SymbolTestsCore.ProtocolWitnessTableTest.a() -> ()
+    method descriptor for SymbolTestsCore.ProtocolWitnessTableTest.b() -> ()
+    method descriptor for SymbolTestsCore.ProtocolWitnessTableTest.c() -> ()
+    method descriptor for SymbolTestsCore.ProtocolWitnessTableTest.d() -> ()
+    method descriptor for SymbolTestsCore.ProtocolWitnessTableTest.e() -> ()
+}

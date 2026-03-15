@@ -1,0 +1,51 @@
+protocol SourceKitSupport.ExtendedCompletionProvider: AnyObject {
+    /* [Stripped Symbol] */
+    /* [Stripped Symbol] */
+}
+protocol SourceKitSupport.DocumentStructureDelegate {
+    method descriptor for SourceKitSupport.DocumentStructureDelegate.didFindDeclaration(at: SourceEditor.SourceEditorPosition, kind: SourceKitSupport.SourceKitUID) -> ()
+}
+protocol SourceKitSupport.SourceKitArgumentProvider {
+    method descriptor for SourceKitSupport.SourceKitArgumentProvider.moduleNames.getter : SourceEditor.ModuleNameSet
+    method descriptor for SourceKitSupport.SourceKitArgumentProvider.compilerArguments.getter : [Swift.String]
+    method descriptor for SourceKitSupport.SourceKitArgumentProvider.toolchains.getter : [Swift.String]
+    method descriptor for SourceKitSupport.SourceKitArgumentProvider.waitForDependencyPreparation(forActiveDocument: Swift.Bool) async -> SourceKitSupport.DependencyPreparationResult
+
+    /* [Default Implementation] */
+    SourceKitSupport.SourceKitArgumentProvider.moduleNames.getter : SourceEditor.ModuleNameSet
+    async function pointer to SourceKitSupport.SourceKitArgumentProvider.waitForDependencyPreparation(forActiveDocument: Swift.Bool) async -> SourceKitSupport.DependencyPreparationResult
+}
+protocol SourceKitSupport.MemberProvidingLanguageService {
+    method descriptor for SourceKitSupport.MemberProvidingLanguageService.implicitMembers(for: SourceEditor.SourceEditorPosition, resultsCallback: ([SourceKitSupport.SourceKitImplicitMemberResult]) -> ()) -> ()
+    method descriptor for SourceKitSupport.MemberProvidingLanguageService.conformingMembers(for: SourceEditor.SourceEditorPosition, typeName: Swift.String, resultsCallback: (SourceKitSupport.SourceKitConformingMemberResult?) -> ()) -> ()
+}
+protocol SourceKitSupport.NameTranslationProvider {
+    method descriptor for SourceKitSupport.NameTranslationProvider.translate(swiftName: SourceKitSupport.NameTranslation.SwiftName, at: SourceEditor.SourceEditorPosition, completion: (SourceKitSupport.NameTranslation.ObjCName?) -> ()) -> ()
+    method descriptor for SourceKitSupport.NameTranslationProvider.translate(objcName: SourceKitSupport.NameTranslation.ObjCName, at: SourceEditor.SourceEditorPosition, completion: (SourceKitSupport.NameTranslation.SwiftName?) -> ()) -> ()
+}
+protocol SourceKitSupport.SourceKitCompletionDirective: Swift.Hashable {
+    base conformance descriptor for SourceKitSupport.SourceKitCompletionDirective: Swift.Hashable
+    method descriptor for SourceKitSupport.SourceKitCompletionDirective.identifier.getter : Swift.String?
+    method descriptor for SourceKitSupport.SourceKitCompletionDirective.type.getter : SourceKitSupport.SourceKitDirectiveType
+    method descriptor for SourceKitSupport.SourceKitCompletionDirective.scope.getter : SourceKitSupport.SourceKitDirectiveScope
+}
+protocol SourceKitSupport.SourceKitService: AnyObject {
+    method descriptor for static SourceKitSupport.SourceKitService.shared.getter : A
+    method descriptor for SourceKitSupport.SourceKitService.sourceKitBarriersEnabled.getter : Swift.Bool
+    method descriptor for SourceKitSupport.SourceKitService.serviceStatus.getter : SourceKitSupport.SourceKitServiceStatus
+    method descriptor for SourceKitSupport.SourceKitService.sendSemanticRequest(_: SourceKitSupport.SourceKitRequest, _: Swift.String, cancellationIndicator: SourceKitSupport.CancellationIndicator) throws -> SourceKitSupport.SourceKitResponse
+    method descriptor for SourceKitSupport.SourceKitService.sendSemanticRequestAsync(_: SourceKitSupport.SourceKitRequest, _: Swift.String, completionBlock: (Swift.Result<SourceKitSupport.SourceKitResponse, Swift.Error>) -> ()) -> SourceKitSupport.SourceKitCancellable
+    method descriptor for SourceKitSupport.SourceKitService.sendSemanticRequestSync(_: SourceKitSupport.SourceKitRequest, _: Swift.String, completionBlock: (SourceKitSupport.SourceKitResponse) -> ()) -> NSError?
+    method descriptor for SourceKitSupport.SourceKitService.sendSyntacticRequest(_: SourceKitSupport.SourceKitRequest, cancellationIndicator: SourceKitSupport.CancellationIndicator) throws -> SourceKitSupport.SourceKitResponse
+    method descriptor for SourceKitSupport.SourceKitService.sendSyntacticRequestSync(_: SourceKitSupport.SourceKitRequest, completionBlock: (SourceKitSupport.SourceKitResponse) -> ()) -> NSError?
+    method descriptor for SourceKitSupport.SourceKitService.setServiceStatusHandlerForObserver(_: Swift.AnyObject, handler: (SourceKitSupport.SourceKitServiceStatus) -> ()) -> ()
+    method descriptor for SourceKitSupport.SourceKitService.removeServiceStatusHandlerForObserver(Swift.AnyObject) -> ()
+    method descriptor for SourceKitSupport.SourceKitService.setDocumentUpdateHandlerForObserver(_: Swift.AnyObject, handler: (Swift.String) -> ()) -> ()
+    method descriptor for SourceKitSupport.SourceKitService.removeDocumentUpdateHandlerForObserver(Swift.AnyObject) -> ()
+
+    /* [Default Implementation] */
+    SourceKitSupport.SourceKitService.sourceKitBarriersEnabled.getter : Swift.Bool
+    SourceKitSupport.SourceKitService.sendSemanticRequest(_: SourceKitSupport.SourceKitRequest, _: Swift.String, cancellationIndicator: SourceKitSupport.CancellationIndicator) throws -> SourceKitSupport.SourceKitResponse
+    SourceKitSupport.SourceKitService.sendSemanticRequestAsync(_: SourceKitSupport.SourceKitRequest, _: Swift.String, completionBlock: (Swift.Result<SourceKitSupport.SourceKitResponse, Swift.Error>) -> ()) -> SourceKitSupport.SourceKitCancellable
+    SourceKitSupport.SourceKitService.sendSyntacticRequest(_: SourceKitSupport.SourceKitRequest, cancellationIndicator: SourceKitSupport.CancellationIndicator) throws -> SourceKitSupport.SourceKitResponse
+}

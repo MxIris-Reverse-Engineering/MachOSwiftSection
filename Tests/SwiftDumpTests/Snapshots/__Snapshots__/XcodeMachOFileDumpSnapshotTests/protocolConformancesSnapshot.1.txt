@@ -1,0 +1,538 @@
+extension SourceKitSupport.SourceKitCodeCompletionProvider: SourceEditor.CodeCompletionProvider {
+    protocol witness for SourceEditor.CodeCompletionProvider.init(context: SourceEditor.CodeCompletionContext, identifier: Swift.Int, providerManager: SourceEditor.CodeCompletionProviderManager) -> A? in conformance SourceKitSupport.SourceKitCodeCompletionProvider<A> : SourceEditor.CodeCompletionProvider in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionProvider.debugTag.getter : Swift.Int? in conformance SourceKitSupport.SourceKitCodeCompletionProvider<A> : SourceEditor.CodeCompletionProvider in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionProvider.prepareForDebugging() -> () in conformance SourceKitSupport.SourceKitCodeCompletionProvider<A> : SourceEditor.CodeCompletionProvider in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionProvider.semanticClassification(SourceEditor.CodeCompletionSuggestionToken) -> _CodeCompletionFoundation.SemanticClassification? in conformance SourceKitSupport.SourceKitCodeCompletionProvider<A> : SourceEditor.CodeCompletionProvider in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionProvider.scoringItems(matching: _CodeCompletionFoundation.Pattern, completion: (SourceEditor.CodeCompletionCompositeResultSet?) -> ()) -> () in conformance SourceKitSupport.SourceKitCodeCompletionProvider<A> : SourceEditor.CodeCompletionProvider in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionProvider.completionSuggestion(for: SourceEditor.CodeCompletionSuggestionToken) -> SourceEditor.CodeCompletionSuggestion in conformance SourceKitSupport.SourceKitCodeCompletionProvider<A> : SourceEditor.CodeCompletionProvider in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionProvider.willDisplaySuggestion(SourceEditor.CodeCompletionSuggestion) -> () in conformance SourceKitSupport.SourceKitCodeCompletionProvider<A> : SourceEditor.CodeCompletionProvider in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionProvider.didAcceptSuggestion(_: SourceEditor.CodeCompletionSuggestion, in: SourceEditor.SourceEditorView, insertedRange: Swift.Range<SourceEditor.SourceEditorPosition>) -> () in conformance SourceKitSupport.SourceKitCodeCompletionProvider<A> : SourceEditor.CodeCompletionProvider in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionProvider.closeSession() -> () in conformance SourceKitSupport.SourceKitCodeCompletionProvider<A> : SourceEditor.CodeCompletionProvider in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitCodeCompletionProvider: SourceEditor.MetricsCapableCodeCompletionProvider {
+    protocol witness for SourceEditor.MetricsCapableCodeCompletionProvider.unfilteredResultCount.getter : Swift.Int? in conformance SourceKitSupport.SourceKitCodeCompletionProvider<A> : SourceEditor.MetricsCapableCodeCompletionProvider in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitCodeCompletionProvider: SourceKitSupport.ExtendedCompletionProvider {}
+extension SourceKitSupport.SwiftAnnotatedDescriptionConverter.ElementName: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance SourceKitSupport.SwiftAnnotatedDescriptionConverter.ElementName : Swift.RawRepresentable in SourceKitSupport
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance SourceKitSupport.SwiftAnnotatedDescriptionConverter.ElementName : Swift.RawRepresentable in SourceKitSupport
+}
+extension SourceKitSupport.SwiftAnnotatedDescriptionConverter.ElementName: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SourceKitSupport.SwiftAnnotatedDescriptionConverter.ElementName : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SourceKitSupport.SwiftAnnotatedDescriptionConverter.ElementName : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SourceKitSupport.SwiftAnnotatedDescriptionConverter.ElementName : Swift.Hashable in SourceKitSupport
+}
+extension SourceKitSupport.SwiftAnnotatedDescriptionConverter.ElementName: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.SwiftAnnotatedDescriptionConverter.ElementName : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitTextCompletionSuggestion: SourceEditor.CodeCompletionSuggestion {
+    protocol witness for SourceEditor.CodeCompletionSuggestion.displayText.getter : Swift.String in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.richDisplayText.getter : NSAttributedString? in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.completionText.getter : Swift.String in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.completionKind.getter : SourceEditor.CodeCompletionSuggestionKind in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.customIcon.getter : NSImage? in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.module.getter : Swift.String? in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.displayType.getter : Swift.String? in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.effectsSpecifiers.getter : [SourceEditor.CodeCompleteSuggestionEffectsSpecifier]? in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.attributedDisplaySignature.getter : NSAttributedString? in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.filterText.getter : Swift.String in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.briefDisplayText.getter : Swift.String in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.filterTextRanges.getter : [_NSRange] in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.filterTextRangesInDisplayText.getter : [_NSRange] in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.filterTextRangesInBriefDisplayText.getter : [_NSRange] in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.parameterRangesInFilterText.getter : [_NSRange]? in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.parameterRangesInDisplayText.getter : [_NSRange]? in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.parameterRangesInBriefDisplayText.getter : [_NSRange]? in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.parameterRangesInAttributedDisplaySignature.getter : [_NSRange]? in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.defaultValueParameterRangeIndexes.getter : Foundation.IndexSet? in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.hiddenParameterRangeIndexes.getter : Foundation.IndexSet? in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.leadingCharactersToReplace.getter : Swift.UInt in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.briefDocumentationText.getter : Swift.String? in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.associatedUSRs.getter : [Swift.String] in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.issue.getter : SourceEditor.CodeCompletionIssue? in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.groupID.getter : Swift.Int? in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.isOverloadable.getter : Swift.Bool in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.numberOfDerivedSuggestions(selectedParameterRangeIndexes: Foundation.IndexSet?) -> Swift.Int in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.derivedSuggestionParameterRangeIndexesArray(selectedParameterRangeIndexes: Foundation.IndexSet?) -> [Foundation.IndexSet]? in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.arrangedMatchingFilterTextRanges(_: [_NSRange], parameterRangesKeyPath: Swift.KeyPath<SourceEditor.CodeCompletionSuggestion, [_NSRange]?>) -> [_NSRange] in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+    protocol witness for SourceEditor.CodeCompletionSuggestion.arrangedCompletionText(by: Foundation.IndexSet?) -> Swift.String in conformance SourceKitSupport.SourceKitTextCompletionSuggestion : SourceEditor.CodeCompletionSuggestion in SourceKitSupport
+}
+extension Key: Swift._HasCustomAnyHashableRepresentation {
+    protocol witness for Swift._HasCustomAnyHashableRepresentation._toCustomAnyHashable() -> Swift.AnyHashable? in conformance NSAttributedStringKey : Swift._HasCustomAnyHashableRepresentation in __C_Synthesized
+}
+extension Key: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance NSAttributedStringKey : Swift.RawRepresentable in __C_Synthesized
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance NSAttributedStringKey : Swift.RawRepresentable in __C_Synthesized
+}
+extension Key: Swift._SwiftNewtypeWrapper {
+    base conformance descriptor for Swift._SwiftNewtypeWrapper: Swift.RawRepresentable
+    base conformance descriptor for Swift._SwiftNewtypeWrapper: Swift._HasCustomAnyHashableRepresentation
+}
+extension Key: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance NSAttributedStringKey : Swift.Equatable in __C_Synthesized
+}
+extension Key: Swift._ObjectiveCBridgeable {
+    associated type descriptor for Swift._ObjectiveCBridgeable._ObjectiveCType
+    protocol witness for Swift._ObjectiveCBridgeable._bridgeToObjectiveC() -> A._ObjectiveCType in conformance NSAttributedStringKey : Swift._ObjectiveCBridgeable in __C_Synthesized
+    protocol witness for static Swift._ObjectiveCBridgeable._forceBridgeFromObjectiveC(_: A._ObjectiveCType, result: inout A?) -> () in conformance NSAttributedStringKey : Swift._ObjectiveCBridgeable in __C_Synthesized
+    protocol witness for static Swift._ObjectiveCBridgeable._conditionallyBridgeFromObjectiveC(_: A._ObjectiveCType, result: inout A?) -> Swift.Bool in conformance NSAttributedStringKey : Swift._ObjectiveCBridgeable in __C_Synthesized
+    protocol witness for static Swift._ObjectiveCBridgeable._unconditionallyBridgeFromObjectiveC(A._ObjectiveCType?) -> A in conformance NSAttributedStringKey : Swift._ObjectiveCBridgeable in __C_Synthesized
+}
+extension SourceKitSupport.SwiftAnnotatedDescriptionConverter.ParseError: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SourceKitSupport.SwiftAnnotatedDescriptionConverter.ParseError : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SourceKitSupport.SwiftAnnotatedDescriptionConverter.ParseError : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SourceKitSupport.SwiftAnnotatedDescriptionConverter.ParseError : Swift.Hashable in SourceKitSupport
+}
+extension SourceKitSupport.SwiftAnnotatedDescriptionConverter.ParseError: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.SwiftAnnotatedDescriptionConverter.ParseError : Swift.Equatable in SourceKitSupport
+}
+extension Key: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance NSAttributedStringKey : Swift.Hashable in __C_Synthesized
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance NSAttributedStringKey : Swift.Hashable in __C_Synthesized
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance NSAttributedStringKey : Swift.Hashable in __C_Synthesized
+}
+extension SourceKitSupport.SwiftAnnotatedDescriptionConverter.ParseError: Swift.Error {
+    protocol witness for Swift.Error._domain.getter : Swift.String in conformance SourceKitSupport.SwiftAnnotatedDescriptionConverter.ParseError : Swift.Error in SourceKitSupport
+    protocol witness for Swift.Error._code.getter : Swift.Int in conformance SourceKitSupport.SwiftAnnotatedDescriptionConverter.ParseError : Swift.Error in SourceKitSupport
+    protocol witness for Swift.Error._userInfo.getter : Swift.AnyObject? in conformance SourceKitSupport.SwiftAnnotatedDescriptionConverter.ParseError : Swift.Error in SourceKitSupport
+    protocol witness for Swift.Error._getEmbeddedNSError() -> Swift.AnyObject? in conformance SourceKitSupport.SwiftAnnotatedDescriptionConverter.ParseError : Swift.Error in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitDocumentStructure: Swift.CustomDebugStringConvertible {
+    protocol witness for Swift.CustomDebugStringConvertible.debugDescription.getter : Swift.String in conformance SourceKitSupport.SourceKitDocumentStructure : Swift.CustomDebugStringConvertible in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitEditorLanguage: SourceEditor.SourceEditorLanguage {
+    protocol witness for SourceEditor.SourceEditorLanguage.name.getter : Swift.String in conformance SourceKitSupport.SourceKitEditorLanguage : SourceEditor.SourceEditorLanguage in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguage.identifier.getter : Swift.String in conformance SourceKitSupport.SourceKitEditorLanguage : SourceEditor.SourceEditorLanguage in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguage.langServiceClass.getter : SourceEditor.SourceEditorLanguageService.Type in conformance SourceKitSupport.SourceKitEditorLanguage : SourceEditor.SourceEditorLanguage in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguage.contentGeneratingLangServiceClass.getter : SourceEditor.ContentGeneratingLanguageService.Type? in conformance SourceKitSupport.SourceKitEditorLanguage : SourceEditor.SourceEditorLanguage in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguage.lineDataFactory.getter : SourceEditor.SourceEditorLineDataFactory in conformance SourceKitSupport.SourceKitEditorLanguage : SourceEditor.SourceEditorLanguage in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguage.editableRangeSnapshotType.getter : SourceEditor.EditableRangeSnapshot.Type? in conformance SourceKitSupport.SourceKitEditorLanguage : SourceEditor.SourceEditorLanguage in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguage.configureEditAssistant(SourceEditor.SourceEditorEditAssistant) -> () in conformance SourceKitSupport.SourceKitEditorLanguage : SourceEditor.SourceEditorLanguage in SourceKitSupport
+}
+extension SourceKitSupport.DependencyPreparationResult: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.DependencyPreparationResult : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.DependencyPreparationResult: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SourceKitSupport.DependencyPreparationResult : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SourceKitSupport.DependencyPreparationResult : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SourceKitSupport.DependencyPreparationResult : Swift.Hashable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitDocumentSettings: SourceEditor.SourceEditorDocumentSettings {}
+extension SourceKitSupport.SourceKitDocumentSettings: SourceKitSupport.SourceKitArgumentProvider {}
+extension SourceKitSupport.SourceKitContentGenerationDocumentSettings.ContentKind: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.SourceKitContentGenerationDocumentSettings.ContentKind : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitContentGenerationDocumentSettings.BuildSettingsVeracity.HowSoon: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SourceKitSupport.SourceKitContentGenerationDocumentSettings.BuildSettingsVeracity.HowSoon : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SourceKitSupport.SourceKitContentGenerationDocumentSettings.BuildSettingsVeracity.HowSoon : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SourceKitSupport.SourceKitContentGenerationDocumentSettings.BuildSettingsVeracity.HowSoon : Swift.Hashable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitContentGenerationDocumentSettings.BuildSettingsVeracity.HowSoon: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.SourceKitContentGenerationDocumentSettings.BuildSettingsVeracity.HowSoon : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitContentGenerationDocumentSettings.BuildSettingsVeracity: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.SourceKitContentGenerationDocumentSettings.BuildSettingsVeracity : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitContentGenerationDocumentSettings: SourceEditor.SourceEditorDocumentSettings {}
+extension SourceKitSupport.SourceKitContentGenerationDocumentSettings: SourceKitSupport.SourceKitArgumentProvider {}
+extension SourceKitSupport.SourceKitContentGenerationDocumentSettings: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.SourceKitContentGenerationDocumentSettings : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitModuleLocation: SourceEditor.SourceEditorLanguageSpecificLocation {}
+extension SourceKitSupport.SourceKitLanguageService.ContentGenerationError: Swift.Error {
+    protocol witness for Swift.Error._domain.getter : Swift.String in conformance SourceKitSupport.SourceKitLanguageService<A>.ContentGenerationError : Swift.Error in SourceKitSupport
+    protocol witness for Swift.Error._code.getter : Swift.Int in conformance SourceKitSupport.SourceKitLanguageService<A>.ContentGenerationError : Swift.Error in SourceKitSupport
+    protocol witness for Swift.Error._userInfo.getter : Swift.AnyObject? in conformance SourceKitSupport.SourceKitLanguageService<A>.ContentGenerationError : Swift.Error in SourceKitSupport
+    protocol witness for Swift.Error._getEmbeddedNSError() -> Swift.AnyObject? in conformance SourceKitSupport.SourceKitLanguageService<A>.ContentGenerationError : Swift.Error in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitLanguageService: SourceEditor.SourceEditorLanguageService {
+    base conformance descriptor for SourceEditor.SourceEditorLanguageService: SourceEditor.SourceEditorSyntaxTokenProvider
+    protocol witness for SourceEditor.SourceEditorLanguageService.init(language: SourceEditor.SourceEditorLanguage, buffer: SourceEditor.SourceEditorBuffer) -> A in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.resetDocument(Swift.String?) -> () in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.documentSettingsChanged(Swift.String?) -> () in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.didInsertTextInRange(Swift.Range<SourceEditor.SourceEditorPosition>) -> Swift.Range<Swift.Int> in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.willDeleteTextInRange(Swift.Range<SourceEditor.SourceEditorPosition>) -> () in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.didDeleteTextInRange(Swift.Range<SourceEditor.SourceEditorPosition>) -> Swift.Range<Swift.Int> in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.isBatchEditing.getter : Swift.Bool in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.beginBatchEditing() -> () in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.endBatchEditing() -> () in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.fullTokenRangeAtPosition(SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.enclosingContextAtPosition(SourceEditor.SourceEditorPosition) -> SourceEditor.CodeStructure? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.enclosingContextWithParentRangeAtPosition(SourceEditor.SourceEditorPosition) -> (SourceEditor.CodeStructure, Swift.Range<SourceEditor.SourceEditorPosition>?)? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.enclosingBlockRangeAtPosition(SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>? in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.subTokenRange(at: SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition> in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.enclosingBracketContextAtPosition(SourceEditor.SourceEditorPosition) -> SourceEditor.CodeStructure? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.enclosingLandmarkAtPosition(SourceEditor.SourceEditorPosition) -> SourceEditor.Landmark? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.documentableDeclarationRange(for: SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>? in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.landmarks() -> [SourceEditor.Landmark] in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.methodOrFunctionRange(landmark: SourceEditor.Landmark) -> Swift.Range<SourceEditor.SourceEditorPosition> in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.observeInactiveRanges(([SourceEditor.ManagedSourceEditorRange]) -> ()) -> () in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.stopObservingInactiveRanges() -> () in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.documentableLanguageService.getter : SourceEditor.DocumentableLanguageService? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.formattingOptionsChanged() -> () in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.indentLine(Swift.Int) -> (Swift.String, Swift.Range<Swift.Int>) in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.reformatLines(Swift.Range<Swift.Int>) -> Swift.Bool in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.expandPlaceholderAtRange(Swift.Range<SourceEditor.SourceEditorPosition>) -> (Swift.String, Swift.Range<SourceEditor.SourceEditorPosition>) in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.refactorActions(range: Swift.Range<SourceEditor.SourceEditorPosition>) -> [SourceEditor.SourceEditorRefactorAction] in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.referencesToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, cancelledBlock: (() -> Swift.Bool)?, completionBlock: ([Swift.Range<SourceEditor.SourceEditorPosition>]) -> ()) -> () in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.navigationToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, completionBlock: ([SourceEditor.SourceEditorNavigationTarget], Swift.Bool) -> ()) -> () in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.callersToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, completionBlock: ([SourceEditor.SourceEditorNavigationTarget], [SourceEditor.SourceEditorNavigationTarget]) -> ()) -> () in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.rangeForUSR(Swift.String) -> Swift.Range<SourceEditor.SourceEditorPosition>? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.documentationForSymbolAtPosition(_: SourceEditor.SourceEditorPosition, completionBlock: (SourceEditor.SourceEditorSymbolDocumentationResult?) -> ()) -> () in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.diagnosticProvider.getter : SourceEditor.SourceEditorDiagnosticProvider? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.diagnosticProviderBridge.getter : SourceEditor.DiagnosticProviderBridge? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.setNeedsDiagnosticsRegeneration() -> () in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.automaticCodeCompletionCharacterSet.getter : Foundation.CharacterSet? in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.shouldAutomaticallySuggestCodeCompletions(at: SourceEditor.SourceEditorPosition, with: Foundation.CharacterSet, proposing: Swift.Bool) -> Swift.Bool in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.shouldTrimTrailingWhitespaceAtLine(Swift.Int) -> Swift.Bool in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.allowedOpeningDelimitersToAutoCloseAfterEntering(text: Swift.String, inRange: Swift.Range<SourceEditor.SourceEditorPosition>, selectionRange: Swift.Range<SourceEditor.SourceEditorPosition>) -> [Swift.Character]? in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.codeCompletionReplacementRange(forSuggestedRange: Swift.Range<SourceEditor.SourceEditorPosition>, at: SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>? in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.codeCompletionReplacementText(replacingRange: Swift.Range<SourceEditor.SourceEditorPosition>, with: Swift.String) -> (Swift.String, Swift.Range<SourceEditor.SourceEditorPosition>) in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.relevantModulesForCodeCompletionPopularityBonuses() -> Swift.Set<Swift.String>? in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.lineWrapAlignment(for: Swift.Int) -> Swift.Int? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.allowWhitespaceTrimming.getter : Swift.Bool in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.requiresHardTabs.getter : Swift.Bool in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.supportsIndentation.getter : Swift.Bool in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.shouldTriggerIndentation(trigger: Swift.String, at: SourceEditor.SourceEditorPosition) -> Swift.Bool in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorLanguageService.configureDataSourceForAccessoryUse(SourceEditor.SourceEditorDataSource) -> Swift.Bool in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.SourceEditorLanguageService in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitLanguageService: SourceEditor.ContentGeneratingLanguageService {
+    base conformance descriptor for SourceEditor.ContentGeneratingLanguageService: SourceEditor.SourceEditorLanguageService
+    protocol witness for SourceEditor.ContentGeneratingLanguageService.init(language: SourceEditor.SourceEditorLanguage) -> A in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.ContentGeneratingLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.ContentGeneratingLanguageService.generateContent(with: SourceEditor.SourceEditorDocumentSettings, completion: (SourceEditor.ContentGenerationResult) -> ()) -> SourceEditor.LanguageServiceContentGenerationCoordinator? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.ContentGeneratingLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.ContentGeneratingLanguageService.bind(to: SourceEditor.SourceEditorBuffer) -> () in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.ContentGeneratingLanguageService in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitLanguageService: SourceEditor.FoldableLanguageService {
+    protocol witness for SourceEditor.FoldableLanguageService.foldableRegionsNeedUpdating.getter : Swift.Bool in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.FoldableLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.FoldableLanguageService.languageSpecificFoldableRanges.getter : [Swift.Range<SourceEditor.SourceEditorPosition>] in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.FoldableLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.FoldableLanguageService.foldableRanges(matching: SourceEditor.FoldableRegionKind) -> [Swift.Range<SourceEditor.SourceEditorPosition>] in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.FoldableLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.FoldableLanguageService.managesFoldableRanges.getter : Swift.Bool in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.FoldableLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.FoldableLanguageService.enclosingFold(at: SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>? in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.FoldableLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.FoldableLanguageService.foldableRanges(lineRange: Swift.Range<Swift.Int>) -> [Swift.Range<SourceEditor.SourceEditorPosition>] in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.FoldableLanguageService in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitLanguageService: SourceEditor.DocumentableLanguageService {
+    protocol witness for SourceEditor.DocumentableLanguageService.markupLanguage.getter : SourceEditor.MarkupLanguage in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.DocumentableLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.DocumentableLanguageService.documentationSyntaxProvider.getter : SourceEditor.DocumentationSyntaxProvider? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.DocumentableLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.DocumentableLanguageService.documentationSyntaxProvider.setter : SourceEditor.DocumentationSyntaxProvider? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.DocumentableLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.DocumentableLanguageService.documentationSyntaxProvider.modify : SourceEditor.DocumentationSyntaxProvider? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.DocumentableLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.DocumentableLanguageService.supportsUpdateDocumentation.getter : Swift.Bool in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.DocumentableLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.DocumentableLanguageService.documentationRange(containing: Swift.Int) -> Swift.Range<SourceEditor.SourceEditorPosition>? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.DocumentableLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.DocumentableLanguageService.documentationInsertionLine(codeStructure: SourceEditor.CodeStructure) -> Swift.Int in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.DocumentableLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.DocumentableLanguageService.documentationDelimiter(enclosing: SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.DocumentableLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.DocumentableLanguageService.linePrefixForDocumentation(enclosing: SourceEditor.SourceEditorPosition) -> Swift.String? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.DocumentableLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.DocumentableLanguageService.parameterNames(for: SourceEditor.CodeStructure) -> [Swift.String]? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.DocumentableLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.DocumentableLanguageService.structureHasReturnValue(SourceEditor.CodeStructure) -> Swift.Bool in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.DocumentableLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.DocumentableLanguageService.structureThrows(SourceEditor.CodeStructure) -> Swift.Bool in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.DocumentableLanguageService in SourceKitSupport
+    protocol witness for SourceEditor.DocumentableLanguageService.documentationIsBlockStyle(containing: Swift.Int) -> Swift.Bool? in conformance SourceKitSupport.SourceKitLanguageService<A1> : SourceEditor.DocumentableLanguageService in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitLanguageService: SourceEditor.CommentableLanguageService {
+    protocol witness for SourceEditor.CommentableLanguageService.allCommentDelimiters.getter : [(prefix: Swift.String, suffix: Swift.String?)] in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.CommentableLanguageService in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitLanguageService: SourceEditor.MarkableLanguageService {
+    protocol witness for SourceEditor.MarkableLanguageService.markText(enclosing: SourceEditor.SourceEditorPosition) -> Swift.String? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.MarkableLanguageService in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitLanguageService: SourceKitSupport.MemberProvidingLanguageService {}
+extension SourceKitSupport.SourceKitLanguageService: SourceEditor.LanguageServiceHostExtensible {
+    base conformance descriptor for SourceEditor.LanguageServiceHostExtensible: SourceEditor.SourceEditorLanguageService
+    protocol witness for SourceEditor.LanguageServiceHostExtensible.hostExtension.getter : SourceEditor.LanguageServiceHostExtension? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.LanguageServiceHostExtensible in SourceKitSupport
+    protocol witness for SourceEditor.LanguageServiceHostExtensible.hostExtension.setter : SourceEditor.LanguageServiceHostExtension? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.LanguageServiceHostExtensible in SourceKitSupport
+    protocol witness for SourceEditor.LanguageServiceHostExtensible.hostExtension.modify : SourceEditor.LanguageServiceHostExtension? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.LanguageServiceHostExtensible in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitLanguageService: SourceKitSupport.DocumentStructureDelegate {}
+extension SourceKitSupport.SourceKitLanguageService: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SourceKitSupport.SourceKitLanguageService<A> : Swift.CustomStringConvertible in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitLanguageService: Swift.CustomDebugStringConvertible {
+    protocol witness for Swift.CustomDebugStringConvertible.debugDescription.getter : Swift.String in conformance SourceKitSupport.SourceKitLanguageService<A> : Swift.CustomDebugStringConvertible in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitLanguageService: SourceEditor.SourceEditorSyntaxTokenProvider {
+    protocol witness for SourceEditor.SourceEditorSyntaxTokenProvider.syntaxTypeAtPosition(SourceEditor.SourceEditorPosition) -> (SourceEditor.SourceEditorTokenType?, Swift.Range<SourceEditor.SourceEditorPosition>)? in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorSyntaxTokenProvider in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorSyntaxTokenProvider.enumerateSyntaxTokensOnLine(_: Swift.Int, handler: (SourceEditor.SourceEditorTokenType, Swift.Range<Swift.Int>) -> ()) -> () in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SourceEditorSyntaxTokenProvider in SourceKitSupport
+}
+extension SourceKitSupport.NameTranslation.SwiftName: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.NameTranslation.SwiftName : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.NameTranslation.ObjCName: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.NameTranslation.ObjCName : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitLanguageService: SourceKitSupport.NameTranslationProvider {}
+extension SourceKitSupport.SourceKitLanguageService: SourceEditor.SpellCheckableLanguageService {
+    protocol witness for SourceEditor.SpellCheckableLanguageService.allowSpellCheckingFor(range: Swift.Range<SourceEditor.SourceEditorPosition>) -> Swift.Bool in conformance SourceKitSupport.SourceKitLanguageService<A> : SourceEditor.SpellCheckableLanguageService in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitSemanticRequest.SemanticRequestError: Swift.Error {
+    protocol witness for Swift.Error._domain.getter : Swift.String in conformance SourceKitSupport.SourceKitSemanticRequest.SemanticRequestError : Swift.Error in SourceKitSupport
+    protocol witness for Swift.Error._code.getter : Swift.Int in conformance SourceKitSupport.SourceKitSemanticRequest.SemanticRequestError : Swift.Error in SourceKitSupport
+    protocol witness for Swift.Error._userInfo.getter : Swift.AnyObject? in conformance SourceKitSupport.SourceKitSemanticRequest.SemanticRequestError : Swift.Error in SourceKitSupport
+    protocol witness for Swift.Error._getEmbeddedNSError() -> Swift.AnyObject? in conformance SourceKitSupport.SourceKitSemanticRequest.SemanticRequestError : Swift.Error in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitSemanticServiceHelper: SourceEditor.SemanticServiceHelper {
+    base conformance descriptor for SourceEditor.SemanticServiceHelper: SourceEditor.BasicDiagnosticsSupportDelegate
+    base conformance descriptor for SourceEditor.SemanticServiceHelper: SourceEditor.LanguageServiceHostExtension
+    protocol witness for SourceEditor.SemanticServiceHelper.hostExtension.getter : SourceEditor.LanguageServiceHostExtension? in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.SemanticServiceHelper in SourceKitSupport
+    protocol witness for SourceEditor.SemanticServiceHelper.hostExtension.setter : SourceEditor.LanguageServiceHostExtension? in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.SemanticServiceHelper in SourceKitSupport
+    protocol witness for SourceEditor.SemanticServiceHelper.hostExtension.modify : SourceEditor.LanguageServiceHostExtension? in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.SemanticServiceHelper in SourceKitSupport
+    protocol witness for SourceEditor.SemanticServiceHelper.name.getter : Swift.String? in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.SemanticServiceHelper in SourceKitSupport
+    protocol witness for SourceEditor.SemanticServiceHelper.name.setter : Swift.String? in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.SemanticServiceHelper in SourceKitSupport
+    protocol witness for SourceEditor.SemanticServiceHelper.name.modify : Swift.String? in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.SemanticServiceHelper in SourceKitSupport
+    protocol witness for SourceEditor.SemanticServiceHelper.diagnosticsSupport.getter : SourceEditor.BasicDiagnosticsSupport? in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.SemanticServiceHelper in SourceKitSupport
+    protocol witness for SourceEditor.SemanticServiceHelper.diagnosticProviderBridge.getter : SourceEditor.DiagnosticProviderBridge? in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.SemanticServiceHelper in SourceKitSupport
+    protocol witness for SourceEditor.SemanticServiceHelper.init(buffer: SourceEditor.SourceEditorBuffer) -> A in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.SemanticServiceHelper in SourceKitSupport
+    protocol witness for SourceEditor.SemanticServiceHelper.didInsertText(range: Swift.Range<SourceEditor.SourceEditorPosition>) -> () in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.SemanticServiceHelper in SourceKitSupport
+    protocol witness for SourceEditor.SemanticServiceHelper.willDeleteText(range: Swift.Range<SourceEditor.SourceEditorPosition>) -> () in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.SemanticServiceHelper in SourceKitSupport
+    protocol witness for SourceEditor.SemanticServiceHelper.didDeleteText(range: Swift.Range<SourceEditor.SourceEditorPosition>) -> () in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.SemanticServiceHelper in SourceKitSupport
+    protocol witness for SourceEditor.SemanticServiceHelper.expandPlaceholderAtRange(Swift.Range<SourceEditor.SourceEditorPosition>) -> (Swift.String, Swift.Range<SourceEditor.SourceEditorPosition>) in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.SemanticServiceHelper in SourceKitSupport
+    protocol witness for SourceEditor.SemanticServiceHelper.activeConditions(completionBlock: ([SourceEditor.ActiveCondition]?) -> ()) -> () in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.SemanticServiceHelper in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitSemanticServiceHelper: SourceKitSupport.MemberProvidingLanguageService {}
+extension SourceKitSupport.SourceKitSemanticServiceHelper: SourceEditor.LanguageServiceHostExtension {
+    protocol witness for SourceEditor.LanguageServiceHostExtension.referencesToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, cancelledBlock: (() -> Swift.Bool)?, completionBlock: ([Swift.Range<SourceEditor.SourceEditorPosition>]) -> ()) -> () in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.LanguageServiceHostExtension in SourceKitSupport
+    protocol witness for SourceEditor.LanguageServiceHostExtension.navigationToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, allowQuickNavigation: Swift.Bool, completionBlock: ([SourceEditor.SourceEditorNavigationTarget], Swift.Bool) -> ()) -> () in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A1> : SourceEditor.LanguageServiceHostExtension in SourceKitSupport
+    protocol witness for SourceEditor.LanguageServiceHostExtension.navigationToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, completionBlock: ([SourceEditor.SourceEditorNavigationTarget], Swift.Bool) -> ()) -> () in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.LanguageServiceHostExtension in SourceKitSupport
+    protocol witness for SourceEditor.LanguageServiceHostExtension.callersToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, completionBlock: ([SourceEditor.SourceEditorNavigationTarget], [SourceEditor.SourceEditorNavigationTarget]) -> ()) -> () in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.LanguageServiceHostExtension in SourceKitSupport
+    protocol witness for SourceEditor.LanguageServiceHostExtension.documentationForSymbolAtPosition(_: SourceEditor.SourceEditorPosition, completionBlock: (SourceEditor.SourceEditorSymbolDocumentationResult?) -> ()) -> () in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.LanguageServiceHostExtension in SourceKitSupport
+    protocol witness for SourceEditor.BasicDiagnosticsSupportDelegate.cancelProvideDiagnosticsRequest() -> () in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.BasicDiagnosticsSupportDelegate in SourceKitSupport
+    protocol witness for SourceEditor.BasicDiagnosticsSupportDelegate.provideDiagnostics(completionBlock: ([SourceEditor.SourceEditorDiagnostic]?) -> ()) -> () in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.BasicDiagnosticsSupportDelegate in SourceKitSupport
+    protocol witness for SourceEditor.LanguageServiceHostExtension.inactiveRanges(completionBlock: ([SourceEditor.ManagedSourceEditorRange]?) -> ()) -> () in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A1> : SourceEditor.LanguageServiceHostExtension in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitSemanticServiceHelper: SourceEditor.BasicDiagnosticsSupportDelegate {
+    protocol witness for SourceEditor.BasicDiagnosticsSupportDelegate.provideDiagnostics(completionBlock: ([SourceEditor.SourceEditorDiagnostic]?) -> ()) -> () in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.BasicDiagnosticsSupportDelegate in SourceKitSupport
+    protocol witness for SourceEditor.BasicDiagnosticsSupportDelegate.cancelProvideDiagnosticsRequest() -> () in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.BasicDiagnosticsSupportDelegate in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitSemanticServiceHelper: SourceEditor._AsyncDocumentationProvidingLanguageServiceHostExtension {
+    async function pointer to protocol witness for SourceEditor._AsyncDocumentationProvidingLanguageServiceHostExtension.documentationForSymbolAtPosition(SourceEditor.SourceEditorPosition) async throws -> SourceEditor.SourceEditorSymbolDocumentationResult in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor._AsyncDocumentationProvidingLanguageServiceHostExtension in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitSemanticServiceHelper: SourceKitSupport.NameTranslationProvider {}
+extension SourceKitSupport.SourceKitSemanticServiceHelper: SourceEditor.SourceEditorCallableDiagnosticService {
+    protocol witness for SourceEditor.SourceEditorCallableDiagnosticService.currentDiagnostics((Swift.Result<[SourceEditor.SourceEditorDiagnostic], Swift.Error>) -> ()) -> () in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A> : SourceEditor.SourceEditorCallableDiagnosticService in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitSemanticServiceHelper.DocumentationRequestError: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A>.DocumentationRequestError : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A>.DocumentationRequestError : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A>.DocumentationRequestError : Swift.Hashable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitSemanticServiceHelper.DocumentationRequestError: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A>.DocumentationRequestError : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitSemanticServiceHelper.DocumentationRequestError: Swift.Error {
+    protocol witness for Swift.Error._domain.getter : Swift.String in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A>.DocumentationRequestError : Swift.Error in SourceKitSupport
+    protocol witness for Swift.Error._code.getter : Swift.Int in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A>.DocumentationRequestError : Swift.Error in SourceKitSupport
+    protocol witness for Swift.Error._userInfo.getter : Swift.AnyObject? in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A>.DocumentationRequestError : Swift.Error in SourceKitSupport
+    protocol witness for Swift.Error._getEmbeddedNSError() -> Swift.AnyObject? in conformance SourceKitSupport.SourceKitSemanticServiceHelper<A>.DocumentationRequestError : Swift.Error in SourceKitSupport
+}
+extension SourceKitSupport.SwiftTokenType: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.SwiftTokenType : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.SwiftTokenType: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SourceKitSupport.SwiftTokenType : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SourceKitSupport.SwiftTokenType : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SourceKitSupport.SwiftTokenType : Swift.Hashable in SourceKitSupport
+}
+extension SourceKitSupport.SwiftTokenType: SourceEditor.SourceEditorTokenLanguageSpecificData {
+    base conformance descriptor for SourceEditor.SourceEditorTokenLanguageSpecificData: SourceEditor.SourceEditorTokenData
+}
+extension SourceKitSupport.SwiftTokenType: SourceEditor.SourceEditorTokenData {
+    protocol witness for SourceEditor.SourceEditorTokenData.isEqual(to: SourceEditor.SourceEditorTokenData) -> Swift.Bool in conformance SourceKitSupport.SwiftTokenType : SourceEditor.SourceEditorTokenData in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorTokenData.uiKind.getter : SourceEditor.SourceEditorTokenType.UIKind? in conformance SourceKitSupport.SwiftTokenType : SourceEditor.SourceEditorTokenData in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorTokenData.fontTraits.getter : SourceEditor.SourceEditorTokenType.FontTraits in conformance SourceKitSupport.SwiftTokenType : SourceEditor.SourceEditorTokenData in SourceKitSupport
+}
+extension SourceKitSupport.SwiftIdentifierDisposition: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.SwiftIdentifierDisposition : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.SwiftIdentifierDisposition: SourceEditor.SourceEditorTokenIdentifierData {
+    base conformance descriptor for SourceEditor.SourceEditorTokenIdentifierData: SourceEditor.SourceEditorTokenData
+}
+extension SourceKitSupport.SwiftIdentifierDisposition: SourceEditor.SourceEditorTokenData {
+    protocol witness for SourceEditor.SourceEditorTokenData.isEqual(to: SourceEditor.SourceEditorTokenData) -> Swift.Bool in conformance SourceKitSupport.SwiftIdentifierDisposition : SourceEditor.SourceEditorTokenData in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorTokenData.uiKind.getter : SourceEditor.SourceEditorTokenType.UIKind? in conformance SourceKitSupport.SwiftIdentifierDisposition : SourceEditor.SourceEditorTokenData in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorTokenData.fontTraits.getter : SourceEditor.SourceEditorTokenType.FontTraits in conformance SourceKitSupport.SwiftIdentifierDisposition : SourceEditor.SourceEditorTokenData in SourceKitSupport
+}
+extension SourceKitSupport.SwiftURLDisposition: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.SwiftURLDisposition : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.SwiftURLDisposition: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SourceKitSupport.SwiftURLDisposition : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SourceKitSupport.SwiftURLDisposition : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SourceKitSupport.SwiftURLDisposition : Swift.Hashable in SourceKitSupport
+}
+extension SourceKitSupport.SwiftURLDisposition: SourceEditor.SourceEditorTokenURLData {
+    base conformance descriptor for SourceEditor.SourceEditorTokenURLData: SourceEditor.SourceEditorTokenData
+}
+extension SourceKitSupport.SwiftURLDisposition: SourceEditor.SourceEditorTokenData {
+    protocol witness for SourceEditor.SourceEditorTokenData.isEqual(to: SourceEditor.SourceEditorTokenData) -> Swift.Bool in conformance SourceKitSupport.SwiftURLDisposition : SourceEditor.SourceEditorTokenData in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorTokenData.uiKind.getter : SourceEditor.SourceEditorTokenType.UIKind? in conformance SourceKitSupport.SwiftURLDisposition : SourceEditor.SourceEditorTokenData in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorTokenData.fontTraits.getter : SourceEditor.SourceEditorTokenType.FontTraits in conformance SourceKitSupport.SwiftURLDisposition : SourceEditor.SourceEditorTokenData in SourceKitSupport
+}
+extension SourceKitSupport.SwiftCommentDisposition: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.SwiftCommentDisposition : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.SwiftCommentDisposition: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SourceKitSupport.SwiftCommentDisposition : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SourceKitSupport.SwiftCommentDisposition : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SourceKitSupport.SwiftCommentDisposition : Swift.Hashable in SourceKitSupport
+}
+extension SourceKitSupport.SwiftCommentDisposition: SourceEditor.SourceEditorTokenCommentData {
+    base conformance descriptor for SourceEditor.SourceEditorTokenCommentData: SourceEditor.SourceEditorTokenData
+}
+extension SourceKitSupport.SwiftCommentDisposition: SourceEditor.SourceEditorTokenData {
+    protocol witness for SourceEditor.SourceEditorTokenData.isEqual(to: SourceEditor.SourceEditorTokenData) -> Swift.Bool in conformance SourceKitSupport.SwiftCommentDisposition : SourceEditor.SourceEditorTokenData in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorTokenData.uiKind.getter : SourceEditor.SourceEditorTokenType.UIKind? in conformance SourceKitSupport.SwiftCommentDisposition : SourceEditor.SourceEditorTokenData in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorTokenData.fontTraits.getter : SourceEditor.SourceEditorTokenType.FontTraits in conformance SourceKitSupport.SwiftCommentDisposition : SourceEditor.SourceEditorTokenData in SourceKitSupport
+}
+extension SourceKitSupport.SwiftStringDisposition: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.SwiftStringDisposition : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.SwiftStringDisposition: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SourceKitSupport.SwiftStringDisposition : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SourceKitSupport.SwiftStringDisposition : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SourceKitSupport.SwiftStringDisposition : Swift.Hashable in SourceKitSupport
+}
+extension SourceKitSupport.SwiftStringDisposition: SourceEditor.SourceEditorTokenStringData {
+    base conformance descriptor for SourceEditor.SourceEditorTokenStringData: SourceEditor.SourceEditorTokenData
+}
+extension SourceKitSupport.SwiftStringDisposition: SourceEditor.SourceEditorTokenData {
+    protocol witness for SourceEditor.SourceEditorTokenData.isEqual(to: SourceEditor.SourceEditorTokenData) -> Swift.Bool in conformance SourceKitSupport.SwiftStringDisposition : SourceEditor.SourceEditorTokenData in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorTokenData.uiKind.getter : SourceEditor.SourceEditorTokenType.UIKind? in conformance SourceKitSupport.SwiftStringDisposition : SourceEditor.SourceEditorTokenData in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorTokenData.fontTraits.getter : SourceEditor.SourceEditorTokenType.FontTraits in conformance SourceKitSupport.SwiftStringDisposition : SourceEditor.SourceEditorTokenData in SourceKitSupport
+}
+extension SourceKitSupport.SwiftIdentifierKind.Scope: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.SwiftIdentifierKind.Scope : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.SwiftIdentifierKind.Scope: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SourceKitSupport.SwiftIdentifierKind.Scope : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SourceKitSupport.SwiftIdentifierKind.Scope : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SourceKitSupport.SwiftIdentifierKind.Scope : Swift.Hashable in SourceKitSupport
+}
+extension SourceKitSupport.SwiftIdentifierKind: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.SwiftIdentifierKind : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitSyntaxMap: Swift.CustomDebugStringConvertible {
+    protocol witness for Swift.CustomDebugStringConvertible.debugDescription.getter : Swift.String in conformance SourceKitSupport.SourceKitSyntaxMap : Swift.CustomDebugStringConvertible in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitSyntaxMap: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SourceKitSupport.SourceKitSyntaxMap : Swift.CustomStringConvertible in SourceKitSupport
+}
+extension SourceKitSupport.SwiftSyntaxToken: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SourceKitSupport.SwiftSyntaxToken : Swift.CustomStringConvertible in SourceKitSupport
+}
+extension SourceKitSupport.PerformanceLogLevel: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SourceKitSupport.PerformanceLogLevel : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SourceKitSupport.PerformanceLogLevel : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SourceKitSupport.PerformanceLogLevel : Swift.Hashable in SourceKitSupport
+}
+extension SourceKitSupport.PerformanceLogLevel: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.PerformanceLogLevel : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitSymbolDocumentation: SourceEditor.SourceEditorSymbolDocumentation {
+    protocol witness for SourceEditor.SourceEditorSymbolDocumentation.name.getter : Swift.String? in conformance SourceKitSupport.SourceKitSymbolDocumentation : SourceEditor.SourceEditorSymbolDocumentation in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorSymbolDocumentation.usrs.getter : [Swift.String]? in conformance SourceKitSupport.SourceKitSymbolDocumentation : SourceEditor.SourceEditorSymbolDocumentation in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorSymbolDocumentation.kind.getter : SourceEditor.SourceEditorSymbolKind? in conformance SourceKitSupport.SourceKitSymbolDocumentation : SourceEditor.SourceEditorSymbolDocumentation in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorSymbolDocumentation.moduleName.getter : Swift.String? in conformance SourceKitSupport.SourceKitSymbolDocumentation : SourceEditor.SourceEditorSymbolDocumentation in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorSymbolDocumentation.annotatedDeclaration.getter : Swift.String? in conformance SourceKitSupport.SourceKitSymbolDocumentation : SourceEditor.SourceEditorSymbolDocumentation in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorSymbolDocumentation.documentationMarkup.getter : Swift.String? in conformance SourceKitSupport.SourceKitSymbolDocumentation : SourceEditor.SourceEditorSymbolDocumentation in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorSymbolDocumentation.symbolGraph.getter : Swift.String? in conformance SourceKitSupport.SourceKitSymbolDocumentation : SourceEditor.SourceEditorSymbolDocumentation in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorSymbolDocumentation.parentContexts.getter : [SourceEditor.SourceEditorSymbolDocumentationParentContext]? in conformance SourceKitSupport.SourceKitSymbolDocumentation : SourceEditor.SourceEditorSymbolDocumentation in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorSymbolDocumentation.referencedSymbols.getter : [SourceEditor.SourceEditorSymbolDocumentationReferencedSymbol]? in conformance SourceKitSupport.SourceKitSymbolDocumentation : SourceEditor.SourceEditorSymbolDocumentation in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorSymbolDocumentation.isSystem.getter : Swift.Bool in conformance SourceKitSupport.SourceKitSymbolDocumentation : SourceEditor.SourceEditorSymbolDocumentation in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorSymbolDocumentation.filePath.getter : Swift.String? in conformance SourceKitSupport.SourceKitSymbolDocumentation : SourceEditor.SourceEditorSymbolDocumentation in SourceKitSupport
+    protocol witness for SourceEditor.SourceEditorSymbolDocumentation.language.getter : SourceEditor.SourceEditorSymbolDocumentationLanguage in conformance SourceKitSupport.SourceKitSymbolDocumentation : SourceEditor.SourceEditorSymbolDocumentation in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitSymbolLanguage: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.SourceKitSymbolLanguage : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitSymbolLanguage: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SourceKitSupport.SourceKitSymbolLanguage : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SourceKitSupport.SourceKitSymbolLanguage : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SourceKitSupport.SourceKitSymbolLanguage : Swift.Hashable in SourceKitSupport
+}
+extension SourceKitSupport.CancelledError: Swift.Error {
+    protocol witness for Swift.Error._domain.getter : Swift.String in conformance SourceKitSupport.CancelledError : Swift.Error in SourceKitSupport
+    protocol witness for Swift.Error._code.getter : Swift.Int in conformance SourceKitSupport.CancelledError : Swift.Error in SourceKitSupport
+    protocol witness for Swift.Error._userInfo.getter : Swift.AnyObject? in conformance SourceKitSupport.CancelledError : Swift.Error in SourceKitSupport
+    protocol witness for Swift.Error._getEmbeddedNSError() -> Swift.AnyObject? in conformance SourceKitSupport.CancelledError : Swift.Error in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitDirectiveType: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.SourceKitDirectiveType : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitDirectiveType: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SourceKitSupport.SourceKitDirectiveType : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SourceKitSupport.SourceKitDirectiveType : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SourceKitSupport.SourceKitDirectiveType : Swift.Hashable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitDirectiveScope: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.SourceKitDirectiveScope : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitDirectiveScope: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SourceKitSupport.SourceKitDirectiveScope : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SourceKitSupport.SourceKitDirectiveScope : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SourceKitSupport.SourceKitDirectiveScope : Swift.Hashable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitDirectiveScope: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance SourceKitSupport.SourceKitDirectiveScope : Swift.RawRepresentable in SourceKitSupport
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance SourceKitSupport.SourceKitDirectiveScope : Swift.RawRepresentable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitRequest: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SourceKitSupport.SourceKitRequest : Swift.CustomStringConvertible in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitRequest.Array: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SourceKitSupport.SourceKitRequest.Array : Swift.CustomStringConvertible in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitRequest.Dictionary: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SourceKitSupport.SourceKitRequest.Dictionary : Swift.CustomStringConvertible in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitResponse.Dictionary: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SourceKitSupport.SourceKitResponse.Dictionary : Swift.CustomStringConvertible in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitResponse.Dictionary: Swift.CustomReflectable {
+    protocol witness for Swift.CustomReflectable.customMirror.getter : Swift.Mirror in conformance SourceKitSupport.SourceKitResponse.Dictionary : Swift.CustomReflectable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitResponse.Array: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SourceKitSupport.SourceKitResponse.Array : Swift.CustomStringConvertible in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitResponse.Variant: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SourceKitSupport.SourceKitResponse.Variant : Swift.CustomStringConvertible in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitResponse: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SourceKitSupport.SourceKitResponse : Swift.CustomStringConvertible in SourceKitSupport
+}
+extension sourcekit_variant_t: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance sourcekit_variant_t : Swift.CustomStringConvertible in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitServiceStatus: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.SourceKitServiceStatus : Swift.Equatable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitServiceStatus: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SourceKitSupport.SourceKitServiceStatus : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SourceKitSupport.SourceKitServiceStatus : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SourceKitSupport.SourceKitServiceStatus : Swift.Hashable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitUID: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SourceKitSupport.SourceKitUID : Swift.CustomStringConvertible in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitUID: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SourceKitSupport.SourceKitUID : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SourceKitSupport.SourceKitUID : Swift.Hashable in SourceKitSupport
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SourceKitSupport.SourceKitUID : Swift.Hashable in SourceKitSupport
+}
+extension SourceKitSupport.SourceKitUID: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SourceKitSupport.SourceKitUID : Swift.Equatable in SourceKitSupport
+}

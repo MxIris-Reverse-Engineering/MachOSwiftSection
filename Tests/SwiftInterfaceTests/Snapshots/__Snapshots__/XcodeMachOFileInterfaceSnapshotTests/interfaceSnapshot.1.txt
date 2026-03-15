@@ -1,0 +1,2540 @@
+import Dispatch
+import Foundation
+import ObjectiveC
+import SourceEditor
+import SourceKitSupport
+import Swift
+import _CodeCompletionFoundation
+import _Concurrency
+import _StringProcessing
+import _SwiftConcurrencyShims
+import os
+
+let _userDefaults: __C.NSUserDefaults
+let assertOnBatchEditingFailure: Swift.Bool
+let compilerCrashedNotification: SourceKitSupport.SourceKitUID
+let completionRequestQueue: __C.OS_dispatch_queue
+let contentGenerationLogLevel: SourceKitSupport.LogLevel
+let enableSourceKitSymbolGraphRequest: Swift.Bool
+let isEnabled: Swift.Bool
+let literal_uids: Swift.Set<SourceKitSupport.SourceKitUID>
+let sharedUIDConnection: Swift.OpaquePointer
+
+func utf16OffsetToUtf8(_: Swift.Int, in: Swift.String) -> Swift.Int?
+func parseAnnotatedDescription(_: Swift.String, isSystem: Swift.Bool, completionKind: SourceEditor.CodeCompletionSuggestionKind) throws -> SourceKitSupport.AnnotatedDescription
+func sourceEditorRangeFromSubStructure(_: SourceKitSupport.SourceKitResponse.Dictionary, rangeConverter: SourceEditor.SourceEditorUTF8RangeConverter, inset: Swift.Int) -> Swift.Range<SourceEditor.SourceEditorPosition>
+func substructureBraceStmtRange(_: SourceKitSupport.SourceKitResponse.Dictionary, rangeConverter: SourceEditor.SourceEditorUTF8RangeConverter) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+
+class SourceKitCodeCompletionProvider<A> where A: SourceKitSupport.SourceKitService {
+    class Results {
+        let pattern: _CodeCompletionFoundation.Pattern
+        let unfilteredResultCount: Swift.Int?
+        let resultSet: SourceEditor.CodeCompletionCompositeResultSet
+        let response: SourceKitSupport.SourceKitResponse
+        let results: SourceKitSupport.SourceKitResponse.Array?
+        let identifierToIndex: [Swift.Int : Swift.Int]
+        let isAnnotated: Swift.Bool
+
+        init(_: SourceKitSupport.SourceKitResponse, pattern: _CodeCompletionFoundation.Pattern, provider: SourceKitSupport.SourceKitCodeCompletionProvider<A>)
+
+        func suggestion(identifier: Swift.Int, documentationProvider: SourceKitSupport.ExtendedCompletionProvider) -> SourceKitSupport.SourceKitTextCompletionSuggestion
+    }
+    enum State {
+        case open(SourceKitSupport.SourceKitCodeCompletionProvider<A>.Results)
+        case initial
+        case opening
+        case updating
+        case closed
+
+        var isOpen: Swift.Bool {
+            get
+        }
+    }
+    let documentName: Swift.String
+    let line: Swift.Int
+    let utf8Column: Swift.Int
+    let toolchains: [Swift.String]?
+    let context: SourceEditor.CodeCompletionContext
+    var memberAccessScope: _CodeCompletionFoundation.PopularityIndex.Scope?
+    var predictions: SourceEditor.CodeCompletionPredictions?
+    let sourcekit: A
+    let annotate: Swift.Bool
+    let addInitsToTopLevel: Swift.Bool
+    var forPlaygroundBook: Swift.Bool
+    lazy var systemPopularityIndex: _CodeCompletionFoundation.PopularityIndex?
+    let stateLock: SourceKitSupport.DispatchLock
+    var state: SourceKitSupport.SourceKitCodeCompletionProvider<A>.State
+    var cancellationIndicator: SourceKitSupport.CancellationIndicator
+    let identifier: Swift.Int
+
+    init?(context: SourceEditor.CodeCompletionContext, identifier: Swift.Int, providerManager: SourceEditor.CodeCompletionProviderManager)
+
+    var unfilteredResultCount: Swift.Int? {
+        get
+    }
+
+    func completeOpen(pattern: _CodeCompletionFoundation.Pattern) -> SourceKitSupport.SourceKitCodeCompletionProvider<A>.Results?
+    func completeUpdate(pattern: _CodeCompletionFoundation.Pattern, includeSemanticComponents: Swift.Bool) -> SourceKitSupport.SourceKitCodeCompletionProvider<A>.Results?
+    func updatePopularCompletions()
+    func createRequest(uid: SourceKitSupport.SourceKitUID, filterText: Swift.String, includeSemanticComponents: Swift.Bool) -> SourceKitSupport.SourceKitRequest
+    func updatePredictions()
+    func documentation(for: Swift.Int) -> (Swift.String?, associatedUSRs: [Swift.String])
+    func diagnostic(for: Swift.Int) -> SourceEditor.CodeCompletionIssue?
+    func closeSession()
+    func scoringItems(matching: _CodeCompletionFoundation.Pattern, completion: (_: SourceEditor.CodeCompletionCompositeResultSet?) -> ())
+    func prepareForDebugging()
+    func completionSuggestion(for: SourceEditor.CodeCompletionSuggestionToken) -> SourceEditor.CodeCompletionSuggestion
+    func semanticClassification(_: SourceEditor.CodeCompletionSuggestionToken) -> _CodeCompletionFoundation.SemanticClassification?
+
+    static var isEnabled: Swift.Bool {
+        get
+    }
+    static var maxResults: Swift.Int {
+        get
+    }
+    static var shouldAddInitsToTopLevel: Swift.Bool {
+        get
+    }
+    static var shouldAnnotate: Swift.Bool {
+        get
+    }
+}
+class SourceKitTextCompletionSuggestion {
+    struct LazyDescription {
+        var displayText: Swift.String
+        var displayType: Swift.String?
+        var effectsSpecifiers: [SourceEditor.CodeCompleteSuggestionEffectsSpecifier]?
+        var attributedDisplaySignature: SourceKitSupport.SourceKitTextCompletionSuggestion.AttributedDisplaySignature?
+        var briefDisplayText: Swift.String
+        var filterTextRanges: [__C._NSRange]
+        var filterTextRangesInDisplayText: [__C._NSRange]
+        var filterTextRangesInBriefDisplayText: [__C._NSRange]
+        var parameterRangesInFilterText: [__C._NSRange]?
+        var parameterRangesInDisplayText: [__C._NSRange]?
+        var parameterRangesInBriefDisplayText: [__C._NSRange]?
+        var parameterRangesInAttributedDisplaySignature: [__C._NSRange]?
+        var defaultValueParameterRangeIndexes: Foundation.IndexSet?
+
+        init(filterText: Swift.String, rawDescription: Swift.String, rawDisplayType: Swift.String?, isSystem: Swift.Bool, completionKind: SourceEditor.CodeCompletionSuggestionKind)
+    }
+    struct AttributedDisplaySignature {
+        struct Part {
+            var text: Swift.String
+            var attributes: [__C.Key : Any]?
+        }
+        var parts: [SourceKitSupport.SourceKitTextCompletionSuggestion.AttributedDisplaySignature.Part]
+
+        var attributedString: __C.NSAttributedString {
+            get
+        }
+        var length: Swift.Int {
+            get
+        }
+    }
+    var identifier: Swift.Int
+    var filterText: Swift.String
+    var completionText: Swift.String
+    var completionKind: SourceEditor.CodeCompletionSuggestionKind
+    var module: Swift.String?
+    var leadingCharactersToReplace: Swift.UInt
+    var rawDescription: Swift.String
+    var rawDisplayType: Swift.String?
+    var isSystem: Swift.Bool
+    var hasDiagnostic: Swift.Bool
+    var semanticClassification: _CodeCompletionFoundation.SemanticClassification?
+    var _lazyDescription: SourceKitSupport.SourceKitTextCompletionSuggestion.LazyDescription?
+    weak var extendedCompletionProvider: SourceKitSupport.ExtendedCompletionProvider?
+    var _briefDocumentationText: Swift.String?
+    var _associatedUSRs: [Swift.String]?
+    var _lazyAttributedDisplaySignature: __C.NSAttributedString?
+    var _issue: SourceEditor.CodeCompletionIssue?
+    var groupID: Swift.Int?
+
+    var associatedUSRs: [Swift.String] {
+        get
+    }
+    var issue: SourceEditor.CodeCompletionIssue? {
+        get
+    }
+    var lazyDescription: SourceKitSupport.SourceKitTextCompletionSuggestion.LazyDescription {
+        get
+    }
+}
+class SwiftAnnotatedDescriptionConverter: __C.NSObject {
+    enum ElementName {
+        case attribute
+        case callArgument
+        case callArgumentLabel
+        case callArgumentParameter
+        case callArgumentType
+        case callArgumentDefault
+        case parameterList
+        case parameterListLabel
+        case parameterListParameter
+        case parameterListType
+        case parameterListDefault
+        case keyword
+        case name
+        case typeIdentifierUser
+        case typeIdentifierSystem
+        case xml
+        case unknown
+
+        var rawValue: Swift.String {
+            get
+        }
+
+        func attributes(isSystem: Swift.Bool) -> [__C.NSAttributedStringKey : Any]
+
+        static let plainTextAttributes: [__C.NSAttributedStringKey : Any]
+        static let systemAttributes: [SourceKitSupport.SwiftAnnotatedDescriptionConverter.ElementName : [__C.NSAttributedStringKey : Any]]
+        static let userAttributes: [SourceKitSupport.SwiftAnnotatedDescriptionConverter.ElementName : [__C.NSAttributedStringKey : Any]]
+    }
+    enum ParseError {
+        case invalidUTF8
+        case unknown
+    }
+    var handler: ((Swift.String, [SourceKitSupport.SwiftAnnotatedDescriptionConverter.ElementName], SourceKitSupport.SwiftAnnotatedDescriptionConverter.ElementName?) -> ())?
+    var elementNames: [SourceKitSupport.SwiftAnnotatedDescriptionConverter.ElementName]
+    var previousElementName: SourceKitSupport.SwiftAnnotatedDescriptionConverter.ElementName?
+    let parsingLock: SourceKitSupport.DispatchLock
+
+    func parseAnnotatedDescription(_: Swift.String, foundCharactersHandler: (Swift.String, [SourceKitSupport.SwiftAnnotatedDescriptionConverter.ElementName], SourceKitSupport.SwiftAnnotatedDescriptionConverter.ElementName?) -> ()) throws
+
+    static let default: SourceKitSupport.SwiftAnnotatedDescriptionConverter
+}
+struct ParameterRangeParsingContext {
+    var nameParameterLocation: Swift.Int?
+    var displayTextParameterLocation: Swift.Int?
+    var briefDisplayTextParameterLocation: Swift.Int?
+    var attributedDisplayTextParameterLocation: Swift.Int?
+    var nameParameterRanges: [__C._NSRange]
+    var displayTextParameterRanges: [__C._NSRange]
+    var briefDisplayTextParameterRanges: [__C._NSRange]
+    var attributedDisplayTextParameterRanges: [__C._NSRange]
+    var parameterRangesCount: Swift.Int
+    var defaultValueParameterRangeIndexes: Foundation.IndexSet
+}
+struct AnnotatedDescription {
+    var displayText: Swift.String
+    var briefDisplayText: Swift.String
+    var attributedDisplayText: SourceKitSupport.SourceKitTextCompletionSuggestion.AttributedDisplaySignature
+    var nameRanges: [__C._NSRange]
+    var displayTextRanges: [__C._NSRange]
+    var briefDisplayTextRanges: [__C._NSRange]
+    var nameParameterRanges: [__C._NSRange]?
+    var displayTextParameterRanges: [__C._NSRange]?
+    var briefDisplayTextParameterRanges: [__C._NSRange]?
+    var attributedDisplayTextParameterRanges: [__C._NSRange]?
+    var defaultValueParameterRangeIndexes: Foundation.IndexSet?
+    var typeText: Swift.String?
+    var effectsSpecifiers: [SourceEditor.CodeCompleteSuggestionEffectsSpecifier]?
+}
+struct DispatchLock {
+    let queue: __C.OS_dispatch_queue
+
+    func asyncLock(_: () -> ())
+}
+class SourceKitConformingMemberResult {
+    struct ConformingMember {
+        let name: Swift.String
+        let sourceText: Swift.String
+        let description: Swift.String
+        let typeName: Swift.String
+        let typeUSR: Swift.String
+    }
+    let typeName: Swift.String
+    let typeUSR: Swift.String
+    let conformingMembers: [SourceKitSupport.SourceKitConformingMemberResult.ConformingMember]
+
+    init(responseDict: SourceKitSupport.SourceKitResponse.Dictionary)
+}
+struct SourceKitDocumentStructure {
+    let responseObject: SourceKitSupport.SourceKitResponse
+    let structure: SourceKitSupport.SourceKitResponse.Array
+    let syntaxMap: SourceKitSupport.SourceKitSyntaxMap
+
+    init?(responseObject: SourceKitSupport.SourceKitResponse, syntaxMap: SourceKitSupport.SourceKitSyntaxMap)
+
+    var debugDescription: Swift.String {
+        get
+    }
+
+    func codeStructure(for: SourceKitSupport.SourceKitResponse.Dictionary, parent: SourceKitSupport.SourceKitResponse.Dictionary?, buffer: SourceEditor.SourceEditorBuffer, position: SourceEditor.SourceEditorPosition?, rangeConverter: inout SourceEditor.SourceEditorUTF8RangeConverter) -> (SourceEditor.CodeStructure, Swift.Range<SourceEditor.SourceEditorPosition>?)?
+    func enclosingContextAtPosition(_: SourceEditor.SourceEditorPosition, buffer: SourceEditor.SourceEditorBuffer, filter: [SourceKitSupport.SourceKitUID]?, beSpecific: Swift.Bool) -> (SourceEditor.CodeStructure, Swift.Range<SourceEditor.SourceEditorPosition>?)?
+    func enclosingBracketContextAtPosition(_: SourceEditor.SourceEditorPosition, buffer: SourceEditor.SourceEditorBuffer) -> (SourceEditor.CodeStructure, Swift.Range<SourceEditor.SourceEditorPosition>?)?
+    func findEnclosingStructureAtUTF8Index(_: Swift.Int, filter: (_: SourceKitSupport.SourceKitResponse.Dictionary) -> Swift.Bool) -> (SourceKitSupport.SourceKitResponse.Dictionary, SourceKitSupport.SourceKitResponse.Dictionary?)?
+    func walkStructure(with: SourceEditor.SourceEditorBuffer, _: (_: SourceEditor.CodeStructure) -> Swift.Bool)
+    func findNonTokenString(_: Swift.String, inBuffer: SourceEditor.SourceEditorBuffer, withinRange: Swift.Range<SourceEditor.SourceEditorPosition>) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func trimRange(_: Swift.Range<SourceEditor.SourceEditorPosition>, inBuffer: SourceEditor.SourceEditorBuffer) -> Swift.Range<SourceEditor.SourceEditorPosition>
+    func landmarkType(for: SourceKitSupport.SourceKitUID) -> SourceEditor.LandmarkType?
+}
+class SourceKitImplicitMemberResult {
+    struct ImplicitMember {
+        let name: Swift.String
+        let sourceText: Swift.String
+        let description: Swift.String
+        let documentationBrief: Swift.String?
+    }
+    let typeName: Swift.String
+    let typeUSR: Swift.String
+    let implicitMembers: [SourceKitSupport.SourceKitImplicitMemberResult.ImplicitMember]
+
+    init(responseDict: SourceKitSupport.SourceKitResponse.Dictionary)
+}
+struct SourceKitEditorLanguage {
+    let name: Swift.String
+    var identifier: Swift.String
+    let langServiceClass: SourceEditor.SourceEditorLanguageService.Type
+    let contentGeneratingLangServiceClass: SourceEditor.ContentGeneratingLanguageService.Type?
+    let lineDataFactory: SourceEditor.SourceEditorLineDataFactory
+    let editableRangeSnapshotType: SourceEditor.EditableRangeSnapshot.Type?
+
+    init(name: Swift.String, identifier: Swift.String, languageService: SourceEditor.SourceEditorLanguageService.Type, lineDataFactory: SourceEditor.SourceEditorLineDataFactory, editableRangeSnapshot: SourceEditor.EditableRangeSnapshot.Type?)
+    init(name: Swift.String, languageService: SourceEditor.SourceEditorLanguageService.Type, lineData: SourceEditor.SourceEditorLineData.Type, editableRangeSnapshot: SourceEditor.EditableRangeSnapshot.Type?)
+}
+enum DependencyPreparationResult {
+    case finished
+    case cancelled
+    case timedOut
+    case noSettings
+
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+
+    static func == (_: SourceKitSupport.DependencyPreparationResult, _: SourceKitSupport.DependencyPreparationResult) -> Swift.Bool
+}
+struct SourceKitDocumentSettings {
+    let moduleNames: SourceEditor.ModuleNameSet
+    let compilerArguments: [Swift.String]
+    let toolchains: [Swift.String]
+    let preparationFn: ((_: Swift.Bool) async -> SourceKitSupport.DependencyPreparationResult)?
+
+    init(moduleNames: SourceEditor.ModuleNameSet, compilerArguments: [Swift.String], toolchains: [Swift.String], preparationFn: ((_: Swift.Bool) async -> SourceKitSupport.DependencyPreparationResult)?)
+
+    func waitForDependencyPreparation(forActiveDocument: Swift.Bool) async -> SourceKitSupport.DependencyPreparationResult
+}
+struct SourceKitContentGenerationDocumentSettings {
+    enum ContentKind {
+        case sourceFileInterface(Swift.String)
+        case headerInterface(Swift.String, Swift.String?)
+        case moduleInterface(Swift.String, Swift.String?)
+
+        static func == (_: SourceKitSupport.SourceKitContentGenerationDocumentSettings.ContentKind, _: SourceKitSupport.SourceKitContentGenerationDocumentSettings.ContentKind) -> Swift.Bool
+    }
+    enum BuildSettingsVeracity {
+        enum HowSoon {
+            case justStarted
+            case readySoon
+            case imminent
+
+            var hashValue: Swift.Int {
+                get
+            }
+
+            func hash(into: inout Swift.Hasher)
+
+            static func == (_: SourceKitSupport.SourceKitContentGenerationDocumentSettings.BuildSettingsVeracity.HowSoon, _: SourceKitSupport.SourceKitContentGenerationDocumentSettings.BuildSettingsVeracity.HowSoon) -> Swift.Bool
+        }
+        case betterBuildSettingsComing(SourceKitSupport.SourceKitContentGenerationDocumentSettings.BuildSettingsVeracity.HowSoon, Swift.String?)
+        case accurate
+        case fallback
+
+        static func == (_: SourceKitSupport.SourceKitContentGenerationDocumentSettings.BuildSettingsVeracity, _: SourceKitSupport.SourceKitContentGenerationDocumentSettings.BuildSettingsVeracity) -> Swift.Bool
+    }
+    let kind: SourceKitSupport.SourceKitContentGenerationDocumentSettings.ContentKind
+    let compilerArguments: [Swift.String]
+    let toolchains: [Swift.String]
+    var buildSettingsVeracity: SourceKitSupport.SourceKitContentGenerationDocumentSettings.BuildSettingsVeracity
+
+    init(kind: SourceKitSupport.SourceKitContentGenerationDocumentSettings.ContentKind, compilerArguments: [Swift.String], toolchains: [Swift.String], buildSettingsVeracity: SourceKitSupport.SourceKitContentGenerationDocumentSettings.BuildSettingsVeracity)
+
+    static func == (_: SourceKitSupport.SourceKitContentGenerationDocumentSettings, _: SourceKitSupport.SourceKitContentGenerationDocumentSettings) -> Swift.Bool
+}
+struct SourceKitModuleLocation {
+    let moduleName: Swift.String
+    let groupName: Swift.String?
+    let isSystem: Swift.Bool
+    let usr: Swift.String?
+    let filePath: Swift.String?
+    let argumentProvider: SourceKitSupport.SourceKitArgumentProvider
+
+    init(moduleName: Swift.String, groupName: Swift.String?, isSystem: Swift.Bool, usr: Swift.String?, filePath: Swift.String?, argumentProvider: SourceKitSupport.SourceKitArgumentProvider)
+}
+class SourceKitLanguageService<A> where A: SourceKitSupport.SourceKitService {
+    enum ContentGenerationError {
+        case sourceKitError(Swift.Error)
+        case invalidSettings
+        case noInterfaceTextProvided
+    }
+    class ContentGenerationTask {
+        let identifier: Swift.String
+        let settings: SourceKitSupport.SourceKitContentGenerationDocumentSettings
+
+        init(settings: SourceKitSupport.SourceKitContentGenerationDocumentSettings)
+
+        func generateContent(completion: (Swift.String, SourceKitSupport.SourceKitLanguageService<A>.ContentGenerationTask.Result, (() -> ())?) -> ())
+    }
+    let language: SourceEditor.SourceEditorLanguage
+    weak var buffer: SourceEditor.SourceEditorBuffer?
+    var bufferName: Swift.String?
+    var lastGeneratedContentArgumentProvider: SourceKitSupport.SourceKitArgumentProvider?
+    var syntaxMap: SourceKitSupport.SourceKitSyntaxMap
+    var documentStructure: SourceKitSupport.SourceKitDocumentStructure?
+    var currentSemanticRequest: SourceKitSupport.SourceKitSemanticRequest?
+    var deletingTextInUtf8Range: Swift.Range<Swift.Int>?
+    weak var hostExtension: SourceEditor.LanguageServiceHostExtension?
+    let semaRequestsQueue: __C.OS_dispatch_queue
+    var contentGenerationCoordinator: SourceEditor.LanguageServiceContentGenerationCoordinator?
+    var contentGenerationSettings: SourceKitSupport.SourceKitContentGenerationDocumentSettings?
+    var _batchEditingCount: Swift.Int
+    var _dirty: Swift.Bool
+    var topLandmark: SourceEditor.SourceEditorLandmark?
+    var landmarksNeedUpdating: Swift.Bool
+    var affectedLineRange: Swift.Range<Swift.Int>?
+    var foldableRegionsNeedUpdating: Swift.Bool
+    var _langaugeSpecificFoldableRanges: [Swift.Range<SourceEditor.SourceEditorPosition>]
+    let markupLanguage: SourceEditor.MarkupLanguage
+    var documentationSyntaxProvider: SourceEditor.DocumentationSyntaxProvider?
+    let supportsUpdateDocumentation: Swift.Bool
+    let basicDiagnosticProvider: SourceEditor.BasicDiagnosticProvider?
+    let _diagnosticProviderBridge: SourceEditor.DiagnosticProviderBridge?
+    var currentDiagnosticsGeneration: __C.NSUUID
+    let preferGeneratedInterfacesOverFiles: Swift.Bool
+
+    init(language: SourceEditor.SourceEditorLanguage, buffer: SourceEditor.SourceEditorBuffer)
+    init(language: SourceEditor.SourceEditorLanguage)
+
+    var allCommentDelimiters: [(prefix: Swift.String, suffix: Swift.String?)] {
+        get
+    }
+    var debugDescription: Swift.String {
+        get
+    }
+    var description: Swift.String {
+        get
+    }
+    var diagnosticProvider: SourceEditor.SourceEditorDiagnosticProvider? {
+        get
+    }
+    var diagnosticProviderBridge: SourceEditor.DiagnosticProviderBridge? {
+        get
+    }
+    var documentableLanguageService: SourceEditor.DocumentableLanguageService? {
+        get
+    }
+    var hasSourceKitBuffer: Swift.Bool {
+        get
+    }
+    var isBatchEditing: Swift.Bool {
+        get
+    }
+    var languageSpecificFoldableRanges: [Swift.Range<SourceEditor.SourceEditorPosition>] {
+        get
+    }
+
+    func bind(to: SourceEditor.SourceEditorBuffer)
+    func generateContent(with: SourceEditor.SourceEditorDocumentSettings, completion: (_: SourceEditor.ContentGenerationResult) -> ()) -> SourceEditor.LanguageServiceContentGenerationCoordinator?
+    func beginBatchEditing()
+    func endBatchEditing()
+    func bufferIsGeneratedContent() -> Swift.Bool
+    func resetDocument(_: Swift.String?)
+    func didInsertTextInRange(_: Swift.Range<SourceEditor.SourceEditorPosition>) -> Swift.Range<Swift.Int>
+    func willDeleteTextInRange(_: Swift.Range<SourceEditor.SourceEditorPosition>)
+    func didDeleteTextInRange(_: Swift.Range<SourceEditor.SourceEditorPosition>) -> Swift.Range<Swift.Int>
+    func syntaxTypeAtPosition(_: SourceEditor.SourceEditorPosition) -> (SourceEditor.SourceEditorTokenType?, Swift.Range<SourceEditor.SourceEditorPosition>)?
+    func enumerateSyntaxTokensOnLine(_: Swift.Int, handler: (SourceEditor.SourceEditorTokenType, Swift.Range<Swift.Int>) -> ())
+    func fullTokenRangeAtPosition(_: SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func enclosingContextAtPosition(_: SourceEditor.SourceEditorPosition) -> SourceEditor.CodeStructure?
+    func enclosingContextWithParentRangeAtPosition(_: SourceEditor.SourceEditorPosition) -> (SourceEditor.CodeStructure, Swift.Range<SourceEditor.SourceEditorPosition>?)?
+    func enclosingBracketContextAtPosition(_: SourceEditor.SourceEditorPosition) -> SourceEditor.CodeStructure?
+    func lineWrapAlignment(for: Swift.Int) -> Swift.Int?
+    func updateLandmarks()
+    func enclosingLandmarkAtPosition(_: SourceEditor.SourceEditorPosition) -> SourceEditor.Landmark?
+    func landmarks() -> [SourceEditor.Landmark]
+    func didFindDeclaration(at: SourceEditor.SourceEditorPosition, kind: SourceKitSupport.SourceKitUID)
+    func foldableRanges(matching: SourceEditor.FoldableRegionKind) -> [Swift.Range<SourceEditor.SourceEditorPosition>]
+    func documentationRange(containing: Swift.Int) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func documentationDelimiter(enclosing: SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func linePrefixForDocumentation(enclosing: SourceEditor.SourceEditorPosition) -> Swift.String?
+    func parameterNames(for: SourceEditor.CodeStructure) -> [Swift.String]?
+    func structureHasReturnValue(_: SourceEditor.CodeStructure) -> Swift.Bool
+    func structureThrows(_: SourceEditor.CodeStructure) -> Swift.Bool
+    func markText(enclosing: SourceEditor.SourceEditorPosition) -> Swift.String?
+    func startNewDiagnosticGeneration()
+    func setNeedsDiagnosticsRegeneration()
+    func regenerateDiagnostics()
+    func indentLine(_: Swift.Int) -> (Swift.String, Swift.Range<Swift.Int>)
+    func referencesToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, cancelledBlock: (() -> Swift.Bool)?, completionBlock: (_: [Swift.Range<SourceEditor.SourceEditorPosition>]) -> ())
+    func navigationToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, completionBlock: ([SourceEditor.SourceEditorNavigationTarget], Swift.Bool) -> ())
+    func quickNavigationToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, completionBlock: ([SourceEditor.SourceEditorNavigationTarget], Swift.Bool) -> ()) -> Swift.Bool
+    func semaNavigationToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, delegateToHost: Swift.Bool, completionBlock: (_: [SourceEditor.SourceEditorNavigationTarget]) -> ())
+    func callersToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, completionBlock: ([SourceEditor.SourceEditorNavigationTarget], [SourceEditor.SourceEditorNavigationTarget]) -> ())
+    func expandPlaceholderAtRange(_: Swift.Range<SourceEditor.SourceEditorPosition>) -> (Swift.String, Swift.Range<SourceEditor.SourceEditorPosition>)
+    func convertToXML(markup: Swift.String) -> Swift.String?
+    func rangeForUSR(_: Swift.String) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func documentationInfoForUSR(_: Swift.String, completion: (Swift.String?, Swift.String?, [Swift.String : Any]?) -> ())
+    func documentationResponseAtPosition(_: SourceEditor.SourceEditorPosition, completion: (_: SourceKitSupport.SourceKitResponse?) -> ())
+    func documentationInfoAtPosition(_: SourceEditor.SourceEditorPosition, completion: (Swift.String?, Swift.String?, [Swift.String : Any]?) -> ())
+    func documentationForSymbolAtPosition(_: SourceEditor.SourceEditorPosition, completionBlock: (_: SourceEditor.SourceEditorSymbolDocumentationResult?) -> ())
+    func documentationInfoAtPosition(_: SourceEditor.SourceEditorPosition, completion: (Swift.String?, Swift.String?, [Swift.String : Any]?) -> ())
+    func implicitMembers(for: SourceEditor.SourceEditorPosition, resultsCallback: (_: [SourceKitSupport.SourceKitImplicitMemberResult]) -> ())
+    func conformingMembers(for: SourceEditor.SourceEditorPosition, typeName: Swift.String, resultsCallback: (_: SourceKitSupport.SourceKitConformingMemberResult?) -> ())
+    func openDocument(_: Swift.String)
+    func closeDocument()
+    func clearState()
+    func replaceCharactersInRange(_: Swift.Range<Swift.Int>, startLine: Swift.Int, text: Swift.String?, processDiagnostics: Swift.Bool) -> Swift.Range<Swift.Int>?
+    func updateSyntaxMapAndDocumentStructure(with: SourceKitSupport.SourceKitResponse, utf8Range: Swift.Range<Swift.Int>?, replacedText: Swift.String?) -> Swift.Range<Swift.Int>?
+    func processDiagnostics(from: SourceKitSupport.SourceKitResponse, requestOriginatedTimestamp: Swift.UInt64)
+    func translate(swiftName: SourceKitSupport.NameTranslation.SwiftName, at: SourceEditor.SourceEditorPosition, completion: (_: SourceKitSupport.NameTranslation.ObjCName?) -> ())
+    func translate(objcName: SourceKitSupport.NameTranslation.ObjCName, at: SourceEditor.SourceEditorPosition, completion: (_: SourceKitSupport.NameTranslation.SwiftName?) -> ())
+    func allowSpellCheckingFor(range: Swift.Range<SourceEditor.SourceEditorPosition>) -> Swift.Bool
+}
+struct NameTranslation {
+    struct SwiftName {
+        var base: Swift.String?
+        var _argLabels: [Swift.String?]
+
+        init(base: Swift.String?, argLabels: [Swift.String?])
+
+        func argLabel(_: Swift.Int) -> Swift.String?
+
+        static func == (_: SourceKitSupport.NameTranslation.SwiftName, _: SourceKitSupport.NameTranslation.SwiftName) -> Swift.Bool
+    }
+    enum ObjCName {
+        case simple(Swift.String)
+        case selector([Swift.String?])
+        case setter(Swift.String, base: Swift.String)
+        case underscoredIVar(Swift.String, base: Swift.String)
+
+        func selectorPiece(_: Swift.Int) -> Swift.String?
+
+        static func == (_: SourceKitSupport.NameTranslation.ObjCName, _: SourceKitSupport.NameTranslation.ObjCName) -> Swift.Bool
+    }
+}
+class SourceKitSemanticRequest {
+    struct RawVariableType {
+        let offset: Swift.Int
+        let length: Swift.Int
+        let type: Swift.String
+        let isExplicit: Swift.Bool
+    }
+    struct RawRefactoringEdit {
+        let line: Swift.Int
+        let column: Swift.Int
+        let endLine: Swift.Int
+        let endColumn: Swift.Int
+        let path: Swift.String?
+        let bufferName: Swift.String?
+        let text: Swift.String
+    }
+    enum SemanticRequestError {
+        case invalidRequest(Swift.String)
+    }
+    var name: Swift.String?
+    let explicitConnection: Swift.Bool
+    let sourceKitServiceType: SourceKitSupport.SourceKitService.Type
+
+    init(name: Swift.String, text: Swift.String, argumentProvider: SourceKitSupport.SourceKitArgumentProvider, sourceKitServiceType: SourceKitSupport.SourceKitService.Type)
+
+    func sendRequest(_: SourceKitSupport.SourceKitRequest, withCancellationIndicator: SourceKitSupport.CancellationIndicator, completionBlock: (_: Swift.Result<SourceKitSupport.SourceKitResponse, Swift.Error>) -> ())
+    func sendRequest(_: SourceKitSupport.SourceKitRequest, completionBlock: (_: SourceKitSupport.SourceKitResponse) -> ())
+    func close()
+}
+class SourceKitSemanticServiceHelper<A> where A: SourceKitSupport.SourceKitService {
+    enum VariableTypesScope {
+        case position(SourceEditor.SourceEditorPosition)
+        case entireFile
+    }
+    enum DocumentationRequestError {
+        case failedToCreateDocumentationRequestAtPosition
+        case requestWentStale
+
+        var hashValue: Swift.Int {
+            get
+        }
+
+        func hash(into: inout Swift.Hasher)
+
+        static func == (_: SourceKitSupport.SourceKitSemanticServiceHelper<A>.DocumentationRequestError, _: SourceKitSupport.SourceKitSemanticServiceHelper<A>.DocumentationRequestError) -> Swift.Bool
+    }
+    var hostExtension: SourceEditor.LanguageServiceHostExtension?
+    weak var buffer: SourceEditor.SourceEditorBuffer?
+    var name: Swift.String?
+    var openDocumentSettings: SourceKitSupport.SourceKitArgumentProvider?
+    var semanticRequest: SourceKitSupport.SourceKitSemanticRequest?
+    let semaRequestsQueue: __C.OS_dispatch_queue
+    let diagnosticsSupport: SourceEditor.BasicDiagnosticsSupport?
+    let diagnosticProviderBridge: SourceEditor.DiagnosticProviderBridge?
+    var deletingTextInUtf8Range: Swift.Range<Swift.Int>?
+    var navigationResultMapper: ((_: SourceKitSupport.SourceKitResponse) -> [SourceEditor.SourceEditorNavigationTarget])?
+    var currentDiagnosticRequestCancellable: SourceKitSupport.SourceKitCancellable?
+
+    init(buffer: SourceEditor.SourceEditorBuffer)
+
+    func openSourceKitDocument()
+    func closeSourceKitDocument()
+    func didInsertText(range: Swift.Range<SourceEditor.SourceEditorPosition>)
+    func willDeleteText(range: Swift.Range<SourceEditor.SourceEditorPosition>)
+    func didDeleteText(range: Swift.Range<SourceEditor.SourceEditorPosition>)
+    func replaceCharactersInRange(_: Swift.Range<Swift.Int>, text: Swift.String?)
+    func scheduleDiagnosticRegeneration()
+    func contentsChanged()
+    func convertToXML(markup: Swift.String) -> Swift.String?
+    func rangeForUSR(_: Swift.String) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func documentationInfoForUSR(_: Swift.String, completion: (Swift.String?, Swift.String?, [Swift.String : Any]?) -> ())
+    func requestForDocumentationResponseAtPosition(_: SourceEditor.SourceEditorPosition) -> SourceKitSupport.SourceKitRequest?
+    func documentationResponseAtPosition(_: SourceEditor.SourceEditorPosition, cancellationIndicator: SourceKitSupport.CancellationIndicator, completion: (_: Swift.Result<SourceKitSupport.SourceKitResponse, Swift.Error>) -> ())
+    func documentationInfoAtPosition(_: SourceEditor.SourceEditorPosition, completion: (Swift.String?, Swift.String?, [Swift.String : Any]?) -> ())
+    func documentationForSymbolAtPosition(_: SourceEditor.SourceEditorPosition, completionBlock: (_: SourceEditor.SourceEditorSymbolDocumentationResult?) -> ())
+    func documentationInfoAtPosition(_: SourceEditor.SourceEditorPosition, completion: (Swift.String?, Swift.String?, [Swift.String : Any]?) -> ())
+    func referencesToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, cancelledBlock: (() -> Swift.Bool)?, completionBlock: (_: [Swift.Range<SourceEditor.SourceEditorPosition>]) -> ())
+    func navigationToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, completionBlock: ([SourceEditor.SourceEditorNavigationTarget], Swift.Bool) -> ())
+    func cancelProvideDiagnosticsRequest()
+    func _provideDiagnostics(completionBlock: (_: [SourceEditor.SourceEditorDiagnostic]?) -> ()) async
+    func provideDiagnostics(completionBlock: (_: [SourceEditor.SourceEditorDiagnostic]?) -> ())
+    func expandPlaceholderAtRange(_: Swift.Range<SourceEditor.SourceEditorPosition>) -> (Swift.String, Swift.Range<SourceEditor.SourceEditorPosition>)
+    func callersToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, completionBlock: ([SourceEditor.SourceEditorNavigationTarget], [SourceEditor.SourceEditorNavigationTarget]) -> ())
+    func implicitMembers(for: SourceEditor.SourceEditorPosition, resultsCallback: (_: [SourceKitSupport.SourceKitImplicitMemberResult]) -> ())
+    func conformingMembers(for: SourceEditor.SourceEditorPosition, typeName: Swift.String, resultsCallback: (_: SourceKitSupport.SourceKitConformingMemberResult?) -> ())
+    func variableTypes(for: SourceKitSupport.SourceKitSemanticServiceHelper<A>.VariableTypesScope, completionBlock: (_: [SourceKitSupport.SourceKitVariableType]?) -> ())
+    func synthesizedCodableImplementation(for: SourceEditor.SourceEditorPosition, completionBlock: (_: Swift.String?) -> ())
+    func activeConditions(completionBlock: (_: [SourceEditor.ActiveCondition]?) -> ())
+    func expandMacro(at: SourceEditor.SourceEditorPosition, bufferName: Swift.String?, bufferNameToBuffer: (_: Swift.String?) -> SourceEditor.SourceEditorBuffer?, completionBlock: (_: [SourceKitSupport.RefactoringEdit]?) -> ())
+    func documentationResponseAtPosition(_: SourceEditor.SourceEditorPosition) async throws -> SourceKitSupport.SourceKitResponse
+    func provideDiagnostics(completionBlock: (_: [SourceEditor.SourceEditorDiagnostic]?) -> ())
+    func currentDiagnostics(_: (_: Swift.Result<[SourceEditor.SourceEditorDiagnostic], Swift.Error>) -> ())
+    func documentationForSymbolAtPosition(_: SourceEditor.SourceEditorPosition) async throws -> SourceEditor.SourceEditorSymbolDocumentationResult
+    func translate(objcName: SourceKitSupport.NameTranslation.ObjCName, at: SourceEditor.SourceEditorPosition, completion: (_: SourceKitSupport.NameTranslation.SwiftName?) -> ())
+    func translate(swiftName: SourceKitSupport.NameTranslation.SwiftName, at: SourceEditor.SourceEditorPosition, completion: (_: SourceKitSupport.NameTranslation.ObjCName?) -> ())
+}
+struct RefactoringEdit {
+    let range: Swift.Range<SourceEditor.SourceEditorPosition>
+    let path: Swift.String?
+    let bufferName: Swift.String?
+    let text: Swift.String
+}
+struct SourceKitVariableType {
+    let range: Swift.Range<SourceEditor.SourceEditorPosition>
+    let type: Swift.String
+    let isExplicit: Swift.Bool
+}
+enum SwiftTokenType {
+    case attributeID
+    case attributeBuiltIn
+    case buildConfigKeyword
+    case buildConfigID
+    case poundDirective
+
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+
+    static func == (_: SourceKitSupport.SwiftTokenType, _: SourceKitSupport.SwiftTokenType) -> Swift.Bool
+}
+enum SwiftIdentifierDisposition {
+    case identifier(SourceKitSupport.SwiftIdentifierKind?)
+    case typeIdentifier(SourceKitSupport.SwiftIdentifierKind?)
+
+    static func == (_: SourceKitSupport.SwiftIdentifierDisposition, _: SourceKitSupport.SwiftIdentifierDisposition) -> Swift.Bool
+}
+enum SwiftURLDisposition {
+    case inComment
+
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+
+    static func == (_: SourceKitSupport.SwiftURLDisposition, _: SourceKitSupport.SwiftURLDisposition) -> Swift.Bool
+}
+enum SwiftCommentDisposition {
+    case comment
+    case mark
+    case docComment
+    case docCommentKeyword
+
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+
+    static func == (_: SourceKitSupport.SwiftCommentDisposition, _: SourceKitSupport.SwiftCommentDisposition) -> Swift.Bool
+}
+enum SwiftStringDisposition {
+    case string
+    case stringInterpolationAnchor
+
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+
+    static func == (_: SourceKitSupport.SwiftStringDisposition, _: SourceKitSupport.SwiftStringDisposition) -> Swift.Bool
+}
+enum SwiftIdentifierKind {
+    enum Scope {
+        case external
+        case project
+
+        var hashValue: Swift.Int {
+            get
+        }
+
+        func hash(into: inout Swift.Hasher)
+
+        static func == (_: SourceKitSupport.SwiftIdentifierKind.Scope, _: SourceKitSupport.SwiftIdentifierKind.Scope) -> Swift.Bool
+    }
+    case module(SourceKitSupport.SwiftIdentifierKind.Scope)
+    case class(SourceKitSupport.SwiftIdentifierKind.Scope)
+    case struct(SourceKitSupport.SwiftIdentifierKind.Scope)
+    case enum(SourceKitSupport.SwiftIdentifierKind.Scope)
+    case protocol(SourceKitSupport.SwiftIdentifierKind.Scope)
+    case typeAlias(SourceKitSupport.SwiftIdentifierKind.Scope)
+    case classVariable(SourceKitSupport.SwiftIdentifierKind.Scope)
+    case staticVariable(SourceKitSupport.SwiftIdentifierKind.Scope)
+    case globalVariable(SourceKitSupport.SwiftIdentifierKind.Scope)
+    case instanceVariable(SourceKitSupport.SwiftIdentifierKind.Scope)
+    case constructor(SourceKitSupport.SwiftIdentifierKind.Scope)
+    case moduleFunction(SourceKitSupport.SwiftIdentifierKind.Scope)
+    case instanceMethod(SourceKitSupport.SwiftIdentifierKind.Scope)
+    case classMethod(SourceKitSupport.SwiftIdentifierKind.Scope)
+    case enumElement(SourceKitSupport.SwiftIdentifierKind.Scope)
+    case genericTypeParameter(SourceKitSupport.SwiftIdentifierKind.Scope)
+    case typeDeclaration
+    case otherDeclaration
+    case localVariable
+
+    var externalVariant: SourceKitSupport.SwiftIdentifierKind {
+        get
+    }
+    var projectVariant: SourceKitSupport.SwiftIdentifierKind {
+        get
+    }
+
+    static func == (_: SourceKitSupport.SwiftIdentifierKind, _: SourceKitSupport.SwiftIdentifierKind) -> Swift.Bool
+}
+struct SourceKitSyntaxMap {
+    weak var buffer: SourceEditor.SourceEditorBuffer?
+    var syntaxMap: [[SourceKitSupport.SwiftSyntaxToken]]
+    var documentLength: Swift.Int?
+
+    var debugDescription: Swift.String {
+        get
+    }
+
+    func syntaxTypeAtPosition(_: SourceEditor.SourceEditorPosition, upstream: Swift.Bool, docCommentSyntaxProvider: SourceEditor.DocumentationSyntaxProvider?) -> (SourceEditor.SourceEditorTokenType?, Swift.Range<SourceEditor.SourceEditorPosition>)?
+    func adjustForInsertion(of: Swift.Range<SourceEditor.SourceEditorPosition>)
+    func adjustForRemoval(of: Swift.Range<SourceEditor.SourceEditorPosition>)
+    func enumerateSyntaxTokensOnLine(_: Swift.Int, docCommentSyntaxProvider: SourceEditor.DocumentationSyntaxProvider?, handler: (SourceEditor.SourceEditorTokenType, Swift.Range<Swift.Int>) -> ())
+    func stringRange(at: SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func docCommentRange(on: Swift.Int, trailing: Swift.Bool) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func adjustSemanticTypeForToken(at: SourceEditor.SourceEditorPosition, kind: SourceKitSupport.SourceKitUID) -> Swift.Bool
+    func commentBlocks() -> [Swift.Range<SourceEditor.SourceEditorPosition>]
+    func firstSyntaxToken(on: Swift.Int) -> (type: SourceEditor.SourceEditorTokenType, range: Swift.Range<SourceEditor.SourceEditorPosition>)?
+    func markRange(for: SourceKitSupport.SwiftCommentDisposition, in: Swift.Range<SourceEditor.SourceEditorPosition>) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func mergeSyntaxMapData(_: SourceKitSupport.SourceKitResponse.Array?, _: SourceKitSupport.SourceKitResponse.Array?, replacesFrom: Swift.Int?, for: Swift.Int?) -> Swift.Range<Swift.Int>?
+    func stringRange(at: SourceEditor.SourceEditorPosition, index: inout Swift.Int) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+}
+struct SwiftSyntaxToken {
+    var column: Swift.Int
+    var length: Swift.Int
+    var syntaxType: SourceKitSupport.SourceKitUID
+    var semanticType: (SourceKitSupport.SourceKitUID, Swift.Bool)?
+
+    var description: Swift.String {
+        get
+    }
+    var tokenType: SourceEditor.SourceEditorTokenType? {
+        get
+    }
+
+    static let semanticTypes: [SourceKitSupport.SourceKitUID : SourceKitSupport.SwiftIdentifierKind]
+    static let syntaxTypes: [SourceKitSupport.SourceKitUID : SourceEditor.SourceEditorTokenType]
+}
+class PerformanceMetric {
+    let logLevel: SourceKitSupport.PerformanceLogLevel
+    let label: Swift.String
+    var identifier: Swift.String?
+    let dataLock: SourceKitSupport.DispatchLock
+    var startTime: Swift.Double?
+    var endTime: Swift.Double?
+    var checkpoints: [(Swift.String, Swift.Double)]
+    var result: Swift.String?
+
+    func locked_logPerformanceData()
+    func locked_logCheckpoint(_: Swift.String, checkpointTime: Swift.Double, lastCheckpointTime: Swift.Double)
+}
+enum PerformanceLogLevel {
+    case normal
+    case verbose
+}
+struct RegisterToolchainsRequest {
+    struct Toolchain {
+        let id: Swift.String
+        let name: Swift.String
+        let filePath: Swift.String
+        let isDefault: Swift.Bool
+
+        init(id: Swift.String, name: Swift.String, filePath: Swift.String, isDefault: Swift.Bool)
+    }
+    let request: SourceKitSupport.SourceKitRequest
+    let toolchainList: SourceKitSupport.SourceKitRequest.Array
+
+    init()
+
+    var rawRequest: Swift.OpaquePointer {
+        get
+    }
+
+    func addToolchain(_: SourceKitSupport.RegisterToolchainsRequest.Toolchain)
+}
+struct DocInfoResponse {
+    var info: [Swift.String : Any]
+
+    init(info: [Swift.String : Any])
+
+    var localizationKey: Swift.String? {
+        get
+    }
+    var xml: Swift.String? {
+        get
+        set
+    }
+}
+struct EnableRequestBarriersResponse {
+    let response: SourceKitSupport.SourceKitResponse
+
+    init(response: Swift.OpaquePointer)
+
+    var barriersEnabled: Swift.Bool {
+        get
+    }
+}
+struct SourceKitCursorInfoResponse {
+    let dictionary: SourceKitSupport.SourceKitResponse.Dictionary
+
+    init(responseDictionary: SourceKitSupport.SourceKitResponse.Dictionary)
+
+    var filePath: Swift.String? {
+        get
+    }
+    var fullyAnnotatedDecl: Swift.String? {
+        get
+    }
+    var groupName: Swift.String? {
+        get
+    }
+    var isDynamic: Swift.Bool? {
+        get
+    }
+    var isSynthesized: Swift.Bool {
+        get
+    }
+    var isSystem: Swift.Bool? {
+        get
+    }
+    var language: SourceKitSupport.SourceKitSymbolLanguage? {
+        get
+    }
+    var length: Swift.Int {
+        get
+    }
+    var moduleName: Swift.String? {
+        get
+    }
+    var name: Swift.String? {
+        get
+    }
+    var offset: Swift.Int {
+        get
+    }
+    var range: SourceEditor.SourceEditorNavigationTarget.Location.Range {
+        get
+    }
+    var receiverUSRs: [Swift.String] {
+        get
+    }
+    var secondarySymbols: SourceKitSupport.SourceKitResponse.Array? {
+        get
+    }
+    var symbolKind: SourceEditor.SourceEditorSymbolKind? {
+        get
+    }
+    var typeName: Swift.String? {
+        get
+    }
+    var usr: Swift.String? {
+        get
+    }
+}
+class SourceKitSymbolDocumentation {
+    let response: SourceKitSupport.SourceKitResponse
+    let dictionary: SourceKitSupport.SourceKitResponse.Dictionary
+
+    init(response: SourceKitSupport.SourceKitResponse)
+
+    var annotatedDeclaration: Swift.String? {
+        get
+    }
+    var documentationMarkup: Swift.String? {
+        get
+    }
+    var filePath: Swift.String? {
+        get
+    }
+    var isSystem: Swift.Bool {
+        get
+    }
+    var kind: SourceEditor.SourceEditorSymbolKind? {
+        get
+    }
+    var language: SourceEditor.SourceEditorSymbolDocumentationLanguage {
+        get
+    }
+    var moduleName: Swift.String? {
+        get
+    }
+    var name: Swift.String? {
+        get
+    }
+    var parentContexts: [SourceEditor.SourceEditorSymbolDocumentationParentContext]? {
+        get
+    }
+    var referencedSymbols: [SourceEditor.SourceEditorSymbolDocumentationReferencedSymbol]? {
+        get
+    }
+    var symbolGraph: Swift.String? {
+        get
+    }
+    var usrs: [Swift.String]? {
+        get
+    }
+
+    func copyRawJSONDocumentation() -> Swift.UnsafeMutablePointer<Swift.Int8>?
+}
+enum SourceKitSymbolLanguage {
+    case swift
+    case objc
+    case other
+
+    var hashValue: Swift.Int {
+        get
+    }
+    var identifier: Swift.String? {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+
+    static func == (_: SourceKitSupport.SourceKitSymbolLanguage, _: SourceKitSupport.SourceKitSymbolLanguage) -> Swift.Bool
+}
+struct CancelledError {
+    init()
+}
+class CancellationIndicator {
+    var _cancelled: Swift.UnsafeMutablePointer<__C.AtomicBoolImpl>
+
+    init()
+
+    var canceled: Swift.Bool {
+        get
+    }
+
+    func check() throws
+    func cancel()
+}
+class SourceKitCancellable {
+    var block: () -> ()
+
+    init(block: () -> ())
+
+    func cancel()
+}
+enum SourceKitDirectiveType {
+    case add
+    case remove
+
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+
+    static func == (_: SourceKitSupport.SourceKitDirectiveType, _: SourceKitSupport.SourceKitDirectiveType) -> Swift.Bool
+}
+enum SourceKitDirectiveScope {
+    case everything
+    case module
+    case currentModule
+    case pageAuxiliaryModule
+    case chapterAuxiliaryModule
+    case bookAuxiliaryModule
+    case identifier
+    case description
+    case snippet
+    case keyword
+    case valueLiteral
+
+    init?(rawValue: Swift.Int)
+
+    var rawValue: Swift.Int {
+        get
+    }
+}
+struct SourceKitRequest {
+    class Dictionary {
+        let dict: Swift.OpaquePointer
+    }
+    class Array {
+        let arr: Swift.OpaquePointer
+        let Append: Swift.Int
+    }
+    let req: SourceKitSupport.SourceKitRequest.Dictionary
+
+    var description: Swift.String {
+        get
+    }
+    var rawRequest: Swift.OpaquePointer {
+        get
+    }
+
+    func configure(with: SourceKitSupport.SourceKitContentGenerationDocumentSettings)
+    func addToolchainsToRequest(_: [Swift.String]?)
+    func addCompilerArgsToRequest(_: [Swift.String]?, _: Swift.String?)
+    func setSyntacticOnly(_: Swift.Bool)
+
+    static func enableBarriers() -> SourceKitSupport.SourceKitRequest
+    static func enableBarriers() -> SourceKitSupport.SourceKitRequest
+    static func dependencyUpdated() -> SourceKitSupport.SourceKitRequest
+    static func setCodeCompletionCache(path: Swift.String) -> SourceKitSupport.SourceKitRequest
+    static func docInfo(moduleName: Swift.String, compilerArguments: [Swift.String]) -> SourceKitSupport.SourceKitRequest
+    static func docInfo(sourceText: Swift.String, settings: SourceKitSupport.SourceKitArgumentProvider) -> SourceKitSupport.SourceKitRequest
+}
+class SourceKitResponse {
+    struct Dictionary {
+        let dict: __C.sourcekit_variant_t
+
+        init(dict: __C.sourcekit_variant_t)
+
+        var customMirror: Swift.Mirror {
+            get
+        }
+        var description: Swift.String {
+            get
+        }
+    }
+    struct Array {
+        let arr: __C.sourcekit_variant_t
+
+        var count: Swift.Int {
+            get
+        }
+        var description: Swift.String {
+            get
+        }
+
+        func getDictionary(_: Swift.Int) -> SourceKitSupport.SourceKitResponse.Dictionary
+        func getArray(_: Swift.Int) -> SourceKitSupport.SourceKitResponse.Array
+        func getDictionary(_: Swift.Int) -> SourceKitSupport.SourceKitResponse.Dictionary
+        func getInt(_: Swift.Int) -> Swift.Int
+        func getBool(_: Swift.Int) -> Swift.Bool
+        func enumerate(_: (Swift.Int, SourceKitSupport.SourceKitResponse.Variant) -> Swift.Bool)
+        func getDouble(_: Swift.Int) -> Swift.Double
+        func getString(_: Swift.Int) -> Swift.String
+    }
+    struct Variant {
+        let val: __C.sourcekit_variant_t
+
+        var description: Swift.String {
+            get
+        }
+
+        func getInt() -> Swift.Int
+        func asAnyObject() -> Swift.AnyObject?
+        func getDictionary() -> SourceKitSupport.SourceKitResponse.Dictionary
+        func getStringBuffer() -> Swift.UnsafeBufferPointer<Swift.Int8>
+        func getInt() -> Swift.Int
+        func getBool() -> Swift.Bool
+        func getArray() -> SourceKitSupport.SourceKitResponse.Array
+        func getDouble() -> Swift.Double
+        func getString() -> Swift.String
+    }
+    let resp: Swift.OpaquePointer
+
+    init(resp: Swift.OpaquePointer)
+
+    var description: Swift.String {
+        get
+    }
+    var documentUpdateNotificationDocumentName: Swift.String? {
+        get
+    }
+    var isCancelled: Swift.Bool {
+        get
+    }
+    var isCompilerCrash: Swift.Bool {
+        get
+    }
+    var isConnectionInterruptionError: Swift.Bool {
+        get
+    }
+    var isError: Swift.Bool {
+        get
+    }
+    var isNotification: Swift.Bool {
+        get
+    }
+    var nsError: __C.NSError {
+        get
+    }
+    var nsdictionary: __C.NSDictionary {
+        get
+    }
+    var value: SourceKitSupport.SourceKitResponse.Dictionary {
+        get
+    }
+
+    func copyRawJSONDocumentation() -> Swift.UnsafeMutablePointer<Swift.Int8>?
+}
+enum SourceKitServiceStatus {
+    case Initializing
+    case Online
+    case SemanticServiceOffline
+    case Offline
+
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+
+    static func == (_: SourceKitSupport.SourceKitServiceStatus, _: SourceKitSupport.SourceKitServiceStatus) -> Swift.Bool
+}
+struct SourceKitUID {
+    let uid: Swift.OpaquePointer
+
+    var symbolKind: SourceEditor.SourceEditorSymbolKind {
+        get
+    }
+
+    static let key_accessibility: SourceKitSupport.SourceKitUID
+    static let key_actionuid: SourceKitSupport.SourceKitUID
+    static let key_annotated_decl: SourceKitSupport.SourceKitUID
+    static let key_annotations: SourceKitSupport.SourceKitUID
+    static let key_argnames: SourceKitSupport.SourceKitUID
+    static let key_associated_usrs: SourceKitSupport.SourceKitUID
+    static let key_attributes: SourceKitSupport.SourceKitUID
+    static let key_barriers_enabled: SourceKitSupport.SourceKitUID
+    static let key_basename: SourceKitSupport.SourceKitUID
+    static let key_bodylength: SourceKitSupport.SourceKitUID
+    static let key_bodyoffset: SourceKitSupport.SourceKitUID
+    static let key_buffer_name: SourceKitSupport.SourceKitUID
+    static let key_categorizededits: SourceKitSupport.SourceKitUID
+    static let key_codecomplete_addinitstotoplevel: SourceKitSupport.SourceKitUID
+    static let key_codecomplete_addinneroperators: SourceKitSupport.SourceKitUID
+    static let key_codecomplete_addinnerresults: SourceKitSupport.SourceKitUID
+    static let key_codecomplete_annotateddescription: SourceKitSupport.SourceKitUID
+    static let key_codecomplete_filtertext: SourceKitSupport.SourceKitUID
+    static let key_codecomplete_include_object_literals: SourceKitSupport.SourceKitUID
+    static let key_codecomplete_include_semantic_components: SourceKitSupport.SourceKitUID
+    static let key_codecomplete_maxresults: SourceKitSupport.SourceKitUID
+    static let key_codecomplete_options: SourceKitSupport.SourceKitUID
+    static let key_codecomplete_showtopnonliteralresults: SourceKitSupport.SourceKitUID
+    static let key_codecomplete_use_new_api: SourceKitSupport.SourceKitUID
+    static let key_column: SourceKitSupport.SourceKitUID
+    static let key_compilerargs: SourceKitSupport.SourceKitUID
+    static let key_decl_lang: SourceKitSupport.SourceKitUID
+    static let key_description: SourceKitSupport.SourceKitUID
+    static let key_diagnostic_stage: SourceKitSupport.SourceKitUID
+    static let key_diagnostics: SourceKitSupport.SourceKitUID
+    static let key_doc_brief: SourceKitSupport.SourceKitUID
+    static let key_doc_full_as_xml: SourceKitSupport.SourceKitUID
+    static let key_editor_format_indent_switch_case: SourceKitSupport.SourceKitUID
+    static let key_editor_format_indentwidth: SourceKitSupport.SourceKitUID
+    static let key_editor_format_options: SourceKitSupport.SourceKitUID
+    static let key_editor_format_tabwidth: SourceKitSupport.SourceKitUID
+    static let key_editor_format_usetabs: SourceKitSupport.SourceKitUID
+    static let key_edits: SourceKitSupport.SourceKitUID
+    static let key_educational_note_paths: SourceKitSupport.SourceKitUID
+    static let key_elements: SourceKitSupport.SourceKitUID
+    static let key_enablediagnostics: SourceKitSupport.SourceKitUID
+    static let key_enablesubstructure: SourceKitSupport.SourceKitUID
+    static let key_enablesyntaxmap: SourceKitSupport.SourceKitUID
+    static let key_endcolumn: SourceKitSupport.SourceKitUID
+    static let key_endline: SourceKitSupport.SourceKitUID
+    static let key_expectedtypes: SourceKitSupport.SourceKitUID
+    static let key_filepath: SourceKitSupport.SourceKitUID
+    static let key_fixits: SourceKitSupport.SourceKitUID
+    static let key_fully_annotated_decl: SourceKitSupport.SourceKitUID
+    static let key_group_id: SourceKitSupport.SourceKitUID
+    static let key_groupname: SourceKitSupport.SourceKitUID
+    static let key_has_diagnostic: SourceKitSupport.SourceKitUID
+    static let key_id: SourceKitSupport.SourceKitUID
+    static let key_identifier: SourceKitSupport.SourceKitUID
+    static let key_implicitmembers: SourceKitSupport.SourceKitUID
+    static let key_is_active: SourceKitSupport.SourceKitUID
+    static let key_is_default: SourceKitSupport.SourceKitUID
+    static let key_is_dynamic: SourceKitSupport.SourceKitUID
+    static let key_is_spi: SourceKitSupport.SourceKitUID
+    static let key_is_synthesized: SourceKitSupport.SourceKitUID
+    static let key_is_system: SourceKitSupport.SourceKitUID
+    static let key_kind: SourceKitSupport.SourceKitUID
+    static let key_length: SourceKitSupport.SourceKitUID
+    static let key_line: SourceKitSupport.SourceKitUID
+    static let key_localization_key: SourceKitSupport.SourceKitUID
+    static let key_member_access_types: SourceKitSupport.SourceKitUID
+    static let key_members: SourceKitSupport.SourceKitUID
+    static let key_modulename: SourceKitSupport.SourceKitUID
+    static let key_name: SourceKitSupport.SourceKitUID
+    static let key_namekind: SourceKitSupport.SourceKitUID
+    static let key_namelength: SourceKitSupport.SourceKitUID
+    static let key_nameoffset: SourceKitSupport.SourceKitUID
+    static let key_notification: SourceKitSupport.SourceKitUID
+    static let key_num_bytes_to_erase: SourceKitSupport.SourceKitUID
+    static let key_offset: SourceKitSupport.SourceKitUID
+    static let key_parent_contexts: SourceKitSupport.SourceKitUID
+    static let key_primary_file: SourceKitSupport.SourceKitUID
+    static let key_ranges: SourceKitSupport.SourceKitUID
+    static let key_receivers: SourceKitSupport.SourceKitUID
+    static let key_referenced_symbols: SourceKitSupport.SourceKitUID
+    static let key_removecache: SourceKitSupport.SourceKitUID
+    static let key_request: SourceKitSupport.SourceKitUID
+    static let key_results: SourceKitSupport.SourceKitUID
+    static let key_retrieve_symbol_graph: SourceKitSupport.SourceKitUID
+    static let key_scoped_popularity_table_path: SourceKitSupport.SourceKitUID
+    static let key_secondary_symbols: SourceKitSupport.SourceKitUID
+    static let key_selectorpieces: SourceKitSupport.SourceKitUID
+    static let key_semantic_score: SourceKitSupport.SourceKitUID
+    static let key_semantic_score_components: SourceKitSupport.SourceKitUID
+    static let key_severity: SourceKitSupport.SourceKitUID
+    static let key_sourcefile: SourceKitSupport.SourceKitUID
+    static let key_sourcetext: SourceKitSupport.SourceKitUID
+    static let key_substructure: SourceKitSupport.SourceKitUID
+    static let key_swift_version: SourceKitSupport.SourceKitUID
+    static let key_symbol_graph: SourceKitSupport.SourceKitUID
+    static let key_syntactic_only: SourceKitSupport.SourceKitUID
+    static let key_syntaxmap: SourceKitSupport.SourceKitUID
+    static let key_synthesizedextensions: SourceKitSupport.SourceKitUID
+    static let key_text: SourceKitSupport.SourceKitUID
+    static let key_text_match_score: SourceKitSupport.SourceKitUID
+    static let key_toolchains: SourceKitSupport.SourceKitUID
+    static let key_typename: SourceKitSupport.SourceKitUID
+    static let key_typeusr: SourceKitSupport.SourceKitUID
+    static let key_unfiltered_result_count: SourceKitSupport.SourceKitUID
+    static let key_usr: SourceKitSupport.SourceKitUID
+    static let key_variable_length: SourceKitSupport.SourceKitUID
+    static let key_variable_offset: SourceKitSupport.SourceKitUID
+    static let key_variable_type: SourceKitSupport.SourceKitUID
+    static let key_variable_type_explicit: SourceKitSupport.SourceKitUID
+    static let key_variable_type_list: SourceKitSupport.SourceKitUID
+    static let source_diagnostic_severity_error: SourceKitSupport.SourceKitUID
+    static let source_diagnostic_severity_note: SourceKitSupport.SourceKitUID
+    static let source_diagnostic_severity_remark: SourceKitSupport.SourceKitUID
+    static let source_diagnostic_severity_warning: SourceKitSupport.SourceKitUID
+    static let source_diagnostic_stage_swift_sema: SourceKitSupport.SourceKitUID
+    static let source_lang_name_kind_objc: SourceKitSupport.SourceKitUID
+    static let source_lang_name_kind_swift: SourceKitSupport.SourceKitUID
+    static let source_lang_objc: SourceKitSupport.SourceKitUID
+    static let source_lang_swift: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_actor: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_associatedtype: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_class: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_enum: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_enumcase: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_enumelement: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_extension: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_function_constructor: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_function_destructor: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_function_free: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_function_method_class: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_function_method_ibaction: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_function_method_instance: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_function_method_static: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_function_operator_infix: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_function_operator_postfix: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_function_operator_prefix: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_function_subscript: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_generic_type_param: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_macro: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_module: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_protocol: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_struct: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_typealias: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_var_class: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_var_global: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_var_instance: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_var_local: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_var_parameter: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_decl_var_static: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_expr_argument: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_expr_array: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_expr_call: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_expr_dictionary: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_expr_object_literal: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_keyword: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_literal_array: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_literal_boolean: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_literal_color: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_literal_dictionary: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_literal_image: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_literal_integer: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_literal_nil: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_literal_string: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_literal_tuple: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_pattern: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_actor: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_class: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_enum: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_enumelement: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_function_constructor: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_function_free: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_function_method_class: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_function_method_instance: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_function_method_static: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_function_operator_postfix: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_generic_type_param: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_macro: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_module: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_protocol: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_struct: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_typealias: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_var_class: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_var_global: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_var_instance: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_var_local: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_ref_var_static: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_stmt_brace: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_stmt_case: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_stmt_for: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_stmt_foreach: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_stmt_if: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_stmt_repeatwhile: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_stmt_switch: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_stmt_while: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_structure_elem_pattern: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_structure_elem_typeref: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_syntaxtype_attribute_builtin: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_syntaxtype_attribute_id: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_syntaxtype_buildconfig_id: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_syntaxtype_buildconfig_keyword: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_syntaxtype_comment: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_syntaxtype_comment_mark: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_syntaxtype_comment_url: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_syntaxtype_doccomment: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_syntaxtype_doccomment_field: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_syntaxtype_identifier: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_syntaxtype_keyword: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_syntaxtype_number: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_syntaxtype_objectliteral: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_syntaxtype_placeholder: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_syntaxtype_pounddirective_keyword: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_syntaxtype_string: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_syntaxtype_string_interpolation_anchor: SourceKitSupport.SourceKitUID
+    static let source_lang_swift_syntaxtype_typeidentifier: SourceKitSupport.SourceKitUID
+    static let source_notification_editor_documentupdate: SourceKitSupport.SourceKitUID
+    static let source_refactoring_kind_add_explicit_codable_implementation: SourceKitSupport.SourceKitUID
+    static let source_refactoring_kind_expand_macro: SourceKitSupport.SourceKitUID
+    static let source_request_activeregions: SourceKitSupport.SourceKitUID
+    static let source_request_codecomplete_cache_ondisk: SourceKitSupport.SourceKitUID
+    static let source_request_codecomplete_diagnostic: SourceKitSupport.SourceKitUID
+    static let source_request_codecomplete_documentation: SourceKitSupport.SourceKitUID
+    static let source_request_codecomplete_open: SourceKitSupport.SourceKitUID
+    static let source_request_codecomplete_setpopularapi: SourceKitSupport.SourceKitUID
+    static let source_request_codecomplete_update: SourceKitSupport.SourceKitUID
+    static let source_request_conformingmethods: SourceKitSupport.SourceKitUID
+    static let source_request_convert_markup_xml: SourceKitSupport.SourceKitUID
+    static let source_request_cursorinfo: SourceKitSupport.SourceKitUID
+    static let source_request_dependency_updated: SourceKitSupport.SourceKitUID
+    static let source_request_diagnostics: SourceKitSupport.SourceKitUID
+    static let source_request_docinfo: SourceKitSupport.SourceKitUID
+    static let source_request_editor_close: SourceKitSupport.SourceKitUID
+    static let source_request_editor_expand_placeholder: SourceKitSupport.SourceKitUID
+    static let source_request_editor_find_usr: SourceKitSupport.SourceKitUID
+    static let source_request_editor_formattext: SourceKitSupport.SourceKitUID
+    static let source_request_editor_open: SourceKitSupport.SourceKitUID
+    static let source_request_editor_open_interface: SourceKitSupport.SourceKitUID
+    static let source_request_editor_open_interface_header: SourceKitSupport.SourceKitUID
+    static let source_request_editor_open_interface_swiftsource: SourceKitSupport.SourceKitUID
+    static let source_request_editor_replacetext: SourceKitSupport.SourceKitUID
+    static let source_request_enable_request_barriers: SourceKitSupport.SourceKitUID
+    static let source_request_name_translation: SourceKitSupport.SourceKitUID
+    static let source_request_register_toolchains: SourceKitSupport.SourceKitUID
+    static let source_request_relatedidents: SourceKitSupport.SourceKitUID
+    static let source_request_semantic_refactoring: SourceKitSupport.SourceKitUID
+    static let source_request_typecontextinfo: SourceKitSupport.SourceKitUID
+    static let source_request_variable_type: SourceKitSupport.SourceKitUID
+}
+
+protocol ExtendedCompletionProvider: AnyObject {
+    // Kind: Method, isAsync: false, isInstance: true
+    // Kind: Method, isAsync: false, isInstance: true
+}
+protocol DocumentStructureDelegate {
+    // protocol witness table offset: 0x8
+    func didFindDeclaration(at: SourceEditor.SourceEditorPosition, kind: SourceKitSupport.SourceKitUID)
+}
+protocol SourceKitArgumentProvider {
+    // protocol witness table offset: 0x10
+    var compilerArguments: [Swift.String] {
+        get
+    }
+    // protocol witness table offset: 0x8
+    var moduleNames: SourceEditor.ModuleNameSet {
+        get
+    }
+    // protocol witness table offset: 0x18
+    var toolchains: [Swift.String] {
+        get
+    }
+
+    // protocol witness table offset: 0x20
+    func waitForDependencyPreparation(forActiveDocument: Swift.Bool) async -> SourceKitSupport.DependencyPreparationResult
+}
+extension SourceKitSupport.SourceKitArgumentProvider {
+    //  offset: 0x8
+    var moduleNames: SourceEditor.ModuleNameSet {
+        get
+    }
+
+    //  offset: 0x20
+    func waitForDependencyPreparation(forActiveDocument: Swift.Bool) async -> SourceKitSupport.DependencyPreparationResult
+}
+
+protocol MemberProvidingLanguageService {
+    // protocol witness table offset: 0x8
+    func implicitMembers(for: SourceEditor.SourceEditorPosition, resultsCallback: (_: [SourceKitSupport.SourceKitImplicitMemberResult]) -> ())
+    // protocol witness table offset: 0x10
+    func conformingMembers(for: SourceEditor.SourceEditorPosition, typeName: Swift.String, resultsCallback: (_: SourceKitSupport.SourceKitConformingMemberResult?) -> ())
+}
+protocol NameTranslationProvider {
+    // protocol witness table offset: 0x8
+    func translate(swiftName: SourceKitSupport.NameTranslation.SwiftName, at: SourceEditor.SourceEditorPosition, completion: (_: SourceKitSupport.NameTranslation.ObjCName?) -> ())
+    // protocol witness table offset: 0x10
+    func translate(objcName: SourceKitSupport.NameTranslation.ObjCName, at: SourceEditor.SourceEditorPosition, completion: (_: SourceKitSupport.NameTranslation.SwiftName?) -> ())
+}
+protocol SourceKitCompletionDirective: Swift.Hashable {
+    // protocol witness table offset: 0x10
+    var identifier: Swift.String? {
+        get
+    }
+    // protocol witness table offset: 0x20
+    var scope: SourceKitSupport.SourceKitDirectiveScope {
+        get
+    }
+    // protocol witness table offset: 0x18
+    var type: SourceKitSupport.SourceKitDirectiveType {
+        get
+    }
+}
+protocol SourceKitService: AnyObject {
+    // protocol witness table offset: 0x18
+    var serviceStatus: SourceKitSupport.SourceKitServiceStatus {
+        get
+    }
+    // protocol witness table offset: 0x10
+    var sourceKitBarriersEnabled: Swift.Bool {
+        get
+    }
+
+    // protocol witness table offset: 0x20
+    func sendSemanticRequest(_: SourceKitSupport.SourceKitRequest, _: Swift.String, cancellationIndicator: SourceKitSupport.CancellationIndicator) throws -> SourceKitSupport.SourceKitResponse
+    // protocol witness table offset: 0x28
+    func sendSemanticRequestAsync(_: SourceKitSupport.SourceKitRequest, _: Swift.String, completionBlock: (_: Swift.Result<SourceKitSupport.SourceKitResponse, Swift.Error>) -> ()) -> SourceKitSupport.SourceKitCancellable
+    // protocol witness table offset: 0x30
+    func sendSemanticRequestSync(_: SourceKitSupport.SourceKitRequest, _: Swift.String, completionBlock: (_: SourceKitSupport.SourceKitResponse) -> ()) -> __C.NSError?
+    // protocol witness table offset: 0x38
+    func sendSyntacticRequest(_: SourceKitSupport.SourceKitRequest, cancellationIndicator: SourceKitSupport.CancellationIndicator) throws -> SourceKitSupport.SourceKitResponse
+    // protocol witness table offset: 0x40
+    func sendSyntacticRequestSync(_: SourceKitSupport.SourceKitRequest, completionBlock: (_: SourceKitSupport.SourceKitResponse) -> ()) -> __C.NSError?
+    // protocol witness table offset: 0x48
+    func setServiceStatusHandlerForObserver(_: Swift.AnyObject, handler: (_: SourceKitSupport.SourceKitServiceStatus) -> ())
+    // protocol witness table offset: 0x50
+    func removeServiceStatusHandlerForObserver(_: Swift.AnyObject)
+    // protocol witness table offset: 0x58
+    func setDocumentUpdateHandlerForObserver(_: Swift.AnyObject, handler: (_: Swift.String) -> ())
+    // protocol witness table offset: 0x60
+    func removeDocumentUpdateHandlerForObserver(_: Swift.AnyObject)
+
+    // protocol witness table offset: 0x8
+    static var shared: Self {
+        get
+    }
+}
+extension SourceKitSupport.SourceKitService {
+    //  offset: 0x10
+    var sourceKitBarriersEnabled: Swift.Bool {
+        get
+    }
+
+    //  offset: 0x20
+    func sendSemanticRequest(_: SourceKitSupport.SourceKitRequest, _: Swift.String, cancellationIndicator: SourceKitSupport.CancellationIndicator) throws -> SourceKitSupport.SourceKitResponse
+    //  offset: 0x28
+    func sendSemanticRequestAsync(_: SourceKitSupport.SourceKitRequest, _: Swift.String, completionBlock: (_: Swift.Result<SourceKitSupport.SourceKitResponse, Swift.Error>) -> ()) -> SourceKitSupport.SourceKitCancellable
+    //  offset: 0x38
+    func sendSyntacticRequest(_: SourceKitSupport.SourceKitRequest, cancellationIndicator: SourceKitSupport.CancellationIndicator) throws -> SourceKitSupport.SourceKitResponse
+}
+
+
+extension SourceEditor.CodeCompletionSuggestionKind {
+    init(_: SourceKitSupport.SourceKitUID, context: SourceKitSupport.CodeCompletionSuggestionKindContext?)
+}
+extension SourceEditor.CodeCompletionIssue.Severity {
+    init?(_: SourceKitSupport.SourceKitUID)
+}
+extension Swift.String {
+    init(format: , _: Swift.CVarArg...)
+
+    func _bridgeToObjectiveC() -> __C.NSString
+
+    static func _forceBridgeFromObjectiveC(_: __C.NSString, result: inout Swift.String?)
+    static func _conditionallyBridgeFromObjectiveC(_: __C.NSString, result: inout Swift.String?) -> Swift.Bool
+    static func _unconditionallyBridgeFromObjectiveC(_: __C.NSString?) -> Swift.String
+}
+extension Swift.Range where A == SourceEditor.SourceEditorPosition {
+    var end: SourceEditor.SourceEditorPosition {
+        get
+        set
+    }
+    var lineRange: Swift.Range<Swift.Int> {
+        get
+    }
+    var start: SourceEditor.SourceEditorPosition {
+        get
+        set
+    }
+}
+extension Swift.Range {
+    init(start: SourceEditor.SourceEditorPosition, end: SourceEditor.SourceEditorPosition) where A == SourceEditor.SourceEditorPosition
+    init(lineIndex: Swift.Int, range: Swift.Range<Swift.Int>) where A == SourceEditor.SourceEditorPosition
+
+    func touchesPosition(_: SourceEditor.SourceEditorPosition) -> Swift.Bool where A == SourceEditor.SourceEditorPosition
+    func union(with: Swift.Range<SourceEditor.SourceEditorPosition>) -> Swift.Range<SourceEditor.SourceEditorPosition> where A == SourceEditor.SourceEditorPosition
+}
+extension __C.OS_dispatch_queue {
+    init(label: Swift.String, qos: Dispatch.DispatchQoS, attributes: Attributes, autoreleaseFrequency: AutoreleaseFrequency, target: __C.OS_dispatch_queue?)
+
+    func asyncAfter(deadline: Dispatch.DispatchTime, qos: Dispatch.DispatchQoS, flags: Dispatch.DispatchWorkItemFlags, execute: @convention(block) () -> ())
+    func sync<A>(execute: () throws -> A) throws -> A
+    func async(group: __C.OS_dispatch_group?, qos: Dispatch.DispatchQoS, flags: Dispatch.DispatchWorkItemFlags, execute: @convention(block) () -> ())
+
+    static var main: __C.OS_dispatch_queue {
+        get
+    }
+
+    static func global(qos: Dispatch.DispatchQoS.QoSClass) -> __C.OS_dispatch_queue
+}
+extension __C.NSString {
+    init(stringLiteral: Swift.StaticString)
+}
+extension SourceEditor.SourceEditorNavigationTarget.Location {
+    var moduleLocation: SourceKitSupport.SourceKitModuleLocation? {
+        get
+    }
+}
+extension Swift.Task where B == Swift.Never {
+    var value: A {
+        get
+    }
+}
+extension _CodeCompletionFoundation.PopularityIndex {
+    static var swiftCompletionsFileURL: Foundation.URL {
+        get
+    }
+    static var swiftScopedPopularityTables: [_CodeCompletionFoundation.PopularityIndex.Scope : [Swift.String : Swift.Double]] {
+        get
+    }
+}
+extension __C.OS_os_log {
+    static var default: __C.OS_os_log {
+        get
+    }
+}
+extension __C.OS_dispatch_semaphore {
+    func wait(cancellationIndicator: SourceKitSupport.CancellationIndicator, checkInterval: Dispatch.DispatchTimeInterval) throws
+    func wait(timeout: Dispatch.DispatchTime) -> Dispatch.DispatchTimeoutResult
+}
+extension _CodeCompletionFoundation.PopularityIndex.Scope {
+    func withoutModule() -> _CodeCompletionFoundation.PopularityIndex.Scope
+}
+extension Swift.Dictionary {
+    func _bridgeToObjectiveC() -> __C.NSDictionary
+
+    static func _forceBridgeFromObjectiveC(_: __C.NSDictionary, result: inout [A : B]?)
+}
+extension Swift.Bool {
+    func _bridgeToObjectiveC() -> __C.NSNumber
+}
+extension Swift.Int {
+    func _bridgeToObjectiveC() -> __C.NSNumber
+}
+extension SourceEditor.SourceEditorDiagnostic {
+    static func processDiagnostics(_: SourceKitSupport.SourceKitResponse.Array, buffer: SourceEditor.SourceEditorBuffer, name: Swift.String) -> [SourceEditor.SourceEditorDiagnostic]
+    static func diagnosticsFromSourceKitResponse(_: SourceKitSupport.SourceKitResponse, buffer: SourceEditor.SourceEditorBuffer, name: Swift.String) -> [SourceEditor.SourceEditorDiagnostic]?
+}
+extension __C.NSObject {
+    static func == (_: __C.NSObject, _: __C.NSObject) -> Swift.Bool
+}
+extension SourceKitSupport.SourceKitArgumentProvider {
+    var moduleNames: SourceEditor.ModuleNameSet {
+        get
+    }
+
+    func waitForDependencyPreparation(forActiveDocument: Swift.Bool) async -> SourceKitSupport.DependencyPreparationResult
+}
+extension SourceKitSupport.SourceKitService {
+    var sourceKitBarriersEnabled: Swift.Bool {
+        get
+    }
+
+    func sendSemanticRequest(_: SourceKitSupport.SourceKitRequest, _: Swift.String, cancellationIndicator: SourceKitSupport.CancellationIndicator) throws -> SourceKitSupport.SourceKitResponse
+    func sendSyntacticRequest(_: SourceKitSupport.SourceKitRequest, cancellationIndicator: SourceKitSupport.CancellationIndicator) throws -> SourceKitSupport.SourceKitResponse
+    func sendSemanticRequestAsync(_: SourceKitSupport.SourceKitRequest, _: Swift.String, completionBlock: (_: Swift.Result<SourceKitSupport.SourceKitResponse, Swift.Error>) -> ()) -> SourceKitSupport.SourceKitCancellable
+}
+extension SourceEditor.SourceEditorLanguageService {
+    var allowWhitespaceTrimming: Swift.Bool {
+        get
+    }
+    var automaticCodeCompletionCharacterSet: Foundation.CharacterSet? {
+        get
+    }
+    var requiresHardTabs: Swift.Bool {
+        get
+    }
+    var supportsIndentation: Swift.Bool {
+        get
+    }
+
+    func configureDataSourceForAccessoryUse(_: SourceEditor.SourceEditorDataSource) -> Swift.Bool
+    func reformatLines(_: Swift.Range<Swift.Int>) -> Swift.Bool
+    func subTokenRange(at: SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>
+    func refactorActions(range: Swift.Range<SourceEditor.SourceEditorPosition>) -> [SourceEditor.SourceEditorRefactorAction]
+    func methodOrFunctionRange(landmark: SourceEditor.Landmark) -> Swift.Range<SourceEditor.SourceEditorPosition>
+    func observeInactiveRanges(_: (_: [SourceEditor.ManagedSourceEditorRange]) -> ())
+    func documentSettingsChanged(_: Swift.String?)
+    func formattingOptionsChanged()
+    func shouldTriggerIndentation(trigger: Swift.String, at: SourceEditor.SourceEditorPosition) -> Swift.Bool
+    func stopObservingInactiveRanges()
+    func documentableDeclarationRange(for: SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func codeCompletionReplacementText(replacingRange: Swift.Range<SourceEditor.SourceEditorPosition>, with: Swift.String) -> (Swift.String, Swift.Range<SourceEditor.SourceEditorPosition>)
+    func enclosingBlockRangeAtPosition(_: SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func codeCompletionReplacementRange(forSuggestedRange: Swift.Range<SourceEditor.SourceEditorPosition>, at: SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func shouldTrimTrailingWhitespaceAtLine(_: Swift.Int) -> Swift.Bool
+    func shouldAutomaticallySuggestCodeCompletions(at: SourceEditor.SourceEditorPosition, with: Foundation.CharacterSet, proposing: Swift.Bool) -> Swift.Bool
+    func allowedOpeningDelimitersToAutoCloseAfterEntering(text: Swift.String, inRange: Swift.Range<SourceEditor.SourceEditorPosition>, selectionRange: Swift.Range<SourceEditor.SourceEditorPosition>) -> [Swift.Character]?
+    func relevantModulesForCodeCompletionPopularityBonuses() -> Swift.Set<Swift.String>?
+}
+extension SourceEditor.SourceEditorTokenData {
+    var fontTraits: SourceEditor.SourceEditorTokenType.FontTraits {
+        get
+    }
+    var uiKind: SourceEditor.SourceEditorTokenType.UIKind? {
+        get
+    }
+
+    func isEqual(to: SourceEditor.SourceEditorTokenData) -> Swift.Bool where Self: Swift.Equatable
+}
+extension SourceEditor.CodeCompletionProvider {
+    var debugTag: Swift.Int? {
+        get
+    }
+
+    func didAcceptSuggestion(_: SourceEditor.CodeCompletionSuggestion, in: SourceEditor.SourceEditorView, insertedRange: Swift.Range<SourceEditor.SourceEditorPosition>)
+    func willDisplaySuggestion(_: SourceEditor.CodeCompletionSuggestion)
+}
+extension SourceEditor.FoldableLanguageService {
+    var managesFoldableRanges: Swift.Bool {
+        get
+    }
+
+    func enclosingFold(at: SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func foldableRanges(lineRange: Swift.Range<Swift.Int>) -> [Swift.Range<SourceEditor.SourceEditorPosition>]
+}
+extension SourceEditor.CodeCompletionSuggestion {
+    var customIcon: __C.NSImage? {
+        get
+    }
+    var hiddenParameterRangeIndexes: Foundation.IndexSet? {
+        get
+    }
+    var richDisplayText: __C.NSAttributedString? {
+        get
+    }
+
+    func derivedSuggestionParameterRangeIndexesArray(selectedParameterRangeIndexes: Foundation.IndexSet?) -> [Foundation.IndexSet]?
+    func arrangedCompletionText(by: Foundation.IndexSet?) -> Swift.String
+    func numberOfDerivedSuggestions(selectedParameterRangeIndexes: Foundation.IndexSet?) -> Swift.Int
+    func arrangedMatchingFilterTextRanges(_: [__C._NSRange], parameterRangesKeyPath: Swift.KeyPath<SourceEditor.CodeCompletionSuggestion, [__C._NSRange]?>) -> [__C._NSRange]
+}
+extension Swift.StringProtocol {
+    var capitalized: Swift.String {
+        get
+    }
+
+    func trimmingCharacters(in: Foundation.CharacterSet) -> Swift.String
+    func replacingOccurrences<Self, B>(of: A1, with: B1, options: __C.NSStringCompareOptions, range: Swift.Range<Swift.String.Index>?) -> Swift.String where A1: Swift.StringProtocol, B1: Swift.StringProtocol
+    func data(using: Encoding, allowLossyConversion: Swift.Bool) -> Foundation.Data?
+    func contains<Self>(_: A1) -> Swift.Bool where A1: Swift.StringProtocol
+}
+extension Swift.Error {
+    var _code: Swift.Int {
+        get
+    }
+    var _domain: Swift.String {
+        get
+    }
+    var _userInfo: Swift.AnyObject? {
+        get
+    }
+
+    func _getEmbeddedNSError() -> Swift.AnyObject?
+}
+extension SourceEditor.SourceEditorLanguage {
+    func configureEditAssistant(_: SourceEditor.SourceEditorEditAssistant)
+}
+extension SourceEditor.CodeCompletionContext {
+    func scopedPopularity(filterText: Swift.String, kind: SourceEditor.CodeCompletionSuggestionKind, moduleName: Swift.String?, scope: _CodeCompletionFoundation.PopularityIndex.Scope?, popularityIndex: _CodeCompletionFoundation.PopularityIndex) -> _CodeCompletionFoundation.Popularity?
+    func effectivePopularity(filterText: Swift.String, kind: SourceEditor.CodeCompletionSuggestionKind, moduleName: Swift.String?, cachedPredictions: SourceEditor.CodeCompletionPredictions?, scope: _CodeCompletionFoundation.PopularityIndex.Scope?) -> _CodeCompletionFoundation.Popularity?
+    func adjustedSemanticClassification(_: _CodeCompletionFoundation.SemanticClassification, suggestion: SourceEditor.CodeCompletionSuggestion) -> _CodeCompletionFoundation.SemanticClassification
+    func semanticClassificationMultiplier(kind: SourceEditor.CodeCompletionSuggestionKind, isSystem: Swift.Bool, filterText: Swift.String) -> Swift.Double
+}
+extension SourceEditor.DocumentableLanguageService {
+    func documentationIsBlockStyle(containing: Swift.Int) -> Swift.Bool?
+    func documentationInsertionLine(codeStructure: SourceEditor.CodeStructure) -> Swift.Int
+}
+extension SourceEditor.LanguageServiceHostExtension {
+    func inactiveRanges(completionBlock: (_: [SourceEditor.ManagedSourceEditorRange]?) -> ())
+    func navigationToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, allowQuickNavigation: Swift.Bool, completionBlock: ([SourceEditor.SourceEditorNavigationTarget], Swift.Bool) -> ())
+}
+extension SourceEditor.Landmark {
+    func child(enclosing: SourceEditor.SourceEditorPosition) -> SourceEditor.Landmark?
+}
+extension Swift.BidirectionalCollection {
+    func joined(separator: Swift.String) -> Swift.String where Self.Element == Swift.String
+}
+extension Swift.RandomAccessCollection {
+    func lowerBound(_: (_: Self.Element) -> Swift.Bool) -> Swift.Int where Self.Index == Swift.Int
+}
+extension Swift._SwiftNewtypeWrapper {
+    func _toCustomAnyHashable() -> Swift.AnyHashable? where Self: Swift.Hashable, Self.RawRepresentable.RawValue: Swift.Hashable
+}
+extension __C.sourcekit_variant_t {
+    var description: Swift.String {
+        get
+    }
+}
+extension __C.os_log_type_t {
+    static var default: __C.os_log_type_t {
+        get
+    }
+    static var error: __C.os_log_type_t {
+        get
+    }
+}
+extension SourceKitSupport.SourceKitCodeCompletionProvider: SourceEditor.CodeCompletionProvider {
+    init?(context: SourceEditor.CodeCompletionContext, identifier: Swift.Int, providerManager: SourceEditor.CodeCompletionProviderManager)
+
+    var debugTag: Swift.Int? {
+        get
+    }
+
+    func prepareForDebugging()
+    func semanticClassification(_: SourceEditor.CodeCompletionSuggestionToken) -> _CodeCompletionFoundation.SemanticClassification?
+    func scoringItems(matching: _CodeCompletionFoundation.Pattern, completion: (_: SourceEditor.CodeCompletionCompositeResultSet?) -> ())
+    func completionSuggestion(for: SourceEditor.CodeCompletionSuggestionToken) -> SourceEditor.CodeCompletionSuggestion
+    func willDisplaySuggestion(_: SourceEditor.CodeCompletionSuggestion)
+    func didAcceptSuggestion(_: SourceEditor.CodeCompletionSuggestion, in: SourceEditor.SourceEditorView, insertedRange: Swift.Range<SourceEditor.SourceEditorPosition>)
+    func closeSession()
+}
+extension SourceKitSupport.SourceKitCodeCompletionProvider: SourceEditor.MetricsCapableCodeCompletionProvider {
+    var unfilteredResultCount: Swift.Int? {
+        get
+    }
+}
+extension SourceKitSupport.SourceKitCodeCompletionProvider: SourceKitSupport.ExtendedCompletionProvider {}
+extension SourceKitSupport.SwiftAnnotatedDescriptionConverter.ElementName: Swift.RawRepresentable {
+    typealias RawValue = Swift.String
+
+    init?(rawValue: Self.RawValue)
+
+    var rawValue: Self.RawValue {
+        get
+    }
+}
+extension SourceKitSupport.SwiftAnnotatedDescriptionConverter.ElementName: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SourceKitSupport.SwiftAnnotatedDescriptionConverter.ElementName: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.SourceKitTextCompletionSuggestion: SourceEditor.CodeCompletionSuggestion {
+    var associatedUSRs: [Swift.String] {
+        get
+    }
+    var attributedDisplaySignature: __C.NSAttributedString? {
+        get
+    }
+    var briefDisplayText: Swift.String {
+        get
+    }
+    var briefDocumentationText: Swift.String? {
+        get
+    }
+    var completionKind: SourceEditor.CodeCompletionSuggestionKind {
+        get
+    }
+    var completionText: Swift.String {
+        get
+    }
+    var customIcon: __C.NSImage? {
+        get
+    }
+    var defaultValueParameterRangeIndexes: Foundation.IndexSet? {
+        get
+    }
+    var displayText: Swift.String {
+        get
+    }
+    var displayType: Swift.String? {
+        get
+    }
+    var effectsSpecifiers: [SourceEditor.CodeCompleteSuggestionEffectsSpecifier]? {
+        get
+    }
+    var filterText: Swift.String {
+        get
+    }
+    var filterTextRanges: [__C._NSRange] {
+        get
+    }
+    var filterTextRangesInBriefDisplayText: [__C._NSRange] {
+        get
+    }
+    var filterTextRangesInDisplayText: [__C._NSRange] {
+        get
+    }
+    var groupID: Swift.Int? {
+        get
+    }
+    var hiddenParameterRangeIndexes: Foundation.IndexSet? {
+        get
+    }
+    var isOverloadable: Swift.Bool {
+        get
+    }
+    var issue: SourceEditor.CodeCompletionIssue? {
+        get
+    }
+    var leadingCharactersToReplace: Swift.UInt {
+        get
+    }
+    var module: Swift.String? {
+        get
+    }
+    var parameterRangesInAttributedDisplaySignature: [__C._NSRange]? {
+        get
+    }
+    var parameterRangesInBriefDisplayText: [__C._NSRange]? {
+        get
+    }
+    var parameterRangesInDisplayText: [__C._NSRange]? {
+        get
+    }
+    var parameterRangesInFilterText: [__C._NSRange]? {
+        get
+    }
+    var richDisplayText: __C.NSAttributedString? {
+        get
+    }
+
+    func numberOfDerivedSuggestions(selectedParameterRangeIndexes: Foundation.IndexSet?) -> Swift.Int
+    func derivedSuggestionParameterRangeIndexesArray(selectedParameterRangeIndexes: Foundation.IndexSet?) -> [Foundation.IndexSet]?
+    func arrangedMatchingFilterTextRanges(_: [__C._NSRange], parameterRangesKeyPath: Swift.KeyPath<SourceEditor.CodeCompletionSuggestion, [__C._NSRange]?>) -> [__C._NSRange]
+    func arrangedCompletionText(by: Foundation.IndexSet?) -> Swift.String
+}
+extension __C.Key: Swift._HasCustomAnyHashableRepresentation {
+    func _toCustomAnyHashable() -> Swift.AnyHashable?
+}
+extension __C.Key: Swift.RawRepresentable {
+    typealias RawValue = Swift.String
+
+    init?(rawValue: Self.RawValue)
+
+    var rawValue: Self.RawValue {
+        get
+    }
+}
+extension __C.Key: Swift._SwiftNewtypeWrapper {}
+extension __C.Key: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension __C.Key: Swift._ObjectiveCBridgeable {
+    typealias _ObjectiveCType = __C.NSString
+
+    func _bridgeToObjectiveC() -> Self._ObjectiveCType
+
+    static func _forceBridgeFromObjectiveC(_: Self._ObjectiveCType, result: inout Self?)
+    static func _conditionallyBridgeFromObjectiveC(_: Self._ObjectiveCType, result: inout Self?) -> Swift.Bool
+    static func _unconditionallyBridgeFromObjectiveC(_: Self._ObjectiveCType?) -> Self
+}
+extension __C.Key: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SourceKitSupport.SwiftAnnotatedDescriptionConverter.ParseError: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SourceKitSupport.SwiftAnnotatedDescriptionConverter.ParseError: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.SwiftAnnotatedDescriptionConverter.ParseError: Swift.Error {
+    var _code: Swift.Int {
+        get
+    }
+    var _domain: Swift.String {
+        get
+    }
+    var _userInfo: Swift.AnyObject? {
+        get
+    }
+
+    func _getEmbeddedNSError() -> Swift.AnyObject?
+}
+extension SourceKitSupport.SourceKitDocumentStructure: Swift.CustomDebugStringConvertible {
+    var debugDescription: Swift.String {
+        get
+    }
+}
+extension SourceKitSupport.SourceKitEditorLanguage: SourceEditor.SourceEditorLanguage {
+    var contentGeneratingLangServiceClass: SourceEditor.ContentGeneratingLanguageService.Type? {
+        get
+    }
+    var editableRangeSnapshotType: SourceEditor.EditableRangeSnapshot.Type? {
+        get
+    }
+    var identifier: Swift.String {
+        get
+    }
+    var langServiceClass: SourceEditor.SourceEditorLanguageService.Type {
+        get
+    }
+    var lineDataFactory: SourceEditor.SourceEditorLineDataFactory {
+        get
+    }
+    var name: Swift.String {
+        get
+    }
+
+    func configureEditAssistant(_: SourceEditor.SourceEditorEditAssistant)
+}
+extension SourceKitSupport.DependencyPreparationResult: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.DependencyPreparationResult: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SourceKitSupport.SourceKitDocumentSettings: SourceEditor.SourceEditorDocumentSettings {}
+extension SourceKitSupport.SourceKitDocumentSettings: SourceKitSupport.SourceKitArgumentProvider {}
+extension SourceKitSupport.SourceKitContentGenerationDocumentSettings.ContentKind: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.SourceKitContentGenerationDocumentSettings.BuildSettingsVeracity.HowSoon: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SourceKitSupport.SourceKitContentGenerationDocumentSettings.BuildSettingsVeracity.HowSoon: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.SourceKitContentGenerationDocumentSettings.BuildSettingsVeracity: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.SourceKitContentGenerationDocumentSettings: SourceEditor.SourceEditorDocumentSettings {}
+extension SourceKitSupport.SourceKitContentGenerationDocumentSettings: SourceKitSupport.SourceKitArgumentProvider {}
+extension SourceKitSupport.SourceKitContentGenerationDocumentSettings: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.SourceKitModuleLocation: SourceEditor.SourceEditorLanguageSpecificLocation {}
+extension SourceKitSupport.SourceKitLanguageService.ContentGenerationError: Swift.Error {
+    var _code: Swift.Int {
+        get
+    }
+    var _domain: Swift.String {
+        get
+    }
+    var _userInfo: Swift.AnyObject? {
+        get
+    }
+
+    func _getEmbeddedNSError() -> Swift.AnyObject?
+}
+extension SourceKitSupport.SourceKitLanguageService: SourceEditor.SourceEditorLanguageService {
+    init(language: SourceEditor.SourceEditorLanguage, buffer: SourceEditor.SourceEditorBuffer)
+
+    var allowWhitespaceTrimming: Swift.Bool {
+        get
+    }
+    var automaticCodeCompletionCharacterSet: Foundation.CharacterSet? {
+        get
+    }
+    var diagnosticProvider: SourceEditor.SourceEditorDiagnosticProvider? {
+        get
+    }
+    var diagnosticProviderBridge: SourceEditor.DiagnosticProviderBridge? {
+        get
+    }
+    var documentableLanguageService: SourceEditor.DocumentableLanguageService? {
+        get
+    }
+    var isBatchEditing: Swift.Bool {
+        get
+    }
+    var requiresHardTabs: Swift.Bool {
+        get
+    }
+    var supportsIndentation: Swift.Bool {
+        get
+    }
+
+    func resetDocument(_: Swift.String?)
+    func documentSettingsChanged(_: Swift.String?)
+    func didInsertTextInRange(_: Swift.Range<SourceEditor.SourceEditorPosition>) -> Swift.Range<Swift.Int>
+    func willDeleteTextInRange(_: Swift.Range<SourceEditor.SourceEditorPosition>)
+    func didDeleteTextInRange(_: Swift.Range<SourceEditor.SourceEditorPosition>) -> Swift.Range<Swift.Int>
+    func beginBatchEditing()
+    func endBatchEditing()
+    func fullTokenRangeAtPosition(_: SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func enclosingContextAtPosition(_: SourceEditor.SourceEditorPosition) -> SourceEditor.CodeStructure?
+    func enclosingContextWithParentRangeAtPosition(_: SourceEditor.SourceEditorPosition) -> (SourceEditor.CodeStructure, Swift.Range<SourceEditor.SourceEditorPosition>?)?
+    func enclosingBlockRangeAtPosition(_: SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func subTokenRange(at: SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>
+    func enclosingBracketContextAtPosition(_: SourceEditor.SourceEditorPosition) -> SourceEditor.CodeStructure?
+    func enclosingLandmarkAtPosition(_: SourceEditor.SourceEditorPosition) -> SourceEditor.Landmark?
+    func documentableDeclarationRange(for: SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func landmarks() -> [SourceEditor.Landmark]
+    func methodOrFunctionRange(landmark: SourceEditor.Landmark) -> Swift.Range<SourceEditor.SourceEditorPosition>
+    func observeInactiveRanges(_: (_: [SourceEditor.ManagedSourceEditorRange]) -> ())
+    func stopObservingInactiveRanges()
+    func formattingOptionsChanged()
+    func indentLine(_: Swift.Int) -> (Swift.String, Swift.Range<Swift.Int>)
+    func reformatLines(_: Swift.Range<Swift.Int>) -> Swift.Bool
+    func expandPlaceholderAtRange(_: Swift.Range<SourceEditor.SourceEditorPosition>) -> (Swift.String, Swift.Range<SourceEditor.SourceEditorPosition>)
+    func refactorActions(range: Swift.Range<SourceEditor.SourceEditorPosition>) -> [SourceEditor.SourceEditorRefactorAction]
+    func referencesToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, cancelledBlock: (() -> Swift.Bool)?, completionBlock: (_: [Swift.Range<SourceEditor.SourceEditorPosition>]) -> ())
+    func navigationToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, completionBlock: ([SourceEditor.SourceEditorNavigationTarget], Swift.Bool) -> ())
+    func callersToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, completionBlock: ([SourceEditor.SourceEditorNavigationTarget], [SourceEditor.SourceEditorNavigationTarget]) -> ())
+    func rangeForUSR(_: Swift.String) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func documentationForSymbolAtPosition(_: SourceEditor.SourceEditorPosition, completionBlock: (_: SourceEditor.SourceEditorSymbolDocumentationResult?) -> ())
+    func setNeedsDiagnosticsRegeneration()
+    func shouldAutomaticallySuggestCodeCompletions(at: SourceEditor.SourceEditorPosition, with: Foundation.CharacterSet, proposing: Swift.Bool) -> Swift.Bool
+    func shouldTrimTrailingWhitespaceAtLine(_: Swift.Int) -> Swift.Bool
+    func allowedOpeningDelimitersToAutoCloseAfterEntering(text: Swift.String, inRange: Swift.Range<SourceEditor.SourceEditorPosition>, selectionRange: Swift.Range<SourceEditor.SourceEditorPosition>) -> [Swift.Character]?
+    func codeCompletionReplacementRange(forSuggestedRange: Swift.Range<SourceEditor.SourceEditorPosition>, at: SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func codeCompletionReplacementText(replacingRange: Swift.Range<SourceEditor.SourceEditorPosition>, with: Swift.String) -> (Swift.String, Swift.Range<SourceEditor.SourceEditorPosition>)
+    func relevantModulesForCodeCompletionPopularityBonuses() -> Swift.Set<Swift.String>?
+    func lineWrapAlignment(for: Swift.Int) -> Swift.Int?
+    func shouldTriggerIndentation(trigger: Swift.String, at: SourceEditor.SourceEditorPosition) -> Swift.Bool
+    func configureDataSourceForAccessoryUse(_: SourceEditor.SourceEditorDataSource) -> Swift.Bool
+}
+extension SourceKitSupport.SourceKitLanguageService: SourceEditor.ContentGeneratingLanguageService {
+    init(language: SourceEditor.SourceEditorLanguage)
+
+    func generateContent(with: SourceEditor.SourceEditorDocumentSettings, completion: (_: SourceEditor.ContentGenerationResult) -> ()) -> SourceEditor.LanguageServiceContentGenerationCoordinator?
+    func bind(to: SourceEditor.SourceEditorBuffer)
+}
+extension SourceKitSupport.SourceKitLanguageService: SourceEditor.FoldableLanguageService {
+    var foldableRegionsNeedUpdating: Swift.Bool {
+        get
+    }
+    var languageSpecificFoldableRanges: [Swift.Range<SourceEditor.SourceEditorPosition>] {
+        get
+    }
+    var managesFoldableRanges: Swift.Bool {
+        get
+    }
+
+    func foldableRanges(matching: SourceEditor.FoldableRegionKind) -> [Swift.Range<SourceEditor.SourceEditorPosition>]
+    func enclosingFold(at: SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func foldableRanges(lineRange: Swift.Range<Swift.Int>) -> [Swift.Range<SourceEditor.SourceEditorPosition>]
+}
+extension SourceKitSupport.SourceKitLanguageService: SourceEditor.DocumentableLanguageService {
+    var documentationSyntaxProvider: SourceEditor.DocumentationSyntaxProvider? {
+        get
+        set
+    }
+    var markupLanguage: SourceEditor.MarkupLanguage {
+        get
+    }
+    var supportsUpdateDocumentation: Swift.Bool {
+        get
+    }
+
+    func documentationRange(containing: Swift.Int) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func documentationInsertionLine(codeStructure: SourceEditor.CodeStructure) -> Swift.Int
+    func documentationDelimiter(enclosing: SourceEditor.SourceEditorPosition) -> Swift.Range<SourceEditor.SourceEditorPosition>?
+    func linePrefixForDocumentation(enclosing: SourceEditor.SourceEditorPosition) -> Swift.String?
+    func parameterNames(for: SourceEditor.CodeStructure) -> [Swift.String]?
+    func structureHasReturnValue(_: SourceEditor.CodeStructure) -> Swift.Bool
+    func structureThrows(_: SourceEditor.CodeStructure) -> Swift.Bool
+    func documentationIsBlockStyle(containing: Swift.Int) -> Swift.Bool?
+}
+extension SourceKitSupport.SourceKitLanguageService: SourceEditor.CommentableLanguageService {
+    var allCommentDelimiters: [(prefix: Swift.String, suffix: Swift.String?)] {
+        get
+    }
+}
+extension SourceKitSupport.SourceKitLanguageService: SourceEditor.MarkableLanguageService {
+    func markText(enclosing: SourceEditor.SourceEditorPosition) -> Swift.String?
+}
+extension SourceKitSupport.SourceKitLanguageService: SourceKitSupport.MemberProvidingLanguageService {}
+extension SourceKitSupport.SourceKitLanguageService: SourceEditor.LanguageServiceHostExtensible {
+    var hostExtension: SourceEditor.LanguageServiceHostExtension? {
+        get
+        set
+    }
+}
+extension SourceKitSupport.SourceKitLanguageService: SourceKitSupport.DocumentStructureDelegate {}
+extension SourceKitSupport.SourceKitLanguageService: Swift.CustomStringConvertible {
+    var description: Swift.String {
+        get
+    }
+}
+extension SourceKitSupport.SourceKitLanguageService: Swift.CustomDebugStringConvertible {
+    var debugDescription: Swift.String {
+        get
+    }
+}
+extension SourceKitSupport.SourceKitLanguageService: SourceEditor.SourceEditorSyntaxTokenProvider {
+    func syntaxTypeAtPosition(_: SourceEditor.SourceEditorPosition) -> (SourceEditor.SourceEditorTokenType?, Swift.Range<SourceEditor.SourceEditorPosition>)?
+    func enumerateSyntaxTokensOnLine(_: Swift.Int, handler: (SourceEditor.SourceEditorTokenType, Swift.Range<Swift.Int>) -> ())
+}
+extension SourceKitSupport.SourceKitLanguageService: SourceKitSupport.NameTranslationProvider {}
+extension SourceKitSupport.SourceKitLanguageService: SourceEditor.SpellCheckableLanguageService {
+    func allowSpellCheckingFor(range: Swift.Range<SourceEditor.SourceEditorPosition>) -> Swift.Bool
+}
+extension SourceKitSupport.NameTranslation.SwiftName: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.NameTranslation.ObjCName: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.SourceKitSemanticRequest.SemanticRequestError: Swift.Error {
+    var _code: Swift.Int {
+        get
+    }
+    var _domain: Swift.String {
+        get
+    }
+    var _userInfo: Swift.AnyObject? {
+        get
+    }
+
+    func _getEmbeddedNSError() -> Swift.AnyObject?
+}
+extension SourceKitSupport.SourceKitSemanticServiceHelper: SourceEditor.SemanticServiceHelper {
+    init(buffer: SourceEditor.SourceEditorBuffer)
+
+    var diagnosticProviderBridge: SourceEditor.DiagnosticProviderBridge? {
+        get
+    }
+    var diagnosticsSupport: SourceEditor.BasicDiagnosticsSupport? {
+        get
+    }
+    var hostExtension: SourceEditor.LanguageServiceHostExtension? {
+        get
+        set
+    }
+    var name: Swift.String? {
+        get
+        set
+    }
+
+    func didInsertText(range: Swift.Range<SourceEditor.SourceEditorPosition>)
+    func willDeleteText(range: Swift.Range<SourceEditor.SourceEditorPosition>)
+    func didDeleteText(range: Swift.Range<SourceEditor.SourceEditorPosition>)
+    func expandPlaceholderAtRange(_: Swift.Range<SourceEditor.SourceEditorPosition>) -> (Swift.String, Swift.Range<SourceEditor.SourceEditorPosition>)
+    func activeConditions(completionBlock: (_: [SourceEditor.ActiveCondition]?) -> ())
+}
+extension SourceKitSupport.SourceKitSemanticServiceHelper: SourceKitSupport.MemberProvidingLanguageService {}
+extension SourceKitSupport.SourceKitSemanticServiceHelper: SourceEditor.LanguageServiceHostExtension {
+    func referencesToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, cancelledBlock: (() -> Swift.Bool)?, completionBlock: (_: [Swift.Range<SourceEditor.SourceEditorPosition>]) -> ())
+    func navigationToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, allowQuickNavigation: Swift.Bool, completionBlock: ([SourceEditor.SourceEditorNavigationTarget], Swift.Bool) -> ())
+    func navigationToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, completionBlock: ([SourceEditor.SourceEditorNavigationTarget], Swift.Bool) -> ())
+    func callersToSymbolAtPosition(_: SourceEditor.SourceEditorPosition, completionBlock: ([SourceEditor.SourceEditorNavigationTarget], [SourceEditor.SourceEditorNavigationTarget]) -> ())
+    func documentationForSymbolAtPosition(_: SourceEditor.SourceEditorPosition, completionBlock: (_: SourceEditor.SourceEditorSymbolDocumentationResult?) -> ())
+    func cancelProvideDiagnosticsRequest()
+    func provideDiagnostics(completionBlock: (_: [SourceEditor.SourceEditorDiagnostic]?) -> ())
+    func inactiveRanges(completionBlock: (_: [SourceEditor.ManagedSourceEditorRange]?) -> ())
+}
+extension SourceKitSupport.SourceKitSemanticServiceHelper: SourceEditor.BasicDiagnosticsSupportDelegate {
+    func provideDiagnostics(completionBlock: (_: [SourceEditor.SourceEditorDiagnostic]?) -> ())
+    func cancelProvideDiagnosticsRequest()
+}
+extension SourceKitSupport.SourceKitSemanticServiceHelper: SourceEditor._AsyncDocumentationProvidingLanguageServiceHostExtension {
+    func documentationForSymbolAtPosition(_: SourceEditor.SourceEditorPosition) async throws -> SourceEditor.SourceEditorSymbolDocumentationResult
+}
+extension SourceKitSupport.SourceKitSemanticServiceHelper: SourceKitSupport.NameTranslationProvider {}
+extension SourceKitSupport.SourceKitSemanticServiceHelper: SourceEditor.SourceEditorCallableDiagnosticService {
+    func currentDiagnostics(_: (_: Swift.Result<[SourceEditor.SourceEditorDiagnostic], Swift.Error>) -> ())
+}
+extension SourceKitSupport.SourceKitSemanticServiceHelper.DocumentationRequestError: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SourceKitSupport.SourceKitSemanticServiceHelper.DocumentationRequestError: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.SourceKitSemanticServiceHelper.DocumentationRequestError: Swift.Error {
+    var _code: Swift.Int {
+        get
+    }
+    var _domain: Swift.String {
+        get
+    }
+    var _userInfo: Swift.AnyObject? {
+        get
+    }
+
+    func _getEmbeddedNSError() -> Swift.AnyObject?
+}
+extension SourceKitSupport.SwiftTokenType: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.SwiftTokenType: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SourceKitSupport.SwiftTokenType: SourceEditor.SourceEditorTokenLanguageSpecificData {}
+extension SourceKitSupport.SwiftTokenType: SourceEditor.SourceEditorTokenData {
+    var fontTraits: SourceEditor.SourceEditorTokenType.FontTraits {
+        get
+    }
+    var uiKind: SourceEditor.SourceEditorTokenType.UIKind? {
+        get
+    }
+
+    func isEqual(to: SourceEditor.SourceEditorTokenData) -> Swift.Bool
+}
+extension SourceKitSupport.SwiftIdentifierDisposition: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.SwiftIdentifierDisposition: SourceEditor.SourceEditorTokenIdentifierData {}
+extension SourceKitSupport.SwiftIdentifierDisposition: SourceEditor.SourceEditorTokenData {
+    var fontTraits: SourceEditor.SourceEditorTokenType.FontTraits {
+        get
+    }
+    var uiKind: SourceEditor.SourceEditorTokenType.UIKind? {
+        get
+    }
+
+    func isEqual(to: SourceEditor.SourceEditorTokenData) -> Swift.Bool
+}
+extension SourceKitSupport.SwiftURLDisposition: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.SwiftURLDisposition: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SourceKitSupport.SwiftURLDisposition: SourceEditor.SourceEditorTokenURLData {}
+extension SourceKitSupport.SwiftURLDisposition: SourceEditor.SourceEditorTokenData {
+    var fontTraits: SourceEditor.SourceEditorTokenType.FontTraits {
+        get
+    }
+    var uiKind: SourceEditor.SourceEditorTokenType.UIKind? {
+        get
+    }
+
+    func isEqual(to: SourceEditor.SourceEditorTokenData) -> Swift.Bool
+}
+extension SourceKitSupport.SwiftCommentDisposition: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.SwiftCommentDisposition: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SourceKitSupport.SwiftCommentDisposition: SourceEditor.SourceEditorTokenCommentData {}
+extension SourceKitSupport.SwiftCommentDisposition: SourceEditor.SourceEditorTokenData {
+    var fontTraits: SourceEditor.SourceEditorTokenType.FontTraits {
+        get
+    }
+    var uiKind: SourceEditor.SourceEditorTokenType.UIKind? {
+        get
+    }
+
+    func isEqual(to: SourceEditor.SourceEditorTokenData) -> Swift.Bool
+}
+extension SourceKitSupport.SwiftStringDisposition: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.SwiftStringDisposition: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SourceKitSupport.SwiftStringDisposition: SourceEditor.SourceEditorTokenStringData {}
+extension SourceKitSupport.SwiftStringDisposition: SourceEditor.SourceEditorTokenData {
+    var fontTraits: SourceEditor.SourceEditorTokenType.FontTraits {
+        get
+    }
+    var uiKind: SourceEditor.SourceEditorTokenType.UIKind? {
+        get
+    }
+
+    func isEqual(to: SourceEditor.SourceEditorTokenData) -> Swift.Bool
+}
+extension SourceKitSupport.SwiftIdentifierKind.Scope: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.SwiftIdentifierKind.Scope: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SourceKitSupport.SwiftIdentifierKind: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.SourceKitSyntaxMap: Swift.CustomDebugStringConvertible {
+    var debugDescription: Swift.String {
+        get
+    }
+}
+extension SourceKitSupport.SourceKitSyntaxMap: Swift.CustomStringConvertible {
+    var description: Swift.String {
+        get
+    }
+}
+extension SourceKitSupport.SwiftSyntaxToken: Swift.CustomStringConvertible {
+    var description: Swift.String {
+        get
+    }
+}
+extension SourceKitSupport.PerformanceLogLevel: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SourceKitSupport.PerformanceLogLevel: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.SourceKitSymbolDocumentation: SourceEditor.SourceEditorSymbolDocumentation {
+    var annotatedDeclaration: Swift.String? {
+        get
+    }
+    var documentationMarkup: Swift.String? {
+        get
+    }
+    var filePath: Swift.String? {
+        get
+    }
+    var isSystem: Swift.Bool {
+        get
+    }
+    var kind: SourceEditor.SourceEditorSymbolKind? {
+        get
+    }
+    var language: SourceEditor.SourceEditorSymbolDocumentationLanguage {
+        get
+    }
+    var moduleName: Swift.String? {
+        get
+    }
+    var name: Swift.String? {
+        get
+    }
+    var parentContexts: [SourceEditor.SourceEditorSymbolDocumentationParentContext]? {
+        get
+    }
+    var referencedSymbols: [SourceEditor.SourceEditorSymbolDocumentationReferencedSymbol]? {
+        get
+    }
+    var symbolGraph: Swift.String? {
+        get
+    }
+    var usrs: [Swift.String]? {
+        get
+    }
+}
+extension SourceKitSupport.SourceKitSymbolLanguage: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.SourceKitSymbolLanguage: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SourceKitSupport.CancelledError: Swift.Error {
+    var _code: Swift.Int {
+        get
+    }
+    var _domain: Swift.String {
+        get
+    }
+    var _userInfo: Swift.AnyObject? {
+        get
+    }
+
+    func _getEmbeddedNSError() -> Swift.AnyObject?
+}
+extension SourceKitSupport.SourceKitDirectiveType: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.SourceKitDirectiveType: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SourceKitSupport.SourceKitDirectiveScope: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.SourceKitDirectiveScope: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SourceKitSupport.SourceKitDirectiveScope: Swift.RawRepresentable {
+    typealias RawValue = Swift.Int
+
+    init?(rawValue: Self.RawValue)
+
+    var rawValue: Self.RawValue {
+        get
+    }
+}
+extension SourceKitSupport.SourceKitRequest: Swift.CustomStringConvertible {
+    var description: Swift.String {
+        get
+    }
+}
+extension SourceKitSupport.SourceKitRequest.Array: Swift.CustomStringConvertible {
+    var description: Swift.String {
+        get
+    }
+}
+extension SourceKitSupport.SourceKitRequest.Dictionary: Swift.CustomStringConvertible {
+    var description: Swift.String {
+        get
+    }
+}
+extension SourceKitSupport.SourceKitResponse.Dictionary: Swift.CustomStringConvertible {
+    var description: Swift.String {
+        get
+    }
+}
+extension SourceKitSupport.SourceKitResponse.Dictionary: Swift.CustomReflectable {
+    var customMirror: Swift.Mirror {
+        get
+    }
+}
+extension SourceKitSupport.SourceKitResponse.Array: Swift.CustomStringConvertible {
+    var description: Swift.String {
+        get
+    }
+}
+extension SourceKitSupport.SourceKitResponse.Variant: Swift.CustomStringConvertible {
+    var description: Swift.String {
+        get
+    }
+}
+extension SourceKitSupport.SourceKitResponse: Swift.CustomStringConvertible {
+    var description: Swift.String {
+        get
+    }
+}
+extension __C.sourcekit_variant_t: Swift.CustomStringConvertible {
+    var description: Swift.String {
+        get
+    }
+}
+extension SourceKitSupport.SourceKitServiceStatus: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SourceKitSupport.SourceKitServiceStatus: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SourceKitSupport.SourceKitUID: Swift.CustomStringConvertible {
+    var description: Swift.String {
+        get
+    }
+}
+extension SourceKitSupport.SourceKitUID: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SourceKitSupport.SourceKitUID: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}

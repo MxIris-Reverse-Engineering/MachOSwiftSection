@@ -1,0 +1,41 @@
+extension SymbolTestsCore.StructTest: SymbolTestsCore.ProtocolTest {
+    typealias Body = Swift.Never
+}
+extension SymbolTestsCore.GenericRequirementTest: SymbolTestsCore.ProtocolTest {
+    typealias Body = A
+}
+extension SymbolTestsCore.GenericRequirementTest: Swift.RawRepresentable {
+    typealias RawValue = A
+}
+extension SymbolTestsCore.GenericPackTest: SymbolTestsCore.ProtocolTest {
+    typealias Body = Swift.Never
+}
+extension SymbolTestsCore.GenericValueTest: SymbolTestsCore.ProtocolTest {
+    typealias Body = Swift.Never
+}
+extension Swift.Array: SymbolTestsCore.TestCollection {
+    typealias Element = A
+}
+extension SymbolTestsCore.OpaqueReturnTypeTest.AnyProtocolTest: SymbolTestsCore.ProtocolTest {
+    typealias Body = A
+}
+extension SymbolTestsCore.ProtocolPrimaryAssociatedTypeFirst: SymbolTestsCore.ProtocolTest {
+    typealias Body = SymbolTestsCore.ProtocolPrimaryAssociatedTypeFirst
+}
+extension SymbolTestsCore.ProtocolPrimaryAssociatedTypeSecond: SymbolTestsCore.ProtocolTest {
+    typealias Body = SymbolTestsCore.ProtocolPrimaryAssociatedTypeFirst
+}
+extension SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest: SymbolTestsCore.ProtocolPrimaryAssociatedTypeTest {
+    typealias First = A
+    typealias Second = B
+}
+extension Swift.Never: SymbolTestsCore.ProtocolTest {
+    typealias Body = Swift.Never
+}
+extension Swift.Never: Swift.IteratorProtocol {
+    typealias Element = Swift.Never
+}
+extension Swift.Never: Swift.Sequence {
+    typealias Element = Swift.Never
+    typealias Iterator = Swift.Never
+}

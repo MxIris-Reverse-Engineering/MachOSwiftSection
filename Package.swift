@@ -71,7 +71,7 @@ extension Package.Dependency {
     }
 }
 
-let MachOKitVersion: Version = "0.42.0"
+let MachOKitVersion: Version = "0.46.1"
 
 let isSilentTest = envEnable("MACHO_SWIFT_SECTION_SILENT_TEST", default: false)
 
@@ -100,16 +100,16 @@ var dependencies: [Package.Dependency] = [
     
     .package(url: "https://github.com/p-x9/AssociatedObject", from: "0.13.0"),
     .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
-    .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", branch: "main"),
+    .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", from: "0.4.0"),
     
     .package(url: "https://github.com/MxIris-Library-Forks/swift-memberwise-init-macro", from: "0.5.3-fork"),
-    .package(url: "https://github.com/Mx-Iris/SourceKitD", branch: "main"),
+    .package(url: "https://github.com/Mx-Iris/SourceKitD", from: "0.1.0"),
     .package(url: "https://github.com/christophhagen/BinaryCodable", from: "3.1.0"),
     
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.4"),
     .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-clang", from: "0.1.0"),
-    .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-apinotes", branch: "main"),
-    .package(url: "https://github.com/MxIris-Reverse-Engineering/DyldPrivate", branch: "main"),
+    .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-apinotes", from: "0.1.0"),
+    .package(url: "https://github.com/MxIris-Reverse-Engineering/DyldPrivate", from: "1330.0.0"),
     
     // CLI
     .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
@@ -117,7 +117,6 @@ var dependencies: [Package.Dependency] = [
     
     // Testing
     .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.18.9"),
-    .package(url: "https://github.com/MxIris-Library-Forks/swift-power-assert", branch: "main"),
 ]
 
 extension Package.Dependency {
@@ -147,11 +146,11 @@ extension Package.Dependency {
         local: .package(
             path: "../MachOKit",
             isRelative: true,
-            isEnabled: true
+            isEnabled: false
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKit.git",
-            branch: "main"
+            from: "0.46.100"
         ),
     )
 }
@@ -167,18 +166,18 @@ extension Package.Dependency {
 
     static let MachOObjCSectionOrigin = Package.Dependency.package(
         url: "https://github.com/p-x9/MachOObjCSection.git",
-        from: "0.5.0"
+        from: "0.6.0"
     )
 
     static let MachOObjCSectionMain = Package.Dependency.package(
         local: .package(
             path: "../MachOObjCSection",
             isRelative: true,
-            isEnabled: true
+            isEnabled: false
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOObjCSection.git",
-            branch: "main"
+            from: "0.6.100"
         ),
     )
 }
@@ -447,8 +446,8 @@ extension Target {
             .product(.MachOKit),
             .target(.MachOExtensions),
             .target(.SwiftDump),
+            .target(.SwiftInterface),
             .target(.MachOTestingSupportC),
-            .product(name: "PowerAssert", package: "swift-power-assert"),
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
         ],
         swiftSettings: testSettings
@@ -504,6 +503,7 @@ extension Target {
             .target(.SwiftDump),
             .target(.MachOTestingSupport),
             .product(.MachOObjCSection),
+            .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
         ],
         swiftSettings: testSettings
     )
@@ -522,6 +522,7 @@ extension Target {
         dependencies: [
             .target(.SwiftInterface),
             .target(.MachOTestingSupport),
+            .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
         ],
         swiftSettings: testSettings
     )
