@@ -169,7 +169,7 @@ struct NodeCacheTests {
     @Test func clearRemovesUserNodes() {
         let cache = NodeCache()
 
-        _ = cache.intern(kind: .identifier, text: "a")
+        let internedBeforeClear = cache.intern(kind: .identifier, text: "a")
         _ = cache.intern(kind: .identifier, text: "b")
         _ = cache.intern(kind: .identifier, text: "c")
 
@@ -180,11 +180,9 @@ struct NodeCacheTests {
         // clear() calls registerFactorySingletons(), so count equals the number of factory singletons
         #expect(cache.count > 0, "Factory singletons should be re-registered after clear")
 
-        // Verify user nodes are gone by checking a new intern creates a different instance
-        let beforeClear = Node(kind: .identifier, text: "a")
-        let afterClear = cache.intern(kind: .identifier, text: "a")
-        // The node should be a fresh instance (not the one from before clear)
-        #expect(afterClear !== beforeClear)
+        // Re-interning after clear should produce a different instance than before clear
+        let internedAfterClear = cache.intern(kind: .identifier, text: "a")
+        #expect(internedAfterClear !== internedBeforeClear, "Clear should remove previously interned user nodes")
     }
 
     @Test func reserveCapacity() {
@@ -207,8 +205,7 @@ struct NodeCacheTests {
 
     // MARK: - Node.interned() Extension
 
-    @Test func nodeInternedExtension() {
-        // Use a local cache to avoid racing with other tests that use NodeCache.shared
+    @Test func internDeduplicatesIdenticalLeafNodes() {
         let cache = NodeCache()
 
         let node1 = Node(kind: .identifier, text: "ext")
@@ -261,7 +258,7 @@ struct NodeCacheDemangleTests {
 @Suite
 struct NodeCacheMemoryTests {
 
-    @Test func interningReducesNodeCount() {
+    @Test func interningDeduplicatesLeafNodesAcrossTrees() {
         let cache = NodeCache()
 
         // Create many trees with shared leaf structure
