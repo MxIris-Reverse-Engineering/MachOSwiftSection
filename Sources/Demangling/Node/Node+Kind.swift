@@ -39,6 +39,7 @@ extension Node {
         case boundGenericProtocol
         case boundGenericStructure
         case boundGenericTypeAlias
+        case builtinBorrow
         case builtinTypeName
         case builtinTupleType
         case builtinFixedArray

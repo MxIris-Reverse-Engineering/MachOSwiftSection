@@ -124,6 +124,7 @@ extension Node {
         case .boundGenericProtocol: fallthrough
         case .boundGenericStructure: fallthrough
         case .boundGenericTypeAlias: fallthrough
+        case .builtinBorrow: fallthrough
         case .builtinTypeName: fallthrough
         case .builtinTupleType: fallthrough
         case .builtinFixedArray: fallthrough

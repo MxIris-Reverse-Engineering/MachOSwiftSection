@@ -92,6 +92,10 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
              .boundGenericOtherNominalType,
              .boundGenericTypeAlias:
             printBoundGeneric(name)
+        case .builtinBorrow:
+            target.write("Builtin.Borrow<")
+            printFirstChild(name)
+            target.write(">")
         case .builtinFixedArray:
             printBuildInFixedArray(name)
         case .builtinTupleType:
@@ -1317,8 +1321,8 @@ package struct NodePrinter<Target: NodePrinterTarget>: Sendable {
         _ = printOptional(name.children.at(1))
         switch name.children.at(2)?.index {
         case 0: break
-        case 1: target.write(" nonzero on error ")
-        case 2: target.write(" zero on error ")
+        case 1: target.write(" nonzero on error")
+        case 2: target.write(" zero on error")
         default: target.write(" <invalid error flag>")
         }
     }
