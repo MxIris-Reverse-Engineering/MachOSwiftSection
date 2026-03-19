@@ -3,7 +3,7 @@ import Demangling
 import Semantic
 
 extension SemanticString: NodePrinterTarget {
-    package mutating func write(_ content: String, context: NodePrintContext?) {
+    public mutating func write(_ content: String, context: NodePrintContext?) {
         guard let context else {
             write(content)
             return
