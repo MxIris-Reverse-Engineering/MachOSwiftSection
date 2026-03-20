@@ -92,6 +92,8 @@ if isSilentTest {
 var dependencies: [Package.Dependency] = [
     .MachOKit,
     .MachOObjCSection,
+    .Demangling,
+    .Semantic,
     
     .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.1.0" ..< "602.0.0"),
     .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.4"),
@@ -182,17 +184,41 @@ extension Package.Dependency {
     )
 }
 
+extension Package.Dependency {
+    static let Demangling = Package.Dependency.package(
+        local: .package(
+            path: "../swift-demangling",
+            isRelative: true,
+            isEnabled: true
+        ),
+        remote: .package(
+            url: "https://github.com/MxIris-Reverse-Engineering/swift-demangling",
+            from: "0.1.0"
+        )
+    )
+    
+    static let Semantic = Package.Dependency.package(
+        local: .package(
+            path: "../swift-semantic-string",
+            isRelative: true,
+            isEnabled: true
+        ),
+        remote: .package(
+            url: "https://github.com/MxIris-Reverse-Engineering/swift-semantic-string",
+            from: "0.1.0"
+        )
+    )
+}
+
 extension Target.Dependency {
     static let MachOKit = Target.Dependency.product(
         name: "MachOKit",
         package: "MachOKit"
     )
-
     static let MachOObjCSection = Target.Dependency.product(
         name: "MachOObjCSection",
         package: "MachOObjCSection"
     )
-
     static let MachOKitMain = Target.Dependency.product(
         name: "MachOKit",
         package: "MachOKit"
@@ -200,6 +226,14 @@ extension Target.Dependency {
     static let MachOKitSPM = Target.Dependency.product(
         name: "MachOKit",
         package: "MachOKit-SPM"
+    )
+    static let Demangling = Target.Dependency.product(
+        name: "Demangling",
+        package: "swift-demangling"
+    )
+    static let Semantic = Target.Dependency.product(
+        name: "Semantic",
+        package: "swift-semantic-string"
     )
     static let SwiftSyntax = Target.Dependency.product(
         name: "SwiftSyntax",
@@ -237,20 +271,6 @@ extension Target.Dependency {
 
 @MainActor
 extension Target {
-    static let Semantic = Target.target(
-        name: "Semantic"
-    )
-
-    static let Demangling = Target.target(
-        name: "Demangling",
-        dependencies: [
-            .target(.Utilities),
-        ],
-        swiftSettings: [
-            .immutableWeakCaptures,
-        ]
-    )
-
     static let Utilities = Target.target(
         name: "Utilities",
         dependencies: [
@@ -304,10 +324,10 @@ extension Target {
         name: "MachOSymbols",
         dependencies: [
             .product(.MachOKit),
+            .product(.Demangling),
             .target(.MachOReading),
             .target(.MachOResolving),
             .target(.Utilities),
-            .target(.Demangling),
             .target(.MachOCaches),
         ],
     )
@@ -356,9 +376,9 @@ extension Target {
         name: "MachOSwiftSection",
         dependencies: [
             .product(.MachOKit),
+            .product(.Demangling),
             .target(.MachOFoundation),
             .target(.MachOSwiftSectionC),
-            .target(.Demangling),
             .target(.Utilities),
             .product(name: "DyldPrivate", package: "DyldPrivate"),
         ]
@@ -369,8 +389,9 @@ extension Target {
         dependencies: [
             .product(.MachOKit),
             .product(.MachOObjCSection),
+            .product(.Semantic),
+            .product(.Demangling),
             .target(.MachOSwiftSection),
-            .target(.Semantic),
             .target(.Utilities),
         ]
     )
@@ -380,8 +401,9 @@ extension Target {
         dependencies: [
             .product(.MachOKit),
             .product(.MachOObjCSection),
+            .product(.Semantic),
+            .product(.Demangling),
             .target(.MachOSwiftSection),
-            .target(.Semantic),
             .target(.Utilities),
             .target(.SwiftInspection),
         ]
@@ -392,10 +414,11 @@ extension Target {
         dependencies: [
             .product(.MachOKit),
             .product(.MachOObjCSection),
+            .product(.Semantic),
+            .product(.Demangling),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDump),
-            .target(.Semantic),
             .target(.Utilities),
         ]
     )
@@ -460,14 +483,6 @@ extension Target {
         swiftSettings: testSettings
     )
 
-    static let DemanglingTests = Target.testTarget(
-        name: "DemanglingTests",
-        dependencies: [
-            .target(.Demangling),
-        ],
-        swiftSettings: testSettings
-    )
-
     static let MachOSymbolsTests = Target.testTarget(
         name: "MachOSymbolsTests",
         dependencies: [
@@ -526,14 +541,6 @@ extension Target {
         ],
         swiftSettings: testSettings
     )
-
-    static let SemanticTests = Target.testTarget(
-        name: "SemanticTests",
-        dependencies: [
-            .target(.Semantic),
-        ],
-        swiftSettings: testSettings
-    )
 }
 
 let package = Package(
@@ -544,14 +551,11 @@ let package = Package(
         .library(.SwiftDump),
         .library(.SwiftInterface),
         .library(.TypeIndexing),
-        .library(.Demangling),
         .executable(.swift_section),
     ],
     dependencies: dependencies,
     targets: [
         // Library
-        .Semantic,
-        .Demangling,
         .Utilities,
         .MachOExtensions,
         .MachOCaches,
@@ -571,19 +575,16 @@ let package = Package(
         .MachOTestingSupport,
         .MachOTestingSupportC,
         
-
         // Executable
         .swift_section,
 
         // Testing
-        .DemanglingTests,
         .MachOSymbolsTests,
         .MachOSwiftSectionTests,
         .SwiftInspectionTests,
         .SwiftDumpTests,
         .TypeIndexingTests,
         .SwiftInterfaceTests,
-        .SemanticTests,
     ]
 )
 
