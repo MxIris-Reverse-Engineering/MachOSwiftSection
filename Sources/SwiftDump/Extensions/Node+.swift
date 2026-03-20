@@ -2,7 +2,7 @@ import Foundation
 import Demangling
 import Semantic
 
-extension SemanticString: NodePrinterTarget {
+extension SemanticString: @retroactive NodePrinterTarget {
     public mutating func write(_ content: String, context: NodePrintContext?) {
         guard let context else {
             write(content)

@@ -390,6 +390,7 @@ extension Target {
             .product(.MachOKit),
             .product(.MachOObjCSection),
             .product(.Semantic),
+            .product(.Demangling),
             .target(.MachOSwiftSection),
             .target(.Utilities),
         ]
@@ -401,6 +402,7 @@ extension Target {
             .product(.MachOKit),
             .product(.MachOObjCSection),
             .product(.Semantic),
+            .product(.Demangling),
             .target(.MachOSwiftSection),
             .target(.Utilities),
             .target(.SwiftInspection),
@@ -413,6 +415,7 @@ extension Target {
             .product(.MachOKit),
             .product(.MachOObjCSection),
             .product(.Semantic),
+            .product(.Demangling),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDump),
