@@ -10,4 +10,5 @@ public struct VariableDefinition: Sendable, AccessorRepresentable {
     public let accessors: [Accessor]
     public let isGlobalOrStatic: Bool
     public var offset: Int? { accessors.first?.offset }
+    public var hasVTableOffset: Bool { accessors.contains { $0.vtableOffset != nil } }
 }

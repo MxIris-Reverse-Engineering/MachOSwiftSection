@@ -40,6 +40,8 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
 
     public internal(set) var missingSymbolWitnesses: [ResilientWitness] = []
 
+    public internal(set) var orderedMembers: [OrderedMember] = []
+
     public private(set) var isIndexed: Bool = false
 
     public var hasMembers: Bool {
@@ -102,6 +104,8 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
         }
 
         setDefinitions(for: memberSymbolsByKind, inExtension: true)
+
+        orderedMembers = OrderedMember.offsetOrdered(OrderedMember.allMembers(from: self))
 
         isIndexed = true
     }

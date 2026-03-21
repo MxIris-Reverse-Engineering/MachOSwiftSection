@@ -62,6 +62,8 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
 
     public internal(set) var strippedSymbolicRequirements: [ProtocolRequirement] = []
 
+    public internal(set) var orderedMembers: [OrderedMember] = []
+
     public private(set) var isIndexed: Bool = false
 
     public var hasMembers: Bool {
@@ -111,6 +113,8 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
         }
 
         setDefinitions(for: requirementMemberSymbolsByKind, inExtension: false)
+
+        orderedMembers = OrderedMember.pwtOrdered(OrderedMember.allMembers(from: self))
 
         let extensionDefinition = try ExtensionDefinition(extensionName: protocolName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
 

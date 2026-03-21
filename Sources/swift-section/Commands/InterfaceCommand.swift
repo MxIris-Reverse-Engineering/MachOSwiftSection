@@ -29,6 +29,12 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(help: "Generate member address comments for each member symbol")
     var emitMemberAddresses: Bool = false
 
+    @Flag(help: "Generate vtable offset comments for class methods and computed properties")
+    var emitVtableOffsets: Bool = false
+
+    @Flag(help: "Sort members by binary layout offset instead of grouping by category")
+    var sortMembersByOffset: Bool = false
+
     @Option(name: .shortAndLong, help: "The color scheme for the output.")
     var colorScheme: SemanticColorScheme = .none
 
@@ -42,7 +48,9 @@ struct InterfaceCommand: AsyncParsableCommand {
             printConfiguration: .init(
                 printStrippedSymbolicItem: true,
                 printFieldOffset: emitOffsetComments,
-                printMemberAddress: emitMemberAddresses
+                printMemberAddress: emitMemberAddresses,
+                printVTableOffset: emitVtableOffsets,
+                memberSortOrder: sortMembersByOffset ? .byOffset : .byCategory
             )
         )
 

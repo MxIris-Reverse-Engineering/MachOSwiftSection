@@ -217,12 +217,67 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
             try await mutableDefinition.index(in: machO)
         }
 
+        switch configuration.memberSortOrder {
+        case .byOffset:
+            await printMembersByOffset(definition, level: level, offsetPrefix: offsetPrefix)
+        case .byCategory:
+            await printMembersByCategory(definition, level: level, offsetPrefix: offsetPrefix)
+        }
+    }
+
+    @SemanticStringBuilder
+    private func printMembersByOffset(_ definition: some Definition, level: Int, offsetPrefix: String) async -> SemanticString {
         let printFieldOffset = configuration.printFieldOffset
         let printMemberAddress = configuration.printMemberAddress
+        let printVTableOffset = configuration.printVTableOffset
+        let vtableTransformerClosure = vtableOffsetTransformerClosure
+
+        await MemberList(level: level) {
+            for member in definition.orderedMembers {
+                switch member {
+                case .allocator(let allocator):
+                    OffsetComment(prefix: "\(offsetPrefix) offset", offset: allocator.offset, emit: printFieldOffset)
+                    VTableOffsetComment(vtableOffset: allocator.vtableOffset, emit: printVTableOffset, transformer: vtableTransformerClosure)
+                    AddressComment(addressString: memberAddressString(forOffset: allocator.symbol.offset), emit: printMemberAddress)
+                    await printFunction(allocator, level: level)
+
+                case .variable(let variable):
+                    OffsetComment(prefix: "\(offsetPrefix) offset", offset: variable.offset, emit: printFieldOffset)
+                    for accessor in variable.accessors {
+                        VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: printVTableOffset, transformer: vtableTransformerClosure)
+                        AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
+                    }
+                    await printVariable(variable, level: level)
+
+                case .function(let function):
+                    OffsetComment(prefix: "\(offsetPrefix) offset", offset: function.offset, emit: printFieldOffset)
+                    VTableOffsetComment(vtableOffset: function.vtableOffset, emit: printVTableOffset, transformer: vtableTransformerClosure)
+                    AddressComment(addressString: memberAddressString(forOffset: function.symbol.offset), emit: printMemberAddress)
+                    await printFunction(function, level: level)
+
+                case .subscript(let `subscript`):
+                    OffsetComment(prefix: "\(offsetPrefix) offset", offset: `subscript`.offset, emit: printFieldOffset)
+                    for accessor in `subscript`.accessors {
+                        VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: printVTableOffset, transformer: vtableTransformerClosure)
+                        AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
+                    }
+                    await printSubscript(`subscript`, level: level)
+                }
+            }
+        }
+    }
+
+    @SemanticStringBuilder
+    private func printMembersByCategory(_ definition: some Definition, level: Int, offsetPrefix: String) async -> SemanticString {
+        let printFieldOffset = configuration.printFieldOffset
+        let printMemberAddress = configuration.printMemberAddress
+        let printVTableOffset = configuration.printVTableOffset
+        let vtableTransformerClosure = vtableOffsetTransformerClosure
 
         await MemberList(level: level) {
             for allocator in definition.allocators {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: allocator.offset, emit: printFieldOffset)
+                VTableOffsetComment(vtableOffset: allocator.vtableOffset, emit: printVTableOffset, transformer: vtableTransformerClosure)
                 AddressComment(addressString: memberAddressString(forOffset: allocator.symbol.offset), emit: printMemberAddress)
                 await printFunction(allocator, level: level)
             }
@@ -232,6 +287,7 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
             for variable in definition.variables {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: variable.offset, emit: printFieldOffset)
                 for accessor in variable.accessors {
+                    VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: printVTableOffset, transformer: vtableTransformerClosure)
                     AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
                 }
                 await printVariable(variable, level: level)
@@ -241,6 +297,7 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
         await MemberList(level: level) {
             for function in definition.functions {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: function.offset, emit: printFieldOffset)
+                VTableOffsetComment(vtableOffset: function.vtableOffset, emit: printVTableOffset, transformer: vtableTransformerClosure)
                 AddressComment(addressString: memberAddressString(forOffset: function.symbol.offset), emit: printMemberAddress)
                 await printFunction(function, level: level)
             }
@@ -250,6 +307,7 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
             for `subscript` in definition.subscripts {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: `subscript`.offset, emit: printFieldOffset)
                 for accessor in `subscript`.accessors {
+                    VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: printVTableOffset, transformer: vtableTransformerClosure)
                     AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
                 }
                 await printSubscript(`subscript`, level: level)
@@ -260,6 +318,7 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
             for variable in definition.staticVariables {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: variable.offset, emit: printFieldOffset)
                 for accessor in variable.accessors {
+                    VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: printVTableOffset, transformer: vtableTransformerClosure)
                     AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
                 }
                 await printVariable(variable, level: level)
@@ -269,6 +328,7 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
         await MemberList(level: level) {
             for function in definition.staticFunctions {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: function.offset, emit: printFieldOffset)
+                VTableOffsetComment(vtableOffset: function.vtableOffset, emit: printVTableOffset, transformer: vtableTransformerClosure)
                 AddressComment(addressString: memberAddressString(forOffset: function.symbol.offset), emit: printMemberAddress)
                 await printFunction(function, level: level)
             }
@@ -278,6 +338,7 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
             for `subscript` in definition.staticSubscripts {
                 OffsetComment(prefix: "\(offsetPrefix) offset", offset: `subscript`.offset, emit: printFieldOffset)
                 for accessor in `subscript`.accessors {
+                    VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: printVTableOffset, transformer: vtableTransformerClosure)
                     AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
                 }
                 await printSubscript(`subscript`, level: level)
@@ -349,6 +410,11 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
     private func memberAddressString(forOffset offset: Int?) -> String? {
         guard let offset else { return nil }
         return machO.addressString(forOffset: offset)
+    }
+
+    private var vtableOffsetTransformerClosure: (@Sendable (Int, String?) -> SemanticString)? {
+        guard let transformer = configuration.vtableOffsetTransformer else { return nil }
+        return { slotOffset, label in transformer((slotOffset, label)) }
     }
 }
 

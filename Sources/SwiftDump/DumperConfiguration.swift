@@ -37,6 +37,7 @@ public typealias TypeLayoutTransformer = IdentifiableClosure<TypeLayout, Semanti
 public typealias EnumLayoutTransformer = IdentifiableClosure<EnumLayoutCalculator.LayoutResult, SemanticString>
 public typealias EnumLayoutCaseTransformer = IdentifiableClosure<(caseProjection: EnumLayoutCalculator.EnumCaseProjection, indentation: Int), SemanticString>
 public typealias MemberAddressTransformer = IdentifiableClosure<Int, SemanticString>
+public typealias VTableOffsetTransformer = IdentifiableClosure<(slotOffset: Int, label: String?), SemanticString>
 public typealias SpareBitAnalysisTransformer = IdentifiableClosure<(analysis: SpareBitAnalyzer.Analysis, indentation: Int), SemanticString>
 
 // MARK: - Dumper Configuration
@@ -51,7 +52,9 @@ public struct DumperConfiguration: Sendable {
     public var printEnumLayout: Bool = false
     public var printSpareBitAnalysis: Bool = false
     public var printMemberAddress: Bool = false
+    public var printVTableOffset: Bool = false
     public var memberAddressTransformer: MemberAddressTransformer? = nil
+    public var vtableOffsetTransformer: VTableOffsetTransformer? = nil
     public var fieldOffsetTransformer: FieldOffsetTransformer? = nil
     public var typeLayoutTransformer: TypeLayoutTransformer? = nil
     public var enumLayoutTransformer: EnumLayoutTransformer? = nil
@@ -94,6 +97,22 @@ extension DumperConfiguration {
             fieldOffsetTransformer((startOffset, endOffset))
         } else {
             Comment("Field Offset: 0x\(String(startOffset, radix: 16))")
+        }
+        BreakLine()
+    }
+
+    /// Builds a vtable offset comment line for the given vtable slot offset.
+    ///
+    /// The returned ``SemanticString`` includes indentation and a trailing line break.
+    @SemanticStringBuilder
+    package func vtableOffsetComment(slotOffset: Int, label: String? = nil) -> SemanticString {
+        indentString
+        if let vtableOffsetTransformer {
+            vtableOffsetTransformer((slotOffset, label))
+        } else if let label {
+            Comment("vtable offset (\(label)): \(slotOffset)")
+        } else {
+            Comment("vtable offset: \(slotOffset)")
         }
         BreakLine()
     }

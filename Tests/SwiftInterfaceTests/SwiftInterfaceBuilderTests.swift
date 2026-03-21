@@ -24,7 +24,10 @@ extension SwiftInterfaceBuilderTests {
             printConfiguration: .init(
                 printStrippedSymbolicItem: true,
                 printFieldOffset: true,
+                printMemberAddress: true,
+                printVTableOffset: true,
                 printTypeLayout: true,
+                printEnumLayout: true,
             )
         )
     }
@@ -80,7 +83,7 @@ extension SwiftInterfaceBuilderTests {
 enum SwiftInterfaceBuilderTestSuite {
     class DyldCacheTests: MachOTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var cacheImageName: MachOImageName {
-            .SwiftUI
+            .SwiftUICore
         }
 
         override class var cachePath: DyldSharedCachePath {
@@ -100,7 +103,7 @@ enum SwiftInterfaceBuilderTestSuite {
 
     class MachOFileTests: MachOTestingSupport.MachOFileTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var fileName: MachOFileName {
-            .iOS_26_2_Simulator_SwiftUICore
+            .SymbolTestsCore
         }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
