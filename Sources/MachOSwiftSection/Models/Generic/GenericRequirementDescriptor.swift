@@ -23,8 +23,8 @@ extension GenericRequirementDescriptor {
     public var content: GenericRequirementContent {
         switch layout.flags.kind {
         case .protocol:
-            let ptr = RelativeIndirectableRawPointerIntPair<Bool>(relativeOffsetPlusIndirectAndInt: layout.content)
-            if ptr.value {
+            let ptr = RelativeIndirectableRawPointerIntPair<Bit>(relativeOffsetPlusIndirectAndInt: layout.content)
+            if ptr.value.boolValue {
                 return .protocol(.objcPointer(.init(relativeOffsetPlusIndirectAndInt: layout.content)))
             } else {
                 return .protocol(.swiftPointer(.init(relativeOffsetPlusIndirectAndInt: layout.content)))

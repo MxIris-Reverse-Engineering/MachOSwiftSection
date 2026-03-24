@@ -2,19 +2,19 @@ import MachOKit
 import MachOFoundation
 
 public enum RelativeProtocolDescriptorPointer: Sendable, Equatable {
-    case objcPointer(RelativeSymbolOrElementPointerIntPair<ObjCProtocolPrefix, Bool>)
-    case swiftPointer(RelativeSymbolOrElementPointerIntPair<ProtocolDescriptor, Bool>)
+    case objcPointer(RelativeSymbolOrElementPointerIntPair<ObjCProtocolPrefix, Bit>)
+    case swiftPointer(RelativeSymbolOrElementPointerIntPair<ProtocolDescriptor, Bit>)
 
     public var isObjC: Bool {
         switch self {
-        case .objcPointer(let relativeIndirectablePointerIntPair):
-            return relativeIndirectablePointerIntPair.value
+        case .objcPointer:
+            return true
         case .swiftPointer:
             return false
         }
     }
 
-    public var rawPointer: RelativeIndirectableRawPointerIntPair<Bool> {
+    public var rawPointer: RelativeIndirectableRawPointerIntPair<Bit> {
         switch self {
         case .objcPointer(let relativeIndirectablePointerIntPair):
             return .init(relativeOffsetPlusIndirectAndInt: relativeIndirectablePointerIntPair.relativeOffsetPlusIndirectAndInt)
