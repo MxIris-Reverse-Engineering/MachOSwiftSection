@@ -205,7 +205,7 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-semantic-string",
-            from: "0.1.0"
+            exact: "0.1.0"
         )
     )
 }
