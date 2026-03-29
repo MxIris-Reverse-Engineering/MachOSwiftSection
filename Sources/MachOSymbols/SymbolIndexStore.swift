@@ -551,7 +551,7 @@ extension Node {
     }
 
     package var isAccessor: Bool {
-        return isKind(of: .getter, .setter, .modifyAccessor, .modify2Accessor, .readAccessor, .read2Accessor)
+        return isKind(of: .getter, .setter, .modifyAccessor, .readAccessor)
     }
 
     package var hasAccessor: Bool {

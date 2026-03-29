@@ -12,14 +12,12 @@ import SwiftInspection
 
 extension Node {
     var accessorKind: AccessorKind {
-        guard let node = first(of: .getter, .setter, .modifyAccessor, .modify2Accessor, .readAccessor, .read2Accessor) else { return .none }
+        guard let node = first(of: .getter, .setter, .modifyAccessor, .readAccessor) else { return .none }
         switch node.kind {
         case .getter: return .getter
         case .setter: return .setter
-        case .modifyAccessor,
-             .modify2Accessor: return .modifyAccessor
-        case .readAccessor,
-             .read2Accessor: return .readAccessor
+        case .modifyAccessor: return .modifyAccessor
+        case .readAccessor: return .readAccessor
         default: return .none
         }
     }
