@@ -110,9 +110,9 @@ extension DumperConfiguration {
         if let vtableOffsetTransformer {
             vtableOffsetTransformer((slotOffset, label))
         } else if let label {
-            Comment("vtable offset (\(label)): \(slotOffset)")
+            Comment("VTable Offset (\(label)): \(slotOffset)")
         } else {
-            Comment("vtable offset: \(slotOffset)")
+            Comment("VTable Offset: \(slotOffset)")
         }
         BreakLine()
     }
