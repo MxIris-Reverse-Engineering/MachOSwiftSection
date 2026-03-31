@@ -346,3 +346,10 @@ public enum MultiPayloadEnumTests2 {
     case nsNumber4(NSNumber)
     case nsNumber5(NSNumber)
 }
+
+public struct GenericNestedFunction<A, B> {
+    let a: A
+    let b: B
+    
+    public func function<A1, B1>(a: A1, b: B1) {}
+}
