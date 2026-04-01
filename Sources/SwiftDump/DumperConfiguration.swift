@@ -38,6 +38,7 @@ public typealias EnumLayoutTransformer = IdentifiableClosure<EnumLayoutCalculato
 public typealias EnumLayoutCaseTransformer = IdentifiableClosure<(caseProjection: EnumLayoutCalculator.EnumCaseProjection, indentation: Int), SemanticString>
 public typealias MemberAddressTransformer = IdentifiableClosure<Int, SemanticString>
 public typealias VTableOffsetTransformer = IdentifiableClosure<(slotOffset: Int, label: String?), SemanticString>
+public typealias ExpandedFieldOffsetTransformer = IdentifiableClosure<(fieldName: String, offset: Int), SemanticString>
 public typealias SpareBitAnalysisTransformer = IdentifiableClosure<(analysis: SpareBitAnalyzer.Analysis, indentation: Int), SemanticString>
 
 // MARK: - Dumper Configuration
@@ -53,9 +54,11 @@ public struct DumperConfiguration: Sendable {
     public var printSpareBitAnalysis: Bool = false
     public var printMemberAddress: Bool = false
     public var printVTableOffset: Bool = false
+    public var printExpandedFieldOffsets: Bool = false
     public var memberAddressTransformer: MemberAddressTransformer? = nil
     public var vtableOffsetTransformer: VTableOffsetTransformer? = nil
     public var fieldOffsetTransformer: FieldOffsetTransformer? = nil
+    public var expandedFieldOffsetTransformer: ExpandedFieldOffsetTransformer? = nil
     public var typeLayoutTransformer: TypeLayoutTransformer? = nil
     public var enumLayoutTransformer: EnumLayoutTransformer? = nil
     public var enumLayoutCaseTransformer: EnumLayoutCaseTransformer? = nil
@@ -97,6 +100,20 @@ extension DumperConfiguration {
             fieldOffsetTransformer((startOffset, endOffset))
         } else {
             Comment("Field Offset: 0x\(String(startOffset, radix: 16))")
+        }
+        BreakLine()
+    }
+
+    /// Builds an expanded field offset comment line for a nested struct sub-field.
+    ///
+    /// The returned ``SemanticString`` includes indentation and a trailing line break.
+    @SemanticStringBuilder
+    package func expandedFieldOffsetComment(fieldName: String, offset: Int, indentation: Int) -> SemanticString {
+        Indent(level: indentation)
+        if let expandedFieldOffsetTransformer {
+            expandedFieldOffsetTransformer((fieldName, offset))
+        } else {
+            Comment("Field Offset - \(fieldName): 0x\(String(offset, radix: 16))")
         }
         BreakLine()
     }

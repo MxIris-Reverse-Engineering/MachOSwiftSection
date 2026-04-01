@@ -68,8 +68,10 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
                 printTypeLayout: configuration.printTypeLayout,
                 printEnumLayout: configuration.printEnumLayout,
                 printMemberAddress: configuration.printMemberAddress,
+                printExpandedFieldOffsets: configuration.printExpandedFieldOffsets,
                 memberAddressTransformer: configuration.memberAddressTransformer,
                 fieldOffsetTransformer: configuration.fieldOffsetTransformer,
+                expandedFieldOffsetTransformer: configuration.expandedFieldOffsetTransformer,
                 typeLayoutTransformer: configuration.typeLayoutTransformer,
                 enumLayoutTransformer: configuration.enumLayoutTransformer,
                 enumLayoutCaseTransformer: configuration.enumLayoutCaseTransformer

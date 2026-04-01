@@ -25,6 +25,7 @@ public enum MemberSortOrder: Equatable, Sendable {
 public struct SwiftInterfacePrintConfiguration: Equatable, Sendable {
     public var printStrippedSymbolicItem: Bool = true
     public var printFieldOffset: Bool = false
+    public var printExpandedFieldOffsets: Bool = false
     public var printMemberAddress: Bool = false
     public var printVTableOffset: Bool = false
     public var memberSortOrder: MemberSortOrder = .byCategory
@@ -33,6 +34,7 @@ public struct SwiftInterfacePrintConfiguration: Equatable, Sendable {
     public var memberAddressTransformer: MemberAddressTransformer? = nil
     public var vtableOffsetTransformer: VTableOffsetTransformer? = nil
     public var fieldOffsetTransformer: FieldOffsetTransformer? = nil
+    public var expandedFieldOffsetTransformer: ExpandedFieldOffsetTransformer? = nil
     public var typeLayoutTransformer: TypeLayoutTransformer? = nil
     public var enumLayoutTransformer: EnumLayoutTransformer? = nil
     public var enumLayoutCaseTransformer: EnumLayoutCaseTransformer? = nil

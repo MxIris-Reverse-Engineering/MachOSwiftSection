@@ -65,6 +65,9 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
     @Flag(help: "Generate vtable offset comments for class methods")
     var emitVtableOffsets: Bool = false
 
+    @Flag(help: "Expand nested struct fields with their absolute offsets (requires --emit-offset-comments)")
+    var emitExpandedFieldOffsets: Bool = false
+
     @Flag(help: "The definitions of types and protocols will be output in the order they are stored in the binary.")
     var preferredBinaryOrder: Bool = false
 
@@ -74,6 +77,7 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
         var dumpConfiguration: DumperConfiguration = .demangleOptions(demangleOptions.buildSwiftDumpDemangleOptions())
 
         dumpConfiguration.printFieldOffset = emitOffsetComments
+        dumpConfiguration.printExpandedFieldOffsets = emitExpandedFieldOffsets
         dumpConfiguration.printMemberAddress = emitMemberAddresses
         dumpConfiguration.printVTableOffset = emitVtableOffsets
 
