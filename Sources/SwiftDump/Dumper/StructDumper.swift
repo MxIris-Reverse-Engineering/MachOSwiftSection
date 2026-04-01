@@ -81,8 +81,8 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
                     }
                     configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
 
-                    if configuration.printExpandedFieldOffsets {
-                        expandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset, indentation: configuration.indentation + 1)
+                    if configuration.printExpandedFieldOffsets, let machOImage = machO.asMachOImage {
+                        expandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset, baseIndentation: configuration.indentation + 1, ancestors: [], in: machOImage)
                     }
                 }
 
@@ -197,37 +197,5 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
             try TypeDeclaration(kind: .struct, dumped.descriptor.name(in: machO))
         }
     }
-
-    // MARK: - Expanded Field Offsets
-
-    @SemanticStringBuilder
-    private func expandedFieldOffsets(for mangledTypeName: MangledName, baseOffset: Int, indentation: Int) -> SemanticString {
-        if let machOImage = machO.asMachOImage,
-           let structDescriptor = resolveStructDescriptor(for: mangledTypeName),
-           let metatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machOImage),
-           let nestedMetadata = try? StructMetadata.createInProcess(metatype),
-           let nestedFieldOffsets = try? nestedMetadata.fieldOffsets(for: structDescriptor),
-           let nestedFieldRecords = try? structDescriptor.fieldDescriptor(in: machO).records(in: machO) {
-            for (nestedFieldRecord, nestedRelativeOffset) in zip(nestedFieldRecords, nestedFieldOffsets) {
-                if let fieldName = try? nestedFieldRecord.fieldName(in: machO) {
-                    let absoluteOffset = baseOffset + Int(nestedRelativeOffset)
-                    configuration.expandedFieldOffsetComment(fieldName: fieldName, offset: absoluteOffset, indentation: indentation)
-
-                    if let nestedMangledTypeName = try? nestedFieldRecord.mangledTypeName(in: machO) {
-                        expandedFieldOffsets(for: nestedMangledTypeName, baseOffset: absoluteOffset, indentation: indentation + 1)
-                    }
-                }
-            }
-        }
-    }
-
-    private func resolveStructDescriptor(for mangledTypeName: MangledName) -> StructDescriptor? {
-        guard let lookup = mangledTypeName.lookupElements.first,
-              case .relative(let relativeReference) = lookup.reference,
-              let (kind, directness) = SymbolicReference.symbolicReference(for: relativeReference.kind),
-              kind == .context, directness == .direct else { return nil }
-        guard let contextWrapper = try? RelativeDirectPointer<ContextDescriptorWrapper>(relativeOffset: relativeReference.relativeOffset).resolve(from: lookup.offset, in: machO),
-              case .type(.struct(let structDescriptor)) = contextWrapper else { return nil }
-        return structDescriptor
-    }
+    
 }

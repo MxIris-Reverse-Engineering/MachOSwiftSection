@@ -38,7 +38,7 @@ public typealias EnumLayoutTransformer = IdentifiableClosure<EnumLayoutCalculato
 public typealias EnumLayoutCaseTransformer = IdentifiableClosure<(caseProjection: EnumLayoutCalculator.EnumCaseProjection, indentation: Int), SemanticString>
 public typealias MemberAddressTransformer = IdentifiableClosure<Int, SemanticString>
 public typealias VTableOffsetTransformer = IdentifiableClosure<(slotOffset: Int, label: String?), SemanticString>
-public typealias ExpandedFieldOffsetTransformer = IdentifiableClosure<(fieldName: String, offset: Int), SemanticString>
+public typealias ExpandedFieldOffsetTransformer = IdentifiableClosure<(fieldName: String, typeName: String, offset: Int, treePrefix: String), SemanticString>
 public typealias SpareBitAnalysisTransformer = IdentifiableClosure<(analysis: SpareBitAnalyzer.Analysis, indentation: Int), SemanticString>
 
 // MARK: - Dumper Configuration
@@ -108,14 +108,27 @@ extension DumperConfiguration {
     ///
     /// The returned ``SemanticString`` includes indentation and a trailing line break.
     @SemanticStringBuilder
-    package func expandedFieldOffsetComment(fieldName: String, offset: Int, indentation: Int) -> SemanticString {
-        Indent(level: indentation)
+    package func expandedFieldOffsetComment(fieldName: String, typeName: String, offset: Int, baseIndentation: Int, ancestors: [Bool], isLast: Bool) -> SemanticString {
+        let treePrefix = Self.buildTreePrefix(ancestors: ancestors, isLast: isLast)
+        Indent(level: baseIndentation)
         if let expandedFieldOffsetTransformer {
-            expandedFieldOffsetTransformer((fieldName, offset))
+            expandedFieldOffsetTransformer((fieldName, typeName, offset, treePrefix))
+        } else if typeName.isEmpty {
+            Comment("\(treePrefix)\(fieldName): 0x\(String(offset, radix: 16))")
         } else {
-            Comment("Field Offset - \(fieldName): 0x\(String(offset, radix: 16))")
+            Comment("\(treePrefix)\(fieldName) (\(typeName)): 0x\(String(offset, radix: 16))")
         }
         BreakLine()
+    }
+
+    /// Builds a tree-style prefix string from ancestor continuation info.
+    private static func buildTreePrefix(ancestors: [Bool], isLast: Bool) -> String {
+        var prefix = ""
+        for ancestorIsLast in ancestors {
+            prefix += ancestorIsLast ? "    " : "│   "
+        }
+        prefix += isLast ? "└── " : "├── "
+        return prefix
     }
 
     /// Builds a vtable offset comment line for the given vtable slot offset.
