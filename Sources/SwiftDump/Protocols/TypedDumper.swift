@@ -28,9 +28,9 @@ extension TypedDumper {
             metatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName)
         }
         if let metatype,
-           let nestedMetadata = try? StructMetadata.createInProcess(metatype),
-           let descriptor = try? nestedMetadata.descriptor().struct,
-           let nestedFieldOffsets = try? nestedMetadata.fieldOffsets(for: descriptor),
+           let metadata = try? Metadata.createInProcess(metatype).asMetadataWrapper().struct,
+           let descriptor = try? metadata.descriptor().struct, !descriptor.isGeneric,
+           let nestedFieldOffsets = try? metadata.fieldOffsets(for: descriptor),
            let nestedFieldRecords = try? descriptor.fieldDescriptor().records() {
             let fieldEntries = Array(zip(nestedFieldRecords, nestedFieldOffsets))
             for (fieldIndex, (nestedFieldRecord, nestedRelativeOffset)) in fieldEntries.enumerated() {
