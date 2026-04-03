@@ -63,6 +63,11 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
         let typeAttributeInferrer = TypeAttributeInferrer(resilienceAwareAttributes: configuration.resilienceAwareAttributes)
         typeDefinition.attributes = typeAttributeInferrer.infer(for: typeDefinition)
 
+        // Detect @inlinable on members via specialization symbol cross-referencing
+        if configuration.resilienceAwareAttributes {
+            typeDefinition.applyInlinableAttributes(in: machO)
+        }
+
         let dumper = typeDefinition.type.dumper(
             using: .init(
                 demangleResolver: typeDemangleResolver,
