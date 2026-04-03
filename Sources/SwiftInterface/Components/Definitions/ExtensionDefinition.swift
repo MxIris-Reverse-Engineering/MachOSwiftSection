@@ -38,6 +38,8 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
 
     public internal(set) var staticSubscripts: [SubscriptDefinition] = []
 
+    public internal(set) var isRetroactive: Bool = false
+
     public internal(set) var missingSymbolWitnesses: [ResilientWitness] = []
 
     public internal(set) var orderedMembers: [OrderedMember] = []

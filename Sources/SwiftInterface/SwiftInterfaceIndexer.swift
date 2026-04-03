@@ -474,6 +474,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                     }
 
                     let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO), protocolConformance: protocolConformance, associatedType: associatedType, in: machO)
+                    extensionDefinition.isRetroactive = protocolConformance.flags.isRetroactive
                     conformanceExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                     extensionCount += 1
                     eventDispatcher.dispatch(.conformanceExtensionCreated(context: SwiftInterfaceEvents.ConformanceContext(typeName: typeName.name, protocolName: protocolName.name)))

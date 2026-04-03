@@ -180,6 +180,10 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
                let protocolName = try? await protocolConformance.dumpProtocolName(using: .demangleOptions(.interfaceTypeBuilderOnly), in: machO) {
                 Standard(":")
                 Space()
+                if extensionDefinition.isRetroactive {
+                    Keyword(.atRetroactive)
+                    Space()
+                }
                 protocolName
             }
 
