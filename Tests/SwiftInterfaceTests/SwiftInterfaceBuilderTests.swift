@@ -28,6 +28,7 @@ extension SwiftInterfaceBuilderTests {
                 printVTableOffset: true,
                 printTypeLayout: true,
                 printEnumLayout: true,
+                resilienceAwareAttributes: true,
             )
         )
     }

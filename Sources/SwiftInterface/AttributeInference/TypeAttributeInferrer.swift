@@ -36,7 +36,6 @@ public struct TypeAttributeInferrer: Sendable {
         // Resilience-gated attributes from metadata flags
         if resilienceAwareAttributes {
             inferFrozen(typeDefinition: typeDefinition, into: &attributes)
-            inferUsableFromInline(typeDefinition: typeDefinition, into: &attributes)
         }
 
         // Class-specific attributes
@@ -145,17 +144,6 @@ public struct TypeAttributeInferrer: Sendable {
         // which indicates it is @frozen (its layout is fixed and known at compile time)
         if typeContextDescriptor.kindSpecificFlags?.typeFlags?.noMetadataInitialization == true {
             attributes.append(.frozen)
-        }
-    }
-
-    private func inferUsableFromInline(typeDefinition: TypeDefinition, into attributes: inout [SwiftAttribute]) {
-        let typeContextDescriptor = typeDefinition.type.typeContextDescriptorWrapper.typeContextDescriptor
-
-        // hasImportInfo indicates the type has an import info trailing field.
-        // The trailing field prefix byte can encode @usableFromInline among other things.
-        // TODO: Parse the actual trailing import info field value for more precise detection
-        if typeContextDescriptor.hasImportInfo {
-            attributes.append(.usableFromInline)
         }
     }
 
