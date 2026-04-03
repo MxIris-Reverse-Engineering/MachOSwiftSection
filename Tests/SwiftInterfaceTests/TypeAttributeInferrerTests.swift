@@ -119,15 +119,17 @@ struct TypeAttributeInferrerTests {
 
     @Test("hasDynamicMemberSubscript returns false when no dynamicMember subscript exists")
     func detectDynamicMemberLookupAbsent() {
-        let regularSubscriptNode = Node.create(kind: .subscript, children: [
+        let subscriptNode = Node.create(kind: .subscript, children: [
             Node.create(kind: .structure),
             Node.create(kind: .labelList, children: [
                 Node.create(kind: .identifier, text: "key"),
             ]),
             Node.create(kind: .type),
         ])
+        let getterNode = Node.create(kind: .getter, child: subscriptNode)
+        let globalNode = Node.create(kind: .global, child: getterNode)
         let subscriptDefinitions = [
-            SubscriptDefinition(node: regularSubscriptNode, accessors: [], isStatic: false),
+            SubscriptDefinition(node: globalNode, accessors: [], isStatic: false),
         ]
         #expect(!TypeAttributeInferrer.hasDynamicMemberSubscript(subscripts: subscriptDefinitions, staticSubscripts: []))
     }
@@ -144,8 +146,10 @@ struct TypeAttributeInferrerTests {
             Node.create(kind: .labelList),
             Node.create(kind: .type),
         ])
+        let getterNode = Node.create(kind: .getter, child: subscriptNode)
+        let globalNode = Node.create(kind: .global, child: getterNode)
         let subscriptDefinitions = [
-            SubscriptDefinition(node: subscriptNode, accessors: [], isStatic: false),
+            SubscriptDefinition(node: globalNode, accessors: [], isStatic: false),
         ]
         #expect(!TypeAttributeInferrer.hasDynamicMemberSubscript(subscripts: subscriptDefinitions, staticSubscripts: []))
     }
@@ -224,12 +228,15 @@ private func makeMockFunctionDefinition(name: String) -> FunctionDefinition {
     )
 }
 
+/// Creates a mock subscript node matching production shape: global → getter → subscript → [context, labelList, type]
 private func makeDynamicMemberSubscriptNode() -> Node {
-    return Node.create(kind: .subscript, children: [
+    let subscriptNode = Node.create(kind: .subscript, children: [
         Node.create(kind: .structure),
         Node.create(kind: .labelList, children: [
             Node.create(kind: .identifier, text: "dynamicMember"),
         ]),
         Node.create(kind: .type),
     ])
+    let getterNode = Node.create(kind: .getter, child: subscriptNode)
+    return Node.create(kind: .global, child: getterNode)
 }
