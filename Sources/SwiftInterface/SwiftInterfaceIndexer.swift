@@ -250,6 +250,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
         for type in currentStorage.types {
             if let isCImportedContext = try? type.contextDescriptorWrapper.contextDescriptor.isCImportedContextDescriptor(in: machO), !configuration.showCImportedTypes, isCImportedContext {
                 cImportedCount += 1
+                eventDispatcher.dispatch(.typeProcessingSkippedCImported)
                 continue
             }
 
@@ -257,8 +258,11 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                 let declaration = try await TypeDefinition(type: type, in: machO)
                 currentModuleTypeDefinitions[declaration.typeName] = declaration
                 successfulCount += 1
+                eventDispatcher.dispatch(.typeProcessed(context: SwiftInterfaceEvents.TypeContext(typeName: declaration.typeName.name, kind: declaration.typeName.kind)))
             } catch {
                 failedCount += 1
+                let failedTypeName = try? type.typeName(in: machO)
+                eventDispatcher.dispatch(.typeProcessingFailed(typeName: failedTypeName?.name, error: error))
             }
         }
 
@@ -270,6 +274,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                 continue
             }
 
+            var resolvedParentName: String?
             var parentContext = try ContextWrapper.type(type).parent(in: machO)
 
             parentLoop: while let currentContextOrSymbol = parentContext {
@@ -282,8 +287,10 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                         if let parentDefinition = currentModuleTypeDefinitions[parentTypeName] {
                             childDefinition.parent = parentDefinition
                             parentDefinition.typeChildren.append(childDefinition)
+                            resolvedParentName = parentTypeName.name
                         } else {
                             childDefinition.parentContext = .type(typeContext)
+                            resolvedParentName = parentTypeName.name
                         }
                         nestedTypeCount += 1
                         break parentLoop
@@ -295,6 +302,8 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                     parentContext = try currentContext.parent(in: machO)
                 }
             }
+
+            eventDispatcher.dispatch(.typeNestingResolved(context: SwiftInterfaceEvents.TypeNestingContext(childTypeName: typeName.name, parentTypeName: resolvedParentName)))
         }
 
         var rootTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]

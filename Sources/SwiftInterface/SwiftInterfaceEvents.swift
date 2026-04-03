@@ -16,6 +16,10 @@ public enum SwiftInterfaceEvents {
         // Indexing events
         case typeIndexingStarted(totalTypes: Int)
         case typeIndexingCompleted(result: TypeIndexingResult)
+        case typeProcessed(context: TypeContext)
+        case typeProcessingFailed(typeName: String?, error: any Error)
+        case typeProcessingSkippedCImported
+        case typeNestingResolved(context: TypeNestingContext)
         case protocolIndexingStarted(totalProtocols: Int)
         case protocolIndexingCompleted(result: ProtocolIndexingResult)
         case conformanceIndexingStarted(input: ConformanceIndexingInput)
@@ -231,5 +235,15 @@ public enum SwiftInterfaceEvents {
             case .subscript: return "subscript"
             }
         }
+    }
+
+    public struct TypeContext: Sendable {
+        public let typeName: String
+        public let kind: TypeKind
+    }
+
+    public struct TypeNestingContext: Sendable {
+        public let childTypeName: String
+        public let parentTypeName: String?
     }
 }

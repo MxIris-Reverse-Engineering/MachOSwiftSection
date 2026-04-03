@@ -30,6 +30,22 @@ public struct OSLogEventHandler: SwiftInterfaceEvents.Handler {
         case .typeIndexingCompleted(let result):
             logger.info("Type indexing completed: \(result.successful) successful, \(result.failed) failed, \(result.cImportedSkipped) C-imported types skipped, \(result.nestedTypes) nested types, \(result.extensionTypes) extension types")
 
+        case .typeProcessed(let context):
+            logger.trace("Processed type: \(context.typeName) (kind: \(String(describing: context.kind)))")
+
+        case .typeProcessingFailed(let typeName, let error):
+            logger.error("Failed to process type '\(typeName ?? "<unknown>")': \(String(describing: error))")
+
+        case .typeProcessingSkippedCImported:
+            logger.trace("Skipped C-imported type")
+
+        case .typeNestingResolved(let context):
+            if let parentTypeName = context.parentTypeName {
+                logger.trace("Resolved nesting: \(context.childTypeName) is nested in \(parentTypeName)")
+            } else {
+                logger.trace("Resolved nesting: \(context.childTypeName) has no parent type")
+            }
+
         case .protocolIndexingStarted(let totalProtocols):
             logger.debug("Starting protocol indexing for \(totalProtocols) protocols")
 
