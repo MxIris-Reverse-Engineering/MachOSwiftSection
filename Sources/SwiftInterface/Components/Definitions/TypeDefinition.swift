@@ -239,6 +239,9 @@ public final class TypeDefinition: Definition {
             isStatic: true
         )
 
+        // Cross-reference @objc and @nonobjc thunk symbols with built definitions
+        applyThunkAttributes(symbolIndexStore: symbolIndexStore, typeName: name, in: machO)
+
         // Build ordered members list
         let allMembers = OrderedMember.allMembers(from: self)
         if case .class = type {
@@ -288,5 +291,117 @@ public final class TypeDefinition: Definition {
         }
 
         return cached.baseOffset + index
+    }
+
+    /// Cross-references @objc and @nonobjc thunk symbols with already-built member definitions,
+    /// appending the appropriate attribute to matching members.
+    ///
+    /// Thunk symbol node structures:
+    /// - `global(objCAttribute, function(context, identifier(name), ...))`
+    /// - `global(objCAttribute, static(function(context, identifier(name), ...)))`
+    /// - `global(nonObjCAttribute, getter(variable(context, identifier(name))))`
+    private func applyThunkAttributes<MachO: MachORepresentableWithCache>(
+        symbolIndexStore: SymbolIndexStore,
+        typeName: String,
+        in machO: MachO
+    ) {
+        let thunkKindsAndAttributes: [(Node.Kind, SwiftAttribute)] = [
+            (.objCAttribute, .objc),
+            (.nonObjCAttribute, .nonobjc),
+        ]
+
+        for (thunkKind, attribute) in thunkKindsAndAttributes {
+            let thunkSymbols = symbolIndexStore.symbols(of: thunkKind, in: machO)
+            for thunkSymbol in thunkSymbols {
+                let rootNode = thunkSymbol.demangledNode
+
+                // Find the member node: the child of .global that is NOT the attribute marker
+                guard let memberNode = rootNode.children.first(where: { $0.kind != thunkKind }) else { continue }
+
+                // Unwrap .static if present and track whether this is a static member
+                let isStatic: Bool
+                let unwrappedMemberNode: Node
+                if memberNode.kind == .static, let innerChild = memberNode.children.first {
+                    isStatic = true
+                    unwrappedMemberNode = innerChild
+                } else {
+                    isStatic = false
+                    unwrappedMemberNode = memberNode
+                }
+
+                // Extract context and member name based on the member node kind
+                let extractedMemberName: String?
+                let contextNode: Node?
+
+                switch unwrappedMemberNode.kind {
+                case .function, .constructor, .allocator:
+                    contextNode = unwrappedMemberNode.children.first
+                    extractedMemberName = unwrappedMemberNode.identifier
+                case .variable:
+                    contextNode = unwrappedMemberNode.children.first
+                    extractedMemberName = unwrappedMemberNode.identifier
+                case .getter, .setter:
+                    // Accessor wrapping a variable: getter(variable(context, identifier(name)))
+                    if let innerVariable = unwrappedMemberNode.children.first, innerVariable.kind == .variable {
+                        contextNode = innerVariable.children.first
+                        extractedMemberName = innerVariable.identifier
+                    } else if let innerSubscript = unwrappedMemberNode.children.first, innerSubscript.kind == .subscript {
+                        contextNode = innerSubscript.children.first
+                        extractedMemberName = nil // Subscripts don't have a simple name to match
+                    } else {
+                        contextNode = nil
+                        extractedMemberName = nil
+                    }
+                default:
+                    contextNode = nil
+                    extractedMemberName = nil
+                }
+
+                guard let contextNode else { continue }
+
+                // Check if the context matches the current type by comparing printed names
+                let thunkTypeName = Node.create(kind: .type, child: contextNode).print(using: .interfaceTypeBuilderOnly)
+                guard thunkTypeName == typeName else { continue }
+
+                guard let extractedMemberName else { continue }
+
+                // Match against the appropriate definition arrays based on static/instance
+                if isStatic {
+                    applyAttributeToFunction(name: extractedMemberName, attribute: attribute, in: &staticFunctions)
+                    applyAttributeToVariable(name: extractedMemberName, attribute: attribute, in: &staticVariables)
+                } else {
+                    applyAttributeToFunction(name: extractedMemberName, attribute: attribute, in: &functions)
+                    applyAttributeToVariable(name: extractedMemberName, attribute: attribute, in: &variables)
+                    // Also check allocators (for @objc init thunks)
+                    if unwrappedMemberNode.kind == .allocator || unwrappedMemberNode.kind == .constructor {
+                        applyAttributeToAllocator(attribute: attribute, in: &allocators)
+                    }
+                }
+            }
+        }
+    }
+
+    private func applyAttributeToFunction(name: String, attribute: SwiftAttribute, in definitions: inout [FunctionDefinition]) {
+        for definitionIndex in definitions.indices {
+            if definitions[definitionIndex].name == name && !definitions[definitionIndex].attributes.contains(attribute) {
+                definitions[definitionIndex].attributes.append(attribute)
+            }
+        }
+    }
+
+    private func applyAttributeToVariable(name: String, attribute: SwiftAttribute, in definitions: inout [VariableDefinition]) {
+        for definitionIndex in definitions.indices {
+            if definitions[definitionIndex].name == name && !definitions[definitionIndex].attributes.contains(attribute) {
+                definitions[definitionIndex].attributes.append(attribute)
+            }
+        }
+    }
+
+    private func applyAttributeToAllocator(attribute: SwiftAttribute, in definitions: inout [FunctionDefinition]) {
+        for definitionIndex in definitions.indices {
+            if !definitions[definitionIndex].attributes.contains(attribute) {
+                definitions[definitionIndex].attributes.append(attribute)
+            }
+        }
     }
 }

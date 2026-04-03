@@ -1,6 +1,7 @@
 import Demangling
 import MachOSymbols
 import MachOSwiftSection
+import SwiftDump
 
 enum DefinitionBuilder {
     static func variables(
@@ -75,7 +76,11 @@ enum DefinitionBuilder {
             let symbolOffset = demangledSymbol.base.offset
             let descriptor = methodDescriptorLookup[node] ?? implOffsetDescriptorLookup[symbolOffset]
             let vtableOffset = vtableOffsetLookup[node] ?? implOffsetVTableSlotLookup[symbolOffset]
-            allocators.append(.init(node: node, name: "", kind: .allocator, symbol: demangledSymbol.base, isGlobalOrStatic: true, methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset))
+            var functionDefinition = FunctionDefinition(node: node, name: "", kind: .allocator, symbol: demangledSymbol.base, isGlobalOrStatic: true, methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset)
+            if let methodDescriptor = descriptor?.method, methodDescriptor.layout.flags.isDynamic {
+                functionDefinition.attributes.append(.dynamic)
+            }
+            allocators.append(functionDefinition)
         }
         return allocators
     }
@@ -95,7 +100,11 @@ enum DefinitionBuilder {
             let symbolOffset = demangledSymbol.base.offset
             let descriptor = methodDescriptorLookup[node] ?? implOffsetDescriptorLookup[symbolOffset]
             let vtableOffset = vtableOffsetLookup[node] ?? implOffsetVTableSlotLookup[symbolOffset]
-            functions.append(.init(node: node, name: name, kind: .function, symbol: demangledSymbol.base, isGlobalOrStatic: isGlobalOrStatic, methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset))
+            var functionDefinition = FunctionDefinition(node: node, name: name, kind: .function, symbol: demangledSymbol.base, isGlobalOrStatic: isGlobalOrStatic, methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset)
+            if let methodDescriptor = descriptor?.method, methodDescriptor.layout.flags.isDynamic {
+                functionDefinition.attributes.append(.dynamic)
+            }
+            functions.append(functionDefinition)
         }
         return functions
     }
