@@ -109,12 +109,28 @@ public struct TypeAttributeInferrer: Sendable {
     private func inferDynamicMemberLookup(typeDefinition: TypeDefinition, into attributes: inout [SwiftAttribute]) {
         if Self.hasDynamicMemberSubscript(subscripts: typeDefinition.subscripts, staticSubscripts: typeDefinition.staticSubscripts) {
             attributes.append(.dynamicMemberLookup)
+            return
+        }
+        // Also check extensions for this type
+        for extensionDefinition in typeDefinition.extensions {
+            if Self.hasDynamicMemberSubscript(subscripts: extensionDefinition.subscripts, staticSubscripts: extensionDefinition.staticSubscripts) {
+                attributes.append(.dynamicMemberLookup)
+                return
+            }
         }
     }
 
     private func inferDynamicCallable(typeDefinition: TypeDefinition, into attributes: inout [SwiftAttribute]) {
         if Self.hasDynamicallyCallMethod(functions: typeDefinition.functions, staticFunctions: typeDefinition.staticFunctions) {
             attributes.append(.dynamicCallable)
+            return
+        }
+        // Also check extensions for this type
+        for extensionDefinition in typeDefinition.extensions {
+            if Self.hasDynamicallyCallMethod(functions: extensionDefinition.functions, staticFunctions: extensionDefinition.staticFunctions) {
+                attributes.append(.dynamicCallable)
+                return
+            }
         }
     }
 
