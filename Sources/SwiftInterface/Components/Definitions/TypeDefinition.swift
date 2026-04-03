@@ -55,6 +55,8 @@ public final class TypeDefinition: Definition {
 
     public internal(set) var orderedMembers: [OrderedMember] = []
 
+    public internal(set) var attributes: [SwiftAttribute] = []
+
     public private(set) var isIndexed: Bool = false
 
     public var hasMembers: Bool {

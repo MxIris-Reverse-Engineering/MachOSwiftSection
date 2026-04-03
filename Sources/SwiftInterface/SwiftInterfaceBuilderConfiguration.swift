@@ -38,4 +38,5 @@ public struct SwiftInterfacePrintConfiguration: Equatable, Sendable {
     public var typeLayoutTransformer: TypeLayoutTransformer? = nil
     public var enumLayoutTransformer: EnumLayoutTransformer? = nil
     public var enumLayoutCaseTransformer: EnumLayoutCaseTransformer? = nil
+    public var resilienceAwareAttributes: Bool = false
 }

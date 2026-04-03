@@ -24,6 +24,16 @@ extension Keyword {
         case `Self`
         case `each`
         case `repeat`
+        case atObjc = "@objc"
+        case atNonobjc = "@nonobjc"
+        case atFrozen = "@frozen"
+        case atInlinable = "@inlinable"
+        case atUsableFromInline = "@usableFromInline"
+        case atPropertyWrapper = "@propertyWrapper"
+        case atResultBuilder = "@resultBuilder"
+        case atDynamicMemberLookup = "@dynamicMemberLookup"
+        case atDynamicCallable = "@dynamicCallable"
+        case atRetroactive = "@retroactive"
     }
 
     package init(_ keyword: Swift) {
