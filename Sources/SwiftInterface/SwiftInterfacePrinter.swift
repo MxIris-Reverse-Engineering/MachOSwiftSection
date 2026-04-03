@@ -59,6 +59,10 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
             try await typeDefinition.index(in: machO)
         }
 
+        // Infer type-level attributes
+        let typeAttributeInferrer = TypeAttributeInferrer(resilienceAwareAttributes: configuration.resilienceAwareAttributes)
+        typeDefinition.attributes = typeAttributeInferrer.infer(for: typeDefinition)
+
         let dumper = typeDefinition.type.dumper(
             using: .init(
                 demangleResolver: typeDemangleResolver,
@@ -78,6 +82,13 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
             ),
             in: machO
         )
+
+        // Emit type-level attributes, each on its own line before the declaration
+        for attribute in typeDefinition.attributes {
+            Indent(level: level - 1)
+            Keyword(attribute.keyword)
+            BreakLine()
+        }
 
         try await DeclarationBlock(level: level) {
             try await dumper.declaration
@@ -387,18 +398,30 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     public func printThrowingVariable(_ variable: VariableDefinition, level: Int) async throws -> SemanticString {
+        for attribute in variable.attributes {
+            Keyword(attribute.keyword)
+            Space()
+        }
         var printer = VariableNodePrinter(isStored: variable.isStored, isOverride: variable.isOverride, hasSetter: variable.hasSetter, indentation: level, delegate: self)
         try await printer.printRoot(variable.node)
     }
 
     @SemanticStringBuilder
     public func printThrowingFunction(_ function: FunctionDefinition, level: Int) async throws -> SemanticString {
+        for attribute in function.attributes {
+            Keyword(attribute.keyword)
+            Space()
+        }
         var printer = FunctionNodePrinter(isOverride: function.isOverride, delegate: self)
         try await printer.printRoot(function.node)
     }
 
     @SemanticStringBuilder
     public func printThrowingSubscript(_ `subscript`: SubscriptDefinition, level: Int) async throws -> SemanticString {
+        for attribute in `subscript`.attributes {
+            Keyword(attribute.keyword)
+            Space()
+        }
         var printer = SubscriptNodePrinter(isOverride: `subscript`.isOverride, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
         try await printer.printRoot(`subscript`.node)
     }
