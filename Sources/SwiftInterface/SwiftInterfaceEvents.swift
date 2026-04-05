@@ -53,6 +53,7 @@ public enum SwiftInterfaceEvents {
 
         case moduleFound(context: ModuleContext)
         case symbolScanStarted(context: SymbolScanContext)
+        case symbolIndexProgress(currentCount: Int, totalCount: Int)
 
         case nameExtractionWarning(for: NameExtractionTarget)
 
@@ -117,6 +118,7 @@ public enum SwiftInterfaceEvents {
         case swiftProtocols
         case protocolConformances
         case associatedTypes
+        case symbolIndex
     }
 
     /// Specifies a distinct operation within a larger `Phase`.

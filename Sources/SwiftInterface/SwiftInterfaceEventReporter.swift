@@ -203,6 +203,9 @@ public final class SwiftInterfaceEventReporter: SwiftInterfaceEvents.Handler, Se
 
         case .definitionPrintFailed(let context, let error):
             yield(.error, .printing, "Failed to print \(context.kind.description): \(context.name)", detail: String(describing: error))
+
+        case .symbolIndexProgress(let currentCount, let totalCount):
+            yield(.trace, .indexing, "Symbol index progress: \(currentCount)/\(totalCount)")
         }
     }
 
@@ -237,6 +240,7 @@ public final class SwiftInterfaceEventReporter: SwiftInterfaceEvents.Handler, Se
         case .swiftProtocols: return "Swift protocols"
         case .protocolConformances: return "protocol conformances"
         case .associatedTypes: return "associated types"
+        case .symbolIndex: return "symbol index"
         }
     }
 

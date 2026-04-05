@@ -133,6 +133,9 @@ public struct OSLogEventHandler: SwiftInterfaceEvents.Handler {
 
         case .definitionPrintFailed(let context, let error):
             logger.error("Failed to print \(context.kind.description) '\(context.name)': \(String(describing: error))")
+
+        case .symbolIndexProgress(let currentCount, let totalCount):
+            logger.trace("Symbol index progress: \(currentCount)/\(totalCount)")
         }
     }
 
@@ -173,6 +176,7 @@ public struct OSLogEventHandler: SwiftInterfaceEvents.Handler {
         case .swiftProtocols: return "Swift protocols"
         case .protocolConformances: return "protocol conformances"
         case .associatedTypes: return "associated types"
+        case .symbolIndex: return "symbol index"
         }
     }
 }
@@ -238,6 +242,7 @@ public struct ConsoleEventHandler: SwiftInterfaceEvents.Handler {
         case .swiftProtocols: return "Swift protocols"
         case .protocolConformances: return "protocol conformances"
         case .associatedTypes: return "associated types"
+        case .symbolIndex: return "symbol index"
         }
     }
 }
