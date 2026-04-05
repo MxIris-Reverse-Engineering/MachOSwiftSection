@@ -3,7 +3,7 @@ import MachOKit
 import MachOSwiftSection
 import Semantic
 import Utilities
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 import Demangling
 
 package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCache>: ConformedDumper {

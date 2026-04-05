@@ -8,7 +8,7 @@ import Semantic
 import SwiftStdlibToolbox
 import Dependencies
 @_spi(Internals) import MachOSymbols
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 public final class TypeDefinition: Definition {
     public enum ParentContext {

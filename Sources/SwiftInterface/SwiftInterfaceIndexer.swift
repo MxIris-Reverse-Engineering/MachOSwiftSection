@@ -11,7 +11,7 @@ import Dependencies
 import Utilities
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import MachOCaches
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 public struct MachOIndexedValue<MachO: MachOSwiftSectionRepresentableWithCache, Value> {
     public let machO: MachO
@@ -182,7 +182,11 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
-        symbolIndexStore.prepare(in: machO)
+        eventDispatcher.dispatch(.extractionStarted(section: .symbolIndex))
+        for await progress in symbolIndexStore.prepareWithProgress(in: machO) {
+            eventDispatcher.dispatch(.symbolIndexProgress(currentCount: progress.currentCount, totalCount: progress.totalCount))
+        }
+        eventDispatcher.dispatch(.extractionCompleted(result: SwiftInterfaceEvents.ExtractionResult(section: .symbolIndex, count: 0)))
 
         do {
             try await index()

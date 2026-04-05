@@ -5,7 +5,7 @@ import Semantic
 import Utilities
 import MemberwiseInit
 import Demangling
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 // MARK: - Identifiable Closure
 

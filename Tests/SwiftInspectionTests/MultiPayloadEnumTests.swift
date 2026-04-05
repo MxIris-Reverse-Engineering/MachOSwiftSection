@@ -4,7 +4,7 @@ import MachOKit
 @testable import Demangling
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
-@testable import SwiftInspection
+@testable @_spi(Internals) import SwiftInspection
 
 #if canImport(SwiftUI)
 

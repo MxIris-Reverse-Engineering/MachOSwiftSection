@@ -6,7 +6,7 @@ import OrderedCollections
 @_spi(Internals) import MachOSymbols
 import SwiftStdlibToolbox
 import SwiftDump
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRepresentableWithCache & Sendable>: SwiftInterfaceBuilderExtraDataProvider, Sendable {
     public let machO: MachO

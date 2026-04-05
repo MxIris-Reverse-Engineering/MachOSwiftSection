@@ -1,7 +1,7 @@
 import Semantic
 import MachOSwiftSection
 import MachOKit
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 package protocol TypedDumper: NamedDumper where Dumped: TopLevelType, Dumped.Descriptor: TypeContextDescriptorProtocol {
     associatedtype Metadata: MetadataProtocol

@@ -7,7 +7,7 @@ import Demangling
 import Semantic
 import SwiftStdlibToolbox
 @_spi(Internals) import MachOSymbols
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 public final class ExtensionDefinition: Definition, MutableDefinition {
     public let extensionName: ExtensionName

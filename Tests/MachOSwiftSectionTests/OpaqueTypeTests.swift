@@ -5,7 +5,7 @@ import Demangling
 import MachOSwiftSection
 @testable import SwiftDump
 @_spi(Internals) import MachOSymbols
-@testable import SwiftInspection
+@testable @_spi(Internals) import SwiftInspection
 
 protocol OpaqueTypeTests {}
 

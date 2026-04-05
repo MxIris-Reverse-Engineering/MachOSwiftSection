@@ -5,7 +5,7 @@ import MachOSwiftSection
 import SwiftDump
 import Dependencies
 @_spi(Internals) import MachOSymbols
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 @MainActor
 package protocol DumpableTests {

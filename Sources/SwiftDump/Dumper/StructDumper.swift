@@ -6,7 +6,7 @@ import Utilities
 import Dependencies
 import Demangling
 @_spi(Internals) import MachOSymbols
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
     package typealias Dumped = Struct
@@ -82,7 +82,7 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
                     configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
 
                     if configuration.printExpandedFieldOffsets, let machOImage = machO.asMachOImage {
-                        expandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset, baseIndentation: configuration.indentation + 1, ancestors: [], in: machOImage)
+                        expandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset, baseIndentation: configuration.indentation, ancestors: [], in: machOImage)
                     }
                 }
 
