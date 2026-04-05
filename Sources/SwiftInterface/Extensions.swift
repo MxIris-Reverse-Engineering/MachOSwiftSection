@@ -8,7 +8,7 @@ import Demangling
 import Semantic
 import SwiftStdlibToolbox
 @_spi(Internals) import MachOSymbols
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 extension Node {
     var accessorKind: AccessorKind {
@@ -276,12 +276,12 @@ extension Sequence {
     }
 }
 
-extension ProtocolRequirement {
+extension StrippedSymbolicRequirement {
     @SemanticStringBuilder
     func strippedSymbolicInfo() -> SemanticString {
         Comment(
             """
-            Kind: \(layout.flags.kind.description), isAsync: \(layout.flags.isAsync), isInstance: \(layout.flags.isInstance)
+            Kind: \(requirement.layout.flags.kind.description), isAsync: \(requirement.layout.flags.isAsync), isInstance: \(requirement.layout.flags.isInstance)
             """
         )
     }
