@@ -212,7 +212,12 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             }
         }
 
-        for symbol in symbolByName.values {
+        let totalSymbolCount = symbolByName.count
+        let progressContinuation = currentProgressContinuation
+        for (symbolIndex, symbol) in symbolByName.values.enumerated() {
+            if symbolIndex % 500 == 0 {
+                progressContinuation?.yield(Progress(currentCount: symbolIndex, totalCount: totalSymbolCount))
+            }
             do {
                 let rootNode = try demangleAsNode(symbol.name)
 
@@ -254,6 +259,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
                 #log(.default, "\(error, privacy: .public)")
             }
         }
+        progressContinuation?.yield(Progress(currentCount: totalSymbolCount, totalCount: totalSymbolCount))
 
         storage.setSymbolsByOffset(symbolsByOffset)
 
@@ -479,8 +485,26 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         }
     }
 
+    public struct Progress: Sendable {
+        public let currentCount: Int
+        public let totalCount: Int
+    }
+
+    private var currentProgressContinuation: AsyncStream<Progress>.Continuation?
+
     public func prepare<MachO: MachORepresentableWithCache>(in machO: MachO) {
         _ = storage(in: machO)
+    }
+
+    public func prepareWithProgress<MachO: MachORepresentableWithCache>(in machO: MachO) -> AsyncStream<Progress> {
+        let (stream, continuation) = AsyncStream<Progress>.makeStream()
+        DispatchQueue.global(qos: .userInitiated).async {
+            self.currentProgressContinuation = continuation
+            _ = self.storage(in: machO)
+            self.currentProgressContinuation = nil
+            continuation.finish()
+        }
+        return stream
     }
 }
 
@@ -494,10 +518,6 @@ extension Node.Kind {
              .function,
              .getter,
              .setter,
-//             .modifyAccessor,
-//             .modify2Accessor,
-//             .readAccessor,
-//             .read2Accessor,
              .methodDescriptor,
              .protocolWitness,
              .variable:
