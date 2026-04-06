@@ -5,8 +5,34 @@
 import CompilerPluginSupport
 import Foundation
 
+let localEnvironment: [String: String] = {
+    let localEnvironmentFilePath = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .appendingPathComponent(".package.env")
+        .path
+    guard FileManager.default.fileExists(atPath: localEnvironmentFilePath),
+          let contents = try? String(contentsOfFile: localEnvironmentFilePath, encoding: .utf8)
+    else {
+        return [:]
+    }
+    var environment: [String: String] = [:]
+    for line in contents.components(separatedBy: .newlines) {
+        let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+        if trimmedLine.isEmpty || trimmedLine.hasPrefix("#") {
+            continue
+        }
+        let parts = trimmedLine.split(separator: "=", maxSplits: 1)
+        guard parts.count == 2 else { continue }
+        let key = parts[0].trimmingCharacters(in: .whitespaces)
+        let value = parts[1].trimmingCharacters(in: .whitespaces)
+        environment[key] = value
+    }
+    return environment
+}()
+
 func envEnable(_ key: String, default defaultValue: Bool = false) -> Bool {
-    guard let value = Context.environment[key] else {
+    let value = localEnvironment[key] ?? Context.environment[key]
+    guard let value else {
         return defaultValue
     }
     if value == "1" {
@@ -81,6 +107,14 @@ let useCustomMachOKit = envEnable("USE_CUSTOM_MACHOKIT", default: true)
 
 let useCustomObjCSection = envEnable("USE_CUSTOM_OBJC_SECTION", default: true)
 
+let useLocalMachOKit = envEnable("USE_LOCAL_MACHOKIT", default: false)
+
+let useLocalObjCSection = envEnable("USE_LOCAL_OBJC_SECTION", default: false)
+
+let useLocalDemangling = envEnable("USE_LOCAL_DEMANGLING", default: true)
+
+let useLocalSemantic = envEnable("USE_LOCAL_SEMANTIC", default: true)
+
 let useSwiftTUI = envEnable("MACHO_SWIFT_SECTION_USE_SWIFTTUI", default: false)
 
 var testSettings: [SwiftSetting] = []
@@ -109,8 +143,8 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/christophhagen/BinaryCodable", from: "3.1.0"),
     
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.4"),
-    .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-clang", from: "0.1.0"),
-    .package(url: "https://github.com/MxIris-DeveloperTool-Forks/swift-apinotes", from: "0.1.0"),
+    .package(url: "https://github.com/MxIris-DeveloperTool/swift-clang", from: "0.2.0"),
+    .package(url: "https://github.com/MxIris-DeveloperTool/swift-apinotes", from: "0.1.0"),
     .package(url: "https://github.com/MxIris-Reverse-Engineering/DyldPrivate", from: "1330.0.0"),
     
     // CLI
@@ -148,7 +182,7 @@ extension Package.Dependency {
         local: .package(
             path: "../MachOKit",
             isRelative: true,
-            isEnabled: false
+            isEnabled: useLocalMachOKit
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKit.git",
@@ -175,7 +209,7 @@ extension Package.Dependency {
         local: .package(
             path: "../MachOObjCSection",
             isRelative: true,
-            isEnabled: false
+            isEnabled: useLocalObjCSection
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOObjCSection.git",
@@ -189,7 +223,7 @@ extension Package.Dependency {
         local: .package(
             path: "../swift-demangling",
             isRelative: true,
-            isEnabled: true
+            isEnabled: useLocalDemangling
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-demangling",
@@ -201,7 +235,7 @@ extension Package.Dependency {
         local: .package(
             path: "../swift-semantic-string",
             isRelative: true,
-            isEnabled: true
+            isEnabled: useLocalSemantic
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-semantic-string",

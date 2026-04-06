@@ -3,6 +3,7 @@ import MachOReading
 import MachOResolving
 import MachOExtensions
 import Demangling
+import FoundationToolbox
 
 public struct Symbol: AsyncResolvable, SymbolProtocol, Hashable {
     public let offset: Int
@@ -22,10 +23,11 @@ public struct Symbol: AsyncResolvable, SymbolProtocol, Hashable {
     }
 
     public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self? {
-        if let symbol = machO.symbols(offset: offset)?.first {
-            return symbol
+        if resolvesSymbolUsingIndexStore {
+            return machO.symbols(offset: offset)?.first
+        } else {
+            return machO.symbol(for: offset, inSection: 0, isGlobalOnly: false)?.asCurrentSymbol
         }
-        return nil
     }
 
     public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) async throws -> Self {
@@ -33,10 +35,11 @@ public struct Symbol: AsyncResolvable, SymbolProtocol, Hashable {
     }
 
     public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) async throws -> Self? {
-        if let symbol = await machO.symbols(offset: offset)?.first {
-            return symbol
+        if resolvesSymbolUsingIndexStore {
+            return await machO.symbols(offset: offset)?.first
+        } else {
+            return machO.symbol(for: offset, inSection: 0, isGlobalOnly: false)?.asCurrentSymbol
         }
-        return nil
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -61,6 +64,9 @@ public struct Symbol: AsyncResolvable, SymbolProtocol, Hashable {
             return String(machO.address(forOffset: offset), radix: 10)
         }
     }
+    
+    @Mutex
+    public static var resolvesSymbolUsingIndexStore: Bool = true
 }
 
 public protocol SymbolProtocol {
@@ -72,6 +78,13 @@ extension MachOSymbols.SymbolProtocol {
         get throws {
             try demangleAsNode(name)
         }
+    }
+}
+
+
+extension MachOKit.SymbolProtocol {
+    fileprivate var asCurrentSymbol: MachOSymbols.Symbol {
+        .init(offset: offset, name: name, nlist: nlist)
     }
 }
 

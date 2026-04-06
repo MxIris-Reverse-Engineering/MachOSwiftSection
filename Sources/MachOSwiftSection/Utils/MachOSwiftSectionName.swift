@@ -1,6 +1,6 @@
 import Foundation
 
-enum MachOSwiftSectionName: String {
+public enum MachOSwiftSectionName: String, Sendable {
     case __swift5_types
     case __swift5_types2
     case __swift5_builtin

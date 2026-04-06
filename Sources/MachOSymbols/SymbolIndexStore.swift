@@ -188,7 +188,6 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         var cachedSymbols: Set<String> = []
         var symbolByName: OrderedDictionary<String, Symbol> = [:]
         var symbolsByOffset: OrderedDictionary<Int, [Symbol]> = [:]
-        var demangledNodeBySymbol: [Symbol: Node] = [:]
 
         for symbol in machO.symbols where symbol.name.isSwiftSymbol {
             var offset = symbol.offset
@@ -212,51 +211,58 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             }
         }
 
-        let totalSymbolCount = symbolByName.count
+        // Phase 1: Parallel demangling
+        let symbolArray = Array(symbolByName.values)
+        let totalSymbolCount = symbolArray.count
         let progressContinuation = currentProgressContinuation
-        for (symbolIndex, symbol) in symbolByName.values.enumerated() {
+
+        let demangledNodes = symbolArray.concurrentMap { try? demangleAsNode($0.name) }
+
+        // Phase 2: Sequential indexing
+        var demangledNodeBySymbol: [Symbol: Node] = [:]
+        demangledNodeBySymbol.reserveCapacity(totalSymbolCount)
+
+        for symbolIndex in 0..<totalSymbolCount {
             if symbolIndex % 500 == 0 {
                 progressContinuation?.yield(Progress(currentCount: symbolIndex, totalCount: totalSymbolCount))
             }
-            do {
-                let rootNode = try demangleAsNode(symbol.name)
 
-                demangledNodeBySymbol[symbol] = rootNode
+            let symbol = symbolArray[symbolIndex]
+            guard let rootNode = demangledNodes[symbolIndex] else { continue }
 
-                guard rootNode.isKind(of: .global), let node = rootNode.children.first else { continue }
+            demangledNodeBySymbol[symbol] = rootNode
 
-                storage.appendSymbol(DemangledSymbol(symbol: symbol, demangledNode: rootNode), for: node.kind)
-                if rootNode.isGlobal {
-                    if !symbol.isExternal {
-                        if let result = processGlobalSymbol(symbol, node: node, rootNode: rootNode) {
-                            storage.setGlobalSymbols(for: result)
-                        }
-                    }
-                } else {
-                    if node.kind == .methodDescriptor, let firstChild = node.children.first {
-                        if let result = processMemberSymbol(symbol, node: firstChild, rootNode: rootNode) {
-                            storage.setMethodDescriptorMemberSymbols(for: result)
-                        }
-                    } else if node.kind == .protocolWitness, let firstChild = node.children.first {
-                        if let result = processMemberSymbol(symbol, node: firstChild, rootNode: rootNode) {
-                            storage.setProtocolWitnessMemberSymbols(for: result)
-                        }
-                    } else if node.kind == .mergedFunction, let secondChild = rootNode.children.second {
-                        if let result = processMemberSymbol(symbol, node: secondChild, rootNode: rootNode) {
-                            storage.setMemberSymbols(for: result)
-                        }
-                    } else if node.kind == .opaqueTypeDescriptor, let firstChild = node.children.first, firstChild.kind == .opaqueReturnTypeOf, let memberSymbol = firstChild.children.first {
-                        if symbol.offset > 0 {
-                            storage.setOpaqueTypeDescriptorSymbol(DemangledSymbol(symbol: symbol, demangledNode: rootNode), for: memberSymbol)
-                        }
-                    } else {
-                        if let result = processMemberSymbol(symbol, node: node, rootNode: rootNode) {
-                            storage.setMemberSymbols(for: result)
-                        }
+            guard rootNode.isKind(of: .global), let node = rootNode.children.first else { continue }
+
+            storage.appendSymbol(DemangledSymbol(symbol: symbol, demangledNode: rootNode), for: node.kind)
+            if rootNode.isGlobal {
+                if !symbol.isExternal {
+                    if let result = processGlobalSymbol(symbol, node: node, rootNode: rootNode) {
+                        storage.setGlobalSymbols(for: result)
                     }
                 }
-            } catch {
-                #log(.default, "\(error, privacy: .public)")
+            } else {
+                if node.kind == .methodDescriptor, let firstChild = node.children.first {
+                    if let result = processMemberSymbol(symbol, node: firstChild, rootNode: rootNode) {
+                        storage.setMethodDescriptorMemberSymbols(for: result)
+                    }
+                } else if node.kind == .protocolWitness, let firstChild = node.children.first {
+                    if let result = processMemberSymbol(symbol, node: firstChild, rootNode: rootNode) {
+                        storage.setProtocolWitnessMemberSymbols(for: result)
+                    }
+                } else if node.kind == .mergedFunction, let secondChild = rootNode.children.second {
+                    if let result = processMemberSymbol(symbol, node: secondChild, rootNode: rootNode) {
+                        storage.setMemberSymbols(for: result)
+                    }
+                } else if node.kind == .opaqueTypeDescriptor, let firstChild = node.children.first, firstChild.kind == .opaqueReturnTypeOf, let memberSymbol = firstChild.children.first {
+                    if symbol.offset > 0 {
+                        storage.setOpaqueTypeDescriptorSymbol(DemangledSymbol(symbol: symbol, demangledNode: rootNode), for: memberSymbol)
+                    }
+                } else {
+                    if let result = processMemberSymbol(symbol, node: node, rootNode: rootNode) {
+                        storage.setMemberSymbols(for: result)
+                    }
+                }
             }
         }
         progressContinuation?.yield(Progress(currentCount: totalSymbolCount, totalCount: totalSymbolCount))
