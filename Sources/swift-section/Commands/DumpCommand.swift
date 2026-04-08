@@ -68,6 +68,9 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
     @Flag(help: "Expand nested struct fields with their absolute offsets (requires --emit-offset-comments)")
     var emitExpandedFieldOffsets: Bool = false
 
+    @Flag(help: "Generate PWT (Protocol Witness Table) address comments for protocol conformances")
+    var emitPwtAddresses: Bool = false
+
     @Flag(help: "The definitions of types and protocols will be output in the order they are stored in the binary.")
     var preferredBinaryOrder: Bool = false
 
@@ -80,6 +83,7 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
         dumpConfiguration.printExpandedFieldOffsets = emitExpandedFieldOffsets
         dumpConfiguration.printMemberAddress = emitMemberAddresses
         dumpConfiguration.printVTableOffset = emitVtableOffsets
+        dumpConfiguration.printConformancePWTAddress = emitPwtAddresses
 
         let isDefaultSections = sections.isEmpty
         

@@ -27,6 +27,14 @@ extension ResilientWitness {
         return try layout.requirement.resolve(from: pointer(of: \.requirement)).asOptional
     }
 
+    public var implementationOffset: Int {
+        layout.implementation.resolveDirectOffset(from: offset(of: \.implementation))
+    }
+    
+    public func implementationAddress(in machO: some MachOSwiftSectionRepresentableWithCache) -> String {
+        return machO.addressString(forOffset: implementationOffset)
+    }
+    
     public func implementationSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Symbols? {
         return try layout.implementation.resolve(from: offset(of: \.implementation), in: machO)
     }

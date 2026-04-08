@@ -33,6 +33,9 @@ lipo -create \
     "$ARM64_BINARY" \
     -output ./Products/swift-section
 
+echo "Signing universal binary..."
+codesign --force --sign - ./Products/swift-section
+
 echo "Universal binary created successfully:"
 lipo -info ./Products/swift-section
 file ./Products/swift-section

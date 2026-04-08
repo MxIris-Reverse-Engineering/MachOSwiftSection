@@ -55,6 +55,7 @@ public struct DumperConfiguration: Sendable {
     public var printMemberAddress: Bool = false
     public var printVTableOffset: Bool = false
     public var printExpandedFieldOffsets: Bool = false
+    public var printConformancePWTAddress: Bool = false
     public var memberAddressTransformer: MemberAddressTransformer? = nil
     public var vtableOffsetTransformer: VTableOffsetTransformer? = nil
     public var fieldOffsetTransformer: FieldOffsetTransformer? = nil
