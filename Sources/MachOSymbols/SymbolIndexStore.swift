@@ -189,10 +189,10 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         var symbolByName: OrderedDictionary<String, Symbol> = [:]
         var symbolsByOffset: OrderedDictionary<Int, [Symbol]> = [:]
 
-        for symbol in machO.symbols where symbol.name.isSwiftSymbol {
+        for symbol in machO.symbols where symbol.name.isSwiftSymbol && !symbol.nlist.isExternal {
             var offset = symbol.offset
             symbolsByOffset[offset, default: []].append(.init(offset: offset, name: symbol.name, nlist: symbol.nlist))
-            if let cache = machO.cache, offset != 0, machO is MachOFile {
+            if let cache = machO.cache, offset >= 0, machO is MachOFile {
                 offset -= cache.mainCacheHeader.sharedRegionStart.cast()
                 symbolsByOffset[offset, default: []].append(.init(offset: offset, name: symbol.name, nlist: symbol.nlist))
             }
