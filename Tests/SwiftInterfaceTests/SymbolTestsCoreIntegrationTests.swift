@@ -365,3 +365,64 @@ extension STCoreTests {
         }
     }
 }
+
+// MARK: - Opaque Return Types (Integration)
+
+extension STCoreTests {
+    @Test func opaqueReturnTypeTestHasExpectedMembers() async throws {
+        let indexer = try await preparedIndexer()
+        let typeDefinition = try #require(findTypeDefinition(named: "OpaqueReturnTypeTest", in: indexer))
+        try await indexTypeDefinition(typeDefinition)
+
+        // Should have the expected variables and functions
+        #expect(typeDefinition.variables.contains { $0.name == "variable" })
+        #expect(typeDefinition.functions.contains { $0.name == "function" })
+        #expect(typeDefinition.functions.contains { $0.name == "functionOptional" })
+        #expect(typeDefinition.functions.contains { $0.name == "functionTuple" })
+        #expect(typeDefinition.functions.contains { $0.name == "functionWhere" })
+        #expect(typeDefinition.functions.contains { $0.name == "functionNested" })
+    }
+
+    @Test func opaqueReturnTypeNestedTypeExists() async throws {
+        let indexer = try await preparedIndexer()
+        let opaqueReturnType = try #require(findTypeDefinition(named: "OpaqueReturnTypeTest", in: indexer))
+
+        // OpaqueReturnTypeTest has a nested type AnyProtocolTest
+        let childNames = opaqueReturnType.typeChildren.map { $0.typeName.currentName }
+        #expect(childNames.contains("AnyProtocolTest"))
+    }
+
+    @Test func opaquePrimaryAssocTypeReturnTestExists() async throws {
+        let indexer = try await preparedIndexer()
+        let typeDefinition = try #require(findTypeDefinition(named: "OpaquePrimaryAssociatedTypeReturnTypeTest", in: indexer))
+        try await indexTypeDefinition(typeDefinition)
+
+        #expect(typeDefinition.variables.contains { $0.name == "body" })
+    }
+
+    @Test func swiftUILikePatternStructTestHasBody() async throws {
+        let indexer = try await preparedIndexer()
+        let typeDefinition = try #require(findTypeDefinition(named: "StructTest", in: indexer))
+        try await indexTypeDefinition(typeDefinition)
+
+        // StructTest has both instance and static body properties (SwiftUI-like pattern)
+        let instanceBody = typeDefinition.variables.first { $0.name == "body" }
+        #expect(instanceBody != nil)
+
+        let staticBody = typeDefinition.staticVariables.first { $0.name == "body" }
+        #expect(staticBody != nil)
+    }
+
+    @Test func protocolTestHasBodyRequirement() async throws {
+        let indexer = try await preparedIndexer()
+        let protocolDefinition = try #require(findProtocolDefinition(named: "ProtocolTest", in: indexer))
+        try await indexProtocolDefinition(protocolDefinition)
+
+        // ProtocolTest has associatedtype Body: ProtocolTest
+        #expect(protocolDefinition.associatedTypes.contains("Body"))
+
+        // ProtocolTest should have body variable and static body variable requirements
+        let bodyVariable = protocolDefinition.variables.first { $0.name == "body" }
+        #expect(bodyVariable != nil)
+    }
+}

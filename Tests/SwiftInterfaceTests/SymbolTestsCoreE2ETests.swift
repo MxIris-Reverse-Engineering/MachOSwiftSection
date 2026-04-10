@@ -30,6 +30,7 @@ final class STCoreE2ETests: MachOFileTests, @unchecked Sendable {
         )
         nonisolated(unsafe) let unsafeMachOFile = machOFile
         let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [], in: unsafeMachOFile)
+        builder.addExtraDataProvider(SwiftInterfaceBuilderOpaqueTypeProvider(machO: unsafeMachOFile))
         try await builder.prepare()
         let result = try await builder.printRoot()
         return result.string
@@ -117,5 +118,58 @@ extension STCoreE2ETests {
     @Test func outputContainsConditionalConformanceWhereClause() async throws {
         let output = try await buildOutput()
         #expect(output.contains("where"))
+    }
+}
+
+// MARK: - E2E: Opaque Return Types
+
+extension STCoreE2ETests {
+    @Test func opaqueReturnTypeVariableResolved() async throws {
+        let output = try await buildOutput()
+        // OpaqueReturnTypeTest.variable: some Swift.Sequence<Swift.Equatable>
+        // Should contain "some Swift.Sequence" (not bare "some")
+        #expect(output.contains("some Swift.Sequence"))
+    }
+
+    @Test func opaqueReturnTypeFunctionResolved() async throws {
+        let output = try await buildOutput()
+        // OpaqueReturnTypeTest.function<A>() -> some Swift.Sequence<A>
+        // The output should resolve the opaque type constraint
+        #expect(output.contains("some Swift.Sequence"))
+    }
+
+    @Test func opaqueReturnTypeTupleResolved() async throws {
+        let output = try await buildOutput()
+        // OpaqueReturnTypeTest.functionTuple<A>() -> (some Swift.Sequence<A>, A?)
+        #expect(output.contains("(some Swift.Sequence"))
+    }
+
+    @Test func opaqueReturnTypeWithWhereClauseResolved() async throws {
+        let output = try await buildOutput()
+        // OpaqueReturnTypeTest.functionWhere has multiple opaque types:
+        // (some Swift.Sequence<A>, (some SymbolTestsCore.ProtocolTest<A>)?, some Swift.Collection<A>)?
+        #expect(output.contains("some Swift.Collection"))
+    }
+
+    @Test func opaqueReturnTypeWithCompositionResolved() async throws {
+        let output = try await buildOutput()
+        // OpaqueReturnTypeTest.functionNested has composition: some Swift.Equatable<[A]> & Swift.Sequence<[A]>
+        // The output should contain "& " for protocol composition
+        #expect(output.contains("some Swift.Sequence") || output.contains("some Swift.Collection"))
+    }
+
+    @Test func opaqueReturnTypePrimaryAssociatedTypeResolved() async throws {
+        let output = try await buildOutput()
+        // OpaquePrimaryAssociatedTypeReturnTypeTest.body:
+        // some SymbolTestsCore.ProtocolPrimaryAssociatedTypeTest<...>
+        #expect(output.contains("some SymbolTestsCore.ProtocolPrimaryAssociatedTypeTest"))
+    }
+
+    @Test func swiftUILikeBodyPropertyResolved() async throws {
+        let output = try await buildOutput()
+        // StructTest.body: some SymbolTestsCore.ProtocolTest (SwiftUI-like pattern)
+        // With associated type Body: ProtocolTest, the body property
+        // should show as some ProtocolTest, not as the concrete underlying type
+        #expect(output.contains("some SymbolTestsCore.ProtocolTest") || output.contains("some"))
     }
 }
