@@ -6,6 +6,7 @@ enum SwiftSectionCommandError: LocalizedError {
     case missingCacheImageNameOrCacheImagePath
     case imageNotFound
     case invalidArchitecture
+    case fatBinaryRequiresArchitecture(availableArchitectures: [String])
     case failedFetchFromSystemDyldSharedCache
     case unsupportedSystemVersionForDyldSharedCache
 
@@ -21,6 +22,8 @@ enum SwiftSectionCommandError: LocalizedError {
             "The specified image was not found in the dyld shared cache."
         case .invalidArchitecture:
             "The specified architecture is not found or supported."
+        case .fatBinaryRequiresArchitecture(let availableArchitectures):
+            "The file is a fat (universal) binary. You must specify an architecture using --architecture (-a). Available architectures: \(availableArchitectures.joined(separator: ", "))"
         case .failedFetchFromSystemDyldSharedCache:
             "Failed to fetch the Mach-O file from the current system dyld shared cache. Please ensure the cache is accessible."
         case .unsupportedSystemVersionForDyldSharedCache:

@@ -86,7 +86,11 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
         dumpConfiguration.printConformancePWTAddress = emitPwtAddresses
 
         let isDefaultSections = sections.isEmpty
-        
+
+        if isDefaultSections {
+            sections = SwiftSection.allCases
+        }
+
         if preferredBinaryOrder {
             var topLevelContexts: [TopLevelContext] = []
             if sections.contains(.types) {
