@@ -64,14 +64,27 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
     @SemanticStringBuilder
     package var superclass: SemanticString {
         get async throws {
+            let hasInvertedProtocols = dumped.invertibleProtocolSet?.hasInvertedProtocols ?? false
             if let superclassMangledName = try dumped.descriptor.superclassTypeMangledName(in: machO) {
                 Standard(":")
                 Space()
                 try await demangleResolver.resolve(for: MetadataReader.demangleType(for: superclassMangledName, in: machO))
+                if hasInvertedProtocols {
+                    Standard(",")
+                    Space()
+                    dumped.invertibleProtocolSet!.dumpInvertedProtocolNames
+                }
             } else if let resilientSuperclass = dumped.resilientSuperclass, let kind = dumped.descriptor.resilientSuperclassReferenceKind, let superclass = try await resilientSuperclass.dumpSuperclass(resolver: demangleResolver, for: kind, in: machO) {
                 Standard(":")
                 Space()
                 superclass
+                if hasInvertedProtocols {
+                    Standard(",")
+                    Space()
+                    dumped.invertibleProtocolSet!.dumpInvertedProtocolNames
+                }
+            } else if hasInvertedProtocols {
+                dumped.invertibleProtocolSet!.dumpInvertedProtocolsInheritance
             }
         }
     }

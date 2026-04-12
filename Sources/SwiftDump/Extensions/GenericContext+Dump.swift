@@ -272,8 +272,8 @@ extension GenericRequirementDescriptor {
             }
         case .conformance /* (let protocolConformanceDescriptor) */:
             Error("SwiftDumpConformance")
-        case .invertedProtocols /* (let invertedProtocols) */:
-            Error("SwiftDumpInvertedProtocols")
+        case .invertedProtocols(let invertedProtocols):
+            invertedProtocols.protocols.dumpInvertedProtocolNames
         }
     }
 }
@@ -375,8 +375,8 @@ extension GenericRequirementDescriptor {
             }
         case .conformance /* (let protocolConformanceDescriptor) */:
             Standard("SwiftDumpConformance")
-        case .invertedProtocols /* (let invertedProtocols) */:
-            Standard("SwiftDumpInvertedProtocols")
+        case .invertedProtocols(let invertedProtocols):
+            invertedProtocols.protocols.dumpInvertedProtocolNames
         }
     }
 }
@@ -386,5 +386,39 @@ extension OptionSet {
         var copy = self
         copy.remove(element)
         return copy
+    }
+}
+
+extension InvertibleProtocolSet {
+    /// Whether any invertible protocols are present in this set.
+    package var hasInvertedProtocols: Bool {
+        hasCopyable || hasEscapable
+    }
+
+    /// Dump the inverted protocol names (e.g., `~Swift.Copyable`, `~Swift.Escapable`).
+    @SemanticStringBuilder
+    package var dumpInvertedProtocolNames: SemanticString {
+        if hasCopyable && hasEscapable {
+            Standard("~")
+            TypeName(kind: .other, "Swift.Copyable")
+            Standard(" & ~")
+            TypeName(kind: .other, "Swift.Escapable")
+        } else if hasCopyable {
+            Standard("~")
+            TypeName(kind: .other, "Swift.Copyable")
+        } else if hasEscapable {
+            Standard("~")
+            TypeName(kind: .other, "Swift.Escapable")
+        }
+    }
+
+    /// Dump the inverted protocols as an inheritance clause with colon prefix (e.g., `: ~Swift.Copyable`).
+    @SemanticStringBuilder
+    package var dumpInvertedProtocolsInheritance: SemanticString {
+        if hasInvertedProtocols {
+            Standard(":")
+            Space()
+            dumpInvertedProtocolNames
+        }
     }
 }

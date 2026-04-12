@@ -193,8 +193,19 @@ extension MetadataReader {
                 }
             case .conformance:
                 break
-            case .invertedProtocols:
-                break
+            case .invertedProtocols(let invertedProtocols):
+                if invertedProtocols.protocols.hasCopyable {
+                    requirementNodes.append(Node.create(kind: .dependentGenericInverseConformanceRequirement, children: [
+                        subject,
+                        .create(kind: .index, index: UInt64(MachOSwiftSection.InvertibleProtocolKind.copyable.rawValue)),
+                    ]))
+                }
+                if invertedProtocols.protocols.hasEscapable {
+                    requirementNodes.append(Node.create(kind: .dependentGenericInverseConformanceRequirement, children: [
+                        subject,
+                        .create(kind: .index, index: UInt64(MachOSwiftSection.InvertibleProtocolKind.escapable.rawValue)),
+                    ]))
+                }
             }
         }
         if failed || requirementNodes.isEmpty {
