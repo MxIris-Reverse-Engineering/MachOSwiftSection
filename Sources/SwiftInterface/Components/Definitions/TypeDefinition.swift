@@ -116,15 +116,28 @@ public final class TypeDefinition: Definition {
             let typeNode = try MetadataReader.demangleContext(for: .type(.class(cls.descriptor)), in: machO)
             let vtableBaseOffset = cls.vTableDescriptorHeader.map { Int($0.layout.vTableOffset) }
 
-            // Build offset-based fallback lookups from ALL method descriptors
+            // Build offset-based fallback lookups. Uniqueness must be checked against
+            // ALL descriptor kinds (method + override + defaultOverride), because
+            // trampolines/thunks/shared implementations can have multiple descriptors
+            // pointing at the same impl address. If the impl is not globally unique,
+            // we cannot use offset-based fallback — we would not know which descriptor
+            // to associate the symbol with.
             var implOffsetCounts: [Int: Int] = [:]
             for descriptor in cls.methodDescriptors where !descriptor.implementation.isNull {
                 let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
                 implOffsetCounts[implOffset, default: 0] += 1
             }
+            for descriptor in cls.methodOverrideDescriptors where !descriptor.implementation.isNull {
+                let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
+                implOffsetCounts[implOffset, default: 0] += 1
+            }
+            for descriptor in cls.methodDefaultOverrideDescriptors where !descriptor.implementation.isNull {
+                let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
+                implOffsetCounts[implOffset, default: 0] += 1
+            }
             for (index, descriptor) in cls.methodDescriptors.enumerated() where !descriptor.implementation.isNull {
                 let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
-                // Only use offset-based fallback for unique implementation addresses
+                // Only use offset-based fallback for globally unique implementation addresses
                 if implOffsetCounts[implOffset] == 1 {
                     implOffsetDescriptorLookup[implOffset] = .method(descriptor)
                     if let vtableBaseOffset {
@@ -295,6 +308,19 @@ public final class TypeDefinition: Definition {
         return cached.baseOffset + index
     }
 
+    /// If the given node is an `.extension` wrapper, return the extended type node
+    /// (the second child, per Swift demangler's extension node layout:
+    /// `extension(module, extendedType, ?genericSignature)`).
+    /// Otherwise, return the node as-is. Used when comparing a thunk symbol's
+    /// context against a `TypeDefinition`'s type, so members declared in extensions
+    /// match the same way as members declared directly on the type.
+    private static func unwrapExtensionContext(_ node: Node) -> Node {
+        if node.kind == .extension, let extendedType = node.children.at(1) {
+            return extendedType
+        }
+        return node
+    }
+
     /// Cross-references @objc and @nonobjc thunk symbols with already-built member definitions,
     /// appending the appropriate attribute to matching members.
     ///
@@ -331,24 +357,29 @@ public final class TypeDefinition: Definition {
                     unwrappedMemberNode = memberNode
                 }
 
-                // Extract context and member name based on the member node kind
+                // Extract context and member name based on the member node kind.
+                // For members declared in an extension, the context is wrapped in a
+                // `.extension` node whose second child is the extended type. We unwrap
+                // it here so the type-matching below sees the raw type node, regardless
+                // of whether the thunk originated from a direct declaration or an
+                // extension.
                 let extractedMemberName: String?
                 let contextNode: Node?
 
                 switch unwrappedMemberNode.kind {
                 case .function, .constructor, .allocator:
-                    contextNode = unwrappedMemberNode.children.first
+                    contextNode = unwrappedMemberNode.children.first.map(Self.unwrapExtensionContext)
                     extractedMemberName = unwrappedMemberNode.identifier
                 case .variable:
-                    contextNode = unwrappedMemberNode.children.first
+                    contextNode = unwrappedMemberNode.children.first.map(Self.unwrapExtensionContext)
                     extractedMemberName = unwrappedMemberNode.identifier
                 case .getter, .setter:
                     // Accessor wrapping a variable: getter(variable(context, identifier(name)))
                     if let innerVariable = unwrappedMemberNode.children.first, innerVariable.kind == .variable {
-                        contextNode = innerVariable.children.first
+                        contextNode = innerVariable.children.first.map(Self.unwrapExtensionContext)
                         extractedMemberName = innerVariable.identifier
                     } else if let innerSubscript = unwrappedMemberNode.children.first, innerSubscript.kind == .subscript {
-                        contextNode = innerSubscript.children.first
+                        contextNode = innerSubscript.children.first.map(Self.unwrapExtensionContext)
                         extractedMemberName = nil // Subscripts don't have a simple name to match
                     } else {
                         contextNode = nil
