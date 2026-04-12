@@ -24,8 +24,7 @@ final class STCoreE2ETests: MachOFileTests, @unchecked Sendable {
                 printPWTOffset: true,
                 memberSortOrder: memberSortOrder,
                 printTypeLayout: false,
-                printEnumLayout: false,
-                resilienceAwareAttributes: false
+                printEnumLayout: false
             )
         )
         nonisolated(unsafe) let unsafeMachOFile = machOFile
