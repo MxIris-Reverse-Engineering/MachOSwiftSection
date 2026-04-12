@@ -66,9 +66,16 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
                     if !protocolModel.requirements.isEmpty, let witnessTablePattern = dumped.witnessTablePattern {
                         BreakLine()
                         for (requirementIndex, requirement) in protocolModel.requirements.enumerated() {
+                            if requirementIndex > 0 {
+                                BreakLine()
+                            }
                             let slotOffset = witnessTablePattern.offset + MemoryLayout<StoredPointer>.size * (requirementIndex + 1)
                             let requirementName = try await _requirementName(for: requirement)
+                            let requirementFlags = requirement.layout.flags
                             configuration.memberAddressComment(offset: slotOffset, addressString: machO.addressString(forOffset: slotOffset), label: "Protocol Witness Table[\(requirementIndex)]")
+                            configuration.indentString
+                            Comment("Kind: \(requirementFlags.kind.description), isAsync: \(requirementFlags.isAsync), isInstance: \(requirementFlags.isInstance)")
+                            BreakLine()
                             if let requirementName {
                                 configuration.indentString
                                 requirementName

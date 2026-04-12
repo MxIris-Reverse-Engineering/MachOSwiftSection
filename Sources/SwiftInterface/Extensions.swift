@@ -286,28 +286,3 @@ extension StrippedSymbolicRequirement {
         )
     }
 }
-
-extension ProtocolRequirementKind: CustomStringConvertible {
-    public var description: String {
-        switch self {
-        case .baseProtocol:
-            "BaseProtocol"
-        case .method:
-            "Method"
-        case .`init`:
-            "Init"
-        case .getter:
-            "Getter"
-        case .setter:
-            "Setter"
-        case .readCoroutine:
-            "ReadCoroutine"
-        case .modifyCoroutine:
-            "ModifyCoroutine"
-        case .associatedTypeAccessFunction:
-            "AssociatedTypeAccessFunction"
-        case .associatedConformanceAccessFunction:
-            "AssociatedConformanceAccessFunction"
-        }
-    }
-}
