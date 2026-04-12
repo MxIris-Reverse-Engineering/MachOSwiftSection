@@ -590,6 +590,8 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                     }
                 }
 
+                extensionDefinition.orderedMembers = OrderedMember.offsetOrdered(OrderedMember.allMembers(from: extensionDefinition))
+
                 eventDispatcher.dispatch(.extensionCreated(context: SwiftInterfaceEvents.ExtensionContext(targetName: name, memberCount: memberCount)))
                 return extensionDefinition
             }

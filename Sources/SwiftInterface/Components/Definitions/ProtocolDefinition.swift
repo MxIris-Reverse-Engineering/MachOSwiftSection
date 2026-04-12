@@ -124,6 +124,7 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
         let extensionDefinition = try ExtensionDefinition(extensionName: protocolName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
 
         extensionDefinition.setDefinitions(for: defaultImplementationMemberSymbolsByKind, inExtension: true)
+        extensionDefinition.orderedMembers = OrderedMember.offsetOrdered(OrderedMember.allMembers(from: extensionDefinition))
 
         if extensionDefinition.hasMembers {
             defaultImplementationExtensions = [extensionDefinition]

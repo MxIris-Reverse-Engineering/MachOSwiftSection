@@ -190,6 +190,46 @@ extension STCoreTests {
         let nestedChildren = rawRepresentableNested.typeChildren.map { $0.typeName.currentName }
         #expect(nestedChildren.contains("NestedStruct"))
     }
+
+    @Test func offsetSortedExtensionDefinitionsRetainMembers() async throws {
+        let indexer = try await preparedIndexer()
+        let typeExtensionDefinitions = indexer.typeExtensionDefinitions.values.flatMap { $0 }
+
+        let rawRepresentableExtensionDefinition = try #require(
+            typeExtensionDefinitions.first { extensionDefinition in
+                extensionDefinition.variables.contains { variableDefinition in
+                    variableDefinition.name == "rawValue"
+                }
+            }
+        )
+
+        #expect(
+            rawRepresentableExtensionDefinition.orderedMembers.contains { orderedMember in
+                if case .variable(let variableDefinition) = orderedMember {
+                    return variableDefinition.name == "rawValue"
+                }
+                return false
+            }
+        )
+
+        let neverExtensionDefinition = try #require(
+            typeExtensionDefinitions.first { extensionDefinition in
+                extensionDefinition.extensionName.name == "Swift.Never" &&
+                    extensionDefinition.functions.contains { functionDefinition in
+                        functionDefinition.name == "next"
+                    }
+            }
+        )
+
+        #expect(
+            neverExtensionDefinition.orderedMembers.contains { orderedMember in
+                if case .function(let functionDefinition) = orderedMember {
+                    return functionDefinition.name == "next"
+                }
+                return false
+            }
+        )
+    }
 }
 
 // MARK: - Associated Types
@@ -201,6 +241,36 @@ extension STCoreTests {
         try await indexProtocolDefinition(protocolTest)
 
         #expect(protocolTest.associatedTypes.contains("Body"))
+    }
+
+    @Test func offsetSortedProtocolDefaultImplementationExtensionsRetainMembers() async throws {
+        let indexer = try await preparedIndexer()
+        let protocolDefinition = try #require(findProtocolDefinition(named: "ProtocolTest", in: indexer))
+        try await indexProtocolDefinition(protocolDefinition)
+
+        let defaultImplementationExtensionDefinition = try #require(
+            protocolDefinition.defaultImplementationExtensions.first { extensionDefinition in
+                extensionDefinition.extensionName.name.hasSuffix("ProtocolTest")
+            }
+        )
+
+        #expect(
+            defaultImplementationExtensionDefinition.orderedMembers.contains { orderedMember in
+                if case .variable(let variableDefinition) = orderedMember {
+                    return variableDefinition.name == "body"
+                }
+                return false
+            }
+        )
+
+        #expect(
+            defaultImplementationExtensionDefinition.orderedMembers.contains { orderedMember in
+                if case .function(let functionDefinition) = orderedMember {
+                    return functionDefinition.name == "test"
+                }
+                return false
+            }
+        )
     }
 }
 
