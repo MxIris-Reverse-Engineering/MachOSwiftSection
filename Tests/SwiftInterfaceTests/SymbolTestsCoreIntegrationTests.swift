@@ -212,7 +212,7 @@ extension STCoreTests {
         let typeDefinition = try #require(findTypeDefinition(named: "PropertyWrapperStruct", in: indexer))
         try await indexTypeDefinition(typeDefinition)
 
-        let inferrer = TypeAttributeInferrer(resilienceAwareAttributes: false)
+        let inferrer = TypeAttributeInferrer()
         let attributes = inferrer.infer(for: typeDefinition)
 
         #expect(attributes.contains(.propertyWrapper))
@@ -223,7 +223,7 @@ extension STCoreTests {
         let typeDefinition = try #require(findTypeDefinition(named: "ResultBuilderStruct", in: indexer))
         try await indexTypeDefinition(typeDefinition)
 
-        let inferrer = TypeAttributeInferrer(resilienceAwareAttributes: false)
+        let inferrer = TypeAttributeInferrer()
         let attributes = inferrer.infer(for: typeDefinition)
 
         #expect(attributes.contains(.resultBuilder))
@@ -234,7 +234,7 @@ extension STCoreTests {
         let typeDefinition = try #require(findTypeDefinition(named: "DynamicMemberLookupStruct", in: indexer))
         try await indexTypeDefinition(typeDefinition)
 
-        let inferrer = TypeAttributeInferrer(resilienceAwareAttributes: false)
+        let inferrer = TypeAttributeInferrer()
         let attributes = inferrer.infer(for: typeDefinition)
 
         #expect(attributes.contains(.dynamicMemberLookup))
@@ -245,7 +245,7 @@ extension STCoreTests {
         let typeDefinition = try #require(findTypeDefinition(named: "DynamicCallableStruct", in: indexer))
         try await indexTypeDefinition(typeDefinition)
 
-        let inferrer = TypeAttributeInferrer(resilienceAwareAttributes: false)
+        let inferrer = TypeAttributeInferrer()
         let attributes = inferrer.infer(for: typeDefinition)
 
         #expect(attributes.contains(.dynamicCallable))
@@ -256,7 +256,7 @@ extension STCoreTests {
         let typeDefinition = try #require(findTypeDefinition(named: "StructTest", in: indexer))
         try await indexTypeDefinition(typeDefinition)
 
-        let inferrer = TypeAttributeInferrer(resilienceAwareAttributes: false)
+        let inferrer = TypeAttributeInferrer()
         let attributes = inferrer.infer(for: typeDefinition)
 
         #expect(!attributes.contains(.propertyWrapper))

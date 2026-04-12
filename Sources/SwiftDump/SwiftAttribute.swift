@@ -8,15 +8,15 @@ public enum SwiftAttribute: Int, Comparable, Sendable, CaseIterable {
     case dynamicCallable
 
     // Type-level (from metadata flags)
-    case frozen
-    case usableFromInline
     case objcType
 
     // Member-level (from Node tree / descriptor flags)
     case objc
     case nonobjc
-    case inlinable
     case dynamic
+
+    // Type-level (from conformance: conforms to GlobalActor)
+    case globalActor
 
     // Conformance-level
     case retroactive
@@ -31,13 +31,11 @@ public enum SwiftAttribute: Int, Comparable, Sendable, CaseIterable {
         case .resultBuilder: return "@resultBuilder"
         case .dynamicMemberLookup: return "@dynamicMemberLookup"
         case .dynamicCallable: return "@dynamicCallable"
-        case .frozen: return "@frozen"
-        case .usableFromInline: return "@usableFromInline"
         case .objcType: return "@objc"
         case .objc: return "@objc"
         case .nonobjc: return "@nonobjc"
-        case .inlinable: return "@inlinable"
         case .dynamic: return "dynamic"
+        case .globalActor: return "@globalActor"
         case .retroactive: return "@retroactive"
         }
     }
@@ -48,13 +46,11 @@ public enum SwiftAttribute: Int, Comparable, Sendable, CaseIterable {
         case .resultBuilder: return .atResultBuilder
         case .dynamicMemberLookup: return .atDynamicMemberLookup
         case .dynamicCallable: return .atDynamicCallable
-        case .frozen: return .atFrozen
-        case .usableFromInline: return .atUsableFromInline
         case .objcType: return .atObjc
         case .objc: return .atObjc
         case .nonobjc: return .atNonobjc
-        case .inlinable: return .atInlinable
         case .dynamic: return .dynamic
+        case .globalActor: return .atGlobalActor
         case .retroactive: return .atRetroactive
         }
     }

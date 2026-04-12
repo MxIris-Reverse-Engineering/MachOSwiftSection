@@ -60,7 +60,7 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
         }
 
         // Infer type-level attributes
-        let typeAttributeInferrer = TypeAttributeInferrer(resilienceAwareAttributes: configuration.resilienceAwareAttributes)
+        let typeAttributeInferrer = TypeAttributeInferrer()
         typeDefinition.attributes = typeAttributeInferrer.infer(for: typeDefinition)
 
         let dumper = typeDefinition.type.dumper(

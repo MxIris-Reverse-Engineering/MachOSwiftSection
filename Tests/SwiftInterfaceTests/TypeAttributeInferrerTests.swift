@@ -186,6 +186,31 @@ struct TypeAttributeInferrerTests {
         #expect(!TypeAttributeInferrer.hasDynamicallyCallMethod(functions: [], staticFunctions: []))
     }
 
+    // MARK: - @globalActor Detection
+
+    @Test("conformsToGlobalActor returns true when conforming to Swift.GlobalActor")
+    func detectGlobalActorFullyQualified() {
+        let conformingProtocolNames: Set<String> = ["Swift.GlobalActor", "Swift.Sendable"]
+        #expect(TypeAttributeInferrer.conformsToGlobalActor(conformingProtocolNames: conformingProtocolNames))
+    }
+
+    @Test("conformsToGlobalActor returns true when conforming to GlobalActor (unqualified)")
+    func detectGlobalActorUnqualified() {
+        let conformingProtocolNames: Set<String> = ["GlobalActor"]
+        #expect(TypeAttributeInferrer.conformsToGlobalActor(conformingProtocolNames: conformingProtocolNames))
+    }
+
+    @Test("conformsToGlobalActor returns false when not conforming to GlobalActor")
+    func detectGlobalActorAbsent() {
+        let conformingProtocolNames: Set<String> = ["Swift.Sendable", "Swift.Actor"]
+        #expect(!TypeAttributeInferrer.conformsToGlobalActor(conformingProtocolNames: conformingProtocolNames))
+    }
+
+    @Test("conformsToGlobalActor returns false for empty conformances")
+    func detectGlobalActorEmptyConformances() {
+        #expect(!TypeAttributeInferrer.conformsToGlobalActor(conformingProtocolNames: []))
+    }
+
     // MARK: - Combined Detection Tests
 
     @Test("Multiple attributes can be detected simultaneously via static predicates")

@@ -32,6 +32,7 @@ public struct SwiftInterfacePrintConfiguration: Equatable, Sendable {
     public var memberSortOrder: SwiftInterfaceMemberSortOrder = .byCategory
     public var printTypeLayout: Bool = false
     public var printEnumLayout: Bool = false
+
     public var memberAddressTransformer: MemberAddressTransformer? = nil
     public var vtableOffsetTransformer: VTableOffsetTransformer? = nil
     public var fieldOffsetTransformer: FieldOffsetTransformer? = nil
@@ -39,5 +40,4 @@ public struct SwiftInterfacePrintConfiguration: Equatable, Sendable {
     public var typeLayoutTransformer: TypeLayoutTransformer? = nil
     public var enumLayoutTransformer: EnumLayoutTransformer? = nil
     public var enumLayoutCaseTransformer: EnumLayoutCaseTransformer? = nil
-    public var resilienceAwareAttributes: Bool = false
 }

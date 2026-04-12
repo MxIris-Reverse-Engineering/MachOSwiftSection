@@ -55,6 +55,8 @@ public final class TypeDefinition: Definition {
 
     public internal(set) var orderedMembers: [OrderedMember] = []
 
+    public internal(set) var conformingProtocolNames: Set<String> = []
+
     public internal(set) var attributes: [SwiftAttribute] = []
 
     public private(set) var isIndexed: Bool = false
@@ -375,105 +377,6 @@ public final class TypeDefinition: Definition {
                     // Also check allocators (for @objc init thunks)
                     if unwrappedMemberNode.kind == .allocator || unwrappedMemberNode.kind == .constructor {
                         applyAttributeToAllocator(attribute: attribute, in: &allocators)
-                    }
-                }
-            }
-        }
-    }
-
-    /// Cross-references specialization symbols (genericSpecialization, functionSignatureSpecialization, etc.)
-    /// with built member definitions to detect `@inlinable` functions.
-    ///
-    /// A specialization symbol with `.isSerialized` child indicates the original function is `@inlinable`.
-    /// Specialization node structure:
-    /// ```
-    /// global
-    ///   ├── genericSpecialization (with .isSerialized child if @inlinable)
-    ///   └── function/getter/... (the original function entity)
-    /// ```
-    package func applyInlinableAttributes<MachO: MachORepresentableWithCache>(in machO: MachO) {
-        @Dependency(\.symbolIndexStore)
-        var symbolIndexStore
-
-        let specializationKinds: [Node.Kind] = [
-            .genericSpecialization,
-            .functionSignatureSpecialization,
-            .genericSpecializationNotReAbstracted,
-            .genericSpecializationPrespecialized,
-            .genericSpecializationInResilienceDomain,
-            .genericPartialSpecialization,
-            .genericPartialSpecializationNotReAbstracted,
-            .inlinedGenericFunction,
-        ]
-
-        let typeName = self.typeName.name
-
-        for specializationKind in specializationKinds {
-            let symbols = symbolIndexStore.symbols(of: specializationKind, in: machO)
-            for symbol in symbols {
-                let rootNode = symbol.demangledNode
-
-                // The specialization node is the first child of .global
-                guard let specNode = rootNode.children.first(where: { $0.kind == specializationKind }) else { continue }
-
-                // Check if this specialization has .isSerialized (meaning @inlinable)
-                guard MemberAttributeInferrer.hasSerializedChild(specNode) else { continue }
-
-                // The original function entity is a sibling of the specialization node in .global
-                // Skip specialization-related nodes and find the actual member entity
-                guard let originalNode = rootNode.children.first(where: {
-                    !specializationKinds.contains($0.kind) && $0.kind != .specializationPassID
-                }) else { continue }
-
-                // Unwrap .static if present
-                let isStatic: Bool
-                let unwrappedNode: Node
-                if originalNode.kind == .static, let innerChild = originalNode.children.first {
-                    isStatic = true
-                    unwrappedNode = innerChild
-                } else {
-                    isStatic = false
-                    unwrappedNode = originalNode
-                }
-
-                // Extract context and member name
-                let contextNode: Node?
-                let memberName: String?
-
-                switch unwrappedNode.kind {
-                case .function, .constructor, .allocator:
-                    contextNode = unwrappedNode.children.first
-                    memberName = unwrappedNode.identifier
-                case .getter, .setter, .modifyAccessor, .readAccessor:
-                    if let inner = unwrappedNode.children.first {
-                        contextNode = inner.children.first
-                        memberName = inner.identifier
-                    } else {
-                        contextNode = nil
-                        memberName = nil
-                    }
-                default:
-                    contextNode = nil
-                    memberName = nil
-                }
-
-                guard let contextNode else { continue }
-
-                // Check if the context matches the current type
-                let specTypeName = Node.create(kind: .type, child: contextNode).print(using: .interfaceTypeBuilderOnly)
-                guard specTypeName == typeName else { continue }
-
-                guard let memberName else { continue }
-
-                // Apply @inlinable attribute to matching definitions
-                if isStatic {
-                    applyAttributeToFunction(name: memberName, attribute: .inlinable, in: &staticFunctions)
-                    applyAttributeToVariable(name: memberName, attribute: .inlinable, in: &staticVariables)
-                } else {
-                    applyAttributeToFunction(name: memberName, attribute: .inlinable, in: &functions)
-                    applyAttributeToVariable(name: memberName, attribute: .inlinable, in: &variables)
-                    if unwrappedNode.kind == .allocator || unwrappedNode.kind == .constructor {
-                        applyAttributeToAllocator(attribute: .inlinable, in: &allocators)
                     }
                 }
             }

@@ -9,16 +9,10 @@ import Demangling
 /// - `@resultBuilder`: type has a `static buildBlock` method (also checks extensions)
 /// - `@dynamicMemberLookup`: type has `subscript(dynamicMember:)`
 /// - `@dynamicCallable`: type has a `dynamicallyCall` method
-/// - `@frozen` (resilience-gated): struct/enum with no metadata initialization
-/// - `@usableFromInline` (resilience-gated): type has import info
 /// - `@objc("Name")`: class with custom ObjC name (requires runtime metadata)
+/// - `@globalActor`: type conforms to `GlobalActor` protocol
 public struct TypeAttributeInferrer: Sendable {
-    /// Whether to include resilience-gated attributes (`@frozen`, `@usableFromInline`).
-    public let resilienceAwareAttributes: Bool
-
-    public init(resilienceAwareAttributes: Bool) {
-        self.resilienceAwareAttributes = resilienceAwareAttributes
-    }
+    public init() {}
 
     /// Infers all applicable type-level attributes for the given type definition.
     ///
@@ -33,10 +27,8 @@ public struct TypeAttributeInferrer: Sendable {
         inferDynamicMemberLookup(typeDefinition: typeDefinition, into: &attributes)
         inferDynamicCallable(typeDefinition: typeDefinition, into: &attributes)
 
-        // Resilience-gated attributes from metadata flags
-        if resilienceAwareAttributes {
-            inferFrozen(typeDefinition: typeDefinition, into: &attributes)
-        }
+        // Conformance-based attributes
+        inferGlobalActor(typeDefinition: typeDefinition, into: &attributes)
 
         // Class-specific attributes
         inferObjCType(typeDefinition: typeDefinition, into: &attributes)
@@ -81,6 +73,18 @@ public struct TypeAttributeInferrer: Sendable {
     static func hasDynamicallyCallMethod(functions: [FunctionDefinition], staticFunctions: [FunctionDefinition]) -> Bool {
         let allFunctions = functions + staticFunctions
         return allFunctions.contains { $0.name == "dynamicallyCall" }
+    }
+
+    /// The suffix used to match the `GlobalActor` protocol in conformance names.
+    /// Matches both `Swift.GlobalActor` (fully qualified) and `GlobalActor` (unqualified).
+    private static let globalActorProtocolSuffix = "GlobalActor"
+
+    /// Checks whether the type conforms to the `GlobalActor` protocol,
+    /// which indicates the type is annotated with `@globalActor`.
+    static func conformsToGlobalActor(conformingProtocolNames: Set<String>) -> Bool {
+        conformingProtocolNames.contains { protocolName in
+            protocolName == globalActorProtocolSuffix || protocolName.hasSuffix(".\(globalActorProtocolSuffix)")
+        }
     }
 
     // MARK: - Private Inference Methods
@@ -133,17 +137,9 @@ public struct TypeAttributeInferrer: Sendable {
         }
     }
 
-    private func inferFrozen(typeDefinition: TypeDefinition, into attributes: inout [SwiftAttribute]) {
-        let descriptorWrapper = typeDefinition.type.typeContextDescriptorWrapper
-        let typeContextDescriptor = descriptorWrapper.typeContextDescriptor
-
-        // @frozen only applies to struct and enum
-        guard typeContextDescriptor.kind == .struct || typeContextDescriptor.kind == .enum else { return }
-
-        // noMetadataInitialization means the type has no special metadata initialization,
-        // which indicates it is @frozen (its layout is fixed and known at compile time)
-        if typeContextDescriptor.kindSpecificFlags?.typeFlags?.noMetadataInitialization == true {
-            attributes.append(.frozen)
+    private func inferGlobalActor(typeDefinition: TypeDefinition, into attributes: inout [SwiftAttribute]) {
+        if Self.conformsToGlobalActor(conformingProtocolNames: typeDefinition.conformingProtocolNames) {
+            attributes.append(.globalActor)
         }
     }
 

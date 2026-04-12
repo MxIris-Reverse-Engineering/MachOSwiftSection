@@ -506,6 +506,14 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
         }
 
         currentStorage.conformanceExtensionDefinitions = conformanceExtensionDefinitions
+
+        // Populate conforming protocol names on each TypeDefinition for attribute inference
+        for (typeName, conformances) in protocolConformancesByTypeName {
+            if let typeDefinition = currentStorage.allTypeDefinitions[typeName] {
+                typeDefinition.conformingProtocolNames = Set(conformances.keys.map(\.name))
+            }
+        }
+
         eventDispatcher.dispatch(.conformanceIndexingCompleted(result: SwiftInterfaceEvents.ConformanceIndexingResult(conformedTypes: protocolConformancesByTypeName.count, associatedTypeCount: associatedTypesByTypeName.count, extensionCount: extensionCount, failedConformances: failedConformances, failedAssociatedTypes: failedAssociatedTypes, failedExtensions: failedExtensions)))
     }
 
