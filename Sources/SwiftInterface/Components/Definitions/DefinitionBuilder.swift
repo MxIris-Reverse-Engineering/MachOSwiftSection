@@ -30,7 +30,11 @@ enum DefinitionBuilder {
             guard !fieldNames.contains(name) else { continue }
             let nodes = accessors.map(\.symbol.demangledNode)
             guard let node = nodes.first(where: { $0.contains(.getter) || !$0.hasAccessor }) else { continue }
-            variables.append(.init(node: node, name: name, accessors: accessors, isGlobalOrStatic: isGlobalOrStatic))
+            var variableDefinition = VariableDefinition(node: node, name: name, accessors: accessors, isGlobalOrStatic: isGlobalOrStatic)
+            if accessors.contains(where: { $0.methodDescriptor?.method?.layout.flags.isDynamic ?? false }) {
+                variableDefinition.attributes.append(.dynamic)
+            }
+            variables.append(variableDefinition)
         }
         return variables
     }
@@ -58,7 +62,11 @@ enum DefinitionBuilder {
         for (_, accessors) in accessorsByNode {
             let nodes = accessors.map(\.symbol.demangledNode)
             guard let node = nodes.first(where: { $0.contains(.getter) }) else { continue }
-            subscripts.append(.init(node: node, accessors: accessors, isStatic: isStatic))
+            var subscriptDefinition = SubscriptDefinition(node: node, accessors: accessors, isStatic: isStatic)
+            if accessors.contains(where: { $0.methodDescriptor?.method?.layout.flags.isDynamic ?? false }) {
+                subscriptDefinition.attributes.append(.dynamic)
+            }
+            subscripts.append(subscriptDefinition)
         }
         return subscripts
     }

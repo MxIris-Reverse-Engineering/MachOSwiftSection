@@ -16,5 +16,5 @@ public struct FunctionDefinition: Sendable {
     public let vtableOffset: Int?
     public var attributes: [SwiftAttribute] = []
 
-    public var isOverride: Bool { methodDescriptor?.isMethodOverride ?? false }
+    public var isOverride: Bool { methodDescriptor?.isMethodOverride ?? methodDescriptor?.isMethodDefaultOverride ?? false }
 }
