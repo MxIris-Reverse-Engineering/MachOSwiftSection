@@ -184,6 +184,13 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     }
 
     public override func buildStorage<MachO: MachORepresentableWithCache>(for machO: MachO) -> Storage? {
+        return buildStorageImpl(for: machO, progressContinuation: nil)
+    }
+
+    private func buildStorageImpl<MachO: MachORepresentableWithCache>(
+        for machO: MachO,
+        progressContinuation: AsyncStream<Progress>.Continuation?
+    ) -> Storage? {
         let storage = Storage()
         var cachedSymbols: Set<String> = []
         var symbolByName: OrderedDictionary<String, Symbol> = [:]
@@ -214,7 +221,6 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         // Phase 1: Parallel demangling
         let symbolArray = Array(symbolByName.values)
         let totalSymbolCount = symbolArray.count
-        let progressContinuation = currentProgressContinuation
 
         let demangledNodes = symbolArray.concurrentMap { try? demangleAsNode($0.name) }
 
@@ -496,19 +502,21 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         public let totalCount: Int
     }
 
-    private var currentProgressContinuation: AsyncStream<Progress>.Continuation?
-
     public func prepare<MachO: MachORepresentableWithCache>(in machO: MachO) {
         _ = storage(in: machO)
     }
 
     public func prepareWithProgress<MachO: MachORepresentableWithCache>(in machO: MachO) -> AsyncStream<Progress> {
         let (stream, continuation) = AsyncStream<Progress>.makeStream()
-        DispatchQueue.global(qos: .userInitiated).async {
-            self.currentProgressContinuation = continuation
-            _ = self.storage(in: machO)
-            self.currentProgressContinuation = nil
-            continuation.finish()
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            defer { continuation.finish() }
+            guard let self else { return }
+            // continuation flows into buildStorageImpl via closure capture only.
+            // No shared instance state is involved, so concurrent calls cannot
+            // interfere with each other's progress streams.
+            _ = self.storage(in: machO) { machO in
+                self.buildStorageImpl(for: machO, progressContinuation: continuation)
+            }
         }
         return stream
     }
