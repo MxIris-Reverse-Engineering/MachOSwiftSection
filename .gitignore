@@ -18,3 +18,4 @@ Tests/__Snapshots__
 PrecompiledLibraries/swift-syntax/.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .derived-data-log-*
 .package.env
+Tests/Projects/SymbolTests/DerivedData
