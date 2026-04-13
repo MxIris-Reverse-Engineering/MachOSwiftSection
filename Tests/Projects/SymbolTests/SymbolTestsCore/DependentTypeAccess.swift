@@ -1,42 +1,66 @@
 import Foundation
 
 public enum DependentTypeAccess {
-    public protocol DependentProtocol {
-        associatedtype First
-        associatedtype Second: Collection where Second.Element == First
+    // Custom protocol hierarchy with no same-type constraints so that
+    // dependent member type chains survive through compilation instead
+    // of being canonicalized away (as happens with Collection/Sequence,
+    // where Iterator.Element == Element, Indices.Element == Index, etc.).
+    public protocol OuterProtocol {
+        associatedtype Middle: MiddleProtocol
+        associatedtype Inner: InnerProtocol
     }
 
-    public struct DependentAccessTest<Element: Collection> {
-        public var iteratorElement: Element.Iterator.Element?
-        public var indicesIndex: Element.Indices.Element?
-        public var subSequenceIndex: Element.SubSequence.Index?
+    public protocol MiddleProtocol {
+        associatedtype Leaf
+        associatedtype Branch: BranchProtocol
+    }
+
+    public protocol BranchProtocol {
+        associatedtype Final
+    }
+
+    public protocol InnerProtocol {
+        associatedtype Value
+    }
+
+    // Two-level dependent member type access: A.Middle.Leaf, A.Inner.Value.
+    public struct DependentAccessTest<Element: OuterProtocol> {
+        public var middleLeaf: Element.Middle.Leaf?
+        public var innerValue: Element.Inner.Value?
 
         public init(
-            iteratorElement: Element.Iterator.Element?,
-            indicesIndex: Element.Indices.Element?,
-            subSequenceIndex: Element.SubSequence.Index?
+            middleLeaf: Element.Middle.Leaf?,
+            innerValue: Element.Inner.Value?
         ) {
-            self.iteratorElement = iteratorElement
-            self.indicesIndex = indicesIndex
-            self.subSequenceIndex = subSequenceIndex
+            self.middleLeaf = middleLeaf
+            self.innerValue = innerValue
         }
     }
 
-    public struct DeepDependentAccessTest<Element: Collection> where Element.SubSequence: Collection {
-        public var deepElement: Element.SubSequence.SubSequence.Element?
+    // Three-level dependent member type access: A.Middle.Branch.Final.
+    public struct DeepDependentAccessTest<Element: OuterProtocol> {
+        public var branchFinal: Element.Middle.Branch.Final?
 
-        public init(deepElement: Element.SubSequence.SubSequence.Element?) {
-            self.deepElement = deepElement
+        public init(branchFinal: Element.Middle.Branch.Final?) {
+            self.branchFinal = branchFinal
         }
     }
 
+    // Dependent member types in function parameter and return position.
     public struct DependentFunctionTest {
-        public func acceptDependent<Element: Collection>(
+        public func acceptDependent<Element: OuterProtocol>(
             _ element: Element,
-            iteratorElement: Element.Iterator.Element,
-            indicesElement: Element.Indices.Element
-        ) -> Element.SubSequence {
-            element[element.startIndex..<element.endIndex]
+            middleLeaf: Element.Middle.Leaf,
+            innerValue: Element.Inner.Value
+        ) -> Element.Middle.Branch.Final? {
+            nil
         }
+    }
+
+    // Protocol carrying a same-type requirement between dependent member
+    // types — this exercises the `where` clause mangling, not canonicalization.
+    public protocol DependentProtocol {
+        associatedtype First
+        associatedtype Second: MiddleProtocol where Second.Leaf == First
     }
 }
