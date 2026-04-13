@@ -1,0 +1,403 @@
+extension NSExceptionName: Swift.RawRepresentable {
+    typealias RawValue = Swift.String
+}
+extension NSExceptionName: Swift._ObjectiveCBridgeable {
+    typealias _ObjectiveCType = NSString
+}
+extension SFAirDropiTunesStoreLinkType: Swift.RawRepresentable {
+    typealias RawValue = Swift.Int
+}
+extension SFAirDropMusicAppLinkType: Swift.RawRepresentable {
+    typealias RawValue = Swift.Int
+}
+extension SFAirDropMapsLinkType: Swift.RawRepresentable {
+    typealias RawValue = Swift.Int
+}
+extension Sharing.SFAirDropReceive.Transfer: Swift.Identifiable {
+    typealias ID = Sharing.SFAirDrop.TransferIdentifier
+}
+extension Sharing.SFCodableCGImage.CodingKeys: Swift.RawRepresentable {
+    typealias RawValue = Swift.String
+}
+extension Sharing.KeyDataFormatStyle: Foundation.FormatStyle {
+    typealias FormatInput = Foundation.Data
+    typealias FormatOutput = Swift.String
+}
+extension Sharing.SFXPCAsyncSequence.AsyncIterator: Swift.AsyncIteratorProtocol {
+    typealias Element = A
+    typealias Failure = Swift.Error
+}
+extension Sharing.SFXPCAsyncSequence: Swift.AsyncSequence {
+    typealias AsyncIterator = Sharing.SFXPCAsyncSequence<A>.AsyncIterator
+    typealias Element = A
+    typealias Failure = Swift.Error
+}
+extension Sharing._SFEncodedDataAsyncSequence.AsyncIterator: Swift.AsyncIteratorProtocol {
+    typealias Element = Foundation.Data
+    typealias Failure = Swift.Error
+}
+extension Sharing.SFString: Swift.RawRepresentable {
+    typealias RawValue = Swift.String
+}
+extension Sharing.IDSIdentifierFormatStyle: Foundation.FormatStyle {
+    typealias FormatInput = Swift.String
+    typealias FormatOutput = Swift.String
+}
+extension Sharing.AsyncCombineLatest6Sequence.Iterator: Swift.AsyncIteratorProtocol {
+    typealias Element = (A.AsyncSequence.Element, B.AsyncSequence.Element, C.AsyncSequence.Element, D.AsyncSequence.Element, E.AsyncSequence.Element, F.AsyncSequence.Element)
+    typealias Failure = A.AsyncSequence.Failure
+}
+extension Sharing.AsyncCombineLatest6Sequence: Swift.AsyncSequence {
+    typealias AsyncIterator = Sharing.AsyncCombineLatest6Sequence<A, B, C, D, E, F>.Iterator
+    typealias Element = (A.AsyncSequence.Element, B.AsyncSequence.Element, C.AsyncSequence.Element, D.AsyncSequence.Element, E.AsyncSequence.Element, F.AsyncSequence.Element)
+    typealias Failure = A.AsyncSequence.Failure
+}
+extension Swift.Result: Sharing._ErrorMechanism {
+    typealias Output = A
+}
+extension Sharing.SFInterventionWorkflow.SprinboardSettings: Swift.RawRepresentable {
+    typealias RawValue = Swift.Int
+}
+extension Sharing.SFInterventionWorkflow: Swift.RawRepresentable {
+    typealias RawValue = Swift.String
+}
+extension Sharing.SFInterventionWorkflow: Swift.CaseIterable {
+    typealias AllCases = [Sharing.SFInterventionWorkflow]
+}
+extension Sharing.SFAirDropInvocations.UserSafetyIntervention: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.SFInterventionWorkflow
+    typealias Response = Sharing.SFInterventionResponse
+}
+extension Sharing.AskToAirDropReceiverController.ConnectionState: Swift.RawRepresentable {
+    typealias RawValue = Swift.Int
+}
+extension Sharing.SFAirDropReceive.AskRequest: Swift.Identifiable {
+    typealias ID = Sharing.SFAirDrop.TransferIdentifier
+}
+extension Sharing.SFAirDropReceive.AskRequest.AdvancedItemsDescription.CodingKeys: Swift.RawRepresentable {
+    typealias RawValue = Swift.String
+}
+extension Sharing.SFAirDrop.DeviceRelationship: Swift.RawRepresentable {
+    typealias RawValue = Swift.Int
+}
+extension Sharing.OSLogDateFormatter: Foundation.FormatStyle {
+    typealias FormatInput = Foundation.Date
+    typealias FormatOutput = Swift.String
+}
+extension Sharing.OSLogDateFormatter: Foundation.ParseStrategy {
+    typealias ParseInput = Swift.String
+    typealias ParseOutput = Foundation.Date
+}
+extension Sharing.TinyDateRangeFormatter: Foundation.FormatStyle {
+    typealias FormatInput = Swift.Range<Foundation.Date>
+    typealias FormatOutput = Swift.String
+}
+extension Sharing.FuzzyTinyDateRangeFormatter: Foundation.FormatStyle {
+    typealias FormatInput = Swift.Range<Foundation.Date>
+    typealias FormatOutput = Swift.String
+}
+extension Sharing.CompactDateRangeFormatter: Foundation.FormatStyle {
+    typealias FormatInput = Swift.Range<Foundation.Date>
+    typealias FormatOutput = Swift.String
+}
+extension Sharing.SF_os_activity.Options: Swift.OptionSet {
+    typealias Element = Sharing.SF_os_activity.Options
+}
+extension Sharing.SF_os_activity.Options: Swift.SetAlgebra {
+    typealias Element = Sharing.SF_os_activity.Options
+}
+extension Sharing.SF_os_activity.Options: Swift.RawRepresentable {
+    typealias RawValue = Swift.UInt32
+}
+extension Sharing.SF_os_activity.Options: Swift.ExpressibleByArrayLiteral {
+    typealias ArrayLiteralElement = Sharing.SF_os_activity.Options
+}
+extension Sharing.SFPlatform: Swift.OptionSet {
+    typealias Element = Sharing.SFPlatform
+}
+extension Sharing.SFPlatform: Swift.SetAlgebra {
+    typealias Element = Sharing.SFPlatform
+}
+extension Sharing.SFPlatform: Swift.RawRepresentable {
+    typealias RawValue = Swift.Int
+}
+extension Sharing.SFPlatform: Swift.ExpressibleByArrayLiteral {
+    typealias ArrayLiteralElement = Sharing.SFPlatform
+}
+extension Sharing.SFAirDrop.PermissionRequest: Swift.Identifiable {
+    typealias ID = Foundation.UUID
+}
+extension Sharing.SFAirDrop.AcceptAction.Single: Swift.Identifiable {
+    typealias ID = Swift.String
+}
+extension Sharing.SFAirDrop.AcceptAction: Swift.Identifiable {
+    typealias ID = Foundation.UUID
+}
+extension Sharing.SFAirDrop.DeclineAction: Swift.Identifiable {
+    typealias ID = Swift.String
+}
+extension Sharing.SFAirDrop.PermissionRequest.InterventionAction: Swift.Identifiable {
+    typealias ID = Foundation.UUID
+}
+extension Sharing.AsyncCombineLatest2Sequence.Iterator: Swift.AsyncIteratorProtocol {
+    typealias Element = (A.AsyncSequence.Element, B.AsyncSequence.Element)
+    typealias Failure = A.AsyncSequence.Failure
+}
+extension Sharing.AsyncCombineLatest2Sequence: Swift.AsyncSequence {
+    typealias AsyncIterator = Sharing.AsyncCombineLatest2Sequence<A, B>.Iterator
+    typealias Element = (A.AsyncSequence.Element, B.AsyncSequence.Element)
+    typealias Failure = A.AsyncSequence.Failure
+}
+extension Sharing.SFXPCProgressTask: Swift.AsyncSequence {
+    typealias AsyncIterator = Sharing.SFXPCAsyncSequence<A>.AsyncIterator
+    typealias Element = A
+    typealias Failure = Swift.Error
+}
+extension Sharing.AsyncCombineLatest3Sequence.Iterator: Swift.AsyncIteratorProtocol {
+    typealias Element = (A.AsyncSequence.Element, B.AsyncSequence.Element, C.AsyncSequence.Element)
+    typealias Failure = A.AsyncSequence.Failure
+}
+extension Sharing.AsyncCombineLatest3Sequence: Swift.AsyncSequence {
+    typealias AsyncIterator = Sharing.AsyncCombineLatest3Sequence<A, B, C>.Iterator
+    typealias Element = (A.AsyncSequence.Element, B.AsyncSequence.Element, C.AsyncSequence.Element)
+    typealias Failure = A.AsyncSequence.Failure
+}
+extension Sharing.SFAirDropInvocations.Send: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.SFAirDropSend.Request
+    typealias Response = Sharing.SFXPCProgressTask<Sharing.SFAirDropSend.Transfer, Sharing.SFAirDropSend.Transfer>
+}
+extension Sharing.SFAirDropInvocations.Cancel: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.SFAirDrop.TransferIdentifier
+    typealias Response = Sharing.VoidResponse
+}
+extension Sharing.SFAirDropInvocations.FetchUserDefaults: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.VoidParameters
+    typealias Response = [Sharing.SFUserDefaultDescription]
+}
+extension Sharing.SFAirDropInvocations.FetchEndpointMetadata: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Foundation.UUID
+    typealias Response = Sharing.SFAirDrop.EndpointMetadata
+}
+extension Sharing.SFAirDropInvocations.TransfersMonitor: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.VoidParameters
+    typealias Response = Sharing.SFXPCAsyncSequence<Sharing.SFAirDrop.Transfers>
+}
+extension Sharing.SFAirDropInvocations.BecomeTransferPresenter: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.SFAirDropInvocations.BecomeTransferPresenter.Parameters
+    typealias Response = Sharing.VoidResponse
+}
+extension Sharing.SFAirDropInvocations.ResignTransferPresenter: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.VoidParameters
+    typealias Response = Sharing.VoidResponse
+}
+extension Sharing.SFAirDropInvocations.SendTransfersMonitor: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.VoidParameters
+    typealias Response = Sharing.SFXPCAsyncSequence<Sharing.SFAirDrop.Transfers>
+}
+extension Sharing.SFAirDropInvocations.NearbySharingInteractions: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.VoidParameters
+    typealias Response = Sharing.SFXPCAsyncSequence<[Sharing.SFAirDrop.NearbySharingInteraction]>
+}
+extension Sharing.SFAirDropInvocations.StartNearbySharingDiscovery: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.SFAirDrop.NearbySharingDiscovery.Request
+    typealias Response = Sharing.VoidResponse
+}
+extension Sharing.SFAirDropInvocations.StopNearbySharingDiscovery: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Swift.String
+    typealias Response = Sharing.VoidResponse
+}
+extension Sharing.SFAirDropInvocations.TakeNearbySharingAssertion: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.SFAirDrop.NearbySharingAssertionRequest
+    typealias Response = Foundation.UUID?
+}
+extension Sharing.SFAirDropInvocations.ReleaseNearbySharingAssertion: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Foundation.UUID
+    typealias Response = Sharing.VoidResponse
+}
+extension Sharing.SFAirDropInvocations.SimulateNearbySharingInteractions: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.SFAirDrop.NearbySharingInteraction
+    typealias Response = Sharing.VoidResponse
+}
+extension Sharing.SFAirDropInvocations.BoopAtADistanceBegin: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.SFAirDropClient.BoopAtADistance.Transaction
+    typealias Response = Sharing.SFAirDropClient.BoopAtADistance.ServerInfo
+}
+extension Sharing.SFAirDropInvocations.BoopAtADistanceUpdate: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.SFAirDropInvocations.BoopAtADistanceUpdate.Parameters
+    typealias Response = Sharing.VoidResponse
+}
+extension Sharing.SFAirDropInvocations.BoopAtADistanceEnd: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.SFAirDropClient.BoopAtADistance.Transaction
+    typealias Response = Sharing.VoidResponse
+}
+extension Sharing.SFAirDropInvocations.EndNearbySharingInteraction: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Foundation.UUID
+    typealias Response = Sharing.VoidResponse
+}
+extension Sharing.SFAirDropInvocations.StartTempPairing: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.VoidParameters
+    typealias Response = Sharing.SFXPCAsyncSequence<Sharing.SFTempPairingSenderStateUpdate>
+}
+extension Sharing.SFAirDropInvocations.StopTempPairing: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.VoidParameters
+    typealias Response = Sharing.VoidResponse
+}
+extension Sharing.SFAirDropInvocations.TempPairingMonitor: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.VoidParameters
+    typealias Response = Sharing.SFXPCAsyncSequence<Sharing.SFTempPairingStateUpdate>
+}
+extension Sharing.SFAirDropInvocations.SharingName: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.VoidParameters
+    typealias Response = Swift.String
+}
+extension Sharing.SFAirDropInvocations.TempPairingConnect: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.VoidParameters
+    typealias Response = Sharing.VoidResponse
+}
+extension Sharing.SFAirDropInvocations.TempPairingDisconnect: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.VoidParameters
+    typealias Response = Sharing.VoidResponse
+}
+extension Sharing.SFXPCResilientAsyncSequence.AsyncIterator: Swift.AsyncIteratorProtocol {
+    typealias Element = A
+    typealias Failure = Swift.Error
+}
+extension Sharing.SFXPCResilientAsyncSequence: Swift.AsyncSequence {
+    typealias AsyncIterator = Sharing.SFXPCResilientAsyncSequence<A>.AsyncIterator
+    typealias Element = A
+    typealias Failure = Swift.Error
+}
+extension Sharing.SFAirDrop.TransferIdentifier: Swift.Identifiable {
+    typealias ID = Foundation.UUID
+}
+extension Sharing.SFMoveToAppShareSheetSettings: Swift.RawRepresentable {
+    typealias RawValue = Swift.Int
+}
+extension Sharing.SFAirDropInvocations.MoveToAppShareSheet: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Swift.String
+    typealias Response = Swift.Bool
+}
+extension Sharing.SFProximityHandoff.Interaction: Swift.Identifiable {
+    typealias ID = Foundation.UUID
+}
+extension Sharing.Deque.Iterator: Swift.IteratorProtocol {
+    typealias Element = A
+}
+extension Sharing.Deque: Swift.Sequence {
+    typealias Element = A
+    typealias Iterator = Sharing.Deque<A>.Iterator
+}
+extension Sharing.Deque: Swift.RandomAccessCollection {
+    typealias Element = A
+    typealias Index = Swift.Int
+    typealias SubSequence = Swift.Slice<Sharing.Deque<A>>
+    typealias Indices = Swift.Range<Swift.Int>
+}
+extension Sharing.Deque: Swift.BidirectionalCollection {
+    typealias Element = A
+    typealias Index = Swift.Int
+    typealias SubSequence = Swift.Slice<Sharing.Deque<A>>
+    typealias Indices = Swift.Range<Swift.Int>
+}
+extension Sharing.Deque: Swift.Collection {
+    typealias Element = A
+    typealias Index = Swift.Int
+    typealias Iterator = Sharing.Deque<A>.Iterator
+    typealias SubSequence = Swift.Slice<Sharing.Deque<A>>
+    typealias Indices = Swift.Range<Swift.Int>
+}
+extension Sharing.Deque: Swift.MutableCollection {
+    typealias Element = A
+    typealias Index = Swift.Int
+    typealias SubSequence = Swift.Slice<Sharing.Deque<A>>
+}
+extension Sharing.Deque: Swift.RangeReplaceableCollection {
+    typealias SubSequence = Swift.Slice<Sharing.Deque<A>>
+}
+extension Sharing.Deque: Swift.ExpressibleByArrayLiteral {
+    typealias ArrayLiteralElement = A
+}
+extension Sharing.SFAirDropSend.Request: Swift.Identifiable {
+    typealias ID = Sharing.SFAirDrop.TransferIdentifier
+}
+extension Sharing.SFAirDropUserDefaults.Process: Swift.RawRepresentable {
+    typealias RawValue = Swift.String
+}
+extension Sharing.SFClientAccessLevel: Swift.OptionSet {
+    typealias Element = Sharing.SFClientAccessLevel
+}
+extension Sharing.SFClientAccessLevel: Swift.SetAlgebra {
+    typealias Element = Sharing.SFClientAccessLevel
+}
+extension Sharing.SFClientAccessLevel: Swift.RawRepresentable {
+    typealias RawValue = Swift.Int32
+}
+extension Sharing.SFClientAccessLevel: Swift.ExpressibleByArrayLiteral {
+    typealias ArrayLiteralElement = Sharing.SFClientAccessLevel
+}
+extension Sharing.SFItemDestinationAlertSettings: Swift.RawRepresentable {
+    typealias RawValue = Swift.Int
+}
+extension Sharing.SFAirDropInvocations.ItemDestinationAlert: Sharing.SFXPCInvocableProtocol {
+    typealias Parameters = Sharing.SFAirDrop.PermissionRequest<Sharing.SFAirDropReceive.ItemDestination>
+    typealias Response = Swift.String
+}
+extension Sharing.AsyncCombineLatest4Sequence.Iterator: Swift.AsyncIteratorProtocol {
+    typealias Element = (A.AsyncSequence.Element, B.AsyncSequence.Element, C.AsyncSequence.Element, D.AsyncSequence.Element)
+    typealias Failure = A.AsyncSequence.Failure
+}
+extension Sharing.AsyncCombineLatest4Sequence: Swift.AsyncSequence {
+    typealias AsyncIterator = Sharing.AsyncCombineLatest4Sequence<A, B, C, D>.Iterator
+    typealias Element = (A.AsyncSequence.Element, B.AsyncSequence.Element, C.AsyncSequence.Element, D.AsyncSequence.Element)
+    typealias Failure = A.AsyncSequence.Failure
+}
+extension Sharing.SFAirDropSend.Transfer: Swift.Identifiable {
+    typealias ID = Sharing.SFAirDrop.TransferIdentifier
+}
+extension Sharing.SFAirDrop.NearbySharingDiscovery.Request: Swift.Identifiable {
+    typealias ID = Foundation.UUID
+}
+extension Sharing.SFAirDrop.NearbySharingAssertion: Swift.Identifiable {
+    typealias ID = Foundation.UUID
+}
+extension Sharing.SFAirDrop.NearbySharingInteraction.ConnectionContext.InteractionType: Swift.RawRepresentable {
+    typealias RawValue = Swift.String
+}
+extension Sharing.SFAirDrop.NearbySharingInteraction: Swift.Identifiable {
+    typealias ID = Foundation.UUID
+}
+extension Sharing.SFAirDropSend.Transfer.Metrics: Swift.Identifiable {
+    typealias ID = Sharing.SFAirDrop.TransferIdentifier
+}
+extension Sharing.SFNoThrowAsyncSequence.AsyncIterator: Swift.AsyncIteratorProtocol {
+    typealias Element = A
+    typealias Failure = Swift.Never
+}
+extension Sharing.SFNoThrowAsyncSequence: Swift.AsyncSequence {
+    typealias AsyncIterator = Sharing.SFNoThrowAsyncSequence<A>.AsyncIterator
+    typealias Element = A
+    typealias Failure = Swift.Never
+}
+extension Sharing.SFThrowingAsyncSequence.AsyncIterator: Swift.AsyncIteratorProtocol {
+    typealias Element = A
+    typealias Failure = Swift.Error
+}
+extension Sharing.SFThrowingAsyncSequence: Swift.AsyncSequence {
+    typealias AsyncIterator = Sharing.SFThrowingAsyncSequence<A, B>.AsyncIterator
+    typealias Element = A
+    typealias Failure = Swift.Error
+}
+extension Sharing.AsyncCombineLatest5Sequence.Iterator: Swift.AsyncIteratorProtocol {
+    typealias Element = (A.AsyncSequence.Element, B.AsyncSequence.Element, C.AsyncSequence.Element, D.AsyncSequence.Element, E.AsyncSequence.Element)
+    typealias Failure = A.AsyncSequence.Failure
+}
+extension Sharing.AsyncCombineLatest5Sequence: Swift.AsyncSequence {
+    typealias AsyncIterator = Sharing.AsyncCombineLatest5Sequence<A, B, C, D, E>.Iterator
+    typealias Element = (A.AsyncSequence.Element, B.AsyncSequence.Element, C.AsyncSequence.Element, D.AsyncSequence.Element, E.AsyncSequence.Element)
+    typealias Failure = A.AsyncSequence.Failure
+}
+extension Sharing.SFProgressTask: Swift.AsyncSequence {
+    typealias AsyncIterator = Swift.AsyncThrowingStream<A, Swift.Error>.Iterator
+    typealias Element = A
+    typealias Failure = Swift.Error
+}
