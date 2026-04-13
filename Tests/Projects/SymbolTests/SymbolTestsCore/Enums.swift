@@ -87,4 +87,33 @@ public enum Enums {
         case second = 2
         case third = 3
     }
+
+    @frozen
+    public enum LargeFrozenEnumTest {
+        case alpha
+        case beta
+        case gamma
+        case delta
+        case epsilon
+        case zeta
+        case eta
+        case theta
+        case iota
+        case kappa
+    }
+
+    public enum GenericPayloadEnumTest<Element> {
+        case first(Element)
+        case second(Element, Element)
+        case empty
+    }
+
+    public enum FunctionReferenceCaseTest {
+        case first(Int)
+        case second(String)
+
+        public static func selectFirst() -> (Int) -> FunctionReferenceCaseTest {
+            FunctionReferenceCaseTest.first
+        }
+    }
 }

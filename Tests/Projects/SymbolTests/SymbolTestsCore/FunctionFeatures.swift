@@ -93,4 +93,19 @@ public enum FunctionFeatures {
             self.value = unsafeValue
         }
     }
+
+    public struct MainActorClosureTest {
+        public func acceptMainActorClosure(_ callback: @MainActor () -> Void) {}
+        public func acceptMainActorAsync(_ callback: @MainActor () async -> Void) {}
+    }
+
+    public struct DefaultParameterFunctionTest {
+        public func defaultMethod(value: Int = 0, label: String = "default", flag: Bool = true) -> String {
+            label
+        }
+
+        public static func staticDefault(first: Int = 0, second: Int = 1) -> Int {
+            first + second
+        }
+    }
 }

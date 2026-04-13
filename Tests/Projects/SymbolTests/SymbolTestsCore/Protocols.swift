@@ -59,6 +59,16 @@ public enum Protocols {
         static var staticProperty: Int { get }
         static func staticMethod() -> Self
     }
+
+    public protocol SelfConstraintProtocolTest where Self: AnyObject, Self: Sendable {
+        func method() -> Self
+    }
+
+    public protocol MultiPrimaryAssociatedTypeTest<First, Second, Third> {
+        associatedtype First
+        associatedtype Second
+        associatedtype Third
+    }
 }
 
 extension Protocols.ProtocolTest {

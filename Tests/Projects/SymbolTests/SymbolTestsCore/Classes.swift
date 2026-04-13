@@ -99,4 +99,23 @@ public enum Classes {
 
         public func method() -> Int { property }
     }
+
+    public class RequiredInitClassTest {
+        public let identifier: Int
+        public required init(identifier: Int) {
+            self.identifier = identifier
+        }
+    }
+
+    public class DefaultParameterClassTest {
+        public func method(first: Int = 0, second: String = "default") -> Int {
+            first
+        }
+
+        public class func classMethod(value: Int = 42) -> Int {
+            value
+        }
+
+        public init() {}
+    }
 }
