@@ -160,8 +160,8 @@ extension STCoreE2ETests {
     @Test func opaqueReturnTypePrimaryAssociatedTypeResolved() async throws {
         let output = try await buildOutput()
         // OpaquePrimaryAssociatedTypeReturnTypeTest.body:
-        // some SymbolTestsCore.ProtocolPrimaryAssociatedTypeTest<...>
-        #expect(output.contains("some SymbolTestsCore.ProtocolPrimaryAssociatedTypeTest"))
+        // some SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeTest<...>
+        #expect(output.contains("some SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeTest"))
     }
 
     @Test func swiftUILikeBodyPropertyResolved() async throws {
