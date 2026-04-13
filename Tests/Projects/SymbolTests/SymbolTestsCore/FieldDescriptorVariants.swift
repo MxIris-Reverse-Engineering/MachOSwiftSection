@@ -16,15 +16,23 @@ public enum FieldDescriptorVariants {
     }
 
     public class ReferenceFieldTest {
-        public weak var weakField: AnyObject?
-        public unowned var unownedField: AnyObject
-        public unowned(unsafe) var unownedUnsafeField: AnyObject
-        public var strongField: AnyObject
-
-        public init(reference: AnyObject) {
-            self.unownedField = reference
-            self.unownedUnsafeField = reference
-            self.strongField = reference
+        public weak var weakVarField: AnyObject?
+        public weak let weakLetField: AnyObject?
+        public unowned var unownedVarField: AnyObject
+        public unowned let unownedLetField: AnyObject
+        public unowned(unsafe) var unownedUnsafeVarField: AnyObject
+        public unowned(unsafe) let unownedUnsafeLetField: AnyObject
+        public var strongVarField: AnyObject
+        public let strongLetField: AnyObject
+        init(reference: AnyObject) {
+            self.weakVarField = reference
+            self.weakLetField = reference
+            self.unownedVarField = reference
+            self.unownedLetField = reference
+            self.unownedUnsafeVarField = reference
+            self.unownedUnsafeLetField = reference
+            self.strongVarField = reference
+            self.strongLetField = reference
         }
     }
 
