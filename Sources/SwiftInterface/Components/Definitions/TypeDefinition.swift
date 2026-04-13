@@ -92,11 +92,19 @@ public final class TypeDefinition: Definition {
             if typeNode.contains(.weak) {
                 fieldFlags.insert(.isWeak)
             }
+            if typeNode.contains(.unmanaged) {
+                fieldFlags.insert(.isUnownedUnsafe)
+            } else if typeNode.contains(.unowned) {
+                fieldFlags.insert(.isUnowned)
+            }
             if record.flags.contains(.isVariadic) {
                 fieldFlags.insert(.isVariable)
             }
             if record.flags.contains(.isIndirectCase) {
                 fieldFlags.insert(.isIndirectCase)
+            }
+            if record.flags.contains(.isArtificial) {
+                fieldFlags.insert(.isArtificial)
             }
             let field = FieldDefinition(name: name.stripLazyPrefix, typeNode: typeNode, flags: fieldFlags)
             fields.append(field)

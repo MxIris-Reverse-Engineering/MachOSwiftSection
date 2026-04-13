@@ -93,8 +93,13 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
             }
         } else if function.kind == .allocator {
             target.write("init", context: .context(state: .printKeyword))
-            if function.isReturnOptional {
+            switch function.initFailabilityKind {
+            case .optional:
                 target.write("?")
+            case .implicitlyUnwrappedOptional:
+                target.write("!")
+            case .none:
+                break
             }
         }
         if let type = function.children.first(of: .type), let functionType = type.children.first {
@@ -119,14 +124,38 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
 }
 
 extension Node {
-    var isReturnOptional: Bool {
-        if let returnType = first(of: .returnType), let type = returnType.children.first, let boundGenericEnum = type.children.first, boundGenericEnum.isKind(of: .boundGenericEnum), let first = boundGenericEnum.children.first?.children.first {
-            return first == Node.create(kind: .enum) {
-                Node.create(kind: .module, contents: .text("Swift"))
-                Node.create(kind: .identifier, contents: .text("Optional"))
-            }
-        } else {
-            return false
+    enum InitFailabilityKind {
+        case none
+        case optional
+        case implicitlyUnwrappedOptional
+    }
+
+    var initFailabilityKind: InitFailabilityKind {
+        guard let returnType = first(of: .returnType),
+              let type = returnType.children.first,
+              let boundGenericEnum = type.children.first,
+              boundGenericEnum.isKind(of: .boundGenericEnum),
+              let enumNode = boundGenericEnum.children.first?.children.first,
+              enumNode.kind == .enum,
+              let moduleChild = enumNode.children.first,
+              moduleChild.kind == .module,
+              moduleChild.text == "Swift",
+              let identifierChild = enumNode.children.at(1),
+              identifierChild.kind == .identifier,
+              let identifierText = identifierChild.text else {
+            return .none
         }
+        switch identifierText {
+        case "Optional":
+            return .optional
+        case "ImplicitlyUnwrappedOptional":
+            return .implicitlyUnwrappedOptional
+        default:
+            return .none
+        }
+    }
+
+    var isReturnOptional: Bool {
+        initFailabilityKind == .optional
     }
 }

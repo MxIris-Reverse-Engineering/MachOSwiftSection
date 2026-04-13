@@ -10,9 +10,9 @@ import Demangling
 
 package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
     package typealias Dumped = Struct
-    
+
     package typealias Metadata = StructMetadata
-    
+
     package let dumped: Struct
 
     package let metadata: StructMetadata?
@@ -102,32 +102,14 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
 
                 let fieldName = try fieldRecord.fieldName(in: machO)
 
-                if fieldRecord.flags.contains(.isVariadic) {
-                    if demangledTypeNode.hasWeakNode {
-                        Keyword(.weak)
-                        Space()
-                        Keyword(.var)
-                        Space()
-                    } else if fieldName.hasLazyPrefix {
-                        Keyword(.lazy)
-                        Space()
-                        Keyword(.var)
-                        Space()
-                    } else {
-                        Keyword(.var)
-                        Space()
-                    }
-                } else {
-                    Keyword(.let)
-                    Space()
-                }
+                fieldDeclarationKeywords(for: fieldRecord, typeNode: demangledTypeNode, fieldName: fieldName)
 
                 MemberDeclaration(fieldName.stripLazyPrefix)
                 Standard(":")
                 Space()
                 try await demangleResolver.modify {
                     if case .options(let demangleOptions) = $0 {
-                        return .options(demangleOptions.union(.removeWeakPrefix))
+                        return .options(demangleOptions.union(.removeReferenceStoragePrefix))
                     } else {
                         return $0
                     }
@@ -203,5 +185,12 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
             try TypeDeclaration(kind: .struct, dumped.descriptor.name(in: machO))
         }
     }
+}
+
+extension TypedDumper {
+    
+}
+
+extension FieldRecordFlags {
     
 }

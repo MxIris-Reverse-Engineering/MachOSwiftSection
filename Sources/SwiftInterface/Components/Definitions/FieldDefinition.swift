@@ -12,6 +12,9 @@ public struct FieldFlags: OptionSet, Sendable {
     public static let isLazy = FieldFlags(rawValue: 1 << 1)
     public static let isWeak = FieldFlags(rawValue: 1 << 2)
     public static let isIndirectCase = FieldFlags(rawValue: 1 << 3)
+    public static let isUnowned = FieldFlags(rawValue: 1 << 4)
+    public static let isUnownedUnsafe = FieldFlags(rawValue: 1 << 5)
+    public static let isArtificial = FieldFlags(rawValue: 1 << 6)
 }
 
 @MemberwiseInit(.public)

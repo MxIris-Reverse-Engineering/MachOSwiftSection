@@ -51,4 +51,12 @@ extension Node {
     package var hasWeakNode: Bool {
         preorder().first { $0.kind == .weak } != nil
     }
+
+    package var hasUnownedNode: Bool {
+        preorder().first { $0.kind == .unowned } != nil
+    }
+
+    package var hasUnmanagedNode: Bool {
+        preorder().first { $0.kind == .unmanaged } != nil
+    }
 }

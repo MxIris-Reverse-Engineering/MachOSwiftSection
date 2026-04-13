@@ -11,6 +11,8 @@ extension Keyword {
         case `enum`
         case `lazy`
         case `weak`
+        case `unowned`
+        case `unsafe`
         case `override`
         case `static`
         case `dynamic`

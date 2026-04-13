@@ -139,25 +139,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
                 let fieldName = try fieldRecord.fieldName(in: machO)
 
-                if fieldRecord.flags.contains(.isVariadic) {
-                    if demangledTypeNode.contains(.weak) {
-                        Keyword(.weak)
-                        Space()
-                        Keyword(.var)
-                        Space()
-                    } else if fieldName.hasLazyPrefix {
-                        Keyword(.lazy)
-                        Space()
-                        Keyword(.var)
-                        Space()
-                    } else {
-                        Keyword(.var)
-                        Space()
-                    }
-                } else {
-                    Keyword(.let)
-                    Space()
-                }
+                fieldDeclarationKeywords(for: fieldRecord, typeNode: demangledTypeNode, fieldName: fieldName)
 
                 MemberDeclaration(fieldName.stripLazyPrefix)
 
@@ -167,7 +149,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
                 try await demangleResolver.modify {
                     if case .options(let demangleOptions) = $0 {
-                        return .options(demangleOptions.union(.removeWeakPrefix))
+                        return .options(demangleOptions.union(.removeReferenceStoragePrefix))
                     } else {
                         return $0
                     }
