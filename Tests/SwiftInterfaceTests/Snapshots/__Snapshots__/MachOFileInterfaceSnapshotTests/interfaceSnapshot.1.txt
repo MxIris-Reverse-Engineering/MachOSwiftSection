@@ -52,7 +52,7 @@ enum AccessLevels {
 }
 enum Actors {
     actor ActorTest {
-        var $defaultActor: 
+        var $defaultActor: Builtin.DefaultActorStorage
         var state: Swift.Int
 
         var unownedExecutor: Swift.UnownedSerialExecutor {
@@ -65,7 +65,7 @@ enum Actors {
     }
     @globalActor
     actor CustomGlobalActor {
-        var $defaultActor: 
+        var $defaultActor: Builtin.DefaultActorStorage
 
         var unownedExecutor: Swift.UnownedSerialExecutor {
             get
@@ -83,6 +83,18 @@ enum Actors {
 
         func nonisolatedMethod() -> Swift.String
         func method() -> Swift.Int
+    }
+    class GlobalActorIsolatedConformanceTest {
+        init()
+
+        func customIsolatedRequirement()
+        func isolatedRequirement()
+    }
+    protocol GlobalActorIsolatedProtocolTest {
+        func isolatedRequirement()
+    }
+    protocol CustomGlobalActorIsolatedProtocolTest {
+        func customIsolatedRequirement()
     }
 }
 enum AssociatedTypeWitnessPatterns {
@@ -615,7 +627,7 @@ enum DeinitVariants {
         init()
     }
     actor ActorDeinitTest {
-        var $defaultActor: 
+        var $defaultActor: Builtin.DefaultActorStorage
         var state: Swift.Int
 
         init()
@@ -631,22 +643,35 @@ enum DeinitVariants {
     }
 }
 enum DependentTypeAccess {
-    struct DependentAccessTest<A> where A: Swift.Collection {
-        var iteratorElement: A.Sequence.Element?
-        var indicesIndex: A.Collection.Index?
-        var subSequenceIndex: A.Collection.Index?
+    struct DependentAccessTest<A> where A: SymbolTestsCore.DependentTypeAccess.OuterProtocol {
+        var middleLeaf: A.Middle.Leaf?
+        var innerValue: A.Inner.Value?
 
-        init(iteratorElement: A.Element?, indicesIndex: A.Index?, subSequenceIndex: A.Index?)
+        init(middleLeaf: A.Middle.Leaf?, innerValue: A.Inner.Value?)
     }
-    struct DeepDependentAccessTest<A> where A: Swift.Collection {
-        var deepElement: A.Sequence.Element?
+    struct DeepDependentAccessTest<A> where A: SymbolTestsCore.DependentTypeAccess.OuterProtocol {
+        var branchFinal: A.Middle.Branch.Final?
 
-        init(deepElement: A.Element?)
+        init(branchFinal: A.Middle.Branch.Final?)
     }
     struct DependentFunctionTest {
-        func acceptDependent<A>(_: A, iteratorElement: A.Element, indicesElement: A.Index) -> A.SubSequence where A: Swift.Collection
+        func acceptDependent<A>(_: A, middleLeaf: A.Middle.Leaf, innerValue: A.Inner.Value) -> A.Middle.Branch.Final? where A: SymbolTestsCore.DependentTypeAccess.OuterProtocol
     }
-    protocol DependentProtocol where Self.First == Self.Second.Element, Self.Second: Swift.Collection {
+    protocol OuterProtocol where Self.Inner: SymbolTestsCore.DependentTypeAccess.InnerProtocol, Self.Middle: SymbolTestsCore.DependentTypeAccess.MiddleProtocol {
+        associatedtype Middle
+        associatedtype Inner
+    }
+    protocol MiddleProtocol where Self.Branch: SymbolTestsCore.DependentTypeAccess.BranchProtocol {
+        associatedtype Leaf
+        associatedtype Branch
+    }
+    protocol BranchProtocol {
+        associatedtype Final
+    }
+    protocol InnerProtocol {
+        associatedtype Value
+    }
+    protocol DependentProtocol where Self.First == Self.Second.Leaf, Self.Second: SymbolTestsCore.DependentTypeAccess.MiddleProtocol {
         associatedtype First
         associatedtype Second
     }
@@ -690,7 +715,7 @@ enum DiamondInheritance {
 }
 enum DistributedActors {
     actor DistributedActorTest {
-        var $defaultActor: 
+        var $defaultActor: Builtin.DefaultActorStorage
         let id: Distributed.LocalTestingActorID
         let actorSystem: Distributed.LocalTestingDistributedActorSystem
 
@@ -714,7 +739,7 @@ enum DistributedActors {
         static func resolve(id: Distributed.LocalTestingActorID, using: Distributed.LocalTestingDistributedActorSystem) throws -> SymbolTestsCore.DistributedActors.DistributedActorTest
     }
     actor GenericDistributedActorTest<A> where A: Swift.Decodable, A: Swift.Encodable {
-        var $defaultActor: 
+        var $defaultActor: Builtin.DefaultActorStorage
         let id: Distributed.LocalTestingActorID
         let actorSystem: Distributed.LocalTestingDistributedActorSystem
 
@@ -958,12 +983,14 @@ enum FieldDescriptorVariants {
         init(mutableField: Swift.Int, immutableField: Swift.String, mutableOptional: Swift.Double?, immutableOptional: Swift.Int?)
     }
     class ReferenceFieldTest {
-        weak var weakField: Swift.AnyObject?
-        var unownedField: 
-        var unownedUnsafeField: 
-        var strongField: Swift.AnyObject
-
-        init(reference: Swift.AnyObject)
+        weak var weakVarField: Swift.AnyObject?
+        weak let weakLetField: Swift.AnyObject?
+        unowned var unownedVarField: Swift.AnyObject
+        unowned let unownedLetField: Swift.AnyObject
+        unowned(unsafe) var unownedUnsafeVarField: Swift.AnyObject
+        unowned(unsafe) let unownedUnsafeLetField: Swift.AnyObject
+        var strongVarField: Swift.AnyObject
+        let strongLetField: Swift.AnyObject
     }
     struct MangledNameVariantsTest<A> {
         var concreteInt: Swift.Int
@@ -1064,6 +1091,18 @@ enum FunctionFeatures {
         func acceptAutoclosure(_: @autoclosure () -> Swift.Bool) -> Swift.Bool
         func acceptEscapingAutoclosure(_: @autoclosure () -> Swift.Bool)
         func acceptEscaping(_: () -> ())
+    }
+    struct OwnershipParameterTest {
+        class Box {
+            var value: Swift.Int
+
+            init(_: Swift.Int)
+        }
+        func consumeBox(_: __owned SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box)
+        func twoConsuming(_: __owned SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box, _: __owned SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box)
+        func consumeWithLabel(_: __owned SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box, label: Swift.Int)
+
+        static func staticConsume(_: __owned SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box)
     }
     struct VariadicFunctionTest {
         func format(_: Swift.String, _: Swift.CVarArg...) -> Swift.String
@@ -1286,7 +1325,7 @@ enum Initializers {
         init(value: Swift.Int) throws(SymbolTestsCore.Initializers.CustomInitializerError)
     }
     actor AsyncInitializerActorTest {
-        var $defaultActor: 
+        var $defaultActor: Builtin.DefaultActorStorage
         let identifier: Swift.Int
 
         init(identifier: Swift.Int) async
@@ -1378,7 +1417,7 @@ enum NestedFunctions {
 enum NestedGenerics {
     struct OuterGenericTest<A> {
         struct InnerGenericTest<A1> {
-            struct InnerMostGenericTest {
+            struct InnerMostGenericTest<A2> {
                 var outer: A
                 var inner: A1
                 var innerMost: A2
@@ -1423,7 +1462,7 @@ enum Noncopyable {
 }
 enum OpaqueReturnTypes {
     struct OpaqueReturnTypeTest {
-        struct AnyProtocolTest<A, B> where A: SymbolTestsCore.Protocols.ProtocolTest, B == B.ProtocolTest.Body, A.ProtocolTest.Body == SymbolTestsCore.Generics.GenericRequirementTest<B> {
+        struct AnyProtocolTest<A, B> where A: SymbolTestsCore.Protocols.ProtocolTest, B == B.Body, A.Body == SymbolTestsCore.Generics.GenericRequirementTest<B> {
             init()
 
             var body: A {
@@ -1437,7 +1476,7 @@ enum OpaqueReturnTypes {
         func function<A>() -> some where A: SymbolTestsCore.Protocols.ProtocolTest
         func functionTuple<A>() -> (some, A?) where A: SymbolTestsCore.Protocols.ProtocolTest
         func functionWhere<A, B>() -> (some, (some)?, some)? where A: SymbolTestsCore.Protocols.ProtocolTest, B == B.Body, A.Body == SymbolTestsCore.Generics.GenericRequirementTest<B>
-        func functionNested<A, B>(_: A, _: B) -> (some, (some)?, some)? where A: Swift.Equatable, A: SymbolTestsCore.Protocols.ProtocolTest, B: Swift.Equatable, B == B.ProtocolTest.Body, A.ProtocolTest.Body == SymbolTestsCore.Generics.GenericRequirementTest<B>
+        func functionNested<A, B>(_: A, _: B) -> (some, (some)?, some)? where A: Swift.Equatable, A: SymbolTestsCore.Protocols.ProtocolTest, B: Swift.Equatable, B == B.Body, A.Body == SymbolTestsCore.Generics.GenericRequirementTest<B>
         func functionOptional<A>() -> (some)? where A: SymbolTestsCore.Protocols.ProtocolTest
     }
     enum ProtocolPrimaryAssociatedTypeFirst {
@@ -1450,7 +1489,7 @@ enum OpaqueReturnTypes {
             get
         }
     }
-    enum UnderlyingPrimaryAssociatedTypeTest<A, B> where A: SymbolTestsCore.Protocols.ProtocolTest, B: SymbolTestsCore.Protocols.ProtocolTest, A.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body == B.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body {
+    enum UnderlyingPrimaryAssociatedTypeTest<A, B> where A: SymbolTestsCore.Protocols.ProtocolTest, B: SymbolTestsCore.Protocols.ProtocolTest, A.Body.Body.Body.Body.Body.Body == B.Body.Body.Body.Body.Body.Body {
         case none
 
         var hashValue: Swift.Int {
@@ -1723,20 +1762,20 @@ enum RethrowingFunctions {
     }
 }
 enum SameTypeRequirements {
-    struct SameTypeElementTest<A, B> where A: Swift.Sequence, B: Swift.Sequence, A.Sequence.Element == B.Sequence.Element {
+    struct SameTypeElementTest<A, B> where A: Swift.Sequence, B: Swift.Sequence, A.Element == B.Element {
         var first: A
         var second: B
 
         init(first: A, second: B)
         init(first: A, second: B)
     }
-    struct NestedSameTypeTest<A, B> where A: Swift.Collection, B: Swift.Collection, A.Sequence.Element == B.Sequence.Element, A.Collection.Index == Swift.Int, B.Collection.Index == Swift.Int {
+    struct NestedSameTypeTest<A, B> where A: Swift.Collection, B: Swift.Collection, A.Element == B.Element, A.Index == Swift.Int, B.Index == Swift.Int {
         var first: A
         var second: B
 
         init(first: A, second: B)
     }
-    struct ChainedSameTypeTest<A, B, C> where A: SymbolTestsCore.Protocols.ProtocolTest, B == A.ProtocolTest.Body, C == B.ProtocolTest.Body {
+    struct ChainedSameTypeTest<A, B, C> where A: SymbolTestsCore.Protocols.ProtocolTest, B == A.Body, C == B.Body {
         var first: A
         var second: B
         var third: C
@@ -1976,15 +2015,15 @@ enum WeakUnownedReferences {
         init()
     }
     class UnownedReferenceHolderTest {
-        var unownedReference: 
-        var unownedSafeReference: 
-        var unownedUnsafeReference: 
+        unowned var unownedReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+        unowned var unownedSafeReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+        unowned(unsafe) var unownedUnsafeReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
 
         init(target: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest)
     }
     class MixedReferenceHolderTest {
         weak var weakReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
-        var unownedReference: 
+        unowned var unownedReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
         var strongReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
 
         init(target: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest)
@@ -2086,6 +2125,8 @@ extension SymbolTestsCore.Actors.CustomGlobalActor: Swift.GlobalActor {
         get
     }
 }
+extension SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest: SymbolTestsCore.Actors.GlobalActorIsolatedProtocolTest {}
+extension SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest: SymbolTestsCore.Actors.CustomGlobalActorIsolatedProtocolTest {}
 extension SymbolTestsCore.AssociatedTypeWitnessPatterns.ConcreteWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
 extension SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
 extension SymbolTestsCore.AssociatedTypeWitnessPatterns.GenericParameterWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
@@ -3131,11 +3172,11 @@ extension SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest {
     typealias Fifth = [Swift.String : SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest]
 }
 extension SymbolTestsCore.AssociatedTypeWitnessPatterns.DependentWitnessTest {
-    typealias First = A.Sequence.Element
+    typealias First = A.Element
     typealias Second = A
-    typealias Third = A.Sequence.Iterator
-    typealias Fourth = A.Collection.Index
-    typealias Fifth = A.Collection.SubSequence
+    typealias Third = A.Iterator
+    typealias Fourth = A.Index
+    typealias Fifth = A.SubSequence
 }
 extension SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator {
     typealias Element = Swift.Int
