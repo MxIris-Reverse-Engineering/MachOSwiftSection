@@ -10,6 +10,7 @@ import Dependencies
 import Utilities
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import MachOCaches
+@_spi(Internals) import SwiftInspection
 
 @_spi(Support)
 public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWithCache>: Sendable {
@@ -183,6 +184,13 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
                 Space()
                 if extensionDefinition.isRetroactive {
                     Keyword(.atRetroactive)
+                    Space()
+                }
+                if let globalActorReference = protocolConformance.globalActorReference,
+                   let globalActorTypeName = try? globalActorReference.typeName(in: machO),
+                   let globalActorNode = try? MetadataReader.demangleType(for: globalActorTypeName, in: machO) {
+                    Standard("@")
+                    try await printThrowingType(globalActorNode, isProtocol: false, level: level)
                     Space()
                 }
                 protocolName
