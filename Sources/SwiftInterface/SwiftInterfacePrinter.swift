@@ -218,9 +218,12 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
                 }
             }
 
-            if let associatedType = extensionDefinition.associatedType {
-                let dumper = AssociatedTypeDumper(associatedType, using: .init(demangleResolver: typeDemangleResolver), in: machO)
-                try await dumper.records
+            if !extensionDefinition.associatedTypes.isEmpty {
+                try await AssociatedTypeDumper.mergedRecords(
+                    of: extensionDefinition.associatedTypes,
+                    using: .init(demangleResolver: typeDemangleResolver),
+                    in: machO
+                )
             }
 
             try await printDefinition(extensionDefinition, level: 1)
