@@ -130,10 +130,12 @@ keyword in the dump and print as a bare type. `__owned` / `__shared` (the
 demangler-level spellings) are wrong for a Swift source-facing interface
 file — Swift 5.9+ writes `consuming` / `borrowing` at source level.
 
-**Source fixture.** No project-local fixture is needed: SymbolTestsCore
-already conforms `OptionSetAndRawRepresentable.OptionSetTest` to
-`Swift.SetAlgebra`, whose protocol witnesses carry the `n` (owned)
-parameter convention. Examples picked up from the fixture binary:
+**Source fixture.** `Tests/Projects/SymbolTests/SymbolTestsCore/FunctionFeatures.swift`
+provides `FunctionFeatures.OwnershipParameterTest` with method-level
+`consuming` parameters (single, multi, with-label, static). In addition,
+`OptionSetAndRawRepresentable.OptionSetTest`'s `Swift.SetAlgebra`
+protocol witnesses carry `__owned`-mangled parameters from the stdlib
+side and exercise the same node-printer path:
 - `func union(_: consuming Self) -> Self`
 - `func symmetricDifference(_: consuming Self) -> Self`
 - `func insert(_: consuming Self.Element) -> ...`
@@ -150,16 +152,16 @@ init<A1>(_: __owned A1) where A1: Swift.Sequence, ...
 
 **Evidence the information is present.**
 - `swift/docs/ABI/Mangling.rst:783` — the `list-type` production allows
-  per-parameter ownership convention flags: `'n'` (owned/consuming),
-  `'h'` (shared/borrowing), `'k'` (inout), `'g'` (guaranteed), etc.
+  per-parameter ownership convention flags: `'n'` (owned), `'h'`
+  (shared), `'k'` (inout), `'g'` (guaranteed), etc.
 - `swift-demangling/Sources/Demangling/Main/Demangle/Demangler.swift:226,230`
   — the demangler already handles `'h'` → `.shared` and `'n'` → `.owned`.
   No demangler change needed.
 - `Sources/SwiftInterface/NodePrintables/NodePrintable.swift:37-38`
   already had a `.owned → "__owned "` branch but no `.shared` branch.
 
-**ABI limitation — `init` parameter modifiers are not recoverable.**
-The Swift compiler does **not** emit the `n` / `h` flag in mangled
+**ABI limitation 1 — `init` parameter modifiers are not recoverable.**
+The Swift compiler does **not** emit the `n` flag in mangled
 constructor symbols. Verified empirically with `swiftc` + `nm` +
 `xcrun swift-demangle`:
 
@@ -177,8 +179,22 @@ whose demangle tree's `ArgumentTuple → Tuple → TupleElement → Type` is a
 bare `DependentGenericParamType` with no `.owned` wrapper. For
 `~Copyable` types in particular, by-value parameters are implicitly
 consuming (a noncopyable value cannot be copied), so the compiler treats
-the keyword as the default and never mangles it — there is nothing in
-the binary to recover.
+the keyword as the default and never mangles it.
+
+**ABI limitation 2 — source-level `borrowing` is also not recoverable.**
+The `h` flag in the mangling spec is reachable only from the *legacy*
+`__shared` spelling, **not** from Swift 5.9+'s `borrowing`. Verified
+empirically: a `func b(_ s: borrowing S) -> Int` produces a mangled name
+**byte-identical** to the same function with no ownership modifier
+(`_$s1h1bySiAA1SVF`), while a `func c(_ s: __shared S) -> Int` does
+include the `h` flag (`_$s1h1cySiAA1SVhF`) and demangles back to
+`__shared S`. So the printer's `.shared → "borrowing "` rewrite still
+works, but only for binaries whose source uses the old `__shared`
+spelling — most notably stdlib/Foundation functions like
+`Foundation.String.init(format: __shared String, ...)`. Pure
+`borrowing`-only sources (including `OwnershipParameterTest` if it
+were extended) cannot be verified, because `borrowing` produces no
+node to print.
 
 **Modification points.**
 1. `Sources/SwiftInterface/NodePrintables/NodePrintable.swift` — change
@@ -189,6 +205,9 @@ the binary to recover.
    `__owned` / `__shared` for general-purpose use.
 
 **Verification.**
+- `FunctionFeatures.OwnershipParameterTest.consumeBox(_:)`,
+  `consumeWithLabel(_:label:)`, `twoConsuming(_:_:)`, and the static
+  `staticConsume(_:)` all print `consuming` before the `Box` parameter.
 - `OptionSetTest`'s SetAlgebra witnesses (above) print `consuming`
   instead of `__owned`. (The full dump `grep -c "__owned\|__shared"`
   must return 0.)
@@ -196,8 +215,10 @@ the binary to recover.
   `inout Swift.Int` — `inout` is a separate node kind (`.inOut`) and
   is unaffected.
 - `NoncopyableGenericTest.init(value:)` continues to print without
-  `consuming` — see the ABI limitation above. Do **not** treat this as
-  a bug.
+  `consuming` — see ABI limitation 1. Do **not** treat this as a bug.
+- The `.shared → borrowing` rewrite is verified only via the dyld-cache
+  snapshot tests where Foundation `__shared` parameters appear; not by
+  SymbolTestsCore — see ABI limitation 2.
 
 **Risk.** Low. The change is one switch case + one new switch case.
 
