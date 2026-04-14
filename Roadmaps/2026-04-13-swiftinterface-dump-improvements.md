@@ -357,36 +357,68 @@ In addition, the `printTypeLayout` emission inside the `fields` body of all thre
 
 These items require extending `Sources/MachOSwiftSection/Models/*` to read bits of the binary that the project does not currently parse.
 
-### P2-12. Method-level `@MainActor` / `@GlobalActor`
+### P2-12. Global actor isolation (scoped down — mostly ABI-limited)
 
-**Symptom.** Methods on `@MainActor`-annotated types and methods explicitly tagged `@MainActor` do not show the isolation attribute.
+**Original symptom.** Methods on `@MainActor`-annotated types and methods explicitly tagged `@MainActor` do not show the isolation attribute.
 
-**Evidence the information is in the binary (method-level only).**
-- `swift/include/swift/ABI/MetadataValues.h:1166` — `FunctionTypeFlags::GlobalActorMask` at bit 28.
-- `swift/include/swift/ABI/Metadata.h:1516-1580` — `TargetFunctionGlobalActorMetadata`, a trailing object on the function metadata structure.
-- `Sources/MachOSwiftSection/Models/Function/FunctionTypeFlags.swift:28` — `globalActorMask` bit is already defined; `:63` exposes `hasGlobalActor`.
-- `Sources/SwiftInterface/NodePrintables/FunctionTypeNodePrintable.swift:42,113-115` — already handles `.globalActorFunctionType` in the demangled node path when the mangled form includes it.
+**Status after investigation.** Largely **ABI-limited**. The earlier plan assumed that `TargetFunctionGlobalActorMetadata` + `FunctionTypeFlags::GlobalActorMask` could be read for arbitrary class methods. This is incorrect: those live on **function type metadata records**, which only exist for function type *values* (e.g. `var closure: @MainActor () -> Int`). Swift class method descriptors do **not** embed function type metadata — they embed flags + an impl pointer, and the signature is reconstructed from the impl symbol's mangled name. Method-level global-actor isolation is simply not in the mangled name for sync or async class methods (verified empirically with `swiftc` + `swift demangle` for both class-level and per-method `@MainActor`).
 
-**What is missing.**
-- No reader for `TargetFunctionGlobalActorMetadata` (the trailing metadata record). Implementing this lets the dumper print the concrete actor type as `@MainActor` / `@CustomGlobalActor`.
-- The method descriptor or function type encountered during dump lookup must expose `globalActorType: Node?` so the printer can emit the attribute.
+#### What already works
 
-**Not fixable (class-level attribute).** `@MainActor class X` at the class level has no `ClassFlags` bit. See the "Known limitations" section below. Only method-level / function-type-level isolation is recoverable.
+Function type values with a global actor ARE mangled and printed correctly today. The mangled form contains `ScMYc...` (class-actor reference `ScM` + `globalActorFunctionType` `Yc`), and `Sources/SwiftInterface/NodePrintables/FunctionTypeNodePrintable.swift:42,113-115` already dispatches on `.globalActorFunctionType` to emit `@Swift.MainActor`. Covered cases:
 
-**Modification points.**
-1. New model file `Sources/MachOSwiftSection/Models/Function/TargetFunctionGlobalActorMetadata.swift` — struct with layout mirroring the C++ definition, readable via the existing `Readable` / `ReadingContext` infrastructure.
-2. Extend `Sources/MachOSwiftSection/Models/Function/FunctionType.swift` (or equivalent) to expose the trailing global actor metadata when `hasGlobalActor` is true.
-3. `Sources/SwiftInterface/AttributeInference/TypeAttributeInferrer.swift:80-142` — the current inference is based on protocol conformance (detecting `@propertyWrapper` etc.). Add a method-level attribute inferrer (`FunctionAttributeInferrer`) that reads the global-actor metadata and outputs a `SwiftAttribute.globalActor(typeName: String)`.
-4. `SwiftInterfacePrinter.printThrowingFunction` — emit the inferred attributes above the function declaration.
+- **Closure parameters** — `FunctionFeatures.MainActorClosureTest.acceptMainActorClosure(_:)` prints as `func acceptMainActorClosure(_: @Swift.MainActor @Sendable () -> ())`. ✓
+- **Closure return types / typealiases / property types** — any spot where the source writes `@MainActor () -> T` at the function type position.
 
-**Verification.**
-- `FunctionFeatures.MainActorClosureTest` methods should gain `@MainActor` attributes where appropriate.
-- `Actors.MainActorAnnotatedTest.method` currently prints without isolation — after the fix, the methods should show `@MainActor`.
-- `Actors.GlobalActorAnnotatedClass.method` should show `@CustomGlobalActor`.
+No code change is required for these; the existing node printer handles them.
 
-**Risk.** The trailing object calculation must match the runtime's layout exactly; off-by-one in trailing-object offsets is easy to introduce. Cross-check with `swift/lib/IRGen/GenProto.cpp` for the emission order.
+#### ABI limitation 1 — class-level `@MainActor`
 
-**Effort.** Medium-large (1.5 days). Main work is the reader + validation.
+```swift
+@MainActor public class C { public func f() -> Int { 0 } }
+```
+
+There is **no `ClassFlags` bit** for class-level global-actor isolation, and the class descriptor does not reference a global actor type. The class is indistinguishable from a plain class in the binary. Acknowledged in the "Known limitations" section below.
+
+#### ABI limitation 2 — method-level `@MainActor` on a class method
+
+```swift
+public class D {
+    @MainActor public func g() -> Int { 0 }
+}
+```
+
+The method impl symbol is `_$s8TestMain1DC1gSiyF`, which demangles to `D.g() -> Int` — no `ScM`, no `Yc`, no isolation marker. Empirically verified with `swiftc -emit-library` + `nm`. The same holds for `async` variants (`YaF` — async bit set, global-actor bit absent). There is no secondary symbol, no trailing metadata, no hidden descriptor that carries this information. `TargetFunctionGlobalActorMetadata` is only populated for function *type values*, not class method descriptors, so reading it would not recover this data either.
+
+Method descriptors carry `MethodDescriptorFlags` (`Sources/MachOSwiftSection/Models/Type/Class/Method/MethodDescriptorFlags.swift`) which has room for kind / isInstance / isAsync / isDynamic / extra discriminator — there is **no** global-actor bit and no reference to an actor type.
+
+#### Recoverable subset: protocol conformance global-actor isolation
+
+```swift
+@MainActor extension Foo: SomeProtocol { ... }
+```
+
+This **is** recoverable. `ProtocolConformanceFlags::hasGlobalActorIsolation` (bit 19) is set and the conformance descriptor has a trailing **reference to the global actor type** (see `swift/include/swift/ABI/Metadata.h` — `TargetProtocolConformanceDescriptor::getGlobalActorIsolationType`). Evidence already in the project:
+
+- `Sources/MachOSwiftSection/Models/ProtocolConformance/ProtocolConformanceFlags.swift:27,81-83` — flag is defined and a public `hasGlobalActorIsolation` getter exists.
+- `Sources/MachOSwiftSection/Models/ProtocolConformance/ProtocolConformance.swift` (or its descriptor) — does **not** yet read the trailing `globalActorIsolation` reference.
+
+This subset is the only piece that can be honestly implemented. Scope:
+
+1. Extend `ProtocolConformanceDescriptor` (and its trailing-object layout) to read the trailing `RelativeDirectPointer<MangledName>` (conditional on `hasGlobalActorIsolation`).
+2. Expose `globalActorTypeName: MangledName?` / `globalActorTypeNode: Node?` on `ProtocolConformance`.
+3. In `SwiftInterfacePrinter.printExtensionDefinition`, when `extensionDefinition.protocolConformance?.globalActorTypeNode` is non-nil, emit `@<resolved actor type>` in front of the `extension` keyword.
+
+#### Verification (scoped to the recoverable subset)
+
+- `FunctionFeatures.MainActorClosureTest` — already prints `@Swift.MainActor` in closure parameter positions; no code change required (regression guard).
+- `Actors.MainActorAnnotatedTest.method` — **will not gain** `@MainActor`. Document in fixture comments.
+- `Actors.GlobalActorAnnotatedClass.method` — **will not gain** `@CustomGlobalActor`. Document in fixture comments.
+- New fixture (or reuse of existing): `@MainActor extension Foo: SomeProtocol { ... }` — the `extension` block should print `@Swift.MainActor extension Foo: SomeProtocol`.
+
+#### Effort (scoped)
+
+Small-medium (half a day): conformance descriptor layout extension + node-emit path in the extension printer. Skipped portion (method-level) costs 0 because it is not feasible.
 
 ---
 
