@@ -38,6 +38,8 @@ enum AccessLevels {
 
         func openMethod()
         func publicMethod()
+
+        deinit
     }
     class SubclassOfOpenAccessLevel: SymbolTestsCore.AccessLevels.OpenAccessLevelTest {
         override init()
@@ -48,11 +50,13 @@ enum AccessLevels {
         }
 
         override func openMethod()
+
+        deinit
     }
 }
 enum Actors {
     actor ActorTest {
-        var $defaultActor: 
+        var $defaultActor: Builtin.DefaultActorStorage
         var state: Swift.Int
 
         var unownedExecutor: Swift.UnownedSerialExecutor {
@@ -62,27 +66,49 @@ enum Actors {
         func mutateState()
         func nonisolatedMethod() -> Swift.String
         func readState() -> Swift.Int
+
+        deinit
     }
     @globalActor
     actor CustomGlobalActor {
-        var $defaultActor: 
+        var $defaultActor: Builtin.DefaultActorStorage
 
         var unownedExecutor: Swift.UnownedSerialExecutor {
             get
         }
 
         static let shared: SymbolTestsCore.Actors.CustomGlobalActor
+
+        deinit
     }
     class GlobalActorAnnotatedClass {
         var value: Swift.Int
 
         func method() -> Swift.Int
+
+        deinit
     }
     class MainActorAnnotatedTest {
         var value: Swift.Int
 
         func nonisolatedMethod() -> Swift.String
         func method() -> Swift.Int
+
+        deinit
+    }
+    class GlobalActorIsolatedConformanceTest {
+        init()
+
+        func customIsolatedRequirement()
+        func isolatedRequirement()
+
+        deinit
+    }
+    protocol GlobalActorIsolatedProtocolTest {
+        func isolatedRequirement()
+    }
+    protocol CustomGlobalActorIsolatedProtocolTest {
+        func customIsolatedRequirement()
     }
 }
 enum AssociatedTypeWitnessPatterns {
@@ -154,6 +180,8 @@ enum Attributes {
         @objc func objcMethod()
         func nonobjcMethod()
         @objc func objcDynamicMethod()
+
+        deinit
     }
 }
 enum Availability {
@@ -186,7 +214,9 @@ enum Availability {
 }
 struct TestsValues {}
 enum BasicTypes {
-    class TestsObjects {}
+    class TestsObjects {
+        deinit
+    }
 }
 enum BuiltinTypeFields {
     struct IntegerTypesTest {
@@ -241,6 +271,8 @@ enum ClassBoundGenerics {
         var element: A
 
         init(element: A)
+
+        deinit
     }
     struct ClassBoundFunctionTest {
         func acceptClassBound<A>(_: A) -> A where A: AnyObject
@@ -259,11 +291,15 @@ enum Classes {
         override init()
 
         override func instanceMethod() -> Swift.String
+
+        deinit
     }
     class ExternalObjCSubclassTest: __C.NSObject {
         @objc init()
 
         @objc func isKind(of: Swift.AnyObject.Type) -> Swift.Bool
+
+        deinit
     }
     class ClassTest {
         var dynamicVariable: Swift.Bool {
@@ -277,6 +313,8 @@ enum Classes {
 
         func dynamicMethod()
         func instanceMethod() -> Self
+
+        deinit
     }
     class SubclassTest: SymbolTestsCore.Classes.ClassTest {
         override var dynamicVariable: Swift.Bool {
@@ -290,6 +328,8 @@ enum Classes {
 
         func dynamicMethod()
         override func instanceMethod() -> Self
+
+        deinit
     }
     class FinalClassTest: SymbolTestsCore.Classes.SubclassTest {
         override var dynamicVariable: Swift.Bool {
@@ -299,6 +339,8 @@ enum Classes {
 
         override func dynamicMethod()
         override func instanceMethod() -> Self
+
+        deinit
     }
     class StoredPropertiesTest {
         let constantProperty: Swift.String
@@ -307,6 +349,8 @@ enum Classes {
         lazy var lazyProperty: Swift.String?
 
         init(constantProperty: Swift.String, variableProperty: Swift.Int)
+
+        deinit
     }
     class OpenAccessTest {
         init()
@@ -318,6 +362,8 @@ enum Classes {
 
         func publicMethod() -> Swift.Int
         func openMethod() -> Swift.String
+
+        deinit
     }
     class OpenAccessSubTest: SymbolTestsCore.Classes.OpenAccessTest {
         override init()
@@ -328,6 +374,8 @@ enum Classes {
         }
 
         override func openMethod() -> Swift.String
+
+        deinit
     }
     class ObjCMembersTest: __C.NSObject {
         var property: Swift.Int
@@ -335,11 +383,15 @@ enum Classes {
         @objc init()
 
         @objc func method() -> Swift.Int
+
+        deinit
     }
     class RequiredInitClassTest {
         let identifier: Swift.Int
 
         init(identifier: Swift.Int)
+
+        deinit
     }
     class DefaultParameterClassTest {
         init()
@@ -347,6 +399,8 @@ enum Classes {
         func method(first: Swift.Int, second: Swift.String) -> Swift.Int
 
         static func classMethod(value: Swift.Int) -> Swift.Int
+
+        deinit
     }
 }
 enum CodableTests {
@@ -390,6 +444,8 @@ enum CodableTests {
         init(from: Swift.Decoder) throws
 
         func encode(to: Swift.Encoder) throws
+
+        deinit
     }
     enum CodableEnumTest {
         enum CodingKeys {
@@ -587,6 +643,8 @@ enum DefaultArguments {
         init(initial: Swift.Int, scale: Swift.Double)
 
         func process(value: Swift.Int, multiplier: Swift.Double) -> Swift.Double
+
+        deinit
     }
 }
 enum DefaultImplementationVariants {
@@ -608,14 +666,18 @@ enum DeinitVariants {
         var value: Swift.Int
 
         init()
+
+        deinit
     }
     class DeinitWithWorkTest {
         var resource: Swift.Int
 
         init()
+
+        deinit
     }
     actor ActorDeinitTest {
-        var $defaultActor: 
+        var $defaultActor: Builtin.DefaultActorStorage
         var state: Swift.Int
 
         init()
@@ -623,30 +685,47 @@ enum DeinitVariants {
         var unownedExecutor: Swift.UnownedSerialExecutor {
             get
         }
+
+        deinit
     }
     class GenericDeinitTest<A> {
         var element: A
 
         init(element: A)
+
+        deinit
     }
 }
 enum DependentTypeAccess {
-    struct DependentAccessTest<A> where A: Swift.Collection {
-        var iteratorElement: A.Sequence.Element?
-        var indicesIndex: A.Collection.Index?
-        var subSequenceIndex: A.Collection.Index?
+    struct DependentAccessTest<A> where A: SymbolTestsCore.DependentTypeAccess.OuterProtocol {
+        var middleLeaf: A.OuterProtocol.Middle.MiddleProtocol.Leaf?
+        var innerValue: A.OuterProtocol.Inner.InnerProtocol.Value?
 
-        init(iteratorElement: A.Element?, indicesIndex: A.Index?, subSequenceIndex: A.Index?)
+        init(middleLeaf: A.Middle.Leaf?, innerValue: A.Inner.Value?)
     }
-    struct DeepDependentAccessTest<A> where A: Swift.Collection {
-        var deepElement: A.Sequence.Element?
+    struct DeepDependentAccessTest<A> where A: SymbolTestsCore.DependentTypeAccess.OuterProtocol {
+        var branchFinal: A.OuterProtocol.Middle.MiddleProtocol.Branch.BranchProtocol.Final?
 
-        init(deepElement: A.Element?)
+        init(branchFinal: A.Middle.Branch.Final?)
     }
     struct DependentFunctionTest {
-        func acceptDependent<A>(_: A, iteratorElement: A.Element, indicesElement: A.Index) -> A.SubSequence where A: Swift.Collection
+        func acceptDependent<A>(_: A, middleLeaf: A.Middle.Leaf, innerValue: A.Inner.Value) -> A.Middle.Branch.Final? where A: SymbolTestsCore.DependentTypeAccess.OuterProtocol
     }
-    protocol DependentProtocol where Self.First == Self.Second.Element, Self.Second: Swift.Collection {
+    protocol OuterProtocol where Self.Inner: SymbolTestsCore.DependentTypeAccess.InnerProtocol, Self.Middle: SymbolTestsCore.DependentTypeAccess.MiddleProtocol {
+        associatedtype Middle
+        associatedtype Inner
+    }
+    protocol MiddleProtocol where Self.Branch: SymbolTestsCore.DependentTypeAccess.BranchProtocol {
+        associatedtype Leaf
+        associatedtype Branch
+    }
+    protocol BranchProtocol {
+        associatedtype Final
+    }
+    protocol InnerProtocol {
+        associatedtype Value
+    }
+    protocol DependentProtocol where Self.First == Self.Second.Leaf, Self.Second: SymbolTestsCore.DependentTypeAccess.MiddleProtocol {
         associatedtype First
         associatedtype Second
     }
@@ -690,7 +769,7 @@ enum DiamondInheritance {
 }
 enum DistributedActors {
     actor DistributedActorTest {
-        var $defaultActor: 
+        var $defaultActor: Builtin.DefaultActorStorage
         let id: Distributed.LocalTestingActorID
         let actorSystem: Distributed.LocalTestingDistributedActorSystem
 
@@ -712,9 +791,11 @@ enum DistributedActors {
         func parameterizedMethod(label: Swift.String, count: Swift.Int) -> Swift.String
 
         static func resolve(id: Distributed.LocalTestingActorID, using: Distributed.LocalTestingDistributedActorSystem) throws -> SymbolTestsCore.DistributedActors.DistributedActorTest
+
+        deinit
     }
     actor GenericDistributedActorTest<A> where A: Swift.Decodable, A: Swift.Encodable {
-        var $defaultActor: 
+        var $defaultActor: Builtin.DefaultActorStorage
         let id: Distributed.LocalTestingActorID
         let actorSystem: Distributed.LocalTestingDistributedActorSystem
 
@@ -730,6 +811,8 @@ enum DistributedActors {
         func process(element: A) -> A
 
         static func resolve(id: Distributed.LocalTestingActorID, using: Distributed.LocalTestingDistributedActorSystem) throws -> SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A>
+
+        deinit
     }
 }
 enum Enums {
@@ -958,12 +1041,16 @@ enum FieldDescriptorVariants {
         init(mutableField: Swift.Int, immutableField: Swift.String, mutableOptional: Swift.Double?, immutableOptional: Swift.Int?)
     }
     class ReferenceFieldTest {
-        weak var weakField: Swift.AnyObject?
-        var unownedField: 
-        var unownedUnsafeField: 
-        var strongField: Swift.AnyObject
+        weak var weakVarField: Swift.AnyObject?
+        weak let weakLetField: Swift.AnyObject?
+        unowned var unownedVarField: Swift.AnyObject
+        unowned let unownedLetField: Swift.AnyObject
+        unowned(unsafe) var unownedUnsafeVarField: Swift.AnyObject
+        unowned(unsafe) let unownedUnsafeLetField: Swift.AnyObject
+        var strongVarField: Swift.AnyObject
+        let strongLetField: Swift.AnyObject
 
-        init(reference: Swift.AnyObject)
+        deinit
     }
     struct MangledNameVariantsTest<A> {
         var concreteInt: Swift.Int
@@ -1064,6 +1151,22 @@ enum FunctionFeatures {
         func acceptAutoclosure(_: @autoclosure () -> Swift.Bool) -> Swift.Bool
         func acceptEscapingAutoclosure(_: @autoclosure () -> Swift.Bool)
         func acceptEscaping(_: () -> ())
+
+        deinit
+    }
+    struct OwnershipParameterTest {
+        class Box {
+            var value: Swift.Int
+
+            init(_: Swift.Int)
+
+            deinit
+        }
+        func consumeBox(_: __owned SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box)
+        func twoConsuming(_: __owned SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box, _: __owned SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box)
+        func consumeWithLabel(_: __owned SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box, label: Swift.Int)
+
+        static func staticConsume(_: __owned SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box)
     }
     struct VariadicFunctionTest {
         func format(_: Swift.String, _: Swift.CVarArg...) -> Swift.String
@@ -1147,6 +1250,8 @@ enum GenericFieldLayout {
         var field3: Swift.Int
 
         init(field1: Swift.Double, field2: A, field3: Swift.Int)
+
+        deinit
     }
     class GenericClassLayoutRequirement<A> where A: AnyObject {
         var field1: Swift.Double
@@ -1154,6 +1259,8 @@ enum GenericFieldLayout {
         var field3: Swift.Int
 
         init(field1: Swift.Double, field2: A, field3: Swift.Int)
+
+        deinit
     }
     class GenericClassNonRequirementInheritNSObject<A>: __C.NSObject {
         var field1: Swift.Double
@@ -1162,6 +1269,8 @@ enum GenericFieldLayout {
 
         @objc init(field1: Swift.Double, field2: A, field3: Swift.Int)
         @objc init()
+
+        deinit
     }
     class GenericClassLayoutRequirementInheritNSObject<A>: __C.NSObject where A: AnyObject {
         var field1: Swift.Double
@@ -1170,6 +1279,8 @@ enum GenericFieldLayout {
 
         @objc init(field1: Swift.Double, field2: A, field3: Swift.Int)
         @objc init()
+
+        deinit
     }
 }
 enum GenericRequirementVariants {
@@ -1188,6 +1299,8 @@ enum GenericRequirementVariants {
         var baseField: Swift.Int
 
         init()
+
+        deinit
     }
     struct BaseClassRequirementTest<A> where A: SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest {
         var element: A
@@ -1261,18 +1374,24 @@ enum Initializers {
         init(primaryValue: Swift.Int)
         init()
         init(primaryValue: Swift.Int, secondaryValue: Swift.String)
+
+        deinit
     }
     class RequiredInitializerTest {
         let value: Swift.Int
 
         init()
         init(value: Swift.Int)
+
+        deinit
     }
     class RequiredInitializerSubclass: SymbolTestsCore.Initializers.RequiredInitializerTest {
         let extraValue: Swift.String
 
         override init(value: Swift.Int)
         override init()
+
+        deinit
     }
     struct FailableInitializerTest {
         let value: Swift.Int
@@ -1286,7 +1405,7 @@ enum Initializers {
         init(value: Swift.Int) throws(SymbolTestsCore.Initializers.CustomInitializerError)
     }
     actor AsyncInitializerActorTest {
-        var $defaultActor: 
+        var $defaultActor: Builtin.DefaultActorStorage
         let identifier: Swift.Int
 
         init(identifier: Swift.Int) async
@@ -1294,6 +1413,8 @@ enum Initializers {
         var unownedExecutor: Swift.UnownedSerialExecutor {
             get
         }
+
+        deinit
     }
 }
 enum KeyPaths {
@@ -1313,6 +1434,8 @@ enum KeyPaths {
         var mutableInteger: Swift.Int
 
         init()
+
+        deinit
     }
     struct KeyPathFactoryTest<A, B> {
         var keyPathProducer: (_: A) -> Swift.KeyPath<A, B>
@@ -1330,6 +1453,8 @@ enum MarkerProtocols {
         var label: Swift.String
 
         init(label: Swift.String)
+
+        deinit
     }
     enum MarkerConformingEnumTest {
         case first
@@ -1378,7 +1503,7 @@ enum NestedFunctions {
 enum NestedGenerics {
     struct OuterGenericTest<A> {
         struct InnerGenericTest<A1> {
-            struct InnerMostGenericTest {
+            struct InnerMostGenericTest<A2> {
                 var outer: A
                 var inner: A1
                 var innerMost: A2
@@ -1410,6 +1535,8 @@ enum Noncopyable {
         func borrow() -> Swift.Int
         func mutate()
         func consume() -> Swift.Int
+
+        deinit
     }
     enum NoncopyableEnumTest: ~Swift.Copyable {
         case value(Swift.Int)
@@ -1549,6 +1676,8 @@ enum PropertyObservers {
             get
             set
         }
+
+        deinit
     }
     struct PropertyObserverStructTest {
         var observedField: Swift.Double
@@ -1775,6 +1904,8 @@ enum StaticMembers {
 
         static func classMethod() -> Swift.Int
         static func staticMethod() -> Swift.Int
+
+        deinit
     }
     class StaticMemberSubclassTest: SymbolTestsCore.StaticMembers.StaticMemberClassTest {
         override init()
@@ -1784,6 +1915,8 @@ enum StaticMembers {
         }
 
         override static func classMethod() -> Swift.Int
+
+        deinit
     }
 }
 enum StringInterpolations {
@@ -1849,6 +1982,8 @@ enum Subscripts {
             get
             set
         }
+
+        deinit
     }
     struct SubscriptGenericTest<A> {
         subscript<A1>(_: A1) -> A? where A1: Swift.Hashable {
@@ -1943,6 +2078,8 @@ enum VTableEntryVariants {
         func asyncMethod() async -> Swift.Int
         func asyncThrowingMethod() async throws -> Swift.Int
         func finalMethod()
+
+        deinit
     }
     class VTableOverrideTest: SymbolTestsCore.VTableEntryVariants.VTableBaseTest {
         override init()
@@ -1950,17 +2087,23 @@ enum VTableEntryVariants {
         override func overridableMethod() -> Swift.Int
         override func throwingMethod() throws -> Swift.Int
         func asyncMethod() async -> Swift.Int
+
+        deinit
     }
     class VTableFinalOverrideTest: SymbolTestsCore.VTableEntryVariants.VTableBaseTest {
         override init()
 
         override func overridableMethod() -> Swift.Int
+
+        deinit
     }
     class VTableDeepOverrideTest: SymbolTestsCore.VTableEntryVariants.VTableOverrideTest {
         override init()
 
         override func overridableMethod() -> Swift.Int
         func asyncMethod() async -> Swift.Int
+
+        deinit
     }
 }
 enum WeakUnownedReferences {
@@ -1968,26 +2111,34 @@ enum WeakUnownedReferences {
         var value: Swift.Int
 
         init()
+
+        deinit
     }
     class WeakReferenceHolderTest {
         weak var weakReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
         weak var weakAnyObject: Swift.AnyObject?
 
         init()
+
+        deinit
     }
     class UnownedReferenceHolderTest {
-        var unownedReference: 
-        var unownedSafeReference: 
-        var unownedUnsafeReference: 
+        unowned var unownedReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+        unowned var unownedSafeReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+        unowned(unsafe) var unownedUnsafeReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
 
         init(target: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest)
+
+        deinit
     }
     class MixedReferenceHolderTest {
         weak var weakReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
-        var unownedReference: 
+        unowned var unownedReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
         var strongReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
 
         init(target: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest)
+
+        deinit
     }
 }
 
@@ -2086,6 +2237,8 @@ extension SymbolTestsCore.Actors.CustomGlobalActor: Swift.GlobalActor {
         get
     }
 }
+extension SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest: SymbolTestsCore.Actors.GlobalActorIsolatedProtocolTest {}
+extension SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest: SymbolTestsCore.Actors.CustomGlobalActorIsolatedProtocolTest {}
 extension SymbolTestsCore.AssociatedTypeWitnessPatterns.ConcreteWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
 extension SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
 extension SymbolTestsCore.AssociatedTypeWitnessPatterns.GenericParameterWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
