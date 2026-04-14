@@ -344,6 +344,7 @@ public final class TypeDefinition: Definition {
         let thunkKindsAndAttributes: [(Node.Kind, SwiftAttribute)] = [
             (.objCAttribute, .objc),
             (.nonObjCAttribute, .nonobjc),
+            (.distributedThunk, .distributed),
         ]
 
         for (thunkKind, attribute) in thunkKindsAndAttributes {
