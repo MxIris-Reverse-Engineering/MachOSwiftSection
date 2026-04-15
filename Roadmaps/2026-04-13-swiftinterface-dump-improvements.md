@@ -313,43 +313,9 @@ The two sets even have different addresses, because one is the concrete witness 
 
 ---
 
-### P1-11. `printFieldOffset` / `printTypeLayout` / `printEnumLayout` never fire
+### P1-11. `printFieldOffset` / `printTypeLayout` / `printEnumLayout` never fire — **moved to L-11**
 
-**Symptom.** Even with `printFieldOffset: true`, `printTypeLayout: true`, `printEnumLayout: true`, no offset / layout comments appear in the dump.
-
-**Root cause.** Three different gating mechanisms across the dumpers, not a single uniform one:
-
-1. **`StructDumper.fieldOffsets`** (around L62-65) does **not** have an explicit `!isGeneric` guard. Instead, the gating is **implicit** via the `metadata?` chain: `try? metadata?.fieldOffsets(...)` silently returns nil because `metadata` depends on an in-process metadata accessor that is only available for `MachOImage` inputs (not `MachOFile`).
-2. **`ClassDumper.fieldOffsets`** (around L92-102) **does** have an explicit guard: `guard let metadataAccessor = try? dumped.descriptor.metadataAccessorFunction(in: machO), !dumped.flags.isGeneric else { return nil }`.
-3. **`EnumDumper.fields`** (around L88-99) **does** have an explicit `if configuration.printEnumLayout, !dumped.flags.isGeneric { ... }` gate.
-
-In addition, the `printTypeLayout` emission inside the `fields` body of all three dumpers uses the same conjunction: `if configuration.printTypeLayout, !dumped.flags.isGeneric, let machO = machO.asMachOImage, ...`. This conjunction is the "layer-2" failure: even when step 1 passes, the runtime-based layout calculation path requires `asMachOImage`.
-
-**Why it fails for the test target.** Two independent reasons compose:
-- Many types in SymbolTestsCore are generic (`GenericFieldLayout`, `Generics`, etc.) — blocked by the explicit `!isGeneric` guards in ClassDumper/EnumDumper.
-- Non-generic types in file mode have `metadata == nil` (StructDumper, via implicit nil propagation) and `machO.asMachOImage == nil` (ClassDumper/EnumDumper at the runtime-layout path).
-
-**Goal.** Emit layout/offset information whenever the binary metadata contains enough information to compute it, regardless of genericity:
-
-- **Concrete generic instantiation**: unsupported, correctly skipped.
-- **Non-generic types from file-mode MachO**: compute offsets statically from `TargetClassDescriptor::FieldOffsetVectorOffset` + `TargetStructDescriptor::FieldOffsets` when present in the binary, without needing an in-process metadata instantiation.
-- **Frozen generic types**: if `@frozen`, field offsets are directly encoded in the descriptor. `SymbolTestsCore.Frozen.FrozenTest`, `FrozenEnumContrastTest`, and the `@frozen` `LargeFrozenEnumTest` should all print layouts.
-
-**Modification points.**
-1. `StructDumper.fieldOffsets` — there is no `!isGeneric` early return to remove; the issue is that the current implementation relies solely on `metadata?` which is nil for `MachOFile`. Add a file-mode path that reads static `FieldOffsets` directly from `TargetStructDescriptor` (the `FieldOffsetVectorOffset` field) without going through an in-process metadata accessor. Fall back to `nil` gracefully only when neither in-process metadata nor static descriptor offsets are available.
-2. `ClassDumper.fieldOffsets` — has an explicit `!dumped.flags.isGeneric` guard. Relax it: for non-generic classes in file mode, attempt the static descriptor path before giving up. For generic classes, keep the early return (no concrete instantiation available).
-3. `StructDumper.fields` / `ClassDumper.fields` inline `printTypeLayout` blocks — the current conjunction `!dumped.flags.isGeneric, let machOImage = machO.asMachOImage` requires in-process mode. Add a secondary file-mode path that computes type layout from the descriptor + value witness table (when statically available) without the `asMachOImage` dependency.
-4. `EnumDumper.fields` — same pattern: the `!dumped.flags.isGeneric` and `asMachOImage` checks need a file-mode fallback. For `@frozen` enums specifically, `EnumLayoutCalculator` works from the descriptor alone; promote it to run in file mode too.
-5. Resilience safety: for classes with `HasResilientSuperclass` or structs in a library-evolution binary, static `FieldOffsets` are not authoritative. Skip the file-mode path in those cases to avoid printing wrong offsets.
-
-**Verification.**
-- `FrozenTest` / `FrozenEnumContrastTest` / `LargeFrozenEnumTest` should emit layout comments.
-- `BuiltinTypeFields.IntegerTypesTest` (non-generic, non-frozen) should emit field offsets in file mode.
-- `Generics.GenericRequirementTest<A>` should still correctly **not** emit concrete field offsets (no concrete instantiation available).
-
-**Risk.** Medium. Reading static field offsets requires correctly computing the descriptor layout; test on multiple targets including resilient ones.
-
-**Effort.** Medium (1–2 days). Needs cross-referencing with the resilience / frozen flag plumbing.
+These three config flags fundamentally require an in-process `MachOImage` and cannot be serviced from a file-mode `MachOFile`. See [L-11](#l-11-printfieldoffset--printtypelayout--printenumlayout-require-a-running-machoimage) in Known limitations.
 
 ---
 
@@ -421,7 +387,26 @@ These items require extending `Sources/MachOSwiftSection/Models/*` to read bits 
 
 ---
 
-### P2-14. `@objc` attribute from `ClassFlags::HasCustomObjCName`
+### P2-14. `@objc` attribute from `ClassFlags::HasCustomObjCName` — **deferred, low priority**
+
+**Status (2026-04-15).** After investigation, the implementation cost does not justify the value for this repo's workflow. Skipped indefinitely. Revisit only if a concrete downstream use case appears (e.g. a dyld-cache target where `@objc("CustomName")` classes are common and the custom name is actually needed for reverse engineering).
+
+**Why deferred:**
+1. **`HasCustomObjCName` is not the same as `@objc`.** The flag is set **only** for `@objc("CustomName") class Foo: NSObject`, i.e. when the user gave an explicit Obj-C alias. Plain `@objc class Foo: NSObject` (no custom name) and methods/properties marked `@objc` do **not** set the flag. A Swift class without `NSObject` ancestry cannot legally be `@objc` at all, so the attribute is redundant for the cases where `@objc` is already visible from the `: NSObject` superclass.
+2. **No independent class-level `@objc` bit exists.** The secondary-signal path (scan for `.objCAttribute` thunk symbols and mark the class as `@objc` if any exist) is what `TypeDefinition.applyThunkAttributes` already does for methods/properties — it does not recover zero-member `@objc class`es and does not recover a custom ObjC name.
+3. **Recovering `@objc("CustomName")` requires address matching.** `ObjCClass64.Layout.swiftClassFlags` is available in file mode via `MachOObjCSection`, but correlating each `ObjCClass64` back to a Swift `ClassDescriptor` means bridging through `symbolIndexStore.symbols(of: .typeMetadata, in: machO)` (`_$s<mangled>N` records) or computing the Swift metadata's offset from the class accessor function — both are new infrastructure with ABI-level pitfalls (offset from ObjC class start to Swift metadata entry point, pointer authentication, rebase handling).
+4. **Fixture cost.** Current `Attributes.ObjCAttributeClass: NSObject` only exercises method-level `@objc` (already handled via thunk attributes). A new fixture `@objc("Name") public class Foo: NSObject { ... }` would have to be added and `SymbolTestsCore.framework` rebuilt, and all snapshot outputs updated.
+
+**If revived in the future**, the implementation path would be:
+- Read `ObjCClass64.Layout.swiftClassFlags` by walking `machO.objc.classes64` (file mode) / `classes` (image mode).
+- Correlate the `ObjCClass64` to a Swift `ClassDescriptor` via the nominal-type-metadata symbol (`_$s...N`) lookup in `SymbolIndexStore`, matching by offset.
+- Read the ObjC class's `classROData.name(in: machO)` to recover the user-visible custom name.
+- Emit `@objc("CustomName")` from `TypeAttributeInferrer` by exposing a new `objcCustomName: String?` field on `TypeDefinition`.
+- Fixture: add `@objc("CustomObjCName") public class Foo: NSObject { ... }` to `Attributes.swift`.
+
+The original spec is retained below for reference.
+
+---
 
 **Symptom.** `@objc`-annotated classes do not show the attribute (exception: classes inheriting from `NSObject` are obvious from the superclass, but an explicit `@objc` on a Swift-native class is lost).
 
@@ -671,24 +656,49 @@ Method-level `@MainActor` isolation **is** recoverable (see P2-12).
 
 ---
 
+### L-11. `printFieldOffset` / `printTypeLayout` / `printEnumLayout` require a running `MachOImage`
+
+**Why not.** Field offsets, full type layout, and multi-payload enum layout all depend on the Swift runtime's metadata instantiation path. The static descriptor fields in `__swift5_types` are **not** authoritative for these:
+
+- **Field offsets.** `TargetStructDescriptor::FieldOffsetVectorOffset` is a *vector offset* into the metadata record, not the offsets themselves. The actual per-field offsets are populated by `swift_initStructMetadata` / `swift_initClassMetadata` at runtime, which consults each field's value witness table (size / alignment / stride) and may reorder or pad fields based on platform ABI, noncopyability, and resilience strategy. There is no binary-safe way to pre-compute this from the descriptor alone.
+- **Class fields with resilient superclasses.** Offsets are relative to the superclass's (also runtime-resolved) size — unknowable statically.
+- **Type layout for generic types.** Obviously requires a concrete instantiation, which only exists at runtime.
+- **Type layout for non-generic types.** The value witness table itself is a relative pointer to a runtime-populated structure; the size/stride/flags fields read from the VWT symbol are not populated until `swift_getCanonicalPrespecializedGenericMetadata` (or the analogous struct/enum initializer) runs.
+- **Multi-payload enum layout.** `EnumLayoutCalculator` needs the payload cases' VWTs resolved, which again routes through runtime metadata. Even for `@frozen` enums, the spare-bit computation depends on `size`/`stride`/`extraInhabitantCount` of payload types, and those are only authoritative post-instantiation.
+
+**What actually works.** The existing `StructDumper.fieldOffsets` / `ClassDumper.fieldOffsets` / `EnumDumper.fields` code paths all do the right thing when `machO.asMachOImage != nil` (i.e., when the dumper was invoked against a `MachOImage` bound to the running process). That is the supported execution mode for these flags.
+
+**What does not work.** Invoking `printFieldOffset` / `printTypeLayout` / `printEnumLayout` against a file-mode `MachOFile` (e.g., when the binary is not the current process, or is from a different architecture). The flags silently produce no output rather than error, which is a usability bug — see follow-up below.
+
+**Follow-up.** Rename or error out: when the input is a `MachOFile` and any of these flags is on, either (a) log a `SwiftInterfaceEvent` warning stating the flag is ignored in file mode, or (b) rename the flags to `printRuntimeFieldOffset` / etc. to make the runtime requirement explicit at the API level. This is a documentation/ergonomics fix, not a functional implementation, and does not expand the set of supported inputs.
+
+**Alternate sources** (out of scope for this roadmap):
+- Attach to a live process via `MachOImage` and let the existing code path run.
+- Parse `__swift5_reflstr` + actual runtime dump output (e.g., from `swift-reflection-dump`). The reflection runtime already computes these offsets and can be queried.
+- DWARF `DW_AT_data_member_location` on debug builds — available only in debug binaries.
+
+---
+
 ## Prioritization
 
 The order below reflects uniqueness × user value × implementation cost.
 
 1. **P1-8 (deinit)** — Small, additive, unblocks understanding of class lifecycle. The `hasDestructor` flag already exists.
 2. **P1-5 (`@escaping`)** — Small, high visibility. Every closure parameter is wrong today.
-3. **P1-11 (field offset / layout gates)** — Configuration flags currently lie about being on. Either fix or rename.
-4. **P3-15 (label capitalization)** — Cosmetic but trivial. Do it when touching nearby code.
-5. **P1-7 (consuming param)** — Small, scoped. Needed for noncopyable API fidelity.
-6. **P1-9 (duplicate typealias extensions)** — Medium, visible cleanup.
-7. **P2-12 (method-level `@MainActor`)** — Medium-large but high value for modern code.
-8. **P2-13 (`distributed actor` / `distributed func`)** — Medium-large. Depends on expanded `ClassFlags` reader.
-9. **P2-14 (`@objc` class attribute)** — Small add-on to P2-13.
-10. **P1-6 (DependentMemberType canonicalization)** — Medium, visible on protocol-heavy targets (SwiftUICore).
-11. **P1-10 (synthesized member dedup)** — Medium. Risk of eating user code; gate behind a flag.
-12. **P3-16 (distributed actor duplicate init)** — Small cosmetic.
-13. **P3-17 (duplicate `buildBlock`)** — Small, needs investigation first.
-14. **P3-18 (test helper `print(duration)`)** — Trivial.
+3. **P3-15 (label capitalization)** — Cosmetic but trivial. Do it when touching nearby code.
+4. **P1-7 (consuming param)** — Small, scoped. Needed for noncopyable API fidelity.
+5. **P1-9 (duplicate typealias extensions)** — Medium, visible cleanup.
+6. **P2-12 (method-level `@MainActor`)** — Medium-large but high value for modern code.
+7. **P2-13 (`distributed actor` / `distributed func`)** — Medium-large. Depends on expanded `ClassFlags` reader.
+8. **P1-6 (DependentMemberType canonicalization)** — Medium, visible on protocol-heavy targets (SwiftUICore).
+9. **P1-10 (synthesized member dedup)** — Medium. Risk of eating user code; gate behind a flag.
+10. **P3-16 (distributed actor duplicate init)** — Small cosmetic.
+11. **P3-17 (duplicate `buildBlock`)** — Small, needs investigation first.
+12. **P3-18 (test helper `print(duration)`)** — Trivial.
+
+Removed from the list:
+- **P1-11** moved to [L-11](#l-11-printfieldoffset--printtypelayout--printenumlayout-require-a-running-machoimage) — the underlying data requires a running `MachOImage`.
+- **P2-14** deferred indefinitely — `HasCustomObjCName` only covers the `@objc("CustomName")` variant, and recovering the custom name requires non-trivial address matching between `ObjCClass64` and Swift `ClassDescriptor`. See the P2-14 section for the full rationale.
 
 ---
 
