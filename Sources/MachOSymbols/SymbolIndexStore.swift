@@ -112,6 +112,23 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         public let kind: Kind
     }
 
+    /// Pre-extracted information about a thunk symbol that carries an attribute
+    /// annotation (for example `@objc` / `@nonobjc`), bucketed by the printed
+    /// name of the type the thunked member belongs to. Consumers use this to
+    /// map attribute annotations back onto already-built member definitions
+    /// without re-parsing the thunk's demangled node tree per type.
+    public struct ThunkAttributeMember: Sendable {
+        public let memberName: String
+        public let isStatic: Bool
+        public let isInit: Bool
+
+        public init(memberName: String, isStatic: Bool, isInit: Bool) {
+            self.memberName = memberName
+            self.isStatic = isStatic
+            self.isInit = isInit
+        }
+    }
+
     typealias IndexedSymbol = DemangledSymbol
     typealias AllSymbols = [IndexedSymbol]
     typealias GlobalSymbols = [IndexedSymbol]
@@ -136,6 +153,8 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         private(set) var symbolsByOffset: OrderedDictionary<Int, [Symbol]> = [:]
 
         private(set) var demangledNodeBySymbol: [Symbol: Node] = [:]
+
+        private(set) var thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: [ThunkAttributeMember]]] = [:]
 
         fileprivate func appendSymbol(_ symbol: IndexedSymbol, for kind: Node.Kind) {
             symbolsByKind[kind, default: []].append(symbol)
@@ -174,6 +193,10 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
         fileprivate func setGlobalSymbols(for result: ProcessGlobalSymbolResult) {
             globalSymbolsByKind[result.kind, default: []].append(result.indexedSymbol)
+        }
+
+        fileprivate func appendThunkAttributeMember(_ member: ThunkAttributeMember, forKind thunkKind: Node.Kind, typeName: String) {
+            thunkAttributeMembersByKindAndTypeName[thunkKind, default: [:]][typeName, default: []].append(member)
         }
     }
 
@@ -241,6 +264,14 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             guard rootNode.isKind(of: .global), let node = rootNode.children.first else { continue }
 
             storage.appendSymbol(DemangledSymbol(symbol: symbol, demangledNode: rootNode), for: node.kind)
+
+            if node.kind == .objCAttribute || node.kind == .nonObjCAttribute {
+                if let extracted = processThunkAttributeSymbol(thunkKind: node.kind, rootNode: rootNode) {
+                    storage.appendThunkAttributeMember(extracted.member, forKind: node.kind, typeName: extracted.typeName)
+                }
+                continue
+            }
+
             if rootNode.isGlobal {
                 if !symbol.isExternal {
                     if let result = processGlobalSymbol(symbol, node: node, rootNode: rootNode) {
@@ -371,6 +402,67 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         return nil
     }
 
+    /// Extracts `(typeName, ThunkAttributeMember)` from a thunk symbol whose root
+    /// demangled node has an attribute marker child (`.objCAttribute` /
+    /// `.nonObjCAttribute`). Returns `nil` if the thunk does not wrap a named
+    /// member whose parent context can be resolved to a Swift type name.
+    private func processThunkAttributeSymbol(
+        thunkKind: Node.Kind,
+        rootNode: Node
+    ) -> (typeName: String, member: ThunkAttributeMember)? {
+        guard let memberNode = rootNode.children.first(where: { $0.kind != thunkKind }) else { return nil }
+
+        let isStatic: Bool
+        let unwrappedMemberNode: Node
+        if memberNode.kind == .static, let innerChild = memberNode.children.first {
+            isStatic = true
+            unwrappedMemberNode = innerChild
+        } else {
+            isStatic = false
+            unwrappedMemberNode = memberNode
+        }
+
+        let extractedMemberName: String?
+        let contextNode: Node?
+
+        switch unwrappedMemberNode.kind {
+        case .function, .constructor, .allocator, .variable:
+            contextNode = unwrappedMemberNode.children.first.map(Self.unwrapExtensionContext)
+            extractedMemberName = unwrappedMemberNode.identifier
+        case .getter, .setter:
+            if let innerVariable = unwrappedMemberNode.children.first, innerVariable.kind == .variable {
+                contextNode = innerVariable.children.first.map(Self.unwrapExtensionContext)
+                extractedMemberName = innerVariable.identifier
+            } else {
+                return nil
+            }
+        default:
+            return nil
+        }
+
+        guard let contextNode, let extractedMemberName else { return nil }
+
+        let typeName = Node.create(kind: .type, child: contextNode).print(using: .interfaceTypeBuilderOnly)
+
+        let isInit = unwrappedMemberNode.kind == .allocator || unwrappedMemberNode.kind == .constructor
+
+        return (
+            typeName: typeName,
+            member: ThunkAttributeMember(memberName: extractedMemberName, isStatic: isStatic, isInit: isInit)
+        )
+    }
+
+    /// If the given node is an `.extension` wrapper, return the extended type node
+    /// (the second child, per Swift demangler's extension node layout:
+    /// `extension(module, extendedType, ?genericSignature)`). Otherwise, return
+    /// the node as-is.
+    private static func unwrapExtensionContext(_ node: Node) -> Node {
+        if node.kind == .extension, let extendedType = node.children.at(1) {
+            return extendedType
+        }
+        return node
+    }
+
     fileprivate struct ProcessGlobalSymbolResult: Sendable {
         let kind: GlobalKind
         let indexedSymbol: IndexedSymbol
@@ -417,6 +509,18 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
     public func symbols<MachO: MachORepresentableWithCache>(of kinds: Node.Kind..., in machO: MachO) -> [DemangledSymbol] {
         return kinds.map { storage(in: machO)?.symbolsByKind[$0] ?? [] }.reduce(into: []) { $0 += $1 }
+    }
+
+    /// Returns the pre-extracted thunk-attribute members whose parent type
+    /// name matches `typeName`. `thunkKind` is the demangler attribute marker
+    /// kind (e.g. `.objCAttribute`, `.nonObjCAttribute`). Lookup is O(1) in the
+    /// typeName bucket; no per-type scan of all thunk symbols is needed.
+    public func thunkAttributeMembers<MachO: MachORepresentableWithCache>(
+        of thunkKind: Node.Kind,
+        for typeName: String,
+        in machO: MachO
+    ) -> [ThunkAttributeMember] {
+        return storage(in: machO)?.thunkAttributeMembersByKindAndTypeName[thunkKind]?[typeName] ?? []
     }
 
     public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
