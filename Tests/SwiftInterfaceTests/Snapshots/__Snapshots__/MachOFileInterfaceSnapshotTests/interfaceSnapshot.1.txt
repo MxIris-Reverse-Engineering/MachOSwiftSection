@@ -415,9 +415,6 @@ enum CodableTests {
         var optionalValue: Swift.Double?
 
         init(identifier: Swift.Int, name: Swift.String, optionalValue: Swift.Double?)
-        init(from: Swift.Decoder) throws
-
-        func encode(to: Swift.Encoder) throws
     }
     struct CustomCodableTest {
         enum CodingKeys {
@@ -428,9 +425,6 @@ enum CodableTests {
         var hiddenCount: Swift.Int
 
         init(displayName: Swift.String, hiddenCount: Swift.Int)
-        init(from: Swift.Decoder) throws
-
-        func encode(to: Swift.Encoder) throws
     }
     class CodableClassTest {
         enum CodingKeys {
@@ -441,9 +435,6 @@ enum CodableTests {
         var label: Swift.String
 
         init(identifier: Swift.Int, label: Swift.String)
-        init(from: Swift.Decoder) throws
-
-        func encode(to: Swift.Encoder) throws
 
         deinit
     }
@@ -464,36 +455,16 @@ enum CodableTests {
         case withValue(Swift.Int)
         case withPair(left: Swift.String, right: Swift.Int)
         case empty
-
-        init(from: Swift.Decoder) throws
-
-        func encode(to: Swift.Encoder) throws
     }
     struct GenericCodableTest<A> where A: Swift.Decodable, A: Swift.Encodable {
         enum CodingKeys {
             case element
             case metadata
-
-            init?(stringValue: Swift.String)
-
-            var hashValue: Swift.Int {
-                get
-            }
-            var stringValue: Swift.String {
-                get
-            }
-
-            func hash(into: inout Swift.Hasher)
-
-            static func == (_: SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys, _: SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys) -> Swift.Bool
         }
         var element: A
         var metadata: [Swift.String : Swift.String]
 
         init(element: A, metadata: [Swift.String : Swift.String])
-        init(from: Swift.Decoder) throws
-
-        func encode(to: Swift.Encoder) throws
     }
 }
 enum CollectionConformances {
@@ -775,9 +746,6 @@ enum DistributedActors {
 
         init(actorSystem: Distributed.LocalTestingDistributedActorSystem)
 
-        var hashValue: Swift.Int {
-            get
-        }
         var nonisolatedProperty: Swift.String {
             get
         }
@@ -800,9 +768,6 @@ enum DistributedActors {
 
         init(actorSystem: Distributed.LocalTestingDistributedActorSystem)
 
-        var hashValue: Swift.Int {
-            get
-        }
         var unownedExecutor: Swift.UnownedSerialExecutor {
             get
         }
@@ -844,14 +809,6 @@ enum Enums {
         case south
         case east
         case west
-
-        var hashValue: Swift.Int {
-            get
-        }
-
-        func hash(into: inout Swift.Hasher)
-
-        static func == (_: SymbolTestsCore.Enums.NoPayloadEnumTest, _: SymbolTestsCore.Enums.NoPayloadEnumTest) -> Swift.Bool
     }
     enum SinglePayloadEnumTest {
         case value(Swift.String)
@@ -872,12 +829,7 @@ enum Enums {
         case second
         case third
 
-        init?(rawValue: Swift.Int)
-
         var description: Swift.String {
-            get
-        }
-        var rawValue: Swift.Int {
             get
         }
 
@@ -888,35 +840,13 @@ enum Enums {
     enum StringRawValueEnumTest {
         case hello
         case world
-
-        init?(rawValue: Swift.String)
-
-        var rawValue: Swift.String {
-            get
-        }
     }
     enum CaseIterableEnumTest {
         case alpha
         case beta
         case gamma
-
-        init?(rawValue: Swift.String)
-
-        var rawValue: Swift.String {
-            get
-        }
-
-        static var allCases: [SymbolTestsCore.Enums.CaseIterableEnumTest] {
-            get
-        }
     }
-    enum ObjCEnumTest {
-        init?(rawValue: Swift.Int)
-
-        var rawValue: Swift.Int {
-            get
-        }
-    }
+    enum ObjCEnumTest {}
     enum LargeFrozenEnumTest {
         case alpha
         case beta
@@ -928,14 +858,6 @@ enum Enums {
         case theta
         case iota
         case kappa
-
-        var hashValue: Swift.Int {
-            get
-        }
-
-        func hash(into: inout Swift.Hasher)
-
-        static func == (_: SymbolTestsCore.Enums.LargeFrozenEnumTest, _: SymbolTestsCore.Enums.LargeFrozenEnumTest) -> Swift.Bool
     }
     enum GenericPayloadEnumTest<A> {
         case first(A)
@@ -954,14 +876,6 @@ enum ErrorTypes {
         case notFound
         case invalid
         case unknown
-
-        var hashValue: Swift.Int {
-            get
-        }
-
-        func hash(into: inout Swift.Hasher)
-
-        static func == (_: SymbolTestsCore.ErrorTypes.SimpleErrorTest, _: SymbolTestsCore.ErrorTypes.SimpleErrorTest) -> Swift.Bool
     }
     enum AssociatedValueErrorTest {
         case withMessage(Swift.String)
@@ -1456,14 +1370,6 @@ enum MarkerProtocols {
     enum MarkerConformingEnumTest {
         case first
         case second
-
-        var hashValue: Swift.Int {
-            get
-        }
-
-        func hash(into: inout Swift.Hasher)
-
-        static func == (_: SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest, _: SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest) -> Swift.Bool
     }
     protocol MarkerProtocolTest {}
     protocol EmptyMarkerProtocolTest {}
@@ -1576,14 +1482,6 @@ enum OpaqueReturnTypes {
     }
     enum UnderlyingPrimaryAssociatedTypeTest<A, B> where A: SymbolTestsCore.Protocols.ProtocolTest, B: SymbolTestsCore.Protocols.ProtocolTest, A.Body.Body.Body.Body.Body.Body == B.Body.Body.Body.Body.Body.Body {
         case none
-
-        var hashValue: Swift.Int {
-            get
-        }
-
-        func hash(into: inout Swift.Hasher)
-
-        static func == (_: SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest<A, B>, _: SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest<A, B>) -> Swift.Bool
     }
     struct OpaquePrimaryAssociatedTypeReturnTypeTest {
         var body: some {
@@ -1608,14 +1506,11 @@ enum Operators {
         static func += (_: inout SymbolTestsCore.Operators.OperatorTestType, _: SymbolTestsCore.Operators.OperatorTestType)
         static func < (_: SymbolTestsCore.Operators.OperatorTestType, _: SymbolTestsCore.Operators.OperatorTestType) -> Swift.Bool
         static func <=> (_: SymbolTestsCore.Operators.OperatorTestType, _: SymbolTestsCore.Operators.OperatorTestType) -> Swift.Int
-        static func == (_: SymbolTestsCore.Operators.OperatorTestType, _: SymbolTestsCore.Operators.OperatorTestType) -> Swift.Bool
     }
 }
 enum OptionSetAndRawRepresentable {
     struct OptionSetTest {
         let rawValue: Swift.UInt
-
-        init(rawValue: Swift.UInt)
 
         static let all: SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
         static var first: SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest {
@@ -1630,18 +1525,12 @@ enum OptionSetAndRawRepresentable {
     }
     struct StringRawRepresentableTest {
         let rawValue: Swift.String
-
-        init?(rawValue: Swift.String)
     }
     struct IntRawRepresentableTest {
         var rawValue: Swift.Int
-
-        init(rawValue: Swift.Int)
     }
     struct GenericRawRepresentableTest<A> where A: Swift.Hashable {
         var rawValue: A
-
-        init(rawValue: A)
     }
 }
 enum OverloadedMembers {
