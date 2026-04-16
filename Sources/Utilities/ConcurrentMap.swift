@@ -7,7 +7,7 @@ extension Array where Element: Sendable {
     /// - Parameter transform: A closure that converts an `Element` to a `Result`.
     ///   Called from multiple threads concurrently — must be safe for concurrent execution.
     /// - Returns: An array of transformed results in the same order as the source.
-    public func concurrentMap<Result>(_ transform: @Sendable (Element) -> Result) -> [Result] {
+    public func concurrentMap<Result: Sendable>(_ transform: @Sendable (Element) -> Result) -> [Result] {
         guard !isEmpty else { return [] }
 
         let buffer = UnsafeMutableBufferPointer<Result>.allocate(capacity: count)
@@ -34,7 +34,7 @@ extension Array where Element: Sendable {
     /// - Parameter transform: A closure that converts an `Element` to an optional `Result`.
     ///   Called from multiple threads concurrently — must be safe for concurrent execution.
     /// - Returns: An array of optional results in the same order as the source.
-    public func concurrentMap<Result>(_ transform: @Sendable (Element) -> Result?) -> [Result?] {
+    public func concurrentMap<Result: Sendable>(_ transform: @Sendable (Element) -> Result?) -> [Result?] {
         guard !isEmpty else { return [] }
 
         let buffer = UnsafeMutableBufferPointer<Result?>.allocate(capacity: count)

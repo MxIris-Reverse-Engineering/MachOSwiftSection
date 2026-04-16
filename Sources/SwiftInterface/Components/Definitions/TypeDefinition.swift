@@ -49,9 +49,31 @@ public final class TypeDefinition: Definition {
 
     public internal(set) var constructors: [FunctionDefinition] = []
 
-    public internal(set) var hasDeallocator: Bool = false
+    /// The deallocator symbol (`fD`) that backs the dump's `deinit` line.
+    ///
+    /// - On classes, this is `__deallocating_deinit`: the ARC tear-down
+    ///   thunk that calls the user's `deinit` body and frees the storage.
+    /// - On `~Copyable` structs/enums, this is the user's `deinit` body
+    ///   itself (value types have no separate destructor slot, so the
+    ///   compiler reuses the deallocator slot for the user code; the
+    ///   demangler prints it as plain `deinit`).
+    /// - Regular (copyable) structs/enums have no deallocator, so this is
+    ///   nil and `deinit` is suppressed in the dump.
+    public internal(set) var deallocatorSymbol: DemangledSymbol? = nil
 
-    public internal(set) var hasDestructor: Bool = false
+    /// The destructor symbol (`fd`) on classes — the actual Swift `deinit`
+    /// body the user wrote (or a shared empty implementation when there is
+    /// none). It is reached at runtime via the deallocator above.
+    ///
+    /// Only emitted for classes; absent for actors and value types, so
+    /// look-ups return nil for those. We do not use this symbol to decide
+    /// whether to print the `deinit` keyword — the deallocator is a more
+    /// uniform anchor — but its address is exposed alongside the
+    /// deallocator address so reverse engineers can jump directly to the
+    /// user code.
+    public internal(set) var destructorSymbol: DemangledSymbol? = nil
+
+    public var hasDeallocator: Bool { deallocatorSymbol != nil }
 
     public internal(set) var orderedMembers: [OrderedMember] = []
 
@@ -63,7 +85,7 @@ public final class TypeDefinition: Definition {
 
     public var hasMembers: Bool {
         !fields.isEmpty || !variables.isEmpty || !functions.isEmpty ||
-            !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty || hasDeallocator || hasDestructor
+            !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty || hasDeallocator
     }
 
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(type: TypeContextWrapper, in machO: MachO) async throws {
@@ -164,8 +186,7 @@ public final class TypeDefinition: Definition {
                     vtableOffsetLookup[node] = vtableBaseOffset + index
                 }
             }
-            // Cache for parent class vtable info: parentDescriptorOffset -> (vtableBaseOffset, [methodDescriptorOffset])
-            var parentVTableCache: [Int: (baseOffset: Int, methodOffsets: [Int])] = [:]
+            var parentVTableCache = ParentClassVTableCache()
 
             for descriptor in cls.methodOverrideDescriptors {
                 guard let symbols = try descriptor.implementationSymbols(in: machO) else { continue }
@@ -174,8 +195,7 @@ public final class TypeDefinition: Definition {
                 visitedNodes.append(node)
                 methodDescriptorLookup[node] = .methodOverride(descriptor)
 
-                // Resolve vtable offset for override by looking up the original method in the parent class
-                if let vtableSlot = try? resolveOverrideVTableOffset(for: descriptor, cache: &parentVTableCache, in: machO) {
+                if let vtableSlot = try? parentVTableCache.slotIndex(for: descriptor, in: machO) {
                     vtableOffsetLookup[node] = vtableSlot
                 }
             }
@@ -199,7 +219,12 @@ public final class TypeDefinition: Definition {
             implOffsetVTableSlotLookup: implOffsetVTableSlotLookup
         )
 
-        hasDeallocator = !symbolIndexStore.memberSymbols(of: .deallocator, for: typeName.name, in: machO).isEmpty
+        // See the property doc comments for the role each symbol plays.
+        // The deallocator drives whether `deinit` is printed at all; the
+        // destructor (only present on classes) is exposed as an extra
+        // address comment.
+        deallocatorSymbol = symbolIndexStore.memberSymbols(of: .deallocator, for: typeName.name, in: machO).first
+        destructorSymbol = symbolIndexStore.memberSymbols(of: .destructor, for: typeName.name, in: machO).first
 
         variables = DefinitionBuilder.variables(
             for: symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
@@ -276,66 +301,10 @@ public final class TypeDefinition: Definition {
         isIndexed = true
     }
 
-    /// Resolves the vtable slot offset for an override method descriptor by looking up
-    /// the original method in the parent class's vtable.
-    private func resolveOverrideVTableOffset<MachO: MachOSwiftSectionRepresentableWithCache>(
-        for descriptor: MethodOverrideDescriptor,
-        cache: inout [Int: (baseOffset: Int, methodOffsets: [Int])],
-        in machO: MachO
-    ) throws -> Int? {
-        // Resolve the original method descriptor
-        guard let methodResult = try descriptor.methodDescriptor(in: machO),
-              case .element(let originalMethod) = methodResult else {
-            return nil
-        }
-
-        // Resolve the parent class descriptor
-        guard let classResult = try descriptor.classDescriptor(in: machO),
-              case .element(let parentContext) = classResult,
-              case .type(.class(let parentClassDescriptor)) = parentContext else {
-            return nil
-        }
-
-        let parentOffset = parentClassDescriptor.offset
-
-        // Check cache first
-        if cache[parentOffset] == nil {
-            let parentClass = try Class(descriptor: parentClassDescriptor, in: machO)
-            if let header = parentClass.vTableDescriptorHeader {
-                let baseOffset = Int(header.layout.vTableOffset)
-                let methodOffsets = parentClass.methodDescriptors.map(\.offset)
-                cache[parentOffset] = (baseOffset, methodOffsets)
-            }
-        }
-
-        guard let cached = cache[parentOffset],
-              let index = cached.methodOffsets.firstIndex(of: originalMethod.offset) else {
-            return nil
-        }
-
-        return cached.baseOffset + index
-    }
-
-    /// If the given node is an `.extension` wrapper, return the extended type node
-    /// (the second child, per Swift demangler's extension node layout:
-    /// `extension(module, extendedType, ?genericSignature)`).
-    /// Otherwise, return the node as-is. Used when comparing a thunk symbol's
-    /// context against a `TypeDefinition`'s type, so members declared in extensions
-    /// match the same way as members declared directly on the type.
-    private static func unwrapExtensionContext(_ node: Node) -> Node {
-        if node.kind == .extension, let extendedType = node.children.at(1) {
-            return extendedType
-        }
-        return node
-    }
-
-    /// Cross-references @objc and @nonobjc thunk symbols with already-built member definitions,
-    /// appending the appropriate attribute to matching members.
-    ///
-    /// Thunk symbol node structures:
-    /// - `global(objCAttribute, function(context, identifier(name), ...))`
-    /// - `global(objCAttribute, static(function(context, identifier(name), ...)))`
-    /// - `global(nonObjCAttribute, getter(variable(context, identifier(name))))`
+    /// Cross-references `@objc` / `@nonobjc` thunk attribute members (pre-extracted
+    /// and bucketed by parent type name inside `SymbolIndexStore`) with the
+    /// already-built member definitions of this type, appending the matching
+    /// attribute to each affected member.
     private func applyThunkAttributes<MachO: MachORepresentableWithCache>(
         symbolIndexStore: SymbolIndexStore,
         typeName: String,
@@ -348,74 +317,15 @@ public final class TypeDefinition: Definition {
         ]
 
         for (thunkKind, attribute) in thunkKindsAndAttributes {
-            let thunkSymbols = symbolIndexStore.symbols(of: thunkKind, in: machO)
-            for thunkSymbol in thunkSymbols {
-                let rootNode = thunkSymbol.demangledNode
-
-                // Find the member node: the child of .global that is NOT the attribute marker
-                guard let memberNode = rootNode.children.first(where: { $0.kind != thunkKind }) else { continue }
-
-                // Unwrap .static if present and track whether this is a static member
-                let isStatic: Bool
-                let unwrappedMemberNode: Node
-                if memberNode.kind == .static, let innerChild = memberNode.children.first {
-                    isStatic = true
-                    unwrappedMemberNode = innerChild
+            let members = symbolIndexStore.thunkAttributeMembers(of: thunkKind, for: typeName, in: machO)
+            for member in members {
+                if member.isStatic {
+                    applyAttributeToFunction(name: member.memberName, attribute: attribute, in: &staticFunctions)
+                    applyAttributeToVariable(name: member.memberName, attribute: attribute, in: &staticVariables)
                 } else {
-                    isStatic = false
-                    unwrappedMemberNode = memberNode
-                }
-
-                // Extract context and member name based on the member node kind.
-                // For members declared in an extension, the context is wrapped in a
-                // `.extension` node whose second child is the extended type. We unwrap
-                // it here so the type-matching below sees the raw type node, regardless
-                // of whether the thunk originated from a direct declaration or an
-                // extension.
-                let extractedMemberName: String?
-                let contextNode: Node?
-
-                switch unwrappedMemberNode.kind {
-                case .function, .constructor, .allocator:
-                    contextNode = unwrappedMemberNode.children.first.map(Self.unwrapExtensionContext)
-                    extractedMemberName = unwrappedMemberNode.identifier
-                case .variable:
-                    contextNode = unwrappedMemberNode.children.first.map(Self.unwrapExtensionContext)
-                    extractedMemberName = unwrappedMemberNode.identifier
-                case .getter, .setter:
-                    // Accessor wrapping a variable: getter(variable(context, identifier(name)))
-                    if let innerVariable = unwrappedMemberNode.children.first, innerVariable.kind == .variable {
-                        contextNode = innerVariable.children.first.map(Self.unwrapExtensionContext)
-                        extractedMemberName = innerVariable.identifier
-                    } else if let innerSubscript = unwrappedMemberNode.children.first, innerSubscript.kind == .subscript {
-                        contextNode = innerSubscript.children.first.map(Self.unwrapExtensionContext)
-                        extractedMemberName = nil // Subscripts don't have a simple name to match
-                    } else {
-                        contextNode = nil
-                        extractedMemberName = nil
-                    }
-                default:
-                    contextNode = nil
-                    extractedMemberName = nil
-                }
-
-                guard let contextNode else { continue }
-
-                // Check if the context matches the current type by comparing printed names
-                let thunkTypeName = Node.create(kind: .type, child: contextNode).print(using: .interfaceTypeBuilderOnly)
-                guard thunkTypeName == typeName else { continue }
-
-                guard let extractedMemberName else { continue }
-
-                // Match against the appropriate definition arrays based on static/instance
-                if isStatic {
-                    applyAttributeToFunction(name: extractedMemberName, attribute: attribute, in: &staticFunctions)
-                    applyAttributeToVariable(name: extractedMemberName, attribute: attribute, in: &staticVariables)
-                } else {
-                    applyAttributeToFunction(name: extractedMemberName, attribute: attribute, in: &functions)
-                    applyAttributeToVariable(name: extractedMemberName, attribute: attribute, in: &variables)
-                    // Also check allocators (for @objc init thunks)
-                    if unwrappedMemberNode.kind == .allocator || unwrappedMemberNode.kind == .constructor {
+                    applyAttributeToFunction(name: member.memberName, attribute: attribute, in: &functions)
+                    applyAttributeToVariable(name: member.memberName, attribute: attribute, in: &variables)
+                    if member.isInit {
                         applyAttributeToAllocator(attribute: attribute, in: &allocators)
                     }
                 }

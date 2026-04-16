@@ -78,19 +78,47 @@ enum DefinitionBuilder {
         implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:],
         implOffsetVTableSlotLookup: [Int: Int] = [:]
     ) -> [FunctionDefinition] {
+        // Same dedup pattern as `functions(...)`: a merged-function thunk shares
+        // the canonical `allocator` subtree, so the same init appears twice. Keep
+        // the canonical (non-merged) entry when both are present.
+        var canonicalIndexByAllocatorNode: [Node: Int] = [:]
+        var pendingMergedByAllocatorNode: [Node: DemangledSymbolWithOffset] = [:]
         var allocators: [FunctionDefinition] = []
         for demangledSymbol in demangledSymbols {
-            let node = demangledSymbol.demangledNode
-            let symbolOffset = demangledSymbol.base.offset
-            let descriptor = methodDescriptorLookup[node] ?? implOffsetDescriptorLookup[symbolOffset]
-            let vtableOffset = vtableOffsetLookup[node] ?? implOffsetVTableSlotLookup[symbolOffset]
-            var functionDefinition = FunctionDefinition(node: node, name: "", kind: .allocator, symbol: demangledSymbol.base, isGlobalOrStatic: true, methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset)
-            if let methodDescriptor = descriptor?.method, methodDescriptor.layout.flags.isDynamic {
-                functionDefinition.attributes.append(.dynamic)
+            guard let allocatorNode = demangledSymbol.demangledNode.first(of: .allocator) else { continue }
+            let isMergedThunk = demangledSymbol.base.demangledNode.children.first?.kind == .mergedFunction
+            if isMergedThunk {
+                if canonicalIndexByAllocatorNode[allocatorNode] == nil, pendingMergedByAllocatorNode[allocatorNode] == nil {
+                    pendingMergedByAllocatorNode[allocatorNode] = demangledSymbol
+                }
+                continue
             }
-            allocators.append(functionDefinition)
+            if canonicalIndexByAllocatorNode[allocatorNode] != nil { continue }
+            canonicalIndexByAllocatorNode[allocatorNode] = allocators.count
+            allocators.append(makeAllocatorDefinition(from: demangledSymbol, methodDescriptorLookup: methodDescriptorLookup, vtableOffsetLookup: vtableOffsetLookup, implOffsetDescriptorLookup: implOffsetDescriptorLookup, implOffsetVTableSlotLookup: implOffsetVTableSlotLookup))
+        }
+        for (allocatorNode, mergedSymbol) in pendingMergedByAllocatorNode where canonicalIndexByAllocatorNode[allocatorNode] == nil {
+            allocators.append(makeAllocatorDefinition(from: mergedSymbol, methodDescriptorLookup: methodDescriptorLookup, vtableOffsetLookup: vtableOffsetLookup, implOffsetDescriptorLookup: implOffsetDescriptorLookup, implOffsetVTableSlotLookup: implOffsetVTableSlotLookup))
         }
         return allocators
+    }
+
+    private static func makeAllocatorDefinition(
+        from demangledSymbol: DemangledSymbolWithOffset,
+        methodDescriptorLookup: [Node: MethodDescriptorWrapper],
+        vtableOffsetLookup: [Node: Int],
+        implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper],
+        implOffsetVTableSlotLookup: [Int: Int]
+    ) -> FunctionDefinition {
+        let node = demangledSymbol.demangledNode
+        let symbolOffset = demangledSymbol.base.offset
+        let descriptor = methodDescriptorLookup[node] ?? implOffsetDescriptorLookup[symbolOffset]
+        let vtableOffset = vtableOffsetLookup[node] ?? implOffsetVTableSlotLookup[symbolOffset]
+        var functionDefinition = FunctionDefinition(node: node, name: "", kind: .allocator, symbol: demangledSymbol.base, isGlobalOrStatic: true, methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset)
+        if let methodDescriptor = descriptor?.method, methodDescriptor.layout.flags.isDynamic {
+            functionDefinition.attributes.append(.dynamic)
+        }
+        return functionDefinition
     }
 
     static func functions(
@@ -101,20 +129,52 @@ enum DefinitionBuilder {
         implOffsetVTableSlotLookup: [Int: Int] = [:],
         isGlobalOrStatic: Bool
     ) -> [FunctionDefinition] {
+        // Dedup pass: merged-function thunks (`.mergedFunction` root) share the
+        // same inner `function` subtree as the canonical function symbol. Without
+        // deduping, the same source-level declaration appears twice. Prefer the
+        // canonical (non-merged) symbol when both exist; fall back to the merged
+        // one when it's the only copy.
+        var canonicalIndexByFunctionNode: [Node: Int] = [:]
+        var pendingMergedByFunctionNode: [Node: DemangledSymbolWithOffset] = [:]
         var functions: [FunctionDefinition] = []
         for demangledSymbol in demangledSymbols {
             guard let functionNode = demangledSymbol.demangledNode.first(of: .function), let name = functionNode.identifier else { continue }
-            let node = demangledSymbol.demangledNode
-            let symbolOffset = demangledSymbol.base.offset
-            let descriptor = methodDescriptorLookup[node] ?? implOffsetDescriptorLookup[symbolOffset]
-            let vtableOffset = vtableOffsetLookup[node] ?? implOffsetVTableSlotLookup[symbolOffset]
-            var functionDefinition = FunctionDefinition(node: node, name: name, kind: .function, symbol: demangledSymbol.base, isGlobalOrStatic: isGlobalOrStatic, methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset)
-            if let methodDescriptor = descriptor?.method, methodDescriptor.layout.flags.isDynamic {
-                functionDefinition.attributes.append(.dynamic)
+            let isMergedThunk = demangledSymbol.base.demangledNode.children.first?.kind == .mergedFunction
+            if isMergedThunk {
+                if canonicalIndexByFunctionNode[functionNode] == nil, pendingMergedByFunctionNode[functionNode] == nil {
+                    pendingMergedByFunctionNode[functionNode] = demangledSymbol
+                }
+                continue
             }
-            functions.append(functionDefinition)
+            if canonicalIndexByFunctionNode[functionNode] != nil { continue }
+            canonicalIndexByFunctionNode[functionNode] = functions.count
+            functions.append(makeFunctionDefinition(from: demangledSymbol, name: name, isGlobalOrStatic: isGlobalOrStatic, methodDescriptorLookup: methodDescriptorLookup, vtableOffsetLookup: vtableOffsetLookup, implOffsetDescriptorLookup: implOffsetDescriptorLookup, implOffsetVTableSlotLookup: implOffsetVTableSlotLookup))
+        }
+        for (functionNode, mergedSymbol) in pendingMergedByFunctionNode where canonicalIndexByFunctionNode[functionNode] == nil {
+            guard let name = functionNode.identifier else { continue }
+            functions.append(makeFunctionDefinition(from: mergedSymbol, name: name, isGlobalOrStatic: isGlobalOrStatic, methodDescriptorLookup: methodDescriptorLookup, vtableOffsetLookup: vtableOffsetLookup, implOffsetDescriptorLookup: implOffsetDescriptorLookup, implOffsetVTableSlotLookup: implOffsetVTableSlotLookup))
         }
         return functions
+    }
+
+    private static func makeFunctionDefinition(
+        from demangledSymbol: DemangledSymbolWithOffset,
+        name: String,
+        isGlobalOrStatic: Bool,
+        methodDescriptorLookup: [Node: MethodDescriptorWrapper],
+        vtableOffsetLookup: [Node: Int],
+        implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper],
+        implOffsetVTableSlotLookup: [Int: Int]
+    ) -> FunctionDefinition {
+        let node = demangledSymbol.demangledNode
+        let symbolOffset = demangledSymbol.base.offset
+        let descriptor = methodDescriptorLookup[node] ?? implOffsetDescriptorLookup[symbolOffset]
+        let vtableOffset = vtableOffsetLookup[node] ?? implOffsetVTableSlotLookup[symbolOffset]
+        var functionDefinition = FunctionDefinition(node: node, name: name, kind: .function, symbol: demangledSymbol.base, isGlobalOrStatic: isGlobalOrStatic, methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset)
+        if let methodDescriptor = descriptor?.method, methodDescriptor.layout.flags.isDynamic {
+            functionDefinition.attributes.append(.dynamic)
+        }
+        return functionDefinition
     }
 }
 

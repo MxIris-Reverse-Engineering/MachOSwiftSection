@@ -75,9 +75,9 @@ struct VTableOffsetComment: SemanticStringComponent {
         if let transformer {
             return transformer(vtableOffset, label).buildComponents()
         } else if let label {
-            return Comment("VTable Offset (\(label)): \(vtableOffset)").buildComponents()
+            return Comment("VTable offset (\(label)): \(vtableOffset)").buildComponents()
         } else {
-            return Comment("VTable Offset: \(vtableOffset)").buildComponents()
+            return Comment("VTable offset: \(vtableOffset)").buildComponents()
         }
     }
 }

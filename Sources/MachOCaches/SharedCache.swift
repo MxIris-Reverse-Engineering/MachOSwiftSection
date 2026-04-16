@@ -43,6 +43,14 @@ open class SharedCache<Storage>: @unchecked Sendable {
     /// The entire check-build-insert runs inside a single `withLockUnchecked` critical
     /// section, guaranteeing atomicity independent of the `_modify` accessor that
     /// `@Mutex` may or may not generate for the underlying property.
+    ///
+    /// - Note: Known limitation — the `build` closure executes while the global
+    ///   cache lock is held, so a long-running build (for example
+    ///   `SymbolIndexStore.prepareWithProgress`) blocks concurrent cache access for
+    ///   other Mach-O identifiers for the full duration of the build. Acceptable
+    ///   today because concurrent cache construction is rare in practice. See
+    ///   `KNOWN_ISSUES.md` for the tracking entry and the sketch of a per-key
+    ///   promise-based fix.
     public func storage<MachO: MachORepresentableWithCache>(
         in machO: MachO,
         buildUsing build: (MachO) -> Storage?
