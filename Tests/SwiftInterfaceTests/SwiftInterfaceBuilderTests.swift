@@ -47,9 +47,13 @@ extension SwiftInterfaceBuilderTests {
         let duration = try await clock.measure {
             try await builder.prepare()
         }
+        #if !SILENT_TEST
         print(duration)
+        #endif
         let result = try await builder.printRoot()
+        #if !SILENT_TEST
         print(result.string)
+        #endif
     }
 
     func buildString(in machO: MachOImage) async throws {
@@ -58,9 +62,13 @@ extension SwiftInterfaceBuilderTests {
         let duration = try await clock.measure {
             try await builder.prepare()
         }
+        #if !SILENT_TEST
         print(duration)
+        #endif
         let result = try await builder.printRoot()
+        #if !SILENT_TEST
         print(result.string)
+        #endif
     }
 
     func buildFile(in machO: MachOFile) async throws {
@@ -69,7 +77,9 @@ extension SwiftInterfaceBuilderTests {
         let duration = try await clock.measure {
             try await builder.prepare()
         }
+        #if !SILENT_TEST
         print(duration)
+        #endif
         let result = try await builder.printRoot()
         try rootDirectory.createDirectoryIfNeeded()
         try result.string.write(to: rootDirectory.appending(path: "\(machO.loadCommands.buildVersionCommand!)-\(machO.imagePath.lastPathComponent)-FileDump.swiftinterface"), atomically: true, encoding: .utf8)
@@ -81,7 +91,9 @@ extension SwiftInterfaceBuilderTests {
         let duration = try await clock.measure {
             try await builder.prepare()
         }
+        #if !SILENT_TEST
         print(duration)
+        #endif
         let result = try await builder.printRoot()
         try rootDirectory.createDirectoryIfNeeded()
         try result.string.write(to: rootDirectory.appending(path: "\(machO.loadCommands.buildVersionCommand!)-\(machO.imagePath.lastPathComponent)-ImageDump.swiftinterface"), atomically: true, encoding: .utf8)

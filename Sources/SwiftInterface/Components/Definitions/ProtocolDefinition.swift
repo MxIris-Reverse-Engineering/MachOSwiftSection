@@ -121,7 +121,7 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
 
         orderedMembers = OrderedMember.pwtOrdered(OrderedMember.allMembers(from: self))
 
-        let extensionDefinition = try ExtensionDefinition(extensionName: protocolName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
+        let extensionDefinition = try ExtensionDefinition(extensionName: protocolName.extensionName, genericSignature: nil, protocolConformance: nil, in: machO)
 
         extensionDefinition.setDefinitions(for: defaultImplementationMemberSymbolsByKind, inExtension: true)
         extensionDefinition.orderedMembers = OrderedMember.offsetOrdered(OrderedMember.allMembers(from: extensionDefinition))
