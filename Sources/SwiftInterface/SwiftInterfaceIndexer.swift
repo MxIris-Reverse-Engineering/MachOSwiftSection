@@ -183,10 +183,12 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
         var symbolIndexStore
 
         eventDispatcher.dispatch(.extractionStarted(section: .symbolIndex))
+        var symbolIndexTotalCount = 0
         for await progress in symbolIndexStore.prepareWithProgress(in: machO) {
+            symbolIndexTotalCount = progress.totalCount
             eventDispatcher.dispatch(.symbolIndexProgress(currentCount: progress.currentCount, totalCount: progress.totalCount))
         }
-        eventDispatcher.dispatch(.extractionCompleted(result: SwiftInterfaceEvents.ExtractionResult(section: .symbolIndex, count: 0)))
+        eventDispatcher.dispatch(.extractionCompleted(result: SwiftInterfaceEvents.ExtractionResult(section: .symbolIndex, count: symbolIndexTotalCount)))
 
         do {
             try await index()

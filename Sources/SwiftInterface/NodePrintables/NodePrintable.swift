@@ -35,7 +35,15 @@ extension NodePrintable {
         case .inOut:
             await printFirstChild(name, prefix: "inout ", prefixContext: .context(for: name, state: .printKeyword))
         case .owned:
-            await printFirstChild(name, prefix: "__owned ", prefixContext: .context(for: name, state: .printKeyword))
+            // Swift 5.9+ source-level spelling for the `n` ownership mangling.
+            // The demangler ABI calls this `Owned`; swift-demangling and the
+            // historical Swift NodePrinter both emit `__owned`. We prefer the
+            // source-facing keyword `consuming` here.
+            await printFirstChild(name, prefix: "consuming ", prefixContext: .context(for: name, state: .printKeyword))
+        case .shared:
+            // Source-level spelling for the `h` ownership mangling.
+            // Demangler kind is `Shared`; older spelling is `__shared`.
+            await printFirstChild(name, prefix: "borrowing ", prefixContext: .context(for: name, state: .printKeyword))
         case .isolated:
             await printFirstChild(name, prefix: "isolated ", prefixContext: .context(for: name, state: .printKeyword))
         case .isolatedAnyFunctionType:
