@@ -14,6 +14,7 @@ public enum SwiftAttribute: Int, Comparable, Sendable, CaseIterable {
     case objc
     case nonobjc
     case dynamic
+    case distributed
 
     // Type-level (from conformance: conforms to GlobalActor)
     case globalActor
@@ -35,6 +36,7 @@ public enum SwiftAttribute: Int, Comparable, Sendable, CaseIterable {
         case .objc: return "@objc"
         case .nonobjc: return "@nonobjc"
         case .dynamic: return "dynamic"
+        case .distributed: return "distributed"
         case .globalActor: return "@globalActor"
         case .retroactive: return "@retroactive"
         }
@@ -50,6 +52,7 @@ public enum SwiftAttribute: Int, Comparable, Sendable, CaseIterable {
         case .objc: return .atObjc
         case .nonobjc: return .atNonobjc
         case .dynamic: return .dynamic
+        case .distributed: return .distributed
         case .globalActor: return .atGlobalActor
         case .retroactive: return .atRetroactive
         }

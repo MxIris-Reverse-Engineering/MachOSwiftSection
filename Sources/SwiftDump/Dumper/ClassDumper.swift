@@ -42,6 +42,10 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
     package var declaration: SemanticString {
         get async throws {
             if dumped.descriptor.isActor {
+                if isDistributedActor {
+                    Keyword(.distributed)
+                    Space()
+                }
                 Keyword(.actor)
             } else {
                 Keyword(.class)
@@ -59,6 +63,36 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                 superclass
             }
         }
+    }
+
+    /// The set of inner function nodes of `.distributedThunk` symbols whose class
+    /// context matches this class. Used for both class-level (`distributed actor`)
+    /// and method-level (`distributed func`) keyword emission.
+    private var distributedFunctionNodes: Set<Node> {
+        get throws {
+            guard dumped.descriptor.isActor else { return [] }
+
+            let currentTypeNode = try MetadataReader.demangleContext(for: .type(.class(dumped.descriptor)), in: machO)
+            let currentTypeName = currentTypeNode.print(using: .interfaceTypeBuilderOnly)
+
+            var nodes: Set<Node> = []
+
+            for thunkSymbol in symbolIndexStore.symbols(of: .distributedThunk, in: machO) {
+                let rootNode = thunkSymbol.demangledNode
+                guard let functionNode = rootNode.children.first(where: { $0.kind != .distributedThunk }) else { continue }
+                guard let contextNode = functionNode.children.first else { continue }
+                let thunkTypeName = Node.create(kind: .type, child: contextNode).print(using: .interfaceTypeBuilderOnly)
+                guard thunkTypeName == currentTypeName else { continue }
+                nodes.insert(functionNode)
+            }
+
+            return nodes
+        }
+    }
+
+    private var isDistributedActor: Bool {
+        guard dumped.descriptor.isActor else { return false }
+        return ((try? distributedFunctionNodes) ?? []).isEmpty == false
     }
 
     @SemanticStringBuilder
@@ -173,6 +207,8 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
             try await fields
 
+            let distributedFunctionNodes = (try? self.distributedFunctionNodes) ?? []
+
             var methodVisitedNodes: OrderedSet<Node> = []
             let vtableBaseOffset = dumped.vTableDescriptorHeader.map { Int($0.layout.vTableOffset) }
             for (offset, descriptor) in dumped.methodDescriptors.offsetEnumerated() {
@@ -189,11 +225,25 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
                 Indent(level: 1)
 
+                // Pre-resolve the method node so we can check distributed status
+                // before deciding which keywords to emit.
+                var resolvedMethodNode: Node? = nil
+                if let symbols = try? descriptor.implementationSymbols(in: machO) {
+                    resolvedMethodNode = try? await validNode(for: symbols, visitedNodes: methodVisitedNodes)
+                }
+
+                let isDistributedMethod: Bool = {
+                    guard descriptor.flags.kind == .method,
+                          let root = resolvedMethodNode,
+                          let functionNode = root.children.first(where: { $0.kind == .function }) else { return false }
+                    return distributedFunctionNodes.contains(functionNode)
+                }()
+
                 dumpMethodKind(for: descriptor)
 
-                dumpMethodKeyword(for: descriptor)
+                dumpMethodKeyword(for: descriptor, isDistributed: isDistributedMethod)
 
-                try await dumpMethodDeclaration(for: descriptor, visitedNodes: &methodVisitedNodes)
+                try await dumpMethodDeclaration(for: descriptor, resolvedNode: resolvedMethodNode, visitedNodes: &methodVisitedNodes)
 
                 if offset.isEnd {
                     BreakLine()
@@ -371,7 +421,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
     }
 
     @SemanticStringBuilder
-    private func dumpMethodKeyword(for descriptor: MethodDescriptor) -> SemanticString {
+    private func dumpMethodKeyword(for descriptor: MethodDescriptor, isDistributed: Bool = false) -> SemanticString {
         if !descriptor.flags.isInstance, descriptor.flags.kind != .`init` {
             Keyword(.static)
             Space()
@@ -383,14 +433,27 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
         }
 
         if descriptor.flags.kind == .method {
+            if isDistributed {
+                Keyword(.distributed)
+                Space()
+            }
             Keyword(.func)
             Space()
         }
     }
 
     @SemanticStringBuilder
-    private func dumpMethodDeclaration(for descriptor: MethodDescriptor, visitedNodes: inout OrderedSet<Node>) async throws -> SemanticString {
-        if let symbols = try? descriptor.implementationSymbols(in: machO), let node = try await validNode(for: symbols, visitedNodes: visitedNodes) {
+    private func dumpMethodDeclaration(for descriptor: MethodDescriptor, resolvedNode: Node? = nil, visitedNodes: inout OrderedSet<Node>) async throws -> SemanticString {
+        let node: Node?
+        if let resolvedNode {
+            node = resolvedNode
+        } else if let symbols = try? descriptor.implementationSymbols(in: machO) {
+            node = try await validNode(for: symbols, visitedNodes: visitedNodes)
+        } else {
+            node = nil
+        }
+
+        if let node {
             try await demangleResolver.resolve(for: node)
             _ = visitedNodes.append(node)
         } else if !descriptor.implementation.isNull {

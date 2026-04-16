@@ -768,7 +768,7 @@ enum DiamondInheritance {
     }
 }
 enum DistributedActors {
-    actor DistributedActorTest {
+    distributed actor DistributedActorTest {
         var $defaultActor: Builtin.DefaultActorStorage
         let id: Distributed.LocalTestingActorID
         let actorSystem: Distributed.LocalTestingDistributedActorSystem
@@ -793,7 +793,7 @@ enum DistributedActors {
 
         deinit
     }
-    actor GenericDistributedActorTest<A> where A: Swift.Decodable, A: Swift.Encodable {
+    distributed actor GenericDistributedActorTest<A> where A: Swift.Decodable, A: Swift.Encodable {
         var $defaultActor: Builtin.DefaultActorStorage
         let id: Distributed.LocalTestingActorID
         let actorSystem: Distributed.LocalTestingDistributedActorSystem

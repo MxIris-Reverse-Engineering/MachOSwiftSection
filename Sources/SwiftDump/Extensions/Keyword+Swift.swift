@@ -9,6 +9,7 @@ extension Keyword {
         case `actor`
         case `struct`
         case `enum`
+        case distributed
         case `lazy`
         case `weak`
         case `unowned`
