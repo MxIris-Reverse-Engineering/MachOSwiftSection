@@ -12,7 +12,7 @@ var globalConstant: Swift.Int {
 }
 var globalVariable: Swift.String
 
-func _finalizeUninitializedArray<A>(_: __owned [A]) -> [A]
+func _finalizeUninitializedArray<A>(_: consuming [A]) -> [A]
 func getContiguousArrayStorageType<A>(for: A.Type) -> Swift._ContiguousArrayStorage<A>.Type
 func globalGenericFunction<A>(_: A) -> A.Body where A: SymbolTestsCore.Protocols.ProtocolTest
 func globalThrowingFunction() throws -> Swift.String
@@ -1162,11 +1162,11 @@ enum FunctionFeatures {
 
             deinit
         }
-        func consumeBox(_: __owned SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box)
-        func twoConsuming(_: __owned SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box, _: __owned SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box)
-        func consumeWithLabel(_: __owned SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box, label: Swift.Int)
+        func consumeBox(_: consuming SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box)
+        func twoConsuming(_: consuming SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box, _: consuming SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box)
+        func consumeWithLabel(_: consuming SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box, label: Swift.Int)
 
-        static func staticConsume(_: __owned SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box)
+        static func staticConsume(_: consuming SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box)
     }
     struct VariadicFunctionTest {
         func format(_: Swift.String, _: Swift.CVarArg...) -> Swift.String
@@ -3167,22 +3167,22 @@ extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.RawR
 }
 extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.SetAlgebra {
     init()
-    init<A1>(_: __owned A1) where A1: Swift.Sequence, Self.Element == A1.Element
+    init<A1>(_: consuming A1) where A1: Swift.Sequence, Self.Element == A1.Element
 
     var isEmpty: Swift.Bool {
         get
     }
 
     func isSuperset(of: Self) -> Swift.Bool
-    func union(_: __owned Self) -> Self
+    func union(_: consuming Self) -> Self
     func intersection(_: Self) -> Self
-    func symmetricDifference(_: __owned Self) -> Self
-    func insert(_: __owned Self.Element) -> (inserted: Swift.Bool, memberAfterInsert: Self.Element)
+    func symmetricDifference(_: consuming Self) -> Self
+    func insert(_: consuming Self.Element) -> (inserted: Swift.Bool, memberAfterInsert: Self.Element)
     func remove(_: Self.Element) -> Self.Element?
-    func update(with: __owned Self.Element) -> Self.Element?
-    func formUnion(_: __owned Self)
+    func update(with: consuming Self.Element) -> Self.Element?
+    func formUnion(_: consuming Self)
     func formIntersection(_: Self)
-    func formSymmetricDifference(_: __owned Self)
+    func formSymmetricDifference(_: consuming Self)
     func subtracting(_: Self) -> Self
     func isSubset(of: Self) -> Swift.Bool
     func isDisjoint(with: Self) -> Swift.Bool
