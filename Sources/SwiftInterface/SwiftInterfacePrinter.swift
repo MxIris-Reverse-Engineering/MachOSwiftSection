@@ -145,7 +145,7 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
             if configuration.printStrippedSymbolicItem, !protocolDefinition.strippedSymbolicRequirements.isEmpty {
                 for strippedSymbolicRequirement in protocolDefinition.strippedSymbolicRequirements {
                     MemberList(level: level) {
-                        OffsetComment(prefix: "protocol witness table offset", offset: strippedSymbolicRequirement.pwtOffset, emit: configuration.printPWTOffset)
+                        OffsetComment(prefix: "PWT offset", offset: strippedSymbolicRequirement.pwtOffset, emit: configuration.printPWTOffset)
                         strippedSymbolicRequirement.strippedSymbolicInfo()
                     }
                 }
@@ -247,7 +247,7 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
 
     @SemanticStringBuilder
     private func printMembersByOffset(_ definition: some Definition, level: Int, isProtocol: Bool) async -> SemanticString {
-        let offsetCommentPrefix = isProtocol ? "protocol witness table offset" : "field offset"
+        let offsetCommentPrefix = isProtocol ? "PWT offset" : "Field offset"
         let emitOffsetComment = isProtocol ? configuration.printPWTOffset : configuration.printFieldOffset
         let printMemberAddress = configuration.printMemberAddress
         let printVTableOffset = configuration.printVTableOffset
@@ -285,12 +285,28 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
                     await printSubscript(`subscript`, level: level)
                 }
             }
+
+            // Terminal step: emit `deinit` for classes and noncopyable
+            // structs/enums. The deallocator symbol is not a member of the
+            // ordered descriptor list because it lives in the symbol table
+            // only, so it is appended after all ordered members.
+            //
+            // Two address comments may be emitted: the unlabeled one points
+            // at the deallocator (the canonical `deinit` entry), and the
+            // labeled `destructor` one points at the actual user `deinit`
+            // body on classes. The destructor variant collapses to nothing
+            // when the type is an actor or value type.
+            if let typeDefinition = definition as? TypeDefinition, let deallocatorSymbol = typeDefinition.deallocatorSymbol {
+                AddressComment(addressString: memberAddressString(forOffset: deallocatorSymbol.symbol.offset), emit: printMemberAddress)
+                AddressComment(addressString: memberAddressString(forOffset: typeDefinition.destructorSymbol?.symbol.offset), label: "destructor", emit: printMemberAddress)
+                Keyword(.deinit)
+            }
         }
     }
 
     @SemanticStringBuilder
     private func printMembersByCategory(_ definition: some Definition, level: Int, isProtocol: Bool) async -> SemanticString {
-        let offsetCommentPrefix = isProtocol ? "protocol witness table offset" : "field offset"
+        let offsetCommentPrefix = isProtocol ? "PWT offset" : "Field offset"
         let emitOffsetComment = isProtocol ? configuration.printPWTOffset : configuration.printFieldOffset
         let printMemberAddress = configuration.printMemberAddress
         let printVTableOffset = configuration.printVTableOffset
@@ -364,6 +380,17 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
                     AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
                 }
                 await printSubscript(`subscript`, level: level)
+            }
+        }
+
+        // Terminal category: emit `deinit` for classes and noncopyable
+        // structs/enums. See `printMembersByOffset` for the parallel path
+        // and the rationale behind the two address comments.
+        if let typeDefinition = definition as? TypeDefinition, let deallocatorSymbol = typeDefinition.deallocatorSymbol {
+            MemberList(level: level) {
+                AddressComment(addressString: memberAddressString(forOffset: deallocatorSymbol.symbol.offset), emit: printMemberAddress)
+                AddressComment(addressString: memberAddressString(forOffset: typeDefinition.destructorSymbol?.symbol.offset), label: "destructor", emit: printMemberAddress)
+                Keyword(.deinit)
             }
         }
     }

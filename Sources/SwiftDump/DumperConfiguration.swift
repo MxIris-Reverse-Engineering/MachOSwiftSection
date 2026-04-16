@@ -100,7 +100,7 @@ extension DumperConfiguration {
         if let fieldOffsetTransformer {
             fieldOffsetTransformer((startOffset, endOffset))
         } else {
-            Comment("Field Offset: 0x\(String(startOffset, radix: 16))")
+            Comment("Field offset: 0x\(String(startOffset, radix: 16))")
         }
         BreakLine()
     }
@@ -141,9 +141,9 @@ extension DumperConfiguration {
         if let vtableOffsetTransformer {
             vtableOffsetTransformer((slotOffset, label))
         } else if let label {
-            Comment("VTable Offset (\(label)): \(slotOffset)")
+            Comment("VTable offset (\(label)): \(slotOffset)")
         } else {
-            Comment("VTable Offset: \(slotOffset)")
+            Comment("VTable offset: \(slotOffset)")
         }
         BreakLine()
     }
