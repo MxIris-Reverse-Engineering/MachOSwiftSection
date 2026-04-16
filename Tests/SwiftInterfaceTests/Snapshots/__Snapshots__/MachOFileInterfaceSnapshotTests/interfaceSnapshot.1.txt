@@ -774,7 +774,6 @@ enum DistributedActors {
         let actorSystem: Distributed.LocalTestingDistributedActorSystem
 
         init(actorSystem: Distributed.LocalTestingDistributedActorSystem)
-        init(actorSystem: Distributed.LocalTestingDistributedActorSystem)
 
         var hashValue: Swift.Int {
             get
@@ -1126,7 +1125,6 @@ enum FrozenResilienceContrast {
         var count: Swift.Int
 
         init(element: A, count: Swift.Int)
-        init(element: A, count: Swift.Int)
     }
     struct ResilientGenericTest<A> {
         var element: A
@@ -1150,7 +1148,6 @@ enum FunctionFeatures {
         func acceptEscaping(_: @escaping () -> ())
         func acceptAutoclosure(_: @autoclosure () -> Swift.Bool) -> Swift.Bool
         func acceptEscapingAutoclosure(_: @escaping @autoclosure () -> Swift.Bool)
-        func acceptEscaping(_: @escaping () -> ())
 
         deinit
     }
@@ -1824,7 +1821,6 @@ enum Protocols {
 enum ResultBuilderDSL {
     @resultBuilder
     struct FullResultBuilderTest {
-        static func buildBlock(_: [Swift.Int]...) -> [Swift.Int]
         static func buildExpression(_: Swift.Int) -> [Swift.Int]
         static func buildOptional(_: [Swift.Int]?) -> [Swift.Int]
         static func buildArray(_: [[Swift.Int]]) -> [Swift.Int]
@@ -1856,7 +1852,6 @@ enum SameTypeRequirements {
         var first: A
         var second: B
 
-        init(first: A, second: B)
         init(first: A, second: B)
     }
     struct NestedSameTypeTest<A, B> where A: Swift.Collection, B: Swift.Collection, A.Element == B.Element, A.Index == Swift.Int, B.Index == Swift.Int {
@@ -2202,13 +2197,11 @@ extension SymbolTestsCore.Protocols.ProtocolTest {
 }
 extension SymbolTestsCore.DefaultImplementationVariants.ConstrainedDefaultProtocol {
     func isEqualTo(_: Self.Element) -> Swift.Bool where Self.Element: Swift.Equatable
-    func isEqualTo(_: Self.Element) -> Swift.Bool where Self.Element: Swift.Equatable
     func isLessThan(_: Self.Element) -> Swift.Bool where Self.Element: Swift.Comparable
     func computeHash() -> Swift.Int where Self.Element: Swift.Hashable, Self.Element: Swift.Sendable
     func identityCheck(_: Self.Element) -> Swift.Bool where Self.Element: AnyObject
 }
 extension SymbolTestsCore.Extensions.ExtensionProtocol {
-    func matches(_: Self.Item) -> Swift.Bool where Self.Item: Swift.Equatable
     func matches(_: Self.Item) -> Swift.Bool where Self.Item: Swift.Equatable
     func isLessThan(_: Self.Item) -> Swift.Bool where Self.Item: Swift.Comparable
 }
