@@ -185,7 +185,7 @@ Also class types like `PropertyObserverClassTest`, `KeyPathReferenceTest`, etc. 
 - `swift/lib/Demangling/Demangler.cpp:4180-4184` demangles `'fD'` / `'fd'` into `Node.Kind.Deallocator` / `Node.Kind.Destructor`.
 - `swift/lib/Demangling/NodePrinter.cpp:1677-1686` prints them as `"__deallocating_deinit"` / `"deinit"`.
 - The symbol is usually present in the `__TEXT,__text` section and indexed by `MachOSymbols`.
-- `Sources/SwiftInterface/Components/Definitions/TypeDefinition.swift:54` already has a `hasDestructor: Bool` flag, and `:194` populates `hasDeallocator` from `symbolIndexStore.memberSymbols(of: .deallocator, ...)`. The infrastructure exists but `hasDestructor` is never set and no symbol is materialized as a member.
+- `Sources/SwiftInterface/Components/Definitions/TypeDefinition.swift` already has a `hasDestructor: Bool` property (near L54) and populates `hasDeallocator` from `symbolIndexStore.memberSymbols(of: .deallocator, ...)` inside `index(in:)` (near L202). The infrastructure exists but `hasDestructor` is never set and no symbol is materialized as a member.
 
 **Modification points.**
 1. `Sources/SwiftInterface/Components/Definitions/TypeDefinition.swift` — in the `index(in:)` method, after the existing `hasDeallocator` check:
@@ -317,16 +317,17 @@ The two sets even have different addresses, because one is the concrete witness 
 
 **Symptom.** Even with `printFieldOffset: true`, `printTypeLayout: true`, `printEnumLayout: true`, no offset / layout comments appear in the dump.
 
-**Root cause.** `Sources/SwiftDump/Dumper/StructDumper.swift:62-64,95-96`, `ClassDumper.swift:92-102,132-133`, `EnumDumper.swift:92-98,124-125` all gate the emission on:
-```swift
-guard !dumped.flags.isGeneric else { return nil }
-```
-and
-```swift
-if configuration.printTypeLayout, !dumped.flags.isGeneric, ...
-```
+**Root cause.** Three different gating mechanisms across the dumpers, not a single uniform one:
 
-**Why it fails for the test target.** Many types in SymbolTestsCore are generic (`GenericFieldLayout`, `Generics`, etc.), and for non-generic types the condition further requires `machO.asMachOImage` which is nil for file-based MachO inputs.
+1. **`StructDumper.fieldOffsets`** (around L62-65) does **not** have an explicit `!isGeneric` guard. Instead, the gating is **implicit** via the `metadata?` chain: `try? metadata?.fieldOffsets(...)` silently returns nil because `metadata` depends on an in-process metadata accessor that is only available for `MachOImage` inputs (not `MachOFile`).
+2. **`ClassDumper.fieldOffsets`** (around L92-102) **does** have an explicit guard: `guard let metadataAccessor = try? dumped.descriptor.metadataAccessorFunction(in: machO), !dumped.flags.isGeneric else { return nil }`.
+3. **`EnumDumper.fields`** (around L88-99) **does** have an explicit `if configuration.printEnumLayout, !dumped.flags.isGeneric { ... }` gate.
+
+In addition, the `printTypeLayout` emission inside the `fields` body of all three dumpers uses the same conjunction: `if configuration.printTypeLayout, !dumped.flags.isGeneric, let machO = machO.asMachOImage, ...`. This conjunction is the "layer-2" failure: even when step 1 passes, the runtime-based layout calculation path requires `asMachOImage`.
+
+**Why it fails for the test target.** Two independent reasons compose:
+- Many types in SymbolTestsCore are generic (`GenericFieldLayout`, `Generics`, etc.) — blocked by the explicit `!isGeneric` guards in ClassDumper/EnumDumper.
+- Non-generic types in file mode have `metadata == nil` (StructDumper, via implicit nil propagation) and `machO.asMachOImage == nil` (ClassDumper/EnumDumper at the runtime-layout path).
 
 **Goal.** Emit layout/offset information whenever the binary metadata contains enough information to compute it, regardless of genericity:
 
@@ -335,10 +336,11 @@ if configuration.printTypeLayout, !dumped.flags.isGeneric, ...
 - **Frozen generic types**: if `@frozen`, field offsets are directly encoded in the descriptor. `SymbolTestsCore.Frozen.FrozenTest`, `FrozenEnumContrastTest`, and the `@frozen` `LargeFrozenEnumTest` should all print layouts.
 
 **Modification points.**
-1. `StructDumper.fieldOffsets` — remove the early return on `isGeneric`. Instead, check whether the descriptor has a `FieldOffsetVectorOffset` (via `metadata?.fieldOffsets`). If the type is not frozen and not in-process, fall back to no offsets gracefully.
-2. `StructDumper.fields` line 79-88 and 95-97 — the current logic requires `machOImage` (process image) for the "compute layout via runtime" path. Add a file-mode path that reads static `FieldOffsets` from the struct descriptor when present.
-3. Same pattern for `ClassDumper` and `EnumDumper`.
-4. `printEnumLayout` specifically for `@frozen` enums: the enum case layout is deterministic from the descriptor (no runtime needed). Use `EnumLayoutCalculator` directly.
+1. `StructDumper.fieldOffsets` — there is no `!isGeneric` early return to remove; the issue is that the current implementation relies solely on `metadata?` which is nil for `MachOFile`. Add a file-mode path that reads static `FieldOffsets` directly from `TargetStructDescriptor` (the `FieldOffsetVectorOffset` field) without going through an in-process metadata accessor. Fall back to `nil` gracefully only when neither in-process metadata nor static descriptor offsets are available.
+2. `ClassDumper.fieldOffsets` — has an explicit `!dumped.flags.isGeneric` guard. Relax it: for non-generic classes in file mode, attempt the static descriptor path before giving up. For generic classes, keep the early return (no concrete instantiation available).
+3. `StructDumper.fields` / `ClassDumper.fields` inline `printTypeLayout` blocks — the current conjunction `!dumped.flags.isGeneric, let machOImage = machO.asMachOImage` requires in-process mode. Add a secondary file-mode path that computes type layout from the descriptor + value witness table (when statically available) without the `asMachOImage` dependency.
+4. `EnumDumper.fields` — same pattern: the `!dumped.flags.isGeneric` and `asMachOImage` checks need a file-mode fallback. For `@frozen` enums specifically, `EnumLayoutCalculator` works from the descriptor alone; promote it to run in file mode too.
+5. Resilience safety: for classes with `HasResilientSuperclass` or structs in a library-evolution binary, static `FieldOffsets` are not authoritative. Skip the file-mode path in those cases to avoid printing wrong offsets.
 
 **Verification.**
 - `FrozenTest` / `FrozenEnumContrastTest` / `LargeFrozenEnumTest` should emit layout comments.
