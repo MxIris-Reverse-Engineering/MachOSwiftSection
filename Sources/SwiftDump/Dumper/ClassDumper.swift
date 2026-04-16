@@ -200,13 +200,13 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                 }
             }
 
-            var parentVTableCache: [Int: (baseOffset: Int, methodOffsets: [Int])] = [:]
+            var parentVTableCache = ParentClassVTableCache()
             var methodOverrideVisitedNodes: OrderedSet<Node> = []
             for (offset, descriptor) in dumped.methodOverrideDescriptors.offsetEnumerated() {
                 BreakLine()
 
                 if configuration.printVTableOffset {
-                    if let vtableSlot = try? resolveOverrideVTableOffset(for: descriptor, cache: &parentVTableCache, in: machO) {
+                    if let vtableSlot = try? parentVTableCache.slotIndex(for: descriptor, in: machO) {
                         configuration.vtableOffsetComment(slotOffset: vtableSlot)
                     }
                 }
@@ -410,40 +410,6 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
         return nil
     }
 
-    private func resolveOverrideVTableOffset(
-        for descriptor: MethodOverrideDescriptor,
-        cache: inout [Int: (baseOffset: Int, methodOffsets: [Int])],
-        in machO: MachO
-    ) throws -> Int? {
-        guard let methodResult = try descriptor.methodDescriptor(in: machO),
-              case .element(let originalMethod) = methodResult else {
-            return nil
-        }
-
-        guard let classResult = try descriptor.classDescriptor(in: machO),
-              case .element(let parentContext) = classResult,
-              case .type(.class(let parentClassDescriptor)) = parentContext else {
-            return nil
-        }
-
-        let parentOffset = parentClassDescriptor.offset
-
-        if cache[parentOffset] == nil {
-            let parentClass = try Class(descriptor: parentClassDescriptor, in: machO)
-            if let header = parentClass.vTableDescriptorHeader {
-                let baseOffset = Int(header.layout.vTableOffset)
-                let methodOffsets = parentClass.methodDescriptors.map(\.offset)
-                cache[parentOffset] = (baseOffset, methodOffsets)
-            }
-        }
-
-        guard let cached = cache[parentOffset],
-              let index = cached.methodOffsets.firstIndex(of: originalMethod.offset) else {
-            return nil
-        }
-
-        return cached.baseOffset + index
-    }
 }
 
 package func classDemangledSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(for symbols: Symbols, typeNode: Node, visitedNodes: borrowing OrderedSet<Node> = [], in machO: MachO) throws -> DemangledSymbol? {

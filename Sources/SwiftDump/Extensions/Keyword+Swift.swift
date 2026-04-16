@@ -20,6 +20,7 @@ extension Keyword {
         case `case`
         case `let`
         case `var`
+        case `deinit`
         case `where`
         case `indirect`
         case `protocol`

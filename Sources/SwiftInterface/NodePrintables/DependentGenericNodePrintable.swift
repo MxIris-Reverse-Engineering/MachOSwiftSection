@@ -45,7 +45,12 @@ extension DependentGenericNodePrintable {
     }
 
     mutating func printDependentAssociatedTypeRef(_ name: Node) async {
-        _ = await printOptional(name.children.at(1), suffix: ".")
+        // Drop the protocol qualifier and print only the associated-type identifier.
+        // The default demangler form prefixes each segment with the owning protocol,
+        // producing chains like `A.OuterProtocol.Middle.MiddleProtocol.Leaf`. Swift
+        // source uses the simpler `A.Middle.Leaf`. The ambiguous case (same name on
+        // multiple protocols) would need generic-signature disambiguation; left for
+        // a future pass.
         await printFirstChild(name)
     }
 
