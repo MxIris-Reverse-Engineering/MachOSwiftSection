@@ -9,6 +9,7 @@ extension Keyword {
         case `actor`
         case `struct`
         case `enum`
+        case distributed
         case `lazy`
         case `weak`
         case `unowned`
@@ -20,6 +21,7 @@ extension Keyword {
         case `case`
         case `let`
         case `var`
+        case `deinit`
         case `where`
         case `indirect`
         case `protocol`

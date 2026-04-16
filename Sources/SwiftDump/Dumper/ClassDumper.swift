@@ -42,6 +42,10 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
     package var declaration: SemanticString {
         get async throws {
             if dumped.descriptor.isActor {
+                if isDistributedActor {
+                    Keyword(.distributed)
+                    Space()
+                }
                 Keyword(.actor)
             } else {
                 Keyword(.class)
@@ -59,6 +63,36 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                 superclass
             }
         }
+    }
+
+    /// The set of inner function nodes of `.distributedThunk` symbols whose class
+    /// context matches this class. Used for both class-level (`distributed actor`)
+    /// and method-level (`distributed func`) keyword emission.
+    private var distributedFunctionNodes: Set<Node> {
+        get throws {
+            guard dumped.descriptor.isActor else { return [] }
+
+            let currentTypeNode = try MetadataReader.demangleContext(for: .type(.class(dumped.descriptor)), in: machO)
+            let currentTypeName = currentTypeNode.print(using: .interfaceTypeBuilderOnly)
+
+            var nodes: Set<Node> = []
+
+            for thunkSymbol in symbolIndexStore.symbols(of: .distributedThunk, in: machO) {
+                let rootNode = thunkSymbol.demangledNode
+                guard let functionNode = rootNode.children.first(where: { $0.kind != .distributedThunk }) else { continue }
+                guard let contextNode = functionNode.children.first else { continue }
+                let thunkTypeName = Node.create(kind: .type, child: contextNode).print(using: .interfaceTypeBuilderOnly)
+                guard thunkTypeName == currentTypeName else { continue }
+                nodes.insert(functionNode)
+            }
+
+            return nodes
+        }
+    }
+
+    private var isDistributedActor: Bool {
+        guard dumped.descriptor.isActor else { return false }
+        return ((try? distributedFunctionNodes) ?? []).isEmpty == false
     }
 
     @SemanticStringBuilder
@@ -173,6 +207,8 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
             try await fields
 
+            let distributedFunctionNodes = (try? self.distributedFunctionNodes) ?? []
+
             var methodVisitedNodes: OrderedSet<Node> = []
             let vtableBaseOffset = dumped.vTableDescriptorHeader.map { Int($0.layout.vTableOffset) }
             for (offset, descriptor) in dumped.methodDescriptors.offsetEnumerated() {
@@ -189,24 +225,38 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
                 Indent(level: 1)
 
+                // Pre-resolve the method node so we can check distributed status
+                // before deciding which keywords to emit.
+                var resolvedMethodNode: Node? = nil
+                if let symbols = try? descriptor.implementationSymbols(in: machO) {
+                    resolvedMethodNode = try? await validNode(for: symbols, visitedNodes: methodVisitedNodes)
+                }
+
+                let isDistributedMethod: Bool = {
+                    guard descriptor.flags.kind == .method,
+                          let root = resolvedMethodNode,
+                          let functionNode = root.children.first(where: { $0.kind == .function }) else { return false }
+                    return distributedFunctionNodes.contains(functionNode)
+                }()
+
                 dumpMethodKind(for: descriptor)
 
-                dumpMethodKeyword(for: descriptor)
+                dumpMethodKeyword(for: descriptor, isDistributed: isDistributedMethod)
 
-                try await dumpMethodDeclaration(for: descriptor, visitedNodes: &methodVisitedNodes)
+                try await dumpMethodDeclaration(for: descriptor, resolvedNode: resolvedMethodNode, visitedNodes: &methodVisitedNodes)
 
                 if offset.isEnd {
                     BreakLine()
                 }
             }
 
-            var parentVTableCache: [Int: (baseOffset: Int, methodOffsets: [Int])] = [:]
+            var parentVTableCache = ParentClassVTableCache()
             var methodOverrideVisitedNodes: OrderedSet<Node> = []
             for (offset, descriptor) in dumped.methodOverrideDescriptors.offsetEnumerated() {
                 BreakLine()
 
                 if configuration.printVTableOffset {
-                    if let vtableSlot = try? resolveOverrideVTableOffset(for: descriptor, cache: &parentVTableCache, in: machO) {
+                    if let vtableSlot = try? parentVTableCache.slotIndex(for: descriptor, in: machO) {
                         configuration.vtableOffsetComment(slotOffset: vtableSlot)
                     }
                 }
@@ -371,7 +421,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
     }
 
     @SemanticStringBuilder
-    private func dumpMethodKeyword(for descriptor: MethodDescriptor) -> SemanticString {
+    private func dumpMethodKeyword(for descriptor: MethodDescriptor, isDistributed: Bool = false) -> SemanticString {
         if !descriptor.flags.isInstance, descriptor.flags.kind != .`init` {
             Keyword(.static)
             Space()
@@ -383,14 +433,27 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
         }
 
         if descriptor.flags.kind == .method {
+            if isDistributed {
+                Keyword(.distributed)
+                Space()
+            }
             Keyword(.func)
             Space()
         }
     }
 
     @SemanticStringBuilder
-    private func dumpMethodDeclaration(for descriptor: MethodDescriptor, visitedNodes: inout OrderedSet<Node>) async throws -> SemanticString {
-        if let symbols = try? descriptor.implementationSymbols(in: machO), let node = try await validNode(for: symbols, visitedNodes: visitedNodes) {
+    private func dumpMethodDeclaration(for descriptor: MethodDescriptor, resolvedNode: Node? = nil, visitedNodes: inout OrderedSet<Node>) async throws -> SemanticString {
+        let node: Node?
+        if let resolvedNode {
+            node = resolvedNode
+        } else if let symbols = try? descriptor.implementationSymbols(in: machO) {
+            node = try await validNode(for: symbols, visitedNodes: visitedNodes)
+        } else {
+            node = nil
+        }
+
+        if let node {
             try await demangleResolver.resolve(for: node)
             _ = visitedNodes.append(node)
         } else if !descriptor.implementation.isNull {
@@ -410,40 +473,6 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
         return nil
     }
 
-    private func resolveOverrideVTableOffset(
-        for descriptor: MethodOverrideDescriptor,
-        cache: inout [Int: (baseOffset: Int, methodOffsets: [Int])],
-        in machO: MachO
-    ) throws -> Int? {
-        guard let methodResult = try descriptor.methodDescriptor(in: machO),
-              case .element(let originalMethod) = methodResult else {
-            return nil
-        }
-
-        guard let classResult = try descriptor.classDescriptor(in: machO),
-              case .element(let parentContext) = classResult,
-              case .type(.class(let parentClassDescriptor)) = parentContext else {
-            return nil
-        }
-
-        let parentOffset = parentClassDescriptor.offset
-
-        if cache[parentOffset] == nil {
-            let parentClass = try Class(descriptor: parentClassDescriptor, in: machO)
-            if let header = parentClass.vTableDescriptorHeader {
-                let baseOffset = Int(header.layout.vTableOffset)
-                let methodOffsets = parentClass.methodDescriptors.map(\.offset)
-                cache[parentOffset] = (baseOffset, methodOffsets)
-            }
-        }
-
-        guard let cached = cache[parentOffset],
-              let index = cached.methodOffsets.firstIndex(of: originalMethod.offset) else {
-            return nil
-        }
-
-        return cached.baseOffset + index
-    }
 }
 
 package func classDemangledSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(for symbols: Symbols, typeNode: Node, visitedNodes: borrowing OrderedSet<Node> = [], in machO: MachO) throws -> DemangledSymbol? {
