@@ -1003,7 +1003,7 @@ enum ExistentialAny {
         var existentialDictionary: [Swift.String : SymbolTestsCore.Protocols.ProtocolTest]
         var existentialFunction: (_: SymbolTestsCore.Protocols.ProtocolTest) -> ()
 
-        init(simpleExistential: SymbolTestsCore.Protocols.ProtocolTest, compositionExistential: Swift.Sendable & SymbolTestsCore.Protocols.ProtocolTest, optionalExistential: SymbolTestsCore.Protocols.ProtocolTest?, existentialArray: [SymbolTestsCore.Protocols.ProtocolTest], existentialDictionary: [Swift.String : SymbolTestsCore.Protocols.ProtocolTest], existentialFunction: (_: SymbolTestsCore.Protocols.ProtocolTest) -> ())
+        init(simpleExistential: SymbolTestsCore.Protocols.ProtocolTest, compositionExistential: Swift.Sendable & SymbolTestsCore.Protocols.ProtocolTest, optionalExistential: SymbolTestsCore.Protocols.ProtocolTest?, existentialArray: [SymbolTestsCore.Protocols.ProtocolTest], existentialDictionary: [Swift.String : SymbolTestsCore.Protocols.ProtocolTest], existentialFunction: @escaping (_: SymbolTestsCore.Protocols.ProtocolTest) -> ())
     }
     struct ExistentialClassBoundTest {
         var classBound: SymbolTestsCore.Protocols.ClassBoundProtocolTest
@@ -1062,7 +1062,7 @@ enum FieldDescriptorVariants {
         var tupleField: (Swift.Int, A)
         var functionField: (_: A) -> Swift.Int
 
-        init(concreteInt: Swift.Int, concreteString: Swift.String, genericElement: A, arrayOfElement: [A], dictionaryOfElement: [Swift.String : A], optionalElement: A?, tupleField: (Swift.Int, A), functionField: (_: A) -> Swift.Int)
+        init(concreteInt: Swift.Int, concreteString: Swift.String, genericElement: A, arrayOfElement: [A], dictionaryOfElement: [Swift.String : A], optionalElement: A?, tupleField: (Swift.Int, A), functionField: @escaping (_: A) -> Swift.Int)
     }
 }
 enum Frozen {
@@ -1147,10 +1147,10 @@ enum FunctionFeatures {
     class ClosureParameterTest {
         var storedCallbacks: [() -> ()]
 
-        func acceptEscaping(_: () -> ())
+        func acceptEscaping(_: @escaping () -> ())
         func acceptAutoclosure(_: @autoclosure () -> Swift.Bool) -> Swift.Bool
-        func acceptEscapingAutoclosure(_: @autoclosure () -> Swift.Bool)
-        func acceptEscaping(_: () -> ())
+        func acceptEscapingAutoclosure(_: @escaping @autoclosure () -> Swift.Bool)
+        func acceptEscaping(_: @escaping () -> ())
 
         deinit
     }
@@ -1208,10 +1208,10 @@ enum FunctionTypes {
         var asyncFunction: nonisolated(nonsending) () async -> Swift.String
         var asyncThrowingFunction: nonisolated(nonsending) () async throws -> Swift.Int
 
-        init(simpleFunction: (_: Swift.Int) -> Swift.Int, multiArgumentFunction: (Swift.Int, Swift.String, Swift.Bool) -> Swift.Double, throwingFunction: () throws -> Swift.Int, asyncFunction: nonisolated(nonsending) () async -> Swift.String, asyncThrowingFunction: nonisolated(nonsending) () async throws -> Swift.Int)
+        init(simpleFunction: @escaping (_: Swift.Int) -> Swift.Int, multiArgumentFunction: @escaping (Swift.Int, Swift.String, Swift.Bool) -> Swift.Double, throwingFunction: @escaping () throws -> Swift.Int, asyncFunction: @escaping nonisolated(nonsending) () async -> Swift.String, asyncThrowingFunction: @escaping nonisolated(nonsending) () async throws -> Swift.Int)
     }
     struct HigherOrderFunctionTest {
-        func acceptFunctionReturningFunction(_: (_: Swift.Int) -> (_: Swift.Double) -> Swift.String) -> Swift.String
+        func acceptFunctionReturningFunction(_: @escaping (_: Swift.Int) -> (_: Swift.Double) -> Swift.String) -> Swift.String
         func returnFunctionReturningFunction() -> (_: Swift.Int) -> (_: Swift.Double) -> Swift.String
         func curriedFunction(_: Swift.Int) -> (_: Swift.Double) -> (_: Swift.String) -> Swift.Bool
     }
@@ -1220,7 +1220,7 @@ enum FunctionTypes {
         var predicate: (_: Swift.Int) -> Swift.Bool
         var biFunction: (Swift.Int, Swift.String) -> Swift.Bool
 
-        init(transformer: (_: Swift.Int) -> Swift.String, predicate: (_: Swift.Int) -> Swift.Bool, biFunction: (Swift.Int, Swift.String) -> Swift.Bool)
+        init(transformer: @escaping (_: Swift.Int) -> Swift.String, predicate: @escaping (_: Swift.Int) -> Swift.Bool, biFunction: @escaping (Swift.Int, Swift.String) -> Swift.Bool)
     }
 }
 enum GenericFieldLayout {
@@ -1440,7 +1440,7 @@ enum KeyPaths {
     struct KeyPathFactoryTest<A, B> {
         var keyPathProducer: (_: A) -> Swift.KeyPath<A, B>
 
-        init(keyPathProducer: (_: A) -> Swift.KeyPath<A, B>)
+        init(keyPathProducer: @escaping (_: A) -> Swift.KeyPath<A, B>)
     }
 }
 enum MarkerProtocols {
@@ -2025,7 +2025,7 @@ enum Typealiases {
         var collection: [A]
         var handler: (_: A) -> ()
 
-        init(element: A, collection: [A], handler: (_: A) -> ())
+        init(element: A, collection: [A], handler: @escaping (_: A) -> ())
     }
     struct ConstrainedTypealiasTest<A> where A: Swift.Comparable {
         var range: Swift.ClosedRange<A>
