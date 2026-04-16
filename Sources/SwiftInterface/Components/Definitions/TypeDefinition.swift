@@ -49,9 +49,31 @@ public final class TypeDefinition: Definition {
 
     public internal(set) var constructors: [FunctionDefinition] = []
 
-    public internal(set) var hasDeallocator: Bool = false
+    /// The deallocator symbol (`fD`) that backs the dump's `deinit` line.
+    ///
+    /// - On classes, this is `__deallocating_deinit`: the ARC tear-down
+    ///   thunk that calls the user's `deinit` body and frees the storage.
+    /// - On `~Copyable` structs/enums, this is the user's `deinit` body
+    ///   itself (value types have no separate destructor slot, so the
+    ///   compiler reuses the deallocator slot for the user code; the
+    ///   demangler prints it as plain `deinit`).
+    /// - Regular (copyable) structs/enums have no deallocator, so this is
+    ///   nil and `deinit` is suppressed in the dump.
+    public internal(set) var deallocatorSymbol: DemangledSymbol? = nil
 
-    public internal(set) var hasDestructor: Bool = false
+    /// The destructor symbol (`fd`) on classes — the actual Swift `deinit`
+    /// body the user wrote (or a shared empty implementation when there is
+    /// none). It is reached at runtime via the deallocator above.
+    ///
+    /// Only emitted for classes; absent for actors and value types, so
+    /// look-ups return nil for those. We do not use this symbol to decide
+    /// whether to print the `deinit` keyword — the deallocator is a more
+    /// uniform anchor — but its address is exposed alongside the
+    /// deallocator address so reverse engineers can jump directly to the
+    /// user code.
+    public internal(set) var destructorSymbol: DemangledSymbol? = nil
+
+    public var hasDeallocator: Bool { deallocatorSymbol != nil }
 
     public internal(set) var orderedMembers: [OrderedMember] = []
 
@@ -63,7 +85,7 @@ public final class TypeDefinition: Definition {
 
     public var hasMembers: Bool {
         !fields.isEmpty || !variables.isEmpty || !functions.isEmpty ||
-            !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty || hasDeallocator || hasDestructor
+            !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty || hasDeallocator
     }
 
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(type: TypeContextWrapper, in machO: MachO) async throws {
@@ -197,7 +219,12 @@ public final class TypeDefinition: Definition {
             implOffsetVTableSlotLookup: implOffsetVTableSlotLookup
         )
 
-        hasDeallocator = !symbolIndexStore.memberSymbols(of: .deallocator, for: typeName.name, in: machO).isEmpty
+        // See the property doc comments for the role each symbol plays.
+        // The deallocator drives whether `deinit` is printed at all; the
+        // destructor (only present on classes) is exposed as an extra
+        // address comment.
+        deallocatorSymbol = symbolIndexStore.memberSymbols(of: .deallocator, for: typeName.name, in: machO).first
+        destructorSymbol = symbolIndexStore.memberSymbols(of: .destructor, for: typeName.name, in: machO).first
 
         variables = DefinitionBuilder.variables(
             for: symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
