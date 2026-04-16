@@ -16,7 +16,7 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
 
     public let protocolConformance: ProtocolConformance?
 
-    public let associatedType: AssociatedType?
+    public internal(set) var associatedTypes: [AssociatedType]
 
     public internal(set) var types: [TypeDefinition] = []
 
@@ -50,11 +50,11 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
         !variables.isEmpty || !functions.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !allocators.isEmpty || !constructors.isEmpty || !staticSubscripts.isEmpty || !subscripts.isEmpty
     }
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(extensionName: ExtensionName, genericSignature: Node?, protocolConformance: ProtocolConformance?, associatedType: AssociatedType?, in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(extensionName: ExtensionName, genericSignature: Node?, protocolConformance: ProtocolConformance?, associatedTypes: [AssociatedType] = [], in machO: MachO) throws {
         self.extensionName = extensionName
         self.genericSignature = genericSignature
         self.protocolConformance = protocolConformance
-        self.associatedType = associatedType
+        self.associatedTypes = associatedTypes
     }
 
     package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {

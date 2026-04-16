@@ -332,18 +332,18 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                         genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO)
                     }
 
-                    let extensionDefinition = try ExtensionDefinition(extensionName: extensionTypeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
+                    let extensionDefinition = try ExtensionDefinition(extensionName: extensionTypeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, in: machO)
                     extensionDefinition.types = [typeDefinition]
                     currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                 case .type(let parentType):
                     let parentTypeName = try parentType.typeName(in: machO)
-                    let extensionDefinition = try ExtensionDefinition(extensionName: parentTypeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
+                    let extensionDefinition = try ExtensionDefinition(extensionName: parentTypeName.extensionName, genericSignature: nil, protocolConformance: nil, in: machO)
                     extensionDefinition.types = [typeDefinition]
                     currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                 case .symbol(let symbol):
                     guard let type = try MetadataReader.demangleType(for: symbol, in: machO)?.first(of: .type), let kind = type.typeKind else { continue }
                     let parentTypeName = TypeName(node: type, kind: kind)
-                    let extensionDefinition = try ExtensionDefinition(extensionName: parentTypeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
+                    let extensionDefinition = try ExtensionDefinition(extensionName: parentTypeName.extensionName, genericSignature: nil, protocolConformance: nil, in: machO)
                     extensionDefinition.types = [typeDefinition]
                     currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                 }
@@ -397,7 +397,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                         if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO), !currentRequirements.isEmpty {
                             genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO)
                         }
-                        let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
+                        let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, in: machO)
                         extensionDefinition.protocols = [protocolDefinition]
                         currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                     }
@@ -488,7 +488,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                         }
                     }
 
-                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO), protocolConformance: protocolConformance, associatedType: associatedType, in: machO)
+                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO), protocolConformance: protocolConformance, associatedTypes: associatedType.map { [$0] } ?? [], in: machO)
                     extensionDefinition.isRetroactive = protocolConformance.flags.isRetroactive
                     conformanceExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                     extensionCount += 1
@@ -502,12 +502,43 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
         }
         for (remainingTypeName, remainingAssociatedTypeByProtocolName) in associatedTypesByTypeNameCopy {
             for (_, remainingAssociatedType) in remainingAssociatedTypeByProtocolName {
-                let extensionDefinition = try ExtensionDefinition(extensionName: remainingTypeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: remainingAssociatedType, in: machO)
+                let extensionDefinition = try ExtensionDefinition(extensionName: remainingTypeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedTypes: [remainingAssociatedType], in: machO)
                 conformanceExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
             }
         }
 
-        currentStorage.conformanceExtensionDefinitions = conformanceExtensionDefinitions
+        // P1-9: Merge typealias-only conformance extensions that share the same extended
+        // type. The binary emits one AssociatedType descriptor per protocol requirement,
+        // so a type conforming to multiple related protocols (e.g. Sequence + Collection
+        // + BidirectionalCollection) ends up with several bare `extension X { typealias
+        // ... }` blocks whose entries overlap. A typealias-only extension has no
+        // `protocolConformance`, no `genericSignature`, no nested types or protocols — we
+        // can safely union their `associatedTypes` into one representative block. Order is
+        // preserved by folding successors into the first occurrence.
+        var mergedConformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
+        for (extensionName, extensions) in conformanceExtensionDefinitions {
+            var primaryTypealiasOnly: ExtensionDefinition? = nil
+            var preservedExtensions: [ExtensionDefinition] = []
+            for extensionDefinition in extensions {
+                let isTypealiasOnly = extensionDefinition.protocolConformance == nil
+                    && extensionDefinition.genericSignature == nil
+                    && extensionDefinition.types.isEmpty
+                    && extensionDefinition.protocols.isEmpty
+                if isTypealiasOnly {
+                    if let existing = primaryTypealiasOnly {
+                        existing.associatedTypes.append(contentsOf: extensionDefinition.associatedTypes)
+                    } else {
+                        primaryTypealiasOnly = extensionDefinition
+                        preservedExtensions.append(extensionDefinition)
+                    }
+                } else {
+                    preservedExtensions.append(extensionDefinition)
+                }
+            }
+            mergedConformanceExtensionDefinitions[extensionName] = preservedExtensions
+        }
+
+        currentStorage.conformanceExtensionDefinitions = mergedConformanceExtensionDefinitions
 
         // Populate conforming protocol names on each TypeDefinition for attribute inference
         for (typeName, conformances) in protocolConformancesByTypeName {
@@ -554,7 +585,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
             }
 
             func extensionDefinition(of kind: ExtensionKind, for memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>, genericSignature: Node?) throws -> ExtensionDefinition {
-                let extensionDefinition = try ExtensionDefinition(extensionName: .init(node: node, kind: kind), genericSignature: genericSignature, protocolConformance: nil, associatedType: nil, in: machO)
+                let extensionDefinition = try ExtensionDefinition(extensionName: .init(node: node, kind: kind), genericSignature: genericSignature, protocolConformance: nil, in: machO)
                 var memberCount = 0
 
                 for (kind, memberSymbols) in memberSymbolsByKind {

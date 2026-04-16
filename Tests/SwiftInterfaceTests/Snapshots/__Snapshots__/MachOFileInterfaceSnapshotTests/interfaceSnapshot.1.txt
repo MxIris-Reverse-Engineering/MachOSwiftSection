@@ -3331,25 +3331,11 @@ extension SymbolTestsCore.CollectionConformances.CustomCollectionTest {
     typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomCollectionTest>
     typealias Indices = Swift.DefaultIndices<SymbolTestsCore.CollectionConformances.CustomCollectionTest>
 }
-extension SymbolTestsCore.CollectionConformances.CustomCollectionTest {
-    typealias Element = Swift.Int
-    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomCollectionTest>
-}
 extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest {
     typealias Element = Swift.String
     typealias Index = Swift.Int
     typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
     typealias Indices = Swift.DefaultIndices<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
-}
-extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest {
-    typealias Element = Swift.String
-    typealias Index = Swift.Int
-    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
-    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
-    typealias Indices = Swift.DefaultIndices<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
-}
-extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest {
-    typealias Element = Swift.String
     typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
 }
 extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest {
@@ -3357,22 +3343,6 @@ extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTes
     typealias Index = Swift.Int
     typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
     typealias Indices = Swift.Range<Swift.Int>
-}
-extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest {
-    typealias Element = Swift.Double
-    typealias Index = Swift.Int
-    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
-    typealias Indices = Swift.Range<Swift.Int>
-}
-extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest {
-    typealias Element = Swift.Double
-    typealias Index = Swift.Int
-    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
-    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
-    typealias Indices = Swift.Range<Swift.Int>
-}
-extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest {
-    typealias Element = Swift.Double
     typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
 }
 extension SymbolTestsCore.CustomLiterals.IntegerLiteralTest {
@@ -3380,11 +3350,7 @@ extension SymbolTestsCore.CustomLiterals.IntegerLiteralTest {
 }
 extension SymbolTestsCore.CustomLiterals.StringLiteralTest {
     typealias StringLiteralType = Swift.String
-}
-extension SymbolTestsCore.CustomLiterals.StringLiteralTest {
     typealias UnicodeScalarLiteralType = Swift.String
-}
-extension SymbolTestsCore.CustomLiterals.StringLiteralTest {
     typealias ExtendedGraphemeClusterLiteralType = Swift.String
 }
 extension SymbolTestsCore.CustomLiterals.ArrayLiteralTest {
@@ -3403,15 +3369,11 @@ extension SymbolTestsCore.CustomLiterals.FloatLiteralTest {
 extension SymbolTestsCore.DistributedActors.DistributedActorTest {
     typealias ActorSystem = Distributed.LocalTestingDistributedActorSystem
     typealias SerializationRequirement = Swift.Decodable & Swift.Encodable
-}
-extension SymbolTestsCore.DistributedActors.DistributedActorTest {
     typealias ID = Distributed.LocalTestingActorID
 }
 extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest {
     typealias ActorSystem = Distributed.LocalTestingDistributedActorSystem
     typealias SerializationRequirement = Swift.Decodable & Swift.Encodable
-}
-extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest {
     typealias ID = Distributed.LocalTestingActorID
 }
 extension SymbolTestsCore.Extensions.ExtensionConstrainedStruct {
@@ -3419,8 +3381,6 @@ extension SymbolTestsCore.Extensions.ExtensionConstrainedStruct {
 }
 extension SymbolTestsCore.Generics.GenericRequirementTest {
     typealias Body = A
-}
-extension SymbolTestsCore.Generics.GenericRequirementTest {
     typealias RawValue = A
 }
 extension SymbolTestsCore.Generics.GenericPackTest {
@@ -3434,14 +3394,7 @@ extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.AnyProtocolTest
 }
 extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest {
     typealias Element = SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
-}
-extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest {
     typealias RawValue = Swift.UInt
-}
-extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest {
-    typealias Element = SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
-}
-extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest {
     typealias ArrayLiteralElement = SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
 }
 extension SymbolTestsCore.OptionSetAndRawRepresentable.StringRawRepresentableTest {
@@ -3458,14 +3411,8 @@ extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.Str
 }
 extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest {
     typealias StringLiteralType = Swift.String
-}
-extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest {
     typealias StringInterpolation = SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation
-}
-extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest {
     typealias ExtendedGraphemeClusterLiteralType = Swift.String
-}
-extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest {
     typealias UnicodeScalarLiteralType = Swift.String
 }
 extension SymbolTestsCore.Structs.StructTest {
