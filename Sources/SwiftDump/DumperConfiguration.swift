@@ -5,7 +5,7 @@ import Semantic
 import Utilities
 import MemberwiseInit
 import Demangling
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 // MARK: - Identifiable Closure
 
@@ -37,6 +37,8 @@ public typealias TypeLayoutTransformer = IdentifiableClosure<TypeLayout, Semanti
 public typealias EnumLayoutTransformer = IdentifiableClosure<EnumLayoutCalculator.LayoutResult, SemanticString>
 public typealias EnumLayoutCaseTransformer = IdentifiableClosure<(caseProjection: EnumLayoutCalculator.EnumCaseProjection, indentation: Int), SemanticString>
 public typealias MemberAddressTransformer = IdentifiableClosure<Int, SemanticString>
+public typealias VTableOffsetTransformer = IdentifiableClosure<(slotOffset: Int, label: String?), SemanticString>
+public typealias ExpandedFieldOffsetTransformer = IdentifiableClosure<(fieldName: String, typeName: String, offset: Int, treePrefix: String), SemanticString>
 public typealias SpareBitAnalysisTransformer = IdentifiableClosure<(analysis: SpareBitAnalyzer.Analysis, indentation: Int), SemanticString>
 
 // MARK: - Dumper Configuration
@@ -51,8 +53,13 @@ public struct DumperConfiguration: Sendable {
     public var printEnumLayout: Bool = false
     public var printSpareBitAnalysis: Bool = false
     public var printMemberAddress: Bool = false
+    public var printVTableOffset: Bool = false
+    public var printExpandedFieldOffsets: Bool = false
+    public var printConformancePWTAddress: Bool = false
     public var memberAddressTransformer: MemberAddressTransformer? = nil
+    public var vtableOffsetTransformer: VTableOffsetTransformer? = nil
     public var fieldOffsetTransformer: FieldOffsetTransformer? = nil
+    public var expandedFieldOffsetTransformer: ExpandedFieldOffsetTransformer? = nil
     public var typeLayoutTransformer: TypeLayoutTransformer? = nil
     public var enumLayoutTransformer: EnumLayoutTransformer? = nil
     public var enumLayoutCaseTransformer: EnumLayoutCaseTransformer? = nil
@@ -94,6 +101,49 @@ extension DumperConfiguration {
             fieldOffsetTransformer((startOffset, endOffset))
         } else {
             Comment("Field Offset: 0x\(String(startOffset, radix: 16))")
+        }
+        BreakLine()
+    }
+
+    /// Builds an expanded field offset comment line for a nested struct sub-field.
+    ///
+    /// The returned ``SemanticString`` includes indentation and a trailing line break.
+    @SemanticStringBuilder
+    package func expandedFieldOffsetComment(fieldName: String, typeName: String, offset: Int, baseIndentation: Int, ancestors: [Bool], isLast: Bool) -> SemanticString {
+        let treePrefix = Self.buildTreePrefix(ancestors: ancestors, isLast: isLast)
+        Indent(level: baseIndentation)
+        if let expandedFieldOffsetTransformer {
+            expandedFieldOffsetTransformer((fieldName, typeName, offset, treePrefix))
+        } else if typeName.isEmpty {
+            Comment("\(treePrefix)\(fieldName): 0x\(String(offset, radix: 16))")
+        } else {
+            Comment("\(treePrefix)\(fieldName) (\(typeName)): 0x\(String(offset, radix: 16))")
+        }
+        BreakLine()
+    }
+
+    /// Builds a tree-style prefix string from ancestor continuation info.
+    private static func buildTreePrefix(ancestors: [Bool], isLast: Bool) -> String {
+        var prefix = ""
+        for ancestorIsLast in ancestors {
+            prefix += ancestorIsLast ? "    " : "│   "
+        }
+        prefix += isLast ? "└── " : "├── "
+        return prefix
+    }
+
+    /// Builds a vtable offset comment line for the given vtable slot offset.
+    ///
+    /// The returned ``SemanticString`` includes indentation and a trailing line break.
+    @SemanticStringBuilder
+    package func vtableOffsetComment(slotOffset: Int, label: String? = nil) -> SemanticString {
+        indentString
+        if let vtableOffsetTransformer {
+            vtableOffsetTransformer((slotOffset, label))
+        } else if let label {
+            Comment("VTable Offset (\(label)): \(slotOffset)")
+        } else {
+            Comment("VTable Offset: \(slotOffset)")
         }
         BreakLine()
     }

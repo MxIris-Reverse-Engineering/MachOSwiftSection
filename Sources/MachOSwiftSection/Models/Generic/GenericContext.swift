@@ -31,8 +31,19 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
 
     public private(set) var depth: Int = 0
 
+    /// The generic parameters introduced by this level of the type context.
+    ///
+    /// The raw `parameters` array emitted by the Swift compiler is cumulative:
+    /// a nested type descriptor stores every parameter visible in its scope
+    /// (both inherited from enclosing contexts and newly declared). Each
+    /// parent descriptor's `parameters` array is similarly cumulative, so the
+    /// count of the *nearest* parent's `parameters` already equals the total
+    /// number of inherited parameters. Using `parentParameters.last?.count`
+    /// correctly drops exactly the inherited prefix to leave only the params
+    /// this context itself introduces.
     public var currentParameters: [GenericParamDescriptor] {
-        .init(parameters.dropFirst(parentParameters.flatMap { $0 }.count))
+        let inheritedCount = parentParameters.last?.count ?? 0
+        return .init(parameters.dropFirst(inheritedCount))
     }
 
     public var currentRequirements: [GenericRequirementDescriptor] {
@@ -40,11 +51,13 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
     }
 
     public var currentTypePacks: [GenericPackShapeDescriptor] {
-        .init(typePacks.dropFirst(parentTypePacks.flatMap { $0 }.count))
+        let inheritedCount = parentTypePacks.last?.count ?? 0
+        return .init(typePacks.dropFirst(inheritedCount))
     }
 
     public var currentValues: [GenericValueDescriptor] {
-        .init(values.dropFirst(parentValues.flatMap { $0 }.count))
+        let inheritedCount = parentValues.last?.count ?? 0
+        return .init(values.dropFirst(inheritedCount))
     }
 
     public var allParameters: [[GenericParamDescriptor]] {

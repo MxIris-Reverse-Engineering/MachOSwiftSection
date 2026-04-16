@@ -3,7 +3,7 @@ import Testing
 @testable import Demangling
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
-@testable import SwiftInspection
+@testable @_spi(Internals) import SwiftInspection
 
 // MARK: - Unit Tests for MetadataReader demangling functions
 

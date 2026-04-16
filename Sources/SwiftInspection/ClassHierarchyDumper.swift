@@ -5,6 +5,7 @@ import MachOFoundation
 import MachOSwiftSection
 @_spi(Core) import MachOObjCSection
 
+@_spi(Internals)
 public struct ClassHierarchyDumper {
     public let machO: MachOImage
 

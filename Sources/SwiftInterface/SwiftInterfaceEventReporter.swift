@@ -89,6 +89,22 @@ public final class SwiftInterfaceEventReporter: SwiftInterfaceEvents.Handler, Se
         case .typeIndexingCompleted(let result):
             yield(.info, .indexing, "Types indexed: \(result.successful) OK, \(result.failed) failed", detail: formatTypeIndexingDetail(result))
 
+        case .typeProcessed(let context):
+            yield(.trace, .indexing, "Type: \(context.typeName) (kind: \(String(describing: context.kind)))")
+
+        case .typeProcessingFailed(let typeName, let error):
+            yield(.error, .indexing, "Type processing failed: \(typeName ?? "<unknown>")", detail: String(describing: error))
+
+        case .typeProcessingSkippedCImported:
+            yield(.trace, .indexing, "Skipped C-imported type")
+
+        case .typeNestingResolved(let context):
+            if let parentTypeName = context.parentTypeName {
+                yield(.trace, .indexing, "Nesting: \(context.childTypeName) in \(parentTypeName)")
+            } else {
+                yield(.trace, .indexing, "Nesting: \(context.childTypeName) (root)")
+            }
+
         // MARK: Protocol indexing
 
         case .protocolIndexingStarted(let totalProtocols):
@@ -187,6 +203,9 @@ public final class SwiftInterfaceEventReporter: SwiftInterfaceEvents.Handler, Se
 
         case .definitionPrintFailed(let context, let error):
             yield(.error, .printing, "Failed to print \(context.kind.description): \(context.name)", detail: String(describing: error))
+
+        case .symbolIndexProgress(let currentCount, let totalCount):
+            yield(.trace, .indexing, "Symbol index progress: \(currentCount)/\(totalCount)")
         }
     }
 
@@ -221,6 +240,7 @@ public final class SwiftInterfaceEventReporter: SwiftInterfaceEvents.Handler, Se
         case .swiftProtocols: return "Swift protocols"
         case .protocolConformances: return "protocol conformances"
         case .associatedTypes: return "associated types"
+        case .symbolIndex: return "symbol index"
         }
     }
 

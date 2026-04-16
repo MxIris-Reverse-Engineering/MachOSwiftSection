@@ -2,7 +2,7 @@ import MachOKit
 import MachOSwiftSection
 import Semantic
 import Demangling
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 extension ContextDescriptorWrapper {
     package func dumpName<MachO: MachOSwiftSectionRepresentableWithCache>(using options: DemangleOptions, in machO: MachO) throws -> SemanticString {

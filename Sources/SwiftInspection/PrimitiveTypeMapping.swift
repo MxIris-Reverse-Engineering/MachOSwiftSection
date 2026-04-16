@@ -5,11 +5,11 @@ import Demangling
 import SwiftStdlibToolbox
 import MachOSwiftSection
 
-package final class PrimitiveTypeMapping: Sendable {
+public final class PrimitiveTypeMapping: Sendable {
     @Mutex
     private var storage: [String: String] = [:]
 
-    package init<MachO: MachOSwiftSectionRepresentableWithCache>(machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(machO: MachO) throws {
         let builtinTypes = try machO.swift.builtinTypeDescriptors.map { try BuiltinType(descriptor: $0, in: machO) }
         for builtinType in builtinTypes {
             guard let typeName = builtinType.typeName else { continue }
@@ -43,15 +43,15 @@ package final class PrimitiveTypeMapping: Sendable {
         }
     }
 
-    package func hasPrimitiveType(for name: String) -> Bool {
+    public func hasPrimitiveType(for name: String) -> Bool {
         return storage[name] != nil
     }
 
-    package func primitiveType(for name: String) -> String? {
+    public func primitiveType(for name: String) -> String? {
         return storage[name]
     }
 
-    package func dump() {
+    public func dump() {
         for (name, type) in storage {
             print("\(name) ---> \(type)")
         }

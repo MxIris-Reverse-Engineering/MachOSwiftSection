@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build and publish release
+    runs-on: macos-15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "16.3"
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Build x86_64
+        run: swift build -c release --arch x86_64 --product swift-section
+
+      - name: Build arm64
+        run: swift build -c release --arch arm64 --product swift-section
+
+      - name: Create universal binary
+        run: |
+          mkdir -p Products
+          lipo -create \
+            .build/x86_64-apple-macosx/release/swift-section \
+            .build/arm64-apple-macosx/release/swift-section \
+            -output ./Products/swift-section
+          codesign --force --sign - ./Products/swift-section
+          lipo -info ./Products/swift-section
+          file ./Products/swift-section
+
+      - name: Compress binary
+        run: |
+          cd Products
+          zip swift-section-macos-universal.zip swift-section
+
+      - name: Create GitHub Release
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            Products/swift-section-macos-universal.zip \
+            --title "${{ github.ref_name }}" \
+            --generate-notes

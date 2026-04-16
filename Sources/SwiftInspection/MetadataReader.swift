@@ -7,12 +7,13 @@ import MachOSwiftSection
 @_spi(Internals) import MachOCaches
 @_spi(Internals) import MachOSymbols
 
-package enum MetadataReader {}
+@_spi(Internals)
+public enum MetadataReader {}
 
 extension MetadataReader {
-    package nonisolated(unsafe) static var isCacheEnabled: Bool = true
+    public nonisolated(unsafe) static var isCacheEnabled: Bool = true
 
-    package static func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
+    public static func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
         if isCacheEnabled {
             return try MetadataReaderCache.shared.demangleType(for: mangledName, in: machO)
         } else {
@@ -24,7 +25,7 @@ extension MetadataReader {
         return try demangle(for: mangledName, kind: .type, in: machO.context)
     }
 
-    package static func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for symbol: Symbol, in machO: MachO) throws -> Node? {
+    public static func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for symbol: Symbol, in machO: MachO) throws -> Node? {
         if isCacheEnabled {
             return try MetadataReaderCache.shared.buildContextManglingForSymbol(symbol, in: machO)
         } else {
@@ -32,11 +33,11 @@ extension MetadataReader {
         }
     }
 
-    package static func demangleSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(for symbol: Symbol, in machO: MachO) throws -> Node? {
+    public static func demangleSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(for symbol: Symbol, in machO: MachO) throws -> Node? {
         return SymbolIndexStore.shared.demangledNode(for: symbol, in: machO)
     }
 
-    package static func demangleContext<MachO: MachOSwiftSectionRepresentableWithCache>(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
+    public static func demangleContext<MachO: MachOSwiftSectionRepresentableWithCache>(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
         if isCacheEnabled {
             return try MetadataReaderCache.shared.demangleContext(for: context, in: machO)
         } else {
@@ -48,21 +49,21 @@ extension MetadataReader {
         return try required(buildContextMangling(context: context, in: machO.context))
     }
 
-    package static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirement: GenericRequirementDescriptor, in machO: MachO) throws -> Node? {
+    public static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirement: GenericRequirementDescriptor, in machO: MachO) throws -> Node? {
         try buildGenericSignature(for: [requirement], in: machO)
     }
 
-    package static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirements: GenericRequirementDescriptor..., in machO: MachO) throws -> Node? {
+    public static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirements: GenericRequirementDescriptor..., in machO: MachO) throws -> Node? {
         try buildGenericSignature(for: requirements, in: machO)
     }
 
-    package static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirements: [GenericRequirementDescriptor], in machO: MachO) throws -> Node? {
+    public static func buildGenericSignature<MachO: MachOSwiftSectionRepresentableWithCache>(for requirements: [GenericRequirementDescriptor], in machO: MachO) throws -> Node? {
         return try buildGenericSignature(for: requirements, in: machO.context)
     }
 }
 
 extension MetadataReader {
-    package static func demangleType(for mangledName: MangledName) throws -> Node {
+    public static func demangleType(for mangledName: MangledName) throws -> Node {
         if isCacheEnabled {
             return try MetadataReaderCache.shared.demangleType(for: mangledName)
         } else {
@@ -74,7 +75,7 @@ extension MetadataReader {
         return try demangle(for: mangledName, kind: .type, in: InProcessContext.shared)
     }
 
-    package static func demangleType(for symbol: Symbol) throws -> Node? {
+    public static func demangleType(for symbol: Symbol) throws -> Node? {
         if isCacheEnabled {
             return try MetadataReaderCache.shared.buildContextManglingForSymbol(symbol)
         } else {
@@ -82,11 +83,11 @@ extension MetadataReader {
         }
     }
 
-    package static func demangleSymbol(for symbol: Symbol) throws -> Node? {
+    public static func demangleSymbol(for symbol: Symbol) throws -> Node? {
         return try demangleAsNode(symbol.name)
     }
 
-    package static func demangleContext(for context: ContextDescriptorWrapper) throws -> Node {
+    public static func demangleContext(for context: ContextDescriptorWrapper) throws -> Node {
         if isCacheEnabled {
             return try MetadataReaderCache.shared.demangleContext(for: context)
         } else {
@@ -98,15 +99,15 @@ extension MetadataReader {
         return try required(buildContextMangling(context: context, in: InProcessContext.shared))
     }
 
-    package static func buildGenericSignature(for requirement: GenericRequirementDescriptor) throws -> Node? {
+    public static func buildGenericSignature(for requirement: GenericRequirementDescriptor) throws -> Node? {
         try buildGenericSignature(for: [requirement])
     }
 
-    package static func buildGenericSignature(for requirements: GenericRequirementDescriptor...) throws -> Node? {
+    public static func buildGenericSignature(for requirements: GenericRequirementDescriptor...) throws -> Node? {
         try buildGenericSignature(for: requirements)
     }
 
-    package static func buildGenericSignature(for requirements: [GenericRequirementDescriptor]) throws -> Node? {
+    public static func buildGenericSignature(for requirements: [GenericRequirementDescriptor]) throws -> Node? {
         return try buildGenericSignature(for: requirements, in: InProcessContext.shared)
     }
 }
@@ -134,23 +135,23 @@ extension InProcessContext: SymbolLookupContext {
 // MARK: - ReadingContext Support
 
 extension MetadataReader {
-    package static func demangleType<Context: ReadingContext>(for mangledName: MangledName, in context: Context) throws -> Node {
+    public static func demangleType<Context: ReadingContext>(for mangledName: MangledName, in context: Context) throws -> Node {
         return try demangle(for: mangledName, kind: .type, in: context)
     }
 
-    package static func demangleContext<Context: ReadingContext>(for contextWrapper: ContextDescriptorWrapper, in context: Context) throws -> Node {
+    public static func demangleContext<Context: ReadingContext>(for contextWrapper: ContextDescriptorWrapper, in context: Context) throws -> Node {
         return try required(buildContextMangling(context: contextWrapper, in: context))
     }
 
-    package static func buildGenericSignature<Context: ReadingContext>(for requirement: GenericRequirementDescriptor, in context: Context) throws -> Node? {
+    public static func buildGenericSignature<Context: ReadingContext>(for requirement: GenericRequirementDescriptor, in context: Context) throws -> Node? {
         try buildGenericSignature(for: [requirement], in: context)
     }
 
-    package static func buildGenericSignature<Context: ReadingContext>(for requirements: GenericRequirementDescriptor..., in context: Context) throws -> Node? {
+    public static func buildGenericSignature<Context: ReadingContext>(for requirements: GenericRequirementDescriptor..., in context: Context) throws -> Node? {
         try buildGenericSignature(for: requirements, in: context)
     }
 
-    package static func buildGenericSignature<Context: ReadingContext>(for requirements: [GenericRequirementDescriptor], in context: Context) throws -> Node? {
+    public static func buildGenericSignature<Context: ReadingContext>(for requirements: [GenericRequirementDescriptor], in context: Context) throws -> Node? {
         guard !requirements.isEmpty else { return nil }
         var requirementNodes: [Node] = []
         var failed = false
@@ -192,8 +193,19 @@ extension MetadataReader {
                 }
             case .conformance:
                 break
-            case .invertedProtocols:
-                break
+            case .invertedProtocols(let invertedProtocols):
+                if invertedProtocols.protocols.hasCopyable {
+                    requirementNodes.append(Node.create(kind: .dependentGenericInverseConformanceRequirement, children: [
+                        subject,
+                        .create(kind: .index, index: UInt64(MachOSwiftSection.InvertibleProtocolKind.copyable.rawValue)),
+                    ]))
+                }
+                if invertedProtocols.protocols.hasEscapable {
+                    requirementNodes.append(Node.create(kind: .dependentGenericInverseConformanceRequirement, children: [
+                        subject,
+                        .create(kind: .index, index: UInt64(MachOSwiftSection.InvertibleProtocolKind.escapable.rawValue)),
+                    ]))
+                }
             }
         }
         if failed || requirementNodes.isEmpty {

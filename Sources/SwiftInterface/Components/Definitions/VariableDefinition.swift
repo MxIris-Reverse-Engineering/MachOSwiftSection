@@ -2,6 +2,7 @@ import MemberwiseInit
 import Demangling
 import MachOSymbols
 import MachOSwiftSection
+import SwiftDump
 
 @MemberwiseInit(.public)
 public struct VariableDefinition: Sendable, AccessorRepresentable {
@@ -9,5 +10,7 @@ public struct VariableDefinition: Sendable, AccessorRepresentable {
     public let name: String
     public let accessors: [Accessor]
     public let isGlobalOrStatic: Bool
+    public var attributes: [SwiftAttribute] = []
     public var offset: Int? { accessors.first?.offset }
+    public var hasVTableOffset: Bool { accessors.contains { $0.vtableOffset != nil } }
 }

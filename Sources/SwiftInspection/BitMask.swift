@@ -2,6 +2,7 @@ import Foundation
 
 /// A Swift port of `Bitmask.h` from the Swift compiler.
 /// Handles arbitrary-length bitmasks used for tracking spare bits in enum layouts.
+
 public struct BitMask: Equatable, CustomStringConvertible, Sendable {
     private var _bytes: [UInt8]
 

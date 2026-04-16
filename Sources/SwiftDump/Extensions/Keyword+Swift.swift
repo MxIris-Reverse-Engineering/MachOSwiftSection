@@ -11,6 +11,8 @@ extension Keyword {
         case `enum`
         case `lazy`
         case `weak`
+        case `unowned`
+        case `unsafe`
         case `override`
         case `static`
         case `dynamic`
@@ -24,6 +26,14 @@ extension Keyword {
         case `Self`
         case `each`
         case `repeat`
+        case atObjc = "@objc"
+        case atNonobjc = "@nonobjc"
+        case atPropertyWrapper = "@propertyWrapper"
+        case atResultBuilder = "@resultBuilder"
+        case atDynamicMemberLookup = "@dynamicMemberLookup"
+        case atDynamicCallable = "@dynamicCallable"
+        case atRetroactive = "@retroactive"
+        case atGlobalActor = "@globalActor"
     }
 
     package init(_ keyword: Swift) {

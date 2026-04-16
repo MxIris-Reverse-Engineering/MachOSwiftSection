@@ -7,7 +7,7 @@ import MemberwiseInit
 import Demangling
 import Dependencies
 @_spi(Internals) import MachOSymbols
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
     package typealias Dumped = Enum
@@ -49,7 +49,13 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
             try await name
 
             if let genericContext = dumped.genericContext {
-                try await genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO)
+                try await genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO) {
+                    if let invertibleProtocolSet = dumped.invertibleProtocolSet, invertibleProtocolSet.hasInvertedProtocols {
+                        invertibleProtocolSet.dumpInvertedProtocolsInheritance
+                    }
+                }
+            } else if let invertibleProtocolSet = dumped.invertibleProtocolSet, invertibleProtocolSet.hasInvertedProtocols {
+                invertibleProtocolSet.dumpInvertedProtocolsInheritance
             }
         }
     }

@@ -2,7 +2,7 @@ import Foundation
 import Semantic
 import MachOKit
 import MachOSwiftSection
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 extension MetadataWrapper {
     @SemanticStringBuilder

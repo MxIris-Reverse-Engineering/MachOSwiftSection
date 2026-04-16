@@ -9,8 +9,14 @@ extension TypeNodePrintable {
     mutating func printNameInType(_ name: Node, context: Context?) async -> Bool {
         switch name.kind {
         case .type,
-             .weak:
+             .weak,
+             .unowned,
+             .unmanaged:
             await printFirstChild(name)
+        case .builtinTypeName:
+            target.write(name.text ?? "", context: .context(for: name, state: .printType))
+        case .builtinTupleType:
+            target.write("Builtin.TheTupleType", context: .context(for: name, state: .printType))
         case .enum,
              .structure,
              .class,

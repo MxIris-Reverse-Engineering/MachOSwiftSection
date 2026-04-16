@@ -7,7 +7,7 @@ import Demangling
 import Semantic
 import SwiftStdlibToolbox
 @_spi(Internals) import MachOSymbols
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 public final class ExtensionDefinition: Definition, MutableDefinition {
     public let extensionName: ExtensionName
@@ -38,7 +38,11 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
 
     public internal(set) var staticSubscripts: [SubscriptDefinition] = []
 
+    public internal(set) var isRetroactive: Bool = false
+
     public internal(set) var missingSymbolWitnesses: [ResilientWitness] = []
+
+    public internal(set) var orderedMembers: [OrderedMember] = []
 
     public private(set) var isIndexed: Bool = false
 
@@ -102,6 +106,8 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
         }
 
         setDefinitions(for: memberSymbolsByKind, inExtension: true)
+
+        orderedMembers = OrderedMember.offsetOrdered(OrderedMember.allMembers(from: self))
 
         isIndexed = true
     }

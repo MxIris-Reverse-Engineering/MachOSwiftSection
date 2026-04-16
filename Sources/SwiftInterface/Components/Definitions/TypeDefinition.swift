@@ -8,7 +8,7 @@ import Semantic
 import SwiftStdlibToolbox
 import Dependencies
 @_spi(Internals) import MachOSymbols
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 public final class TypeDefinition: Definition {
     public enum ParentContext {
@@ -53,6 +53,12 @@ public final class TypeDefinition: Definition {
 
     public internal(set) var hasDestructor: Bool = false
 
+    public internal(set) var orderedMembers: [OrderedMember] = []
+
+    public internal(set) var conformingProtocolNames: Set<String> = []
+
+    public internal(set) var attributes: [SwiftAttribute] = []
+
     public private(set) var isIndexed: Bool = false
 
     public var hasMembers: Bool {
@@ -86,11 +92,19 @@ public final class TypeDefinition: Definition {
             if typeNode.contains(.weak) {
                 fieldFlags.insert(.isWeak)
             }
+            if typeNode.contains(.unmanaged) {
+                fieldFlags.insert(.isUnownedUnsafe)
+            } else if typeNode.contains(.unowned) {
+                fieldFlags.insert(.isUnowned)
+            }
             if record.flags.contains(.isVariadic) {
                 fieldFlags.insert(.isVariable)
             }
             if record.flags.contains(.isIndirectCase) {
                 fieldFlags.insert(.isIndirectCase)
+            }
+            if record.flags.contains(.isArtificial) {
+                fieldFlags.insert(.isArtificial)
             }
             let field = FieldDefinition(name: name.stripLazyPrefix, typeNode: typeNode, flags: fieldFlags)
             fields.append(field)
@@ -101,22 +115,67 @@ public final class TypeDefinition: Definition {
         let fieldNames = Set(fields.map(\.name))
 
         var methodDescriptorLookup: [Node: MethodDescriptorWrapper] = [:]
+        var vtableOffsetLookup: [Node: Int] = [:]
+        // Fallback lookups keyed by implementation file offset (for methods where node-based matching fails)
+        var implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:]
+        var implOffsetVTableSlotLookup: [Int: Int] = [:]
         if case .class(let cls) = type {
             var visitedNodes: OrderedSet<Node> = []
             let typeNode = try MetadataReader.demangleContext(for: .type(.class(cls.descriptor)), in: machO)
-            for descriptor in cls.methodDescriptors {
+            let vtableBaseOffset = cls.vTableDescriptorHeader.map { Int($0.layout.vTableOffset) }
+
+            // Build offset-based fallback lookups. Uniqueness must be checked against
+            // ALL descriptor kinds (method + override + defaultOverride), because
+            // trampolines/thunks/shared implementations can have multiple descriptors
+            // pointing at the same impl address. If the impl is not globally unique,
+            // we cannot use offset-based fallback — we would not know which descriptor
+            // to associate the symbol with.
+            var implOffsetCounts: [Int: Int] = [:]
+            for descriptor in cls.methodDescriptors where !descriptor.implementation.isNull {
+                let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
+                implOffsetCounts[implOffset, default: 0] += 1
+            }
+            for descriptor in cls.methodOverrideDescriptors where !descriptor.implementation.isNull {
+                let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
+                implOffsetCounts[implOffset, default: 0] += 1
+            }
+            for descriptor in cls.methodDefaultOverrideDescriptors where !descriptor.implementation.isNull {
+                let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
+                implOffsetCounts[implOffset, default: 0] += 1
+            }
+            for (index, descriptor) in cls.methodDescriptors.enumerated() where !descriptor.implementation.isNull {
+                let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
+                // Only use offset-based fallback for globally unique implementation addresses
+                if implOffsetCounts[implOffset] == 1 {
+                    implOffsetDescriptorLookup[implOffset] = .method(descriptor)
+                    if let vtableBaseOffset {
+                        implOffsetVTableSlotLookup[implOffset] = vtableBaseOffset + index
+                    }
+                }
+            }
+
+            for (index, descriptor) in cls.methodDescriptors.enumerated() {
                 guard let symbols = try descriptor.implementationSymbols(in: machO) else { continue }
                 guard let overrideSymbol = try classDemangledSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode
                 visitedNodes.append(node)
                 methodDescriptorLookup[node] = .method(descriptor)
+                if let vtableBaseOffset {
+                    vtableOffsetLookup[node] = vtableBaseOffset + index
+                }
             }
+            var parentVTableCache = ParentClassVTableCache()
+
             for descriptor in cls.methodOverrideDescriptors {
                 guard let symbols = try descriptor.implementationSymbols(in: machO) else { continue }
                 guard let overrideSymbol = try classDemangledSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode
                 visitedNodes.append(node)
                 methodDescriptorLookup[node] = .methodOverride(descriptor)
+
+                if let vtableSlot = try? parentVTableCache.slotIndex(for: descriptor, in: machO) {
+                    vtableOffsetLookup[node] = vtableSlot
+                }
             }
             for descriptor in cls.methodDefaultOverrideDescriptors {
                 guard let symbols = try descriptor.implementationSymbols(in: machO) else { continue }
@@ -132,7 +191,10 @@ public final class TypeDefinition: Definition {
 
         allocators = DefinitionBuilder.allocators(
             for: symbolIndexStore.memberSymbols(of: .allocator(inExtension: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
-            methodDescriptorLookup: methodDescriptorLookup
+            methodDescriptorLookup: methodDescriptorLookup,
+            vtableOffsetLookup: vtableOffsetLookup,
+            implOffsetDescriptorLookup: implOffsetDescriptorLookup,
+            implOffsetVTableSlotLookup: implOffsetVTableSlotLookup
         )
 
         hasDeallocator = !symbolIndexStore.memberSymbols(of: .deallocator, for: typeName.name, in: machO).isEmpty
@@ -141,6 +203,9 @@ public final class TypeDefinition: Definition {
             for: symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
             fieldNames: fieldNames,
             methodDescriptorLookup: methodDescriptorLookup,
+            vtableOffsetLookup: vtableOffsetLookup,
+            implOffsetDescriptorLookup: implOffsetDescriptorLookup,
+            implOffsetVTableSlotLookup: implOffsetVTableSlotLookup,
             isGlobalOrStatic: false
         )
 
@@ -153,33 +218,114 @@ public final class TypeDefinition: Definition {
                 in: machO
             ).map { .init(base: $0, offset: nil) },
             methodDescriptorLookup: methodDescriptorLookup,
+            vtableOffsetLookup: vtableOffsetLookup,
+            implOffsetDescriptorLookup: implOffsetDescriptorLookup,
+            implOffsetVTableSlotLookup: implOffsetVTableSlotLookup,
             isGlobalOrStatic: true
         )
 
         functions = DefinitionBuilder.functions(
             for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
             methodDescriptorLookup: methodDescriptorLookup,
+            vtableOffsetLookup: vtableOffsetLookup,
+            implOffsetDescriptorLookup: implOffsetDescriptorLookup,
+            implOffsetVTableSlotLookup: implOffsetVTableSlotLookup,
             isGlobalOrStatic: false
         )
 
         staticFunctions = DefinitionBuilder.functions(
             for: symbolIndexStore.memberSymbols(of: .function(inExtension: false, isStatic: true), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
             methodDescriptorLookup: methodDescriptorLookup,
+            vtableOffsetLookup: vtableOffsetLookup,
+            implOffsetDescriptorLookup: implOffsetDescriptorLookup,
+            implOffsetVTableSlotLookup: implOffsetVTableSlotLookup,
             isGlobalOrStatic: true
         )
 
         subscripts = DefinitionBuilder.subscripts(
             for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
             methodDescriptorLookup: methodDescriptorLookup,
+            vtableOffsetLookup: vtableOffsetLookup,
+            implOffsetDescriptorLookup: implOffsetDescriptorLookup,
+            implOffsetVTableSlotLookup: implOffsetVTableSlotLookup,
             isStatic: false
         )
 
         staticSubscripts = DefinitionBuilder.subscripts(
             for: symbolIndexStore.memberSymbols(of: .subscript(inExtension: false, isStatic: true), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },
             methodDescriptorLookup: methodDescriptorLookup,
+            vtableOffsetLookup: vtableOffsetLookup,
+            implOffsetDescriptorLookup: implOffsetDescriptorLookup,
+            implOffsetVTableSlotLookup: implOffsetVTableSlotLookup,
             isStatic: true
         )
 
+        // Cross-reference @objc and @nonobjc thunk symbols with built definitions
+        applyThunkAttributes(symbolIndexStore: symbolIndexStore, typeName: name, in: machO)
+
+        // Build ordered members list
+        let allMembers = OrderedMember.allMembers(from: self)
+        if case .class = type {
+            orderedMembers = OrderedMember.classOrdered(allMembers)
+        } else {
+            orderedMembers = OrderedMember.offsetOrdered(allMembers)
+        }
+
         isIndexed = true
+    }
+
+    /// Cross-references `@objc` / `@nonobjc` thunk attribute members (pre-extracted
+    /// and bucketed by parent type name inside `SymbolIndexStore`) with the
+    /// already-built member definitions of this type, appending the matching
+    /// attribute to each affected member.
+    private func applyThunkAttributes<MachO: MachORepresentableWithCache>(
+        symbolIndexStore: SymbolIndexStore,
+        typeName: String,
+        in machO: MachO
+    ) {
+        let thunkKindsAndAttributes: [(Node.Kind, SwiftAttribute)] = [
+            (.objCAttribute, .objc),
+            (.nonObjCAttribute, .nonobjc),
+        ]
+
+        for (thunkKind, attribute) in thunkKindsAndAttributes {
+            let members = symbolIndexStore.thunkAttributeMembers(of: thunkKind, for: typeName, in: machO)
+            for member in members {
+                if member.isStatic {
+                    applyAttributeToFunction(name: member.memberName, attribute: attribute, in: &staticFunctions)
+                    applyAttributeToVariable(name: member.memberName, attribute: attribute, in: &staticVariables)
+                } else {
+                    applyAttributeToFunction(name: member.memberName, attribute: attribute, in: &functions)
+                    applyAttributeToVariable(name: member.memberName, attribute: attribute, in: &variables)
+                    if member.isInit {
+                        applyAttributeToAllocator(attribute: attribute, in: &allocators)
+                    }
+                }
+            }
+        }
+    }
+
+    private func applyAttributeToFunction(name: String, attribute: SwiftAttribute, in definitions: inout [FunctionDefinition]) {
+        for definitionIndex in definitions.indices {
+            if definitions[definitionIndex].name == name && !definitions[definitionIndex].attributes.contains(attribute) {
+                definitions[definitionIndex].attributes.append(attribute)
+            }
+        }
+    }
+
+    private func applyAttributeToVariable(name: String, attribute: SwiftAttribute, in definitions: inout [VariableDefinition]) {
+        for definitionIndex in definitions.indices {
+            if definitions[definitionIndex].name == name && !definitions[definitionIndex].attributes.contains(attribute) {
+                definitions[definitionIndex].attributes.append(attribute)
+            }
+        }
+    }
+
+    private func applyAttributeToAllocator(attribute: SwiftAttribute, in definitions: inout [FunctionDefinition]) {
+        for definitionIndex in definitions.indices {
+            if !definitions[definitionIndex].attributes.contains(attribute) {
+                definitions[definitionIndex].attributes.append(attribute)
+            }
+        }
     }
 }

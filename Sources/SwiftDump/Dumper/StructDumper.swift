@@ -4,14 +4,15 @@ import MachOSwiftSection
 import Semantic
 import Utilities
 import Dependencies
+import Demangling
 @_spi(Internals) import MachOSymbols
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
     package typealias Dumped = Struct
-    
+
     package typealias Metadata = StructMetadata
-    
+
     package let dumped: Struct
 
     package let metadata: StructMetadata?
@@ -47,7 +48,13 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
             try await name
 
             if let genericContext = dumped.genericContext {
-                try await genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO)
+                try await genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO) {
+                    if let invertibleProtocolSet = dumped.invertibleProtocolSet, invertibleProtocolSet.hasInvertedProtocols {
+                        invertibleProtocolSet.dumpInvertedProtocolsInheritance
+                    }
+                }
+            } else if let invertibleProtocolSet = dumped.invertibleProtocolSet, invertibleProtocolSet.hasInvertedProtocols {
+                invertibleProtocolSet.dumpInvertedProtocolsInheritance
             }
         }
     }
@@ -79,6 +86,10 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
                         endOffset = nil
                     }
                     configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
+
+                    if configuration.printExpandedFieldOffsets, let machOImage = machO.asMachOImage {
+                        expandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset, baseIndentation: configuration.indentation, ancestors: [], in: machOImage)
+                    }
                 }
 
                 if configuration.printTypeLayout, !dumped.flags.isGeneric, let machO = machO.asMachOImage, let metatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machO), let metadata = try? Metadata.createInProcess(metatype) {
@@ -91,32 +102,14 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
 
                 let fieldName = try fieldRecord.fieldName(in: machO)
 
-                if fieldRecord.flags.contains(.isVariadic) {
-                    if demangledTypeNode.hasWeakNode {
-                        Keyword(.weak)
-                        Space()
-                        Keyword(.var)
-                        Space()
-                    } else if fieldName.hasLazyPrefix {
-                        Keyword(.lazy)
-                        Space()
-                        Keyword(.var)
-                        Space()
-                    } else {
-                        Keyword(.var)
-                        Space()
-                    }
-                } else {
-                    Keyword(.let)
-                    Space()
-                }
+                fieldDeclarationKeywords(for: fieldRecord, typeNode: demangledTypeNode, fieldName: fieldName)
 
                 MemberDeclaration(fieldName.stripLazyPrefix)
                 Standard(":")
                 Space()
                 try await demangleResolver.modify {
                     if case .options(let demangleOptions) = $0 {
-                        return .options(demangleOptions.union(.removeWeakPrefix))
+                        return .options(demangleOptions.union(.removeReferenceStoragePrefix))
                     } else {
                         return $0
                     }
@@ -192,4 +185,12 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
             try TypeDeclaration(kind: .struct, dumped.descriptor.name(in: machO))
         }
     }
+}
+
+extension TypedDumper {
+    
+}
+
+extension FieldRecordFlags {
+    
 }

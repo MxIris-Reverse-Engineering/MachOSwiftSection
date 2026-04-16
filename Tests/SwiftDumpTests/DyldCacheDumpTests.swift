@@ -20,7 +20,7 @@ extension DyldCacheDumpTests {
     // MARK: - Types
 
     @Test func typesInCacheFile() async throws {
-        try await dumpTypes(for: machOFileInCache, isDetail: true, options: .enum, using: dumperConfiguration)
+        try await dumpTypes(for: machOFileInCache, isDetail: true, options: [.enum, .struct, .class], using: dumperConfiguration)
     }
 
     @Test func typesInMainCacheFile() async throws {

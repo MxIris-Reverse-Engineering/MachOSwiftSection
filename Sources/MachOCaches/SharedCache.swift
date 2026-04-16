@@ -23,23 +23,44 @@ open class SharedCache<Storage>: @unchecked Sendable {
     @Mutex
     private var storageByIdentifier: [AnyHashable: Storage] = [:]
 
-    @discardableResult
-    private func createStorageIfNeeded(in machO: some MachORepresentableWithCache, isForced: Bool = false) -> Bool {
-        guard isForced || (storageByIdentifier[machO.identifier] == nil) else { return false }
-        storageByIdentifier[machO.identifier] = buildStorage(for: machO)
-        return true
-    }
-
     open func buildStorage(for machO: some MachORepresentableWithCache) -> Storage? {
         return nil
     }
 
-    open func storage(in machO: some MachORepresentableWithCache) -> Storage? {
-        createStorageIfNeeded(in: machO)
-        if let cacheEntry = storageByIdentifier[machO.identifier] {
-            return cacheEntry
-        } else {
-            return nil
+    open func storage<MachO: MachORepresentableWithCache>(in machO: MachO) -> Storage? {
+        return storage(in: machO) { machO in
+            buildStorage(for: machO)
+        }
+    }
+
+    /// Atomic get-or-build with a caller-provided build closure.
+    ///
+    /// Unlike `storage(in:)` which uses the overridden `buildStorage(for:)`, this variant
+    /// lets the caller inject a custom build closure that can capture per-call context
+    /// (progress continuations, options, etc). The per-call context flows through closure
+    /// capture, never through shared instance state, so concurrent calls cannot interfere.
+    ///
+    /// The entire check-build-insert runs inside a single `withLockUnchecked` critical
+    /// section, guaranteeing atomicity independent of the `_modify` accessor that
+    /// `@Mutex` may or may not generate for the underlying property.
+    ///
+    /// - Note: Known limitation — the `build` closure executes while the global
+    ///   cache lock is held, so a long-running build (for example
+    ///   `SymbolIndexStore.prepareWithProgress`) blocks concurrent cache access for
+    ///   other Mach-O identifiers for the full duration of the build. Acceptable
+    ///   today because concurrent cache construction is rare in practice. See
+    ///   `KNOWN_ISSUES.md` for the tracking entry and the sketch of a per-key
+    ///   promise-based fix.
+    public func storage<MachO: MachORepresentableWithCache>(
+        in machO: MachO,
+        buildUsing build: (MachO) -> Storage?
+    ) -> Storage? {
+        return _storageByIdentifier.withLockUnchecked { dict -> Storage? in
+            let key: AnyHashable = machO.identifier
+            if let existing = dict[key] { return existing }
+            guard let new = build(machO) else { return nil }
+            dict[key] = new
+            return new
         }
     }
 
@@ -47,23 +68,17 @@ open class SharedCache<Storage>: @unchecked Sendable {
         .init(Self.self)
     }
 
-    @discardableResult
-    private func createStorageIfNeeded(isForced: Bool = false) -> Bool {
-        guard isForced || (storageByIdentifier[currentIdentifer] == nil) else { return false }
-        storageByIdentifier[currentIdentifer] = buildStorage()
-        return true
-    }
-
     open func buildStorage() -> Storage? {
         return nil
     }
 
     open func storage() -> Storage? {
-        createStorageIfNeeded()
-        if let cacheEntry = storageByIdentifier[currentIdentifer] {
-            return cacheEntry
-        } else {
-            return nil
+        return _storageByIdentifier.withLockUnchecked { dict -> Storage? in
+            let key: AnyHashable = currentIdentifer
+            if let existing = dict[key] { return existing }
+            guard let new = buildStorage() else { return nil }
+            dict[key] = new
+            return new
         }
     }
 }

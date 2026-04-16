@@ -2,6 +2,7 @@ import MachOSwiftSection
 
 public protocol Definition: AnyObject {
     var isIndexed: Bool { get }
+    var orderedMembers: [OrderedMember] { get }
     var allocators: [FunctionDefinition] { get }
     var constructors: [FunctionDefinition] { get }
     var variables: [VariableDefinition] { get }
@@ -13,6 +14,7 @@ public protocol Definition: AnyObject {
 }
 
 protocol MutableDefinition: Definition {
+    var orderedMembers: [OrderedMember] { get set }
     var allocators: [FunctionDefinition] { get set }
     var constructors: [FunctionDefinition] { get set }
     var variables: [VariableDefinition] { get set }

@@ -7,7 +7,7 @@ import Demangling
 import Semantic
 import SwiftStdlibToolbox
 @_spi(Internals) import MachOSymbols
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 @MemberwiseInit()
 @dynamicMemberLookup
@@ -29,6 +29,11 @@ extension Sequence<DemangledSymbol> {
     func mapToDemangledSymbolWithOffset() -> [DemangledSymbolWithOffset] {
         map { .init($0) }
     }
+}
+
+public struct StrippedSymbolicRequirement: Sendable {
+    public let requirement: ProtocolRequirement
+    public let pwtOffset: Int
 }
 
 public final class ProtocolDefinition: Definition, MutableDefinition {
@@ -60,7 +65,9 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
 
     public internal(set) var staticSubscripts: [SubscriptDefinition] = []
 
-    public internal(set) var strippedSymbolicRequirements: [ProtocolRequirement] = []
+    public internal(set) var strippedSymbolicRequirements: [StrippedSymbolicRequirement] = []
+
+    public internal(set) var orderedMembers: [OrderedMember] = []
 
     public private(set) var isIndexed: Bool = false
 
@@ -99,7 +106,7 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
         for requirement in `protocol`.requirements {
             offsetOfPWT.offset(of: StoredPointer.self)
             guard let symbols = try await Symbols.resolve(from: requirement.offset, in: machO), let symbol = try? _symbol(for: symbols, visitedNodes: requirementVisitedNodes) else {
-                strippedSymbolicRequirements.append(requirement)
+                strippedSymbolicRequirements.append(.init(requirement: requirement, pwtOffset: offsetOfPWT))
                 continue
             }
             requirementVisitedNodes.append(symbol.demangledNode)
@@ -112,9 +119,12 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
 
         setDefinitions(for: requirementMemberSymbolsByKind, inExtension: false)
 
+        orderedMembers = OrderedMember.pwtOrdered(OrderedMember.allMembers(from: self))
+
         let extensionDefinition = try ExtensionDefinition(extensionName: protocolName.extensionName, genericSignature: nil, protocolConformance: nil, associatedType: nil, in: machO)
 
         extensionDefinition.setDefinitions(for: defaultImplementationMemberSymbolsByKind, inExtension: true)
+        extensionDefinition.orderedMembers = OrderedMember.offsetOrdered(OrderedMember.allMembers(from: extensionDefinition))
 
         if extensionDefinition.hasMembers {
             defaultImplementationExtensions = [extensionDefinition]

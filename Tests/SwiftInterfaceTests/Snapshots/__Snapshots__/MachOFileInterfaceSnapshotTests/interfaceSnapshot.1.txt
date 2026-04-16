@@ -1,227 +1,2028 @@
+import Distributed
+import Foundation
 import Swift
 import SymbolTests
 import SymbolTestsCore
-import SymbolTestsHelper
 import _Concurrency
 import _StringProcessing
 import _SwiftConcurrencyShims
 
-struct TestsValues {}
-class TestsObjects {}
-struct StructTest {
-    var body: Swift.Never {
-        get
-    }
-
-    func a()
-    func b()
-    func c()
-    func d()
-    func e()
-
-    static var body: Swift.Never {
-        get
-    }
+var globalConstant: Swift.Int {
+    get
 }
-class ExternalSwiftSubclassTest: SymbolTestsHelper.Object {
-    override init()
+var globalVariable: Swift.String
 
-    override func instanceMethod() -> Swift.String
-}
-class ExternalObjCSubclassTest: __C.NSObject {
-    init()
+func _finalizeUninitializedArray<A>(_: __owned [A]) -> [A]
+func getContiguousArrayStorageType<A>(for: A.Type) -> Swift._ContiguousArrayStorage<A>.Type
+func globalGenericFunction<A>(_: A) -> A.Body where A: SymbolTestsCore.Protocols.ProtocolTest
+func globalThrowingFunction() throws -> Swift.String
+func globalAsyncFunction() async -> Swift.Int
+func globalFunction() -> Swift.Int
 
-    func isKind(of: Swift.AnyObject.Type) -> Swift.Bool
-}
-class ClassTest {
-    var dynamicVariable: Swift.Bool {
-        get
-        set
+enum AccessLevels {
+    struct PublicAccessLevelTest {
+        var publicField: Swift.Int
+        var internalField: Swift.Int
+        var fileprivateField: Swift.Int
+        var privateField: Swift.Int
+
+        init(publicField: Swift.Int, internalField: Swift.Int, fileprivateField: Swift.Int, privateField: Swift.Int)
+
+        func publicMethod()
     }
-    var instanceVariable: Swift.Bool {
-        get
-        set
-    }
+    class OpenAccessLevelTest {
+        var openField: Swift.Int
+        var publicField: Swift.Int
 
-    func dynamicMethod()
-    func instanceMethod() -> Self
-}
-class SubclassTest: SymbolTestsCore.ClassTest {
-    override var dynamicVariable: Swift.Bool {
-        get
-        set
-    }
-    override var instanceVariable: Swift.Bool {
-        get
-        set
-    }
-
-    func dynamicMethod()
-    override func instanceMethod() -> Self
-}
-class FinalClassTest: SymbolTestsCore.SubclassTest {
-    override var dynamicVariable: Swift.Bool {
-        get
-        set
-    }
-
-    override func dynamicMethod()
-    override func instanceMethod() -> Self
-}
-struct GenericRequirementTest<A> where A: SymbolTestsCore.ProtocolTest {
-    var content: A
-
-    init(content: A)
-
-    var body: A {
-        get
-    }
-
-    static func test(lhs: A, rhs: SymbolTestsCore.GenericRequirementTest<A>) -> Swift.Bool
-}
-struct GenericPackTest<A, each B, C> where repeat each B: SymbolTestsCore.ProtocolTest {
-    var _content: (repeat B)
-
-    var body: Swift.Never {
-        get
-    }
-}
-struct GenericValueTest<A, let b: Int, C> {
-    var content: C
-
-    var body: Swift.Never {
-        get
-    }
-
-    func function(value: C) -> Swift.Bool
-}
-struct OpaqueReturnTypeTest {
-    struct AnyProtocolTest<A, B> where A: SymbolTestsCore.ProtocolTest, B == B.ProtocolTest.Body, A.ProtocolTest.Body == SymbolTestsCore.GenericRequirementTest<B> {
         init()
+
+        func openMethod()
+        func publicMethod()
+    }
+    class SubclassOfOpenAccessLevel: SymbolTestsCore.AccessLevels.OpenAccessLevelTest {
+        override init()
+
+        override var openField: Swift.Int {
+            get
+            set
+        }
+
+        override func openMethod()
+    }
+}
+enum Actors {
+    actor ActorTest {
+        var $defaultActor: 
+        var state: Swift.Int
+
+        var unownedExecutor: Swift.UnownedSerialExecutor {
+            get
+        }
+
+        func mutateState()
+        func nonisolatedMethod() -> Swift.String
+        func readState() -> Swift.Int
+    }
+    @globalActor
+    actor CustomGlobalActor {
+        var $defaultActor: 
+
+        var unownedExecutor: Swift.UnownedSerialExecutor {
+            get
+        }
+
+        static let shared: SymbolTestsCore.Actors.CustomGlobalActor
+    }
+    class GlobalActorAnnotatedClass {
+        var value: Swift.Int
+
+        func method() -> Swift.Int
+    }
+    class MainActorAnnotatedTest {
+        var value: Swift.Int
+
+        func nonisolatedMethod() -> Swift.String
+        func method() -> Swift.Int
+    }
+}
+enum AssociatedTypeWitnessPatterns {
+    struct ConcreteWitnessTest {}
+    struct NestedWitnessTest {
+        struct NestedFirst {}
+        struct NestedThird {}
+    }
+    struct GenericParameterWitnessTest<A> {}
+    struct RecursiveWitnessTest {}
+    struct DependentWitnessTest<A> where A: Swift.Collection {}
+    protocol AssociatedPatternProtocol where Self.Second: Swift.Collection {
+        associatedtype First
+        associatedtype Second
+        associatedtype Third
+        associatedtype Fourth
+        associatedtype Fifth
+    }
+}
+enum AsyncSequenceTests {
+    struct AsyncSequenceTest {
+        struct AsyncIterator {
+            func next() async -> Swift.Int?
+        }
+        func makeAsyncIterator() -> SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator
+    }
+    struct ThrowingAsyncSequenceTest {
+        struct AsyncIterator {
+            func next() async throws -> Swift.String?
+        }
+        func makeAsyncIterator() -> SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator
+    }
+    struct GenericAsyncSequenceTest<A> {
+        struct AsyncIterator {
+            init()
+
+            func next() async -> A?
+        }
+        func makeAsyncIterator() -> SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest<A>.AsyncIterator
+    }
+}
+enum Attributes {
+    @propertyWrapper
+    struct PropertyWrapperStruct<A> where A: Swift.Comparable {
+        var wrappedValue: A
+        var projectedValue: Swift.ClosedRange<A>
+
+        init(wrappedValue: A, range: Swift.ClosedRange<A>)
+    }
+    @resultBuilder
+    struct ResultBuilderStruct<A> {
+        static func buildBlock(_: A...) -> [A]
+        static func buildOptional(_: [A]?) -> [A]
+    }
+    @dynamicMemberLookup
+    struct DynamicMemberLookupStruct {
+        subscript(dynamicMember: Swift.String) -> Swift.Int {
+            get
+        }
+    }
+    @dynamicCallable
+    struct DynamicCallableStruct {
+        func dynamicallyCall(withArguments: [Swift.Int]) -> Swift.Int
+        func dynamicallyCall(withKeywordArguments: Swift.KeyValuePairs<Swift.String, Swift.Int>) -> Swift.Int
+    }
+    class ObjCAttributeClass: __C.NSObject {
+        @objc init()
+
+        @objc func objcMethod()
+        func nonobjcMethod()
+        @objc func objcDynamicMethod()
+    }
+}
+enum Availability {
+    struct MultiPlatformAvailableTest {
+        var value: Swift.Int
+
+        init(value: Swift.Int)
+    }
+    struct DeprecatedAvailabilityTest {
+        var value: Swift.Int
+
+        init(value: Swift.Int)
+    }
+    struct RenamedAvailabilityNewTest {
+        init()
+    }
+    struct ObsoletedAvailabilityTest {
+        init()
+    }
+    struct AvailabilityMemberTest {
+        init()
+
+        var modernField: Swift.Int {
+            get
+        }
+
+        func deprecatedMethod()
+        func unavailableMethod()
+    }
+}
+struct TestsValues {}
+enum BasicTypes {
+    class TestsObjects {}
+}
+enum BuiltinTypeFields {
+    struct IntegerTypesTest {
+        var intField: Swift.Int
+        var int8Field: Swift.Int8
+        var int16Field: Swift.Int16
+        var int32Field: Swift.Int32
+        var int64Field: Swift.Int64
+        var uintField: Swift.UInt
+        var uint8Field: Swift.UInt8
+        var uint16Field: Swift.UInt16
+        var uint32Field: Swift.UInt32
+        var uint64Field: Swift.UInt64
+
+        init(intField: Swift.Int, int8Field: Swift.Int8, int16Field: Swift.Int16, int32Field: Swift.Int32, int64Field: Swift.Int64, uintField: Swift.UInt, uint8Field: Swift.UInt8, uint16Field: Swift.UInt16, uint32Field: Swift.UInt32, uint64Field: Swift.UInt64)
+    }
+    struct FloatingTypesTest {
+        var floatField: Swift.Float
+        var doubleField: Swift.Double
+        var float32Field: Swift.Float
+        var float64Field: Swift.Double
+
+        init(floatField: Swift.Float, doubleField: Swift.Double, float32Field: Swift.Float, float64Field: Swift.Double)
+    }
+    struct PrimitiveTypesTest {
+        var boolField: Swift.Bool
+        var characterField: Swift.Character
+        var stringField: Swift.String
+
+        init(boolField: Swift.Bool, characterField: Swift.Character, stringField: Swift.String)
+    }
+    struct TupleBuiltinTest {
+        var pairField: (Swift.Int, Swift.Double)
+        var tripleField: (Swift.Int, Swift.Double, Swift.Bool)
+        var quadrupleField: (Swift.Int8, Swift.Int16, Swift.Int32, Swift.Int64)
+
+        init(pairField: (Swift.Int, Swift.Double), tripleField: (Swift.Int, Swift.Double, Swift.Bool), quadrupleField: (Swift.Int8, Swift.Int16, Swift.Int32, Swift.Int64))
+    }
+}
+enum ClassBoundGenerics {
+    struct AnyObjectBoundTest<A> where A: AnyObject {
+        var element: A
+
+        init(element: A)
+    }
+    struct AnyObjectAndProtocolBoundTest<A> where A: AnyObject, A: SymbolTestsCore.Protocols.ProtocolTest {
+        var element: A
+
+        init(element: A)
+    }
+    class ClassBoundGenericClassTest<A> where A: AnyObject {
+        var element: A
+
+        init(element: A)
+    }
+    struct ClassBoundFunctionTest {
+        func acceptClassBound<A>(_: A) -> A where A: AnyObject
+        func acceptClassAndProtocol<A>(_: A) -> A where A: AnyObject, A: SymbolTestsCore.Protocols.ProtocolTest
+    }
+    protocol ClassBoundGenericProtocol: AnyObject where Self.Item: AnyObject {
+        associatedtype Item
+
+        var item: Self.Item {
+            get
+        }
+    }
+}
+enum Classes {
+    class ExternalSwiftSubclassTest: SymbolTestsHelper.Object {
+        override init()
+
+        override func instanceMethod() -> Swift.String
+    }
+    class ExternalObjCSubclassTest: __C.NSObject {
+        @objc init()
+
+        @objc func isKind(of: Swift.AnyObject.Type) -> Swift.Bool
+    }
+    class ClassTest {
+        var dynamicVariable: Swift.Bool {
+            get
+            set
+        }
+        var instanceVariable: Swift.Bool {
+            get
+            set
+        }
+
+        func dynamicMethod()
+        func instanceMethod() -> Self
+    }
+    class SubclassTest: SymbolTestsCore.Classes.ClassTest {
+        override var dynamicVariable: Swift.Bool {
+            get
+            set
+        }
+        override var instanceVariable: Swift.Bool {
+            get
+            set
+        }
+
+        func dynamicMethod()
+        override func instanceMethod() -> Self
+    }
+    class FinalClassTest: SymbolTestsCore.Classes.SubclassTest {
+        override var dynamicVariable: Swift.Bool {
+            get
+            set
+        }
+
+        override func dynamicMethod()
+        override func instanceMethod() -> Self
+    }
+    class StoredPropertiesTest {
+        let constantProperty: Swift.String
+        var variableProperty: Swift.Int
+        weak var weakDelegate: Swift.AnyObject?
+        lazy var lazyProperty: Swift.String?
+
+        init(constantProperty: Swift.String, variableProperty: Swift.Int)
+    }
+    class OpenAccessTest {
+        init()
+
+        var openProperty: Swift.Int {
+            get
+            set
+        }
+
+        func publicMethod() -> Swift.Int
+        func openMethod() -> Swift.String
+    }
+    class OpenAccessSubTest: SymbolTestsCore.Classes.OpenAccessTest {
+        override init()
+
+        override var openProperty: Swift.Int {
+            get
+            set
+        }
+
+        override func openMethod() -> Swift.String
+    }
+    class ObjCMembersTest: __C.NSObject {
+        var property: Swift.Int
+
+        @objc init()
+
+        @objc func method() -> Swift.Int
+    }
+    class RequiredInitClassTest {
+        let identifier: Swift.Int
+
+        init(identifier: Swift.Int)
+    }
+    class DefaultParameterClassTest {
+        init()
+
+        func method(first: Swift.Int, second: Swift.String) -> Swift.Int
+
+        static func classMethod(value: Swift.Int) -> Swift.Int
+    }
+}
+enum CodableTests {
+    struct SynthesizedCodableTest {
+        enum CodingKeys {
+            case identifier
+            case name
+            case optionalValue
+        }
+        var identifier: Swift.Int
+        var name: Swift.String
+        var optionalValue: Swift.Double?
+
+        init(identifier: Swift.Int, name: Swift.String, optionalValue: Swift.Double?)
+        init(from: Swift.Decoder) throws
+
+        func encode(to: Swift.Encoder) throws
+    }
+    struct CustomCodableTest {
+        enum CodingKeys {
+            case displayName
+            case hiddenCount
+        }
+        var displayName: Swift.String
+        var hiddenCount: Swift.Int
+
+        init(displayName: Swift.String, hiddenCount: Swift.Int)
+        init(from: Swift.Decoder) throws
+
+        func encode(to: Swift.Encoder) throws
+    }
+    class CodableClassTest {
+        enum CodingKeys {
+            case identifier
+            case label
+        }
+        var identifier: Swift.Int
+        var label: Swift.String
+
+        init(identifier: Swift.Int, label: Swift.String)
+        init(from: Swift.Decoder) throws
+
+        func encode(to: Swift.Encoder) throws
+    }
+    enum CodableEnumTest {
+        enum CodingKeys {
+            case empty
+            case withValue
+            case withPair
+        }
+        enum EmptyCodingKeys {}
+        enum WithValueCodingKeys {
+            case _0
+        }
+        enum WithPairCodingKeys {
+            case left
+            case right
+        }
+        case withValue(Swift.Int)
+        case withPair(left: Swift.String, right: Swift.Int)
+        case empty
+
+        init(from: Swift.Decoder) throws
+
+        func encode(to: Swift.Encoder) throws
+    }
+    struct GenericCodableTest<A> where A: Swift.Decodable, A: Swift.Encodable {
+        enum CodingKeys {
+            case element
+            case metadata
+
+            init?(stringValue: Swift.String)
+
+            var hashValue: Swift.Int {
+                get
+            }
+            var stringValue: Swift.String {
+                get
+            }
+
+            func hash(into: inout Swift.Hasher)
+
+            static func == (_: SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys, _: SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys) -> Swift.Bool
+        }
+        var element: A
+        var metadata: [Swift.String : Swift.String]
+
+        init(element: A, metadata: [Swift.String : Swift.String])
+        init(from: Swift.Decoder) throws
+
+        func encode(to: Swift.Encoder) throws
+    }
+}
+enum CollectionConformances {
+    struct CustomSequenceTest {
+        struct Iterator {
+            func next() -> Swift.Int?
+        }
+        func makeIterator() -> SymbolTestsCore.CollectionConformances.CustomSequenceTest.Iterator
+    }
+    struct CustomCollectionTest {
+        var endIndex: Swift.Int {
+            get
+        }
+        var startIndex: Swift.Int {
+            get
+        }
+
+        func index(after: Swift.Int) -> Swift.Int
+
+        subscript(_: Swift.Int) -> Swift.Int {
+            get
+        }
+    }
+    struct CustomBidirectionalCollectionTest {
+        var endIndex: Swift.Int {
+            get
+        }
+        var startIndex: Swift.Int {
+            get
+        }
+
+        func index(before: Swift.Int) -> Swift.Int
+        func index(after: Swift.Int) -> Swift.Int
+
+        subscript(_: Swift.Int) -> Swift.String {
+            get
+        }
+    }
+    struct CustomRandomAccessCollectionTest {
+        var endIndex: Swift.Int {
+            get
+        }
+        var startIndex: Swift.Int {
+            get
+        }
+
+        func index(after: Swift.Int) -> Swift.Int
+        func index(before: Swift.Int) -> Swift.Int
+
+        subscript(_: Swift.Int) -> Swift.Double {
+            get
+        }
+    }
+}
+enum Concurrency {
+    struct AsyncFunctionTest {
+        func asyncFunction() async -> Swift.Int
+        func asyncThrowsFunction() async throws -> Swift.Int
+        func throwsFunction() throws -> Swift.Int
+    }
+    struct TypedThrowsErrorTest {
+        var message: Swift.String
+    }
+    struct TypedThrowsFunctionTest {
+        func asyncTypedThrowsFunction() async throws(SymbolTestsCore.Concurrency.TypedThrowsErrorTest) -> Swift.Int
+        func typedThrowsFunction() throws(SymbolTestsCore.Concurrency.TypedThrowsErrorTest) -> Swift.Int
+    }
+    struct SendableClosureTest {
+        var sendableClosure: @Sendable () -> ()
+
+        func acceptSendable(_: @Sendable () -> ())
+        func acceptSendableAsync(_: nonisolated(nonsending) @Sendable () async -> ())
+        func acceptSendableThrows(_: @Sendable () throws -> ())
+    }
+    struct SendableTest {
+        var value: Swift.Int
+        var name: Swift.String
+    }
+}
+enum ConditionalConformanceVariants {
+    struct ConditionalContainerTest<A> {
+        var element: A
+
+        init(element: A)
+    }
+    protocol ConditionalFirstProtocol {}
+    protocol ConditionalSecondProtocol {}
+    protocol ConditionalThirdProtocol {}
+}
+enum CustomLiterals {
+    struct IntegerLiteralTest {
+        let value: Swift.Int64
+
+        init(integerLiteral: Swift.Int64)
+    }
+    struct StringLiteralTest {
+        let value: Swift.String
+
+        init(unicodeScalarLiteral: Swift.String)
+        init(stringLiteral: Swift.String)
+        init(extendedGraphemeClusterLiteral: Swift.String)
+    }
+    struct ArrayLiteralTest {
+        let elements: [Swift.Int]
+
+        init(arrayLiteral: Swift.Int...)
+    }
+    struct DictionaryLiteralTest {
+        let elements: [Swift.String : Swift.Int]
+
+        init(dictionaryLiteral: (Swift.String, Swift.Int)...)
+    }
+    struct BooleanLiteralTest {
+        let value: Swift.Bool
+
+        init(booleanLiteral: Swift.Bool)
+    }
+    struct FloatLiteralTest {
+        let value: Swift.Double
+
+        init(floatLiteral: Swift.Double)
+    }
+    struct NilLiteralTest {
+        init(nilLiteral: ())
+    }
+}
+enum DefaultArguments {
+    struct DefaultArgumentMethodTest {
+        func greet(name: Swift.String, repeated: Swift.Int, punctuation: Swift.Character) -> Swift.String
+        func append(_: Swift.Int, to: [Swift.Int]) -> [Swift.Int]
+
+        static func createDefault(label: Swift.String, value: Swift.Int) -> SymbolTestsCore.DefaultArguments.DefaultArgumentMethodTest
+    }
+    struct DefaultArgumentInitializerTest {
+        var name: Swift.String
+        var count: Swift.Int
+        var enabled: Swift.Bool
+
+        init(name: Swift.String, count: Swift.Int, enabled: Swift.Bool)
+    }
+    struct DefaultArgumentSubscriptTest {
+        subscript(_: Swift.Int, fallback: Swift.String) -> Swift.String {
+            get
+        }
+    }
+    class DefaultArgumentClassTest {
+        init(initial: Swift.Int, scale: Swift.Double)
+
+        func process(value: Swift.Int, multiplier: Swift.Double) -> Swift.Double
+    }
+}
+enum DefaultImplementationVariants {
+    protocol BasicDefaultProtocol {
+        func required() -> Swift.Int
+        func withDefault() -> Swift.String
+        func withDefaultAndGeneric<A1>(_: A1) -> A1
+    }
+    protocol ConstrainedDefaultProtocol {
+        associatedtype Element
+
+        var element: Self.Element {
+            get
+        }
+    }
+}
+enum DeinitVariants {
+    class SimpleDeinitTest {
+        var value: Swift.Int
+
+        init()
+    }
+    class DeinitWithWorkTest {
+        var resource: Swift.Int
+
+        init()
+    }
+    actor ActorDeinitTest {
+        var $defaultActor: 
+        var state: Swift.Int
+
+        init()
+
+        var unownedExecutor: Swift.UnownedSerialExecutor {
+            get
+        }
+    }
+    class GenericDeinitTest<A> {
+        var element: A
+
+        init(element: A)
+    }
+}
+enum DependentTypeAccess {
+    struct DependentAccessTest<A> where A: Swift.Collection {
+        var iteratorElement: A.Sequence.Element?
+        var indicesIndex: A.Collection.Index?
+        var subSequenceIndex: A.Collection.Index?
+
+        init(iteratorElement: A.Element?, indicesIndex: A.Index?, subSequenceIndex: A.Index?)
+    }
+    struct DeepDependentAccessTest<A> where A: Swift.Collection {
+        var deepElement: A.Sequence.Element?
+
+        init(deepElement: A.Element?)
+    }
+    struct DependentFunctionTest {
+        func acceptDependent<A>(_: A, iteratorElement: A.Element, indicesElement: A.Index) -> A.SubSequence where A: Swift.Collection
+    }
+    protocol DependentProtocol where Self.First == Self.Second.Element, Self.Second: Swift.Collection {
+        associatedtype First
+        associatedtype Second
+    }
+}
+enum DiamondInheritance {
+    struct DiamondImplementationTest {
+        init()
+
+        func baseMethod() -> Swift.String
+        func leftMethod() -> Swift.Int
+        func rightMethod() -> Swift.Double
+        func bottomMethod() -> Swift.Bool
+    }
+    protocol DiamondBaseProtocol {
+        func baseMethod() -> Swift.String
+    }
+    protocol DiamondLeftProtocol: SymbolTestsCore.DiamondInheritance.DiamondBaseProtocol {
+        func leftMethod() -> Swift.Int
+    }
+    protocol DiamondRightProtocol: SymbolTestsCore.DiamondInheritance.DiamondBaseProtocol {
+        func rightMethod() -> Swift.Double
+    }
+    protocol DiamondBottomProtocol: SymbolTestsCore.DiamondInheritance.DiamondLeftProtocol, SymbolTestsCore.DiamondInheritance.DiamondRightProtocol {
+        func bottomMethod() -> Swift.Bool
+    }
+    protocol TriDiamondRootProtocol {
+        func root() -> Swift.String
+    }
+    protocol TriDiamondFirstProtocol: SymbolTestsCore.DiamondInheritance.TriDiamondRootProtocol {
+        func first() -> Swift.Int
+    }
+    protocol TriDiamondSecondProtocol: SymbolTestsCore.DiamondInheritance.TriDiamondRootProtocol {
+        func second() -> Swift.Int
+    }
+    protocol TriDiamondThirdProtocol: SymbolTestsCore.DiamondInheritance.TriDiamondRootProtocol {
+        func third() -> Swift.Int
+    }
+    protocol TriDiamondLeafProtocol: SymbolTestsCore.DiamondInheritance.TriDiamondFirstProtocol, SymbolTestsCore.DiamondInheritance.TriDiamondSecondProtocol, SymbolTestsCore.DiamondInheritance.TriDiamondThirdProtocol {
+        func leaf() -> Swift.Int
+    }
+}
+enum DistributedActors {
+    actor DistributedActorTest {
+        var $defaultActor: 
+        let id: Distributed.LocalTestingActorID
+        let actorSystem: Distributed.LocalTestingDistributedActorSystem
+
+        init(actorSystem: Distributed.LocalTestingDistributedActorSystem)
+        init(actorSystem: Distributed.LocalTestingDistributedActorSystem)
+
+        var hashValue: Swift.Int {
+            get
+        }
+        var nonisolatedProperty: Swift.String {
+            get
+        }
+        var unownedExecutor: Swift.UnownedSerialExecutor {
+            get
+        }
+
+        func remoteMethod(value: Swift.Int) -> Swift.Int
+        func remoteThrowingMethod() throws -> Swift.String
+        func parameterizedMethod(label: Swift.String, count: Swift.Int) -> Swift.String
+
+        static func resolve(id: Distributed.LocalTestingActorID, using: Distributed.LocalTestingDistributedActorSystem) throws -> SymbolTestsCore.DistributedActors.DistributedActorTest
+    }
+    actor GenericDistributedActorTest<A> where A: Swift.Decodable, A: Swift.Encodable {
+        var $defaultActor: 
+        let id: Distributed.LocalTestingActorID
+        let actorSystem: Distributed.LocalTestingDistributedActorSystem
+
+        init(actorSystem: Distributed.LocalTestingDistributedActorSystem)
+
+        var hashValue: Swift.Int {
+            get
+        }
+        var unownedExecutor: Swift.UnownedSerialExecutor {
+            get
+        }
+
+        func process(element: A) -> A
+
+        static func resolve(id: Distributed.LocalTestingActorID, using: Distributed.LocalTestingDistributedActorSystem) throws -> SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A>
+    }
+}
+enum Enums {
+    enum MultiPayloadEnumTests {
+        case closure(() -> ())
+        case object(__C.NSObject)
+        case tuple(a: Swift.Int, b: Swift.Double)
+        case empty
+    }
+    enum MultiPayloadEnumTests1 {
+        case string(Swift.String)
+        case data(Foundation.Data)
+        case nsNumber(__C.Decimal)
+        case date(Foundation.Date)
+        case url(Foundation.URL)
+        case attributedString(Foundation.AttributedString)
+    }
+    enum MultiPayloadEnumTests2 {
+        case string(Swift.String)
+        case data(Foundation.Data)
+        case nsNumber(__C.NSNumber)
+        case nsNumber1(__C.NSNumber)
+        case nsNumber2(__C.NSNumber)
+        case nsNumber3(__C.NSNumber)
+        case nsNumber4(__C.NSNumber)
+        case nsNumber5(__C.NSNumber)
+    }
+    enum NoPayloadEnumTest {
+        case north
+        case south
+        case east
+        case west
+
+        var hashValue: Swift.Int {
+            get
+        }
+
+        func hash(into: inout Swift.Hasher)
+
+        static func == (_: SymbolTestsCore.Enums.NoPayloadEnumTest, _: SymbolTestsCore.Enums.NoPayloadEnumTest) -> Swift.Bool
+    }
+    enum SinglePayloadEnumTest {
+        case value(Swift.String)
+        case none
+        case error
+    }
+    enum IndirectEnumTest {
+        indirect case leaf(Swift.Int)
+        indirect case node(SymbolTestsCore.Enums.IndirectEnumTest, SymbolTestsCore.Enums.IndirectEnumTest)
+    }
+    enum PartialIndirectEnumTest {
+        case leaf(Swift.Int)
+        indirect case node(SymbolTestsCore.Enums.PartialIndirectEnumTest, SymbolTestsCore.Enums.PartialIndirectEnumTest)
+        indirect case chain(SymbolTestsCore.Enums.PartialIndirectEnumTest)
+    }
+    enum RawValueEnumTest {
+        case first
+        case second
+        case third
+
+        init?(rawValue: Swift.Int)
+
+        var description: Swift.String {
+            get
+        }
+        var rawValue: Swift.Int {
+            get
+        }
+
+        func doubled() -> Swift.Int
+
+        static func fromString(_: Swift.String) -> SymbolTestsCore.Enums.RawValueEnumTest?
+    }
+    enum StringRawValueEnumTest {
+        case hello
+        case world
+
+        init?(rawValue: Swift.String)
+
+        var rawValue: Swift.String {
+            get
+        }
+    }
+    enum CaseIterableEnumTest {
+        case alpha
+        case beta
+        case gamma
+
+        init?(rawValue: Swift.String)
+
+        var rawValue: Swift.String {
+            get
+        }
+
+        static var allCases: [SymbolTestsCore.Enums.CaseIterableEnumTest] {
+            get
+        }
+    }
+    enum ObjCEnumTest {
+        init?(rawValue: Swift.Int)
+
+        var rawValue: Swift.Int {
+            get
+        }
+    }
+    enum LargeFrozenEnumTest {
+        case alpha
+        case beta
+        case gamma
+        case delta
+        case epsilon
+        case zeta
+        case eta
+        case theta
+        case iota
+        case kappa
+
+        var hashValue: Swift.Int {
+            get
+        }
+
+        func hash(into: inout Swift.Hasher)
+
+        static func == (_: SymbolTestsCore.Enums.LargeFrozenEnumTest, _: SymbolTestsCore.Enums.LargeFrozenEnumTest) -> Swift.Bool
+    }
+    enum GenericPayloadEnumTest<A> {
+        case first(A)
+        case second(A, A)
+        case empty
+    }
+    enum FunctionReferenceCaseTest {
+        case first(Swift.Int)
+        case second(Swift.String)
+
+        static func selectFirst() -> (_: Swift.Int) -> SymbolTestsCore.Enums.FunctionReferenceCaseTest
+    }
+}
+enum ErrorTypes {
+    enum SimpleErrorTest {
+        case notFound
+        case invalid
+        case unknown
+
+        var hashValue: Swift.Int {
+            get
+        }
+
+        func hash(into: inout Swift.Hasher)
+
+        static func == (_: SymbolTestsCore.ErrorTypes.SimpleErrorTest, _: SymbolTestsCore.ErrorTypes.SimpleErrorTest) -> Swift.Bool
+    }
+    enum AssociatedValueErrorTest {
+        case withMessage(Swift.String)
+        case withCode(Swift.Int)
+        case withContext(message: Swift.String, code: Swift.Int, underlying: Swift.Error?)
+    }
+    struct LocalizedErrorTest {
+        let errorDescription: Swift.String?
+        let failureReason: Swift.String?
+        let recoverySuggestion: Swift.String?
+        let helpAnchor: Swift.String?
+
+        init(description: Swift.String, reason: Swift.String, suggestion: Swift.String, helpAnchor: Swift.String)
+    }
+    struct CustomNSErrorTest {
+        let errorCode: Swift.Int
+        let errorUserInfo: [Swift.String : Any]
+
+        init(errorCode: Swift.Int, errorUserInfo: [Swift.String : Any])
+
+        static var errorDomain: Swift.String {
+            get
+        }
+    }
+    struct SendableErrorTest {
+        let identifier: Swift.Int
+        let descriptionText: Swift.String
+
+        init(identifier: Swift.Int, descriptionText: Swift.String)
+    }
+}
+enum ExistentialAny {
+    struct ExistentialFieldTest {
+        var simpleExistential: SymbolTestsCore.Protocols.ProtocolTest
+        var compositionExistential: SymbolTestsCore.Protocols.ProtocolTest
+        var optionalExistential: SymbolTestsCore.Protocols.ProtocolTest?
+        var existentialArray: [SymbolTestsCore.Protocols.ProtocolTest]
+        var existentialDictionary: [Swift.String : SymbolTestsCore.Protocols.ProtocolTest]
+        var existentialFunction: (_: SymbolTestsCore.Protocols.ProtocolTest) -> ()
+
+        init(simpleExistential: SymbolTestsCore.Protocols.ProtocolTest, compositionExistential: Swift.Sendable & SymbolTestsCore.Protocols.ProtocolTest, optionalExistential: SymbolTestsCore.Protocols.ProtocolTest?, existentialArray: [SymbolTestsCore.Protocols.ProtocolTest], existentialDictionary: [Swift.String : SymbolTestsCore.Protocols.ProtocolTest], existentialFunction: (_: SymbolTestsCore.Protocols.ProtocolTest) -> ())
+    }
+    struct ExistentialClassBoundTest {
+        var classBound: SymbolTestsCore.Protocols.ClassBoundProtocolTest
+        var anyObjectReference: Swift.AnyObject
+
+        init(classBound: SymbolTestsCore.Protocols.ClassBoundProtocolTest, anyObjectReference: Swift.AnyObject)
+    }
+}
+enum Extensions {
+    struct ExtensionBaseStruct<A> {
+        var element: A
+
+        init(element: A)
+    }
+    struct ExtensionConstrainedStruct<A> {
+        var element: A
+
+        init(element: A)
+    }
+    protocol ExtensionProtocol {
+        associatedtype Item
+
+        var item: Self.Item {
+            get
+        }
+    }
+}
+enum FieldDescriptorVariants {
+    struct VarLetFieldTest {
+        var mutableField: Swift.Int
+        let immutableField: Swift.String
+        var mutableOptional: Swift.Double?
+        let immutableOptional: Swift.Int?
+
+        init(mutableField: Swift.Int, immutableField: Swift.String, mutableOptional: Swift.Double?, immutableOptional: Swift.Int?)
+    }
+    class ReferenceFieldTest {
+        weak var weakField: Swift.AnyObject?
+        var unownedField: 
+        var unownedUnsafeField: 
+        var strongField: Swift.AnyObject
+
+        init(reference: Swift.AnyObject)
+    }
+    struct MangledNameVariantsTest<A> {
+        var concreteInt: Swift.Int
+        var concreteString: Swift.String
+        var genericElement: A
+        var arrayOfElement: [A]
+        var dictionaryOfElement: [Swift.String : A]
+        var optionalElement: A?
+        var tupleField: (Swift.Int, A)
+        var functionField: (_: A) -> Swift.Int
+
+        init(concreteInt: Swift.Int, concreteString: Swift.String, genericElement: A, arrayOfElement: [A], dictionaryOfElement: [Swift.String : A], optionalElement: A?, tupleField: (Swift.Int, A), functionField: (_: A) -> Swift.Int)
+    }
+}
+enum Frozen {
+    struct FrozenTest {
+        var x: Swift.Int
+        var y: Swift.Double
+
+        init(x: Swift.Int, y: Swift.Double)
+    }
+    enum FrozenEnumTest {
+        case integer(Swift.Int)
+        case string(Swift.String)
+        case pair(Swift.Int, Swift.Double)
+        case empty
+    }
+    struct InlinableMethodTest {
+        var value: Swift.Int
+
+        init(value: Swift.Int)
+
+        func doubled() -> Swift.Int
+        func added(_: Swift.Int) -> Swift.Int
+    }
+    struct UsableFromInlineType {
+        var field: Swift.Int
+
+        init(field: Swift.Int)
+
+        func method() -> Swift.Int
+    }
+}
+enum FrozenResilienceContrast {
+    struct FrozenStructTest {
+        var firstField: Swift.Int
+        var secondField: Swift.Double
+        var thirdField: Swift.String
+
+        init(firstField: Swift.Int, secondField: Swift.Double, thirdField: Swift.String)
+    }
+    struct ResilientStructTest {
+        var firstField: Swift.Int
+        var secondField: Swift.Double
+        var thirdField: Swift.String
+
+        init(firstField: Swift.Int, secondField: Swift.Double, thirdField: Swift.String)
+    }
+    enum FrozenEnumContrastTest {
+        case integer(Swift.Int)
+        case string(Swift.String)
+        case pair(Swift.Int, Swift.Double)
+        case empty
+    }
+    enum ResilientEnumContrastTest {
+        case integer(Swift.Int)
+        case string(Swift.String)
+        case pair(Swift.Int, Swift.Double)
+        case empty
+    }
+    struct FrozenGenericTest<A> {
+        var element: A
+        var count: Swift.Int
+
+        init(element: A, count: Swift.Int)
+        init(element: A, count: Swift.Int)
+    }
+    struct ResilientGenericTest<A> {
+        var element: A
+        var count: Swift.Int
+
+        init(element: A, count: Swift.Int)
+    }
+}
+enum FunctionFeatures {
+    struct InoutFunctionTest {
+        var value: Swift.Int
+
+        func increment()
+
+        static func swap(_: inout Swift.Int, _: inout Swift.Int)
+        static func modify(_: inout Swift.Int, by: Swift.Int)
+    }
+    class ClosureParameterTest {
+        var storedCallbacks: [() -> ()]
+
+        func acceptEscaping(_: () -> ())
+        func acceptAutoclosure(_: @autoclosure () -> Swift.Bool) -> Swift.Bool
+        func acceptEscapingAutoclosure(_: @autoclosure () -> Swift.Bool)
+        func acceptEscaping(_: () -> ())
+    }
+    struct VariadicFunctionTest {
+        func format(_: Swift.String, _: Swift.CVarArg...) -> Swift.String
+        func sum(_: Swift.Int...) -> Swift.Int
+    }
+    struct ConventionFunctionTest {
+        func acceptCFunction(_: @convention(c) (Swift.Int32, Swift.Int32) -> Swift.Int32) -> Swift.Int32
+        func acceptBlockFunction(_: @convention(block) (_: Swift.Int32) -> Swift.Int32) -> Swift.Int32
+    }
+    struct ExistentialAndMetatypeTest {
+        func returnExistential() -> Swift.Sendable & SymbolTestsCore.Protocols.ProtocolTest
+        func acceptMetatype(_: Any.Type) -> Swift.String
+        func acceptExistentialCollection(_: [SymbolTestsCore.Protocols.ProtocolTest]) -> Swift.Int
+        func acceptProtocolMetatype(_: SymbolTestsCore.Protocols.ProtocolTest.Protocol) -> Swift.Bool
+        func acceptExistential(_: SymbolTestsCore.Protocols.ProtocolTest)
+        func acceptComposition(_: Swift.Sendable & SymbolTestsCore.Protocols.ProtocolTest)
+    }
+    struct FailableInitTest {
+        let value: Swift.Int
+
+        init?(value: Swift.Int)
+        init?(unsafeValue: Swift.Int)
+    }
+    struct MainActorClosureTest {
+        func acceptMainActorAsync(_: @Swift.MainActor @Sendable () async -> ())
+        func acceptMainActorClosure(_: @Swift.MainActor @Sendable () -> ())
+    }
+    struct DefaultParameterFunctionTest {
+        func defaultMethod(value: Swift.Int, label: Swift.String, flag: Swift.Bool) -> Swift.String
+
+        static func staticDefault(first: Swift.Int, second: Swift.Int) -> Swift.Int
+    }
+}
+enum FunctionTypes {
+    struct FunctionFieldTest {
+        var simpleFunction: (_: Swift.Int) -> Swift.Int
+        var multiArgumentFunction: (Swift.Int, Swift.String, Swift.Bool) -> Swift.Double
+        var throwingFunction: () throws -> Swift.Int
+        var asyncFunction: nonisolated(nonsending) () async -> Swift.String
+        var asyncThrowingFunction: nonisolated(nonsending) () async throws -> Swift.Int
+
+        init(simpleFunction: (_: Swift.Int) -> Swift.Int, multiArgumentFunction: (Swift.Int, Swift.String, Swift.Bool) -> Swift.Double, throwingFunction: () throws -> Swift.Int, asyncFunction: nonisolated(nonsending) () async -> Swift.String, asyncThrowingFunction: nonisolated(nonsending) () async throws -> Swift.Int)
+    }
+    struct HigherOrderFunctionTest {
+        func acceptFunctionReturningFunction(_: (_: Swift.Int) -> (_: Swift.Double) -> Swift.String) -> Swift.String
+        func returnFunctionReturningFunction() -> (_: Swift.Int) -> (_: Swift.Double) -> Swift.String
+        func curriedFunction(_: Swift.Int) -> (_: Swift.Double) -> (_: Swift.String) -> Swift.Bool
+    }
+    struct FunctionTypealiasTest {
+        var transformer: (_: Swift.Int) -> Swift.String
+        var predicate: (_: Swift.Int) -> Swift.Bool
+        var biFunction: (Swift.Int, Swift.String) -> Swift.Bool
+
+        init(transformer: (_: Swift.Int) -> Swift.String, predicate: (_: Swift.Int) -> Swift.Bool, biFunction: (Swift.Int, Swift.String) -> Swift.Bool)
+    }
+}
+enum GenericFieldLayout {
+    struct GenericStructNonRequirement<A> {
+        var field1: Swift.Double
+        var field2: A
+        var field3: Swift.Int
+    }
+    struct GenericStructLayoutRequirement<A> where A: AnyObject {
+        var field1: Swift.Double
+        var field2: A
+        var field3: Swift.Int
+    }
+    struct GenericStructSwiftProtocolRequirement<A> where A: Swift.Equatable {
+        var field1: Swift.Double
+        var field2: A
+        var field3: Swift.Int
+    }
+    struct GenericStructObjCProtocolRequirement<A> where A: __C.NSCopying {
+        var field1: Swift.Double
+        var field2: A
+        var field3: Swift.Int
+    }
+    class GenericClassNonRequirement<A> {
+        var field1: Swift.Double
+        var field2: A
+        var field3: Swift.Int
+
+        init(field1: Swift.Double, field2: A, field3: Swift.Int)
+    }
+    class GenericClassLayoutRequirement<A> where A: AnyObject {
+        var field1: Swift.Double
+        var field2: A
+        var field3: Swift.Int
+
+        init(field1: Swift.Double, field2: A, field3: Swift.Int)
+    }
+    class GenericClassNonRequirementInheritNSObject<A>: __C.NSObject {
+        var field1: Swift.Double
+        var field2: A
+        var field3: Swift.Int
+
+        @objc init(field1: Swift.Double, field2: A, field3: Swift.Int)
+        @objc init()
+    }
+    class GenericClassLayoutRequirementInheritNSObject<A>: __C.NSObject where A: AnyObject {
+        var field1: Swift.Double
+        var field2: A
+        var field3: Swift.Int
+
+        @objc init(field1: Swift.Double, field2: A, field3: Swift.Int)
+        @objc init()
+    }
+}
+enum GenericRequirementVariants {
+    struct ProtocolRequirementTest<A> where A: SymbolTestsCore.Protocols.ProtocolTest {
+        var element: A
+
+        init(element: A)
+    }
+    struct SameTypeRequirementTest<A, B> where A == B {
+        var first: A
+        var second: A
+
+        init(first: A, second: A)
+    }
+    class GenericBaseClassForRequirementTest {
+        var baseField: Swift.Int
+
+        init()
+    }
+    struct BaseClassRequirementTest<A> where A: SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest {
+        var element: A
+
+        init(element: A)
+    }
+    struct LayoutAnyObjectRequirementTest<A> where A: AnyObject {
+        var element: A
+
+        init(element: A)
+    }
+    struct ParameterPackRequirementTest<each A> {
+        var elements: (repeat A)
+
+        init(elements: (repeat A))
+    }
+    struct ConstrainedParameterPackTest<each A> where repeat each A: SymbolTestsCore.Protocols.ProtocolTest {
+        var elements: (repeat A)
+
+        init(elements: (repeat A))
+    }
+    struct InvertibleProtocolRequirementTest<A>: ~Swift.Copyable where A: ~Swift.Copyable {
+        var element: A
+    }
+}
+enum Generics {
+    struct GenericRequirementTest<A> where A: SymbolTestsCore.Protocols.ProtocolTest {
+        var content: A
+
+        init(content: A)
 
         var body: A {
             get
         }
-    }
-    var variable: some {
-        get
-    }
 
-    func function<A>() -> some where A: SymbolTestsCore.ProtocolTest
-    func functionTuple<A>() -> (some, A?) where A: SymbolTestsCore.ProtocolTest
-    func functionWhere<A, B>() -> (some, (some)?, some)? where A: SymbolTestsCore.ProtocolTest, B == B.Body, A.Body == SymbolTestsCore.GenericRequirementTest<B>
-    func functionNested<A, B>(_: A, _: B) -> (some, (some)?, some)? where A: Swift.Equatable, A: SymbolTestsCore.ProtocolTest, B: Swift.Equatable, B == B.ProtocolTest.Body, A.ProtocolTest.Body == SymbolTestsCore.GenericRequirementTest<B>
-    func functionOptional<A>() -> (some)? where A: SymbolTestsCore.ProtocolTest
-}
-enum ProtocolPrimaryAssociatedTypeFirst {
-    var body: SymbolTestsCore.ProtocolPrimaryAssociatedTypeFirst {
-        get
+        static func test(lhs: A, rhs: SymbolTestsCore.Generics.GenericRequirementTest<A>) -> Swift.Bool
     }
-}
-enum ProtocolPrimaryAssociatedTypeSecond {
-    var body: SymbolTestsCore.ProtocolPrimaryAssociatedTypeFirst {
-        get
+    struct GenericPackTest<A, each B, C> where repeat each B: SymbolTestsCore.Protocols.ProtocolTest {
+        var _content: (repeat B)
+
+        var body: Swift.Never {
+            get
+        }
     }
-}
-enum UnderlyingPrimaryAssociatedTypeTest<A, B> where A: SymbolTestsCore.ProtocolTest, B: SymbolTestsCore.ProtocolTest, A.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body == B.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body {
-    case none
+    struct GenericValueTest<A, let b: Int, C> {
+        var content: C
 
-    var hashValue: Swift.Int {
-        get
+        var body: Swift.Never {
+            get
+        }
+
+        func function(value: C) -> Swift.Bool
     }
+    struct GenericNestedFunction<A, B> {
+        let a: A
+        let b: B
 
-    func hash(into: inout Swift.Hasher)
-
-    static func == (_: SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest<A, B>, _: SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest<A, B>) -> Swift.Bool
-}
-struct OpaquePrimaryAssociatedTypeReturnTypeTest {
-    var body: some {
-        get
+        func function<A1, B1>(a: A1, b: B1)
     }
 }
-struct GenericStructNonRequirement<A> {
-    var field1: Swift.Double
-    var field2: A
-    var field3: Swift.Int
-}
-struct GenericStructLayoutRequirement<A> where A: AnyObject {
-    var field1: Swift.Double
-    var field2: A
-    var field3: Swift.Int
-}
-class GenericClassNonRequirement<A> {
-    var field1: Swift.Double
-    var field2: A
-    var field3: Swift.Int
+enum Initializers {
+    struct CustomInitializerError {
+        let reason: Swift.String
 
-    init(field1: Swift.Double, field2: A, field3: Swift.Int)
-}
-class GenericClassLayoutRequirement<A> where A: AnyObject {
-    var field1: Swift.Double
-    var field2: A
-    var field3: Swift.Int
+        init(reason: Swift.String)
+    }
+    class ConvenienceInitializerTest {
+        let primaryValue: Swift.Int
+        let secondaryValue: Swift.String
 
-    init(field1: Swift.Double, field2: A, field3: Swift.Int)
-}
-class GenericClassNonRequirementInheritNSObject<A>: __C.NSObject {
-    var field1: Swift.Double
-    var field2: A
-    var field3: Swift.Int
+        init(primaryValue: Swift.Int)
+        init()
+        init(primaryValue: Swift.Int, secondaryValue: Swift.String)
+    }
+    class RequiredInitializerTest {
+        let value: Swift.Int
 
-    init(field1: Swift.Double, field2: A, field3: Swift.Int)
-    init()
-}
-class GenericClassLayoutRequirementInheritNSObject<A>: __C.NSObject where A: AnyObject {
-    var field1: Swift.Double
-    var field2: A
-    var field3: Swift.Int
+        init()
+        init(value: Swift.Int)
+    }
+    class RequiredInitializerSubclass: SymbolTestsCore.Initializers.RequiredInitializerTest {
+        let extraValue: Swift.String
 
-    init(field1: Swift.Double, field2: A, field3: Swift.Int)
-    init()
-}
+        override init(value: Swift.Int)
+        override init()
+    }
+    struct FailableInitializerTest {
+        let value: Swift.Int
 
-protocol ProtocolTest where Self.Body: SymbolTestsCore.ProtocolTest {
-    associatedtype Body
+        init?(value: Swift.Int)
+        init?(unsafe: Swift.Int)
+    }
+    struct TypedThrowingInitializerTest {
+        let value: Swift.Int
 
-    // protocol witness table offset: 0x18
-    var body: Self.Body {
-        get
+        init(value: Swift.Int) throws(SymbolTestsCore.Initializers.CustomInitializerError)
+    }
+    actor AsyncInitializerActorTest {
+        var $defaultActor: 
+        let identifier: Swift.Int
+
+        init(identifier: Swift.Int) async
+
+        var unownedExecutor: Swift.UnownedSerialExecutor {
+            get
+        }
     }
 }
-protocol TestCollection {
-    associatedtype Element
+enum KeyPaths {
+    struct KeyPathHolderTest {
+        var readOnlyKeyPath: Swift.KeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>
+        var writableKeyPath: Swift.WritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>
+        var referenceWritableKeyPath: Swift.ReferenceWritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathReferenceTest, Swift.String>
+        var partialKeyPath: Swift.PartialKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest>
+        var anyKeyPath: Swift.AnyKeyPath
+        var value: Swift.Int
+        var text: Swift.String
+
+        init(readOnlyKeyPath: Swift.KeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>, writableKeyPath: Swift.WritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>, referenceWritableKeyPath: Swift.ReferenceWritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathReferenceTest, Swift.String>, partialKeyPath: Swift.PartialKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest>, anyKeyPath: Swift.AnyKeyPath, value: Swift.Int, text: Swift.String)
+    }
+    class KeyPathReferenceTest {
+        var mutableText: Swift.String
+        var mutableInteger: Swift.Int
+
+        init()
+    }
+    struct KeyPathFactoryTest<A, B> {
+        var keyPathProducer: (_: A) -> Swift.KeyPath<A, B>
+
+        init(keyPathProducer: (_: A) -> Swift.KeyPath<A, B>)
+    }
 }
-protocol ProtocolPrimaryAssociatedTypeTest where Self.First: SymbolTestsCore.ProtocolTest, Self.Second: SymbolTestsCore.ProtocolTest, Self.First.Body.Body.Body.Body.Body.Body == Self.Second.Body.Body.Body.Body.Body.Body {
-    associatedtype First
-    associatedtype Second
+enum MarkerProtocols {
+    struct MarkerConformingStructTest {
+        var value: Swift.Int
+
+        init(value: Swift.Int)
+    }
+    class MarkerConformingClassTest {
+        var label: Swift.String
+
+        init(label: Swift.String)
+    }
+    enum MarkerConformingEnumTest {
+        case first
+        case second
+
+        var hashValue: Swift.Int {
+            get
+        }
+
+        func hash(into: inout Swift.Hasher)
+
+        static func == (_: SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest, _: SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest) -> Swift.Bool
+    }
+    protocol MarkerProtocolTest {}
+    protocol EmptyMarkerProtocolTest {}
+    protocol ClassBoundMarkerProtocol: AnyObject {}
+    protocol InheritingMarkerProtocol: SymbolTestsCore.MarkerProtocols.MarkerProtocolTest {}
 }
-protocol ProtocolWitnessTableTest {
-    // protocol witness table offset: 0x8
-    func a()
-    // protocol witness table offset: 0x10
-    func b()
-    // protocol witness table offset: 0x18
-    func c()
-    // protocol witness table offset: 0x20
-    func d()
-    // protocol witness table offset: 0x28
-    func e()
+enum MetatypeUsage {
+    struct MetatypeFieldTest {
+        var concreteMetatype: Swift.Int.Type
+        var anyMetatype: Any.Type
+        var protocolMetatype: SymbolTestsCore.Protocols.ProtocolTest.Type
+        var anyObjectMetatype: Swift.AnyObject.Type
+
+        init(concreteMetatype: Swift.Int.Type, anyMetatype: Any.Type, protocolMetatype: SymbolTestsCore.Protocols.ProtocolTest.Type, anyObjectMetatype: Swift.AnyObject.Type)
+    }
+    struct MetatypeFunctionTest {
+        func acceptProtocolMetatype(_: SymbolTestsCore.Protocols.ProtocolTest.Type) -> Swift.String
+        func dynamicType<A>(of: A) -> A.Type
+        func acceptMetatype<A>(_: A.Type) -> A.Type
+        func returnMetatype() -> SymbolTestsCore.MetatypeUsage.MetatypeFunctionTest.Type
+    }
+}
+enum NestedFunctions {
+    struct NestedFunctionHolderTest {
+        class LocalClass {
+            var label: Swift.String
+        }
+        func outerFunction(parameter: Swift.Int) -> Swift.Int
+        func outerGenericFunction<A>(element: A) -> [A]
+        func outerWithLocalType() -> Swift.Int
+        func outerWithLocalClass() -> Swift.String
+    }
+}
+enum NestedGenerics {
+    struct OuterGenericTest<A> {
+        struct InnerGenericTest<A1> {
+            struct InnerMostGenericTest {
+                var outer: A
+                var inner: A1
+                var innerMost: A2
+
+                init(outer: A, inner: A1, innerMost: A2)
+            }
+        }
+    }
+    struct NestedGenericWithConstraintsTest<A> where A: Swift.Comparable {
+        struct InnerConstrainedTest<A1> where A1: Swift.Hashable {
+            var outer: A
+            var inner: A1
+
+            init(outer: A, inner: A1)
+        }
+    }
+    struct NestedTypealiasGenericTest<A> {
+        var elements: [A]
+
+        init(elements: [A])
+    }
+}
+enum Noncopyable {
+    struct NoncopyableTest: ~Swift.Copyable {
+        var value: Swift.Int
+
+        init(value: Swift.Int)
+
+        func borrow() -> Swift.Int
+        func mutate()
+        func consume() -> Swift.Int
+    }
+    enum NoncopyableEnumTest: ~Swift.Copyable {
+        case value(Swift.Int)
+        case empty
+
+        func unwrap() -> Swift.Int
+    }
+    struct NoncopyableGenericTest<A>: ~Swift.Copyable where A: ~Swift.Copyable {
+        let value: A
+    }
+}
+enum OpaqueReturnTypes {
+    struct OpaqueReturnTypeTest {
+        struct AnyProtocolTest<A, B> where A: SymbolTestsCore.Protocols.ProtocolTest, B == B.ProtocolTest.Body, A.ProtocolTest.Body == SymbolTestsCore.Generics.GenericRequirementTest<B> {
+            init()
+
+            var body: A {
+                get
+            }
+        }
+        var variable: some {
+            get
+        }
+
+        func function<A>() -> some where A: SymbolTestsCore.Protocols.ProtocolTest
+        func functionTuple<A>() -> (some, A?) where A: SymbolTestsCore.Protocols.ProtocolTest
+        func functionWhere<A, B>() -> (some, (some)?, some)? where A: SymbolTestsCore.Protocols.ProtocolTest, B == B.Body, A.Body == SymbolTestsCore.Generics.GenericRequirementTest<B>
+        func functionNested<A, B>(_: A, _: B) -> (some, (some)?, some)? where A: Swift.Equatable, A: SymbolTestsCore.Protocols.ProtocolTest, B: Swift.Equatable, B == B.ProtocolTest.Body, A.ProtocolTest.Body == SymbolTestsCore.Generics.GenericRequirementTest<B>
+        func functionOptional<A>() -> (some)? where A: SymbolTestsCore.Protocols.ProtocolTest
+    }
+    enum ProtocolPrimaryAssociatedTypeFirst {
+        var body: SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst {
+            get
+        }
+    }
+    enum ProtocolPrimaryAssociatedTypeSecond {
+        var body: SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst {
+            get
+        }
+    }
+    enum UnderlyingPrimaryAssociatedTypeTest<A, B> where A: SymbolTestsCore.Protocols.ProtocolTest, B: SymbolTestsCore.Protocols.ProtocolTest, A.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body == B.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body {
+        case none
+
+        var hashValue: Swift.Int {
+            get
+        }
+
+        func hash(into: inout Swift.Hasher)
+
+        static func == (_: SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest<A, B>, _: SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest<A, B>) -> Swift.Bool
+    }
+    struct OpaquePrimaryAssociatedTypeReturnTypeTest {
+        var body: some {
+            get
+        }
+    }
+    protocol ProtocolPrimaryAssociatedTypeTest where Self.First: SymbolTestsCore.Protocols.ProtocolTest, Self.Second: SymbolTestsCore.Protocols.ProtocolTest, Self.First.Body.Body.Body.Body.Body.Body == Self.Second.Body.Body.Body.Body.Body.Body {
+        associatedtype First
+        associatedtype Second
+    }
+}
+enum Operators {
+    struct OperatorTestType {
+        var value: Swift.Int
+
+        init(value: Swift.Int)
+
+        static func + (_: SymbolTestsCore.Operators.OperatorTestType, _: SymbolTestsCore.Operators.OperatorTestType) -> SymbolTestsCore.Operators.OperatorTestType
+        static func - (_: SymbolTestsCore.Operators.OperatorTestType, _: SymbolTestsCore.Operators.OperatorTestType) -> SymbolTestsCore.Operators.OperatorTestType
+        static func * (_: SymbolTestsCore.Operators.OperatorTestType, _: SymbolTestsCore.Operators.OperatorTestType) -> SymbolTestsCore.Operators.OperatorTestType
+        static func - (_: SymbolTestsCore.Operators.OperatorTestType) -> SymbolTestsCore.Operators.OperatorTestType
+        static func += (_: inout SymbolTestsCore.Operators.OperatorTestType, _: SymbolTestsCore.Operators.OperatorTestType)
+        static func < (_: SymbolTestsCore.Operators.OperatorTestType, _: SymbolTestsCore.Operators.OperatorTestType) -> Swift.Bool
+        static func <=> (_: SymbolTestsCore.Operators.OperatorTestType, _: SymbolTestsCore.Operators.OperatorTestType) -> Swift.Int
+        static func == (_: SymbolTestsCore.Operators.OperatorTestType, _: SymbolTestsCore.Operators.OperatorTestType) -> Swift.Bool
+    }
+}
+enum OptionSetAndRawRepresentable {
+    struct OptionSetTest {
+        let rawValue: Swift.UInt
+
+        init(rawValue: Swift.UInt)
+
+        static let all: SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
+        static var first: SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest {
+            get
+        }
+        static var second: SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest {
+            get
+        }
+        static var third: SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest {
+            get
+        }
+    }
+    struct StringRawRepresentableTest {
+        let rawValue: Swift.String
+
+        init?(rawValue: Swift.String)
+    }
+    struct IntRawRepresentableTest {
+        var rawValue: Swift.Int
+
+        init(rawValue: Swift.Int)
+    }
+    struct GenericRawRepresentableTest<A> where A: Swift.Hashable {
+        var rawValue: A
+
+        init(rawValue: A)
+    }
+}
+enum OverloadedMembers {
+    struct OverloadedMethodTest {
+        func process(_: Swift.String) -> Swift.String
+        func process<A>(_: A) -> A
+        func process<A>(equatable: A) -> Swift.Bool where A: Swift.Equatable
+        func process(_: Swift.Int, label: Swift.String) -> Swift.String
+        func process(_: Swift.Double) -> Swift.Double
+        func process(_: Swift.Int) -> Swift.Int
+        func process(_: Swift.Int, _: Swift.Int) -> Swift.Int
+    }
+    struct OverloadedInitializerTest {
+        init(_: Swift.String)
+        init<A>(element: A)
+        init(first: Swift.Int, second: Swift.Int)
+        init(_: Swift.Double)
+        init(_: Swift.Int)
+    }
+}
+enum PropertyObservers {
+    class PropertyObserverClassTest {
+        var observedValue: Swift.Int
+        var observedName: Swift.String
+
+        init()
+
+        var computedBacking: Swift.Int {
+            get
+            set
+        }
+    }
+    struct PropertyObserverStructTest {
+        var observedField: Swift.Double
+
+        init()
+    }
+}
+enum PropertyWrapperVariants {
+    @propertyWrapper
+    struct ProjectedValueWrapperTest<A> {
+        var storage: A
+
+        init(wrappedValue: A)
+
+        var projectedValue: SymbolTestsCore.PropertyWrapperVariants.ProjectedValueWrapperTest<A> {
+            get
+        }
+        var wrappedValue: A {
+            get
+            set
+        }
+    }
+    @propertyWrapper
+    struct DefaultInitializableWrapperTest {
+        var wrappedValue: Swift.Int
+
+        init(wrappedValue: Swift.Int)
+        init()
+    }
+    @propertyWrapper
+    struct StaticSubscriptWrapperTest<A, B> where A: AnyObject {
+        var storage: B
+
+        init(wrappedValue: B)
+
+        var wrappedValue: B {
+            get
+            set
+        }
+
+        static subscript(_enclosingInstance: A, wrapped: Swift.ReferenceWritableKeyPath<A, B>, storage: Swift.ReferenceWritableKeyPath<A, SymbolTestsCore.PropertyWrapperVariants.StaticSubscriptWrapperTest<A, B>>) -> B {
+            get
+            set
+        }
+    }
+}
+enum ProtocolComposition {
+    struct ProtocolCompositionFieldTest {
+        var twoComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol
+        var threeComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol & SymbolTestsCore.ProtocolComposition.ComposeThirdProtocol
+        var classBoundComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & Swift.AnyObject
+        var sendableComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol
+
+        init(twoComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol, threeComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol & SymbolTestsCore.ProtocolComposition.ComposeThirdProtocol, classBoundComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & Swift.AnyObject, sendableComposition: Swift.Sendable & SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol)
+    }
+    struct ProtocolCompositionFunctionTest {
+        func returnComposition() -> SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol
+        func acceptComposition(_: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol)
+        func genericCompositionParameter<A>(_: A) where A: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol, A: SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol
+    }
+    protocol ComposeFirstProtocol {
+        func first() -> Swift.Int
+    }
+    protocol ComposeSecondProtocol {
+        func second() -> Swift.String
+    }
+    protocol ComposeThirdProtocol {
+        func third() -> Swift.Double
+    }
+}
+enum Protocols {
+    protocol ProtocolTest where Self.Body: SymbolTestsCore.Protocols.ProtocolTest {
+        associatedtype Body
+
+        var body: Self.Body {
+            get
+        }
+
+        static var body: Self.Body? {
+            get
+        }
+    }
+    protocol ProtocolWitnessTableTest {
+        func a()
+        func b()
+        func c()
+        func d()
+        func e()
+    }
+    protocol TestCollection {
+        associatedtype Element
+    }
+    protocol BaseProtocolTest {
+        func baseMethod() -> Swift.String
+    }
+    protocol DerivedProtocolTest: SymbolTestsCore.Protocols.BaseProtocolTest {
+        func derivedMethod() -> Swift.Int
+    }
+    protocol ClassBoundProtocolTest: AnyObject {
+        var classProperty: Swift.Int {
+            get
+            set
+        }
+
+        func classMethod()
+    }
+    protocol ObjCInheritingProtocolTest: __C.NSObject {
+        func swiftMethod() -> Swift.String
+    }
+    protocol MultiInheritanceProtocolTest: SymbolTestsCore.Protocols.BaseProtocolTest, SymbolTestsCore.Protocols.ProtocolTest {
+        func multiMethod()
+    }
+    protocol ProtocolWithInitTest {
+        init()
+        init(value: Swift.Int)
+    }
+    protocol ProtocolWithSubscriptTest {
+        subscript(_: Swift.Int) -> Swift.String {
+            get
+        }
+    }
+    protocol ProtocolWithReadWriteSubscriptTest {
+        subscript(_: Swift.String) -> Swift.Int {
+            get
+            set
+        }
+    }
+    protocol ProtocolWithStaticTest {
+        static var staticProperty: Swift.Int {
+            get
+        }
+
+        static func staticMethod() -> Self
+    }
+    protocol SelfConstraintProtocolTest: AnyObject {
+        func method() -> Self
+    }
+    protocol MultiPrimaryAssociatedTypeTest {
+        associatedtype First
+        associatedtype Second
+        associatedtype Third
+    }
+}
+enum ResultBuilderDSL {
+    @resultBuilder
+    struct FullResultBuilderTest {
+        static func buildBlock(_: [Swift.Int]...) -> [Swift.Int]
+        static func buildExpression(_: Swift.Int) -> [Swift.Int]
+        static func buildOptional(_: [Swift.Int]?) -> [Swift.Int]
+        static func buildArray(_: [[Swift.Int]]) -> [Swift.Int]
+        static func buildExpression(_: [Swift.Int]) -> [Swift.Int]
+        static func buildBlock(_: [Swift.Int]...) -> [Swift.Int]
+        static func buildFinalResult(_: [Swift.Int]) -> [Swift.Int]
+        static func buildEither(first: [Swift.Int]) -> [Swift.Int]
+        static func buildEither(second: [Swift.Int]) -> [Swift.Int]
+        static func buildLimitedAvailability(_: [Swift.Int]) -> [Swift.Int]
+    }
+    @resultBuilder
+    struct GenericResultBuilderTest<A> {
+        static func buildBlock(_: [A]...) -> [A]
+        static func buildExpression(_: A) -> [A]
+        static func buildOptional(_: [A]?) -> [A]
+    }
+}
+enum RethrowingFunctions {
+    struct RethrowingHolderTest {
+        func rethrowing(_: () throws -> Swift.Int) throws -> Swift.Int
+        func asyncRethrowing(_: nonisolated(nonsending) () async throws -> Swift.Int) async throws -> Swift.Int
+        func rethrowingMap<A>(_: [A], transform: (_: A) throws -> Swift.Int) throws -> [Swift.Int]
+        func rethrowingGeneric<A, B>(_: A, transform: (_: A) throws -> B) throws -> B
+        func rethrowingWithDefault(_: () throws -> Swift.Int, defaultValue: Swift.Int) throws -> Swift.Int
+    }
+}
+enum SameTypeRequirements {
+    struct SameTypeElementTest<A, B> where A: Swift.Sequence, B: Swift.Sequence, A.Sequence.Element == B.Sequence.Element {
+        var first: A
+        var second: B
+
+        init(first: A, second: B)
+        init(first: A, second: B)
+    }
+    struct NestedSameTypeTest<A, B> where A: Swift.Collection, B: Swift.Collection, A.Sequence.Element == B.Sequence.Element, A.Collection.Index == Swift.Int, B.Collection.Index == Swift.Int {
+        var first: A
+        var second: B
+
+        init(first: A, second: B)
+    }
+    struct ChainedSameTypeTest<A, B, C> where A: SymbolTestsCore.Protocols.ProtocolTest, B == A.ProtocolTest.Body, C == B.ProtocolTest.Body {
+        var first: A
+        var second: B
+        var third: C
+
+        init(first: A, second: B, third: C)
+    }
+}
+enum StaticMembers {
+    struct StaticMemberStructTest {
+        static var computedProperty: Swift.Int {
+            get
+            set
+        }
+        static var storedConstant: Swift.Int {
+            get
+        }
+        static var storedMutable: Swift.String
+
+        static func staticMethod() -> Swift.Int
+        static func staticGenericMethod<A>(_: A) -> A
+
+        static subscript(_: Swift.Int) -> Swift.String {
+            get
+        }
+    }
+    class StaticMemberClassTest {
+        init()
+
+        static var classComputed: Swift.Int {
+            get
+        }
+        static var storedConstant: Swift.Int {
+            get
+        }
+        static var storedMutable: Swift.String
+
+        static func classMethod() -> Swift.Int
+        static func staticMethod() -> Swift.Int
+    }
+    class StaticMemberSubclassTest: SymbolTestsCore.StaticMembers.StaticMemberClassTest {
+        override init()
+
+        override static var classComputed: Swift.Int {
+            get
+        }
+
+        override static func classMethod() -> Swift.Int
+    }
+}
+enum StringInterpolations {
+    struct CustomStringInterpolationTest {
+        struct StringInterpolation {
+            var accumulator: Swift.String
+
+            init(literalCapacity: Swift.Int, interpolationCount: Swift.Int)
+
+            func appendInterpolation(_: Swift.Int)
+            func appendInterpolation(_: Swift.String)
+            func appendInterpolation<A>(_: A) where A: Swift.CustomStringConvertible
+            func appendInterpolation(formatted: Swift.Double, precision: Swift.Int)
+            func appendLiteral(_: Swift.String)
+        }
+        var storage: Swift.String
+
+        init(stringInterpolation: SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation)
+        init(stringLiteral: Swift.String)
+    }
+}
+enum Structs {
+    struct StructTest {
+        var body: some {
+            get
+        }
+
+        func a()
+        func b()
+        func c()
+        func d()
+        func e()
+
+        static var body: some {
+            get
+        }
+    }
+    enum PrivateProtocolTest {
+        case empty
+    }
+}
+enum Subscripts {
+    struct SubscriptGetSetTest {
+        subscript(_: Swift.Int) -> Swift.Int {
+            get
+            set
+        }
+    }
+    struct SubscriptMultiParamTest {
+        subscript(_: Swift.Int, _: Swift.Int) -> Swift.Int {
+            get
+        }
+    }
+    struct SubscriptStaticTest {
+        static subscript(_: Swift.Int) -> Swift.String {
+            get
+        }
+    }
+    class ClassSubscriptTest {
+        var elements: [Swift.Int]
+
+        subscript(_: Swift.Int) -> Swift.Int {
+            get
+            set
+        }
+    }
+    struct SubscriptGenericTest<A> {
+        subscript<A1>(_: A1) -> A? where A1: Swift.Hashable {
+            get
+        }
+    }
+    struct SubscriptStringKeyTest {
+        var storage: [Swift.String : Swift.Int]
+
+        subscript(_: Swift.String) -> Swift.Int? {
+            get
+            set
+        }
+    }
+}
+enum Tuples {
+    struct TupleFieldTest {
+        var namedTuple: (first: Swift.Int, second: Swift.String)
+        var unnamedTuple: (Swift.Int, Swift.Double, Swift.Bool)
+        var nestedTuple: ((Swift.Int, Swift.Int), (Swift.String, Swift.String))
+
+        init(namedTuple: (first: Swift.Int, second: Swift.String), unnamedTuple: (Swift.Int, Swift.Double, Swift.Bool), nestedTuple: ((Swift.Int, Swift.Int), (Swift.String, Swift.String)))
+    }
+    struct TupleFunctionTest {
+        func acceptTuple(_: (Swift.Int, Swift.String)) -> (Swift.Bool, Swift.Double)
+        func returnLargeTuple() -> (Swift.Int, Swift.Double, Swift.String, Swift.Bool, Swift.Int, Swift.Double)
+        func acceptNamedTuple(_: (identifier: Swift.Int, label: Swift.String)) -> (result: Swift.Bool, score: Swift.Double)
+    }
+    struct GenericTupleTest<A, B> {
+        var pair: (A, B)
+        var labeled: (left: A, right: B)
+
+        init(pair: (A, B), labeled: (left: A, right: B))
+    }
+}
+enum Typealiases {
+    struct TypealiasContainerTest<A> {
+        var element: A
+        var collection: [A]
+        var handler: (_: A) -> ()
+
+        init(element: A, collection: [A], handler: (_: A) -> ())
+    }
+    struct ConstrainedTypealiasTest<A> where A: Swift.Comparable {
+        var range: Swift.ClosedRange<A>
+
+        init(range: Swift.ClosedRange<A>)
+    }
+}
+enum UnsafePointers {
+    struct UnsafePointerFieldTest {
+        var readPointer: Swift.UnsafePointer<Swift.Int>
+        var mutablePointer: Swift.UnsafeMutablePointer<Swift.Int>
+        var rawPointer: Swift.UnsafeRawPointer
+        var mutableRawPointer: Swift.UnsafeMutableRawPointer
+        var bufferPointer: Swift.UnsafeBufferPointer<Swift.Int>
+        var mutableBufferPointer: Swift.UnsafeMutableBufferPointer<Swift.Int>
+        var rawBufferPointer: Swift.UnsafeRawBufferPointer
+        var opaquePointer: Swift.OpaquePointer
+
+        init(readPointer: Swift.UnsafePointer<Swift.Int>, mutablePointer: Swift.UnsafeMutablePointer<Swift.Int>, rawPointer: Swift.UnsafeRawPointer, mutableRawPointer: Swift.UnsafeMutableRawPointer, bufferPointer: Swift.UnsafeBufferPointer<Swift.Int>, mutableBufferPointer: Swift.UnsafeMutableBufferPointer<Swift.Int>, rawBufferPointer: Swift.UnsafeRawBufferPointer, opaquePointer: Swift.OpaquePointer)
+    }
+    struct UnmanagedFieldTest {
+        var unmanagedReference: Swift.Unmanaged<Swift.AnyObject>
+
+        init(unmanagedReference: Swift.Unmanaged<Swift.AnyObject>)
+    }
+    struct AutoreleasingPointerFieldTest {
+        var autoreleasing: Swift.AutoreleasingUnsafeMutablePointer<Swift.AnyObject?>
+
+        init(autoreleasing: Swift.AutoreleasingUnsafeMutablePointer<Swift.AnyObject?>)
+    }
+}
+enum VTableEntryVariants {
+    class VTableBaseTest {
+        init()
+
+        var asyncProperty: Swift.Int {
+            get
+        }
+        var normalProperty: Swift.Int {
+            get
+            set
+        }
+        var throwingProperty: Swift.Int {
+            get
+        }
+
+        func normalMethod()
+        func overridableMethod() -> Swift.Int
+        func throwingMethod() throws -> Swift.Int
+        func asyncMethod() async -> Swift.Int
+        func asyncThrowingMethod() async throws -> Swift.Int
+        func finalMethod()
+    }
+    class VTableOverrideTest: SymbolTestsCore.VTableEntryVariants.VTableBaseTest {
+        override init()
+
+        override func overridableMethod() -> Swift.Int
+        override func throwingMethod() throws -> Swift.Int
+        func asyncMethod() async -> Swift.Int
+    }
+    class VTableFinalOverrideTest: SymbolTestsCore.VTableEntryVariants.VTableBaseTest {
+        override init()
+
+        override func overridableMethod() -> Swift.Int
+    }
+    class VTableDeepOverrideTest: SymbolTestsCore.VTableEntryVariants.VTableOverrideTest {
+        override init()
+
+        override func overridableMethod() -> Swift.Int
+        func asyncMethod() async -> Swift.Int
+    }
+}
+enum WeakUnownedReferences {
+    class ReferenceTargetTest {
+        var value: Swift.Int
+
+        init()
+    }
+    class WeakReferenceHolderTest {
+        weak var weakReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+        weak var weakAnyObject: Swift.AnyObject?
+
+        init()
+    }
+    class UnownedReferenceHolderTest {
+        var unownedReference: 
+        var unownedSafeReference: 
+        var unownedUnsafeReference: 
+
+        init(target: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest)
+    }
+    class MixedReferenceHolderTest {
+        weak var weakReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+        var unownedReference: 
+        var strongReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+
+        init(target: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest)
+    }
 }
 
-extension SymbolTestsCore.GenericRequirementTest where A: Swift.RawRepresentable, A: SymbolTestsCore.ProtocolTest {
+extension SymbolTestsCore.Generics.GenericRequirementTest where A: Swift.RawRepresentable, A: SymbolTestsCore.Protocols.ProtocolTest {
     struct RawRepresentableNestedStruct {
         struct NestedStruct {}
     }
 }
-extension SymbolTestsCore.GenericRequirementTest where A: Swift.RawRepresentable {
+extension SymbolTestsCore.Generics.GenericRequirementTest where A: Swift.RawRepresentable {
     var rawValue: A {
         get
     }
 }
-extension SymbolTestsCore.GenericRequirementTest {
+extension SymbolTestsCore.Generics.GenericRequirementTest {
     init?(rawValue: A) where A: Swift.RawRepresentable
 
-    static func == (_: SymbolTestsCore.GenericRequirementTest<A>, _: SymbolTestsCore.GenericRequirementTest<A>) -> Swift.Bool where A: Swift.Equatable
+    static func == (_: SymbolTestsCore.Generics.GenericRequirementTest<A>, _: SymbolTestsCore.Generics.GenericRequirementTest<A>) -> Swift.Bool where A: Swift.Equatable
+}
+extension SymbolTestsCore.Noncopyable.NoncopyableGenericTest {
+    init(value: A) where A: ~Swift.Copyable
+}
+extension SymbolTestsCore.GenericRequirementVariants.InvertibleProtocolRequirementTest where A: ~Swift.Copyable {}
+extension SymbolTestsCore.GenericRequirementVariants.InvertibleProtocolRequirementTest {
+    init(element: A) where A: ~Swift.Copyable
+}
+extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest where A: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+}
+extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest {
+    func hash(into: inout Swift.Hasher) where A: Swift.Hashable
+
+    static func == (_: SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest<A>, _: SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest<A>) -> Swift.Bool where A: Swift.Equatable
+    static func < (_: SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest<A>, _: SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest<A>) -> Swift.Bool where A: Swift.Comparable
 }
 extension Swift.Never {
     var body: Swift.Never {
@@ -231,53 +2032,127 @@ extension Swift.Never {
     func next() -> Swift.Never?
     func makeIterator() -> Swift.Never
 }
-extension Swift.Sequence {
-    func withContiguousStorageIfAvailable<Self>(_: (_: Swift.UnsafeBufferPointer<Self.Element>) throws -> A1) throws -> A1?
-}
-extension SymbolTestsCore.ProtocolTest {
-    static func test(lhs: Self.Body, rhs: Self) -> Swift.Bool
-}
-extension SymbolTestsCore.StructTest: SymbolTestsCore.ProtocolTest {
-    typealias Body = Swift.Never
-}
-extension SymbolTestsCore.StructTest: SymbolTestsCore.ProtocolWitnessTableTest {}
-extension SymbolTestsCore.GenericRequirementTest: SymbolTestsCore.ProtocolTest {
-    typealias Body = A
-}
-extension SymbolTestsCore.GenericRequirementTest: Swift.RawRepresentable where A: Swift.RawRepresentable {
-    typealias RawValue = A
-
-    init?(rawValue: Self.RawValue)
-
-    var body: Self.Body {
+extension SymbolTestsCore.Extensions.ExtensionConstrainedStruct where A: Swift.Hashable {
+    var item: A {
         get
     }
 }
-extension SymbolTestsCore.GenericRequirementTest: Swift.Equatable where A: Swift.Equatable {
-    static func == (_: Self, _: Self) -> Swift.Bool
+extension SymbolTestsCore.Extensions.ExtensionBaseStruct {
+    func isEqualTo(_: SymbolTestsCore.Extensions.ExtensionBaseStruct<A>) -> Swift.Bool where A: Swift.Equatable
+    func isLessThan(_: SymbolTestsCore.Extensions.ExtensionBaseStruct<A>) -> Swift.Bool where A: Swift.Comparable
+    func computeHash() -> Swift.Int where A: Swift.Hashable, A: Swift.Sendable
 }
-extension SymbolTestsCore.GenericPackTest: SymbolTestsCore.ProtocolTest {
-    typealias Body = Swift.Never
+extension SymbolTestsCore.Protocols.ProtocolTest {
+    static var body: Self.Body? {
+        get
+    }
+
+    static func test(lhs: Self.Body, rhs: Self) -> Swift.Bool
 }
-extension SymbolTestsCore.GenericValueTest: SymbolTestsCore.ProtocolTest {
-    typealias Body = Swift.Never
+extension SymbolTestsCore.DefaultImplementationVariants.ConstrainedDefaultProtocol {
+    func isEqualTo(_: Self.Element) -> Swift.Bool where Self.Element: Swift.Equatable
+    func isEqualTo(_: Self.Element) -> Swift.Bool where Self.Element: Swift.Equatable
+    func isLessThan(_: Self.Element) -> Swift.Bool where Self.Element: Swift.Comparable
+    func computeHash() -> Swift.Int where Self.Element: Swift.Hashable, Self.Element: Swift.Sendable
+    func identityCheck(_: Self.Element) -> Swift.Bool where Self.Element: AnyObject
 }
-extension Swift.Array: SymbolTestsCore.TestCollection {
-    typealias Element = A
+extension SymbolTestsCore.Extensions.ExtensionProtocol {
+    func matches(_: Self.Item) -> Swift.Bool where Self.Item: Swift.Equatable
+    func matches(_: Self.Item) -> Swift.Bool where Self.Item: Swift.Equatable
+    func isLessThan(_: Self.Item) -> Swift.Bool where Self.Item: Swift.Comparable
 }
-extension SymbolTestsCore.OpaqueReturnTypeTest.AnyProtocolTest: SymbolTestsCore.ProtocolTest {
-    typealias Body = A
+extension Swift.Collection {
+    func map<A1, B1>(_: (_: Self.Element) throws(B1) -> A1) throws(B1) -> [A1] where B1: Swift.Error
 }
-extension SymbolTestsCore.ProtocolPrimaryAssociatedTypeFirst: SymbolTestsCore.ProtocolTest {
-    typealias Body = SymbolTestsCore.ProtocolPrimaryAssociatedTypeFirst
+extension SymbolTestsCore.DefaultImplementationVariants.BasicDefaultProtocol {
+    func withDefaultAndGeneric<A1>(_: A1) -> A1
+    func withDefault() -> Swift.String
 }
-extension SymbolTestsCore.ProtocolPrimaryAssociatedTypeSecond: SymbolTestsCore.ProtocolTest {
-    typealias Body = SymbolTestsCore.ProtocolPrimaryAssociatedTypeFirst
+extension SymbolTestsCore.Actors.ActorTest: Swift.Actor {
+    var unownedExecutor: Swift.UnownedSerialExecutor {
+        get
+    }
 }
-extension SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest: Swift.Equatable {
-    static func == (_: Self, _: Self) -> Swift.Bool
+extension SymbolTestsCore.Actors.CustomGlobalActor: Swift.Actor {
+    var unownedExecutor: Swift.UnownedSerialExecutor {
+        get
+    }
 }
-extension SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest: Swift.Hashable {
+extension SymbolTestsCore.Actors.CustomGlobalActor: Swift.GlobalActor {
+    static var shared: Self.ActorType {
+        get
+    }
+    static var sharedUnownedExecutor: Swift.UnownedSerialExecutor {
+        get
+    }
+}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.ConcreteWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.GenericParameterWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.DependentWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
+extension SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator: Swift.AsyncIteratorProtocol {
+    func next() async throws -> Self.Element?
+    func next(isolation: isolated Swift.Actor?) async throws(Self.Failure) -> Self.Element?
+}
+extension SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest: Swift.AsyncSequence {
+    func makeAsyncIterator() -> Self.AsyncIterator
+}
+extension SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator: Swift.AsyncIteratorProtocol {
+    func next() async throws -> Self.Element?
+    func next(isolation: isolated Swift.Actor?) async throws(Self.Failure) -> Self.Element?
+}
+extension SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest: Swift.AsyncSequence {
+    func makeAsyncIterator() -> Self.AsyncIterator
+}
+extension SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest.AsyncIterator: Swift.AsyncIteratorProtocol {
+    func next() async throws -> Self.Element?
+    func next(isolation: isolated Swift.Actor?) async throws(Self.Failure) -> Self.Element?
+}
+extension SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest: Swift.AsyncSequence {
+    func makeAsyncIterator() -> Self.AsyncIterator
+}
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest: Swift.Decodable {
+    init(from: Swift.Decoder) throws
+}
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest: Swift.Encodable {
+    func encode(to: Swift.Encoder) throws
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest: Swift.Decodable {
+    init(from: Swift.Decoder) throws
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest: Swift.Encodable {
+    func encode(to: Swift.Encoder) throws
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest: Swift.Decodable {
+    init(from: Swift.Decoder) throws
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest: Swift.Encodable {
+    func encode(to: Swift.Encoder) throws
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest: Swift.Decodable {
+    init(from: Swift.Decoder) throws
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest: Swift.Encodable {
+    func encode(to: Swift.Encoder) throws
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest: Swift.Decodable {
+    init(from: Swift.Decoder) throws
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest: Swift.Encodable {
+    func encode(to: Swift.Encoder) throws
+}
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys: Swift.CustomStringConvertible {
+    var description: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys: Swift.CustomDebugStringConvertible {
+    var debugDescription: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys: Swift.Hashable {
     var hashValue: Swift.Int {
         get
     }
@@ -285,19 +2160,810 @@ extension SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest: Swift.Hashable {
     func hash(into: inout Swift.Hasher)
     func _rawHashValue(seed: Swift.Int) -> Swift.Int
 }
-extension SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest: SymbolTestsCore.ProtocolPrimaryAssociatedTypeTest {
-    typealias First = A
-    typealias Second = B
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
 }
-extension Swift.Never: SymbolTestsCore.ProtocolTest {
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys: Swift.CodingKey {
+    init?(stringValue: Swift.String)
+    init?(intValue: Swift.Int)
+
+    var intValue: Swift.Int? {
+        get
+    }
+    var stringValue: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys: Swift.CustomStringConvertible {
+    var description: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys: Swift.CustomDebugStringConvertible {
+    var debugDescription: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys: Swift.RawRepresentable {
+    typealias RawValue = Swift.String
+
+    init?(rawValue: Self.RawValue)
+
+    var rawValue: Self.RawValue {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys: Swift.CodingKey {
+    init?(stringValue: Swift.String)
+    init?(intValue: Swift.Int)
+
+    var intValue: Swift.Int? {
+        get
+    }
+    var stringValue: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys: Swift.CustomStringConvertible {
+    var description: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys: Swift.CustomDebugStringConvertible {
+    var debugDescription: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys: Swift.CodingKey {
+    init?(stringValue: Swift.String)
+    init?(intValue: Swift.Int)
+
+    var intValue: Swift.Int? {
+        get
+    }
+    var stringValue: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys: Swift.CustomStringConvertible {
+    var description: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys: Swift.CustomDebugStringConvertible {
+    var debugDescription: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys: Swift.CodingKey {
+    init?(stringValue: Swift.String)
+    init?(intValue: Swift.Int)
+
+    var intValue: Swift.Int? {
+        get
+    }
+    var stringValue: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys: Swift.CustomStringConvertible {
+    var description: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys: Swift.CustomDebugStringConvertible {
+    var debugDescription: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys: Swift.CodingKey {
+    init?(stringValue: Swift.String)
+    init?(intValue: Swift.Int)
+
+    var intValue: Swift.Int? {
+        get
+    }
+    var stringValue: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys: Swift.CustomStringConvertible {
+    var description: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys: Swift.CustomDebugStringConvertible {
+    var debugDescription: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys: Swift.CodingKey {
+    init?(stringValue: Swift.String)
+    init?(intValue: Swift.Int)
+
+    var intValue: Swift.Int? {
+        get
+    }
+    var stringValue: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys: Swift.CustomStringConvertible {
+    var description: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys: Swift.CustomDebugStringConvertible {
+    var debugDescription: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys: Swift.CodingKey {
+    init?(stringValue: Swift.String)
+    init?(intValue: Swift.Int)
+
+    var intValue: Swift.Int? {
+        get
+    }
+    var stringValue: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys: Swift.CustomStringConvertible {
+    var description: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys: Swift.CustomDebugStringConvertible {
+    var debugDescription: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys: Swift.CodingKey {
+    init?(stringValue: Swift.String)
+    init?(intValue: Swift.Int)
+
+    var intValue: Swift.Int? {
+        get
+    }
+    var stringValue: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.CollectionConformances.CustomSequenceTest.Iterator: Swift.IteratorProtocol {
+    func next() -> Self.Element?
+}
+extension SymbolTestsCore.CollectionConformances.CustomSequenceTest: Swift.Sequence {
+    var underestimatedCount: Swift.Int {
+        get
+    }
+
+    func makeIterator() -> Self.Iterator
+    func _customContainsEquatableElement(_: Self.Element) -> Swift.Bool?
+    func _copyToContiguousArray() -> Swift.ContiguousArray<Self.Element>
+    func _copyContents(initializing: Swift.UnsafeMutableBufferPointer<Self.Element>) -> (Self.Iterator, Swift.Int)
+    func withContiguousStorageIfAvailable<A1>(_: (_: Swift.UnsafeBufferPointer<Self.Element>) throws -> A1) throws -> A1?
+}
+extension SymbolTestsCore.CollectionConformances.CustomCollectionTest: Swift.Collection {
+    var count: Swift.Int {
+        get
+    }
+    var indices: Self.Indices {
+        get
+    }
+    var isEmpty: Swift.Bool {
+        get
+    }
+    var startIndex: Self.Index {
+        get
+    }
+
+    func makeIterator() -> Self.Iterator
+    func _customIndexOfEquatableElement(_: Self.Element) -> Self.Index??
+    func _customLastIndexOfEquatableElement(_: Self.Element) -> Self.Index??
+    func index(_: Self.Index, offsetBy: Swift.Int) -> Self.Index
+    func index(_: Self.Index, offsetBy: Swift.Int, limitedBy: Self.Index) -> Self.Index?
+    func distance(from: Self.Index, to: Self.Index) -> Swift.Int
+    func _failEarlyRangeCheck(_: Self.Index, bounds: Swift.Range<Self.Index>)
+    func _failEarlyRangeCheck(_: Self.Index, bounds: Swift.ClosedRange<Self.Index>)
+    func _failEarlyRangeCheck(_: Swift.Range<Self.Index>, bounds: Swift.Range<Self.Index>)
+    func index(after: Self.Index) -> Self.Index
+    func formIndex(after: inout Self.Index)
+
+    subscript(_: Swift.Range<Self.Index>) -> Self.SubSequence {
+        get
+    }
+}
+extension SymbolTestsCore.CollectionConformances.CustomCollectionTest: Swift.Sequence {
+    var count: Swift.Int {
+        get
+    }
+    var startIndex: Self.Index {
+        get
+    }
+
+    func _customContainsEquatableElement(_: Self.Element) -> Swift.Bool?
+    func _copyToContiguousArray() -> Swift.ContiguousArray<Self.Element>
+    func _copyContents(initializing: Swift.UnsafeMutableBufferPointer<Self.Element>) -> (Self.Iterator, Swift.Int)
+    func withContiguousStorageIfAvailable<A1>(_: (_: Swift.UnsafeBufferPointer<Self.Element>) throws -> A1) throws -> A1?
+}
+extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest: Swift.BidirectionalCollection {
+    func index(before: Self.Index) -> Self.Index
+    func formIndex(before: inout Self.Index)
+    func index(_: Self.Index, offsetBy: Swift.Int) -> Self.Index
+    func index(_: Self.Index, offsetBy: Swift.Int, limitedBy: Self.Index) -> Self.Index?
+    func distance(from: Self.Index, to: Self.Index) -> Swift.Int
+}
+extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest: Swift.Collection {
+    var count: Swift.Int {
+        get
+    }
+    var endIndex: Self.Index {
+        get
+    }
+    var indices: Self.Indices {
+        get
+    }
+    var isEmpty: Swift.Bool {
+        get
+    }
+    var startIndex: Self.Index {
+        get
+    }
+
+    func _customLastIndexOfEquatableElement(_: Self.Element) -> Self.Index??
+    func _customIndexOfEquatableElement(_: Self.Element) -> Self.Index??
+    func index(_: Self.Index, offsetBy: Swift.Int) -> Self.Index
+    func index(_: Self.Index, offsetBy: Swift.Int, limitedBy: Self.Index) -> Self.Index?
+    func distance(from: Self.Index, to: Self.Index) -> Swift.Int
+    func _failEarlyRangeCheck(_: Self.Index, bounds: Swift.Range<Self.Index>)
+    func _failEarlyRangeCheck(_: Self.Index, bounds: Swift.ClosedRange<Self.Index>)
+    func _failEarlyRangeCheck(_: Swift.Range<Self.Index>, bounds: Swift.Range<Self.Index>)
+    func index(after: Self.Index) -> Self.Index
+    func formIndex(after: inout Self.Index)
+
+    subscript(_: Swift.Range<Self.Index>) -> Self.SubSequence {
+        get
+    }
+}
+extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest: Swift.Sequence {
+    var count: Swift.Int {
+        get
+    }
+    var startIndex: Self.Index {
+        get
+    }
+
+    func _customContainsEquatableElement(_: Self.Element) -> Swift.Bool?
+    func _copyToContiguousArray() -> Swift.ContiguousArray<Self.Element>
+    func _copyContents(initializing: Swift.UnsafeMutableBufferPointer<Self.Element>) -> (Self.Iterator, Swift.Int)
+    func withContiguousStorageIfAvailable<A1>(_: (_: Swift.UnsafeBufferPointer<Self.Element>) throws -> A1) throws -> A1?
+}
+extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest: Swift.RandomAccessCollection {
+    func index(_: Self.Index, offsetBy: Swift.Int) -> Self.Index
+    func index(_: Self.Index, offsetBy: Swift.Int, limitedBy: Self.Index) -> Self.Index?
+    func distance(from: Self.Index, to: Self.Index) -> Swift.Int
+}
+extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest: Swift.BidirectionalCollection {
+    func index(before: Self.Index) -> Self.Index
+    func formIndex(before: inout Self.Index)
+    func index(_: Self.Index, offsetBy: Swift.Int) -> Self.Index
+    func index(_: Self.Index, offsetBy: Swift.Int, limitedBy: Self.Index) -> Self.Index?
+    func distance(from: Self.Index, to: Self.Index) -> Swift.Int
+}
+extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest: Swift.Collection {
+    var count: Swift.Int {
+        get
+    }
+    var endIndex: Self.Index {
+        get
+    }
+    var indices: Self.Indices {
+        get
+    }
+    var isEmpty: Swift.Bool {
+        get
+    }
+    var startIndex: Self.Index {
+        get
+    }
+
+    func _customIndexOfEquatableElement(_: Self.Element) -> Self.Index??
+    func _customLastIndexOfEquatableElement(_: Self.Element) -> Self.Index??
+    func index(_: Self.Index, offsetBy: Swift.Int) -> Self.Index
+    func index(_: Self.Index, offsetBy: Swift.Int, limitedBy: Self.Index) -> Self.Index?
+    func distance(from: Self.Index, to: Self.Index) -> Swift.Int
+    func _failEarlyRangeCheck(_: Self.Index, bounds: Swift.Range<Self.Index>)
+    func _failEarlyRangeCheck(_: Self.Index, bounds: Swift.ClosedRange<Self.Index>)
+    func _failEarlyRangeCheck(_: Swift.Range<Self.Index>, bounds: Swift.Range<Self.Index>)
+    func index(after: Self.Index) -> Self.Index
+    func formIndex(after: inout Self.Index)
+
+    subscript(_: Swift.Range<Self.Index>) -> Self.SubSequence {
+        get
+    }
+}
+extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest: Swift.Sequence {
+    var count: Swift.Int {
+        get
+    }
+    var startIndex: Self.Index {
+        get
+    }
+
+    func _customContainsEquatableElement(_: Self.Element) -> Swift.Bool?
+    func _copyToContiguousArray() -> Swift.ContiguousArray<Self.Element>
+    func _copyContents(initializing: Swift.UnsafeMutableBufferPointer<Self.Element>) -> (Self.Iterator, Swift.Int)
+    func withContiguousStorageIfAvailable<A1>(_: (_: Swift.UnsafeBufferPointer<Self.Element>) throws -> A1) throws -> A1?
+}
+extension SymbolTestsCore.Concurrency.TypedThrowsErrorTest: Swift.Error {
+    var _code: Swift.Int {
+        get
+    }
+    var _domain: Swift.String {
+        get
+    }
+    var _userInfo: Swift.AnyObject? {
+        get
+    }
+
+    func _getEmbeddedNSError() -> Swift.AnyObject?
+}
+extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest: Swift.Equatable where A: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest: Swift.Hashable where A: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest: Swift.Comparable where A: Swift.Comparable {
+    static func < (_: Self, _: Self) -> Swift.Bool
+    static func <= (_: Self, _: Self) -> Swift.Bool
+    static func >= (_: Self, _: Self) -> Swift.Bool
+    static func > (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest: SymbolTestsCore.ConditionalConformanceVariants.ConditionalFirstProtocol where A: SymbolTestsCore.ConditionalConformanceVariants.ConditionalFirstProtocol {}
+extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest: SymbolTestsCore.ConditionalConformanceVariants.ConditionalSecondProtocol where A: SymbolTestsCore.ConditionalConformanceVariants.ConditionalFirstProtocol, A: SymbolTestsCore.ConditionalConformanceVariants.ConditionalSecondProtocol {}
+extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest: SymbolTestsCore.ConditionalConformanceVariants.ConditionalThirdProtocol where A: SymbolTestsCore.ConditionalConformanceVariants.ConditionalFirstProtocol, A: SymbolTestsCore.ConditionalConformanceVariants.ConditionalSecondProtocol, A: SymbolTestsCore.ConditionalConformanceVariants.ConditionalThirdProtocol {}
+extension SymbolTestsCore.CustomLiterals.IntegerLiteralTest: Swift.ExpressibleByIntegerLiteral {
+    init(integerLiteral: Self.IntegerLiteralType)
+}
+extension SymbolTestsCore.CustomLiterals.StringLiteralTest: Swift.ExpressibleByStringLiteral {
+    init(stringLiteral: Self.StringLiteralType)
+}
+extension SymbolTestsCore.CustomLiterals.StringLiteralTest: Swift.ExpressibleByUnicodeScalarLiteral {
+    init(stringLiteral: Self.StringLiteralType)
+}
+extension SymbolTestsCore.CustomLiterals.StringLiteralTest: Swift.ExpressibleByExtendedGraphemeClusterLiteral {
+    init(stringLiteral: Self.StringLiteralType)
+}
+extension SymbolTestsCore.CustomLiterals.ArrayLiteralTest: Swift.ExpressibleByArrayLiteral {
+    init(arrayLiteral: Self.ArrayLiteralElement...)
+}
+extension SymbolTestsCore.CustomLiterals.DictionaryLiteralTest: Swift.ExpressibleByDictionaryLiteral {
+    init(dictionaryLiteral: (Self.Key, Self.Value)...)
+}
+extension SymbolTestsCore.CustomLiterals.BooleanLiteralTest: Swift.ExpressibleByBooleanLiteral {
+    init(booleanLiteral: Self.BooleanLiteralType)
+}
+extension SymbolTestsCore.CustomLiterals.FloatLiteralTest: Swift.ExpressibleByFloatLiteral {
+    init(floatLiteral: Self.FloatLiteralType)
+}
+extension SymbolTestsCore.CustomLiterals.NilLiteralTest: Swift.ExpressibleByNilLiteral {
+    init(nilLiteral: ())
+}
+extension SymbolTestsCore.DeinitVariants.ActorDeinitTest: Swift.Actor {
+    var unownedExecutor: Swift.UnownedSerialExecutor {
+        get
+    }
+}
+extension SymbolTestsCore.DiamondInheritance.DiamondImplementationTest: SymbolTestsCore.DiamondInheritance.DiamondBottomProtocol {}
+extension SymbolTestsCore.DiamondInheritance.DiamondImplementationTest: SymbolTestsCore.DiamondInheritance.DiamondLeftProtocol {}
+extension SymbolTestsCore.DiamondInheritance.DiamondImplementationTest: SymbolTestsCore.DiamondInheritance.DiamondRightProtocol {}
+extension SymbolTestsCore.DiamondInheritance.DiamondImplementationTest: SymbolTestsCore.DiamondInheritance.DiamondBaseProtocol {}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest: Distributed.DistributedActor {
+    var actorSystem: Self.ActorSystem {
+        get
+    }
+    var unownedExecutor: Swift.UnownedSerialExecutor {
+        get
+    }
+
+    static func resolve(id: Self.ID, using: Self.ActorSystem) throws -> Self
+}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Identifiable {
+    var id: Self.ID {
+        get
+    }
+}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Encodable {
+    func encode(to: Swift.Encoder) throws
+}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Decodable {
+    init(from: Swift.Decoder) throws
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Distributed.DistributedActor {
+    var actorSystem: Self.ActorSystem {
+        get
+    }
+    var unownedExecutor: Swift.UnownedSerialExecutor {
+        get
+    }
+
+    static func resolve(id: Self.ID, using: Self.ActorSystem) throws -> Self
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Identifiable {
+    var id: Self.ID {
+        get
+    }
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Encodable {
+    func encode(to: Swift.Encoder) throws
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Decodable {
+    init(from: Swift.Decoder) throws
+}
+extension SymbolTestsCore.Enums.NoPayloadEnumTest: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.Enums.NoPayloadEnumTest: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.Enums.RawValueEnumTest: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.Enums.RawValueEnumTest: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.Enums.RawValueEnumTest: Swift.RawRepresentable {
+    typealias RawValue = Swift.Int
+
+    init?(rawValue: Self.RawValue)
+
+    var rawValue: Self.RawValue {
+        get
+    }
+}
+extension SymbolTestsCore.Enums.StringRawValueEnumTest: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.Enums.StringRawValueEnumTest: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.Enums.StringRawValueEnumTest: Swift.RawRepresentable {
+    typealias RawValue = Swift.String
+
+    init?(rawValue: Self.RawValue)
+
+    var rawValue: Self.RawValue {
+        get
+    }
+}
+extension SymbolTestsCore.Enums.CaseIterableEnumTest: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.Enums.CaseIterableEnumTest: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.Enums.CaseIterableEnumTest: Swift.RawRepresentable {
+    typealias RawValue = Swift.String
+
+    init?(rawValue: Self.RawValue)
+
+    var rawValue: Self.RawValue {
+        get
+    }
+}
+extension SymbolTestsCore.Enums.CaseIterableEnumTest: Swift.CaseIterable {
+    typealias AllCases = [SymbolTestsCore.Enums.CaseIterableEnumTest]
+
+    static var allCases: Self.AllCases {
+        get
+    }
+}
+extension SymbolTestsCore.Enums.ObjCEnumTest: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.Enums.ObjCEnumTest: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.Enums.ObjCEnumTest: Swift.RawRepresentable {
+    typealias RawValue = Swift.Int
+
+    init?(rawValue: Self.RawValue)
+
+    var rawValue: Self.RawValue {
+        get
+    }
+}
+extension SymbolTestsCore.Enums.LargeFrozenEnumTest: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.Enums.LargeFrozenEnumTest: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.ErrorTypes.SimpleErrorTest: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.ErrorTypes.SimpleErrorTest: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.ErrorTypes.SimpleErrorTest: Swift.Error {
+    var _code: Swift.Int {
+        get
+    }
+    var _domain: Swift.String {
+        get
+    }
+    var _userInfo: Swift.AnyObject? {
+        get
+    }
+
+    func _getEmbeddedNSError() -> Swift.AnyObject?
+}
+extension SymbolTestsCore.ErrorTypes.AssociatedValueErrorTest: Swift.Error {
+    var _code: Swift.Int {
+        get
+    }
+    var _domain: Swift.String {
+        get
+    }
+    var _userInfo: Swift.AnyObject? {
+        get
+    }
+
+    func _getEmbeddedNSError() -> Swift.AnyObject?
+}
+extension SymbolTestsCore.ErrorTypes.LocalizedErrorTest: Foundation.LocalizedError {
+    var errorDescription: Swift.String? {
+        get
+    }
+    var failureReason: Swift.String? {
+        get
+    }
+    var helpAnchor: Swift.String? {
+        get
+    }
+    var recoverySuggestion: Swift.String? {
+        get
+    }
+}
+extension SymbolTestsCore.ErrorTypes.LocalizedErrorTest: Swift.Error {
+    var _code: Swift.Int {
+        get
+    }
+    var _domain: Swift.String {
+        get
+    }
+    var _userInfo: Swift.AnyObject? {
+        get
+    }
+
+    func _getEmbeddedNSError() -> Swift.AnyObject?
+}
+extension SymbolTestsCore.ErrorTypes.CustomNSErrorTest: Foundation.CustomNSError {
+    var errorCode: Swift.Int {
+        get
+    }
+    var errorUserInfo: [Swift.String : Any] {
+        get
+    }
+
+    static var errorDomain: Swift.String {
+        get
+    }
+}
+extension SymbolTestsCore.ErrorTypes.CustomNSErrorTest: Swift.Error {
+    var _code: Swift.Int {
+        get
+    }
+    var _domain: Swift.String {
+        get
+    }
+    var _userInfo: Swift.AnyObject? {
+        get
+    }
+
+    func _getEmbeddedNSError() -> Swift.AnyObject?
+}
+extension SymbolTestsCore.ErrorTypes.SendableErrorTest: Swift.Error {
+    var _code: Swift.Int {
+        get
+    }
+    var _domain: Swift.String {
+        get
+    }
+    var _userInfo: Swift.AnyObject? {
+        get
+    }
+
+    func _getEmbeddedNSError() -> Swift.AnyObject?
+}
+extension SymbolTestsCore.Extensions.ExtensionConstrainedStruct: SymbolTestsCore.Extensions.ExtensionProtocol where A: Swift.Hashable {}
+extension SymbolTestsCore.Generics.GenericRequirementTest: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.Generics.GenericRequirementTest: Swift.RawRepresentable where A: Swift.RawRepresentable {
+    init?(rawValue: Self.RawValue)
+
+    var body: Self.Body {
+        get
+    }
+}
+extension SymbolTestsCore.Generics.GenericRequirementTest: Swift.Equatable where A: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.Generics.GenericPackTest: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.Generics.GenericValueTest: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.Initializers.CustomInitializerError: Swift.Error {
+    var _code: Swift.Int {
+        get
+    }
+    var _domain: Swift.String {
+        get
+    }
+    var _userInfo: Swift.AnyObject? {
+        get
+    }
+
+    func _getEmbeddedNSError() -> Swift.AnyObject?
+}
+extension SymbolTestsCore.Initializers.AsyncInitializerActorTest: Swift.Actor {
+    var unownedExecutor: Swift.UnownedSerialExecutor {
+        get
+    }
+}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingStructTest: SymbolTestsCore.MarkerProtocols.MarkerProtocolTest {}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingStructTest: SymbolTestsCore.MarkerProtocols.EmptyMarkerProtocolTest {}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest: SymbolTestsCore.MarkerProtocols.ClassBoundMarkerProtocol {}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest: SymbolTestsCore.MarkerProtocols.InheritingMarkerProtocol {}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest: SymbolTestsCore.MarkerProtocols.MarkerProtocolTest {}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest: SymbolTestsCore.MarkerProtocols.MarkerProtocolTest {}
+extension Swift.Never: SymbolTestsCore.Protocols.ProtocolTest {
     typealias Body = Swift.Never
 }
-extension Swift.Never: Swift.IteratorProtocol {
+extension Swift.Never: @retroactive Swift.IteratorProtocol {
     typealias Element = Swift.Never
 
     func next() -> Self.Element?
 }
-extension Swift.Never: Swift.Sequence {
+extension Swift.Never: @retroactive Swift.Sequence {
     typealias Element = Swift.Never
     typealias Iterator = Swift.Never
 
@@ -309,5 +2975,346 @@ extension Swift.Never: Swift.Sequence {
     func _customContainsEquatableElement(_: Self.Element) -> Swift.Bool?
     func _copyToContiguousArray() -> Swift.ContiguousArray<Self.Element>
     func _copyContents(initializing: Swift.UnsafeMutableBufferPointer<Self.Element>) -> (Self.Iterator, Swift.Int)
-    func withContiguousStorageIfAvailable<Self>(_: (_: Swift.UnsafeBufferPointer<Self.Element>) throws -> A1) throws -> A1?
+    func withContiguousStorageIfAvailable<A1>(_: (_: Swift.UnsafeBufferPointer<Self.Element>) throws -> A1) throws -> A1?
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.AnyProtocolTest: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst: SymbolTestsCore.Protocols.ProtocolTest {
+    typealias Body = SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst
+}
+extension SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeSecond: SymbolTestsCore.Protocols.ProtocolTest {
+    typealias Body = SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst
+}
+extension SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest: SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeTest {
+    typealias First = A
+    typealias Second = B
+}
+extension SymbolTestsCore.Operators.OperatorTestType: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.OptionSet {
+    init(rawValue: Self.RawValue)
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.RawRepresentable {
+    init?(rawValue: Self.RawValue)
+
+    var rawValue: Self.RawValue {
+        get
+    }
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.SetAlgebra {
+    init()
+    init<A1>(_: __owned A1) where A1: Swift.Sequence, Self.Element == A1.Element
+
+    var isEmpty: Swift.Bool {
+        get
+    }
+
+    func isSuperset(of: Self) -> Swift.Bool
+    func union(_: __owned Self) -> Self
+    func intersection(_: Self) -> Self
+    func symmetricDifference(_: __owned Self) -> Self
+    func insert(_: __owned Self.Element) -> (inserted: Swift.Bool, memberAfterInsert: Self.Element)
+    func remove(_: Self.Element) -> Self.Element?
+    func update(with: __owned Self.Element) -> Self.Element?
+    func formUnion(_: __owned Self)
+    func formIntersection(_: Self)
+    func formSymmetricDifference(_: __owned Self)
+    func subtracting(_: Self) -> Self
+    func isSubset(of: Self) -> Swift.Bool
+    func isDisjoint(with: Self) -> Swift.Bool
+    func contains(_: Self.Element) -> Swift.Bool
+    func subtract(_: Self)
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.ExpressibleByArrayLiteral {
+    init(arrayLiteral: Self.ArrayLiteralElement...)
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.StringRawRepresentableTest: Swift.RawRepresentable {
+    init?(rawValue: Self.RawValue)
+
+    var rawValue: Self.RawValue {
+        get
+    }
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.IntRawRepresentableTest: Swift.RawRepresentable {
+    init?(rawValue: Self.RawValue)
+
+    var rawValue: Self.RawValue {
+        get
+    }
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.GenericRawRepresentableTest: Swift.RawRepresentable {
+    init?(rawValue: Self.RawValue)
+
+    var rawValue: Self.RawValue {
+        get
+    }
+}
+extension Swift.Array: SymbolTestsCore.Protocols.TestCollection {
+    typealias Element = A
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation: Swift.StringInterpolationProtocol {
+    init(literalCapacity: Swift.Int, interpolationCount: Swift.Int)
+
+    func appendLiteral(_: Self.StringLiteralType)
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest: Swift.ExpressibleByStringLiteral {
+    init(stringInterpolation: Self.StringInterpolation)
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest: Swift.ExpressibleByStringInterpolation {
+    init(stringInterpolation: Self.StringInterpolation)
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest: Swift.ExpressibleByExtendedGraphemeClusterLiteral {
+    init(stringInterpolation: Self.StringInterpolation)
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest: Swift.ExpressibleByUnicodeScalarLiteral {
+    init(stringInterpolation: Self.StringInterpolation)
+}
+extension SymbolTestsCore.Structs.StructTest: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.Structs.StructTest: SymbolTestsCore.Protocols.ProtocolWitnessTableTest {}
+extension SymbolTestsCore.Structs.PrivateProtocolTest: Swift.Hashable {
+    var hashValue: Swift.Int {
+        get
+    }
+
+    func hash(into: inout Swift.Hasher)
+    func _rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.Structs.PrivateProtocolTest: Swift.Equatable {
+    static func == (_: Self, _: Self) -> Swift.Bool
+}
+extension SymbolTestsCore.Structs.PrivateProtocolTest: SymbolTestsCore.Protocols.ProtocolTest {
+    typealias Body = Swift.Never
+}
+extension SymbolTestsCore.Actors.CustomGlobalActor {
+    typealias ActorType = SymbolTestsCore.Actors.CustomGlobalActor
+}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.ConcreteWitnessTest {
+    typealias First = Swift.Int
+    typealias Second = [Swift.String]
+    typealias Third = Swift.Double
+    typealias Fourth = Swift.Bool
+    typealias Fifth = Swift.Character
+}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest {
+    typealias First = SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedFirst
+    typealias Second = [SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedFirst]
+    typealias Third = SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedThird
+    typealias Fourth = (SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedFirst, SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedThird)
+    typealias Fifth = SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedFirst?
+}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.GenericParameterWitnessTest {
+    typealias First = A
+    typealias Second = [A]
+    typealias Third = A?
+    typealias Fourth = (A, A)
+    typealias Fifth = [Swift.String : A]
+}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest {
+    typealias First = SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest
+    typealias Second = [SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest]
+    typealias Third = SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest?
+    typealias Fourth = (SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest, SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest)
+    typealias Fifth = [Swift.String : SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest]
+}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.DependentWitnessTest {
+    typealias First = A.Sequence.Element
+    typealias Second = A
+    typealias Third = A.Sequence.Iterator
+    typealias Fourth = A.Collection.Index
+    typealias Fifth = A.Collection.SubSequence
+}
+extension SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator {
+    typealias Element = Swift.Int
+    typealias Failure = Swift.Never
+}
+extension SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest {
+    typealias AsyncIterator = SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator
+    typealias Element = Swift.Int
+    typealias Failure = Swift.Never
+}
+extension SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator {
+    typealias Element = Swift.String
+    typealias Failure = Swift.Error
+}
+extension SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest {
+    typealias AsyncIterator = SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator
+    typealias Element = Swift.String
+    typealias Failure = Swift.Error
+}
+extension SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest.AsyncIterator {
+    typealias Element = A
+    typealias Failure = Swift.Never
+}
+extension SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest {
+    typealias AsyncIterator = SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest<A>.AsyncIterator
+    typealias Element = A
+    typealias Failure = Swift.Never
+}
+extension SymbolTestsCore.CollectionConformances.CustomSequenceTest.Iterator {
+    typealias Element = Swift.Int
+}
+extension SymbolTestsCore.CollectionConformances.CustomSequenceTest {
+    typealias Element = Swift.Int
+    typealias Iterator = SymbolTestsCore.CollectionConformances.CustomSequenceTest.Iterator
+}
+extension SymbolTestsCore.CollectionConformances.CustomCollectionTest {
+    typealias Element = Swift.Int
+    typealias Index = Swift.Int
+    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomCollectionTest>
+    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomCollectionTest>
+    typealias Indices = Swift.DefaultIndices<SymbolTestsCore.CollectionConformances.CustomCollectionTest>
+}
+extension SymbolTestsCore.CollectionConformances.CustomCollectionTest {
+    typealias Element = Swift.Int
+    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomCollectionTest>
+}
+extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest {
+    typealias Element = Swift.String
+    typealias Index = Swift.Int
+    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
+    typealias Indices = Swift.DefaultIndices<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
+}
+extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest {
+    typealias Element = Swift.String
+    typealias Index = Swift.Int
+    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
+    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
+    typealias Indices = Swift.DefaultIndices<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
+}
+extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest {
+    typealias Element = Swift.String
+    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
+}
+extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest {
+    typealias Element = Swift.Double
+    typealias Index = Swift.Int
+    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
+    typealias Indices = Swift.Range<Swift.Int>
+}
+extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest {
+    typealias Element = Swift.Double
+    typealias Index = Swift.Int
+    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
+    typealias Indices = Swift.Range<Swift.Int>
+}
+extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest {
+    typealias Element = Swift.Double
+    typealias Index = Swift.Int
+    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
+    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
+    typealias Indices = Swift.Range<Swift.Int>
+}
+extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest {
+    typealias Element = Swift.Double
+    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
+}
+extension SymbolTestsCore.CustomLiterals.IntegerLiteralTest {
+    typealias IntegerLiteralType = Swift.Int64
+}
+extension SymbolTestsCore.CustomLiterals.StringLiteralTest {
+    typealias StringLiteralType = Swift.String
+}
+extension SymbolTestsCore.CustomLiterals.StringLiteralTest {
+    typealias UnicodeScalarLiteralType = Swift.String
+}
+extension SymbolTestsCore.CustomLiterals.StringLiteralTest {
+    typealias ExtendedGraphemeClusterLiteralType = Swift.String
+}
+extension SymbolTestsCore.CustomLiterals.ArrayLiteralTest {
+    typealias ArrayLiteralElement = Swift.Int
+}
+extension SymbolTestsCore.CustomLiterals.DictionaryLiteralTest {
+    typealias Key = Swift.String
+    typealias Value = Swift.Int
+}
+extension SymbolTestsCore.CustomLiterals.BooleanLiteralTest {
+    typealias BooleanLiteralType = Swift.Bool
+}
+extension SymbolTestsCore.CustomLiterals.FloatLiteralTest {
+    typealias FloatLiteralType = Swift.Double
+}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest {
+    typealias ActorSystem = Distributed.LocalTestingDistributedActorSystem
+    typealias SerializationRequirement = Swift.Decodable & Swift.Encodable
+}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest {
+    typealias ID = Distributed.LocalTestingActorID
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest {
+    typealias ActorSystem = Distributed.LocalTestingDistributedActorSystem
+    typealias SerializationRequirement = Swift.Decodable & Swift.Encodable
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest {
+    typealias ID = Distributed.LocalTestingActorID
+}
+extension SymbolTestsCore.Extensions.ExtensionConstrainedStruct {
+    typealias Item = A
+}
+extension SymbolTestsCore.Generics.GenericRequirementTest {
+    typealias Body = A
+}
+extension SymbolTestsCore.Generics.GenericRequirementTest {
+    typealias RawValue = A
+}
+extension SymbolTestsCore.Generics.GenericPackTest {
+    typealias Body = Swift.Never
+}
+extension SymbolTestsCore.Generics.GenericValueTest {
+    typealias Body = Swift.Never
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.AnyProtocolTest {
+    typealias Body = A
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest {
+    typealias Element = SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest {
+    typealias RawValue = Swift.UInt
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest {
+    typealias Element = SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest {
+    typealias ArrayLiteralElement = SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.StringRawRepresentableTest {
+    typealias RawValue = Swift.String
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.IntRawRepresentableTest {
+    typealias RawValue = Swift.Int
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.GenericRawRepresentableTest {
+    typealias RawValue = A
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation {
+    typealias StringLiteralType = Swift.String
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest {
+    typealias StringLiteralType = Swift.String
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest {
+    typealias StringInterpolation = SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest {
+    typealias ExtendedGraphemeClusterLiteralType = Swift.String
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest {
+    typealias UnicodeScalarLiteralType = Swift.String
+}
+extension SymbolTestsCore.Structs.StructTest {
+    typealias Body = SymbolTestsCore.Structs.PrivateProtocolTest
 }

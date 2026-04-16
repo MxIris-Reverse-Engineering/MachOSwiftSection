@@ -99,7 +99,7 @@ extension TestsValues {
     public struct NestedStruct {}
 }
 
-extension TestsObjects {
+extension BasicTypes.TestsObjects {
     public final class NestedClass {}
 }
 

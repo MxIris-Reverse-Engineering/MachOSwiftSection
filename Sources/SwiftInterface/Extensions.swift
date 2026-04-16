@@ -8,18 +8,16 @@ import Demangling
 import Semantic
 import SwiftStdlibToolbox
 @_spi(Internals) import MachOSymbols
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 extension Node {
     var accessorKind: AccessorKind {
-        guard let node = first(of: .getter, .setter, .modifyAccessor, .modify2Accessor, .readAccessor, .read2Accessor) else { return .none }
+        guard let node = first(of: .getter, .setter, .modifyAccessor, .readAccessor) else { return .none }
         switch node.kind {
         case .getter: return .getter
         case .setter: return .setter
-        case .modifyAccessor,
-             .modify2Accessor: return .modifyAccessor
-        case .readAccessor,
-             .read2Accessor: return .readAccessor
+        case .modifyAccessor: return .modifyAccessor
+        case .readAccessor: return .readAccessor
         default: return .none
         }
     }
@@ -278,38 +276,13 @@ extension Sequence {
     }
 }
 
-extension ProtocolRequirement {
+extension StrippedSymbolicRequirement {
     @SemanticStringBuilder
     func strippedSymbolicInfo() -> SemanticString {
         Comment(
             """
-            Kind: \(layout.flags.kind.description), isAsync: \(layout.flags.isAsync), isInstance: \(layout.flags.isInstance)
+            Kind: \(requirement.layout.flags.kind.description), isAsync: \(requirement.layout.flags.isAsync), isInstance: \(requirement.layout.flags.isInstance)
             """
         )
-    }
-}
-
-extension ProtocolRequirementKind: CustomStringConvertible {
-    public var description: String {
-        switch self {
-        case .baseProtocol:
-            "BaseProtocol"
-        case .method:
-            "Method"
-        case .`init`:
-            "Init"
-        case .getter:
-            "Getter"
-        case .setter:
-            "Setter"
-        case .readCoroutine:
-            "ReadCoroutine"
-        case .modifyCoroutine:
-            "ModifyCoroutine"
-        case .associatedTypeAccessFunction:
-            "AssociatedTypeAccessFunction"
-        case .associatedConformanceAccessFunction:
-            "AssociatedConformanceAccessFunction"
-        }
     }
 }

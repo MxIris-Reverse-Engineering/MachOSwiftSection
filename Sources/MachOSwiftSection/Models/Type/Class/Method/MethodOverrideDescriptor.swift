@@ -20,10 +20,14 @@ public struct MethodOverrideDescriptor: ResolvableLocatableLayoutWrapper {
 }
 
 extension MethodOverrideDescriptor {
+    public func classDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+        return try layout.`class`.resolve(from: offset(of: \.`class`), in: machO).asOptional
+    }
+
     public func methodDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<MethodDescriptor>? {
         return try layout.method.resolve(from: offset(of: \.method), in: machO).asOptional
     }
-    
+
     public func methodDescriptor() throws -> SymbolOrElement<MethodDescriptor>? {
         return try layout.method.resolve(from: pointer(of: \.method)).asOptional
     }

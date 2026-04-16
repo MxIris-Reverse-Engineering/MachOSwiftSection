@@ -5,7 +5,7 @@ import Semantic
 import Demangling
 import Utilities
 import OrderedCollections
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWithCache>: ConformedDumper {
     package let dumped: ProtocolConformance
@@ -60,7 +60,33 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
 
             if dumped.resilientWitnesses.isEmpty {
                 Space()
-                Standard("{}")
+                if configuration.printConformancePWTAddress, let proto = dumped.protocol?.resolved {
+                    Standard("{")
+                    let protocolModel = try Protocol(descriptor: proto, in: machO)
+                    if !protocolModel.requirements.isEmpty, let witnessTablePattern = dumped.witnessTablePattern {
+                        BreakLine()
+                        for (requirementIndex, requirement) in protocolModel.requirements.enumerated() {
+                            if requirementIndex > 0 {
+                                BreakLine()
+                            }
+                            let slotOffset = witnessTablePattern.offset + MemoryLayout<StoredPointer>.size * (requirementIndex + 1)
+                            let requirementName = try await _requirementName(for: requirement)
+                            let requirementFlags = requirement.layout.flags
+                            configuration.memberAddressComment(offset: slotOffset, addressString: machO.addressString(forOffset: slotOffset), label: "Protocol Witness Table[\(requirementIndex)]")
+                            configuration.indentString
+                            Comment("Kind: \(requirementFlags.kind.description), isAsync: \(requirementFlags.isAsync), isInstance: \(requirementFlags.isInstance)")
+                            BreakLine()
+                            if let requirementName {
+                                configuration.indentString
+                                requirementName
+                                BreakLine()
+                            }
+                        }
+                    }
+                    Standard("}")
+                } else {
+                    Standard("{}")
+                }
             } else {
                 Space()
                 Standard("{")
@@ -70,12 +96,17 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
                 for resilientWitness in dumped.resilientWitnesses {
                     BreakLine()
 
+                    if configuration.printMemberAddress {
+                        configuration.memberAddressComment(offset: resilientWitness.implementationOffset, addressString: resilientWitness.implementationAddress(in: machO))
+                    }
+                    
                     Indent(level: 1)
 
                     if let symbols = try resilientWitness.implementationSymbols(in: machO), let node = try await _node(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes) {
                         _ = visitedNodes.append(node)
                         try await demangleResolver.resolve(for: node)
                     } else if let requirement = try resilientWitness.requirement(in: machO) {
+
                         switch requirement {
                         case .symbol(let symbol):
                             try await MetadataReader.demangleSymbol(for: symbol, in: machO).asyncMap { try await demangleResolver.resolve(for: $0) }
@@ -124,6 +155,16 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
         get async throws {
             try await dumped.protocolNode(in: machO).asyncMap { try await demangleResolver.resolve(for: $0) }
         }
+    }
+
+    private func _requirementName(for requirement: ProtocolRequirement) async throws -> String? {
+        guard let symbols = try await Symbols.resolve(from: requirement.offset, in: machO) else { return nil }
+        for symbol in symbols {
+            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO) {
+                return node.print(using: typeNameOptions)
+            }
+        }
+        return nil
     }
 
     private func _node(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<Node> = []) async throws -> Node? {

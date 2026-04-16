@@ -6,7 +6,9 @@ package enum MachOFileName: String {
     case iOS_18_5_Simulator_SwiftUI = "/Library/Developer/CoreSimulator/Volumes/iOS_22F77/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 18.5.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUI.framework/SwiftUI"
     case iOS_26_2_Simulator_SwiftUI = "/Library/Developer/CoreSimulator/Volumes/iOS_23C54/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.2.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUI.framework/SwiftUI"
     case iOS_26_2_Simulator_SwiftUICore = "/Library/Developer/CoreSimulator/Volumes/iOS_23C54/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.2.simruntime/Contents/Resources/RuntimeRoot/System/Library/Frameworks/SwiftUICore.framework/SwiftUICore"
-
+    case iOS_26_2_Simulator_Gestures = "/Library/Developer/CoreSimulator/Volumes/iOS_23C54/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.2.simruntime/Contents/Resources/RuntimeRoot/System/Library/PrivateFrameworks/Gestures.framework/Gestures"
+    case iOS_26_4_Simulator_Gestures = "/Library/Developer/CoreSimulator/Volumes/iOS_23E244/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/PrivateFrameworks/Gestures.framework/Gestures"
+    
     case SourceEdit = "/Applications/SourceEdit.app"
     case SourceEditorFromSourceEdit = "/Applications/SourceEdit.app/Contents/Frameworks/SourceEditor.framework"
     case SourceEditorFromXcode = "/Applications/Xcode.app/Contents/SharedFrameworks/SourceEditor.framework"

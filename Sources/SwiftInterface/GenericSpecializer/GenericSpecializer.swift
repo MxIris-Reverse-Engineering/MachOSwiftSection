@@ -3,7 +3,7 @@ import MachOSwiftSection
 import MachOKit
 import Demangling
 import OrderedCollections
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 // MARK: - GenericSpecializer
 

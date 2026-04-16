@@ -7,7 +7,7 @@ import Dependencies
 @_spi(Internals) import MachOSymbols
 @testable import SwiftDump
 @testable import SwiftInterface
-@testable import SwiftInspection
+@testable @_spi(Internals) import SwiftInspection
 
 // MARK: - Unit Tests (Self-contained, no external dependencies)
 

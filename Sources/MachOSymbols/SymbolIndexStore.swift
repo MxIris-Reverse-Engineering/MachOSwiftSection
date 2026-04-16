@@ -112,6 +112,23 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         public let kind: Kind
     }
 
+    /// Pre-extracted information about a thunk symbol that carries an attribute
+    /// annotation (for example `@objc` / `@nonobjc`), bucketed by the printed
+    /// name of the type the thunked member belongs to. Consumers use this to
+    /// map attribute annotations back onto already-built member definitions
+    /// without re-parsing the thunk's demangled node tree per type.
+    public struct ThunkAttributeMember: Sendable {
+        public let memberName: String
+        public let isStatic: Bool
+        public let isInit: Bool
+
+        public init(memberName: String, isStatic: Bool, isInit: Bool) {
+            self.memberName = memberName
+            self.isStatic = isStatic
+            self.isInit = isInit
+        }
+    }
+
     typealias IndexedSymbol = DemangledSymbol
     typealias AllSymbols = [IndexedSymbol]
     typealias GlobalSymbols = [IndexedSymbol]
@@ -136,6 +153,8 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         private(set) var symbolsByOffset: OrderedDictionary<Int, [Symbol]> = [:]
 
         private(set) var demangledNodeBySymbol: [Symbol: Node] = [:]
+
+        private(set) var thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: [ThunkAttributeMember]]] = [:]
 
         fileprivate func appendSymbol(_ symbol: IndexedSymbol, for kind: Node.Kind) {
             symbolsByKind[kind, default: []].append(symbol)
@@ -175,6 +194,10 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         fileprivate func setGlobalSymbols(for result: ProcessGlobalSymbolResult) {
             globalSymbolsByKind[result.kind, default: []].append(result.indexedSymbol)
         }
+
+        fileprivate func appendThunkAttributeMember(_ member: ThunkAttributeMember, forKind thunkKind: Node.Kind, typeName: String) {
+            thunkAttributeMembersByKindAndTypeName[thunkKind, default: [:]][typeName, default: []].append(member)
+        }
     }
 
     public static let shared = SymbolIndexStore()
@@ -184,16 +207,22 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     }
 
     public override func buildStorage<MachO: MachORepresentableWithCache>(for machO: MachO) -> Storage? {
+        return buildStorageImpl(for: machO, progressContinuation: nil)
+    }
+
+    private func buildStorageImpl<MachO: MachORepresentableWithCache>(
+        for machO: MachO,
+        progressContinuation: AsyncStream<Progress>.Continuation?
+    ) -> Storage? {
         let storage = Storage()
         var cachedSymbols: Set<String> = []
         var symbolByName: OrderedDictionary<String, Symbol> = [:]
         var symbolsByOffset: OrderedDictionary<Int, [Symbol]> = [:]
-        var demangledNodeBySymbol: [Symbol: Node] = [:]
 
-        for symbol in machO.symbols where symbol.name.isSwiftSymbol {
+        for symbol in machO.symbols where symbol.name.isSwiftSymbol && !symbol.nlist.isExternal {
             var offset = symbol.offset
             symbolsByOffset[offset, default: []].append(.init(offset: offset, name: symbol.name, nlist: symbol.nlist))
-            if let cache = machO.cache, offset != 0, machO is MachOFile {
+            if let cache = machO.cache, offset >= 0, machO is MachOFile {
                 offset -= cache.mainCacheHeader.sharedRegionStart.cast()
                 symbolsByOffset[offset, default: []].append(.init(offset: offset, name: symbol.name, nlist: symbol.nlist))
             }
@@ -212,48 +241,68 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             }
         }
 
-        for symbol in symbolByName.values {
-            do {
-                let rootNode = try demangleAsNode(symbol.name)
+        // Phase 1: Parallel demangling
+        let symbolArray = Array(symbolByName.values)
+        let totalSymbolCount = symbolArray.count
 
-                demangledNodeBySymbol[symbol] = rootNode
+        let demangledNodes = symbolArray.concurrentMap { try? demangleAsNode($0.name) }
 
-                guard rootNode.isKind(of: .global), let node = rootNode.children.first else { continue }
+        // Phase 2: Sequential indexing
+        var demangledNodeBySymbol: [Symbol: Node] = [:]
+        demangledNodeBySymbol.reserveCapacity(totalSymbolCount)
 
-                storage.appendSymbol(DemangledSymbol(symbol: symbol, demangledNode: rootNode), for: node.kind)
-                if rootNode.isGlobal {
-                    if !symbol.isExternal {
-                        if let result = processGlobalSymbol(symbol, node: node, rootNode: rootNode) {
-                            storage.setGlobalSymbols(for: result)
-                        }
-                    }
-                } else {
-                    if node.kind == .methodDescriptor, let firstChild = node.children.first {
-                        if let result = processMemberSymbol(symbol, node: firstChild, rootNode: rootNode) {
-                            storage.setMethodDescriptorMemberSymbols(for: result)
-                        }
-                    } else if node.kind == .protocolWitness, let firstChild = node.children.first {
-                        if let result = processMemberSymbol(symbol, node: firstChild, rootNode: rootNode) {
-                            storage.setProtocolWitnessMemberSymbols(for: result)
-                        }
-                    } else if node.kind == .mergedFunction, let secondChild = rootNode.children.second {
-                        if let result = processMemberSymbol(symbol, node: secondChild, rootNode: rootNode) {
-                            storage.setMemberSymbols(for: result)
-                        }
-                    } else if node.kind == .opaqueTypeDescriptor, let firstChild = node.children.first, firstChild.kind == .opaqueReturnTypeOf, let memberSymbol = firstChild.children.first {
-                        if symbol.offset > 0 {
-                            storage.setOpaqueTypeDescriptorSymbol(DemangledSymbol(symbol: symbol, demangledNode: rootNode), for: memberSymbol)
-                        }
-                    } else {
-                        if let result = processMemberSymbol(symbol, node: node, rootNode: rootNode) {
-                            storage.setMemberSymbols(for: result)
-                        }
+        for symbolIndex in 0..<totalSymbolCount {
+            if symbolIndex % 500 == 0 {
+                progressContinuation?.yield(Progress(currentCount: symbolIndex, totalCount: totalSymbolCount))
+            }
+
+            let symbol = symbolArray[symbolIndex]
+            guard let rootNode = demangledNodes[symbolIndex] else { continue }
+
+            demangledNodeBySymbol[symbol] = rootNode
+
+            guard rootNode.isKind(of: .global), let node = rootNode.children.first else { continue }
+
+            storage.appendSymbol(DemangledSymbol(symbol: symbol, demangledNode: rootNode), for: node.kind)
+
+            if node.kind == .objCAttribute || node.kind == .nonObjCAttribute {
+                if let extracted = processThunkAttributeSymbol(thunkKind: node.kind, rootNode: rootNode) {
+                    storage.appendThunkAttributeMember(extracted.member, forKind: node.kind, typeName: extracted.typeName)
+                }
+                continue
+            }
+
+            if rootNode.isGlobal {
+                if !symbol.isExternal {
+                    if let result = processGlobalSymbol(symbol, node: node, rootNode: rootNode) {
+                        storage.setGlobalSymbols(for: result)
                     }
                 }
-            } catch {
-                #log(.default, "\(error, privacy: .public)")
+            } else {
+                if node.kind == .methodDescriptor, let firstChild = node.children.first {
+                    if let result = processMemberSymbol(symbol, node: firstChild, rootNode: rootNode) {
+                        storage.setMethodDescriptorMemberSymbols(for: result)
+                    }
+                } else if node.kind == .protocolWitness, let firstChild = node.children.first {
+                    if let result = processMemberSymbol(symbol, node: firstChild, rootNode: rootNode) {
+                        storage.setProtocolWitnessMemberSymbols(for: result)
+                    }
+                } else if node.kind == .mergedFunction, let secondChild = rootNode.children.second {
+                    if let result = processMemberSymbol(symbol, node: secondChild, rootNode: rootNode) {
+                        storage.setMemberSymbols(for: result)
+                    }
+                } else if node.kind == .opaqueTypeDescriptor, let firstChild = node.children.first, firstChild.kind == .opaqueReturnTypeOf, let memberSymbol = firstChild.children.first {
+                    if symbol.offset > 0 {
+                        storage.setOpaqueTypeDescriptorSymbol(DemangledSymbol(symbol: symbol, demangledNode: rootNode), for: memberSymbol)
+                    }
+                } else {
+                    if let result = processMemberSymbol(symbol, node: node, rootNode: rootNode) {
+                        storage.setMemberSymbols(for: result)
+                    }
+                }
             }
         }
+        progressContinuation?.yield(Progress(currentCount: totalSymbolCount, totalCount: totalSymbolCount))
 
         storage.setSymbolsByOffset(symbolsByOffset)
 
@@ -353,6 +402,67 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         return nil
     }
 
+    /// Extracts `(typeName, ThunkAttributeMember)` from a thunk symbol whose root
+    /// demangled node has an attribute marker child (`.objCAttribute` /
+    /// `.nonObjCAttribute`). Returns `nil` if the thunk does not wrap a named
+    /// member whose parent context can be resolved to a Swift type name.
+    private func processThunkAttributeSymbol(
+        thunkKind: Node.Kind,
+        rootNode: Node
+    ) -> (typeName: String, member: ThunkAttributeMember)? {
+        guard let memberNode = rootNode.children.first(where: { $0.kind != thunkKind }) else { return nil }
+
+        let isStatic: Bool
+        let unwrappedMemberNode: Node
+        if memberNode.kind == .static, let innerChild = memberNode.children.first {
+            isStatic = true
+            unwrappedMemberNode = innerChild
+        } else {
+            isStatic = false
+            unwrappedMemberNode = memberNode
+        }
+
+        let extractedMemberName: String?
+        let contextNode: Node?
+
+        switch unwrappedMemberNode.kind {
+        case .function, .constructor, .allocator, .variable:
+            contextNode = unwrappedMemberNode.children.first.map(Self.unwrapExtensionContext)
+            extractedMemberName = unwrappedMemberNode.identifier
+        case .getter, .setter:
+            if let innerVariable = unwrappedMemberNode.children.first, innerVariable.kind == .variable {
+                contextNode = innerVariable.children.first.map(Self.unwrapExtensionContext)
+                extractedMemberName = innerVariable.identifier
+            } else {
+                return nil
+            }
+        default:
+            return nil
+        }
+
+        guard let contextNode, let extractedMemberName else { return nil }
+
+        let typeName = Node.create(kind: .type, child: contextNode).print(using: .interfaceTypeBuilderOnly)
+
+        let isInit = unwrappedMemberNode.kind == .allocator || unwrappedMemberNode.kind == .constructor
+
+        return (
+            typeName: typeName,
+            member: ThunkAttributeMember(memberName: extractedMemberName, isStatic: isStatic, isInit: isInit)
+        )
+    }
+
+    /// If the given node is an `.extension` wrapper, return the extended type node
+    /// (the second child, per Swift demangler's extension node layout:
+    /// `extension(module, extendedType, ?genericSignature)`). Otherwise, return
+    /// the node as-is.
+    private static func unwrapExtensionContext(_ node: Node) -> Node {
+        if node.kind == .extension, let extendedType = node.children.at(1) {
+            return extendedType
+        }
+        return node
+    }
+
     fileprivate struct ProcessGlobalSymbolResult: Sendable {
         let kind: GlobalKind
         let indexedSymbol: IndexedSymbol
@@ -399,6 +509,18 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
     public func symbols<MachO: MachORepresentableWithCache>(of kinds: Node.Kind..., in machO: MachO) -> [DemangledSymbol] {
         return kinds.map { storage(in: machO)?.symbolsByKind[$0] ?? [] }.reduce(into: []) { $0 += $1 }
+    }
+
+    /// Returns the pre-extracted thunk-attribute members whose parent type
+    /// name matches `typeName`. `thunkKind` is the demangler attribute marker
+    /// kind (e.g. `.objCAttribute`, `.nonObjCAttribute`). Lookup is O(1) in the
+    /// typeName bucket; no per-type scan of all thunk symbols is needed.
+    public func thunkAttributeMembers<MachO: MachORepresentableWithCache>(
+        of thunkKind: Node.Kind,
+        for typeName: String,
+        in machO: MachO
+    ) -> [ThunkAttributeMember] {
+        return storage(in: machO)?.thunkAttributeMembersByKindAndTypeName[thunkKind]?[typeName] ?? []
     }
 
     public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
@@ -479,8 +601,28 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         }
     }
 
+    public struct Progress: Sendable {
+        public let currentCount: Int
+        public let totalCount: Int
+    }
+
     public func prepare<MachO: MachORepresentableWithCache>(in machO: MachO) {
         _ = storage(in: machO)
+    }
+
+    public func prepareWithProgress<MachO: MachORepresentableWithCache>(in machO: MachO) -> AsyncStream<Progress> {
+        let (stream, continuation) = AsyncStream<Progress>.makeStream()
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            defer { continuation.finish() }
+            guard let self else { return }
+            // continuation flows into buildStorageImpl via closure capture only.
+            // No shared instance state is involved, so concurrent calls cannot
+            // interfere with each other's progress streams.
+            _ = self.storage(in: machO) { machO in
+                self.buildStorageImpl(for: machO, progressContinuation: continuation)
+            }
+        }
+        return stream
     }
 }
 
@@ -494,10 +636,6 @@ extension Node.Kind {
              .function,
              .getter,
              .setter,
-//             .modifyAccessor,
-//             .modify2Accessor,
-//             .readAccessor,
-//             .read2Accessor,
              .methodDescriptor,
              .protocolWitness,
              .variable:
@@ -551,7 +689,7 @@ extension Node {
     }
 
     package var isAccessor: Bool {
-        return isKind(of: .getter, .setter, .modifyAccessor, .modify2Accessor, .readAccessor, .read2Accessor)
+        return isKind(of: .getter, .setter, .modifyAccessor, .readAccessor)
     }
 
     package var hasAccessor: Bool {

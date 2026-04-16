@@ -24,13 +24,25 @@ extension SwiftInterfaceBuilderTests {
             printConfiguration: .init(
                 printStrippedSymbolicItem: true,
                 printFieldOffset: true,
+                printExpandedFieldOffsets: true,
+                printMemberAddress: true,
+                printVTableOffset: true,
+                printPWTOffset: true,
+                memberSortOrder: .byOffset,
                 printTypeLayout: true,
+                printEnumLayout: true,
             )
         )
     }
 
-    func buildString(in machO: MachOFile) async throws {
+    private func makeBuilder<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SwiftInterfaceBuilder<MachO> {
         let builder = try SwiftInterfaceBuilder(configuration: builderConfiguration, eventHandlers: [], in: machO)
+        builder.addExtraDataProvider(SwiftInterfaceBuilderOpaqueTypeProvider(machO: machO))
+        return builder
+    }
+    
+    func buildString(in machO: MachOFile) async throws {
+        let builder = try makeBuilder(in: machO)
         let clock = ContinuousClock()
         let duration = try await clock.measure {
             try await builder.prepare()
@@ -41,7 +53,7 @@ extension SwiftInterfaceBuilderTests {
     }
 
     func buildString(in machO: MachOImage) async throws {
-        let builder = try SwiftInterfaceBuilder(configuration: builderConfiguration, eventHandlers: [], in: machO)
+        let builder = try makeBuilder(in: machO)
         let clock = ContinuousClock()
         let duration = try await clock.measure {
             try await builder.prepare()
@@ -52,7 +64,7 @@ extension SwiftInterfaceBuilderTests {
     }
 
     func buildFile(in machO: MachOFile) async throws {
-        let builder = try SwiftInterfaceBuilder(configuration: builderConfiguration, eventHandlers: [OSLogEventHandler()], in: machO)
+        let builder = try makeBuilder(in: machO)
         let clock = ContinuousClock()
         let duration = try await clock.measure {
             try await builder.prepare()
@@ -64,7 +76,7 @@ extension SwiftInterfaceBuilderTests {
     }
 
     func buildFile(in machO: MachOImage) async throws {
-        let builder = try SwiftInterfaceBuilder(configuration: builderConfiguration, eventHandlers: [OSLogEventHandler()], in: machO)
+        let builder = try makeBuilder(in: machO)
         let clock = ContinuousClock()
         let duration = try await clock.measure {
             try await builder.prepare()
@@ -80,7 +92,7 @@ extension SwiftInterfaceBuilderTests {
 enum SwiftInterfaceBuilderTestSuite {
     class DyldCacheTests: MachOTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var cacheImageName: MachOImageName {
-            .SwiftUI
+            .SwiftUICore
         }
 
         override class var cachePath: DyldSharedCachePath {
@@ -100,7 +112,7 @@ enum SwiftInterfaceBuilderTestSuite {
 
     class MachOFileTests: MachOTestingSupport.MachOFileTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var fileName: MachOFileName {
-            .iOS_26_2_Simulator_SwiftUICore
+            .SymbolTestsCore
         }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)

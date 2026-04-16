@@ -1,7 +1,7 @@
 import Semantic
 import MachOSwiftSection
 
-package protocol Dumper: Sendable {
+package protocol Dumper<Dumped, MachO>: Sendable {
     associatedtype Dumped: Sendable
     associatedtype MachO: MachOSwiftSectionRepresentableWithCache
 

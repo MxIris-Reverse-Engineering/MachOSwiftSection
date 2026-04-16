@@ -8,7 +8,7 @@ import Dependencies
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
 @testable import SwiftDump
-@testable import SwiftInspection
+@testable @_spi(Internals) import SwiftInspection
 @testable import Demangling
 import OrderedCollections
 

@@ -6,7 +6,7 @@ import Utilities
 import Dependencies
 import OrderedCollections
 @_spi(Internals) import MachOSymbols
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
     package typealias Dumped = Class
@@ -64,14 +64,27 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
     @SemanticStringBuilder
     package var superclass: SemanticString {
         get async throws {
+            let hasInvertedProtocols = dumped.invertibleProtocolSet?.hasInvertedProtocols ?? false
             if let superclassMangledName = try dumped.descriptor.superclassTypeMangledName(in: machO) {
                 Standard(":")
                 Space()
                 try await demangleResolver.resolve(for: MetadataReader.demangleType(for: superclassMangledName, in: machO))
+                if hasInvertedProtocols {
+                    Standard(",")
+                    Space()
+                    dumped.invertibleProtocolSet!.dumpInvertedProtocolNames
+                }
             } else if let resilientSuperclass = dumped.resilientSuperclass, let kind = dumped.descriptor.resilientSuperclassReferenceKind, let superclass = try await resilientSuperclass.dumpSuperclass(resolver: demangleResolver, for: kind, in: machO) {
                 Standard(":")
                 Space()
                 superclass
+                if hasInvertedProtocols {
+                    Standard(",")
+                    Space()
+                    dumped.invertibleProtocolSet!.dumpInvertedProtocolNames
+                }
+            } else if hasInvertedProtocols {
+                dumped.invertibleProtocolSet!.dumpInvertedProtocolsInheritance
             }
         }
     }
@@ -110,6 +123,10 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                         endOffset = nil
                     }
                     configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
+
+                    if configuration.printExpandedFieldOffsets, let machOImage = machO.asMachOImage {
+                        expandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset, baseIndentation: configuration.indentation, ancestors: [], in: machOImage)
+                    }
                 }
 
                 if configuration.printTypeLayout, !dumped.flags.isGeneric, let machO = machO.asMachOImage, let metatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machO), let metadata = try? Metadata.createInProcess(metatype) {
@@ -122,25 +139,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
                 let fieldName = try fieldRecord.fieldName(in: machO)
 
-                if fieldRecord.flags.contains(.isVariadic) {
-                    if demangledTypeNode.contains(.weak) {
-                        Keyword(.weak)
-                        Space()
-                        Keyword(.var)
-                        Space()
-                    } else if fieldName.hasLazyPrefix {
-                        Keyword(.lazy)
-                        Space()
-                        Keyword(.var)
-                        Space()
-                    } else {
-                        Keyword(.var)
-                        Space()
-                    }
-                } else {
-                    Keyword(.let)
-                    Space()
-                }
+                fieldDeclarationKeywords(for: fieldRecord, typeNode: demangledTypeNode, fieldName: fieldName)
 
                 MemberDeclaration(fieldName.stripLazyPrefix)
 
@@ -150,7 +149,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
                 try await demangleResolver.modify {
                     if case .options(let demangleOptions) = $0 {
-                        return .options(demangleOptions.union(.removeWeakPrefix))
+                        return .options(demangleOptions.union(.removeReferenceStoragePrefix))
                     } else {
                         return $0
                     }
@@ -175,8 +174,13 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
             try await fields
 
             var methodVisitedNodes: OrderedSet<Node> = []
+            let vtableBaseOffset = dumped.vTableDescriptorHeader.map { Int($0.layout.vTableOffset) }
             for (offset, descriptor) in dumped.methodDescriptors.offsetEnumerated() {
                 BreakLine()
+
+                if configuration.printVTableOffset, let vtableBaseOffset {
+                    configuration.vtableOffsetComment(slotOffset: vtableBaseOffset + offset.index)
+                }
 
                 if configuration.printMemberAddress, !descriptor.implementation.isNull {
                     let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
@@ -196,9 +200,16 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                 }
             }
 
+            var parentVTableCache = ParentClassVTableCache()
             var methodOverrideVisitedNodes: OrderedSet<Node> = []
             for (offset, descriptor) in dumped.methodOverrideDescriptors.offsetEnumerated() {
                 BreakLine()
+
+                if configuration.printVTableOffset {
+                    if let vtableSlot = try? parentVTableCache.slotIndex(for: descriptor, in: machO) {
+                        configuration.vtableOffsetComment(slotOffset: vtableSlot)
+                    }
+                }
 
                 if configuration.printMemberAddress, !descriptor.implementation.isNull {
                     let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
@@ -398,6 +409,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
         }
         return nil
     }
+
 }
 
 package func classDemangledSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(for symbols: Symbols, typeNode: Node, visitedNodes: borrowing OrderedSet<Node> = [], in machO: MachO) throws -> DemangledSymbol? {

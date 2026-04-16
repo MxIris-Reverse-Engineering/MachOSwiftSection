@@ -11,7 +11,7 @@ import Dependencies
 import Utilities
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import MachOCaches
-import SwiftInspection
+@_spi(Internals) import SwiftInspection
 
 public struct MachOIndexedValue<MachO: MachOSwiftSectionRepresentableWithCache, Value> {
     public let machO: MachO
@@ -182,7 +182,13 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
-        symbolIndexStore.prepare(in: machO)
+        eventDispatcher.dispatch(.extractionStarted(section: .symbolIndex))
+        var symbolIndexTotalCount = 0
+        for await progress in symbolIndexStore.prepareWithProgress(in: machO) {
+            symbolIndexTotalCount = progress.totalCount
+            eventDispatcher.dispatch(.symbolIndexProgress(currentCount: progress.currentCount, totalCount: progress.totalCount))
+        }
+        eventDispatcher.dispatch(.extractionCompleted(result: SwiftInterfaceEvents.ExtractionResult(section: .symbolIndex, count: symbolIndexTotalCount)))
 
         do {
             try await index()
@@ -250,6 +256,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
         for type in currentStorage.types {
             if let isCImportedContext = try? type.contextDescriptorWrapper.contextDescriptor.isCImportedContextDescriptor(in: machO), !configuration.showCImportedTypes, isCImportedContext {
                 cImportedCount += 1
+                eventDispatcher.dispatch(.typeProcessingSkippedCImported)
                 continue
             }
 
@@ -257,8 +264,11 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                 let declaration = try await TypeDefinition(type: type, in: machO)
                 currentModuleTypeDefinitions[declaration.typeName] = declaration
                 successfulCount += 1
+                eventDispatcher.dispatch(.typeProcessed(context: SwiftInterfaceEvents.TypeContext(typeName: declaration.typeName.name, kind: declaration.typeName.kind)))
             } catch {
                 failedCount += 1
+                let failedTypeName = try? type.typeName(in: machO)
+                eventDispatcher.dispatch(.typeProcessingFailed(typeName: failedTypeName?.name, error: error))
             }
         }
 
@@ -270,6 +280,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                 continue
             }
 
+            var resolvedParentName: String?
             var parentContext = try ContextWrapper.type(type).parent(in: machO)
 
             parentLoop: while let currentContextOrSymbol = parentContext {
@@ -282,8 +293,10 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                         if let parentDefinition = currentModuleTypeDefinitions[parentTypeName] {
                             childDefinition.parent = parentDefinition
                             parentDefinition.typeChildren.append(childDefinition)
+                            resolvedParentName = parentTypeName.name
                         } else {
                             childDefinition.parentContext = .type(typeContext)
+                            resolvedParentName = parentTypeName.name
                         }
                         nestedTypeCount += 1
                         break parentLoop
@@ -295,6 +308,8 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                     parentContext = try currentContext.parent(in: machO)
                 }
             }
+
+            eventDispatcher.dispatch(.typeNestingResolved(context: SwiftInterfaceEvents.TypeNestingContext(childTypeName: typeName.name, parentTypeName: resolvedParentName)))
         }
 
         var rootTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
@@ -474,6 +489,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                     }
 
                     let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO), protocolConformance: protocolConformance, associatedType: associatedType, in: machO)
+                    extensionDefinition.isRetroactive = protocolConformance.flags.isRetroactive
                     conformanceExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                     extensionCount += 1
                     eventDispatcher.dispatch(.conformanceExtensionCreated(context: SwiftInterfaceEvents.ConformanceContext(typeName: typeName.name, protocolName: protocolName.name)))
@@ -492,6 +508,14 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
         }
 
         currentStorage.conformanceExtensionDefinitions = conformanceExtensionDefinitions
+
+        // Populate conforming protocol names on each TypeDefinition for attribute inference
+        for (typeName, conformances) in protocolConformancesByTypeName {
+            if let typeDefinition = currentStorage.allTypeDefinitions[typeName] {
+                typeDefinition.conformingProtocolNames = Set(conformances.keys.map(\.name))
+            }
+        }
+
         eventDispatcher.dispatch(.conformanceIndexingCompleted(result: SwiftInterfaceEvents.ConformanceIndexingResult(conformedTypes: protocolConformancesByTypeName.count, associatedTypeCount: associatedTypesByTypeName.count, extensionCount: extensionCount, failedConformances: failedConformances, failedAssociatedTypes: failedAssociatedTypes, failedExtensions: failedExtensions)))
     }
 
@@ -567,6 +591,8 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
                         break
                     }
                 }
+
+                extensionDefinition.orderedMembers = OrderedMember.offsetOrdered(OrderedMember.allMembers(from: extensionDefinition))
 
                 eventDispatcher.dispatch(.extensionCreated(context: SwiftInterfaceEvents.ExtensionContext(targetName: name, memberCount: memberCount)))
                 return extensionDefinition

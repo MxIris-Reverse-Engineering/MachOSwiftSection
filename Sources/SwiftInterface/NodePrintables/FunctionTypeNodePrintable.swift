@@ -280,6 +280,9 @@ extension FunctionTypeNodePrintable {
         }
     }
 
+}
+
+extension FunctionTypeNodePrintable where Self: DependentGenericNodePrintable {
     mutating func printLabelList(name: Node, type: Node, genericFunctionTypeList: Node?) async {
         var labelList = name.children.first(of: .labelList)
 
@@ -296,7 +299,11 @@ extension FunctionTypeNodePrintable {
             var functionType = type
             if type.kind == .dependentGenericType {
                 if genericFunctionTypeList == nil {
-                    await printOptional(type.children.first)
+                    if let sig = type.children.first, sig.kind == .dependentGenericSignature {
+                        await printGenericSignature(sig, enclosingGenericType: type)
+                    } else {
+                        await printOptional(type.children.first)
+                    }
                 }
                 if let dt = type.children.at(1) {
                     if dt.needSpaceBeforeType {

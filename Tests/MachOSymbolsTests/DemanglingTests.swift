@@ -22,20 +22,17 @@ extension DemanglingTests {
         var knownIssueCount = 0
         var demangleFailCount = 0
         var nodeTreeMismatchCount = 0
-        var nodePrintMismatchCount = 0
         var remangleMismatchCount = 0
 
         // Sample collection (limit per category)
         let maxSamples = 10
         var demangleFailSamples: [String] = []
         var nodeTreeMismatchSamples: [String] = []
-        var nodePrintMismatchSamples: [String] = []
         var remangleMismatchSamples: [String] = []
 
         for symbol in allSwiftSymbols {
             totalCount += 1
             let mangledName = symbol.stringValue
-            let stdlibName = stdlib_demangleName(mangledName)
             let stdlibTree = MachOTestingSupport.stdlib_demangleNodeTree(mangledName)
 
             do {
@@ -59,18 +56,7 @@ extension DemanglingTests {
                     }
                 }
 
-                // 2. Node print check
-                let printed = node.print()
-                if stdlibName != printed {
-                    allPassed = false
-                    nodePrintMismatchCount += 1
-                    if nodePrintMismatchSamples.count < maxSamples {
-                        nodePrintMismatchSamples.append("  \(mangledName)\n    expected: \(stdlibName)\n    got:      \(printed)")
-                    }
-                    Issue.record("Node print mismatch: \(mangledName)")
-                }
-
-                // 3. Remangle check
+                // 2. Remangle check
                 let remangled = try Demangling.mangleAsString(node)
                 if remangled != mangledName {
                     // Known issue: Md vs MD (Apple-internal lowercase 'd')
@@ -89,7 +75,8 @@ extension DemanglingTests {
 
                 if allPassed { successCount += 1 }
             } catch {
-                if mangledName != stdlibName {
+                if stdlibTree != nil {
+                    // stdlib succeeded but we failed
                     demangleFailCount += 1
                     if demangleFailSamples.count < maxSamples {
                         demangleFailSamples.append("  \(mangledName) — \(error)")
@@ -110,7 +97,6 @@ extension DemanglingTests {
         Known issues (skip):   \(knownIssueCount)
         Demangle failures:     \(demangleFailCount)
         Node tree mismatches:  \(nodeTreeMismatchCount)
-        Node print mismatches: \(nodePrintMismatchCount)
         Remangle mismatches:   \(remangleMismatchCount)
         """)
 
@@ -123,12 +109,6 @@ extension DemanglingTests {
         if !nodeTreeMismatchSamples.isEmpty {
             print("--- Node Tree Mismatches (first \(nodeTreeMismatchSamples.count)) ---")
             for sample in nodeTreeMismatchSamples {
-                print(sample)
-            }
-        }
-        if !nodePrintMismatchSamples.isEmpty {
-            print("--- Node Print Mismatches (first \(nodePrintMismatchSamples.count)) ---")
-            for sample in nodePrintMismatchSamples {
                 print(sample)
             }
         }

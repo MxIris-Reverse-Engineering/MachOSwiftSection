@@ -29,11 +29,22 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(help: "Generate member address comments for each member symbol")
     var emitMemberAddresses: Bool = false
 
+    @Flag(help: "Generate vtable offset comments for class methods and computed properties")
+    var emitVtableOffsets: Bool = false
+
+    @Flag(help: "Expand nested struct fields with their absolute offsets (implies --emit-offset-comments)")
+    var emitExpandedFieldOffsets: Bool = false
+
+    @Flag(help: "Sort members by binary layout offset instead of grouping by category")
+    var sortMembersByOffset: Bool = false
+
     @Option(name: .shortAndLong, help: "The color scheme for the output.")
     var colorScheme: SemanticColorScheme = .none
 
     func run() async throws {
         let machOFile = try MachOFile.load(options: machOOptions)
+
+        let effectiveEmitOffsetComments = emitOffsetComments || emitExpandedFieldOffsets
 
         let configuration = SwiftInterfaceBuilderConfiguration(
             indexConfiguration: .init(
@@ -41,8 +52,11 @@ struct InterfaceCommand: AsyncParsableCommand {
             ),
             printConfiguration: .init(
                 printStrippedSymbolicItem: true,
-                printFieldOffset: emitOffsetComments,
-                printMemberAddress: emitMemberAddresses
+                printFieldOffset: effectiveEmitOffsetComments,
+                printExpandedFieldOffsets: emitExpandedFieldOffsets,
+                printMemberAddress: emitMemberAddresses,
+                printVTableOffset: emitVtableOffsets,
+                memberSortOrder: sortMembersByOffset ? .byOffset : .byCategory
             )
         )
 
