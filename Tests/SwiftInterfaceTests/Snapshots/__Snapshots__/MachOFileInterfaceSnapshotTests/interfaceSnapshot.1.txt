@@ -2237,8 +2237,8 @@ extension SymbolTestsCore.Actors.CustomGlobalActor: Swift.GlobalActor {
         get
     }
 }
-extension SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest: SymbolTestsCore.Actors.GlobalActorIsolatedProtocolTest {}
-extension SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest: SymbolTestsCore.Actors.CustomGlobalActorIsolatedProtocolTest {}
+extension SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest: @Swift.MainActor SymbolTestsCore.Actors.GlobalActorIsolatedProtocolTest {}
+extension SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest: @SymbolTestsCore.Actors.CustomGlobalActor SymbolTestsCore.Actors.CustomGlobalActorIsolatedProtocolTest {}
 extension SymbolTestsCore.AssociatedTypeWitnessPatterns.ConcreteWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
 extension SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
 extension SymbolTestsCore.AssociatedTypeWitnessPatterns.GenericParameterWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
