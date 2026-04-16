@@ -35,14 +35,14 @@ extension MachOFile {
             case .machO(let machOFile):
                 return machOFile
             case .fat(let fatFile):
+                let machOFiles = try fatFile.machOFiles()
                 guard let architecture = options.architecture else {
-                    let machOFiles = try fatFile.machOFiles()
                     let availableArchitectures = machOFiles.map { machOFile -> String in
                         Architecture(cpu: machOFile.header.cpu)?.rawValue ?? machOFile.header.cpu.description
                     }
                     throw SwiftSectionCommandError.fatBinaryRequiresArchitecture(availableArchitectures: availableArchitectures)
                 }
-                return try required(fatFile.machOFiles().first { $0.header.cpu.subtype == architecture.cpu }, error: SwiftSectionCommandError.invalidArchitecture)
+                return try required(machOFiles.first { $0.header.cpu.subtype == architecture.cpu }, error: SwiftSectionCommandError.invalidArchitecture)
             }
         }
     }
