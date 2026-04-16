@@ -1,11 +1,9 @@
-import Foundation
-import MachOKit
-import MachOFoundation
+import MachOSwiftSection
 
 /// Resolves vtable slot indices for `MethodOverrideDescriptor` values by looking up
 /// the original method in the parent class's vtable, caching each parent class's
 /// base offset and method-descriptor offsets so that sibling overrides share work.
-public struct ParentClassVTableCache {
+package struct ParentClassVTableCache {
     private struct Entry {
         let baseOffset: Int
         let methodDescriptorOffsets: [Int]
@@ -13,13 +11,13 @@ public struct ParentClassVTableCache {
 
     private var entriesByParentOffset: [Int: Entry] = [:]
 
-    public init() {}
+    package init() {}
 
     /// Returns the absolute vtable slot index for `descriptor`, or `nil` if the
     /// override cannot be resolved (missing original method, missing parent class
     /// context, parent class without a vtable, or original method not found in
     /// the parent's vtable).
-    public mutating func slotIndex<MachO: MachOSwiftSectionRepresentableWithCache>(
+    package mutating func slotIndex<MachO: MachOSwiftSectionRepresentableWithCache>(
         for descriptor: MethodOverrideDescriptor,
         in machO: MachO
     ) throws -> Int? {
