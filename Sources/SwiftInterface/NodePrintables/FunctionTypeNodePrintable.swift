@@ -187,7 +187,7 @@ extension FunctionTypeNodePrintable {
         if parameters.kind != .tuple {
             if showTypes {
                 target.write("(_: ")
-                _ = await printName(parameters)
+                await printParameterType(parameters)
                 target.write(")")
             } else {
                 target.write("(_:)")
@@ -214,13 +214,62 @@ extension FunctionTypeNodePrintable {
             }
 
             if showTypes {
-                _ = await printName(tuple.element)
+                await printParameterTupleElement(tuple.element)
                 if tuple.offset != parameters.children.count - 1 {
                     target.write(", ")
                 }
             }
         }
         target.write(")")
+    }
+
+    /// Print a tuple element that lives in a parameter position. Mirrors
+    /// `printTupleElement`, but prefixes `@escaping` when the wrapped
+    /// type is a closure that is escaping by default.
+    private mutating func printParameterTupleElement(_ name: Node) async {
+        if let label = name.children.first(where: { $0.kind == .tupleElementName }) {
+            target.write("\(label.text ?? ""): ")
+        }
+        guard let typeNode = name.children.first(where: { $0.kind == .type }) else { return }
+        await printParameterType(typeNode)
+        if name.children.first(where: { $0.kind == .variadicMarker }) != nil {
+            target.write("...")
+        }
+    }
+
+    /// Print a parameter type node, prepending `@escaping` for top-level
+    /// closure-style function types as Swift source requires.
+    private mutating func printParameterType(_ typeNode: Node) async {
+        if needsEscapingAttribute(forParameterTypeNode: typeNode) {
+            target.write("@escaping", context: .context(state: .printKeyword))
+            target.writeSpace()
+        }
+        _ = await printName(typeNode)
+    }
+
+    /// Decide whether a parameter type requires the `@escaping` attribute.
+    ///
+    /// In Swift source, `@escaping` is only allowed on the *outermost* function
+    /// type of a parameter declaration; nested closure types inside a return
+    /// position or inside another closure's signature are escaping by default
+    /// but cannot be annotated. This matches that rule.
+    ///
+    /// The check excludes node kinds that already carry their own attribute or
+    /// are non-escaping by definition (`noEscapeFunctionType`, `autoClosureType`,
+    /// `cFunctionPointer`, `objCBlock`, `thinFunctionType`, etc.).
+    private func needsEscapingAttribute(forParameterTypeNode typeNode: Node) -> Bool {
+        var current: Node? = typeNode
+        while let node = current {
+            switch node.kind {
+            case .type:
+                current = node.children.first
+            case .functionType, .escapingAutoClosureType:
+                return true
+            default:
+                return false
+            }
+        }
+        return false
     }
 
     private mutating func printTupleElement(_ name: Node) async {
