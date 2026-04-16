@@ -4,13 +4,13 @@ import MachOFoundation
 
 // using TrailingObjects = swift::ABI::TrailingObjects<
 //                           TargetProtocolConformanceDescriptor<Runtime>,
-//                           TargetRelativeContextPointer<Runtime>,
-//                           TargetGenericRequirementDescriptor<Runtime>,
-//                           GenericPackShapeDescriptor,
-//                           TargetResilientWitnessesHeader<Runtime>,
-//                           TargetResilientWitness<Runtime>,
-//                           TargetGenericWitnessTable<Runtime>,
-//                           TargetGlobalActorReference<Runtime>>;
+//                           TargetRelativeContextPointer<Runtime>,       // if isRetroactive
+//                           TargetGenericRequirementDescriptor<Runtime>, // numConditionalRequirements
+//                           GenericPackShapeDescriptor,                  // numConditionalPackShapeDescriptors
+//                           TargetResilientWitnessesHeader<Runtime>,     // if hasResilientWitnesses
+//                           TargetResilientWitness<Runtime>,             // header.NumWitnesses
+//                           TargetGenericWitnessTable<Runtime>,          // if hasGenericWitnessTable
+//                           TargetGlobalActorReference<Runtime>>;        // if hasGlobalActorIsolation
 
 // The structure of a protocol conformance.
 //
@@ -39,6 +39,8 @@ public struct ProtocolConformance: TopLevelType {
     public private(set) var resilientWitnesses: [ResilientWitness] = []
 
     public private(set) var genericWitnessTable: GenericWitnessTable?
+
+    public private(set) var globalActorReference: GlobalActorReference?
 
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(descriptor: ProtocolConformanceDescriptor, in machO: MachO) throws {
         self.descriptor = descriptor
@@ -118,6 +120,14 @@ public struct ProtocolConformance: TopLevelType {
             currentOffset.offset(of: GenericWitnessTable.self)
         } else {
             genericWitnessTable = nil
+        }
+
+        if descriptor.flags.hasGlobalActorIsolation {
+            let globalActorReference: GlobalActorReference = try reader.readWrapperElement(offset: currentOffset)
+            self.globalActorReference = globalActorReference
+            currentOffset.offset(of: GlobalActorReference.self)
+        } else {
+            globalActorReference = nil
         }
     }
 }
