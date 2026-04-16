@@ -79,7 +79,7 @@ extension STCoreE2ETests {
 extension STCoreE2ETests {
     @Test func outputContainsVTableOffsetComments() async throws {
         let output = try await buildOutput(memberSortOrder: .byOffset)
-        #expect(output.contains("VTable Offset:"))
+        #expect(output.contains("VTable offset:"))
     }
 }
 

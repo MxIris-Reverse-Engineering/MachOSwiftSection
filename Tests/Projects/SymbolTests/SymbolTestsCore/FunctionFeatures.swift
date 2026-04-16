@@ -35,6 +35,52 @@ public enum FunctionFeatures {
         }
     }
 
+    /// Fixture for the `consuming` parameter modifier path
+    /// (mangling: `n` → demangler `.owned` → printed as `consuming`).
+    ///
+    /// Notes on what this fixture can and cannot cover:
+    ///
+    /// - `consuming` on a free function or method parameter IS mangled
+    ///   (as `n`). All four entries below produce `.owned` nodes in the
+    ///   demangle tree and therefore round-trip through the printer.
+    /// - `borrowing` on a parameter is **never** mangled by the Swift
+    ///   compiler — its mangled name is byte-identical to a parameter
+    ///   with no ownership modifier at all (verified empirically with
+    ///   `swiftc` + `nm` for both class- and struct-typed parameters).
+    ///   So a `borrowing` fixture would produce no `.shared` node and
+    ///   would not exercise the printer path. The `.shared`-printed-as-
+    ///   `borrowing` route is reached only via legacy `__shared`
+    ///   spellings (e.g. `Foundation.String.init(format: __shared
+    ///   String, ...)`), which are already covered by the dyld-cache
+    ///   snapshot tests, not by SymbolTestsCore.
+    /// - `init` parameters do not mangle `consuming` either (see
+    ///   roadmap P1-7 ABI limitation). Hence only methods and a
+    ///   `static` method here.
+    public struct OwnershipParameterTest {
+        public class Box {
+            public var value: Int
+            public init(_ value: Int) { self.value = value }
+        }
+
+        public func consumeBox(_ box: consuming Box) {
+            _ = box
+        }
+
+        public func consumeWithLabel(_ box: consuming Box, label: Int) {
+            _ = box
+            _ = label
+        }
+
+        public func twoConsuming(_ first: consuming Box, _ second: consuming Box) {
+            _ = first
+            _ = second
+        }
+
+        public static func staticConsume(_ box: consuming Box) {
+            _ = box
+        }
+    }
+
     public struct VariadicFunctionTest {
         public func sum(_ values: Int...) -> Int {
             values.reduce(0, +)
