@@ -1,30 +1,732 @@
-extension SymbolTestsCore.StructTest: SymbolTestsCore.ProtocolTest {}
-extension SymbolTestsCore.GenericRequirementTest: SymbolTestsCore.ProtocolTest {}
-extension SymbolTestsCore.GenericRequirementTest: Swift.RawRepresentable where A: Swift.RawRepresentable {
-    associated type descriptor for Swift.RawRepresentable.RawValue
-    method descriptor for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A?
-    protocol witness for SymbolTestsCore.ProtocolTest.body.getter : A.Body in conformance SymbolTestsCore.GenericRequirementTest<A> : SymbolTestsCore.ProtocolTest in SymbolTestsCore
+extension SymbolTestsCore.Actors.ActorTest: Swift.Actor {
+    protocol witness for Swift.Actor.unownedExecutor.getter : Swift.UnownedSerialExecutor in conformance SymbolTestsCore.Actors.ActorTest : Swift.Actor in SymbolTestsCore
 }
-extension SymbolTestsCore.GenericRequirementTest: Swift.Equatable where A: Swift.Equatable {
+extension SymbolTestsCore.Actors.CustomGlobalActor: Swift.Actor {
+    protocol witness for Swift.Actor.unownedExecutor.getter : Swift.UnownedSerialExecutor in conformance SymbolTestsCore.Actors.CustomGlobalActor : Swift.Actor in SymbolTestsCore
+}
+extension SymbolTestsCore.Actors.CustomGlobalActor: Swift.GlobalActor {
+    associated conformance descriptor for Swift.GlobalActor.Swift.GlobalActor.ActorType: Swift.Actor
+    associated type descriptor for Swift.GlobalActor.ActorType
+    protocol witness for static Swift.GlobalActor.shared.getter : A.ActorType in conformance SymbolTestsCore.Actors.CustomGlobalActor : Swift.GlobalActor in SymbolTestsCore
+    protocol witness for static Swift.GlobalActor.sharedUnownedExecutor.getter : Swift.UnownedSerialExecutor in conformance SymbolTestsCore.Actors.CustomGlobalActor : Swift.GlobalActor in SymbolTestsCore
+}
+extension SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest: SymbolTestsCore.Actors.GlobalActorIsolatedProtocolTest {}
+extension SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest: SymbolTestsCore.Actors.CustomGlobalActorIsolatedProtocolTest {}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.ConcreteWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.GenericParameterWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.DependentWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
+extension SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator: Swift.AsyncIteratorProtocol {
+    associated conformance descriptor for Swift.AsyncIteratorProtocol.Swift.AsyncIteratorProtocol.Failure: Swift.Error
+    associated type descriptor for Swift.AsyncIteratorProtocol.Element
+    associated type descriptor for Swift.AsyncIteratorProtocol.Failure
+    async function pointer to protocol witness for Swift.AsyncIteratorProtocol.next() async throws -> A.Element? in conformance SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator : Swift.AsyncIteratorProtocol in SymbolTestsCore
+    async function pointer to protocol witness for Swift.AsyncIteratorProtocol.next(isolation: isolated Swift.Actor?) async throws(A.Failure) -> A.Element? in conformance SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator : Swift.AsyncIteratorProtocol in SymbolTestsCore
+}
+extension SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest: Swift.AsyncSequence {
+    associated conformance descriptor for Swift.AsyncSequence.Swift.AsyncSequence.AsyncIterator: Swift.AsyncIteratorProtocol
+    associated type descriptor for Swift.AsyncSequence.AsyncIterator
+    associated type descriptor for Swift.AsyncSequence.Element
+    associated type descriptor for Swift.AsyncSequence.Failure
+    protocol witness for Swift.AsyncSequence.makeAsyncIterator() -> A.AsyncIterator in conformance SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest : Swift.AsyncSequence in SymbolTestsCore
+}
+extension SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator: Swift.AsyncIteratorProtocol {
+    associated conformance descriptor for Swift.AsyncIteratorProtocol.Swift.AsyncIteratorProtocol.Failure: Swift.Error
+    associated type descriptor for Swift.AsyncIteratorProtocol.Element
+    associated type descriptor for Swift.AsyncIteratorProtocol.Failure
+    async function pointer to protocol witness for Swift.AsyncIteratorProtocol.next() async throws -> A.Element? in conformance SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator : Swift.AsyncIteratorProtocol in SymbolTestsCore
+    async function pointer to protocol witness for Swift.AsyncIteratorProtocol.next(isolation: isolated Swift.Actor?) async throws(A.Failure) -> A.Element? in conformance SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator : Swift.AsyncIteratorProtocol in SymbolTestsCore
+}
+extension SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest: Swift.AsyncSequence {
+    associated conformance descriptor for Swift.AsyncSequence.Swift.AsyncSequence.AsyncIterator: Swift.AsyncIteratorProtocol
+    associated type descriptor for Swift.AsyncSequence.AsyncIterator
+    associated type descriptor for Swift.AsyncSequence.Element
+    associated type descriptor for Swift.AsyncSequence.Failure
+    protocol witness for Swift.AsyncSequence.makeAsyncIterator() -> A.AsyncIterator in conformance SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest : Swift.AsyncSequence in SymbolTestsCore
+}
+extension SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest.AsyncIterator: Swift.AsyncIteratorProtocol {
+    associated conformance descriptor for Swift.AsyncIteratorProtocol.Swift.AsyncIteratorProtocol.Failure: Swift.Error
+    associated type descriptor for Swift.AsyncIteratorProtocol.Element
+    associated type descriptor for Swift.AsyncIteratorProtocol.Failure
+    async function pointer to protocol witness for Swift.AsyncIteratorProtocol.next() async throws -> A.Element? in conformance SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest<A>.AsyncIterator : Swift.AsyncIteratorProtocol in SymbolTestsCore
+    async function pointer to protocol witness for Swift.AsyncIteratorProtocol.next(isolation: isolated Swift.Actor?) async throws(A.Failure) -> A.Element? in conformance SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest<A>.AsyncIterator : Swift.AsyncIteratorProtocol in SymbolTestsCore
+}
+extension SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest: Swift.AsyncSequence {
+    associated conformance descriptor for Swift.AsyncSequence.Swift.AsyncSequence.AsyncIterator: Swift.AsyncIteratorProtocol
+    associated type descriptor for Swift.AsyncSequence.AsyncIterator
+    associated type descriptor for Swift.AsyncSequence.Element
+    associated type descriptor for Swift.AsyncSequence.Failure
+    protocol witness for Swift.AsyncSequence.makeAsyncIterator() -> A.AsyncIterator in conformance SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest<A> : Swift.AsyncSequence in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest: Swift.Decodable {
+    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest : Swift.Decodable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest: Swift.Encodable {
+    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest : Swift.Encodable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest: Swift.Decodable {
+    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.CodableTests.CustomCodableTest : Swift.Decodable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest: Swift.Encodable {
+    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.CodableTests.CustomCodableTest : Swift.Encodable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest: Swift.Decodable {
+    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.CodableTests.CodableClassTest : Swift.Decodable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest: Swift.Encodable {
+    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.CodableTests.CodableClassTest : Swift.Encodable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest: Swift.Decodable {
+    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.CodableTests.CodableEnumTest : Swift.Decodable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest: Swift.Encodable {
+    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.CodableTests.CodableEnumTest : Swift.Encodable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest: Swift.Decodable {
+    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A> : Swift.Decodable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest: Swift.Encodable {
+    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A> : Swift.Encodable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.CustomStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys: Swift.CustomDebugStringConvertible {
+    protocol witness for Swift.CustomDebugStringConvertible.debugDescription.getter : Swift.String in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.CustomDebugStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.CustomStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys: Swift.CustomDebugStringConvertible {
+    protocol witness for Swift.CustomDebugStringConvertible.debugDescription.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.CustomDebugStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.RawRepresentable in SymbolTestsCore
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.RawRepresentable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys : Swift.CustomStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys: Swift.CustomDebugStringConvertible {
+    protocol witness for Swift.CustomDebugStringConvertible.debugDescription.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys : Swift.CustomDebugStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys : Swift.CustomStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys: Swift.CustomDebugStringConvertible {
+    protocol witness for Swift.CustomDebugStringConvertible.debugDescription.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys : Swift.CustomDebugStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys : Swift.CustomStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys: Swift.CustomDebugStringConvertible {
+    protocol witness for Swift.CustomDebugStringConvertible.debugDescription.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys : Swift.CustomDebugStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys : Swift.CustomStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys: Swift.CustomDebugStringConvertible {
+    protocol witness for Swift.CustomDebugStringConvertible.debugDescription.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys : Swift.CustomDebugStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys : Swift.CustomStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys: Swift.CustomDebugStringConvertible {
+    protocol witness for Swift.CustomDebugStringConvertible.debugDescription.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys : Swift.CustomDebugStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys : Swift.CustomStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys: Swift.CustomDebugStringConvertible {
+    protocol witness for Swift.CustomDebugStringConvertible.debugDescription.getter : Swift.String in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys : Swift.CustomDebugStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys: Swift.CodingKey {
+    base conformance descriptor for Swift.CodingKey: Swift.CustomDebugStringConvertible
+    base conformance descriptor for Swift.CodingKey: Swift.CustomStringConvertible
+    protocol witness for Swift.CodingKey.stringValue.getter : Swift.String in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(stringValue: Swift.String) -> A? in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.intValue.getter : Swift.Int? in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(intValue: Swift.Int) -> A? in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys : Swift.CodingKey in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys: Swift.CodingKey {
+    base conformance descriptor for Swift.CodingKey: Swift.CustomDebugStringConvertible
+    base conformance descriptor for Swift.CodingKey: Swift.CustomStringConvertible
+    protocol witness for Swift.CodingKey.stringValue.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(stringValue: Swift.String) -> A? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.intValue.getter : Swift.Int? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(intValue: Swift.Int) -> A? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys : Swift.CodingKey in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys: Swift.CodingKey {
+    base conformance descriptor for Swift.CodingKey: Swift.CustomDebugStringConvertible
+    base conformance descriptor for Swift.CodingKey: Swift.CustomStringConvertible
+    protocol witness for Swift.CodingKey.stringValue.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(stringValue: Swift.String) -> A? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.intValue.getter : Swift.Int? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(intValue: Swift.Int) -> A? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys : Swift.CodingKey in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys: Swift.CodingKey {
+    base conformance descriptor for Swift.CodingKey: Swift.CustomDebugStringConvertible
+    base conformance descriptor for Swift.CodingKey: Swift.CustomStringConvertible
+    protocol witness for Swift.CodingKey.stringValue.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(stringValue: Swift.String) -> A? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.intValue.getter : Swift.Int? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(intValue: Swift.Int) -> A? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys : Swift.CodingKey in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys: Swift.CodingKey {
+    base conformance descriptor for Swift.CodingKey: Swift.CustomDebugStringConvertible
+    base conformance descriptor for Swift.CodingKey: Swift.CustomStringConvertible
+    protocol witness for Swift.CodingKey.stringValue.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(stringValue: Swift.String) -> A? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.intValue.getter : Swift.Int? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(intValue: Swift.Int) -> A? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys: Swift.CodingKey {
+    base conformance descriptor for Swift.CodingKey: Swift.CustomDebugStringConvertible
+    base conformance descriptor for Swift.CodingKey: Swift.CustomStringConvertible
+    protocol witness for Swift.CodingKey.stringValue.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(stringValue: Swift.String) -> A? in conformance SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.intValue.getter : Swift.Int? in conformance SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(intValue: Swift.Int) -> A? in conformance SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys: Swift.CodingKey {
+    base conformance descriptor for Swift.CodingKey: Swift.CustomDebugStringConvertible
+    base conformance descriptor for Swift.CodingKey: Swift.CustomStringConvertible
+    protocol witness for Swift.CodingKey.stringValue.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(stringValue: Swift.String) -> A? in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.intValue.getter : Swift.Int? in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(intValue: Swift.Int) -> A? in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys: Swift.CodingKey {
+    base conformance descriptor for Swift.CodingKey: Swift.CustomDebugStringConvertible
+    base conformance descriptor for Swift.CodingKey: Swift.CustomStringConvertible
+    protocol witness for Swift.CodingKey.stringValue.getter : Swift.String in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(stringValue: Swift.String) -> A? in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.intValue.getter : Swift.Int? in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(intValue: Swift.Int) -> A? in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomSequenceTest.Iterator: Swift.IteratorProtocol {
+    associated type descriptor for Swift.IteratorProtocol.Element
+    protocol witness for Swift.IteratorProtocol.next() -> A.Element? in conformance SymbolTestsCore.CollectionConformances.CustomSequenceTest.Iterator : Swift.IteratorProtocol in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomSequenceTest: Swift.Sequence {
+    associated conformance descriptor for Swift.Sequence.Swift.Sequence.Iterator: Swift.IteratorProtocol
+    associated type descriptor for Swift.Sequence.Element
+    associated type descriptor for Swift.Sequence.Iterator
+    protocol witness for Swift.Sequence.makeIterator() -> A.Iterator in conformance SymbolTestsCore.CollectionConformances.CustomSequenceTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence.underestimatedCount.getter : Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomSequenceTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._customContainsEquatableElement(A.Element) -> Swift.Bool? in conformance SymbolTestsCore.CollectionConformances.CustomSequenceTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._copyToContiguousArray() -> Swift.ContiguousArray<A.Element> in conformance SymbolTestsCore.CollectionConformances.CustomSequenceTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._copyContents(initializing: Swift.UnsafeMutableBufferPointer<A.Element>) -> (A.Iterator, Swift.Int) in conformance SymbolTestsCore.CollectionConformances.CustomSequenceTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence.withContiguousStorageIfAvailable<A>((Swift.UnsafeBufferPointer<A.Element>) throws -> A1) throws -> A1? in conformance SymbolTestsCore.CollectionConformances.CustomSequenceTest : Swift.Sequence in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomCollectionTest: Swift.Collection {
+    base conformance descriptor for Swift.Collection: Swift.Sequence
+    associated conformance descriptor for Swift.Collection.Swift.Collection.Index: Swift.Comparable
+    associated conformance descriptor for Swift.Collection.Swift.Collection.Indices: Swift.Collection
+    associated conformance descriptor for Swift.Collection.Swift.Collection.SubSequence: Swift.Collection
+    associated type descriptor for Swift.Collection.Index
+    associated type descriptor for Swift.Collection.SubSequence
+    associated type descriptor for Swift.Collection.Indices
+    protocol witness for Swift.Collection.startIndex.getter : A.Index in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Sequence.makeIterator() -> A.Iterator in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Collection.subscript.read : (A.Index) -> A.Element in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.subscript.getter : (Swift.Range<A.Index>) -> A.SubSequence in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.indices.getter : A.Indices in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.isEmpty.getter : Swift.Bool in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.count.getter : Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._customIndexOfEquatableElement(A.Element) -> A.Index?? in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._customLastIndexOfEquatableElement(A.Element) -> A.Index?? in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.index(_: A.Index, offsetBy: Swift.Int) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.index(_: A.Index, offsetBy: Swift.Int, limitedBy: A.Index) -> A.Index? in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.distance(from: A.Index, to: A.Index) -> Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._failEarlyRangeCheck(_: A.Index, bounds: Swift.Range<A.Index>) -> () in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._failEarlyRangeCheck(_: A.Index, bounds: Swift.ClosedRange<A.Index>) -> () in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._failEarlyRangeCheck(_: Swift.Range<A.Index>, bounds: Swift.Range<A.Index>) -> () in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.index(after: A.Index) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.formIndex(after: inout A.Index) -> () in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomCollectionTest: Swift.Sequence {
+    associated conformance descriptor for Swift.Sequence.Swift.Sequence.Iterator: Swift.IteratorProtocol
+    associated type descriptor for Swift.Sequence.Element
+    associated type descriptor for Swift.Sequence.Iterator
+    protocol witness for Swift.Collection.startIndex.getter : A.Index in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.count.getter : Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Sequence._customContainsEquatableElement(A.Element) -> Swift.Bool? in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._copyToContiguousArray() -> Swift.ContiguousArray<A.Element> in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._copyContents(initializing: Swift.UnsafeMutableBufferPointer<A.Element>) -> (A.Iterator, Swift.Int) in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence.withContiguousStorageIfAvailable<A>((Swift.UnsafeBufferPointer<A.Element>) throws -> A1) throws -> A1? in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Sequence in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest: Swift.BidirectionalCollection {
+    base conformance descriptor for Swift.BidirectionalCollection: Swift.Collection
+    associated conformance descriptor for Swift.BidirectionalCollection.Swift.Collection.Indices: Swift.BidirectionalCollection
+    associated conformance descriptor for Swift.BidirectionalCollection.Swift.Collection.SubSequence: Swift.BidirectionalCollection
+    protocol witness for Swift.BidirectionalCollection.index(before: A.Index) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.formIndex(before: inout A.Index) -> () in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.index(_: A.Index, offsetBy: Swift.Int) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.index(_: A.Index, offsetBy: Swift.Int, limitedBy: A.Index) -> A.Index? in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.distance(from: A.Index, to: A.Index) -> Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest: Swift.Collection {
+    base conformance descriptor for Swift.Collection: Swift.Sequence
+    associated conformance descriptor for Swift.Collection.Swift.Collection.Index: Swift.Comparable
+    associated conformance descriptor for Swift.Collection.Swift.Collection.Indices: Swift.Collection
+    associated conformance descriptor for Swift.Collection.Swift.Collection.SubSequence: Swift.Collection
+    associated type descriptor for Swift.Collection.Index
+    associated type descriptor for Swift.Collection.SubSequence
+    associated type descriptor for Swift.Collection.Indices
+    protocol witness for Swift.Collection.startIndex.getter : A.Index in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.endIndex.getter : A.Index in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.subscript.read : (A.Index) -> A.Element in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.subscript.getter : (Swift.Range<A.Index>) -> A.SubSequence in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.indices.getter : A.Indices in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.isEmpty.getter : Swift.Bool in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.count.getter : Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._customLastIndexOfEquatableElement(A.Element) -> A.Index?? in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._customIndexOfEquatableElement(A.Element) -> A.Index?? in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.index(_: A.Index, offsetBy: Swift.Int) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.index(_: A.Index, offsetBy: Swift.Int, limitedBy: A.Index) -> A.Index? in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.distance(from: A.Index, to: A.Index) -> Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.Collection._failEarlyRangeCheck(_: A.Index, bounds: Swift.Range<A.Index>) -> () in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._failEarlyRangeCheck(_: A.Index, bounds: Swift.ClosedRange<A.Index>) -> () in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._failEarlyRangeCheck(_: Swift.Range<A.Index>, bounds: Swift.Range<A.Index>) -> () in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.index(after: A.Index) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.formIndex(after: inout A.Index) -> () in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest: Swift.Sequence {
+    associated conformance descriptor for Swift.Sequence.Swift.Sequence.Iterator: Swift.IteratorProtocol
+    associated type descriptor for Swift.Sequence.Element
+    associated type descriptor for Swift.Sequence.Iterator
+    protocol witness for Swift.Collection.startIndex.getter : A.Index in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.count.getter : Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Sequence._customContainsEquatableElement(A.Element) -> Swift.Bool? in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._copyToContiguousArray() -> Swift.ContiguousArray<A.Element> in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._copyContents(initializing: Swift.UnsafeMutableBufferPointer<A.Element>) -> (A.Iterator, Swift.Int) in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence.withContiguousStorageIfAvailable<A>((Swift.UnsafeBufferPointer<A.Element>) throws -> A1) throws -> A1? in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Sequence in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest: Swift.RandomAccessCollection {
+    base conformance descriptor for Swift.RandomAccessCollection: Swift.BidirectionalCollection
+    associated conformance descriptor for Swift.RandomAccessCollection.Swift.Collection.Indices: Swift.RandomAccessCollection
+    associated conformance descriptor for Swift.RandomAccessCollection.Swift.Collection.SubSequence: Swift.RandomAccessCollection
+    protocol witness for Swift.BidirectionalCollection.index(_: A.Index, offsetBy: Swift.Int) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.index(_: A.Index, offsetBy: Swift.Int, limitedBy: A.Index) -> A.Index? in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.distance(from: A.Index, to: A.Index) -> Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest: Swift.BidirectionalCollection {
+    base conformance descriptor for Swift.BidirectionalCollection: Swift.Collection
+    associated conformance descriptor for Swift.BidirectionalCollection.Swift.Collection.Indices: Swift.BidirectionalCollection
+    associated conformance descriptor for Swift.BidirectionalCollection.Swift.Collection.SubSequence: Swift.BidirectionalCollection
+    protocol witness for Swift.BidirectionalCollection.index(before: A.Index) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.formIndex(before: inout A.Index) -> () in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.index(_: A.Index, offsetBy: Swift.Int) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.index(_: A.Index, offsetBy: Swift.Int, limitedBy: A.Index) -> A.Index? in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.distance(from: A.Index, to: A.Index) -> Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest: Swift.Collection {
+    base conformance descriptor for Swift.Collection: Swift.Sequence
+    associated conformance descriptor for Swift.Collection.Swift.Collection.Index: Swift.Comparable
+    associated conformance descriptor for Swift.Collection.Swift.Collection.Indices: Swift.Collection
+    associated conformance descriptor for Swift.Collection.Swift.Collection.SubSequence: Swift.Collection
+    associated type descriptor for Swift.Collection.Index
+    associated type descriptor for Swift.Collection.SubSequence
+    associated type descriptor for Swift.Collection.Indices
+    protocol witness for Swift.Collection.startIndex.getter : A.Index in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.endIndex.getter : A.Index in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.subscript.read : (A.Index) -> A.Element in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.subscript.getter : (Swift.Range<A.Index>) -> A.SubSequence in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.indices.getter : A.Indices in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.isEmpty.getter : Swift.Bool in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.count.getter : Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._customIndexOfEquatableElement(A.Element) -> A.Index?? in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._customLastIndexOfEquatableElement(A.Element) -> A.Index?? in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.index(_: A.Index, offsetBy: Swift.Int) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.index(_: A.Index, offsetBy: Swift.Int, limitedBy: A.Index) -> A.Index? in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.distance(from: A.Index, to: A.Index) -> Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.Collection._failEarlyRangeCheck(_: A.Index, bounds: Swift.Range<A.Index>) -> () in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._failEarlyRangeCheck(_: A.Index, bounds: Swift.ClosedRange<A.Index>) -> () in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._failEarlyRangeCheck(_: Swift.Range<A.Index>, bounds: Swift.Range<A.Index>) -> () in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.index(after: A.Index) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.formIndex(after: inout A.Index) -> () in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest: Swift.Sequence {
+    associated conformance descriptor for Swift.Sequence.Swift.Sequence.Iterator: Swift.IteratorProtocol
+    associated type descriptor for Swift.Sequence.Element
+    associated type descriptor for Swift.Sequence.Iterator
+    protocol witness for Swift.Collection.startIndex.getter : A.Index in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.count.getter : Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Sequence._customContainsEquatableElement(A.Element) -> Swift.Bool? in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._copyToContiguousArray() -> Swift.ContiguousArray<A.Element> in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._copyContents(initializing: Swift.UnsafeMutableBufferPointer<A.Element>) -> (A.Iterator, Swift.Int) in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence.withContiguousStorageIfAvailable<A>((Swift.UnsafeBufferPointer<A.Element>) throws -> A1) throws -> A1? in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Sequence in SymbolTestsCore
+}
+extension SymbolTestsCore.Concurrency.TypedThrowsErrorTest: Swift.Error {
+    protocol witness for Swift.Error._domain.getter : Swift.String in conformance SymbolTestsCore.Concurrency.TypedThrowsErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._code.getter : Swift.Int in conformance SymbolTestsCore.Concurrency.TypedThrowsErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._userInfo.getter : Swift.AnyObject? in conformance SymbolTestsCore.Concurrency.TypedThrowsErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._getEmbeddedNSError() -> Swift.AnyObject? in conformance SymbolTestsCore.Concurrency.TypedThrowsErrorTest : Swift.Error in SymbolTestsCore
+}
+extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest: Swift.Equatable where A: Swift.Equatable {
     method descriptor for static Swift.Equatable.== infix(A, A) -> Swift.Bool
 }
-extension SymbolTestsCore.GenericPackTest: SymbolTestsCore.ProtocolTest {}
-extension SymbolTestsCore.GenericValueTest: SymbolTestsCore.ProtocolTest {}
-extension Swift.Array: SymbolTestsCore.TestCollection {}
-extension SymbolTestsCore.OpaqueReturnTypeTest.AnyProtocolTest: SymbolTestsCore.ProtocolTest {}
-extension SymbolTestsCore.ProtocolPrimaryAssociatedTypeFirst: SymbolTestsCore.ProtocolTest {}
-extension SymbolTestsCore.ProtocolPrimaryAssociatedTypeSecond: SymbolTestsCore.ProtocolTest {}
-extension SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest: Swift.Equatable {
-    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest<A, B> : Swift.Equatable in SymbolTestsCore
-}
-extension SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest: Swift.Hashable {
+extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest: Swift.Hashable where A: Swift.Hashable {
     base conformance descriptor for Swift.Hashable: Swift.Equatable
-    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest<A, B> : Swift.Hashable in SymbolTestsCore
-    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest<A, B> : Swift.Hashable in SymbolTestsCore
-    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest<A, B> : Swift.Hashable in SymbolTestsCore
+    method descriptor for Swift.Hashable.hashValue.getter : Swift.Int
+    method descriptor for Swift.Hashable.hash(into: inout Swift.Hasher) -> ()
+    method descriptor for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int
 }
-extension SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest: SymbolTestsCore.ProtocolPrimaryAssociatedTypeTest {}
-extension Swift.Never: SymbolTestsCore.ProtocolTest {}
+extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest: Swift.Comparable where A: Swift.Comparable {
+    base conformance descriptor for Swift.Comparable: Swift.Equatable
+    method descriptor for static Swift.Comparable.< infix(A, A) -> Swift.Bool
+    method descriptor for static Swift.Comparable.<= infix(A, A) -> Swift.Bool
+    method descriptor for static Swift.Comparable.>= infix(A, A) -> Swift.Bool
+    method descriptor for static Swift.Comparable.> infix(A, A) -> Swift.Bool
+}
+extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest: SymbolTestsCore.ConditionalConformanceVariants.ConditionalFirstProtocol where A: SymbolTestsCore.ConditionalConformanceVariants.ConditionalFirstProtocol {}
+extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest: SymbolTestsCore.ConditionalConformanceVariants.ConditionalSecondProtocol where A: SymbolTestsCore.ConditionalConformanceVariants.ConditionalFirstProtocolA: SymbolTestsCore.ConditionalConformanceVariants.ConditionalSecondProtocol {}
+extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest: SymbolTestsCore.ConditionalConformanceVariants.ConditionalThirdProtocol where A: SymbolTestsCore.ConditionalConformanceVariants.ConditionalFirstProtocolA: SymbolTestsCore.ConditionalConformanceVariants.ConditionalSecondProtocolA: SymbolTestsCore.ConditionalConformanceVariants.ConditionalThirdProtocol {}
+extension SymbolTestsCore.CustomLiterals.IntegerLiteralTest: Swift.ExpressibleByIntegerLiteral {
+    associated conformance descriptor for Swift.ExpressibleByIntegerLiteral.Swift.ExpressibleByIntegerLiteral.IntegerLiteralType: Swift._ExpressibleByBuiltinIntegerLiteral
+    associated type descriptor for Swift.ExpressibleByIntegerLiteral.IntegerLiteralType
+    protocol witness for Swift.ExpressibleByIntegerLiteral.init(integerLiteral: A.IntegerLiteralType) -> A in conformance SymbolTestsCore.CustomLiterals.IntegerLiteralTest : Swift.ExpressibleByIntegerLiteral in SymbolTestsCore
+}
+extension SymbolTestsCore.CustomLiterals.StringLiteralTest: Swift.ExpressibleByStringLiteral {
+    base conformance descriptor for Swift.ExpressibleByStringLiteral: Swift.ExpressibleByExtendedGraphemeClusterLiteral
+    associated conformance descriptor for Swift.ExpressibleByStringLiteral.Swift.ExpressibleByStringLiteral.StringLiteralType: Swift._ExpressibleByBuiltinStringLiteral
+    associated type descriptor for Swift.ExpressibleByStringLiteral.StringLiteralType
+    protocol witness for Swift.ExpressibleByStringLiteral.init(stringLiteral: A.StringLiteralType) -> A in conformance SymbolTestsCore.CustomLiterals.StringLiteralTest : Swift.ExpressibleByStringLiteral in SymbolTestsCore
+}
+extension SymbolTestsCore.CustomLiterals.StringLiteralTest: Swift.ExpressibleByUnicodeScalarLiteral {
+    associated conformance descriptor for Swift.ExpressibleByUnicodeScalarLiteral.Swift.ExpressibleByUnicodeScalarLiteral.UnicodeScalarLiteralType: Swift._ExpressibleByBuiltinUnicodeScalarLiteral
+    associated type descriptor for Swift.ExpressibleByUnicodeScalarLiteral.UnicodeScalarLiteralType
+    protocol witness for Swift.ExpressibleByStringLiteral.init(stringLiteral: A.StringLiteralType) -> A in conformance SymbolTestsCore.CustomLiterals.StringLiteralTest : Swift.ExpressibleByStringLiteral in SymbolTestsCore
+}
+extension SymbolTestsCore.CustomLiterals.StringLiteralTest: Swift.ExpressibleByExtendedGraphemeClusterLiteral {
+    base conformance descriptor for Swift.ExpressibleByExtendedGraphemeClusterLiteral: Swift.ExpressibleByUnicodeScalarLiteral
+    associated conformance descriptor for Swift.ExpressibleByExtendedGraphemeClusterLiteral.Swift.ExpressibleByExtendedGraphemeClusterLiteral.ExtendedGraphemeClusterLiteralType: Swift._ExpressibleByBuiltinExtendedGraphemeClusterLiteral
+    associated type descriptor for Swift.ExpressibleByExtendedGraphemeClusterLiteral.ExtendedGraphemeClusterLiteralType
+    protocol witness for Swift.ExpressibleByStringLiteral.init(stringLiteral: A.StringLiteralType) -> A in conformance SymbolTestsCore.CustomLiterals.StringLiteralTest : Swift.ExpressibleByStringLiteral in SymbolTestsCore
+}
+extension SymbolTestsCore.CustomLiterals.ArrayLiteralTest: Swift.ExpressibleByArrayLiteral {
+    associated type descriptor for Swift.ExpressibleByArrayLiteral.ArrayLiteralElement
+    protocol witness for Swift.ExpressibleByArrayLiteral.init(arrayLiteral: A.ArrayLiteralElement...) -> A in conformance SymbolTestsCore.CustomLiterals.ArrayLiteralTest : Swift.ExpressibleByArrayLiteral in SymbolTestsCore
+}
+extension SymbolTestsCore.CustomLiterals.DictionaryLiteralTest: Swift.ExpressibleByDictionaryLiteral {
+    associated type descriptor for Swift.ExpressibleByDictionaryLiteral.Key
+    associated type descriptor for Swift.ExpressibleByDictionaryLiteral.Value
+    protocol witness for Swift.ExpressibleByDictionaryLiteral.init(dictionaryLiteral: (A.Key, A.Value)...) -> A in conformance SymbolTestsCore.CustomLiterals.DictionaryLiteralTest : Swift.ExpressibleByDictionaryLiteral in SymbolTestsCore
+}
+extension SymbolTestsCore.CustomLiterals.BooleanLiteralTest: Swift.ExpressibleByBooleanLiteral {
+    associated conformance descriptor for Swift.ExpressibleByBooleanLiteral.Swift.ExpressibleByBooleanLiteral.BooleanLiteralType: Swift._ExpressibleByBuiltinBooleanLiteral
+    associated type descriptor for Swift.ExpressibleByBooleanLiteral.BooleanLiteralType
+    protocol witness for Swift.ExpressibleByBooleanLiteral.init(booleanLiteral: A.BooleanLiteralType) -> A in conformance SymbolTestsCore.CustomLiterals.BooleanLiteralTest : Swift.ExpressibleByBooleanLiteral in SymbolTestsCore
+}
+extension SymbolTestsCore.CustomLiterals.FloatLiteralTest: Swift.ExpressibleByFloatLiteral {
+    associated conformance descriptor for Swift.ExpressibleByFloatLiteral.Swift.ExpressibleByFloatLiteral.FloatLiteralType: Swift._ExpressibleByBuiltinFloatLiteral
+    associated type descriptor for Swift.ExpressibleByFloatLiteral.FloatLiteralType
+    protocol witness for Swift.ExpressibleByFloatLiteral.init(floatLiteral: A.FloatLiteralType) -> A in conformance SymbolTestsCore.CustomLiterals.FloatLiteralTest : Swift.ExpressibleByFloatLiteral in SymbolTestsCore
+}
+extension SymbolTestsCore.CustomLiterals.NilLiteralTest: Swift.ExpressibleByNilLiteral {
+    protocol witness for Swift.ExpressibleByNilLiteral.init(nilLiteral: ()) -> A in conformance SymbolTestsCore.CustomLiterals.NilLiteralTest : Swift.ExpressibleByNilLiteral in SymbolTestsCore
+}
+extension SymbolTestsCore.DeinitVariants.ActorDeinitTest: Swift.Actor {
+    protocol witness for Swift.Actor.unownedExecutor.getter : Swift.UnownedSerialExecutor in conformance SymbolTestsCore.DeinitVariants.ActorDeinitTest : Swift.Actor in SymbolTestsCore
+}
+extension SymbolTestsCore.DiamondInheritance.DiamondImplementationTest: SymbolTestsCore.DiamondInheritance.DiamondBottomProtocol {}
+extension SymbolTestsCore.DiamondInheritance.DiamondImplementationTest: SymbolTestsCore.DiamondInheritance.DiamondLeftProtocol {}
+extension SymbolTestsCore.DiamondInheritance.DiamondImplementationTest: SymbolTestsCore.DiamondInheritance.DiamondRightProtocol {}
+extension SymbolTestsCore.DiamondInheritance.DiamondImplementationTest: SymbolTestsCore.DiamondInheritance.DiamondBaseProtocol {}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest: Distributed.DistributedActor {
+    base conformance descriptor for Distributed.DistributedActor: Swift.Hashable
+    base conformance descriptor for Distributed.DistributedActor: Swift.Identifiable
+    associated conformance descriptor for Distributed.DistributedActor.Distributed.DistributedActor.ActorSystem: Distributed.DistributedActorSystem
+    associated type descriptor for Distributed.DistributedActor.ActorSystem
+    associated type descriptor for Distributed.DistributedActor.SerializationRequirement
+    protocol witness for Distributed.DistributedActor.actorSystem.getter : A.ActorSystem in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Distributed.DistributedActor in SymbolTestsCore
+    protocol witness for Distributed.DistributedActor.unownedExecutor.getter : Swift.UnownedSerialExecutor in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Distributed.DistributedActor in SymbolTestsCore
+    protocol witness for static Distributed.DistributedActor.resolve(id: A.ID, using: A.ActorSystem) throws -> A in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Distributed.DistributedActor in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Identifiable {
+    associated conformance descriptor for Swift.Identifiable.Swift.Identifiable.ID: Swift.Hashable
+    associated type descriptor for Swift.Identifiable.ID
+    protocol witness for Swift.Identifiable.id.getter : A.ID in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Swift.Identifiable in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Encodable {
+    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Swift.Encodable in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Decodable {
+    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Swift.Decodable in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Distributed.DistributedActor {
+    base conformance descriptor for Distributed.DistributedActor: Swift.Hashable
+    base conformance descriptor for Distributed.DistributedActor: Swift.Identifiable
+    associated conformance descriptor for Distributed.DistributedActor.Distributed.DistributedActor.ActorSystem: Distributed.DistributedActorSystem
+    associated type descriptor for Distributed.DistributedActor.ActorSystem
+    associated type descriptor for Distributed.DistributedActor.SerializationRequirement
+    protocol witness for Distributed.DistributedActor.actorSystem.getter : A.ActorSystem in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Distributed.DistributedActor in SymbolTestsCore
+    protocol witness for Distributed.DistributedActor.unownedExecutor.getter : Swift.UnownedSerialExecutor in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Distributed.DistributedActor in SymbolTestsCore
+    protocol witness for static Distributed.DistributedActor.resolve(id: A.ID, using: A.ActorSystem) throws -> A in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Distributed.DistributedActor in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Identifiable {
+    associated conformance descriptor for Swift.Identifiable.Swift.Identifiable.ID: Swift.Hashable
+    associated type descriptor for Swift.Identifiable.ID
+    protocol witness for Swift.Identifiable.id.getter : A.ID in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Swift.Identifiable in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Encodable {
+    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Swift.Encodable in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Decodable {
+    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Swift.Decodable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.NoPayloadEnumTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.Enums.NoPayloadEnumTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.NoPayloadEnumTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.Enums.NoPayloadEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.Enums.NoPayloadEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.Enums.NoPayloadEnumTest : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.RawValueEnumTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.Enums.RawValueEnumTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.RawValueEnumTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.Enums.RawValueEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.Enums.RawValueEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.Enums.RawValueEnumTest : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.RawValueEnumTest: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance SymbolTestsCore.Enums.RawValueEnumTest : Swift.RawRepresentable in SymbolTestsCore
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance SymbolTestsCore.Enums.RawValueEnumTest : Swift.RawRepresentable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.StringRawValueEnumTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.Enums.StringRawValueEnumTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.StringRawValueEnumTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.Enums.StringRawValueEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.Enums.StringRawValueEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.Enums.StringRawValueEnumTest : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.StringRawValueEnumTest: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance SymbolTestsCore.Enums.StringRawValueEnumTest : Swift.RawRepresentable in SymbolTestsCore
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance SymbolTestsCore.Enums.StringRawValueEnumTest : Swift.RawRepresentable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.CaseIterableEnumTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.Enums.CaseIterableEnumTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.CaseIterableEnumTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.Enums.CaseIterableEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.Enums.CaseIterableEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.Enums.CaseIterableEnumTest : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.CaseIterableEnumTest: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance SymbolTestsCore.Enums.CaseIterableEnumTest : Swift.RawRepresentable in SymbolTestsCore
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance SymbolTestsCore.Enums.CaseIterableEnumTest : Swift.RawRepresentable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.CaseIterableEnumTest: Swift.CaseIterable {
+    associated conformance descriptor for Swift.CaseIterable.Swift.CaseIterable.AllCases: Swift.Collection
+    associated type descriptor for Swift.CaseIterable.AllCases
+    protocol witness for static Swift.CaseIterable.allCases.getter : A.AllCases in conformance SymbolTestsCore.Enums.CaseIterableEnumTest : Swift.CaseIterable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.ObjCEnumTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.Enums.ObjCEnumTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.ObjCEnumTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.Enums.ObjCEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.Enums.ObjCEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.Enums.ObjCEnumTest : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.ObjCEnumTest: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance SymbolTestsCore.Enums.ObjCEnumTest : Swift.RawRepresentable in SymbolTestsCore
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance SymbolTestsCore.Enums.ObjCEnumTest : Swift.RawRepresentable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.LargeFrozenEnumTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.Enums.LargeFrozenEnumTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.LargeFrozenEnumTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.Enums.LargeFrozenEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.Enums.LargeFrozenEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.Enums.LargeFrozenEnumTest : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.ErrorTypes.SimpleErrorTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.ErrorTypes.SimpleErrorTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.ErrorTypes.SimpleErrorTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.ErrorTypes.SimpleErrorTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.ErrorTypes.SimpleErrorTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.ErrorTypes.SimpleErrorTest : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.ErrorTypes.SimpleErrorTest: Swift.Error {
+    protocol witness for Swift.Error._domain.getter : Swift.String in conformance SymbolTestsCore.ErrorTypes.SimpleErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._code.getter : Swift.Int in conformance SymbolTestsCore.ErrorTypes.SimpleErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._userInfo.getter : Swift.AnyObject? in conformance SymbolTestsCore.ErrorTypes.SimpleErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._getEmbeddedNSError() -> Swift.AnyObject? in conformance SymbolTestsCore.ErrorTypes.SimpleErrorTest : Swift.Error in SymbolTestsCore
+}
+extension SymbolTestsCore.ErrorTypes.AssociatedValueErrorTest: Swift.Error {
+    protocol witness for Swift.Error._domain.getter : Swift.String in conformance SymbolTestsCore.ErrorTypes.AssociatedValueErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._code.getter : Swift.Int in conformance SymbolTestsCore.ErrorTypes.AssociatedValueErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._userInfo.getter : Swift.AnyObject? in conformance SymbolTestsCore.ErrorTypes.AssociatedValueErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._getEmbeddedNSError() -> Swift.AnyObject? in conformance SymbolTestsCore.ErrorTypes.AssociatedValueErrorTest : Swift.Error in SymbolTestsCore
+}
+extension SymbolTestsCore.ErrorTypes.LocalizedErrorTest: Foundation.LocalizedError {
+    base conformance descriptor for Foundation.LocalizedError: Swift.Error
+    protocol witness for Foundation.LocalizedError.errorDescription.getter : Swift.String? in conformance SymbolTestsCore.ErrorTypes.LocalizedErrorTest : Foundation.LocalizedError in SymbolTestsCore
+    protocol witness for Foundation.LocalizedError.failureReason.getter : Swift.String? in conformance SymbolTestsCore.ErrorTypes.LocalizedErrorTest : Foundation.LocalizedError in SymbolTestsCore
+    protocol witness for Foundation.LocalizedError.recoverySuggestion.getter : Swift.String? in conformance SymbolTestsCore.ErrorTypes.LocalizedErrorTest : Foundation.LocalizedError in SymbolTestsCore
+    protocol witness for Foundation.LocalizedError.helpAnchor.getter : Swift.String? in conformance SymbolTestsCore.ErrorTypes.LocalizedErrorTest : Foundation.LocalizedError in SymbolTestsCore
+}
+extension SymbolTestsCore.ErrorTypes.LocalizedErrorTest: Swift.Error {
+    protocol witness for Swift.Error._domain.getter : Swift.String in conformance SymbolTestsCore.ErrorTypes.LocalizedErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._code.getter : Swift.Int in conformance SymbolTestsCore.ErrorTypes.LocalizedErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._userInfo.getter : Swift.AnyObject? in conformance SymbolTestsCore.ErrorTypes.LocalizedErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._getEmbeddedNSError() -> Swift.AnyObject? in conformance SymbolTestsCore.ErrorTypes.LocalizedErrorTest : Swift.Error in SymbolTestsCore
+}
+extension SymbolTestsCore.ErrorTypes.CustomNSErrorTest: Foundation.CustomNSError {
+    base conformance descriptor for Foundation.CustomNSError: Swift.Error
+    protocol witness for static Foundation.CustomNSError.errorDomain.getter : Swift.String in conformance SymbolTestsCore.ErrorTypes.CustomNSErrorTest : Foundation.CustomNSError in SymbolTestsCore
+    protocol witness for Foundation.CustomNSError.errorCode.getter : Swift.Int in conformance SymbolTestsCore.ErrorTypes.CustomNSErrorTest : Foundation.CustomNSError in SymbolTestsCore
+    protocol witness for Foundation.CustomNSError.errorUserInfo.getter : [Swift.String : Any] in conformance SymbolTestsCore.ErrorTypes.CustomNSErrorTest : Foundation.CustomNSError in SymbolTestsCore
+}
+extension SymbolTestsCore.ErrorTypes.CustomNSErrorTest: Swift.Error {
+    protocol witness for Swift.Error._domain.getter : Swift.String in conformance SymbolTestsCore.ErrorTypes.CustomNSErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._code.getter : Swift.Int in conformance SymbolTestsCore.ErrorTypes.CustomNSErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._userInfo.getter : Swift.AnyObject? in conformance SymbolTestsCore.ErrorTypes.CustomNSErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._getEmbeddedNSError() -> Swift.AnyObject? in conformance SymbolTestsCore.ErrorTypes.CustomNSErrorTest : Swift.Error in SymbolTestsCore
+}
+extension SymbolTestsCore.ErrorTypes.SendableErrorTest: Swift.Error {
+    protocol witness for Swift.Error._domain.getter : Swift.String in conformance SymbolTestsCore.ErrorTypes.SendableErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._code.getter : Swift.Int in conformance SymbolTestsCore.ErrorTypes.SendableErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._userInfo.getter : Swift.AnyObject? in conformance SymbolTestsCore.ErrorTypes.SendableErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._getEmbeddedNSError() -> Swift.AnyObject? in conformance SymbolTestsCore.ErrorTypes.SendableErrorTest : Swift.Error in SymbolTestsCore
+}
+extension SymbolTestsCore.Extensions.ExtensionConstrainedStruct: SymbolTestsCore.Extensions.ExtensionProtocol where A: Swift.Hashable {}
+extension SymbolTestsCore.Generics.GenericRequirementTest: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.Generics.GenericPackTest: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.Generics.GenericValueTest: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.Generics.GenericRequirementTest: Swift.RawRepresentable where A: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    method descriptor for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A?
+    protocol witness for SymbolTestsCore.Protocols.ProtocolTest.body.getter : A.Body in conformance SymbolTestsCore.Generics.GenericRequirementTest<A> : SymbolTestsCore.Protocols.ProtocolTest in SymbolTestsCore
+}
+extension SymbolTestsCore.Generics.GenericRequirementTest: Swift.Equatable where A: Swift.Equatable {
+    method descriptor for static Swift.Equatable.== infix(A, A) -> Swift.Bool
+}
+extension SymbolTestsCore.Initializers.CustomInitializerError: Swift.Error {
+    protocol witness for Swift.Error._domain.getter : Swift.String in conformance SymbolTestsCore.Initializers.CustomInitializerError : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._code.getter : Swift.Int in conformance SymbolTestsCore.Initializers.CustomInitializerError : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._userInfo.getter : Swift.AnyObject? in conformance SymbolTestsCore.Initializers.CustomInitializerError : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._getEmbeddedNSError() -> Swift.AnyObject? in conformance SymbolTestsCore.Initializers.CustomInitializerError : Swift.Error in SymbolTestsCore
+}
+extension SymbolTestsCore.Initializers.AsyncInitializerActorTest: Swift.Actor {
+    protocol witness for Swift.Actor.unownedExecutor.getter : Swift.UnownedSerialExecutor in conformance SymbolTestsCore.Initializers.AsyncInitializerActorTest : Swift.Actor in SymbolTestsCore
+}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingStructTest: SymbolTestsCore.MarkerProtocols.MarkerProtocolTest {}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingStructTest: SymbolTestsCore.MarkerProtocols.EmptyMarkerProtocolTest {}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest: SymbolTestsCore.MarkerProtocols.ClassBoundMarkerProtocol {}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest: SymbolTestsCore.MarkerProtocols.InheritingMarkerProtocol {}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest: SymbolTestsCore.MarkerProtocols.MarkerProtocolTest {}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest: SymbolTestsCore.MarkerProtocols.MarkerProtocolTest {}
+extension Swift.Never: SymbolTestsCore.Protocols.ProtocolTest {}
 extension Swift.Never: Swift.IteratorProtocol {
     associated type descriptor for Swift.IteratorProtocol.Element
     protocol witness for Swift.IteratorProtocol.next() -> A.Element? in conformance Swift.Never : Swift.IteratorProtocol in SymbolTestsCore
@@ -40,4 +742,116 @@ extension Swift.Never: Swift.Sequence {
     protocol witness for Swift.Sequence._copyContents(initializing: Swift.UnsafeMutableBufferPointer<A.Element>) -> (A.Iterator, Swift.Int) in conformance Swift.Never : Swift.Sequence in SymbolTestsCore
     protocol witness for Swift.Sequence.withContiguousStorageIfAvailable<A>((Swift.UnsafeBufferPointer<A.Element>) throws -> A1) throws -> A1? in conformance Swift.Never : Swift.Sequence in SymbolTestsCore
 }
-extension SymbolTestsCore.StructTest: SymbolTestsCore.ProtocolWitnessTableTest {}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.AnyProtocolTest: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeSecond: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest<A, B> : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest<A, B> : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest<A, B> : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest<A, B> : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest: SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeTest {}
+extension SymbolTestsCore.Operators.OperatorTestType: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.Operators.OperatorTestType : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.OptionSet {
+    base conformance descriptor for Swift.OptionSet: Swift.RawRepresentable
+    base conformance descriptor for Swift.OptionSet: Swift.SetAlgebra
+    protocol witness for Swift.OptionSet.init(rawValue: A.RawValue) -> A in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.OptionSet in SymbolTestsCore
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.RawRepresentable in SymbolTestsCore
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.RawRepresentable in SymbolTestsCore
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.SetAlgebra {
+    base conformance descriptor for Swift.SetAlgebra: Swift.Equatable
+    base conformance descriptor for Swift.SetAlgebra: Swift.ExpressibleByArrayLiteral
+    associated type descriptor for Swift.SetAlgebra.Element
+    protocol witness for Swift.SetAlgebra.init() -> A in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.isSuperset(of: A) -> Swift.Bool in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.union(__owned A) -> A in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.intersection(A) -> A in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.symmetricDifference(__owned A) -> A in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.insert(__owned A.Element) -> (inserted: Swift.Bool, memberAfterInsert: A.Element) in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.remove(A.Element) -> A.Element? in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.update(with: __owned A.Element) -> A.Element? in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.formUnion(__owned A) -> () in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.formIntersection(A) -> () in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.formSymmetricDifference(__owned A) -> () in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.subtracting(A) -> A in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.isSubset(of: A) -> Swift.Bool in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.isDisjoint(with: A) -> Swift.Bool in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.contains(A.Element) -> Swift.Bool in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.isEmpty.getter : Swift.Bool in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.init<A>(__owned A1) -> A in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.subtract(A) -> () in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.ExpressibleByArrayLiteral {
+    associated type descriptor for Swift.ExpressibleByArrayLiteral.ArrayLiteralElement
+    protocol witness for Swift.ExpressibleByArrayLiteral.init(arrayLiteral: A.ArrayLiteralElement...) -> A in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.ExpressibleByArrayLiteral in SymbolTestsCore
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.StringRawRepresentableTest: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance SymbolTestsCore.OptionSetAndRawRepresentable.StringRawRepresentableTest : Swift.RawRepresentable in SymbolTestsCore
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance SymbolTestsCore.OptionSetAndRawRepresentable.StringRawRepresentableTest : Swift.RawRepresentable in SymbolTestsCore
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.IntRawRepresentableTest: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance SymbolTestsCore.OptionSetAndRawRepresentable.IntRawRepresentableTest : Swift.RawRepresentable in SymbolTestsCore
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance SymbolTestsCore.OptionSetAndRawRepresentable.IntRawRepresentableTest : Swift.RawRepresentable in SymbolTestsCore
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.GenericRawRepresentableTest: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance SymbolTestsCore.OptionSetAndRawRepresentable.GenericRawRepresentableTest<A> : Swift.RawRepresentable in SymbolTestsCore
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance SymbolTestsCore.OptionSetAndRawRepresentable.GenericRawRepresentableTest<A> : Swift.RawRepresentable in SymbolTestsCore
+}
+extension Swift.Array: SymbolTestsCore.Protocols.TestCollection {}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation: Swift.StringInterpolationProtocol {
+    associated conformance descriptor for Swift.StringInterpolationProtocol.Swift.StringInterpolationProtocol.StringLiteralType: Swift._ExpressibleByBuiltinStringLiteral
+    associated type descriptor for Swift.StringInterpolationProtocol.StringLiteralType
+    protocol witness for Swift.StringInterpolationProtocol.init(literalCapacity: Swift.Int, interpolationCount: Swift.Int) -> A in conformance SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation : Swift.StringInterpolationProtocol in SymbolTestsCore
+    protocol witness for Swift.StringInterpolationProtocol.appendLiteral(A.StringLiteralType) -> () in conformance SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation : Swift.StringInterpolationProtocol in SymbolTestsCore
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest: Swift.ExpressibleByStringLiteral {
+    base conformance descriptor for Swift.ExpressibleByStringLiteral: Swift.ExpressibleByExtendedGraphemeClusterLiteral
+    associated conformance descriptor for Swift.ExpressibleByStringLiteral.Swift.ExpressibleByStringLiteral.StringLiteralType: Swift._ExpressibleByBuiltinStringLiteral
+    associated type descriptor for Swift.ExpressibleByStringLiteral.StringLiteralType
+    protocol witness for Swift.ExpressibleByStringInterpolation.init(stringInterpolation: A.StringInterpolation) -> A in conformance SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest : Swift.ExpressibleByStringInterpolation in SymbolTestsCore
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest: Swift.ExpressibleByStringInterpolation {
+    base conformance descriptor for Swift.ExpressibleByStringInterpolation: Swift.ExpressibleByStringLiteral
+    associated conformance descriptor for Swift.ExpressibleByStringInterpolation.Swift.ExpressibleByStringInterpolation.StringInterpolation: Swift.StringInterpolationProtocol
+    associated type descriptor for Swift.ExpressibleByStringInterpolation.StringInterpolation
+    protocol witness for Swift.ExpressibleByStringInterpolation.init(stringInterpolation: A.StringInterpolation) -> A in conformance SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest : Swift.ExpressibleByStringInterpolation in SymbolTestsCore
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest: Swift.ExpressibleByExtendedGraphemeClusterLiteral {
+    base conformance descriptor for Swift.ExpressibleByExtendedGraphemeClusterLiteral: Swift.ExpressibleByUnicodeScalarLiteral
+    associated conformance descriptor for Swift.ExpressibleByExtendedGraphemeClusterLiteral.Swift.ExpressibleByExtendedGraphemeClusterLiteral.ExtendedGraphemeClusterLiteralType: Swift._ExpressibleByBuiltinExtendedGraphemeClusterLiteral
+    associated type descriptor for Swift.ExpressibleByExtendedGraphemeClusterLiteral.ExtendedGraphemeClusterLiteralType
+    protocol witness for Swift.ExpressibleByStringInterpolation.init(stringInterpolation: A.StringInterpolation) -> A in conformance SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest : Swift.ExpressibleByStringInterpolation in SymbolTestsCore
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest: Swift.ExpressibleByUnicodeScalarLiteral {
+    associated conformance descriptor for Swift.ExpressibleByUnicodeScalarLiteral.Swift.ExpressibleByUnicodeScalarLiteral.UnicodeScalarLiteralType: Swift._ExpressibleByBuiltinUnicodeScalarLiteral
+    associated type descriptor for Swift.ExpressibleByUnicodeScalarLiteral.UnicodeScalarLiteralType
+    protocol witness for Swift.ExpressibleByStringInterpolation.init(stringInterpolation: A.StringInterpolation) -> A in conformance SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest : Swift.ExpressibleByStringInterpolation in SymbolTestsCore
+}
+extension SymbolTestsCore.Structs.StructTest: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.Structs.StructTest: SymbolTestsCore.Protocols.ProtocolWitnessTableTest {}
+extension SymbolTestsCore.Structs.PrivateProtocolTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.Structs.PrivateProtocolTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.Structs.PrivateProtocolTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.Structs.PrivateProtocolTest : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.Structs.PrivateProtocolTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.Structs.PrivateProtocolTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.Structs.PrivateProtocolTest: SymbolTestsCore.Protocols.ProtocolTest {}
