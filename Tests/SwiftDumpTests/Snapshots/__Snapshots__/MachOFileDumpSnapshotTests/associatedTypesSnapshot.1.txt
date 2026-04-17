@@ -1,35 +1,199 @@
-extension SymbolTestsCore.StructTest: SymbolTestsCore.ProtocolTest {
-    typealias Body = Swift.Never
+extension SymbolTestsCore.Actors.CustomGlobalActor: Swift.GlobalActor {
+    typealias ActorType = SymbolTestsCore.Actors.CustomGlobalActor
 }
-extension SymbolTestsCore.GenericRequirementTest: SymbolTestsCore.ProtocolTest {
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.ConcreteWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {
+    typealias First = Swift.Int
+    typealias Second = [Swift.String]
+    typealias Third = Swift.Double
+    typealias Fourth = Swift.Bool
+    typealias Fifth = Swift.Character
+}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {
+    typealias First = SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedFirst
+    typealias Second = [SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedFirst]
+    typealias Third = SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedThird
+    typealias Fourth = (SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedFirst, SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedThird)
+    typealias Fifth = SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedFirst?
+}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.GenericParameterWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {
+    typealias First = A
+    typealias Second = [A]
+    typealias Third = A?
+    typealias Fourth = (A, A)
+    typealias Fifth = [Swift.String : A]
+}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {
+    typealias First = SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest
+    typealias Second = [SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest]
+    typealias Third = SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest?
+    typealias Fourth = (SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest, SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest)
+    typealias Fifth = [Swift.String : SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest]
+}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.DependentWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {
+    typealias First = A.Sequence.Element
+    typealias Second = A
+    typealias Third = A.Sequence.Iterator
+    typealias Fourth = A.Collection.Index
+    typealias Fifth = A.Collection.SubSequence
+}
+extension SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator: Swift.AsyncIteratorProtocol {
+    typealias Element = Swift.Int
+    typealias Failure = Swift.Never
+}
+extension SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest: Swift.AsyncSequence {
+    typealias AsyncIterator = SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator
+    typealias Element = Swift.Int
+    typealias Failure = Swift.Never
+}
+extension SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator: Swift.AsyncIteratorProtocol {
+    typealias Element = Swift.String
+    typealias Failure = Swift.Error
+}
+extension SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest: Swift.AsyncSequence {
+    typealias AsyncIterator = SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator
+    typealias Element = Swift.String
+    typealias Failure = Swift.Error
+}
+extension SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest.AsyncIterator: Swift.AsyncIteratorProtocol {
+    typealias Element = A
+    typealias Failure = Swift.Never
+}
+extension SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest: Swift.AsyncSequence {
+    typealias AsyncIterator = SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest<A>.AsyncIterator
+    typealias Element = A
+    typealias Failure = Swift.Never
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys: Swift.RawRepresentable {
+    typealias RawValue = Swift.String
+}
+extension SymbolTestsCore.CollectionConformances.CustomSequenceTest.Iterator: Swift.IteratorProtocol {
+    typealias Element = Swift.Int
+}
+extension SymbolTestsCore.CollectionConformances.CustomSequenceTest: Swift.Sequence {
+    typealias Element = Swift.Int
+    typealias Iterator = SymbolTestsCore.CollectionConformances.CustomSequenceTest.Iterator
+}
+extension SymbolTestsCore.CollectionConformances.CustomCollectionTest: Swift.Collection {
+    typealias Element = Swift.Int
+    typealias Index = Swift.Int
+    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomCollectionTest>
+    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomCollectionTest>
+    typealias Indices = Swift.DefaultIndices<SymbolTestsCore.CollectionConformances.CustomCollectionTest>
+}
+extension SymbolTestsCore.CollectionConformances.CustomCollectionTest: Swift.Sequence {
+    typealias Element = Swift.Int
+    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomCollectionTest>
+}
+extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest: Swift.BidirectionalCollection {
+    typealias Element = Swift.String
+    typealias Index = Swift.Int
+    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
+    typealias Indices = Swift.DefaultIndices<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
+}
+extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest: Swift.Collection {
+    typealias Element = Swift.String
+    typealias Index = Swift.Int
+    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
+    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
+    typealias Indices = Swift.DefaultIndices<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
+}
+extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest: Swift.Sequence {
+    typealias Element = Swift.String
+    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest>
+}
+extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest: Swift.RandomAccessCollection {
+    typealias Element = Swift.Double
+    typealias Index = Swift.Int
+    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
+    typealias Indices = Swift.Range<Swift.Int>
+}
+extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest: Swift.BidirectionalCollection {
+    typealias Element = Swift.Double
+    typealias Index = Swift.Int
+    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
+    typealias Indices = Swift.Range<Swift.Int>
+}
+extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest: Swift.Collection {
+    typealias Element = Swift.Double
+    typealias Index = Swift.Int
+    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
+    typealias SubSequence = Swift.Slice<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
+    typealias Indices = Swift.Range<Swift.Int>
+}
+extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest: Swift.Sequence {
+    typealias Element = Swift.Double
+    typealias Iterator = Swift.IndexingIterator<SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest>
+}
+extension SymbolTestsCore.CustomLiterals.IntegerLiteralTest: Swift.ExpressibleByIntegerLiteral {
+    typealias IntegerLiteralType = Swift.Int64
+}
+extension SymbolTestsCore.CustomLiterals.StringLiteralTest: Swift.ExpressibleByStringLiteral {
+    typealias StringLiteralType = Swift.String
+}
+extension SymbolTestsCore.CustomLiterals.StringLiteralTest: Swift.ExpressibleByUnicodeScalarLiteral {
+    typealias UnicodeScalarLiteralType = Swift.String
+}
+extension SymbolTestsCore.CustomLiterals.StringLiteralTest: Swift.ExpressibleByExtendedGraphemeClusterLiteral {
+    typealias ExtendedGraphemeClusterLiteralType = Swift.String
+}
+extension SymbolTestsCore.CustomLiterals.ArrayLiteralTest: Swift.ExpressibleByArrayLiteral {
+    typealias ArrayLiteralElement = Swift.Int
+}
+extension SymbolTestsCore.CustomLiterals.DictionaryLiteralTest: Swift.ExpressibleByDictionaryLiteral {
+    typealias Key = Swift.String
+    typealias Value = Swift.Int
+}
+extension SymbolTestsCore.CustomLiterals.BooleanLiteralTest: Swift.ExpressibleByBooleanLiteral {
+    typealias BooleanLiteralType = Swift.Bool
+}
+extension SymbolTestsCore.CustomLiterals.FloatLiteralTest: Swift.ExpressibleByFloatLiteral {
+    typealias FloatLiteralType = Swift.Double
+}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest: Distributed.DistributedActor {
+    typealias ActorSystem = Distributed.LocalTestingDistributedActorSystem
+    typealias SerializationRequirement = Swift.Decodable & Swift.Encodable
+}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Identifiable {
+    typealias ID = Distributed.LocalTestingActorID
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Distributed.DistributedActor {
+    typealias ActorSystem = Distributed.LocalTestingDistributedActorSystem
+    typealias SerializationRequirement = Swift.Decodable & Swift.Encodable
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Identifiable {
+    typealias ID = Distributed.LocalTestingActorID
+}
+extension SymbolTestsCore.Enums.RawValueEnumTest: Swift.RawRepresentable {
+    typealias RawValue = Swift.Int
+}
+extension SymbolTestsCore.Enums.StringRawValueEnumTest: Swift.RawRepresentable {
+    typealias RawValue = Swift.String
+}
+extension SymbolTestsCore.Enums.CaseIterableEnumTest: Swift.RawRepresentable {
+    typealias RawValue = Swift.String
+}
+extension SymbolTestsCore.Enums.CaseIterableEnumTest: Swift.CaseIterable {
+    typealias AllCases = [SymbolTestsCore.Enums.CaseIterableEnumTest]
+}
+extension SymbolTestsCore.Enums.ObjCEnumTest: Swift.RawRepresentable {
+    typealias RawValue = Swift.Int
+}
+extension SymbolTestsCore.Extensions.ExtensionConstrainedStruct: SymbolTestsCore.Extensions.ExtensionProtocol {
+    typealias Item = A
+}
+extension SymbolTestsCore.Generics.GenericRequirementTest: SymbolTestsCore.Protocols.ProtocolTest {
     typealias Body = A
 }
-extension SymbolTestsCore.GenericRequirementTest: Swift.RawRepresentable {
+extension SymbolTestsCore.Generics.GenericPackTest: SymbolTestsCore.Protocols.ProtocolTest {
+    typealias Body = Swift.Never
+}
+extension SymbolTestsCore.Generics.GenericValueTest: SymbolTestsCore.Protocols.ProtocolTest {
+    typealias Body = Swift.Never
+}
+extension SymbolTestsCore.Generics.GenericRequirementTest: Swift.RawRepresentable {
     typealias RawValue = A
 }
-extension SymbolTestsCore.GenericPackTest: SymbolTestsCore.ProtocolTest {
-    typealias Body = Swift.Never
-}
-extension SymbolTestsCore.GenericValueTest: SymbolTestsCore.ProtocolTest {
-    typealias Body = Swift.Never
-}
-extension Swift.Array: SymbolTestsCore.TestCollection {
-    typealias Element = A
-}
-extension SymbolTestsCore.OpaqueReturnTypeTest.AnyProtocolTest: SymbolTestsCore.ProtocolTest {
-    typealias Body = A
-}
-extension SymbolTestsCore.ProtocolPrimaryAssociatedTypeFirst: SymbolTestsCore.ProtocolTest {
-    typealias Body = SymbolTestsCore.ProtocolPrimaryAssociatedTypeFirst
-}
-extension SymbolTestsCore.ProtocolPrimaryAssociatedTypeSecond: SymbolTestsCore.ProtocolTest {
-    typealias Body = SymbolTestsCore.ProtocolPrimaryAssociatedTypeFirst
-}
-extension SymbolTestsCore.UnderlyingPrimaryAssociatedTypeTest: SymbolTestsCore.ProtocolPrimaryAssociatedTypeTest {
-    typealias First = A
-    typealias Second = B
-}
-extension Swift.Never: SymbolTestsCore.ProtocolTest {
+extension Swift.Never: SymbolTestsCore.Protocols.ProtocolTest {
     typealias Body = Swift.Never
 }
 extension Swift.Never: Swift.IteratorProtocol {
@@ -38,4 +202,62 @@ extension Swift.Never: Swift.IteratorProtocol {
 extension Swift.Never: Swift.Sequence {
     typealias Element = Swift.Never
     typealias Iterator = Swift.Never
+}
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.AnyProtocolTest: SymbolTestsCore.Protocols.ProtocolTest {
+    typealias Body = A
+}
+extension SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst: SymbolTestsCore.Protocols.ProtocolTest {
+    typealias Body = SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst
+}
+extension SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeSecond: SymbolTestsCore.Protocols.ProtocolTest {
+    typealias Body = SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst
+}
+extension SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest: SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeTest {
+    typealias First = A
+    typealias Second = B
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.OptionSet {
+    typealias Element = SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.RawRepresentable {
+    typealias RawValue = Swift.UInt
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.SetAlgebra {
+    typealias Element = SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.ExpressibleByArrayLiteral {
+    typealias ArrayLiteralElement = SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.StringRawRepresentableTest: Swift.RawRepresentable {
+    typealias RawValue = Swift.String
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.IntRawRepresentableTest: Swift.RawRepresentable {
+    typealias RawValue = Swift.Int
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.GenericRawRepresentableTest: Swift.RawRepresentable {
+    typealias RawValue = A
+}
+extension Swift.Array: SymbolTestsCore.Protocols.TestCollection {
+    typealias Element = A
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation: Swift.StringInterpolationProtocol {
+    typealias StringLiteralType = Swift.String
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest: Swift.ExpressibleByStringLiteral {
+    typealias StringLiteralType = Swift.String
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest: Swift.ExpressibleByStringInterpolation {
+    typealias StringInterpolation = SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest: Swift.ExpressibleByExtendedGraphemeClusterLiteral {
+    typealias ExtendedGraphemeClusterLiteralType = Swift.String
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest: Swift.ExpressibleByUnicodeScalarLiteral {
+    typealias UnicodeScalarLiteralType = Swift.String
+}
+extension SymbolTestsCore.Structs.StructTest: SymbolTestsCore.Protocols.ProtocolTest {
+    typealias Body = SymbolTestsCore.Structs.PrivateProtocolTest
+}
+extension SymbolTestsCore.Structs.PrivateProtocolTest: SymbolTestsCore.Protocols.ProtocolTest {
+    typealias Body = Swift.Never
 }

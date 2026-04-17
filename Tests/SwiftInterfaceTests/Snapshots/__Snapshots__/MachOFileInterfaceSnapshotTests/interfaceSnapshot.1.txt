@@ -12,48 +12,12 @@ var globalConstant: Swift.Int {
 }
 var globalVariable: Swift.String
 
-func _finalizeUninitializedArray<A>(_: consuming [A]) -> [A]
 func getContiguousArrayStorageType<A>(for: A.Type) -> Swift._ContiguousArrayStorage<A>.Type
 func globalGenericFunction<A>(_: A) -> A.Body where A: SymbolTestsCore.Protocols.ProtocolTest
 func globalThrowingFunction() throws -> Swift.String
 func globalAsyncFunction() async -> Swift.Int
 func globalFunction() -> Swift.Int
 
-enum AccessLevels {
-    struct PublicAccessLevelTest {
-        var publicField: Swift.Int
-        var internalField: Swift.Int
-        var fileprivateField: Swift.Int
-        var privateField: Swift.Int
-
-        init(publicField: Swift.Int, internalField: Swift.Int, fileprivateField: Swift.Int, privateField: Swift.Int)
-
-        func publicMethod()
-    }
-    class OpenAccessLevelTest {
-        var openField: Swift.Int
-        var publicField: Swift.Int
-
-        init()
-
-        func openMethod()
-        func publicMethod()
-
-        deinit
-    }
-    class SubclassOfOpenAccessLevel: SymbolTestsCore.AccessLevels.OpenAccessLevelTest {
-        override init()
-
-        override var openField: Swift.Int {
-            get
-            set
-        }
-
-        override func openMethod()
-
-        deinit
-    }
-}
 enum Actors {
     actor ActorTest {
         var $defaultActor: Builtin.DefaultActorStorage
@@ -99,8 +63,8 @@ enum Actors {
     class GlobalActorIsolatedConformanceTest {
         init()
 
-        func customIsolatedRequirement()
         func isolatedRequirement()
+        func customIsolatedRequirement()
 
         deinit
     }
@@ -182,34 +146,6 @@ enum Attributes {
         @objc func objcDynamicMethod()
 
         deinit
-    }
-}
-enum Availability {
-    struct MultiPlatformAvailableTest {
-        var value: Swift.Int
-
-        init(value: Swift.Int)
-    }
-    struct DeprecatedAvailabilityTest {
-        var value: Swift.Int
-
-        init(value: Swift.Int)
-    }
-    struct RenamedAvailabilityNewTest {
-        init()
-    }
-    struct ObsoletedAvailabilityTest {
-        init()
-    }
-    struct AvailabilityMemberTest {
-        init()
-
-        var modernField: Swift.Int {
-            get
-        }
-
-        func deprecatedMethod()
-        func unavailableMethod()
     }
 }
 struct TestsValues {}
@@ -360,8 +296,8 @@ enum Classes {
             set
         }
 
-        func publicMethod() -> Swift.Int
         func openMethod() -> Swift.String
+        func publicMethod() -> Swift.Int
 
         deinit
     }
@@ -589,33 +525,6 @@ enum CustomLiterals {
     }
     struct NilLiteralTest {
         init(nilLiteral: ())
-    }
-}
-enum DefaultArguments {
-    struct DefaultArgumentMethodTest {
-        func greet(name: Swift.String, repeated: Swift.Int, punctuation: Swift.Character) -> Swift.String
-        func append(_: Swift.Int, to: [Swift.Int]) -> [Swift.Int]
-
-        static func createDefault(label: Swift.String, value: Swift.Int) -> SymbolTestsCore.DefaultArguments.DefaultArgumentMethodTest
-    }
-    struct DefaultArgumentInitializerTest {
-        var name: Swift.String
-        var count: Swift.Int
-        var enabled: Swift.Bool
-
-        init(name: Swift.String, count: Swift.Int, enabled: Swift.Bool)
-    }
-    struct DefaultArgumentSubscriptTest {
-        subscript(_: Swift.Int, fallback: Swift.String) -> Swift.String {
-            get
-        }
-    }
-    class DefaultArgumentClassTest {
-        init(initial: Swift.Int, scale: Swift.Double)
-
-        func process(value: Swift.Int, multiplier: Swift.Double) -> Swift.Double
-
-        deinit
     }
 }
 enum DefaultImplementationVariants {
@@ -978,75 +887,6 @@ enum FieldDescriptorVariants {
         init(concreteInt: Swift.Int, concreteString: Swift.String, genericElement: A, arrayOfElement: [A], dictionaryOfElement: [Swift.String : A], optionalElement: A?, tupleField: (Swift.Int, A), functionField: @escaping (_: A) -> Swift.Int)
     }
 }
-enum Frozen {
-    struct FrozenTest {
-        var x: Swift.Int
-        var y: Swift.Double
-
-        init(x: Swift.Int, y: Swift.Double)
-    }
-    enum FrozenEnumTest {
-        case integer(Swift.Int)
-        case string(Swift.String)
-        case pair(Swift.Int, Swift.Double)
-        case empty
-    }
-    struct InlinableMethodTest {
-        var value: Swift.Int
-
-        init(value: Swift.Int)
-
-        func doubled() -> Swift.Int
-        func added(_: Swift.Int) -> Swift.Int
-    }
-    struct UsableFromInlineType {
-        var field: Swift.Int
-
-        init(field: Swift.Int)
-
-        func method() -> Swift.Int
-    }
-}
-enum FrozenResilienceContrast {
-    struct FrozenStructTest {
-        var firstField: Swift.Int
-        var secondField: Swift.Double
-        var thirdField: Swift.String
-
-        init(firstField: Swift.Int, secondField: Swift.Double, thirdField: Swift.String)
-    }
-    struct ResilientStructTest {
-        var firstField: Swift.Int
-        var secondField: Swift.Double
-        var thirdField: Swift.String
-
-        init(firstField: Swift.Int, secondField: Swift.Double, thirdField: Swift.String)
-    }
-    enum FrozenEnumContrastTest {
-        case integer(Swift.Int)
-        case string(Swift.String)
-        case pair(Swift.Int, Swift.Double)
-        case empty
-    }
-    enum ResilientEnumContrastTest {
-        case integer(Swift.Int)
-        case string(Swift.String)
-        case pair(Swift.Int, Swift.Double)
-        case empty
-    }
-    struct FrozenGenericTest<A> {
-        var element: A
-        var count: Swift.Int
-
-        init(element: A, count: Swift.Int)
-    }
-    struct ResilientGenericTest<A> {
-        var element: A
-        var count: Swift.Int
-
-        init(element: A, count: Swift.Int)
-    }
-}
 enum FunctionFeatures {
     struct InoutFunctionTest {
         var value: Swift.Int
@@ -1397,9 +1237,6 @@ enum NestedFunctions {
         class LocalClass {
             var label: Swift.String
         }
-        func outerFunction(parameter: Swift.Int) -> Swift.Int
-        func outerGenericFunction<A>(element: A) -> [A]
-        func outerWithLocalType() -> Swift.Int
         func outerWithLocalClass() -> Swift.String
     }
 }
@@ -1549,26 +1386,6 @@ enum OverloadedMembers {
         init(first: Swift.Int, second: Swift.Int)
         init(_: Swift.Double)
         init(_: Swift.Int)
-    }
-}
-enum PropertyObservers {
-    class PropertyObserverClassTest {
-        var observedValue: Swift.Int
-        var observedName: Swift.String
-
-        init()
-
-        var computedBacking: Swift.Int {
-            get
-            set
-        }
-
-        deinit
-    }
-    struct PropertyObserverStructTest {
-        var observedField: Swift.Double
-
-        init()
     }
 }
 enum PropertyWrapperVariants {
@@ -1725,15 +1542,6 @@ enum ResultBuilderDSL {
         static func buildBlock(_: [A]...) -> [A]
         static func buildExpression(_: A) -> [A]
         static func buildOptional(_: [A]?) -> [A]
-    }
-}
-enum RethrowingFunctions {
-    struct RethrowingHolderTest {
-        func rethrowing(_: () throws -> Swift.Int) throws -> Swift.Int
-        func asyncRethrowing(_: nonisolated(nonsending) () async throws -> Swift.Int) async throws -> Swift.Int
-        func rethrowingMap<A>(_: [A], transform: (_: A) throws -> Swift.Int) throws -> [Swift.Int]
-        func rethrowingGeneric<A, B>(_: A, transform: (_: A) throws -> B) throws -> B
-        func rethrowingWithDefault(_: () throws -> Swift.Int, defaultValue: Swift.Int) throws -> Swift.Int
     }
 }
 enum SameTypeRequirements {
@@ -1901,20 +1709,6 @@ enum Tuples {
         var labeled: (left: A, right: B)
 
         init(pair: (A, B), labeled: (left: A, right: B))
-    }
-}
-enum Typealiases {
-    struct TypealiasContainerTest<A> {
-        var element: A
-        var collection: [A]
-        var handler: (_: A) -> ()
-
-        init(element: A, collection: [A], handler: @escaping (_: A) -> ())
-    }
-    struct ConstrainedTypealiasTest<A> where A: Swift.Comparable {
-        var range: Swift.ClosedRange<A>
-
-        init(range: Swift.ClosedRange<A>)
     }
 }
 enum UnsafePointers {
@@ -2093,9 +1887,6 @@ extension SymbolTestsCore.DefaultImplementationVariants.ConstrainedDefaultProtoc
 extension SymbolTestsCore.Extensions.ExtensionProtocol {
     func matches(_: Self.Item) -> Swift.Bool where Self.Item: Swift.Equatable
     func isLessThan(_: Self.Item) -> Swift.Bool where Self.Item: Swift.Comparable
-}
-extension Swift.Collection {
-    func map<A1, B1>(_: (_: Self.Element) throws(B1) -> A1) throws(B1) -> [A1] where B1: Swift.Error
 }
 extension SymbolTestsCore.DefaultImplementationVariants.BasicDefaultProtocol {
     func withDefaultAndGeneric<A1>(_: A1) -> A1
