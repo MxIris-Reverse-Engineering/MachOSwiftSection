@@ -49,6 +49,7 @@ jobs:
             -derivedDataPath Tests/Projects/SymbolTests/DerivedData \
             -destination 'generic/platform=macOS' \
             -quiet \
+            CODE_SIGNING_ALLOWED=NO \
             build
 
       - name: Upload xcodebuild logs on failure
