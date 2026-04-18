@@ -160,6 +160,33 @@ swift-section interface --uses-system-dyld-shared-cache --cache-image-name Swift
 swift-section interface --dyld-shared-cache --cache-image-path /path/to/cache /path/to/dyld_shared_cache
 ```
 
+## Running Tests
+
+The snapshot tests in this repository rely on a fixture framework (`SymbolTestsCore`) built from an Xcode project in `Tests/Projects/SymbolTests/`. The framework binary is not checked in — rebuild it once after cloning:
+
+```bash
+./Scripts/build-test-fixtures.sh
+```
+
+Then run the tests:
+
+```bash
+swift package update
+swift test
+```
+
+Skipping the fixture build causes `MachOFileTests` to throw a "file not found" error at `Tests/Projects/SymbolTests/DerivedData/.../SymbolTestsCore` during test `init()`, before any assertions run.
+
+To regenerate snapshots after a legitimate Swift-compiler / metadata change:
+
+```bash
+SNAPSHOT_TESTING_RECORD=all swift test \
+    --filter SymbolTestsCoreDumpSnapshotTests \
+    --filter SymbolTestsCoreInterfaceSnapshotTests
+```
+
+Commit the updated `__Snapshots__/` files alongside the source change that prompted the regeneration.
+
 ## License
 
 [MachOObjCSection](https://github.com/p-x9/MachOObjCSection)
