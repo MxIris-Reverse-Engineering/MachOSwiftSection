@@ -50,6 +50,8 @@ jobs:
             -destination 'generic/platform=macOS' \
             -quiet \
             CODE_SIGNING_ALLOWED=NO \
+            ARCHS=arm64 \
+            SWIFT_VERIFY_EMITTED_MODULE_INTERFACE=NO \
             build
 
       - name: Upload xcodebuild logs on failure
