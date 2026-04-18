@@ -1,0 +1,18 @@
+// MARK: - Protocol Conformances
+
+extension Swift.Never: SymbolTestsCore.Protocols.ProtocolTest {}
+extension Swift.Never: Swift.IteratorProtocol {
+    associated type descriptor for Swift.IteratorProtocol.Element
+    protocol witness for Swift.IteratorProtocol.next() -> A.Element? in conformance Swift.Never : Swift.IteratorProtocol in SymbolTestsCore
+}
+extension Swift.Never: Swift.Sequence {
+    associated conformance descriptor for Swift.Sequence.Swift.Sequence.Iterator: Swift.IteratorProtocol
+    associated type descriptor for Swift.Sequence.Element
+    associated type descriptor for Swift.Sequence.Iterator
+    protocol witness for Swift.Sequence.makeIterator() -> A.Iterator in conformance Swift.Never : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence.underestimatedCount.getter : Swift.Int in conformance Swift.Never : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._customContainsEquatableElement(A.Element) -> Swift.Bool? in conformance Swift.Never : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._copyToContiguousArray() -> Swift.ContiguousArray<A.Element> in conformance Swift.Never : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._copyContents(initializing: Swift.UnsafeMutableBufferPointer<A.Element>) -> (A.Iterator, Swift.Int) in conformance Swift.Never : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence.withContiguousStorageIfAvailable<A>((Swift.UnsafeBufferPointer<A.Element>) throws -> A1) throws -> A1? in conformance Swift.Never : Swift.Sequence in SymbolTestsCore
+}

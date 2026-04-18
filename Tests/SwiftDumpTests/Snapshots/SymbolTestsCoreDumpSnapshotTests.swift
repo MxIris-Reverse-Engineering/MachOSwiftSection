@@ -82,7 +82,7 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
     }
 
     @Test func asyncSequenceSnapshot() async throws {
-        let output = try await collectDump(for: machOFile, inNamespace: "AsyncSequence")
+        let output = try await collectDump(for: machOFile, inNamespace: "AsyncSequenceTests")
         assertSnapshot(of: output, as: .lines)
     }
 
@@ -112,7 +112,7 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
     }
 
     @Test func codableSnapshot() async throws {
-        let output = try await collectDump(for: machOFile, inNamespace: "Codable")
+        let output = try await collectDump(for: machOFile, inNamespace: "CodableTests")
         assertSnapshot(of: output, as: .lines)
     }
 
@@ -307,7 +307,7 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
     }
 
     @Test func stringInterpolationSnapshot() async throws {
-        let output = try await collectDump(for: machOFile, inNamespace: "StringInterpolation")
+        let output = try await collectDump(for: machOFile, inNamespace: "StringInterpolations")
         assertSnapshot(of: output, as: .lines)
     }
 

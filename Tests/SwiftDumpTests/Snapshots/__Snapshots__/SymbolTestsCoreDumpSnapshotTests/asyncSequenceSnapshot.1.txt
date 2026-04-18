@@ -1,0 +1,75 @@
+// MARK: - Types
+
+enum SymbolTestsCore.AsyncSequenceTests {}
+struct SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest {
+    /* Function */
+    SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.makeAsyncIterator() -> SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator
+}
+struct SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator {
+    /* Function */
+    SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator.next() async -> Swift.Int?
+}
+struct SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest {
+    /* Function */
+    SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.makeAsyncIterator() -> SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator
+}
+struct SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator {
+    /* Function */
+    SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator.next() async throws -> Swift.String?
+}
+struct SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest<A> {
+    /* Function */
+    SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest.makeAsyncIterator() -> SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest<A>.AsyncIterator
+}
+struct SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest.AsyncIterator {
+    /* Allocator */
+    SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest.AsyncIterator.init() -> SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest<A>.AsyncIterator
+
+    /* Function */
+    SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest.AsyncIterator.next() async -> A?
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator: Swift.AsyncIteratorProtocol {
+    associated conformance descriptor for Swift.AsyncIteratorProtocol.Swift.AsyncIteratorProtocol.Failure: Swift.Error
+    associated type descriptor for Swift.AsyncIteratorProtocol.Element
+    associated type descriptor for Swift.AsyncIteratorProtocol.Failure
+    async function pointer to protocol witness for Swift.AsyncIteratorProtocol.next() async throws -> A.Element? in conformance SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator : Swift.AsyncIteratorProtocol in SymbolTestsCore
+    async function pointer to protocol witness for Swift.AsyncIteratorProtocol.next(isolation: isolated Swift.Actor?) async throws(A.Failure) -> A.Element? in conformance SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest.AsyncIterator : Swift.AsyncIteratorProtocol in SymbolTestsCore
+}
+extension SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest: Swift.AsyncSequence {
+    associated conformance descriptor for Swift.AsyncSequence.Swift.AsyncSequence.AsyncIterator: Swift.AsyncIteratorProtocol
+    associated type descriptor for Swift.AsyncSequence.AsyncIterator
+    associated type descriptor for Swift.AsyncSequence.Element
+    associated type descriptor for Swift.AsyncSequence.Failure
+    protocol witness for Swift.AsyncSequence.makeAsyncIterator() -> A.AsyncIterator in conformance SymbolTestsCore.AsyncSequenceTests.AsyncSequenceTest : Swift.AsyncSequence in SymbolTestsCore
+}
+extension SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator: Swift.AsyncIteratorProtocol {
+    associated conformance descriptor for Swift.AsyncIteratorProtocol.Swift.AsyncIteratorProtocol.Failure: Swift.Error
+    associated type descriptor for Swift.AsyncIteratorProtocol.Element
+    associated type descriptor for Swift.AsyncIteratorProtocol.Failure
+    async function pointer to protocol witness for Swift.AsyncIteratorProtocol.next() async throws -> A.Element? in conformance SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator : Swift.AsyncIteratorProtocol in SymbolTestsCore
+    async function pointer to protocol witness for Swift.AsyncIteratorProtocol.next(isolation: isolated Swift.Actor?) async throws(A.Failure) -> A.Element? in conformance SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest.AsyncIterator : Swift.AsyncIteratorProtocol in SymbolTestsCore
+}
+extension SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest: Swift.AsyncSequence {
+    associated conformance descriptor for Swift.AsyncSequence.Swift.AsyncSequence.AsyncIterator: Swift.AsyncIteratorProtocol
+    associated type descriptor for Swift.AsyncSequence.AsyncIterator
+    associated type descriptor for Swift.AsyncSequence.Element
+    associated type descriptor for Swift.AsyncSequence.Failure
+    protocol witness for Swift.AsyncSequence.makeAsyncIterator() -> A.AsyncIterator in conformance SymbolTestsCore.AsyncSequenceTests.ThrowingAsyncSequenceTest : Swift.AsyncSequence in SymbolTestsCore
+}
+extension SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest.AsyncIterator: Swift.AsyncIteratorProtocol {
+    associated conformance descriptor for Swift.AsyncIteratorProtocol.Swift.AsyncIteratorProtocol.Failure: Swift.Error
+    associated type descriptor for Swift.AsyncIteratorProtocol.Element
+    associated type descriptor for Swift.AsyncIteratorProtocol.Failure
+    async function pointer to protocol witness for Swift.AsyncIteratorProtocol.next() async throws -> A.Element? in conformance SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest<A>.AsyncIterator : Swift.AsyncIteratorProtocol in SymbolTestsCore
+    async function pointer to protocol witness for Swift.AsyncIteratorProtocol.next(isolation: isolated Swift.Actor?) async throws(A.Failure) -> A.Element? in conformance SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest<A>.AsyncIterator : Swift.AsyncIteratorProtocol in SymbolTestsCore
+}
+extension SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest: Swift.AsyncSequence {
+    associated conformance descriptor for Swift.AsyncSequence.Swift.AsyncSequence.AsyncIterator: Swift.AsyncIteratorProtocol
+    associated type descriptor for Swift.AsyncSequence.AsyncIterator
+    associated type descriptor for Swift.AsyncSequence.Element
+    associated type descriptor for Swift.AsyncSequence.Failure
+    protocol witness for Swift.AsyncSequence.makeAsyncIterator() -> A.AsyncIterator in conformance SymbolTestsCore.AsyncSequenceTests.GenericAsyncSequenceTest<A> : Swift.AsyncSequence in SymbolTestsCore
+}

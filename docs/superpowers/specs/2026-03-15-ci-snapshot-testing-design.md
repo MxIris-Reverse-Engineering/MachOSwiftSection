@@ -85,7 +85,13 @@ Consequences:
 
 ### Namespace-filtered collectors
 
-52 of the 54 `SymbolTestsCore/*.swift` files open with `public enum <Category> { … }`, so every type descriptor declared in one of those files has the category enum as its root parent context. The remaining two (`GlobalDeclarations.swift`, `NeverExtensions.swift`) do not fit the pattern and are handled as exceptions — see "Edge-case categories" below.
+49 of the 54 `SymbolTestsCore/*.swift` files open with `public enum <Filename> { … }`, making the top-level enum name match the file name and therefore also the `@Test func <lowercasedFirst>Snapshot()` handler. Five files deviate:
+
+- `AsyncSequence.swift` / `Codable.swift` / `StringInterpolation.swift` — the enum name differs from the filename (`AsyncSequenceTests`, `CodableTests`, `StringInterpolations`) to avoid stdlib-type collisions (`Swift.AsyncSequence`, `Swift.Codable`, `String.StringInterpolation`). Their snapshot tests pass the real enum name as `inNamespace:` while keeping the `@Test func` named after the filename.
+- `GlobalDeclarations.swift` — no `TypeContextDescriptor` emitted. Handled as an edge case; per-category dump is expected empty.
+- `NeverExtensions.swift` — all declarations are `extension Never: …`; descriptors belong to `Swift.Never`, so a mangled-symbol fallback matches any `$ss5NeverO*`-stem symbol in the conforming-type reference (i.e. `_$ss5NeverO*` as it appears in the Mach-O symbol table, where the leading `_` is the C-style symbol-name prefix).
+
+See "Edge-case categories" below for the `GlobalDeclarations.swift` / `NeverExtensions.swift` details.
 
 Add to `MachOTestingSupport/SnapshotDumpableTests.swift`:
 
@@ -283,17 +289,19 @@ SNAPSHOT_TESTING_RECORD=all swift test \
 
 Every row below must have (a) a dedicated `@Test func <category>Snapshot()` in `SymbolTestsCoreDumpSnapshotTests` and (b) at least one type / protocol / conformance / associated type visible in the combined dump output (otherwise the category's source file is suspect).
 
+Unless a row in the "Dump snapshot" column explicitly annotates a `namespace:`, the `inNamespace:` argument passed by the corresponding `@Test` is the filename (without the `.swift` extension). The three annotated rows (`AsyncSequence.swift`, `Codable.swift`, `StringInterpolation.swift`) deviate because their top-level `public enum` uses a different identifier to avoid colliding with stdlib types — see "Namespace-filtered collectors" above.
+
 | # | Category source file | Dump snapshot | Appears in interface |
 |---|---|---|---|
 | 1 | Actors.swift | `actorsSnapshot` | yes |
 | 2 | AssociatedTypeWitnessPatterns.swift | `associatedTypeWitnessPatternsSnapshot` | yes |
-| 3 | AsyncSequence.swift | `asyncSequenceSnapshot` | yes |
+| 3 | AsyncSequence.swift | `asyncSequenceSnapshot` (namespace: `AsyncSequenceTests`) | yes |
 | 4 | Attributes.swift | `attributesSnapshot` | yes |
 | 5 | BasicTypes.swift | `basicTypesSnapshot` | yes |
 | 6 | BuiltinTypeFields.swift | `builtinTypeFieldsSnapshot` | yes |
 | 7 | ClassBoundGenerics.swift | `classBoundGenericsSnapshot` | yes |
 | 8 | Classes.swift | `classesSnapshot` | yes |
-| 9 | Codable.swift | `codableSnapshot` | yes |
+| 9 | Codable.swift | `codableSnapshot` (namespace: `CodableTests`) | yes |
 | 10 | CollectionConformances.swift | `collectionConformancesSnapshot` | yes |
 | 11 | Concurrency.swift | `concurrencySnapshot` | yes |
 | 12 | ConditionalConformanceVariants.swift | `conditionalConformanceVariantsSnapshot` | yes |
@@ -332,7 +340,7 @@ Every row below must have (a) a dedicated `@Test func <category>Snapshot()` in `
 | 45 | ResultBuilderDSL.swift | `resultBuilderDSLSnapshot` | yes |
 | 46 | SameTypeRequirements.swift | `sameTypeRequirementsSnapshot` | yes |
 | 47 | StaticMembers.swift | `staticMembersSnapshot` | yes |
-| 48 | StringInterpolation.swift | `stringInterpolationSnapshot` | yes |
+| 48 | StringInterpolation.swift | `stringInterpolationSnapshot` (namespace: `StringInterpolations`) | yes |
 | 49 | Structs.swift | `structsSnapshot` | yes |
 | 50 | Subscripts.swift | `subscriptsSnapshot` | yes |
 | 51 | Tuples.swift | `tuplesSnapshot` | yes |

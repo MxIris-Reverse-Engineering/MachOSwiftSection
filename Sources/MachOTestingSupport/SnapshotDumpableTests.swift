@@ -244,8 +244,10 @@ extension SnapshotDumpableTests {
     ///   root namespace of its *conforming type* (resolved via `typeReference` if that
     ///   produces a `TypeContextDescriptorWrapper`).
     /// - **Special case — `category == "NeverExtensions"`:** also keep conformances whose
-    ///   conforming type is `Swift.Never` (detected via the mangled symbol `$ss5NeverO`
-    ///   surfaced on an indirect `SymbolOrElement.symbol` reference).
+    ///   conforming type is `Swift.Never` (detected via any Swift.Never-rooted mangled
+    ///   symbol (`_$ss5NeverO…` in the Mach-O symbol table, i.e. the Swift ABI stem
+    ///   `$ss5NeverO` with the C-style leading underscore) surfaced on an indirect
+    ///   `SymbolOrElement.symbol` reference).
     /// - **No double-counting:** if the default rule places a conformance in the current
     ///   category, we don't additionally match `NeverExtensions`.
     package func collectDumpProtocolConformances<MachO: MachOSwiftSectionRepresentableWithCache>(
@@ -320,17 +322,21 @@ extension SnapshotDumpableTests {
     }
 
     /// Detects `Swift.Never` conforming types surfaced as an external symbol reference.
-    /// The Swift ABI mangles `Swift.Never` as `$ss5NeverO`.
+    /// The match is a prefix test against any Swift.Never-rooted mangled symbol
+    /// (`_$ss5NeverO…` in the Mach-O symbol table, i.e. the Swift ABI stem `$ss5NeverO`
+    /// with the C-style leading underscore). The kind suffix (`Mn`, `N`, `Ma`,
+    /// witness-table mangles, etc.) tells us *what kind* of Never-symbol it is, but all
+    /// variants still indicate that the conforming type is `Swift.Never`.
     private func isSwiftNeverConformance(resolvedTypeReference: ResolvedTypeReference) -> Bool {
         switch resolvedTypeReference {
         case .indirectTypeDescriptor(let symbolOrElement):
             if case .symbol(let symbol) = symbolOrElement {
-                return symbol.name == swiftNeverMangledSymbol
+                return symbol.name.hasPrefix(swiftNeverMangledSymbolPrefix)
             }
             return false
         case .indirectObjCClass(let symbolOrElement):
             if case .symbol(let symbol) = symbolOrElement {
-                return symbol.name == swiftNeverMangledSymbol
+                return symbol.name.hasPrefix(swiftNeverMangledSymbolPrefix)
             }
             return false
         case .directTypeDescriptor,
@@ -456,5 +462,9 @@ extension SnapshotDumpableTests {
 /// Marker string used to opt a category into the Swift.Never-extensions bucket.
 private let snapshotDumpableNeverExtensionsCategory = "NeverExtensions"
 
-/// Mangled symbol for `Swift.Never` (from the Swift standard library ABI).
-private let swiftNeverMangledSymbol = "$ss5NeverO"
+/// Mangled stem for `Swift.Never` (from the Swift standard library ABI). Symbol-table
+/// references to `Swift.Never` always carry a kind suffix (e.g. `Mn` for the nominal type
+/// descriptor, `N` for type metadata, `Ma` for the metadata accessor, `s5ErrorsWP` for a
+/// witness table), so matching must be done via prefix rather than exact equality. The
+/// leading `_` is the C-style symbol-name prefix attached by the Mach-O symbol table.
+private let swiftNeverMangledSymbolPrefix = "_$ss5NeverO"
