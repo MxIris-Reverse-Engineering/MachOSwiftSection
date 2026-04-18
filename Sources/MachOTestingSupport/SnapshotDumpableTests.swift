@@ -327,6 +327,10 @@ extension SnapshotDumpableTests {
     /// with the C-style leading underscore). The kind suffix (`Mn`, `N`, `Ma`,
     /// witness-table mangles, etc.) tells us *what kind* of Never-symbol it is, but all
     /// variants still indicate that the conforming type is `Swift.Never`.
+    ///
+    /// The prefix match is collision-free: the `_$ss` mangling namespace (Swift ABI
+    /// stem `$ss`, C-linkage-prefixed to `_$ss`) is reserved for the Swift stdlib
+    /// (`s` module), so user code cannot mint a symbol starting with `_$ss5NeverO`.
     private func isSwiftNeverConformance(resolvedTypeReference: ResolvedTypeReference) -> Bool {
         switch resolvedTypeReference {
         case .indirectTypeDescriptor(let symbolOrElement):

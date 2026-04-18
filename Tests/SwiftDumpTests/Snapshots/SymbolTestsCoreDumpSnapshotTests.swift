@@ -211,6 +211,10 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
         assertSnapshot(of: output, as: .lines)
     }
 
+    // GlobalDeclarations.swift contains only module-scope `let`/`var`/`func`
+    // declarations, which emit no TypeContextDescriptor — the snapshot is
+    // intentionally (near-)empty. Full-module coverage for globals comes from
+    // the interface snapshot. See spec §"Edge-case categories".
     @Test func globalDeclarationsSnapshot() async throws {
         let output = try await collectDump(for: machOFile, inNamespace: "GlobalDeclarations")
         assertSnapshot(of: output, as: .lines)
