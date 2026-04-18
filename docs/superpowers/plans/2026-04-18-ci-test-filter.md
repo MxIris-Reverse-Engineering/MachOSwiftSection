@@ -1,8 +1,8 @@
-# CI Test Filter and macOS 26.2 Upgrade Implementation Plan
+# CI Test Filter and macOS 26 Upgrade Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Restrict CI test runs to five `SymbolTestsCore`-based test classes and bump both workflows to macOS 26.2 + Xcode 26.2.
+**Goal:** Restrict CI test runs to five `SymbolTestsCore`-based test classes and bump both workflows to macOS 26 + Xcode 26.4.
 
 **Architecture:** Pure CI configuration change. No source-code edits. Apply a `--filter` regex to `swift test` in `.github/workflows/macOS.yml`, and bump the runner image and Xcode version in both `macOS.yml` and `release.yml`. Verify the regex selects exactly the intended five test classes, then commit each workflow change separately.
 
@@ -137,7 +137,7 @@ Optionally `rm /tmp/macho-all-tests.txt /tmp/macho-filter-check.txt` to clean up
 **Files:**
 - Modify: `.github/workflows/macOS.yml` (4 textual changes; exact line numbers may shift)
 
-**Goal:** Bump `macos-15` → `macos-26`, `"16.3"` → `"26.2"`, and add `--filter` to both `swift test` invocations. Leave the existing `Resolve SPM dependencies`, `Cache SymbolTests DerivedData`, `Build SymbolTestsCore fixture`, and `Upload xcodebuild logs on failure` steps untouched.
+**Goal:** Bump `macos-15` → `macos-26`, `"16.3"` → `"26.4"`, and add `--filter` to both `swift test` invocations. Leave the existing `Resolve SPM dependencies`, `Cache SymbolTests DerivedData`, `Build SymbolTestsCore fixture`, and `Upload xcodebuild logs on failure` steps untouched.
 
 - [ ] **Step 1: Bump the matrix runner image**
 
@@ -158,7 +158,7 @@ Apply this edit:
 old_string:
         xcode-version: ["16.3"]
 new_string:
-        xcode-version: ["26.2"]
+        xcode-version: ["26.4"]
 ```
 
 - [ ] **Step 3: Add `--filter` to the Debug `swift test` step**
@@ -267,7 +267,7 @@ Apply this edit:
 old_string:
           xcode-version: "16.3"
 new_string:
-          xcode-version: "26.2"
+          xcode-version: "26.4"
 ```
 
 - [ ] **Step 3: Visually inspect the diff**
@@ -278,7 +278,7 @@ Run:
 git diff .github/workflows/release.yml
 ```
 
-Expected: Exactly two changed lines (`macos-15` → `macos-26`, `"16.3"` → `"26.2"`). Nothing else.
+Expected: Exactly two changed lines (`macos-15` → `macos-26`, `"16.3"` → `"26.4"`). Nothing else.
 
 - [ ] **Step 4: Validate YAML parses**
 

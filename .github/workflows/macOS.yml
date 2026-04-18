@@ -51,7 +51,6 @@ jobs:
             -quiet \
             CODE_SIGNING_ALLOWED=NO \
             ARCHS=arm64 \
-            SWIFT_VERIFY_EMITTED_MODULE_INTERFACE=NO \
             build
 
       - name: Normalize SymbolTestsCore fixture path
