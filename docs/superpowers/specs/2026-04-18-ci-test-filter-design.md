@@ -20,14 +20,14 @@ directory is listed in `.gitignore`. The current workflow does not build this
 artifact, so even the self-contained fixture tests can't run.
 
 Separately, the workflow pins `macos-15` + Xcode `16.3`. Project requirements
-have moved to macOS 26.2 + Xcode 26.2.
+have moved to macOS 26.2 + Xcode 26.4.
 
 ## Goals
 
 - CI runs only the test classes that work without a developer-machine
   environment.
 - CI builds the `SymbolTestsCore.framework` fixture before running tests.
-- CI and the release workflow both run on `macos-26` + Xcode `26.2`.
+- CI and the release workflow both run on `macos-26` + Xcode `26.4`.
 - No changes to test source files — the filter lives in CI configuration only.
 
 ## Non-Goals
@@ -95,17 +95,24 @@ Both Debug and Release `swift test` invocations receive this filter.
 
 ### 3. Environment upgrade
 
-Both workflows move to macOS 26.2 + Xcode 26.2.
+Both workflows move to macOS 26 (`macos-26` runner image) + Xcode 26.4.
 
 `.github/workflows/macOS.yml`:
 
 - `matrix.os`: `macos-15` → `macos-26`
-- `matrix.xcode-version`: `"16.3"` → `"26.2"`
+- `matrix.xcode-version`: `"16.3"` → `"26.4"`
 
 `.github/workflows/release.yml`:
 
 - `runs-on`: `macos-15` → `macos-26`
-- `Setup Xcode` with xcode-version `"16.3"` → `"26.2"`
+- `Setup Xcode` with xcode-version `"16.3"` → `"26.4"`
+
+**Note on Xcode version:** The original requirement was Xcode 26.2, but
+26.2 ships Swift 6.2.3, whose compiler emits a `.swiftinterface`
+containing `nonisolated(nonsending)` syntax (auto-enabled by the macOS
+26 SDK's default upcoming features) that the same compiler then refuses
+to verify. Xcode 26.4 / Swift 6.3 fixed this. The bump was the smallest
+change that lets the fixture build on CI.
 
 ## Final workflow shape
 
@@ -114,7 +121,7 @@ Cache DerivedData, Build SymbolTestsCore fixture, Upload logs on failure,
 Build and run tests). Only three lines change:
 
 - `matrix.os: macos-15` → `matrix.os: macos-26`
-- `matrix.xcode-version: "16.3"` → `matrix.xcode-version: "26.2"`
+- `matrix.xcode-version: "16.3"` → `matrix.xcode-version: "26.4"`
 - Both `swift test` invocations gain a single `--filter` argument:
   `'\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests)(/|$)'`
 
@@ -122,7 +129,7 @@ Build and run tests). Only three lines change:
 version bumped:
 
 - `runs-on: macos-15` → `runs-on: macos-26`
-- `xcode-version: "16.3"` → `xcode-version: "26.2"`
+- `xcode-version: "16.3"` → `xcode-version: "26.4"`
 
 ## Trade-offs
 

@@ -380,3 +380,28 @@ If a step fails, do **not** patch it blindly. Read the failure log, identify roo
 - **Spec coverage:** Filter regex (Tasks 1, 2), env upgrade for `macOS.yml` (Task 2), env upgrade for `release.yml` (Task 3). Fixture build is already in place — explicitly noted in the spec, no task needed.
 - **No placeholders:** Every textual edit is given as a concrete `old_string`/`new_string` pair; the regex is identical across all uses.
 - **Type consistency:** The five test class names are spelled identically in Tasks 1, 2, the commit message, and the PR body. The `--filter` regex is byte-identical in Steps 3 and 4 of Task 2, in Task 1 verification, and in the spec's "Filter test runs" section.
+
+---
+
+## Implementation Outcome (2026-04-18, after CI feedback)
+
+The Task 1-4 commits above landed as planned and pushed to PR #65, but
+the first CI runs surfaced four issues that needed unplanned follow-up
+fixes. All resolved on the same branch, all included in PR #65.
+
+| # | Issue | Fix | Commit |
+|---|---|---|---|
+| 1 | `xcodebuild` failed on missing developer certificate (team `D5Q73692VW`) | Pass `CODE_SIGNING_ALLOWED=NO` build setting to `xcodebuild` | `84e695a` |
+| 2 | `generic/platform=macOS` produced a universal slice; the x86_64 `.swiftinterface` failed verification (CLAUDE.md notes the project is ARM-only) | Add `ARCHS=arm64` (and `SWIFT_VERIFY_EMITTED_MODULE_INTERFACE=NO`, which turned out not to suppress the Xcode-26 explicit-module verifier) | `cdb84a4` |
+| 3 | Swift 6.2.3 in Xcode 26.2 emits a `.swiftinterface` containing `nonisolated(nonsending)` then refuses to verify its own output (compiler bug) | Bump CI Xcode pin from `26.2` to `26.4` (Swift 6.3 fixed it) | `715e330` |
+| 4 | `swift-demangling 0.1.0` (the remote pin) lacks `DemangleOptions.removeReferenceStoragePrefix`, breaking SwiftDump compilation in CI | Bump `Package.swift` pin from `0.1.0` to `0.1.1` (newly published) | `783656d` |
+| 5 | `xcodebuild` on the CI runner emits the fixture at `DerivedData/Build/Products/Release/`, but `MachOFileName.SymbolTestsCore` reads it from `DerivedData/SymbolTests/Build/Products/Release/` (the layout xcodebuild produces locally) | Add a `Normalize SymbolTestsCore fixture path` step that finds the produced framework and symlinks it to the expected path | `90219b1` |
+
+CI on the macos-26 runner with Xcode 26.4 finishes in ~15 minutes and
+runs exactly the five whitelisted suites in both Debug and Release
+configs. No environment-dependent classes leak through.
+
+The `macos-26` runner had Xcode 26.4 preinstalled, so no further
+setup-xcode workaround was needed. The `macOS` workflow had been in
+`disabled_manually` state on origin (since 2025-10-20); it was
+re-enabled during Task 4 to allow the new run to fire.
