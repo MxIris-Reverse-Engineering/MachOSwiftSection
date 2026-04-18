@@ -1,0 +1,135 @@
+// MARK: - Types
+
+enum SymbolTestsCore.DeinitVariants {}
+class SymbolTestsCore.DeinitVariants.SimpleDeinitTest {
+    var value: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.DeinitVariants.SimpleDeinitTest.value.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.DeinitVariants.SimpleDeinitTest.value.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.DeinitVariants.SimpleDeinitTest.value.modify : Swift.Int
+    /* [ Init ] */ SymbolTestsCore.DeinitVariants.SimpleDeinitTest.__allocating_init() -> SymbolTestsCore.DeinitVariants.SimpleDeinitTest
+
+    /* Allocator */
+    SymbolTestsCore.DeinitVariants.SimpleDeinitTest.__allocating_init() -> SymbolTestsCore.DeinitVariants.SimpleDeinitTest
+
+    /* Deallocator */
+    SymbolTestsCore.DeinitVariants.SimpleDeinitTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.DeinitVariants.SimpleDeinitTest.init() -> SymbolTestsCore.DeinitVariants.SimpleDeinitTest
+
+    /* Destructor */
+    SymbolTestsCore.DeinitVariants.SimpleDeinitTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.DeinitVariants.SimpleDeinitTest.value.getter : Swift.Int
+    SymbolTestsCore.DeinitVariants.SimpleDeinitTest.value.setter : Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.DeinitVariants.SimpleDeinitTest.__allocating_init() -> SymbolTestsCore.DeinitVariants.SimpleDeinitTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.DeinitVariants.SimpleDeinitTest.value.getter : Swift.Int
+    method descriptor for SymbolTestsCore.DeinitVariants.SimpleDeinitTest.value.setter : Swift.Int
+}
+class SymbolTestsCore.DeinitVariants.DeinitWithWorkTest {
+    var resource: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.DeinitVariants.DeinitWithWorkTest.resource.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.DeinitVariants.DeinitWithWorkTest.resource.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.DeinitVariants.DeinitWithWorkTest.resource.modify : Swift.Int
+    /* [ Init ] */ SymbolTestsCore.DeinitVariants.DeinitWithWorkTest.__allocating_init() -> SymbolTestsCore.DeinitVariants.DeinitWithWorkTest
+
+    /* Allocator */
+    SymbolTestsCore.DeinitVariants.DeinitWithWorkTest.__allocating_init() -> SymbolTestsCore.DeinitVariants.DeinitWithWorkTest
+
+    /* Deallocator */
+    SymbolTestsCore.DeinitVariants.DeinitWithWorkTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.DeinitVariants.DeinitWithWorkTest.init() -> SymbolTestsCore.DeinitVariants.DeinitWithWorkTest
+
+    /* Destructor */
+    SymbolTestsCore.DeinitVariants.DeinitWithWorkTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.DeinitVariants.DeinitWithWorkTest.resource.getter : Swift.Int
+    SymbolTestsCore.DeinitVariants.DeinitWithWorkTest.resource.setter : Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.DeinitVariants.DeinitWithWorkTest.__allocating_init() -> SymbolTestsCore.DeinitVariants.DeinitWithWorkTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.DeinitVariants.DeinitWithWorkTest.resource.getter : Swift.Int
+    method descriptor for SymbolTestsCore.DeinitVariants.DeinitWithWorkTest.resource.setter : Swift.Int
+}
+actor SymbolTestsCore.DeinitVariants.ActorDeinitTest {
+    var $defaultActor: Builtin.DefaultActorStorage
+    var state: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.DeinitVariants.ActorDeinitTest.state.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.DeinitVariants.ActorDeinitTest.state.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.DeinitVariants.ActorDeinitTest.state.modify : Swift.Int
+    /* [ Init ] */ SymbolTestsCore.DeinitVariants.ActorDeinitTest.__allocating_init() -> SymbolTestsCore.DeinitVariants.ActorDeinitTest
+
+    /* Allocator */
+    SymbolTestsCore.DeinitVariants.ActorDeinitTest.__allocating_init() -> SymbolTestsCore.DeinitVariants.ActorDeinitTest
+
+    /* Deallocator */
+    SymbolTestsCore.DeinitVariants.ActorDeinitTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.DeinitVariants.ActorDeinitTest.init() -> SymbolTestsCore.DeinitVariants.ActorDeinitTest
+
+    /* Destructor */
+    SymbolTestsCore.DeinitVariants.ActorDeinitTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.DeinitVariants.ActorDeinitTest.state.getter : Swift.Int
+    SymbolTestsCore.DeinitVariants.ActorDeinitTest.state.setter : Swift.Int
+    SymbolTestsCore.DeinitVariants.ActorDeinitTest.unownedExecutor.getter : Swift.UnownedSerialExecutor
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.DeinitVariants.ActorDeinitTest.__allocating_init() -> SymbolTestsCore.DeinitVariants.ActorDeinitTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.DeinitVariants.ActorDeinitTest.state.getter : Swift.Int
+    method descriptor for SymbolTestsCore.DeinitVariants.ActorDeinitTest.state.setter : Swift.Int
+}
+class SymbolTestsCore.DeinitVariants.GenericDeinitTest<A> {
+    var element: A
+
+    /* [Getter] */ SymbolTestsCore.DeinitVariants.GenericDeinitTest.element.getter : A
+    /* [Setter] */ SymbolTestsCore.DeinitVariants.GenericDeinitTest.element.setter : A
+    /* [Modify] */ SymbolTestsCore.DeinitVariants.GenericDeinitTest.element.modify : A
+    /* [ Init ] */ SymbolTestsCore.DeinitVariants.GenericDeinitTest.__allocating_init(element: A) -> SymbolTestsCore.DeinitVariants.GenericDeinitTest<A>
+
+    /* Allocator */
+    SymbolTestsCore.DeinitVariants.GenericDeinitTest.__allocating_init(element: A) -> SymbolTestsCore.DeinitVariants.GenericDeinitTest<A>
+
+    /* Deallocator */
+    SymbolTestsCore.DeinitVariants.GenericDeinitTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.DeinitVariants.GenericDeinitTest.init(element: A) -> SymbolTestsCore.DeinitVariants.GenericDeinitTest<A>
+
+    /* Destructor */
+    SymbolTestsCore.DeinitVariants.GenericDeinitTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.DeinitVariants.GenericDeinitTest.element.getter : A
+    SymbolTestsCore.DeinitVariants.GenericDeinitTest.element.setter : A
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.DeinitVariants.GenericDeinitTest.__allocating_init(element: A) -> SymbolTestsCore.DeinitVariants.GenericDeinitTest<A>
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.DeinitVariants.GenericDeinitTest.element.getter : A
+    method descriptor for SymbolTestsCore.DeinitVariants.GenericDeinitTest.element.setter : A
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.DeinitVariants.ActorDeinitTest: Swift.Actor {
+    protocol witness for Swift.Actor.unownedExecutor.getter : Swift.UnownedSerialExecutor in conformance SymbolTestsCore.DeinitVariants.ActorDeinitTest : Swift.Actor in SymbolTestsCore
+}

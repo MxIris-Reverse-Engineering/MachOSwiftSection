@@ -1,0 +1,15 @@
+// MARK: - Types
+
+enum SymbolTestsCore.BasicTypes {}
+class SymbolTestsCore.BasicTypes.TestsObjects {
+    /* [ Init ] */ Symbol not found
+
+    /* Deallocator */
+    SymbolTestsCore.BasicTypes.TestsObjects.__deallocating_deinit
+
+    /* Destructor */
+    SymbolTestsCore.BasicTypes.TestsObjects.deinit
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.BasicTypes.TestsObjects.__allocating_init() -> SymbolTestsCore.BasicTypes.TestsObjects
+}

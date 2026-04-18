@@ -1,0 +1,63 @@
+// MARK: - Types
+
+enum SymbolTestsCore.Generics {}
+struct SymbolTestsCore.Generics.GenericRequirementTest<A> where A: SymbolTestsCore.Protocols.ProtocolTest {
+    var content: A
+
+    /* Allocator */
+    SymbolTestsCore.Generics.GenericRequirementTest.init(content: A) -> SymbolTestsCore.Generics.GenericRequirementTest<A>
+
+    /* Allocator (In Extension) */
+    SymbolTestsCore.Generics.GenericRequirementTest<>.init(rawValue: A) -> SymbolTestsCore.Generics.GenericRequirementTest<A>?
+
+    /* Variable */
+    SymbolTestsCore.Generics.GenericRequirementTest.body.getter : A
+    SymbolTestsCore.Generics.GenericRequirementTest.content.getter : A
+
+    /* Variable (In Extension) */
+    SymbolTestsCore.Generics.GenericRequirementTest<>.rawValue.getter : A
+
+    /* Static Function */
+    static SymbolTestsCore.Generics.GenericRequirementTest.test(lhs: A, rhs: SymbolTestsCore.Generics.GenericRequirementTest<A>) -> Swift.Bool
+
+    /* Static Function (In Extension) */
+    static SymbolTestsCore.Generics.GenericRequirementTest<>.== infix(SymbolTestsCore.Generics.GenericRequirementTest<A>, SymbolTestsCore.Generics.GenericRequirementTest<A>) -> Swift.Bool
+}
+struct SymbolTestsCore.Generics.GenericPackTest<A, each B, C> where repeat each B: SymbolTestsCore.Protocols.ProtocolTest {
+    var _content: (repeat B)
+
+    /* Variable */
+    SymbolTestsCore.Generics.GenericPackTest.body.getter : Swift.Never
+}
+struct SymbolTestsCore.Generics.GenericValueTest<A, let b: Int, C> {
+    var content: C
+
+    /* Variable */
+    SymbolTestsCore.Generics.GenericValueTest.content.getter : C
+    SymbolTestsCore.Generics.GenericValueTest.content.setter : C
+    SymbolTestsCore.Generics.GenericValueTest.body.getter : Swift.Never
+
+    /* Function */
+    SymbolTestsCore.Generics.GenericValueTest.function(value: C) -> Swift.Bool
+}
+struct SymbolTestsCore.Generics.GenericNestedFunction<A, B> {
+    let a: A
+    let b: B
+
+    /* Function */
+    SymbolTestsCore.Generics.GenericNestedFunction.function<A, B>(a: A1, b: B1) -> ()
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.Generics.GenericRequirementTest: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.Generics.GenericPackTest: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.Generics.GenericValueTest: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.Generics.GenericRequirementTest: Swift.RawRepresentable where A: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    method descriptor for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A?
+    protocol witness for SymbolTestsCore.Protocols.ProtocolTest.body.getter : A.Body in conformance SymbolTestsCore.Generics.GenericRequirementTest<A> : SymbolTestsCore.Protocols.ProtocolTest in SymbolTestsCore
+}
+extension SymbolTestsCore.Generics.GenericRequirementTest: Swift.Equatable where A: Swift.Equatable {
+    method descriptor for static Swift.Equatable.== infix(A, A) -> Swift.Bool
+}

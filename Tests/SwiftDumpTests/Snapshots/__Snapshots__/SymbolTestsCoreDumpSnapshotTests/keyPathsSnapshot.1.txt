@@ -1,0 +1,80 @@
+// MARK: - Types
+
+enum SymbolTestsCore.KeyPaths {}
+struct SymbolTestsCore.KeyPaths.KeyPathHolderTest {
+    var readOnlyKeyPath: Swift.KeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>
+    var writableKeyPath: Swift.WritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>
+    var referenceWritableKeyPath: Swift.ReferenceWritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathReferenceTest, Swift.String>
+    var partialKeyPath: Swift.PartialKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest>
+    var anyKeyPath: Swift.AnyKeyPath
+    var value: Swift.Int
+    var text: Swift.String
+
+    /* Allocator */
+    SymbolTestsCore.KeyPaths.KeyPathHolderTest.init(readOnlyKeyPath: Swift.KeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>, writableKeyPath: Swift.WritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>, referenceWritableKeyPath: Swift.ReferenceWritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathReferenceTest, Swift.String>, partialKeyPath: Swift.PartialKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest>, anyKeyPath: Swift.AnyKeyPath, value: Swift.Int, text: Swift.String) -> SymbolTestsCore.KeyPaths.KeyPathHolderTest
+
+    /* Variable */
+    SymbolTestsCore.KeyPaths.KeyPathHolderTest.writableKeyPath.getter : Swift.WritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>
+    SymbolTestsCore.KeyPaths.KeyPathHolderTest.writableKeyPath.setter : Swift.WritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>
+    SymbolTestsCore.KeyPaths.KeyPathHolderTest.referenceWritableKeyPath.getter : Swift.ReferenceWritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathReferenceTest, Swift.String>
+    SymbolTestsCore.KeyPaths.KeyPathHolderTest.referenceWritableKeyPath.setter : Swift.ReferenceWritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathReferenceTest, Swift.String>
+    SymbolTestsCore.KeyPaths.KeyPathHolderTest.partialKeyPath.getter : Swift.PartialKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest>
+    SymbolTestsCore.KeyPaths.KeyPathHolderTest.partialKeyPath.setter : Swift.PartialKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest>
+    SymbolTestsCore.KeyPaths.KeyPathHolderTest.anyKeyPath.getter : Swift.AnyKeyPath
+    SymbolTestsCore.KeyPaths.KeyPathHolderTest.anyKeyPath.setter : Swift.AnyKeyPath
+    SymbolTestsCore.KeyPaths.KeyPathHolderTest.text.setter : Swift.String
+    SymbolTestsCore.KeyPaths.KeyPathHolderTest.readOnlyKeyPath.getter : Swift.KeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>
+    SymbolTestsCore.KeyPaths.KeyPathHolderTest.readOnlyKeyPath.setter : Swift.KeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>
+    SymbolTestsCore.KeyPaths.KeyPathHolderTest.text.getter : Swift.String
+    SymbolTestsCore.KeyPaths.KeyPathHolderTest.value.getter : Swift.Int
+    SymbolTestsCore.KeyPaths.KeyPathHolderTest.value.setter : Swift.Int
+}
+class SymbolTestsCore.KeyPaths.KeyPathReferenceTest {
+    var mutableText: Swift.String
+    var mutableInteger: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.KeyPaths.KeyPathReferenceTest.mutableText.getter : Swift.String
+    /* [Setter] */ SymbolTestsCore.KeyPaths.KeyPathReferenceTest.mutableText.setter : Swift.String
+    /* [Modify] */ SymbolTestsCore.KeyPaths.KeyPathReferenceTest.mutableText.modify : Swift.String
+    /* [Getter] */ SymbolTestsCore.KeyPaths.KeyPathReferenceTest.mutableInteger.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.KeyPaths.KeyPathReferenceTest.mutableInteger.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.KeyPaths.KeyPathReferenceTest.mutableInteger.modify : Swift.Int
+    /* [ Init ] */ SymbolTestsCore.KeyPaths.KeyPathReferenceTest.__allocating_init() -> SymbolTestsCore.KeyPaths.KeyPathReferenceTest
+
+    /* Allocator */
+    SymbolTestsCore.KeyPaths.KeyPathReferenceTest.__allocating_init() -> SymbolTestsCore.KeyPaths.KeyPathReferenceTest
+
+    /* Deallocator */
+    SymbolTestsCore.KeyPaths.KeyPathReferenceTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.KeyPaths.KeyPathReferenceTest.init() -> SymbolTestsCore.KeyPaths.KeyPathReferenceTest
+
+    /* Destructor */
+    SymbolTestsCore.KeyPaths.KeyPathReferenceTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.KeyPaths.KeyPathReferenceTest.mutableInteger.getter : Swift.Int
+    SymbolTestsCore.KeyPaths.KeyPathReferenceTest.mutableInteger.setter : Swift.Int
+    SymbolTestsCore.KeyPaths.KeyPathReferenceTest.mutableText.getter : Swift.String
+    SymbolTestsCore.KeyPaths.KeyPathReferenceTest.mutableText.setter : Swift.String
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.KeyPaths.KeyPathReferenceTest.__allocating_init() -> SymbolTestsCore.KeyPaths.KeyPathReferenceTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.KeyPaths.KeyPathReferenceTest.mutableText.getter : Swift.String
+    method descriptor for SymbolTestsCore.KeyPaths.KeyPathReferenceTest.mutableText.setter : Swift.String
+    method descriptor for SymbolTestsCore.KeyPaths.KeyPathReferenceTest.mutableInteger.getter : Swift.Int
+    method descriptor for SymbolTestsCore.KeyPaths.KeyPathReferenceTest.mutableInteger.setter : Swift.Int
+}
+struct SymbolTestsCore.KeyPaths.KeyPathFactoryTest<A, B> {
+    var keyPathProducer: (A) -> Swift.KeyPath<A, B>
+
+    /* Allocator */
+    SymbolTestsCore.KeyPaths.KeyPathFactoryTest.init(keyPathProducer: (A) -> Swift.KeyPath<A, B>) -> SymbolTestsCore.KeyPaths.KeyPathFactoryTest<A, B>
+
+    /* Variable */
+    SymbolTestsCore.KeyPaths.KeyPathFactoryTest.keyPathProducer.getter : (A) -> Swift.KeyPath<A, B>
+    SymbolTestsCore.KeyPaths.KeyPathFactoryTest.keyPathProducer.setter : (A) -> Swift.KeyPath<A, B>
+}

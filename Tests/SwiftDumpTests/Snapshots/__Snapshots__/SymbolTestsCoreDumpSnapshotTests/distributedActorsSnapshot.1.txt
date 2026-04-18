@@ -1,0 +1,162 @@
+// MARK: - Types
+
+enum SymbolTestsCore.DistributedActors {}
+distributed actor SymbolTestsCore.DistributedActors.DistributedActorTest {
+    var $defaultActor: Builtin.DefaultActorStorage
+    let id: Distributed.LocalTestingActorID
+    let actorSystem: Distributed.LocalTestingDistributedActorSystem
+
+    /* [Method] */ func SymbolTestsCore.DistributedActors.DistributedActorTest.remoteMethod(value: Swift.Int) -> Swift.Int
+    /* [Method] */ func SymbolTestsCore.DistributedActors.DistributedActorTest.remoteThrowingMethod() throws -> Swift.String
+    /* [Getter] */ SymbolTestsCore.DistributedActors.DistributedActorTest.nonisolatedProperty.getter : Swift.String
+    /* [Method] */ func SymbolTestsCore.DistributedActors.DistributedActorTest.parameterizedMethod(label: Swift.String, count: Swift.Int) -> Swift.String
+    /* [Getter] */ SymbolTestsCore.DistributedActors.DistributedActorTest.hashValue.getter : Swift.Int
+    /* [ Init ] */ SymbolTestsCore.DistributedActors.DistributedActorTest.__allocating_init(actorSystem: Distributed.LocalTestingDistributedActorSystem) -> SymbolTestsCore.DistributedActors.DistributedActorTest
+
+    /* Allocator */
+    merged SymbolTestsCore.DistributedActors.DistributedActorTest.__allocating_init(actorSystem: Distributed.LocalTestingDistributedActorSystem) -> SymbolTestsCore.DistributedActors.DistributedActorTest
+    SymbolTestsCore.DistributedActors.DistributedActorTest.__allocating_init(actorSystem: Distributed.LocalTestingDistributedActorSystem) -> SymbolTestsCore.DistributedActors.DistributedActorTest
+
+    /* Deallocator */
+    SymbolTestsCore.DistributedActors.DistributedActorTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.DistributedActors.DistributedActorTest.init(actorSystem: Distributed.LocalTestingDistributedActorSystem) -> SymbolTestsCore.DistributedActors.DistributedActorTest
+
+    /* Destructor */
+    merged SymbolTestsCore.DistributedActors.DistributedActorTest.deinit
+    SymbolTestsCore.DistributedActors.DistributedActorTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.DistributedActors.DistributedActorTest.nonisolatedProperty.getter : Swift.String
+    SymbolTestsCore.DistributedActors.DistributedActorTest.hashValue.getter : Swift.Int
+    merged SymbolTestsCore.DistributedActors.DistributedActorTest.id.getter : Distributed.LocalTestingActorID
+    SymbolTestsCore.DistributedActors.DistributedActorTest.id.getter : Distributed.LocalTestingActorID
+    SymbolTestsCore.DistributedActors.DistributedActorTest.actorSystem.getter : Distributed.LocalTestingDistributedActorSystem
+    SymbolTestsCore.DistributedActors.DistributedActorTest.unownedExecutor.getter : Swift.UnownedSerialExecutor
+
+    /* Function */
+    SymbolTestsCore.DistributedActors.DistributedActorTest.remoteMethod(value: Swift.Int) -> Swift.Int
+    SymbolTestsCore.DistributedActors.DistributedActorTest.remoteThrowingMethod() throws -> Swift.String
+    SymbolTestsCore.DistributedActors.DistributedActorTest.parameterizedMethod(label: Swift.String, count: Swift.Int) -> Swift.String
+
+    /* Static Function */
+    static SymbolTestsCore.DistributedActors.DistributedActorTest.resolve(id: Distributed.LocalTestingActorID, using: Distributed.LocalTestingDistributedActorSystem) throws -> SymbolTestsCore.DistributedActors.DistributedActorTest
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.DistributedActors.DistributedActorTest.__allocating_init(actorSystem: Distributed.LocalTestingDistributedActorSystem) -> SymbolTestsCore.DistributedActors.DistributedActorTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.DistributedActors.DistributedActorTest.nonisolatedProperty.getter : Swift.String
+    method descriptor for SymbolTestsCore.DistributedActors.DistributedActorTest.hashValue.getter : Swift.Int
+
+    /* [Method] Function */
+    method descriptor for SymbolTestsCore.DistributedActors.DistributedActorTest.remoteMethod(value: Swift.Int) -> Swift.Int
+    method descriptor for SymbolTestsCore.DistributedActors.DistributedActorTest.remoteThrowingMethod() throws -> Swift.String
+    method descriptor for SymbolTestsCore.DistributedActors.DistributedActorTest.parameterizedMethod(label: Swift.String, count: Swift.Int) -> Swift.String
+}
+distributed actor SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> where A: Swift.Decodable, A: Swift.Encodable {
+    var $defaultActor: Builtin.DefaultActorStorage
+    let id: Distributed.LocalTestingActorID
+    let actorSystem: Distributed.LocalTestingDistributedActorSystem
+
+    /* [Method] */ func SymbolTestsCore.DistributedActors.GenericDistributedActorTest.process(element: A) -> A
+    /* [Getter] */ SymbolTestsCore.DistributedActors.GenericDistributedActorTest.hashValue.getter : Swift.Int
+    /* [ Init ] */ SymbolTestsCore.DistributedActors.GenericDistributedActorTest.__allocating_init(actorSystem: Distributed.LocalTestingDistributedActorSystem) -> SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A>
+
+    /* Allocator */
+    SymbolTestsCore.DistributedActors.GenericDistributedActorTest.__allocating_init(actorSystem: Distributed.LocalTestingDistributedActorSystem) -> SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A>
+
+    /* Deallocator */
+    SymbolTestsCore.DistributedActors.GenericDistributedActorTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.DistributedActors.GenericDistributedActorTest.init(actorSystem: Distributed.LocalTestingDistributedActorSystem) -> SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A>
+
+    /* Destructor */
+    SymbolTestsCore.DistributedActors.GenericDistributedActorTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.DistributedActors.GenericDistributedActorTest.hashValue.getter : Swift.Int
+    SymbolTestsCore.DistributedActors.GenericDistributedActorTest.id.getter : Distributed.LocalTestingActorID
+    SymbolTestsCore.DistributedActors.GenericDistributedActorTest.actorSystem.getter : Distributed.LocalTestingDistributedActorSystem
+    SymbolTestsCore.DistributedActors.GenericDistributedActorTest.unownedExecutor.getter : Swift.UnownedSerialExecutor
+
+    /* Function */
+    SymbolTestsCore.DistributedActors.GenericDistributedActorTest.process(element: A) -> A
+
+    /* Static Function */
+    static SymbolTestsCore.DistributedActors.GenericDistributedActorTest.resolve(id: Distributed.LocalTestingActorID, using: Distributed.LocalTestingDistributedActorSystem) throws -> SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A>
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.DistributedActors.GenericDistributedActorTest.__allocating_init(actorSystem: Distributed.LocalTestingDistributedActorSystem) -> SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A>
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.DistributedActors.GenericDistributedActorTest.hashValue.getter : Swift.Int
+
+    /* [Method] Function */
+    method descriptor for SymbolTestsCore.DistributedActors.GenericDistributedActorTest.process(element: A) -> A
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.DistributedActors.DistributedActorTest: Distributed.DistributedActor {
+    base conformance descriptor for Distributed.DistributedActor: Swift.Hashable
+    base conformance descriptor for Distributed.DistributedActor: Swift.Identifiable
+    associated conformance descriptor for Distributed.DistributedActor.Distributed.DistributedActor.ActorSystem: Distributed.DistributedActorSystem
+    associated type descriptor for Distributed.DistributedActor.ActorSystem
+    associated type descriptor for Distributed.DistributedActor.SerializationRequirement
+    protocol witness for Distributed.DistributedActor.actorSystem.getter : A.ActorSystem in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Distributed.DistributedActor in SymbolTestsCore
+    protocol witness for Distributed.DistributedActor.unownedExecutor.getter : Swift.UnownedSerialExecutor in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Distributed.DistributedActor in SymbolTestsCore
+    protocol witness for static Distributed.DistributedActor.resolve(id: A.ID, using: A.ActorSystem) throws -> A in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Distributed.DistributedActor in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Identifiable {
+    associated conformance descriptor for Swift.Identifiable.Swift.Identifiable.ID: Swift.Hashable
+    associated type descriptor for Swift.Identifiable.ID
+    protocol witness for Swift.Identifiable.id.getter : A.ID in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Swift.Identifiable in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Encodable {
+    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Swift.Encodable in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.DistributedActorTest: Swift.Decodable {
+    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.DistributedActors.DistributedActorTest : Swift.Decodable in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Distributed.DistributedActor {
+    base conformance descriptor for Distributed.DistributedActor: Swift.Hashable
+    base conformance descriptor for Distributed.DistributedActor: Swift.Identifiable
+    associated conformance descriptor for Distributed.DistributedActor.Distributed.DistributedActor.ActorSystem: Distributed.DistributedActorSystem
+    associated type descriptor for Distributed.DistributedActor.ActorSystem
+    associated type descriptor for Distributed.DistributedActor.SerializationRequirement
+    protocol witness for Distributed.DistributedActor.actorSystem.getter : A.ActorSystem in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Distributed.DistributedActor in SymbolTestsCore
+    protocol witness for Distributed.DistributedActor.unownedExecutor.getter : Swift.UnownedSerialExecutor in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Distributed.DistributedActor in SymbolTestsCore
+    protocol witness for static Distributed.DistributedActor.resolve(id: A.ID, using: A.ActorSystem) throws -> A in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Distributed.DistributedActor in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Identifiable {
+    associated conformance descriptor for Swift.Identifiable.Swift.Identifiable.ID: Swift.Hashable
+    associated type descriptor for Swift.Identifiable.ID
+    protocol witness for Swift.Identifiable.id.getter : A.ID in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Swift.Identifiable in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Encodable {
+    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Swift.Encodable in SymbolTestsCore
+}
+extension SymbolTestsCore.DistributedActors.GenericDistributedActorTest: Swift.Decodable {
+    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.DistributedActors.GenericDistributedActorTest<A> : Swift.Decodable in SymbolTestsCore
+}

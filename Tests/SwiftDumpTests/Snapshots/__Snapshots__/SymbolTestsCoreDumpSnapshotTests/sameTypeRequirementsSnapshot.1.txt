@@ -1,0 +1,48 @@
+// MARK: - Types
+
+enum SymbolTestsCore.SameTypeRequirements {}
+struct SymbolTestsCore.SameTypeRequirements.SameTypeElementTest<A, B> where A: Swift.Sequence, B: Swift.Sequence, A.Sequence.Element == B.Sequence.Element {
+    var first: A
+    var second: B
+
+    /* Allocator */
+    merged SymbolTestsCore.SameTypeRequirements.SameTypeElementTest.init(first: A, second: B) -> SymbolTestsCore.SameTypeRequirements.SameTypeElementTest<A, B>
+    SymbolTestsCore.SameTypeRequirements.SameTypeElementTest.init(first: A, second: B) -> SymbolTestsCore.SameTypeRequirements.SameTypeElementTest<A, B>
+
+    /* Variable */
+    merged SymbolTestsCore.SameTypeRequirements.SameTypeElementTest.second.getter : B
+    merged SymbolTestsCore.SameTypeRequirements.SameTypeElementTest.second.setter : B
+    SymbolTestsCore.SameTypeRequirements.SameTypeElementTest.second.getter : B
+    SymbolTestsCore.SameTypeRequirements.SameTypeElementTest.second.setter : B
+    SymbolTestsCore.SameTypeRequirements.SameTypeElementTest.first.getter : A
+    SymbolTestsCore.SameTypeRequirements.SameTypeElementTest.first.setter : A
+}
+struct SymbolTestsCore.SameTypeRequirements.NestedSameTypeTest<A, B> where A: Swift.Collection, B: Swift.Collection, A.Sequence.Element == B.Sequence.Element, A.Collection.Index == Swift.Int, B.Collection.Index == Swift.Int {
+    var first: A
+    var second: B
+
+    /* Allocator */
+    SymbolTestsCore.SameTypeRequirements.NestedSameTypeTest.init(first: A, second: B) -> SymbolTestsCore.SameTypeRequirements.NestedSameTypeTest<A, B>
+
+    /* Variable */
+    SymbolTestsCore.SameTypeRequirements.NestedSameTypeTest.second.getter : B
+    SymbolTestsCore.SameTypeRequirements.NestedSameTypeTest.second.setter : B
+    SymbolTestsCore.SameTypeRequirements.NestedSameTypeTest.first.getter : A
+    SymbolTestsCore.SameTypeRequirements.NestedSameTypeTest.first.setter : A
+}
+struct SymbolTestsCore.SameTypeRequirements.ChainedSameTypeTest<A, B, C> where A: SymbolTestsCore.Protocols.ProtocolTest, B == A.ProtocolTest.Body, C == B.ProtocolTest.Body {
+    var first: A
+    var second: B
+    var third: C
+
+    /* Allocator */
+    SymbolTestsCore.SameTypeRequirements.ChainedSameTypeTest.init(first: A, second: B, third: C) -> SymbolTestsCore.SameTypeRequirements.ChainedSameTypeTest<A, B, C>
+
+    /* Variable */
+    SymbolTestsCore.SameTypeRequirements.ChainedSameTypeTest.third.getter : C
+    SymbolTestsCore.SameTypeRequirements.ChainedSameTypeTest.third.setter : C
+    SymbolTestsCore.SameTypeRequirements.ChainedSameTypeTest.first.getter : A
+    SymbolTestsCore.SameTypeRequirements.ChainedSameTypeTest.first.setter : A
+    SymbolTestsCore.SameTypeRequirements.ChainedSameTypeTest.second.getter : B
+    SymbolTestsCore.SameTypeRequirements.ChainedSameTypeTest.second.setter : B
+}

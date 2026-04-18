@@ -1,0 +1,172 @@
+// MARK: - Types
+
+enum SymbolTestsCore.WeakUnownedReferences {}
+class SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest {
+    var value: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest.value.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest.value.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest.value.modify : Swift.Int
+    /* [ Init ] */ SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest.__allocating_init() -> SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+
+    /* Allocator */
+    SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest.__allocating_init() -> SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+
+    /* Deallocator */
+    SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest.init() -> SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+
+    /* Destructor */
+    SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest.value.getter : Swift.Int
+    SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest.value.setter : Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest.__allocating_init() -> SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest.value.getter : Swift.Int
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest.value.setter : Swift.Int
+}
+class SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest {
+    weak var weakReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    weak var weakAnyObject: Swift.AnyObject?
+
+    /* [Getter] */ SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.weakReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    /* [Setter] */ SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.weakReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    /* [Modify] */ SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.weakReference.modify : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    /* [Getter] */ SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.weakAnyObject.getter : Swift.AnyObject?
+    /* [Setter] */ SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.weakAnyObject.setter : Swift.AnyObject?
+    /* [Modify] */ SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.weakAnyObject.modify : Swift.AnyObject?
+    /* [ Init ] */ SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.__allocating_init() -> SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest
+
+    /* Allocator */
+    SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.__allocating_init() -> SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest
+
+    /* Deallocator */
+    SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.init() -> SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest
+
+    /* Destructor */
+    SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.weakReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.weakReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.weakAnyObject.getter : Swift.AnyObject?
+    SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.weakAnyObject.setter : Swift.AnyObject?
+    merged SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.weakReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    merged SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.weakReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.__allocating_init() -> SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.weakReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.weakReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.weakAnyObject.getter : Swift.AnyObject?
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.WeakReferenceHolderTest.weakAnyObject.setter : Swift.AnyObject?
+}
+class SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest {
+    unowned var unownedReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    unowned var unownedSafeReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    unowned(unsafe) var unownedUnsafeReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+
+    /* [Getter] */ SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    /* [Setter] */ SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    /* [Modify] */ SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedReference.modify : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    /* [Getter] */ SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedSafeReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    /* [Setter] */ SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedSafeReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    /* [Modify] */ SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedSafeReference.modify : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    /* [Getter] */ SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedUnsafeReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    /* [Setter] */ SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedUnsafeReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    /* [Modify] */ SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedUnsafeReference.modify : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    /* [ Init ] */ SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.__allocating_init(target: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest) -> SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest
+
+    /* Allocator */
+    SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.__allocating_init(target: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest) -> SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest
+
+    /* Deallocator */
+    SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.init(target: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest) -> SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest
+
+    /* Destructor */
+    SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedSafeReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedSafeReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedUnsafeReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedUnsafeReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    merged SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedSafeReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    merged SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedSafeReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    merged SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedUnsafeReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.__allocating_init(target: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest) -> SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedSafeReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedSafeReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedUnsafeReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.UnownedReferenceHolderTest.unownedUnsafeReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+}
+class SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest {
+    weak var weakReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    unowned var unownedReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    var strongReference: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+
+    /* [Getter] */ SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.weakReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    /* [Setter] */ SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.weakReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    /* [Modify] */ SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.weakReference.modify : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    /* [Getter] */ SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.unownedReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    /* [Setter] */ SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.unownedReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    /* [Modify] */ SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.unownedReference.modify : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    /* [Getter] */ SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.strongReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    /* [Setter] */ SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.strongReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    /* [Modify] */ SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.strongReference.modify : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    /* [ Init ] */ SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.__allocating_init(target: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest) -> SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest
+
+    /* Allocator */
+    SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.__allocating_init(target: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest) -> SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest
+
+    /* Deallocator */
+    SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.init(target: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest) -> SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest
+
+    /* Destructor */
+    SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.strongReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.weakReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.unownedReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.weakReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.unownedReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.strongReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.__allocating_init(target: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest) -> SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.weakReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.weakReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.unownedReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.unownedReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.strongReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.strongReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+}

@@ -1,0 +1,203 @@
+// MARK: - Types
+
+enum SymbolTestsCore.CollectionConformances {}
+struct SymbolTestsCore.CollectionConformances.CustomSequenceTest {
+    /* Function */
+    SymbolTestsCore.CollectionConformances.CustomSequenceTest.makeIterator() -> SymbolTestsCore.CollectionConformances.CustomSequenceTest.Iterator
+}
+struct SymbolTestsCore.CollectionConformances.CustomSequenceTest.Iterator {
+    /* Function */
+    SymbolTestsCore.CollectionConformances.CustomSequenceTest.Iterator.next() -> Swift.Int?
+}
+struct SymbolTestsCore.CollectionConformances.CustomCollectionTest {
+    /* Subscript */
+    SymbolTestsCore.CollectionConformances.CustomCollectionTest.subscript.getter : (Swift.Int) -> Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.CollectionConformances.CustomCollectionTest.startIndex.getter : Swift.Int
+    SymbolTestsCore.CollectionConformances.CustomCollectionTest.endIndex.getter : Swift.Int
+
+    /* Function */
+    SymbolTestsCore.CollectionConformances.CustomCollectionTest.index(after: Swift.Int) -> Swift.Int
+}
+struct SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest {
+    /* Subscript */
+    SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest.subscript.getter : (Swift.Int) -> Swift.String
+
+    /* Variable */
+    SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest.startIndex.getter : Swift.Int
+    SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest.endIndex.getter : Swift.Int
+
+    /* Function */
+    SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest.index(before: Swift.Int) -> Swift.Int
+    SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest.index(after: Swift.Int) -> Swift.Int
+}
+struct SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest {
+    /* Subscript */
+    SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest.subscript.getter : (Swift.Int) -> Swift.Double
+
+    /* Variable */
+    SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest.startIndex.getter : Swift.Int
+    SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest.endIndex.getter : Swift.Int
+
+    /* Function */
+    SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest.index(after: Swift.Int) -> Swift.Int
+    SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest.index(before: Swift.Int) -> Swift.Int
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.CollectionConformances.CustomSequenceTest.Iterator: Swift.IteratorProtocol {
+    associated type descriptor for Swift.IteratorProtocol.Element
+    protocol witness for Swift.IteratorProtocol.next() -> A.Element? in conformance SymbolTestsCore.CollectionConformances.CustomSequenceTest.Iterator : Swift.IteratorProtocol in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomSequenceTest: Swift.Sequence {
+    associated conformance descriptor for Swift.Sequence.Swift.Sequence.Iterator: Swift.IteratorProtocol
+    associated type descriptor for Swift.Sequence.Element
+    associated type descriptor for Swift.Sequence.Iterator
+    protocol witness for Swift.Sequence.makeIterator() -> A.Iterator in conformance SymbolTestsCore.CollectionConformances.CustomSequenceTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence.underestimatedCount.getter : Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomSequenceTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._customContainsEquatableElement(A.Element) -> Swift.Bool? in conformance SymbolTestsCore.CollectionConformances.CustomSequenceTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._copyToContiguousArray() -> Swift.ContiguousArray<A.Element> in conformance SymbolTestsCore.CollectionConformances.CustomSequenceTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._copyContents(initializing: Swift.UnsafeMutableBufferPointer<A.Element>) -> (A.Iterator, Swift.Int) in conformance SymbolTestsCore.CollectionConformances.CustomSequenceTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence.withContiguousStorageIfAvailable<A>((Swift.UnsafeBufferPointer<A.Element>) throws -> A1) throws -> A1? in conformance SymbolTestsCore.CollectionConformances.CustomSequenceTest : Swift.Sequence in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomCollectionTest: Swift.Collection {
+    base conformance descriptor for Swift.Collection: Swift.Sequence
+    associated conformance descriptor for Swift.Collection.Swift.Collection.Index: Swift.Comparable
+    associated conformance descriptor for Swift.Collection.Swift.Collection.Indices: Swift.Collection
+    associated conformance descriptor for Swift.Collection.Swift.Collection.SubSequence: Swift.Collection
+    associated type descriptor for Swift.Collection.Index
+    associated type descriptor for Swift.Collection.SubSequence
+    associated type descriptor for Swift.Collection.Indices
+    protocol witness for Swift.Collection.startIndex.getter : A.Index in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Sequence.makeIterator() -> A.Iterator in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Collection.subscript.read : (A.Index) -> A.Element in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.subscript.getter : (Swift.Range<A.Index>) -> A.SubSequence in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.indices.getter : A.Indices in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.isEmpty.getter : Swift.Bool in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.count.getter : Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._customIndexOfEquatableElement(A.Element) -> A.Index?? in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._customLastIndexOfEquatableElement(A.Element) -> A.Index?? in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.index(_: A.Index, offsetBy: Swift.Int) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.index(_: A.Index, offsetBy: Swift.Int, limitedBy: A.Index) -> A.Index? in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.distance(from: A.Index, to: A.Index) -> Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._failEarlyRangeCheck(_: A.Index, bounds: Swift.Range<A.Index>) -> () in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._failEarlyRangeCheck(_: A.Index, bounds: Swift.ClosedRange<A.Index>) -> () in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._failEarlyRangeCheck(_: Swift.Range<A.Index>, bounds: Swift.Range<A.Index>) -> () in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.index(after: A.Index) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.formIndex(after: inout A.Index) -> () in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomCollectionTest: Swift.Sequence {
+    associated conformance descriptor for Swift.Sequence.Swift.Sequence.Iterator: Swift.IteratorProtocol
+    associated type descriptor for Swift.Sequence.Element
+    associated type descriptor for Swift.Sequence.Iterator
+    protocol witness for Swift.Collection.startIndex.getter : A.Index in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.count.getter : Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Sequence._customContainsEquatableElement(A.Element) -> Swift.Bool? in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._copyToContiguousArray() -> Swift.ContiguousArray<A.Element> in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._copyContents(initializing: Swift.UnsafeMutableBufferPointer<A.Element>) -> (A.Iterator, Swift.Int) in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence.withContiguousStorageIfAvailable<A>((Swift.UnsafeBufferPointer<A.Element>) throws -> A1) throws -> A1? in conformance SymbolTestsCore.CollectionConformances.CustomCollectionTest : Swift.Sequence in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest: Swift.BidirectionalCollection {
+    base conformance descriptor for Swift.BidirectionalCollection: Swift.Collection
+    associated conformance descriptor for Swift.BidirectionalCollection.Swift.Collection.Indices: Swift.BidirectionalCollection
+    associated conformance descriptor for Swift.BidirectionalCollection.Swift.Collection.SubSequence: Swift.BidirectionalCollection
+    protocol witness for Swift.BidirectionalCollection.index(before: A.Index) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.formIndex(before: inout A.Index) -> () in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.index(_: A.Index, offsetBy: Swift.Int) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.index(_: A.Index, offsetBy: Swift.Int, limitedBy: A.Index) -> A.Index? in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.distance(from: A.Index, to: A.Index) -> Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest: Swift.Collection {
+    base conformance descriptor for Swift.Collection: Swift.Sequence
+    associated conformance descriptor for Swift.Collection.Swift.Collection.Index: Swift.Comparable
+    associated conformance descriptor for Swift.Collection.Swift.Collection.Indices: Swift.Collection
+    associated conformance descriptor for Swift.Collection.Swift.Collection.SubSequence: Swift.Collection
+    associated type descriptor for Swift.Collection.Index
+    associated type descriptor for Swift.Collection.SubSequence
+    associated type descriptor for Swift.Collection.Indices
+    protocol witness for Swift.Collection.startIndex.getter : A.Index in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.endIndex.getter : A.Index in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.subscript.read : (A.Index) -> A.Element in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.subscript.getter : (Swift.Range<A.Index>) -> A.SubSequence in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.indices.getter : A.Indices in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.isEmpty.getter : Swift.Bool in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.count.getter : Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._customLastIndexOfEquatableElement(A.Element) -> A.Index?? in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._customIndexOfEquatableElement(A.Element) -> A.Index?? in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.index(_: A.Index, offsetBy: Swift.Int) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.index(_: A.Index, offsetBy: Swift.Int, limitedBy: A.Index) -> A.Index? in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.distance(from: A.Index, to: A.Index) -> Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.Collection._failEarlyRangeCheck(_: A.Index, bounds: Swift.Range<A.Index>) -> () in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._failEarlyRangeCheck(_: A.Index, bounds: Swift.ClosedRange<A.Index>) -> () in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._failEarlyRangeCheck(_: Swift.Range<A.Index>, bounds: Swift.Range<A.Index>) -> () in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.index(after: A.Index) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.formIndex(after: inout A.Index) -> () in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest: Swift.Sequence {
+    associated conformance descriptor for Swift.Sequence.Swift.Sequence.Iterator: Swift.IteratorProtocol
+    associated type descriptor for Swift.Sequence.Element
+    associated type descriptor for Swift.Sequence.Iterator
+    protocol witness for Swift.Collection.startIndex.getter : A.Index in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.count.getter : Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Sequence._customContainsEquatableElement(A.Element) -> Swift.Bool? in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._copyToContiguousArray() -> Swift.ContiguousArray<A.Element> in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._copyContents(initializing: Swift.UnsafeMutableBufferPointer<A.Element>) -> (A.Iterator, Swift.Int) in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence.withContiguousStorageIfAvailable<A>((Swift.UnsafeBufferPointer<A.Element>) throws -> A1) throws -> A1? in conformance SymbolTestsCore.CollectionConformances.CustomBidirectionalCollectionTest : Swift.Sequence in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest: Swift.RandomAccessCollection {
+    base conformance descriptor for Swift.RandomAccessCollection: Swift.BidirectionalCollection
+    associated conformance descriptor for Swift.RandomAccessCollection.Swift.Collection.Indices: Swift.RandomAccessCollection
+    associated conformance descriptor for Swift.RandomAccessCollection.Swift.Collection.SubSequence: Swift.RandomAccessCollection
+    protocol witness for Swift.BidirectionalCollection.index(_: A.Index, offsetBy: Swift.Int) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.index(_: A.Index, offsetBy: Swift.Int, limitedBy: A.Index) -> A.Index? in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.distance(from: A.Index, to: A.Index) -> Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest: Swift.BidirectionalCollection {
+    base conformance descriptor for Swift.BidirectionalCollection: Swift.Collection
+    associated conformance descriptor for Swift.BidirectionalCollection.Swift.Collection.Indices: Swift.BidirectionalCollection
+    associated conformance descriptor for Swift.BidirectionalCollection.Swift.Collection.SubSequence: Swift.BidirectionalCollection
+    protocol witness for Swift.BidirectionalCollection.index(before: A.Index) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.formIndex(before: inout A.Index) -> () in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.index(_: A.Index, offsetBy: Swift.Int) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.index(_: A.Index, offsetBy: Swift.Int, limitedBy: A.Index) -> A.Index? in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.distance(from: A.Index, to: A.Index) -> Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest: Swift.Collection {
+    base conformance descriptor for Swift.Collection: Swift.Sequence
+    associated conformance descriptor for Swift.Collection.Swift.Collection.Index: Swift.Comparable
+    associated conformance descriptor for Swift.Collection.Swift.Collection.Indices: Swift.Collection
+    associated conformance descriptor for Swift.Collection.Swift.Collection.SubSequence: Swift.Collection
+    associated type descriptor for Swift.Collection.Index
+    associated type descriptor for Swift.Collection.SubSequence
+    associated type descriptor for Swift.Collection.Indices
+    protocol witness for Swift.Collection.startIndex.getter : A.Index in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.endIndex.getter : A.Index in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.subscript.read : (A.Index) -> A.Element in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.subscript.getter : (Swift.Range<A.Index>) -> A.SubSequence in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.indices.getter : A.Indices in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.isEmpty.getter : Swift.Bool in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.count.getter : Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._customIndexOfEquatableElement(A.Element) -> A.Index?? in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._customLastIndexOfEquatableElement(A.Element) -> A.Index?? in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.index(_: A.Index, offsetBy: Swift.Int) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.index(_: A.Index, offsetBy: Swift.Int, limitedBy: A.Index) -> A.Index? in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.BidirectionalCollection.distance(from: A.Index, to: A.Index) -> Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.BidirectionalCollection in SymbolTestsCore
+    protocol witness for Swift.Collection._failEarlyRangeCheck(_: A.Index, bounds: Swift.Range<A.Index>) -> () in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._failEarlyRangeCheck(_: A.Index, bounds: Swift.ClosedRange<A.Index>) -> () in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection._failEarlyRangeCheck(_: Swift.Range<A.Index>, bounds: Swift.Range<A.Index>) -> () in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.index(after: A.Index) -> A.Index in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.formIndex(after: inout A.Index) -> () in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+}
+extension SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest: Swift.Sequence {
+    associated conformance descriptor for Swift.Sequence.Swift.Sequence.Iterator: Swift.IteratorProtocol
+    associated type descriptor for Swift.Sequence.Element
+    associated type descriptor for Swift.Sequence.Iterator
+    protocol witness for Swift.Collection.startIndex.getter : A.Index in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Collection.count.getter : Swift.Int in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Collection in SymbolTestsCore
+    protocol witness for Swift.Sequence._customContainsEquatableElement(A.Element) -> Swift.Bool? in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._copyToContiguousArray() -> Swift.ContiguousArray<A.Element> in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence._copyContents(initializing: Swift.UnsafeMutableBufferPointer<A.Element>) -> (A.Iterator, Swift.Int) in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Sequence in SymbolTestsCore
+    protocol witness for Swift.Sequence.withContiguousStorageIfAvailable<A>((Swift.UnsafeBufferPointer<A.Element>) throws -> A1) throws -> A1? in conformance SymbolTestsCore.CollectionConformances.CustomRandomAccessCollectionTest : Swift.Sequence in SymbolTestsCore
+}

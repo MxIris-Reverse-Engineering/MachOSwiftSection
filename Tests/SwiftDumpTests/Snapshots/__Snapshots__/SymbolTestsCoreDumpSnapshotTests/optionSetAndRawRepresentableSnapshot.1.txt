@@ -1,0 +1,108 @@
+// MARK: - Types
+
+enum SymbolTestsCore.OptionSetAndRawRepresentable {}
+struct SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest {
+    let rawValue: Swift.UInt
+
+    /* Allocator */
+    SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest.init(rawValue: Swift.UInt) -> SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
+
+    /* Variable */
+    SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest.rawValue.getter : Swift.UInt
+
+    /* Static Variable */
+    static SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest.first.getter : SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
+    static SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest.second.getter : SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
+    static SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest.third.getter : SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
+    static SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest.all.getter : SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
+
+    /* Static Stored Variable */
+    static SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest.all : SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest
+}
+struct SymbolTestsCore.OptionSetAndRawRepresentable.StringRawRepresentableTest {
+    let rawValue: Swift.String
+
+    /* Allocator */
+    SymbolTestsCore.OptionSetAndRawRepresentable.StringRawRepresentableTest.init(rawValue: Swift.String) -> SymbolTestsCore.OptionSetAndRawRepresentable.StringRawRepresentableTest?
+
+    /* Variable */
+    SymbolTestsCore.OptionSetAndRawRepresentable.StringRawRepresentableTest.rawValue.getter : Swift.String
+}
+struct SymbolTestsCore.OptionSetAndRawRepresentable.IntRawRepresentableTest {
+    var rawValue: Swift.Int
+
+    /* Allocator */
+    SymbolTestsCore.OptionSetAndRawRepresentable.IntRawRepresentableTest.init(rawValue: Swift.Int) -> SymbolTestsCore.OptionSetAndRawRepresentable.IntRawRepresentableTest
+
+    /* Variable */
+    SymbolTestsCore.OptionSetAndRawRepresentable.IntRawRepresentableTest.rawValue.getter : Swift.Int
+    SymbolTestsCore.OptionSetAndRawRepresentable.IntRawRepresentableTest.rawValue.setter : Swift.Int
+}
+struct SymbolTestsCore.OptionSetAndRawRepresentable.GenericRawRepresentableTest<A> where A: Swift.Hashable {
+    var rawValue: A
+
+    /* Allocator */
+    SymbolTestsCore.OptionSetAndRawRepresentable.GenericRawRepresentableTest.init(rawValue: A) -> SymbolTestsCore.OptionSetAndRawRepresentable.GenericRawRepresentableTest<A>
+
+    /* Variable */
+    SymbolTestsCore.OptionSetAndRawRepresentable.GenericRawRepresentableTest.rawValue.getter : A
+    SymbolTestsCore.OptionSetAndRawRepresentable.GenericRawRepresentableTest.rawValue.setter : A
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.OptionSet {
+    base conformance descriptor for Swift.OptionSet: Swift.RawRepresentable
+    base conformance descriptor for Swift.OptionSet: Swift.SetAlgebra
+    protocol witness for Swift.OptionSet.init(rawValue: A.RawValue) -> A in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.OptionSet in SymbolTestsCore
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.RawRepresentable in SymbolTestsCore
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.RawRepresentable in SymbolTestsCore
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.SetAlgebra {
+    base conformance descriptor for Swift.SetAlgebra: Swift.Equatable
+    base conformance descriptor for Swift.SetAlgebra: Swift.ExpressibleByArrayLiteral
+    associated type descriptor for Swift.SetAlgebra.Element
+    protocol witness for Swift.SetAlgebra.init() -> A in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.isSuperset(of: A) -> Swift.Bool in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.union(__owned A) -> A in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.intersection(A) -> A in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.symmetricDifference(__owned A) -> A in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.insert(__owned A.Element) -> (inserted: Swift.Bool, memberAfterInsert: A.Element) in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.remove(A.Element) -> A.Element? in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.update(with: __owned A.Element) -> A.Element? in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.formUnion(__owned A) -> () in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.formIntersection(A) -> () in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.formSymmetricDifference(__owned A) -> () in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.subtracting(A) -> A in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.isSubset(of: A) -> Swift.Bool in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.isDisjoint(with: A) -> Swift.Bool in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.contains(A.Element) -> Swift.Bool in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.isEmpty.getter : Swift.Bool in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.init<A>(__owned A1) -> A in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+    protocol witness for Swift.SetAlgebra.subtract(A) -> () in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.SetAlgebra in SymbolTestsCore
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest: Swift.ExpressibleByArrayLiteral {
+    associated type descriptor for Swift.ExpressibleByArrayLiteral.ArrayLiteralElement
+    protocol witness for Swift.ExpressibleByArrayLiteral.init(arrayLiteral: A.ArrayLiteralElement...) -> A in conformance SymbolTestsCore.OptionSetAndRawRepresentable.OptionSetTest : Swift.ExpressibleByArrayLiteral in SymbolTestsCore
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.StringRawRepresentableTest: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance SymbolTestsCore.OptionSetAndRawRepresentable.StringRawRepresentableTest : Swift.RawRepresentable in SymbolTestsCore
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance SymbolTestsCore.OptionSetAndRawRepresentable.StringRawRepresentableTest : Swift.RawRepresentable in SymbolTestsCore
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.IntRawRepresentableTest: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance SymbolTestsCore.OptionSetAndRawRepresentable.IntRawRepresentableTest : Swift.RawRepresentable in SymbolTestsCore
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance SymbolTestsCore.OptionSetAndRawRepresentable.IntRawRepresentableTest : Swift.RawRepresentable in SymbolTestsCore
+}
+extension SymbolTestsCore.OptionSetAndRawRepresentable.GenericRawRepresentableTest: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance SymbolTestsCore.OptionSetAndRawRepresentable.GenericRawRepresentableTest<A> : Swift.RawRepresentable in SymbolTestsCore
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance SymbolTestsCore.OptionSetAndRawRepresentable.GenericRawRepresentableTest<A> : Swift.RawRepresentable in SymbolTestsCore
+}

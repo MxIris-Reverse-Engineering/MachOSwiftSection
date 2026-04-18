@@ -9,13 +9,14 @@ on:
 jobs:
   macos_test:
     name: Execute tests on macOS
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        # Apple Silicon runners only: MachOFileTests.preferredArchitecture == .arm64.
+        # Adding an Intel runner would load a different arch slice and drift snapshots.
         os: [macos-15]
         xcode-version: ["16.3"]
-        release: [2024]
-    runs-on: ${{ matrix.os }}
     env:
       MACHO_SWIFT_SECTION_SILENT_TEST: 1
       GH_TOKEN: ${{ github.token }}
@@ -27,11 +28,43 @@ jobs:
           xcode-version: ${{ matrix.xcode-version }}
       - name: Swift version
         run: swift --version
+
+      - name: Resolve SPM dependencies
+        run: swift package update
+
+      - name: Cache SymbolTests DerivedData
+        uses: actions/cache@v4
+        with:
+          path: Tests/Projects/SymbolTests/DerivedData
+          key: symboltests-${{ matrix.xcode-version }}-${{ hashFiles('Tests/Projects/SymbolTests/**/*.swift', 'Tests/Projects/SymbolTests/**/*.pbxproj') }}
+
+      - name: Build SymbolTestsCore fixture
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project Tests/Projects/SymbolTests/SymbolTests.xcodeproj \
+            -scheme SymbolTestsCore \
+            -configuration Release \
+            -derivedDataPath Tests/Projects/SymbolTests/DerivedData \
+            -destination 'generic/platform=macOS' \
+            -quiet \
+            build
+
+      - name: Upload xcodebuild logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: symboltests-derived-data-logs
+          path: Tests/Projects/SymbolTests/DerivedData/Logs
+          if-no-files-found: ignore
+
       - name: Build and run tests in debug mode
         run: |
           swift test \
             -c debug \
             --build-path .build-test-debug
+
       - name: Build and run tests in release mode
         run: |
           swift test \

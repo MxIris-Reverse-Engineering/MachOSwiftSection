@@ -1,0 +1,108 @@
+// MARK: - Types
+
+enum SymbolTestsCore.FieldDescriptorVariants {}
+struct SymbolTestsCore.FieldDescriptorVariants.VarLetFieldTest {
+    var mutableField: Swift.Int
+    let immutableField: Swift.String
+    var mutableOptional: Swift.Double?
+    let immutableOptional: Swift.Int?
+
+    /* Allocator */
+    SymbolTestsCore.FieldDescriptorVariants.VarLetFieldTest.init(mutableField: Swift.Int, immutableField: Swift.String, mutableOptional: Swift.Double?, immutableOptional: Swift.Int?) -> SymbolTestsCore.FieldDescriptorVariants.VarLetFieldTest
+
+    /* Variable */
+    SymbolTestsCore.FieldDescriptorVariants.VarLetFieldTest.immutableOptional.getter : Swift.Int?
+    SymbolTestsCore.FieldDescriptorVariants.VarLetFieldTest.mutableField.getter : Swift.Int
+    SymbolTestsCore.FieldDescriptorVariants.VarLetFieldTest.mutableField.setter : Swift.Int
+    SymbolTestsCore.FieldDescriptorVariants.VarLetFieldTest.immutableField.getter : Swift.String
+    SymbolTestsCore.FieldDescriptorVariants.VarLetFieldTest.mutableOptional.getter : Swift.Double?
+    SymbolTestsCore.FieldDescriptorVariants.VarLetFieldTest.mutableOptional.setter : Swift.Double?
+}
+class SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest {
+    weak var weakVarField: Swift.AnyObject?
+    weak let weakLetField: Swift.AnyObject?
+    unowned var unownedVarField: Swift.AnyObject
+    unowned let unownedLetField: Swift.AnyObject
+    unowned(unsafe) var unownedUnsafeVarField: Swift.AnyObject
+    unowned(unsafe) let unownedUnsafeLetField: Swift.AnyObject
+    var strongVarField: Swift.AnyObject
+    let strongLetField: Swift.AnyObject
+
+    /* [Getter] */ SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.weakVarField.getter : Swift.AnyObject?
+    /* [Setter] */ SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.weakVarField.setter : Swift.AnyObject?
+    /* [Modify] */ SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.weakVarField.modify : Swift.AnyObject?
+    /* [Getter] */ SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.unownedVarField.getter : Swift.AnyObject
+    /* [Setter] */ SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.unownedVarField.setter : Swift.AnyObject
+    /* [Modify] */ SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.unownedVarField.modify : Swift.AnyObject
+    /* [Getter] */ SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.unownedUnsafeVarField.getter : Swift.AnyObject
+    /* [Setter] */ SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.unownedUnsafeVarField.setter : Swift.AnyObject
+    /* [Modify] */ SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.unownedUnsafeVarField.modify : Swift.AnyObject
+    /* [Getter] */ SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.strongVarField.getter : Swift.AnyObject
+    /* [Setter] */ SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.strongVarField.setter : Swift.AnyObject
+    /* [Modify] */ SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.strongVarField.modify : Swift.AnyObject
+    /* [ Init ] */ Symbol not found
+
+    /* Deallocator */
+    SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.__deallocating_deinit
+
+    /* Destructor */
+    SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.weakVarField.getter : Swift.AnyObject?
+    SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.weakVarField.setter : Swift.AnyObject?
+    SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.unownedVarField.getter : Swift.AnyObject
+    SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.unownedVarField.setter : Swift.AnyObject
+    SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.unownedUnsafeVarField.getter : Swift.AnyObject
+    SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.unownedUnsafeVarField.setter : Swift.AnyObject
+    SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.strongVarField.getter : Swift.AnyObject
+    SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.strongVarField.setter : Swift.AnyObject
+    SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.weakLetField.getter : Swift.AnyObject?
+    SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.unownedLetField.getter : Swift.AnyObject
+    SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.unownedUnsafeLetField.getter : Swift.AnyObject
+    SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.strongLetField.getter : Swift.AnyObject
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.__allocating_init(reference: Swift.AnyObject) -> SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.weakVarField.getter : Swift.AnyObject?
+    method descriptor for SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.weakVarField.setter : Swift.AnyObject?
+    method descriptor for SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.unownedVarField.getter : Swift.AnyObject
+    method descriptor for SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.unownedVarField.setter : Swift.AnyObject
+    method descriptor for SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.unownedUnsafeVarField.getter : Swift.AnyObject
+    method descriptor for SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.unownedUnsafeVarField.setter : Swift.AnyObject
+    method descriptor for SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.strongVarField.getter : Swift.AnyObject
+    method descriptor for SymbolTestsCore.FieldDescriptorVariants.ReferenceFieldTest.strongVarField.setter : Swift.AnyObject
+}
+struct SymbolTestsCore.FieldDescriptorVariants.MangledNameVariantsTest<A> {
+    var concreteInt: Swift.Int
+    var concreteString: Swift.String
+    var genericElement: A
+    var arrayOfElement: [A]
+    var dictionaryOfElement: [Swift.String : A]
+    var optionalElement: A?
+    var tupleField: (Swift.Int, A)
+    var functionField: (A) -> Swift.Int
+
+    /* Allocator */
+    SymbolTestsCore.FieldDescriptorVariants.MangledNameVariantsTest.init(concreteInt: Swift.Int, concreteString: Swift.String, genericElement: A, arrayOfElement: [A], dictionaryOfElement: [Swift.String : A], optionalElement: A?, tupleField: (Swift.Int, A), functionField: (A) -> Swift.Int) -> SymbolTestsCore.FieldDescriptorVariants.MangledNameVariantsTest<A>
+
+    /* Variable */
+    SymbolTestsCore.FieldDescriptorVariants.MangledNameVariantsTest.genericElement.getter : A
+    SymbolTestsCore.FieldDescriptorVariants.MangledNameVariantsTest.genericElement.setter : A
+    SymbolTestsCore.FieldDescriptorVariants.MangledNameVariantsTest.arrayOfElement.getter : [A]
+    SymbolTestsCore.FieldDescriptorVariants.MangledNameVariantsTest.arrayOfElement.setter : [A]
+    SymbolTestsCore.FieldDescriptorVariants.MangledNameVariantsTest.dictionaryOfElement.getter : [Swift.String : A]
+    SymbolTestsCore.FieldDescriptorVariants.MangledNameVariantsTest.dictionaryOfElement.setter : [Swift.String : A]
+    SymbolTestsCore.FieldDescriptorVariants.MangledNameVariantsTest.optionalElement.getter : A?
+    SymbolTestsCore.FieldDescriptorVariants.MangledNameVariantsTest.optionalElement.setter : A?
+    SymbolTestsCore.FieldDescriptorVariants.MangledNameVariantsTest.tupleField.getter : (Swift.Int, A)
+    SymbolTestsCore.FieldDescriptorVariants.MangledNameVariantsTest.tupleField.setter : (Swift.Int, A)
+    SymbolTestsCore.FieldDescriptorVariants.MangledNameVariantsTest.functionField.getter : (A) -> Swift.Int
+    SymbolTestsCore.FieldDescriptorVariants.MangledNameVariantsTest.functionField.setter : (A) -> Swift.Int
+    SymbolTestsCore.FieldDescriptorVariants.MangledNameVariantsTest.concreteInt.getter : Swift.Int
+    SymbolTestsCore.FieldDescriptorVariants.MangledNameVariantsTest.concreteInt.setter : Swift.Int
+    SymbolTestsCore.FieldDescriptorVariants.MangledNameVariantsTest.concreteString.getter : Swift.String
+    SymbolTestsCore.FieldDescriptorVariants.MangledNameVariantsTest.concreteString.setter : Swift.String
+}

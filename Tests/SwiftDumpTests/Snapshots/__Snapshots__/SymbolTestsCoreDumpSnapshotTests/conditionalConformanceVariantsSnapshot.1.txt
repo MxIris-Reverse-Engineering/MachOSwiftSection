@@ -1,0 +1,51 @@
+// MARK: - Types
+
+enum SymbolTestsCore.ConditionalConformanceVariants {}
+struct SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest<A> {
+    var element: A
+
+    /* Allocator */
+    SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest.init(element: A) -> SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest<A>
+
+    /* Variable */
+    SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest.element.getter : A
+    SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest.element.setter : A
+
+    /* Variable (In Extension) */
+    SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest<A>.hashValue.getter : Swift.Int
+
+    /* Function (In Extension) */
+    SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest<A>.hash(into: inout Swift.Hasher) -> ()
+
+    /* Static Function (In Extension) */
+    static SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest<A>.== infix(SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest<A>, SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest<A>) -> Swift.Bool
+    static SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest<A>.< infix(SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest<A>, SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest<A>) -> Swift.Bool
+}
+
+// MARK: - Protocols
+
+protocol SymbolTestsCore.ConditionalConformanceVariants.ConditionalFirstProtocol {}
+protocol SymbolTestsCore.ConditionalConformanceVariants.ConditionalSecondProtocol {}
+protocol SymbolTestsCore.ConditionalConformanceVariants.ConditionalThirdProtocol {}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest: Swift.Equatable where A: Swift.Equatable {
+    method descriptor for static Swift.Equatable.== infix(A, A) -> Swift.Bool
+}
+extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest: Swift.Hashable where A: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    method descriptor for Swift.Hashable.hashValue.getter : Swift.Int
+    method descriptor for Swift.Hashable.hash(into: inout Swift.Hasher) -> ()
+    method descriptor for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int
+}
+extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest: Swift.Comparable where A: Swift.Comparable {
+    base conformance descriptor for Swift.Comparable: Swift.Equatable
+    method descriptor for static Swift.Comparable.< infix(A, A) -> Swift.Bool
+    method descriptor for static Swift.Comparable.<= infix(A, A) -> Swift.Bool
+    method descriptor for static Swift.Comparable.>= infix(A, A) -> Swift.Bool
+    method descriptor for static Swift.Comparable.> infix(A, A) -> Swift.Bool
+}
+extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest: SymbolTestsCore.ConditionalConformanceVariants.ConditionalFirstProtocol where A: SymbolTestsCore.ConditionalConformanceVariants.ConditionalFirstProtocol {}
+extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest: SymbolTestsCore.ConditionalConformanceVariants.ConditionalSecondProtocol where A: SymbolTestsCore.ConditionalConformanceVariants.ConditionalFirstProtocolA: SymbolTestsCore.ConditionalConformanceVariants.ConditionalSecondProtocol {}
+extension SymbolTestsCore.ConditionalConformanceVariants.ConditionalContainerTest: SymbolTestsCore.ConditionalConformanceVariants.ConditionalThirdProtocol where A: SymbolTestsCore.ConditionalConformanceVariants.ConditionalFirstProtocolA: SymbolTestsCore.ConditionalConformanceVariants.ConditionalSecondProtocolA: SymbolTestsCore.ConditionalConformanceVariants.ConditionalThirdProtocol {}

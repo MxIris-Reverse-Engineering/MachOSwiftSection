@@ -1,0 +1,44 @@
+// MARK: - Types
+
+enum SymbolTestsCore.Extensions {}
+struct SymbolTestsCore.Extensions.ExtensionBaseStruct<A> {
+    var element: A
+
+    /* Allocator */
+    SymbolTestsCore.Extensions.ExtensionBaseStruct.init(element: A) -> SymbolTestsCore.Extensions.ExtensionBaseStruct<A>
+
+    /* Variable */
+    SymbolTestsCore.Extensions.ExtensionBaseStruct.element.getter : A
+    SymbolTestsCore.Extensions.ExtensionBaseStruct.element.setter : A
+
+    /* Function (In Extension) */
+    SymbolTestsCore.Extensions.ExtensionBaseStruct<A>.isEqualTo(SymbolTestsCore.Extensions.ExtensionBaseStruct<A>) -> Swift.Bool
+    SymbolTestsCore.Extensions.ExtensionBaseStruct<A>.isLessThan(SymbolTestsCore.Extensions.ExtensionBaseStruct<A>) -> Swift.Bool
+    SymbolTestsCore.Extensions.ExtensionBaseStruct<A>.computeHash() -> Swift.Int
+}
+struct SymbolTestsCore.Extensions.ExtensionConstrainedStruct<A> {
+    var element: A
+
+    /* Allocator */
+    SymbolTestsCore.Extensions.ExtensionConstrainedStruct.init(element: A) -> SymbolTestsCore.Extensions.ExtensionConstrainedStruct<A>
+
+    /* Variable */
+    SymbolTestsCore.Extensions.ExtensionConstrainedStruct.element.setter : A
+    SymbolTestsCore.Extensions.ExtensionConstrainedStruct.element.getter : A
+
+    /* Variable (In Extension) */
+    SymbolTestsCore.Extensions.ExtensionConstrainedStruct<A>.item.getter : A
+}
+
+// MARK: - Protocols
+
+protocol SymbolTestsCore.Extensions.ExtensionProtocol {
+    associatedtype Item
+
+    associated type descriptor for SymbolTestsCore.Extensions.ExtensionProtocol.Item
+    method descriptor for SymbolTestsCore.Extensions.ExtensionProtocol.item.getter : A.Item
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.Extensions.ExtensionConstrainedStruct: SymbolTestsCore.Extensions.ExtensionProtocol where A: Swift.Hashable {}

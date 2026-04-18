@@ -1,0 +1,83 @@
+// MARK: - Types
+
+enum SymbolTestsCore.StaticMembers {}
+struct SymbolTestsCore.StaticMembers.StaticMemberStructTest {
+    /* Static Subscript */
+    static SymbolTestsCore.StaticMembers.StaticMemberStructTest.subscript.getter : (Swift.Int) -> Swift.String
+
+    /* Static Variable */
+    static SymbolTestsCore.StaticMembers.StaticMemberStructTest.storedMutable.getter : Swift.String
+    static SymbolTestsCore.StaticMembers.StaticMemberStructTest.storedMutable.setter : Swift.String
+    static SymbolTestsCore.StaticMembers.StaticMemberStructTest.storedConstant.getter : Swift.Int
+    static SymbolTestsCore.StaticMembers.StaticMemberStructTest.computedProperty.getter : Swift.Int
+    static SymbolTestsCore.StaticMembers.StaticMemberStructTest.computedProperty.setter : Swift.Int
+
+    /* Static Stored Variable */
+    static SymbolTestsCore.StaticMembers.StaticMemberStructTest.storedMutable : Swift.String
+
+    /* Static Function */
+    static SymbolTestsCore.StaticMembers.StaticMemberStructTest.staticMethod() -> Swift.Int
+    static SymbolTestsCore.StaticMembers.StaticMemberStructTest.staticGenericMethod<A>(A) -> A
+}
+class SymbolTestsCore.StaticMembers.StaticMemberClassTest {
+    /* [Getter] */ static static SymbolTestsCore.StaticMembers.StaticMemberClassTest.classComputed.getter : Swift.Int
+    /* [Method] */ static func static SymbolTestsCore.StaticMembers.StaticMemberClassTest.classMethod() -> Swift.Int
+    /* [ Init ] */ SymbolTestsCore.StaticMembers.StaticMemberClassTest.__allocating_init() -> SymbolTestsCore.StaticMembers.StaticMemberClassTest
+
+    /* Allocator */
+    SymbolTestsCore.StaticMembers.StaticMemberClassTest.__allocating_init() -> SymbolTestsCore.StaticMembers.StaticMemberClassTest
+
+    /* Deallocator */
+    SymbolTestsCore.StaticMembers.StaticMemberClassTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.StaticMembers.StaticMemberClassTest.init() -> SymbolTestsCore.StaticMembers.StaticMemberClassTest
+
+    /* Destructor */
+    SymbolTestsCore.StaticMembers.StaticMemberClassTest.deinit
+
+    /* Static Variable */
+    static SymbolTestsCore.StaticMembers.StaticMemberClassTest.classComputed.getter : Swift.Int
+    static SymbolTestsCore.StaticMembers.StaticMemberClassTest.storedMutable.getter : Swift.String
+    static SymbolTestsCore.StaticMembers.StaticMemberClassTest.storedMutable.setter : Swift.String
+    static SymbolTestsCore.StaticMembers.StaticMemberClassTest.storedConstant.getter : Swift.Int
+
+    /* Static Stored Variable */
+    static SymbolTestsCore.StaticMembers.StaticMemberClassTest.storedMutable : Swift.String
+
+    /* Static Function */
+    static SymbolTestsCore.StaticMembers.StaticMemberClassTest.classMethod() -> Swift.Int
+    static SymbolTestsCore.StaticMembers.StaticMemberClassTest.staticMethod() -> Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.StaticMembers.StaticMemberClassTest.__allocating_init() -> SymbolTestsCore.StaticMembers.StaticMemberClassTest
+
+    /* [Method] Static Variable */
+    method descriptor for static SymbolTestsCore.StaticMembers.StaticMemberClassTest.classComputed.getter : Swift.Int
+
+    /* [Method] Static Function */
+    method descriptor for static SymbolTestsCore.StaticMembers.StaticMemberClassTest.classMethod() -> Swift.Int
+}
+class SymbolTestsCore.StaticMembers.StaticMemberSubclassTest: SymbolTestsCore.StaticMembers.StaticMemberClassTest {
+    /* [Getter] */ override static SymbolTestsCore.StaticMembers.StaticMemberSubclassTest.classComputed.getter : Swift.Int
+    /* [Method] */ override static SymbolTestsCore.StaticMembers.StaticMemberSubclassTest.classMethod() -> Swift.Int
+    /* [ Init ] */ override SymbolTestsCore.StaticMembers.StaticMemberSubclassTest.__allocating_init() -> SymbolTestsCore.StaticMembers.StaticMemberSubclassTest
+
+    /* Allocator */
+    SymbolTestsCore.StaticMembers.StaticMemberSubclassTest.__allocating_init() -> SymbolTestsCore.StaticMembers.StaticMemberSubclassTest
+
+    /* Deallocator */
+    SymbolTestsCore.StaticMembers.StaticMemberSubclassTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.StaticMembers.StaticMemberSubclassTest.init() -> SymbolTestsCore.StaticMembers.StaticMemberSubclassTest
+
+    /* Destructor */
+    SymbolTestsCore.StaticMembers.StaticMemberSubclassTest.deinit
+
+    /* Static Variable */
+    static SymbolTestsCore.StaticMembers.StaticMemberSubclassTest.classComputed.getter : Swift.Int
+
+    /* Static Function */
+    static SymbolTestsCore.StaticMembers.StaticMemberSubclassTest.classMethod() -> Swift.Int
+}

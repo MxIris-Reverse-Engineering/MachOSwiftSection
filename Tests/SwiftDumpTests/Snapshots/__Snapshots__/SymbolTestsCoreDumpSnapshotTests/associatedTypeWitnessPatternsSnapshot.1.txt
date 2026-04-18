@@ -1,0 +1,35 @@
+// MARK: - Types
+
+enum SymbolTestsCore.AssociatedTypeWitnessPatterns {}
+struct SymbolTestsCore.AssociatedTypeWitnessPatterns.ConcreteWitnessTest {}
+struct SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest {}
+struct SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedFirst {}
+struct SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest.NestedThird {}
+struct SymbolTestsCore.AssociatedTypeWitnessPatterns.GenericParameterWitnessTest<A> {}
+struct SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest {}
+struct SymbolTestsCore.AssociatedTypeWitnessPatterns.DependentWitnessTest<A> where A: Swift.Collection {}
+
+// MARK: - Protocols
+
+protocol SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol where Self.Second: Swift.Collection {
+    associatedtype First
+    associatedtype Second
+    associatedtype Third
+    associatedtype Fourth
+    associatedtype Fifth
+
+    associated conformance descriptor for SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol.SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol.Second: Swift.Collection
+    associated type descriptor for SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol.First
+    associated type descriptor for SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol.Second
+    associated type descriptor for SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol.Third
+    associated type descriptor for SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol.Fourth
+    associated type descriptor for SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol.Fifth
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.ConcreteWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.NestedWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.GenericParameterWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.RecursiveWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}
+extension SymbolTestsCore.AssociatedTypeWitnessPatterns.DependentWitnessTest: SymbolTestsCore.AssociatedTypeWitnessPatterns.AssociatedPatternProtocol {}

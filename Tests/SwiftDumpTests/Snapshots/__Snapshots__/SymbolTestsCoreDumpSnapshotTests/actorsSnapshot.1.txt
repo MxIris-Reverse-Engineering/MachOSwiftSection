@@ -1,0 +1,181 @@
+// MARK: - Types
+
+enum SymbolTestsCore.Actors {}
+actor SymbolTestsCore.Actors.ActorTest {
+    var $defaultActor: Builtin.DefaultActorStorage
+    var state: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.Actors.ActorTest.state.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.Actors.ActorTest.state.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.Actors.ActorTest.state.modify : Swift.Int
+    /* [Method] */ func SymbolTestsCore.Actors.ActorTest.mutateState() -> ()
+    /* [Method] */ func SymbolTestsCore.Actors.ActorTest.readState() -> Swift.Int
+    /* [Method] */ func SymbolTestsCore.Actors.ActorTest.nonisolatedMethod() -> Swift.String
+    /* [ Init ] */ Symbol not found
+
+    /* Deallocator */
+    SymbolTestsCore.Actors.ActorTest.__deallocating_deinit
+
+    /* Destructor */
+    SymbolTestsCore.Actors.ActorTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.Actors.ActorTest.state.getter : Swift.Int
+    SymbolTestsCore.Actors.ActorTest.state.setter : Swift.Int
+    SymbolTestsCore.Actors.ActorTest.unownedExecutor.getter : Swift.UnownedSerialExecutor
+
+    /* Function */
+    SymbolTestsCore.Actors.ActorTest.mutateState() -> ()
+    SymbolTestsCore.Actors.ActorTest.nonisolatedMethod() -> Swift.String
+    SymbolTestsCore.Actors.ActorTest.readState() -> Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.Actors.ActorTest.__allocating_init() -> SymbolTestsCore.Actors.ActorTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.Actors.ActorTest.state.getter : Swift.Int
+    method descriptor for SymbolTestsCore.Actors.ActorTest.state.setter : Swift.Int
+
+    /* [Method] Function */
+    method descriptor for SymbolTestsCore.Actors.ActorTest.mutateState() -> ()
+    method descriptor for SymbolTestsCore.Actors.ActorTest.readState() -> Swift.Int
+    method descriptor for SymbolTestsCore.Actors.ActorTest.nonisolatedMethod() -> Swift.String
+}
+actor SymbolTestsCore.Actors.CustomGlobalActor {
+    var $defaultActor: Builtin.DefaultActorStorage
+
+    /* [ Init ] */ Symbol not found
+
+    /* Deallocator */
+    SymbolTestsCore.Actors.CustomGlobalActor.__deallocating_deinit
+
+    /* Destructor */
+    SymbolTestsCore.Actors.CustomGlobalActor.deinit
+
+    /* Variable */
+    SymbolTestsCore.Actors.CustomGlobalActor.unownedExecutor.getter : Swift.UnownedSerialExecutor
+
+    /* Static Variable */
+    static SymbolTestsCore.Actors.CustomGlobalActor.shared.getter : SymbolTestsCore.Actors.CustomGlobalActor
+
+    /* Static Stored Variable */
+    static SymbolTestsCore.Actors.CustomGlobalActor.shared : SymbolTestsCore.Actors.CustomGlobalActor
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.Actors.CustomGlobalActor.__allocating_init() -> SymbolTestsCore.Actors.CustomGlobalActor
+}
+class SymbolTestsCore.Actors.GlobalActorAnnotatedClass {
+    var value: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.Actors.GlobalActorAnnotatedClass.value.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.Actors.GlobalActorAnnotatedClass.value.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.Actors.GlobalActorAnnotatedClass.value.modify : Swift.Int
+    /* [Method] */ func SymbolTestsCore.Actors.GlobalActorAnnotatedClass.method() -> Swift.Int
+    /* [ Init ] */ Symbol not found
+
+    /* Deallocator */
+    SymbolTestsCore.Actors.GlobalActorAnnotatedClass.__deallocating_deinit
+
+    /* Destructor */
+    SymbolTestsCore.Actors.GlobalActorAnnotatedClass.deinit
+
+    /* Variable */
+    SymbolTestsCore.Actors.GlobalActorAnnotatedClass.value.getter : Swift.Int
+    SymbolTestsCore.Actors.GlobalActorAnnotatedClass.value.setter : Swift.Int
+
+    /* Function */
+    SymbolTestsCore.Actors.GlobalActorAnnotatedClass.method() -> Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.Actors.GlobalActorAnnotatedClass.__allocating_init() -> SymbolTestsCore.Actors.GlobalActorAnnotatedClass
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.Actors.GlobalActorAnnotatedClass.value.getter : Swift.Int
+    method descriptor for SymbolTestsCore.Actors.GlobalActorAnnotatedClass.value.setter : Swift.Int
+
+    /* [Method] Function */
+    method descriptor for SymbolTestsCore.Actors.GlobalActorAnnotatedClass.method() -> Swift.Int
+}
+class SymbolTestsCore.Actors.MainActorAnnotatedTest {
+    var value: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.Actors.MainActorAnnotatedTest.value.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.Actors.MainActorAnnotatedTest.value.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.Actors.MainActorAnnotatedTest.value.modify : Swift.Int
+    /* [Method] */ func SymbolTestsCore.Actors.MainActorAnnotatedTest.method() -> Swift.Int
+    /* [Method] */ func SymbolTestsCore.Actors.MainActorAnnotatedTest.nonisolatedMethod() -> Swift.String
+    /* [ Init ] */ Symbol not found
+
+    /* Deallocator */
+    SymbolTestsCore.Actors.MainActorAnnotatedTest.__deallocating_deinit
+
+    /* Destructor */
+    SymbolTestsCore.Actors.MainActorAnnotatedTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.Actors.MainActorAnnotatedTest.value.getter : Swift.Int
+    SymbolTestsCore.Actors.MainActorAnnotatedTest.value.setter : Swift.Int
+
+    /* Function */
+    SymbolTestsCore.Actors.MainActorAnnotatedTest.nonisolatedMethod() -> Swift.String
+    SymbolTestsCore.Actors.MainActorAnnotatedTest.method() -> Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.Actors.MainActorAnnotatedTest.__allocating_init() -> SymbolTestsCore.Actors.MainActorAnnotatedTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.Actors.MainActorAnnotatedTest.value.getter : Swift.Int
+    method descriptor for SymbolTestsCore.Actors.MainActorAnnotatedTest.value.setter : Swift.Int
+
+    /* [Method] Function */
+    method descriptor for SymbolTestsCore.Actors.MainActorAnnotatedTest.method() -> Swift.Int
+    method descriptor for SymbolTestsCore.Actors.MainActorAnnotatedTest.nonisolatedMethod() -> Swift.String
+}
+class SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest {
+    /* [ Init ] */ SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest.__allocating_init() -> SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest
+
+    /* Allocator */
+    SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest.__allocating_init() -> SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest
+
+    /* Deallocator */
+    SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest.init() -> SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest
+
+    /* Destructor */
+    SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest.deinit
+
+    /* Function */
+    SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest.isolatedRequirement() -> ()
+    SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest.customIsolatedRequirement() -> ()
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest.__allocating_init() -> SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest
+}
+
+// MARK: - Protocols
+
+protocol SymbolTestsCore.Actors.GlobalActorIsolatedProtocolTest {
+    method descriptor for SymbolTestsCore.Actors.GlobalActorIsolatedProtocolTest.isolatedRequirement() -> ()
+}
+protocol SymbolTestsCore.Actors.CustomGlobalActorIsolatedProtocolTest {
+    method descriptor for SymbolTestsCore.Actors.CustomGlobalActorIsolatedProtocolTest.customIsolatedRequirement() -> ()
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.Actors.ActorTest: Swift.Actor {
+    protocol witness for Swift.Actor.unownedExecutor.getter : Swift.UnownedSerialExecutor in conformance SymbolTestsCore.Actors.ActorTest : Swift.Actor in SymbolTestsCore
+}
+extension SymbolTestsCore.Actors.CustomGlobalActor: Swift.Actor {
+    protocol witness for Swift.Actor.unownedExecutor.getter : Swift.UnownedSerialExecutor in conformance SymbolTestsCore.Actors.CustomGlobalActor : Swift.Actor in SymbolTestsCore
+}
+extension SymbolTestsCore.Actors.CustomGlobalActor: Swift.GlobalActor {
+    associated conformance descriptor for Swift.GlobalActor.Swift.GlobalActor.ActorType: Swift.Actor
+    associated type descriptor for Swift.GlobalActor.ActorType
+    protocol witness for static Swift.GlobalActor.shared.getter : A.ActorType in conformance SymbolTestsCore.Actors.CustomGlobalActor : Swift.GlobalActor in SymbolTestsCore
+    protocol witness for static Swift.GlobalActor.sharedUnownedExecutor.getter : Swift.UnownedSerialExecutor in conformance SymbolTestsCore.Actors.CustomGlobalActor : Swift.GlobalActor in SymbolTestsCore
+}
+extension SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest: SymbolTestsCore.Actors.GlobalActorIsolatedProtocolTest {}
+extension SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest: SymbolTestsCore.Actors.CustomGlobalActorIsolatedProtocolTest {}

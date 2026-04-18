@@ -1,0 +1,63 @@
+// MARK: - Types
+
+enum SymbolTestsCore.StringInterpolations {}
+struct SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest {
+    var storage: Swift.String
+
+    /* Allocator */
+    SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.init(stringInterpolation: SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation) -> SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest
+    SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.init(stringLiteral: Swift.String) -> SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest
+
+    /* Variable */
+    SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.storage.getter : Swift.String
+    SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.storage.setter : Swift.String
+}
+struct SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation {
+    var accumulator: Swift.String
+
+    /* Allocator */
+    SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation.init(literalCapacity: Swift.Int, interpolationCount: Swift.Int) -> SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation
+
+    /* Variable */
+    SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation.accumulator.getter : Swift.String
+    SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation.accumulator.setter : Swift.String
+
+    /* Function */
+    SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation.appendInterpolation(Swift.Int) -> ()
+    SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation.appendInterpolation(Swift.String) -> ()
+    SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation.appendInterpolation<A>(A) -> ()
+    SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation.appendInterpolation(formatted: Swift.Double, precision: Swift.Int) -> ()
+    SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation.appendLiteral(Swift.String) -> ()
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation: Swift.StringInterpolationProtocol {
+    associated conformance descriptor for Swift.StringInterpolationProtocol.Swift.StringInterpolationProtocol.StringLiteralType: Swift._ExpressibleByBuiltinStringLiteral
+    associated type descriptor for Swift.StringInterpolationProtocol.StringLiteralType
+    protocol witness for Swift.StringInterpolationProtocol.init(literalCapacity: Swift.Int, interpolationCount: Swift.Int) -> A in conformance SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation : Swift.StringInterpolationProtocol in SymbolTestsCore
+    protocol witness for Swift.StringInterpolationProtocol.appendLiteral(A.StringLiteralType) -> () in conformance SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation : Swift.StringInterpolationProtocol in SymbolTestsCore
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest: Swift.ExpressibleByStringLiteral {
+    base conformance descriptor for Swift.ExpressibleByStringLiteral: Swift.ExpressibleByExtendedGraphemeClusterLiteral
+    associated conformance descriptor for Swift.ExpressibleByStringLiteral.Swift.ExpressibleByStringLiteral.StringLiteralType: Swift._ExpressibleByBuiltinStringLiteral
+    associated type descriptor for Swift.ExpressibleByStringLiteral.StringLiteralType
+    protocol witness for Swift.ExpressibleByStringInterpolation.init(stringInterpolation: A.StringInterpolation) -> A in conformance SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest : Swift.ExpressibleByStringInterpolation in SymbolTestsCore
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest: Swift.ExpressibleByStringInterpolation {
+    base conformance descriptor for Swift.ExpressibleByStringInterpolation: Swift.ExpressibleByStringLiteral
+    associated conformance descriptor for Swift.ExpressibleByStringInterpolation.Swift.ExpressibleByStringInterpolation.StringInterpolation: Swift.StringInterpolationProtocol
+    associated type descriptor for Swift.ExpressibleByStringInterpolation.StringInterpolation
+    protocol witness for Swift.ExpressibleByStringInterpolation.init(stringInterpolation: A.StringInterpolation) -> A in conformance SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest : Swift.ExpressibleByStringInterpolation in SymbolTestsCore
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest: Swift.ExpressibleByExtendedGraphemeClusterLiteral {
+    base conformance descriptor for Swift.ExpressibleByExtendedGraphemeClusterLiteral: Swift.ExpressibleByUnicodeScalarLiteral
+    associated conformance descriptor for Swift.ExpressibleByExtendedGraphemeClusterLiteral.Swift.ExpressibleByExtendedGraphemeClusterLiteral.ExtendedGraphemeClusterLiteralType: Swift._ExpressibleByBuiltinExtendedGraphemeClusterLiteral
+    associated type descriptor for Swift.ExpressibleByExtendedGraphemeClusterLiteral.ExtendedGraphemeClusterLiteralType
+    protocol witness for Swift.ExpressibleByStringInterpolation.init(stringInterpolation: A.StringInterpolation) -> A in conformance SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest : Swift.ExpressibleByStringInterpolation in SymbolTestsCore
+}
+extension SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest: Swift.ExpressibleByUnicodeScalarLiteral {
+    associated conformance descriptor for Swift.ExpressibleByUnicodeScalarLiteral.Swift.ExpressibleByUnicodeScalarLiteral.UnicodeScalarLiteralType: Swift._ExpressibleByBuiltinUnicodeScalarLiteral
+    associated type descriptor for Swift.ExpressibleByUnicodeScalarLiteral.UnicodeScalarLiteralType
+    protocol witness for Swift.ExpressibleByStringInterpolation.init(stringInterpolation: A.StringInterpolation) -> A in conformance SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest : Swift.ExpressibleByStringInterpolation in SymbolTestsCore
+}

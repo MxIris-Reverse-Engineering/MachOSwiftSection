@@ -1,0 +1,15 @@
+// MARK: - Types
+
+enum SymbolTestsCore.NestedFunctions {}
+struct SymbolTestsCore.NestedFunctions.NestedFunctionHolderTest {
+    /* Function */
+    SymbolTestsCore.NestedFunctions.NestedFunctionHolderTest.outerWithLocalClass() -> Swift.String
+}
+class SymbolTestsCore.NestedFunctions.NestedFunctionHolderTest.LocalClass {
+    var label: Swift.String
+
+    /* [Getter] */ Symbol not found
+    /* [Setter] */ Symbol not found
+    /* [Modify] */ Symbol not found
+    /* [ Init ] */ Symbol not found
+}

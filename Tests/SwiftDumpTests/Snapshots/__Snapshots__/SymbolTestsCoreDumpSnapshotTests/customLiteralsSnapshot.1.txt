@@ -1,0 +1,110 @@
+// MARK: - Types
+
+enum SymbolTestsCore.CustomLiterals {}
+struct SymbolTestsCore.CustomLiterals.IntegerLiteralTest {
+    let value: Swift.Int64
+
+    /* Allocator */
+    SymbolTestsCore.CustomLiterals.IntegerLiteralTest.init(integerLiteral: Swift.Int64) -> SymbolTestsCore.CustomLiterals.IntegerLiteralTest
+
+    /* Variable */
+    SymbolTestsCore.CustomLiterals.IntegerLiteralTest.value.getter : Swift.Int64
+}
+struct SymbolTestsCore.CustomLiterals.StringLiteralTest {
+    let value: Swift.String
+
+    /* Allocator */
+    SymbolTestsCore.CustomLiterals.StringLiteralTest.init(unicodeScalarLiteral: Swift.String) -> SymbolTestsCore.CustomLiterals.StringLiteralTest
+    SymbolTestsCore.CustomLiterals.StringLiteralTest.init(stringLiteral: Swift.String) -> SymbolTestsCore.CustomLiterals.StringLiteralTest
+    SymbolTestsCore.CustomLiterals.StringLiteralTest.init(extendedGraphemeClusterLiteral: Swift.String) -> SymbolTestsCore.CustomLiterals.StringLiteralTest
+
+    /* Variable */
+    SymbolTestsCore.CustomLiterals.StringLiteralTest.value.getter : Swift.String
+}
+struct SymbolTestsCore.CustomLiterals.ArrayLiteralTest {
+    let elements: [Swift.Int]
+
+    /* Allocator */
+    SymbolTestsCore.CustomLiterals.ArrayLiteralTest.init(arrayLiteral: Swift.Int...) -> SymbolTestsCore.CustomLiterals.ArrayLiteralTest
+
+    /* Variable */
+    SymbolTestsCore.CustomLiterals.ArrayLiteralTest.elements.getter : [Swift.Int]
+}
+struct SymbolTestsCore.CustomLiterals.DictionaryLiteralTest {
+    let elements: [Swift.String : Swift.Int]
+
+    /* Allocator */
+    SymbolTestsCore.CustomLiterals.DictionaryLiteralTest.init(dictionaryLiteral: (Swift.String, Swift.Int)...) -> SymbolTestsCore.CustomLiterals.DictionaryLiteralTest
+
+    /* Variable */
+    SymbolTestsCore.CustomLiterals.DictionaryLiteralTest.elements.getter : [Swift.String : Swift.Int]
+}
+struct SymbolTestsCore.CustomLiterals.BooleanLiteralTest {
+    let value: Swift.Bool
+
+    /* Allocator */
+    SymbolTestsCore.CustomLiterals.BooleanLiteralTest.init(booleanLiteral: Swift.Bool) -> SymbolTestsCore.CustomLiterals.BooleanLiteralTest
+
+    /* Variable */
+    SymbolTestsCore.CustomLiterals.BooleanLiteralTest.value.getter : Swift.Bool
+}
+struct SymbolTestsCore.CustomLiterals.FloatLiteralTest {
+    let value: Swift.Double
+
+    /* Allocator */
+    SymbolTestsCore.CustomLiterals.FloatLiteralTest.init(floatLiteral: Swift.Double) -> SymbolTestsCore.CustomLiterals.FloatLiteralTest
+
+    /* Variable */
+    SymbolTestsCore.CustomLiterals.FloatLiteralTest.value.getter : Swift.Double
+}
+struct SymbolTestsCore.CustomLiterals.NilLiteralTest {
+    /* Allocator */
+    SymbolTestsCore.CustomLiterals.NilLiteralTest.init(nilLiteral: ()) -> SymbolTestsCore.CustomLiterals.NilLiteralTest
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.CustomLiterals.IntegerLiteralTest: Swift.ExpressibleByIntegerLiteral {
+    associated conformance descriptor for Swift.ExpressibleByIntegerLiteral.Swift.ExpressibleByIntegerLiteral.IntegerLiteralType: Swift._ExpressibleByBuiltinIntegerLiteral
+    associated type descriptor for Swift.ExpressibleByIntegerLiteral.IntegerLiteralType
+    protocol witness for Swift.ExpressibleByIntegerLiteral.init(integerLiteral: A.IntegerLiteralType) -> A in conformance SymbolTestsCore.CustomLiterals.IntegerLiteralTest : Swift.ExpressibleByIntegerLiteral in SymbolTestsCore
+}
+extension SymbolTestsCore.CustomLiterals.StringLiteralTest: Swift.ExpressibleByStringLiteral {
+    base conformance descriptor for Swift.ExpressibleByStringLiteral: Swift.ExpressibleByExtendedGraphemeClusterLiteral
+    associated conformance descriptor for Swift.ExpressibleByStringLiteral.Swift.ExpressibleByStringLiteral.StringLiteralType: Swift._ExpressibleByBuiltinStringLiteral
+    associated type descriptor for Swift.ExpressibleByStringLiteral.StringLiteralType
+    protocol witness for Swift.ExpressibleByStringLiteral.init(stringLiteral: A.StringLiteralType) -> A in conformance SymbolTestsCore.CustomLiterals.StringLiteralTest : Swift.ExpressibleByStringLiteral in SymbolTestsCore
+}
+extension SymbolTestsCore.CustomLiterals.StringLiteralTest: Swift.ExpressibleByUnicodeScalarLiteral {
+    associated conformance descriptor for Swift.ExpressibleByUnicodeScalarLiteral.Swift.ExpressibleByUnicodeScalarLiteral.UnicodeScalarLiteralType: Swift._ExpressibleByBuiltinUnicodeScalarLiteral
+    associated type descriptor for Swift.ExpressibleByUnicodeScalarLiteral.UnicodeScalarLiteralType
+    protocol witness for Swift.ExpressibleByStringLiteral.init(stringLiteral: A.StringLiteralType) -> A in conformance SymbolTestsCore.CustomLiterals.StringLiteralTest : Swift.ExpressibleByStringLiteral in SymbolTestsCore
+}
+extension SymbolTestsCore.CustomLiterals.StringLiteralTest: Swift.ExpressibleByExtendedGraphemeClusterLiteral {
+    base conformance descriptor for Swift.ExpressibleByExtendedGraphemeClusterLiteral: Swift.ExpressibleByUnicodeScalarLiteral
+    associated conformance descriptor for Swift.ExpressibleByExtendedGraphemeClusterLiteral.Swift.ExpressibleByExtendedGraphemeClusterLiteral.ExtendedGraphemeClusterLiteralType: Swift._ExpressibleByBuiltinExtendedGraphemeClusterLiteral
+    associated type descriptor for Swift.ExpressibleByExtendedGraphemeClusterLiteral.ExtendedGraphemeClusterLiteralType
+    protocol witness for Swift.ExpressibleByStringLiteral.init(stringLiteral: A.StringLiteralType) -> A in conformance SymbolTestsCore.CustomLiterals.StringLiteralTest : Swift.ExpressibleByStringLiteral in SymbolTestsCore
+}
+extension SymbolTestsCore.CustomLiterals.ArrayLiteralTest: Swift.ExpressibleByArrayLiteral {
+    associated type descriptor for Swift.ExpressibleByArrayLiteral.ArrayLiteralElement
+    protocol witness for Swift.ExpressibleByArrayLiteral.init(arrayLiteral: A.ArrayLiteralElement...) -> A in conformance SymbolTestsCore.CustomLiterals.ArrayLiteralTest : Swift.ExpressibleByArrayLiteral in SymbolTestsCore
+}
+extension SymbolTestsCore.CustomLiterals.DictionaryLiteralTest: Swift.ExpressibleByDictionaryLiteral {
+    associated type descriptor for Swift.ExpressibleByDictionaryLiteral.Key
+    associated type descriptor for Swift.ExpressibleByDictionaryLiteral.Value
+    protocol witness for Swift.ExpressibleByDictionaryLiteral.init(dictionaryLiteral: (A.Key, A.Value)...) -> A in conformance SymbolTestsCore.CustomLiterals.DictionaryLiteralTest : Swift.ExpressibleByDictionaryLiteral in SymbolTestsCore
+}
+extension SymbolTestsCore.CustomLiterals.BooleanLiteralTest: Swift.ExpressibleByBooleanLiteral {
+    associated conformance descriptor for Swift.ExpressibleByBooleanLiteral.Swift.ExpressibleByBooleanLiteral.BooleanLiteralType: Swift._ExpressibleByBuiltinBooleanLiteral
+    associated type descriptor for Swift.ExpressibleByBooleanLiteral.BooleanLiteralType
+    protocol witness for Swift.ExpressibleByBooleanLiteral.init(booleanLiteral: A.BooleanLiteralType) -> A in conformance SymbolTestsCore.CustomLiterals.BooleanLiteralTest : Swift.ExpressibleByBooleanLiteral in SymbolTestsCore
+}
+extension SymbolTestsCore.CustomLiterals.FloatLiteralTest: Swift.ExpressibleByFloatLiteral {
+    associated conformance descriptor for Swift.ExpressibleByFloatLiteral.Swift.ExpressibleByFloatLiteral.FloatLiteralType: Swift._ExpressibleByBuiltinFloatLiteral
+    associated type descriptor for Swift.ExpressibleByFloatLiteral.FloatLiteralType
+    protocol witness for Swift.ExpressibleByFloatLiteral.init(floatLiteral: A.FloatLiteralType) -> A in conformance SymbolTestsCore.CustomLiterals.FloatLiteralTest : Swift.ExpressibleByFloatLiteral in SymbolTestsCore
+}
+extension SymbolTestsCore.CustomLiterals.NilLiteralTest: Swift.ExpressibleByNilLiteral {
+    protocol witness for Swift.ExpressibleByNilLiteral.init(nilLiteral: ()) -> A in conformance SymbolTestsCore.CustomLiterals.NilLiteralTest : Swift.ExpressibleByNilLiteral in SymbolTestsCore
+}

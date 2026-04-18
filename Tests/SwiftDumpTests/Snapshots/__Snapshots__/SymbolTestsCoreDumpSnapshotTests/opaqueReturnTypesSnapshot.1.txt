@@ -1,0 +1,73 @@
+// MARK: - Types
+
+enum SymbolTestsCore.OpaqueReturnTypes {}
+struct SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest {
+    /* Variable */
+    SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.variable.getter : some
+
+    /* Function */
+    SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.function<A>() -> some
+    SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.functionTuple<A>() -> (some, A?)
+    SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.functionWhere<A, B>() -> (some, (some)?, some)?
+    SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.functionNested<A, B>(A, B) -> (some, (some)?, some)?
+    SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.functionOptional<A>() -> (some)?
+}
+struct SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.AnyProtocolTest<A, B> where A: SymbolTestsCore.Protocols.ProtocolTest, B == B.ProtocolTest.Body, A.ProtocolTest.Body == SymbolTestsCore.Generics.GenericRequirementTest<B> {
+    /* Allocator */
+    SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.AnyProtocolTest.init() -> SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.AnyProtocolTest<A, B>
+
+    /* Variable */
+    SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.AnyProtocolTest.body.getter : A
+}
+enum SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst {
+    /* Variable */
+    SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst.body.getter : SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst
+}
+enum SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeSecond {
+    /* Variable */
+    SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeSecond.body.getter : SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst
+}
+enum SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest<A, B> where A: SymbolTestsCore.Protocols.ProtocolTest, B: SymbolTestsCore.Protocols.ProtocolTest, A.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body == B.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body.ProtocolTest.Body {
+    case none
+
+    /* Variable */
+    SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest.hashValue.getter : Swift.Int
+
+    /* Function */
+    SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest.hash(into: inout Swift.Hasher) -> ()
+
+    /* Static Function */
+    static SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest.== infix(SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest<A, B>, SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest<A, B>) -> Swift.Bool
+}
+struct SymbolTestsCore.OpaqueReturnTypes.OpaquePrimaryAssociatedTypeReturnTypeTest {
+    /* Variable */
+    SymbolTestsCore.OpaqueReturnTypes.OpaquePrimaryAssociatedTypeReturnTypeTest.body.getter : some
+}
+
+// MARK: - Protocols
+
+protocol SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeTest where Self.First: SymbolTestsCore.Protocols.ProtocolTest, Self.Second: SymbolTestsCore.Protocols.ProtocolTest, Self.First.Body.Body.Body.Body.Body.Body == Self.Second.Body.Body.Body.Body.Body.Body {
+    associatedtype First
+    associatedtype Second
+
+    associated conformance descriptor for SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeTest.SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeTest.First: SymbolTestsCore.Protocols.ProtocolTest
+    associated conformance descriptor for SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeTest.SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeTest.Second: SymbolTestsCore.Protocols.ProtocolTest
+    associated type descriptor for SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeTest.First
+    associated type descriptor for SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeTest.Second
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.OpaqueReturnTypes.OpaqueReturnTypeTest.AnyProtocolTest: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeFirst: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeSecond: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest<A, B> : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest<A, B> : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest<A, B> : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest<A, B> : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.OpaqueReturnTypes.UnderlyingPrimaryAssociatedTypeTest: SymbolTestsCore.OpaqueReturnTypes.ProtocolPrimaryAssociatedTypeTest {}

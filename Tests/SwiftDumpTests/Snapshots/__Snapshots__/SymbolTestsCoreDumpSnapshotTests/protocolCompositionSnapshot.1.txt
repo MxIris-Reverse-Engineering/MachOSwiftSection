@@ -1,0 +1,40 @@
+// MARK: - Types
+
+enum SymbolTestsCore.ProtocolComposition {}
+struct SymbolTestsCore.ProtocolComposition.ProtocolCompositionFieldTest {
+    var twoComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol
+    var threeComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol & SymbolTestsCore.ProtocolComposition.ComposeThirdProtocol
+    var classBoundComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & Swift.AnyObject
+    var sendableComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol
+
+    /* Allocator */
+    SymbolTestsCore.ProtocolComposition.ProtocolCompositionFieldTest.init(twoComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol, threeComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol & SymbolTestsCore.ProtocolComposition.ComposeThirdProtocol, classBoundComposition: SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & Swift.AnyObject, sendableComposition: Swift.Sendable & SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol) -> SymbolTestsCore.ProtocolComposition.ProtocolCompositionFieldTest
+
+    /* Variable */
+    SymbolTestsCore.ProtocolComposition.ProtocolCompositionFieldTest.twoComposition.getter : SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol
+    SymbolTestsCore.ProtocolComposition.ProtocolCompositionFieldTest.twoComposition.setter : SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol
+    SymbolTestsCore.ProtocolComposition.ProtocolCompositionFieldTest.threeComposition.getter : SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol & SymbolTestsCore.ProtocolComposition.ComposeThirdProtocol
+    SymbolTestsCore.ProtocolComposition.ProtocolCompositionFieldTest.threeComposition.setter : SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol & SymbolTestsCore.ProtocolComposition.ComposeThirdProtocol
+    SymbolTestsCore.ProtocolComposition.ProtocolCompositionFieldTest.classBoundComposition.getter : SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & Swift.AnyObject
+    SymbolTestsCore.ProtocolComposition.ProtocolCompositionFieldTest.classBoundComposition.setter : SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & Swift.AnyObject
+    SymbolTestsCore.ProtocolComposition.ProtocolCompositionFieldTest.sendableComposition.getter : Swift.Sendable & SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol
+    SymbolTestsCore.ProtocolComposition.ProtocolCompositionFieldTest.sendableComposition.setter : Swift.Sendable & SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol
+}
+struct SymbolTestsCore.ProtocolComposition.ProtocolCompositionFunctionTest {
+    /* Function */
+    SymbolTestsCore.ProtocolComposition.ProtocolCompositionFunctionTest.returnComposition() -> SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol
+    SymbolTestsCore.ProtocolComposition.ProtocolCompositionFunctionTest.acceptComposition(SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol & SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol) -> ()
+    SymbolTestsCore.ProtocolComposition.ProtocolCompositionFunctionTest.genericCompositionParameter<A>(A) -> ()
+}
+
+// MARK: - Protocols
+
+protocol SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol {
+    method descriptor for SymbolTestsCore.ProtocolComposition.ComposeFirstProtocol.first() -> Swift.Int
+}
+protocol SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol {
+    method descriptor for SymbolTestsCore.ProtocolComposition.ComposeSecondProtocol.second() -> Swift.String
+}
+protocol SymbolTestsCore.ProtocolComposition.ComposeThirdProtocol {
+    method descriptor for SymbolTestsCore.ProtocolComposition.ComposeThirdProtocol.third() -> Swift.Double
+}

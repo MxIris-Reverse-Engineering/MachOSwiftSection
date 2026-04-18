@@ -1,0 +1,121 @@
+// MARK: - Types
+
+enum SymbolTestsCore.VTableEntryVariants {}
+class SymbolTestsCore.VTableEntryVariants.VTableBaseTest {
+    /* [Method] */ func SymbolTestsCore.VTableEntryVariants.VTableBaseTest.normalMethod() -> ()
+    /* [Method] */ func SymbolTestsCore.VTableEntryVariants.VTableBaseTest.overridableMethod() -> Swift.Int
+    /* [Method] */ func async function pointer to SymbolTestsCore.VTableEntryVariants.VTableBaseTest.asyncMethod() async -> Swift.Int
+    /* [Method] */ func SymbolTestsCore.VTableEntryVariants.VTableBaseTest.throwingMethod() throws -> Swift.Int
+    /* [Method] */ func async function pointer to SymbolTestsCore.VTableEntryVariants.VTableBaseTest.asyncThrowingMethod() async throws -> Swift.Int
+    /* [Getter] */ SymbolTestsCore.VTableEntryVariants.VTableBaseTest.normalProperty.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.VTableEntryVariants.VTableBaseTest.normalProperty.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.VTableEntryVariants.VTableBaseTest.normalProperty.modify : Swift.Int
+    /* [Getter] */ async function pointer to SymbolTestsCore.VTableEntryVariants.VTableBaseTest.asyncProperty.getter : Swift.Int
+    /* [Getter] */ SymbolTestsCore.VTableEntryVariants.VTableBaseTest.throwingProperty.getter : Swift.Int
+    /* [ Init ] */ SymbolTestsCore.VTableEntryVariants.VTableBaseTest.__allocating_init() -> SymbolTestsCore.VTableEntryVariants.VTableBaseTest
+
+    /* Allocator */
+    SymbolTestsCore.VTableEntryVariants.VTableBaseTest.__allocating_init() -> SymbolTestsCore.VTableEntryVariants.VTableBaseTest
+
+    /* Deallocator */
+    SymbolTestsCore.VTableEntryVariants.VTableBaseTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.VTableEntryVariants.VTableBaseTest.init() -> SymbolTestsCore.VTableEntryVariants.VTableBaseTest
+
+    /* Destructor */
+    SymbolTestsCore.VTableEntryVariants.VTableBaseTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.VTableEntryVariants.VTableBaseTest.normalProperty.setter : Swift.Int
+    SymbolTestsCore.VTableEntryVariants.VTableBaseTest.normalProperty.getter : Swift.Int
+    SymbolTestsCore.VTableEntryVariants.VTableBaseTest.throwingProperty.getter : Swift.Int
+    SymbolTestsCore.VTableEntryVariants.VTableBaseTest.asyncProperty.getter : Swift.Int
+
+    /* Function */
+    SymbolTestsCore.VTableEntryVariants.VTableBaseTest.normalMethod() -> ()
+    SymbolTestsCore.VTableEntryVariants.VTableBaseTest.overridableMethod() -> Swift.Int
+    SymbolTestsCore.VTableEntryVariants.VTableBaseTest.throwingMethod() throws -> Swift.Int
+    SymbolTestsCore.VTableEntryVariants.VTableBaseTest.asyncMethod() async -> Swift.Int
+    SymbolTestsCore.VTableEntryVariants.VTableBaseTest.asyncThrowingMethod() async throws -> Swift.Int
+    SymbolTestsCore.VTableEntryVariants.VTableBaseTest.finalMethod() -> ()
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.VTableEntryVariants.VTableBaseTest.__allocating_init() -> SymbolTestsCore.VTableEntryVariants.VTableBaseTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.VTableEntryVariants.VTableBaseTest.normalProperty.getter : Swift.Int
+    method descriptor for SymbolTestsCore.VTableEntryVariants.VTableBaseTest.normalProperty.setter : Swift.Int
+    method descriptor for SymbolTestsCore.VTableEntryVariants.VTableBaseTest.asyncProperty.getter : Swift.Int
+    method descriptor for SymbolTestsCore.VTableEntryVariants.VTableBaseTest.throwingProperty.getter : Swift.Int
+
+    /* [Method] Function */
+    method descriptor for SymbolTestsCore.VTableEntryVariants.VTableBaseTest.normalMethod() -> ()
+    method descriptor for SymbolTestsCore.VTableEntryVariants.VTableBaseTest.overridableMethod() -> Swift.Int
+    method descriptor for SymbolTestsCore.VTableEntryVariants.VTableBaseTest.asyncMethod() async -> Swift.Int
+    method descriptor for SymbolTestsCore.VTableEntryVariants.VTableBaseTest.throwingMethod() throws -> Swift.Int
+    method descriptor for SymbolTestsCore.VTableEntryVariants.VTableBaseTest.asyncThrowingMethod() async throws -> Swift.Int
+}
+class SymbolTestsCore.VTableEntryVariants.VTableOverrideTest: SymbolTestsCore.VTableEntryVariants.VTableBaseTest {
+    /* [Method] */ override SymbolTestsCore.VTableEntryVariants.VTableOverrideTest.overridableMethod() -> Swift.Int
+    /* [Method] */ override async function pointer to SymbolTestsCore.VTableEntryVariants.VTableOverrideTest.asyncMethod() async -> Swift.Int
+    /* [Method] */ override SymbolTestsCore.VTableEntryVariants.VTableOverrideTest.throwingMethod() throws -> Swift.Int
+    /* [ Init ] */ override SymbolTestsCore.VTableEntryVariants.VTableOverrideTest.__allocating_init() -> SymbolTestsCore.VTableEntryVariants.VTableOverrideTest
+
+    /* Allocator */
+    SymbolTestsCore.VTableEntryVariants.VTableOverrideTest.__allocating_init() -> SymbolTestsCore.VTableEntryVariants.VTableOverrideTest
+
+    /* Deallocator */
+    SymbolTestsCore.VTableEntryVariants.VTableOverrideTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.VTableEntryVariants.VTableOverrideTest.init() -> SymbolTestsCore.VTableEntryVariants.VTableOverrideTest
+
+    /* Destructor */
+    SymbolTestsCore.VTableEntryVariants.VTableOverrideTest.deinit
+
+    /* Function */
+    SymbolTestsCore.VTableEntryVariants.VTableOverrideTest.overridableMethod() -> Swift.Int
+    SymbolTestsCore.VTableEntryVariants.VTableOverrideTest.throwingMethod() throws -> Swift.Int
+    SymbolTestsCore.VTableEntryVariants.VTableOverrideTest.asyncMethod() async -> Swift.Int
+}
+class SymbolTestsCore.VTableEntryVariants.VTableFinalOverrideTest: SymbolTestsCore.VTableEntryVariants.VTableBaseTest {
+    /* [Method] */ override SymbolTestsCore.VTableEntryVariants.VTableFinalOverrideTest.overridableMethod() -> Swift.Int
+    /* [ Init ] */ override SymbolTestsCore.VTableEntryVariants.VTableFinalOverrideTest.__allocating_init() -> SymbolTestsCore.VTableEntryVariants.VTableFinalOverrideTest
+
+    /* Allocator */
+    SymbolTestsCore.VTableEntryVariants.VTableFinalOverrideTest.__allocating_init() -> SymbolTestsCore.VTableEntryVariants.VTableFinalOverrideTest
+
+    /* Deallocator */
+    SymbolTestsCore.VTableEntryVariants.VTableFinalOverrideTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.VTableEntryVariants.VTableFinalOverrideTest.init() -> SymbolTestsCore.VTableEntryVariants.VTableFinalOverrideTest
+
+    /* Destructor */
+    SymbolTestsCore.VTableEntryVariants.VTableFinalOverrideTest.deinit
+
+    /* Function */
+    SymbolTestsCore.VTableEntryVariants.VTableFinalOverrideTest.overridableMethod() -> Swift.Int
+}
+class SymbolTestsCore.VTableEntryVariants.VTableDeepOverrideTest: SymbolTestsCore.VTableEntryVariants.VTableOverrideTest {
+    /* [Method] */ override SymbolTestsCore.VTableEntryVariants.VTableDeepOverrideTest.overridableMethod() -> Swift.Int
+    /* [Method] */ override async function pointer to SymbolTestsCore.VTableEntryVariants.VTableDeepOverrideTest.asyncMethod() async -> Swift.Int
+    /* [ Init ] */ override SymbolTestsCore.VTableEntryVariants.VTableDeepOverrideTest.__allocating_init() -> SymbolTestsCore.VTableEntryVariants.VTableDeepOverrideTest
+
+    /* Allocator */
+    SymbolTestsCore.VTableEntryVariants.VTableDeepOverrideTest.__allocating_init() -> SymbolTestsCore.VTableEntryVariants.VTableDeepOverrideTest
+
+    /* Deallocator */
+    SymbolTestsCore.VTableEntryVariants.VTableDeepOverrideTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.VTableEntryVariants.VTableDeepOverrideTest.init() -> SymbolTestsCore.VTableEntryVariants.VTableDeepOverrideTest
+
+    /* Destructor */
+    SymbolTestsCore.VTableEntryVariants.VTableDeepOverrideTest.deinit
+
+    /* Function */
+    SymbolTestsCore.VTableEntryVariants.VTableDeepOverrideTest.overridableMethod() -> Swift.Int
+    SymbolTestsCore.VTableEntryVariants.VTableDeepOverrideTest.asyncMethod() async -> Swift.Int
+}

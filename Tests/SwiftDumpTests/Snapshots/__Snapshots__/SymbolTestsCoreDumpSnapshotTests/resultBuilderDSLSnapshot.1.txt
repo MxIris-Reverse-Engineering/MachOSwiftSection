@@ -1,0 +1,22 @@
+// MARK: - Types
+
+enum SymbolTestsCore.ResultBuilderDSL {}
+struct SymbolTestsCore.ResultBuilderDSL.FullResultBuilderTest {
+    /* Static Function */
+    merged static SymbolTestsCore.ResultBuilderDSL.FullResultBuilderTest.buildBlock([Swift.Int]...) -> [Swift.Int]
+    static SymbolTestsCore.ResultBuilderDSL.FullResultBuilderTest.buildExpression(Swift.Int) -> [Swift.Int]
+    static SymbolTestsCore.ResultBuilderDSL.FullResultBuilderTest.buildOptional([Swift.Int]?) -> [Swift.Int]
+    static SymbolTestsCore.ResultBuilderDSL.FullResultBuilderTest.buildArray([[Swift.Int]]) -> [Swift.Int]
+    static SymbolTestsCore.ResultBuilderDSL.FullResultBuilderTest.buildExpression([Swift.Int]) -> [Swift.Int]
+    static SymbolTestsCore.ResultBuilderDSL.FullResultBuilderTest.buildBlock([Swift.Int]...) -> [Swift.Int]
+    static SymbolTestsCore.ResultBuilderDSL.FullResultBuilderTest.buildFinalResult([Swift.Int]) -> [Swift.Int]
+    static SymbolTestsCore.ResultBuilderDSL.FullResultBuilderTest.buildEither(first: [Swift.Int]) -> [Swift.Int]
+    static SymbolTestsCore.ResultBuilderDSL.FullResultBuilderTest.buildEither(second: [Swift.Int]) -> [Swift.Int]
+    static SymbolTestsCore.ResultBuilderDSL.FullResultBuilderTest.buildLimitedAvailability([Swift.Int]) -> [Swift.Int]
+}
+struct SymbolTestsCore.ResultBuilderDSL.GenericResultBuilderTest<A> {
+    /* Static Function */
+    static SymbolTestsCore.ResultBuilderDSL.GenericResultBuilderTest.buildBlock([A]...) -> [A]
+    static SymbolTestsCore.ResultBuilderDSL.GenericResultBuilderTest.buildExpression(A) -> [A]
+    static SymbolTestsCore.ResultBuilderDSL.GenericResultBuilderTest.buildOptional([A]?) -> [A]
+}

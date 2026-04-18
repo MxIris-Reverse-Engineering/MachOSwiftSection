@@ -1,0 +1,38 @@
+// MARK: - Types
+
+enum SymbolTestsCore.Tuples {}
+struct SymbolTestsCore.Tuples.TupleFieldTest {
+    var namedTuple: (first: Swift.Int, second: Swift.String)
+    var unnamedTuple: (Swift.Int, Swift.Double, Swift.Bool)
+    var nestedTuple: ((Swift.Int, Swift.Int), (Swift.String, Swift.String))
+
+    /* Allocator */
+    SymbolTestsCore.Tuples.TupleFieldTest.init(namedTuple: (first: Swift.Int, second: Swift.String), unnamedTuple: (Swift.Int, Swift.Double, Swift.Bool), nestedTuple: ((Swift.Int, Swift.Int), (Swift.String, Swift.String))) -> SymbolTestsCore.Tuples.TupleFieldTest
+
+    /* Variable */
+    SymbolTestsCore.Tuples.TupleFieldTest.namedTuple.getter : (first: Swift.Int, second: Swift.String)
+    SymbolTestsCore.Tuples.TupleFieldTest.namedTuple.setter : (first: Swift.Int, second: Swift.String)
+    SymbolTestsCore.Tuples.TupleFieldTest.unnamedTuple.getter : (Swift.Int, Swift.Double, Swift.Bool)
+    SymbolTestsCore.Tuples.TupleFieldTest.unnamedTuple.setter : (Swift.Int, Swift.Double, Swift.Bool)
+    SymbolTestsCore.Tuples.TupleFieldTest.nestedTuple.getter : ((Swift.Int, Swift.Int), (Swift.String, Swift.String))
+    SymbolTestsCore.Tuples.TupleFieldTest.nestedTuple.setter : ((Swift.Int, Swift.Int), (Swift.String, Swift.String))
+}
+struct SymbolTestsCore.Tuples.TupleFunctionTest {
+    /* Function */
+    SymbolTestsCore.Tuples.TupleFunctionTest.acceptTuple((Swift.Int, Swift.String)) -> (Swift.Bool, Swift.Double)
+    SymbolTestsCore.Tuples.TupleFunctionTest.returnLargeTuple() -> (Swift.Int, Swift.Double, Swift.String, Swift.Bool, Swift.Int, Swift.Double)
+    SymbolTestsCore.Tuples.TupleFunctionTest.acceptNamedTuple((identifier: Swift.Int, label: Swift.String)) -> (result: Swift.Bool, score: Swift.Double)
+}
+struct SymbolTestsCore.Tuples.GenericTupleTest<A, B> {
+    var pair: (A, B)
+    var labeled: (left: A, right: B)
+
+    /* Allocator */
+    SymbolTestsCore.Tuples.GenericTupleTest.init(pair: (A, B), labeled: (left: A, right: B)) -> SymbolTestsCore.Tuples.GenericTupleTest<A, B>
+
+    /* Variable */
+    SymbolTestsCore.Tuples.GenericTupleTest.pair.getter : (A, B)
+    SymbolTestsCore.Tuples.GenericTupleTest.pair.setter : (A, B)
+    SymbolTestsCore.Tuples.GenericTupleTest.labeled.getter : (left: A, right: B)
+    SymbolTestsCore.Tuples.GenericTupleTest.labeled.setter : (left: A, right: B)
+}

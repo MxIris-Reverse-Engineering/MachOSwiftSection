@@ -1,0 +1,325 @@
+// MARK: - Types
+
+enum SymbolTestsCore.Classes {}
+class SymbolTestsCore.Classes.ExternalSwiftSubclassTest: SymbolTestsHelper.Object {
+    override SymbolTestsCore.Classes.ExternalSwiftSubclassTest.instanceMethod() -> Swift.String
+    override SymbolTestsCore.Classes.ExternalSwiftSubclassTest.__allocating_init() -> SymbolTestsCore.Classes.ExternalSwiftSubclassTest
+
+    /* Allocator */
+    SymbolTestsCore.Classes.ExternalSwiftSubclassTest.__allocating_init() -> SymbolTestsCore.Classes.ExternalSwiftSubclassTest
+
+    /* Deallocator */
+    SymbolTestsCore.Classes.ExternalSwiftSubclassTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.Classes.ExternalSwiftSubclassTest.init() -> SymbolTestsCore.Classes.ExternalSwiftSubclassTest
+
+    /* Destructor */
+    SymbolTestsCore.Classes.ExternalSwiftSubclassTest.deinit
+
+    /* Function */
+    SymbolTestsCore.Classes.ExternalSwiftSubclassTest.instanceMethod() -> Swift.String
+}
+class SymbolTestsCore.Classes.ExternalObjCSubclassTest: NSObject {
+    /* Allocator */
+    SymbolTestsCore.Classes.ExternalObjCSubclassTest.__allocating_init() -> SymbolTestsCore.Classes.ExternalObjCSubclassTest
+
+    /* Deallocator */
+    merged SymbolTestsCore.Classes.ExternalObjCSubclassTest.__deallocating_deinit
+    SymbolTestsCore.Classes.ExternalObjCSubclassTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.Classes.ExternalObjCSubclassTest.init() -> SymbolTestsCore.Classes.ExternalObjCSubclassTest
+
+    /* Function */
+    SymbolTestsCore.Classes.ExternalObjCSubclassTest.isKind(of: Swift.AnyObject.Type) -> Swift.Bool
+}
+class SymbolTestsCore.Classes.ClassTest {
+    /* [Getter] */ SymbolTestsCore.Classes.ClassTest.instanceVariable.getter : Swift.Bool
+    /* [Setter] */ SymbolTestsCore.Classes.ClassTest.instanceVariable.setter : Swift.Bool
+    /* [Modify] */ SymbolTestsCore.Classes.ClassTest.instanceVariable.modify : Swift.Bool
+    /* [Method] */ func SymbolTestsCore.Classes.ClassTest.instanceMethod() -> Self
+    /* [Getter] */ SymbolTestsCore.Classes.ClassTest.dynamicVariable.getter : Swift.Bool
+    /* [Setter] */ SymbolTestsCore.Classes.ClassTest.dynamicVariable.setter : Swift.Bool
+    /* [Modify] */ SymbolTestsCore.Classes.ClassTest.dynamicVariable.modify : Swift.Bool
+    /* [Method] */ func SymbolTestsCore.Classes.ClassTest.dynamicMethod() -> ()
+    /* [ Init ] */ Symbol not found
+
+    /* Deallocator */
+    SymbolTestsCore.Classes.ClassTest.__deallocating_deinit
+
+    /* Destructor */
+    SymbolTestsCore.Classes.ClassTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.Classes.ClassTest.instanceVariable.setter : Swift.Bool
+    SymbolTestsCore.Classes.ClassTest.instanceVariable.getter : Swift.Bool
+    SymbolTestsCore.Classes.ClassTest.dynamicVariable.setter : Swift.Bool
+    SymbolTestsCore.Classes.ClassTest.dynamicVariable.getter : Swift.Bool
+
+    /* Function */
+    SymbolTestsCore.Classes.ClassTest.dynamicMethod() -> ()
+    SymbolTestsCore.Classes.ClassTest.instanceMethod() -> Self
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.Classes.ClassTest.__allocating_init() -> SymbolTestsCore.Classes.ClassTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.Classes.ClassTest.instanceVariable.getter : Swift.Bool
+    method descriptor for SymbolTestsCore.Classes.ClassTest.instanceVariable.setter : Swift.Bool
+    method descriptor for SymbolTestsCore.Classes.ClassTest.dynamicVariable.getter : Swift.Bool
+    method descriptor for SymbolTestsCore.Classes.ClassTest.dynamicVariable.setter : Swift.Bool
+
+    /* [Method] Function */
+    method descriptor for SymbolTestsCore.Classes.ClassTest.instanceMethod() -> Self
+    method descriptor for SymbolTestsCore.Classes.ClassTest.dynamicMethod() -> ()
+}
+class SymbolTestsCore.Classes.SubclassTest: SymbolTestsCore.Classes.ClassTest {
+    /* [Getter] */ override SymbolTestsCore.Classes.SubclassTest.dynamicVariable.getter : Swift.Bool
+    /* [Setter] */ override SymbolTestsCore.Classes.SubclassTest.instanceVariable.modify : Swift.Bool
+    /* [Modify] */ override SymbolTestsCore.Classes.SubclassTest.dynamicVariable.modify : Swift.Bool
+    /* [Method] */ override SymbolTestsCore.Classes.SubclassTest.instanceMethod() -> Self
+    /* [Getter] */ override SymbolTestsCore.Classes.SubclassTest.instanceVariable.getter : Swift.Bool
+    /* [Setter] */ override SymbolTestsCore.Classes.SubclassTest.dynamicVariable.setter : Swift.Bool
+    /* [Modify] */ override SymbolTestsCore.Classes.SubclassTest.instanceVariable.modify : Swift.Bool
+    /* [Method] */ override SymbolTestsCore.Classes.SubclassTest.dynamicVariable.modify : Swift.Bool
+    /* [ Init ] */ override Symbol not found
+
+    /* Deallocator */
+    SymbolTestsCore.Classes.SubclassTest.__deallocating_deinit
+
+    /* Destructor */
+    SymbolTestsCore.Classes.SubclassTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.Classes.SubclassTest.dynamicVariable.setter : Swift.Bool
+    SymbolTestsCore.Classes.SubclassTest.dynamicVariable.getter : Swift.Bool
+    SymbolTestsCore.Classes.SubclassTest.instanceVariable.getter : Swift.Bool
+    SymbolTestsCore.Classes.SubclassTest.instanceVariable.setter : Swift.Bool
+
+    /* Function */
+    SymbolTestsCore.Classes.SubclassTest.dynamicMethod() -> ()
+    SymbolTestsCore.Classes.SubclassTest.instanceMethod() -> Self
+}
+class SymbolTestsCore.Classes.FinalClassTest: SymbolTestsCore.Classes.SubclassTest {
+    /* [Method] */ override SymbolTestsCore.Classes.FinalClassTest.instanceMethod() -> Self
+    /* [Getter] */ override SymbolTestsCore.Classes.FinalClassTest.dynamicVariable.getter : Swift.Bool
+    /* [Setter] */ override SymbolTestsCore.Classes.FinalClassTest.dynamicVariable.modify : Swift.Bool
+    /* [Modify] */ override SymbolTestsCore.Classes.FinalClassTest.dynamicVariable.modify : Swift.Bool
+    /* [Method] */ override SymbolTestsCore.Classes.FinalClassTest.dynamicMethod() -> ()
+    /* [ Init ] */ override Symbol not found
+
+    /* Deallocator */
+    SymbolTestsCore.Classes.FinalClassTest.__deallocating_deinit
+
+    /* Destructor */
+    SymbolTestsCore.Classes.FinalClassTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.Classes.FinalClassTest.dynamicVariable.getter : Swift.Bool
+    SymbolTestsCore.Classes.FinalClassTest.dynamicVariable.setter : Swift.Bool
+
+    /* Function */
+    SymbolTestsCore.Classes.FinalClassTest.dynamicMethod() -> ()
+    SymbolTestsCore.Classes.FinalClassTest.instanceMethod() -> Self
+}
+class SymbolTestsCore.Classes.StoredPropertiesTest {
+    let constantProperty: Swift.String
+    var variableProperty: Swift.Int
+    weak var weakDelegate: Swift.AnyObject?
+    lazy var lazyProperty: Swift.String?
+
+    /* [Getter] */ SymbolTestsCore.Classes.StoredPropertiesTest.variableProperty.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.Classes.StoredPropertiesTest.variableProperty.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.Classes.StoredPropertiesTest.variableProperty.modify : Swift.Int
+    /* [Getter] */ SymbolTestsCore.Classes.StoredPropertiesTest.weakDelegate.getter : Swift.AnyObject?
+    /* [Setter] */ SymbolTestsCore.Classes.StoredPropertiesTest.weakDelegate.setter : Swift.AnyObject?
+    /* [Modify] */ SymbolTestsCore.Classes.StoredPropertiesTest.weakDelegate.modify : Swift.AnyObject?
+    /* [Getter] */ SymbolTestsCore.Classes.StoredPropertiesTest.lazyProperty.getter : Swift.String
+    /* [Setter] */ SymbolTestsCore.Classes.StoredPropertiesTest.lazyProperty.setter : Swift.String
+    /* [Modify] */ SymbolTestsCore.Classes.StoredPropertiesTest.lazyProperty.modify : Swift.String
+    /* [ Init ] */ SymbolTestsCore.Classes.StoredPropertiesTest.__allocating_init(constantProperty: Swift.String, variableProperty: Swift.Int) -> SymbolTestsCore.Classes.StoredPropertiesTest
+
+    /* Allocator */
+    SymbolTestsCore.Classes.StoredPropertiesTest.__allocating_init(constantProperty: Swift.String, variableProperty: Swift.Int) -> SymbolTestsCore.Classes.StoredPropertiesTest
+
+    /* Deallocator */
+    SymbolTestsCore.Classes.StoredPropertiesTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.Classes.StoredPropertiesTest.init(constantProperty: Swift.String, variableProperty: Swift.Int) -> SymbolTestsCore.Classes.StoredPropertiesTest
+
+    /* Destructor */
+    SymbolTestsCore.Classes.StoredPropertiesTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.Classes.StoredPropertiesTest.variableProperty.getter : Swift.Int
+    SymbolTestsCore.Classes.StoredPropertiesTest.variableProperty.setter : Swift.Int
+    SymbolTestsCore.Classes.StoredPropertiesTest.weakDelegate.getter : Swift.AnyObject?
+    SymbolTestsCore.Classes.StoredPropertiesTest.weakDelegate.setter : Swift.AnyObject?
+    SymbolTestsCore.Classes.StoredPropertiesTest.lazyProperty.getter : Swift.String
+    SymbolTestsCore.Classes.StoredPropertiesTest.lazyProperty.setter : Swift.String
+    SymbolTestsCore.Classes.StoredPropertiesTest.constantProperty.getter : Swift.String
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.Classes.StoredPropertiesTest.__allocating_init(constantProperty: Swift.String, variableProperty: Swift.Int) -> SymbolTestsCore.Classes.StoredPropertiesTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.Classes.StoredPropertiesTest.variableProperty.getter : Swift.Int
+    method descriptor for SymbolTestsCore.Classes.StoredPropertiesTest.variableProperty.setter : Swift.Int
+    method descriptor for SymbolTestsCore.Classes.StoredPropertiesTest.weakDelegate.getter : Swift.AnyObject?
+    method descriptor for SymbolTestsCore.Classes.StoredPropertiesTest.weakDelegate.setter : Swift.AnyObject?
+    method descriptor for SymbolTestsCore.Classes.StoredPropertiesTest.lazyProperty.getter : Swift.String
+    method descriptor for SymbolTestsCore.Classes.StoredPropertiesTest.lazyProperty.setter : Swift.String
+}
+class SymbolTestsCore.Classes.OpenAccessTest {
+    /* [Getter] */ SymbolTestsCore.Classes.OpenAccessTest.openProperty.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.Classes.OpenAccessTest.openProperty.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.Classes.OpenAccessTest.openProperty.modify : Swift.Int
+    /* [Method] */ func SymbolTestsCore.Classes.OpenAccessTest.openMethod() -> Swift.String
+    /* [Method] */ func SymbolTestsCore.Classes.OpenAccessTest.publicMethod() -> Swift.Int
+    /* [ Init ] */ SymbolTestsCore.Classes.OpenAccessTest.__allocating_init() -> SymbolTestsCore.Classes.OpenAccessTest
+
+    /* Allocator */
+    SymbolTestsCore.Classes.OpenAccessTest.__allocating_init() -> SymbolTestsCore.Classes.OpenAccessTest
+
+    /* Deallocator */
+    SymbolTestsCore.Classes.OpenAccessTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.Classes.OpenAccessTest.init() -> SymbolTestsCore.Classes.OpenAccessTest
+
+    /* Destructor */
+    SymbolTestsCore.Classes.OpenAccessTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.Classes.OpenAccessTest.openProperty.setter : Swift.Int
+    SymbolTestsCore.Classes.OpenAccessTest.openProperty.getter : Swift.Int
+
+    /* Function */
+    SymbolTestsCore.Classes.OpenAccessTest.openMethod() -> Swift.String
+    SymbolTestsCore.Classes.OpenAccessTest.publicMethod() -> Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.Classes.OpenAccessTest.__allocating_init() -> SymbolTestsCore.Classes.OpenAccessTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.Classes.OpenAccessTest.openProperty.getter : Swift.Int
+    method descriptor for SymbolTestsCore.Classes.OpenAccessTest.openProperty.setter : Swift.Int
+
+    /* [Method] Function */
+    method descriptor for SymbolTestsCore.Classes.OpenAccessTest.openMethod() -> Swift.String
+    method descriptor for SymbolTestsCore.Classes.OpenAccessTest.publicMethod() -> Swift.Int
+}
+class SymbolTestsCore.Classes.OpenAccessSubTest: SymbolTestsCore.Classes.OpenAccessTest {
+    /* [Getter] */ override SymbolTestsCore.Classes.OpenAccessSubTest.openProperty.getter : Swift.Int
+    /* [Setter] */ override SymbolTestsCore.Classes.OpenAccessSubTest.openProperty.setter : Swift.Int
+    /* [Modify] */ override SymbolTestsCore.Classes.OpenAccessSubTest.openProperty.modify : Swift.Int
+    /* [Method] */ override SymbolTestsCore.Classes.OpenAccessSubTest.openMethod() -> Swift.String
+    /* [ Init ] */ override SymbolTestsCore.Classes.OpenAccessSubTest.__allocating_init() -> SymbolTestsCore.Classes.OpenAccessSubTest
+
+    /* Allocator */
+    SymbolTestsCore.Classes.OpenAccessSubTest.__allocating_init() -> SymbolTestsCore.Classes.OpenAccessSubTest
+
+    /* Deallocator */
+    SymbolTestsCore.Classes.OpenAccessSubTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.Classes.OpenAccessSubTest.init() -> SymbolTestsCore.Classes.OpenAccessSubTest
+
+    /* Destructor */
+    SymbolTestsCore.Classes.OpenAccessSubTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.Classes.OpenAccessSubTest.openProperty.setter : Swift.Int
+    SymbolTestsCore.Classes.OpenAccessSubTest.openProperty.getter : Swift.Int
+
+    /* Function */
+    SymbolTestsCore.Classes.OpenAccessSubTest.openMethod() -> Swift.String
+}
+class SymbolTestsCore.Classes.ObjCMembersTest: NSObject {
+    var property: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.Classes.ObjCMembersTest.property.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.Classes.ObjCMembersTest.property.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.Classes.ObjCMembersTest.property.modify : Swift.Int
+    /* [Method] */ func SymbolTestsCore.Classes.ObjCMembersTest.method() -> Swift.Int
+
+    /* Allocator */
+    SymbolTestsCore.Classes.ObjCMembersTest.__allocating_init() -> SymbolTestsCore.Classes.ObjCMembersTest
+
+    /* Deallocator */
+    SymbolTestsCore.Classes.ObjCMembersTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.Classes.ObjCMembersTest.init() -> SymbolTestsCore.Classes.ObjCMembersTest
+
+    /* Variable */
+    SymbolTestsCore.Classes.ObjCMembersTest.property.setter : Swift.Int
+    SymbolTestsCore.Classes.ObjCMembersTest.property.getter : Swift.Int
+
+    /* Function */
+    SymbolTestsCore.Classes.ObjCMembersTest.method() -> Swift.Int
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.Classes.ObjCMembersTest.property.getter : Swift.Int
+    method descriptor for SymbolTestsCore.Classes.ObjCMembersTest.property.setter : Swift.Int
+
+    /* [Method] Function */
+    method descriptor for SymbolTestsCore.Classes.ObjCMembersTest.method() -> Swift.Int
+}
+class SymbolTestsCore.Classes.RequiredInitClassTest {
+    let identifier: Swift.Int
+
+    /* [ Init ] */ SymbolTestsCore.Classes.RequiredInitClassTest.__allocating_init(identifier: Swift.Int) -> SymbolTestsCore.Classes.RequiredInitClassTest
+
+    /* Allocator */
+    SymbolTestsCore.Classes.RequiredInitClassTest.__allocating_init(identifier: Swift.Int) -> SymbolTestsCore.Classes.RequiredInitClassTest
+
+    /* Deallocator */
+    SymbolTestsCore.Classes.RequiredInitClassTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.Classes.RequiredInitClassTest.init(identifier: Swift.Int) -> SymbolTestsCore.Classes.RequiredInitClassTest
+
+    /* Destructor */
+    SymbolTestsCore.Classes.RequiredInitClassTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.Classes.RequiredInitClassTest.identifier.getter : Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.Classes.RequiredInitClassTest.__allocating_init(identifier: Swift.Int) -> SymbolTestsCore.Classes.RequiredInitClassTest
+}
+class SymbolTestsCore.Classes.DefaultParameterClassTest {
+    /* [Method] */ func SymbolTestsCore.Classes.DefaultParameterClassTest.method(first: Swift.Int, second: Swift.String) -> Swift.Int
+    /* [Method] */ static func static SymbolTestsCore.Classes.DefaultParameterClassTest.classMethod(value: Swift.Int) -> Swift.Int
+    /* [ Init ] */ SymbolTestsCore.Classes.DefaultParameterClassTest.__allocating_init() -> SymbolTestsCore.Classes.DefaultParameterClassTest
+
+    /* Allocator */
+    SymbolTestsCore.Classes.DefaultParameterClassTest.__allocating_init() -> SymbolTestsCore.Classes.DefaultParameterClassTest
+
+    /* Deallocator */
+    SymbolTestsCore.Classes.DefaultParameterClassTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.Classes.DefaultParameterClassTest.init() -> SymbolTestsCore.Classes.DefaultParameterClassTest
+
+    /* Destructor */
+    SymbolTestsCore.Classes.DefaultParameterClassTest.deinit
+
+    /* Function */
+    SymbolTestsCore.Classes.DefaultParameterClassTest.method(first: Swift.Int, second: Swift.String) -> Swift.Int
+
+    /* Static Function */
+    static SymbolTestsCore.Classes.DefaultParameterClassTest.classMethod(value: Swift.Int) -> Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.Classes.DefaultParameterClassTest.__allocating_init() -> SymbolTestsCore.Classes.DefaultParameterClassTest
+
+    /* [Method] Function */
+    method descriptor for SymbolTestsCore.Classes.DefaultParameterClassTest.method(first: Swift.Int, second: Swift.String) -> Swift.Int
+
+    /* [Method] Static Function */
+    method descriptor for static SymbolTestsCore.Classes.DefaultParameterClassTest.classMethod(value: Swift.Int) -> Swift.Int
+}

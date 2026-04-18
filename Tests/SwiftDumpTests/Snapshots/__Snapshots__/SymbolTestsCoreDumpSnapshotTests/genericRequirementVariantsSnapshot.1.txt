@@ -1,0 +1,108 @@
+// MARK: - Types
+
+enum SymbolTestsCore.GenericRequirementVariants {}
+struct SymbolTestsCore.GenericRequirementVariants.ProtocolRequirementTest<A> where A: SymbolTestsCore.Protocols.ProtocolTest {
+    var element: A
+
+    /* Allocator */
+    SymbolTestsCore.GenericRequirementVariants.ProtocolRequirementTest.init(element: A) -> SymbolTestsCore.GenericRequirementVariants.ProtocolRequirementTest<A>
+
+    /* Variable */
+    SymbolTestsCore.GenericRequirementVariants.ProtocolRequirementTest.element.getter : A
+    SymbolTestsCore.GenericRequirementVariants.ProtocolRequirementTest.element.setter : A
+}
+struct SymbolTestsCore.GenericRequirementVariants.SameTypeRequirementTest<A, B> where A == B {
+    var first: A
+    var second: A
+
+    /* Allocator */
+    SymbolTestsCore.GenericRequirementVariants.SameTypeRequirementTest.init(first: A, second: A) -> SymbolTestsCore.GenericRequirementVariants.SameTypeRequirementTest<A, A>
+
+    /* Variable */
+    SymbolTestsCore.GenericRequirementVariants.SameTypeRequirementTest.first.getter : A
+    SymbolTestsCore.GenericRequirementVariants.SameTypeRequirementTest.first.setter : A
+    SymbolTestsCore.GenericRequirementVariants.SameTypeRequirementTest.second.getter : A
+    SymbolTestsCore.GenericRequirementVariants.SameTypeRequirementTest.second.setter : A
+}
+class SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest {
+    var baseField: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest.baseField.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest.baseField.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest.baseField.modify : Swift.Int
+    /* [ Init ] */ SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest.__allocating_init() -> SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest
+
+    /* Allocator */
+    SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest.__allocating_init() -> SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest
+
+    /* Deallocator */
+    SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest.init() -> SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest
+
+    /* Destructor */
+    SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest.baseField.getter : Swift.Int
+    SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest.baseField.setter : Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest.__allocating_init() -> SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest.baseField.getter : Swift.Int
+    method descriptor for SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest.baseField.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericRequirementVariants.BaseClassRequirementTest<A> where A: SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest {
+    var element: A
+
+    /* Allocator */
+    SymbolTestsCore.GenericRequirementVariants.BaseClassRequirementTest.init(element: A) -> SymbolTestsCore.GenericRequirementVariants.BaseClassRequirementTest<A>
+
+    /* Variable */
+    SymbolTestsCore.GenericRequirementVariants.BaseClassRequirementTest.element.getter : A
+    SymbolTestsCore.GenericRequirementVariants.BaseClassRequirementTest.element.setter : A
+}
+struct SymbolTestsCore.GenericRequirementVariants.LayoutAnyObjectRequirementTest<A> where A: AnyObject {
+    var element: A
+
+    /* Allocator */
+    SymbolTestsCore.GenericRequirementVariants.LayoutAnyObjectRequirementTest.init(element: A) -> SymbolTestsCore.GenericRequirementVariants.LayoutAnyObjectRequirementTest<A>
+
+    /* Variable */
+    SymbolTestsCore.GenericRequirementVariants.LayoutAnyObjectRequirementTest.element.getter : A
+    SymbolTestsCore.GenericRequirementVariants.LayoutAnyObjectRequirementTest.element.setter : A
+}
+struct SymbolTestsCore.GenericRequirementVariants.ParameterPackRequirementTest<each A> {
+    var elements: (repeat A)
+
+    /* Allocator */
+    SymbolTestsCore.GenericRequirementVariants.ParameterPackRequirementTest.init(elements: (repeat A)) -> SymbolTestsCore.GenericRequirementVariants.ParameterPackRequirementTest<Pack{repeat A}>
+
+    /* Variable */
+    merged SymbolTestsCore.GenericRequirementVariants.ParameterPackRequirementTest.elements.getter : (repeat A)
+    merged SymbolTestsCore.GenericRequirementVariants.ParameterPackRequirementTest.elements.setter : (repeat A)
+    SymbolTestsCore.GenericRequirementVariants.ParameterPackRequirementTest.elements.getter : (repeat A)
+    SymbolTestsCore.GenericRequirementVariants.ParameterPackRequirementTest.elements.setter : (repeat A)
+}
+struct SymbolTestsCore.GenericRequirementVariants.ConstrainedParameterPackTest<each A> where repeat each A: SymbolTestsCore.Protocols.ProtocolTest {
+    var elements: (repeat A)
+
+    /* Allocator */
+    SymbolTestsCore.GenericRequirementVariants.ConstrainedParameterPackTest.init(elements: (repeat A)) -> SymbolTestsCore.GenericRequirementVariants.ConstrainedParameterPackTest<Pack{repeat A}>
+
+    /* Variable */
+    SymbolTestsCore.GenericRequirementVariants.ConstrainedParameterPackTest.elements.getter : (repeat A)
+    SymbolTestsCore.GenericRequirementVariants.ConstrainedParameterPackTest.elements.setter : (repeat A)
+}
+struct SymbolTestsCore.GenericRequirementVariants.InvertibleProtocolRequirementTest<A>: ~Swift.Copyable where A: ~Swift.Copyable {
+    var element: A
+
+    /* Allocator (In Extension) */
+    SymbolTestsCore.GenericRequirementVariants.InvertibleProtocolRequirementTest<>.init(element: A) -> SymbolTestsCore.GenericRequirementVariants.InvertibleProtocolRequirementTest<A>
+
+    /* Variable (In Extension) */
+    SymbolTestsCore.GenericRequirementVariants.InvertibleProtocolRequirementTest<>.element.setter : A
+}

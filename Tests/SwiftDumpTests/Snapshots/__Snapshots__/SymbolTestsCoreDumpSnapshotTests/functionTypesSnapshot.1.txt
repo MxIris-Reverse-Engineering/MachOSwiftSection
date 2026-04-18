@@ -1,0 +1,47 @@
+// MARK: - Types
+
+enum SymbolTestsCore.FunctionTypes {}
+struct SymbolTestsCore.FunctionTypes.FunctionFieldTest {
+    var simpleFunction: (Swift.Int) -> Swift.Int
+    var multiArgumentFunction: (Swift.Int, Swift.String, Swift.Bool) -> Swift.Double
+    var throwingFunction: () throws -> Swift.Int
+    var asyncFunction: nonisolated(nonsending) () async -> Swift.String
+    var asyncThrowingFunction: nonisolated(nonsending) () async throws -> Swift.Int
+
+    /* Allocator */
+    SymbolTestsCore.FunctionTypes.FunctionFieldTest.init(simpleFunction: (Swift.Int) -> Swift.Int, multiArgumentFunction: (Swift.Int, Swift.String, Swift.Bool) -> Swift.Double, throwingFunction: () throws -> Swift.Int, asyncFunction: nonisolated(nonsending) () async -> Swift.String, asyncThrowingFunction: nonisolated(nonsending) () async throws -> Swift.Int) -> SymbolTestsCore.FunctionTypes.FunctionFieldTest
+
+    /* Variable */
+    SymbolTestsCore.FunctionTypes.FunctionFieldTest.multiArgumentFunction.getter : (Swift.Int, Swift.String, Swift.Bool) -> Swift.Double
+    SymbolTestsCore.FunctionTypes.FunctionFieldTest.multiArgumentFunction.setter : (Swift.Int, Swift.String, Swift.Bool) -> Swift.Double
+    SymbolTestsCore.FunctionTypes.FunctionFieldTest.throwingFunction.getter : () throws -> Swift.Int
+    SymbolTestsCore.FunctionTypes.FunctionFieldTest.throwingFunction.setter : () throws -> Swift.Int
+    SymbolTestsCore.FunctionTypes.FunctionFieldTest.asyncFunction.getter : nonisolated(nonsending) () async -> Swift.String
+    SymbolTestsCore.FunctionTypes.FunctionFieldTest.asyncFunction.setter : nonisolated(nonsending) () async -> Swift.String
+    SymbolTestsCore.FunctionTypes.FunctionFieldTest.asyncThrowingFunction.getter : nonisolated(nonsending) () async throws -> Swift.Int
+    SymbolTestsCore.FunctionTypes.FunctionFieldTest.asyncThrowingFunction.setter : nonisolated(nonsending) () async throws -> Swift.Int
+    SymbolTestsCore.FunctionTypes.FunctionFieldTest.simpleFunction.getter : (Swift.Int) -> Swift.Int
+    SymbolTestsCore.FunctionTypes.FunctionFieldTest.simpleFunction.setter : (Swift.Int) -> Swift.Int
+}
+struct SymbolTestsCore.FunctionTypes.HigherOrderFunctionTest {
+    /* Function */
+    SymbolTestsCore.FunctionTypes.HigherOrderFunctionTest.acceptFunctionReturningFunction((Swift.Int) -> (Swift.Double) -> Swift.String) -> Swift.String
+    SymbolTestsCore.FunctionTypes.HigherOrderFunctionTest.returnFunctionReturningFunction() -> (Swift.Int) -> (Swift.Double) -> Swift.String
+    SymbolTestsCore.FunctionTypes.HigherOrderFunctionTest.curriedFunction(Swift.Int) -> (Swift.Double) -> (Swift.String) -> Swift.Bool
+}
+struct SymbolTestsCore.FunctionTypes.FunctionTypealiasTest {
+    var transformer: (Swift.Int) -> Swift.String
+    var predicate: (Swift.Int) -> Swift.Bool
+    var biFunction: (Swift.Int, Swift.String) -> Swift.Bool
+
+    /* Allocator */
+    SymbolTestsCore.FunctionTypes.FunctionTypealiasTest.init(transformer: (Swift.Int) -> Swift.String, predicate: (Swift.Int) -> Swift.Bool, biFunction: (Swift.Int, Swift.String) -> Swift.Bool) -> SymbolTestsCore.FunctionTypes.FunctionTypealiasTest
+
+    /* Variable */
+    SymbolTestsCore.FunctionTypes.FunctionTypealiasTest.biFunction.getter : (Swift.Int, Swift.String) -> Swift.Bool
+    SymbolTestsCore.FunctionTypes.FunctionTypealiasTest.biFunction.setter : (Swift.Int, Swift.String) -> Swift.Bool
+    SymbolTestsCore.FunctionTypes.FunctionTypealiasTest.transformer.getter : (Swift.Int) -> Swift.String
+    SymbolTestsCore.FunctionTypes.FunctionTypealiasTest.transformer.setter : (Swift.Int) -> Swift.String
+    SymbolTestsCore.FunctionTypes.FunctionTypealiasTest.predicate.getter : (Swift.Int) -> Swift.Bool
+    SymbolTestsCore.FunctionTypes.FunctionTypealiasTest.predicate.setter : (Swift.Int) -> Swift.Bool
+}

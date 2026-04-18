@@ -1,0 +1,52 @@
+// MARK: - Types
+
+enum SymbolTestsCore.Attributes {}
+struct SymbolTestsCore.Attributes.PropertyWrapperStruct<A> where A: Swift.Comparable {
+    var wrappedValue: A
+    var projectedValue: Swift.ClosedRange<A>
+
+    /* Allocator */
+    SymbolTestsCore.Attributes.PropertyWrapperStruct.init(wrappedValue: A, range: Swift.ClosedRange<A>) -> SymbolTestsCore.Attributes.PropertyWrapperStruct<A>
+
+    /* Variable */
+    SymbolTestsCore.Attributes.PropertyWrapperStruct.wrappedValue.getter : A
+    SymbolTestsCore.Attributes.PropertyWrapperStruct.wrappedValue.setter : A
+    SymbolTestsCore.Attributes.PropertyWrapperStruct.projectedValue.getter : Swift.ClosedRange<A>
+    SymbolTestsCore.Attributes.PropertyWrapperStruct.projectedValue.setter : Swift.ClosedRange<A>
+}
+struct SymbolTestsCore.Attributes.ResultBuilderStruct<A> {
+    /* Static Function */
+    static SymbolTestsCore.Attributes.ResultBuilderStruct.buildBlock(A...) -> [A]
+    static SymbolTestsCore.Attributes.ResultBuilderStruct.buildOptional([A]?) -> [A]
+}
+struct SymbolTestsCore.Attributes.DynamicMemberLookupStruct {
+    /* Subscript */
+    SymbolTestsCore.Attributes.DynamicMemberLookupStruct.subscript.getter : (dynamicMember: Swift.String) -> Swift.Int
+}
+struct SymbolTestsCore.Attributes.DynamicCallableStruct {
+    /* Function */
+    SymbolTestsCore.Attributes.DynamicCallableStruct.dynamicallyCall(withArguments: [Swift.Int]) -> Swift.Int
+    SymbolTestsCore.Attributes.DynamicCallableStruct.dynamicallyCall(withKeywordArguments: Swift.KeyValuePairs<Swift.String, Swift.Int>) -> Swift.Int
+}
+class SymbolTestsCore.Attributes.ObjCAttributeClass: NSObject {
+    /* [Method] */ func SymbolTestsCore.Attributes.ObjCAttributeClass.objcMethod() -> ()
+    /* [Method] */ func SymbolTestsCore.Attributes.ObjCAttributeClass.nonobjcMethod() -> ()
+
+    /* Allocator */
+    SymbolTestsCore.Attributes.ObjCAttributeClass.__allocating_init() -> SymbolTestsCore.Attributes.ObjCAttributeClass
+
+    /* Deallocator */
+    SymbolTestsCore.Attributes.ObjCAttributeClass.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.Attributes.ObjCAttributeClass.init() -> SymbolTestsCore.Attributes.ObjCAttributeClass
+
+    /* Function */
+    SymbolTestsCore.Attributes.ObjCAttributeClass.objcMethod() -> ()
+    SymbolTestsCore.Attributes.ObjCAttributeClass.nonobjcMethod() -> ()
+    SymbolTestsCore.Attributes.ObjCAttributeClass.objcDynamicMethod() -> ()
+
+    /* [Method] Function */
+    method descriptor for SymbolTestsCore.Attributes.ObjCAttributeClass.objcMethod() -> ()
+    method descriptor for SymbolTestsCore.Attributes.ObjCAttributeClass.nonobjcMethod() -> ()
+}

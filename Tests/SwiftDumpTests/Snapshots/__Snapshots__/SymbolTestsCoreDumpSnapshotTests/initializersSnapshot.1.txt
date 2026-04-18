@@ -1,0 +1,143 @@
+// MARK: - Types
+
+enum SymbolTestsCore.Initializers {}
+struct SymbolTestsCore.Initializers.CustomInitializerError {
+    let reason: Swift.String
+
+    /* Allocator */
+    SymbolTestsCore.Initializers.CustomInitializerError.init(reason: Swift.String) -> SymbolTestsCore.Initializers.CustomInitializerError
+
+    /* Variable */
+    SymbolTestsCore.Initializers.CustomInitializerError.reason.getter : Swift.String
+}
+class SymbolTestsCore.Initializers.ConvenienceInitializerTest {
+    let primaryValue: Swift.Int
+    let secondaryValue: Swift.String
+
+    /* [ Init ] */ SymbolTestsCore.Initializers.ConvenienceInitializerTest.__allocating_init(primaryValue: Swift.Int, secondaryValue: Swift.String) -> SymbolTestsCore.Initializers.ConvenienceInitializerTest
+
+    /* Allocator */
+    SymbolTestsCore.Initializers.ConvenienceInitializerTest.__allocating_init(primaryValue: Swift.Int) -> SymbolTestsCore.Initializers.ConvenienceInitializerTest
+    SymbolTestsCore.Initializers.ConvenienceInitializerTest.__allocating_init() -> SymbolTestsCore.Initializers.ConvenienceInitializerTest
+    SymbolTestsCore.Initializers.ConvenienceInitializerTest.__allocating_init(primaryValue: Swift.Int, secondaryValue: Swift.String) -> SymbolTestsCore.Initializers.ConvenienceInitializerTest
+
+    /* Deallocator */
+    SymbolTestsCore.Initializers.ConvenienceInitializerTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.Initializers.ConvenienceInitializerTest.init(primaryValue: Swift.Int, secondaryValue: Swift.String) -> SymbolTestsCore.Initializers.ConvenienceInitializerTest
+
+    /* Destructor */
+    SymbolTestsCore.Initializers.ConvenienceInitializerTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.Initializers.ConvenienceInitializerTest.primaryValue.getter : Swift.Int
+    SymbolTestsCore.Initializers.ConvenienceInitializerTest.secondaryValue.getter : Swift.String
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.Initializers.ConvenienceInitializerTest.__allocating_init(primaryValue: Swift.Int, secondaryValue: Swift.String) -> SymbolTestsCore.Initializers.ConvenienceInitializerTest
+}
+class SymbolTestsCore.Initializers.RequiredInitializerTest {
+    let value: Swift.Int
+
+    /* [ Init ] */ SymbolTestsCore.Initializers.RequiredInitializerTest.__allocating_init(value: Swift.Int) -> SymbolTestsCore.Initializers.RequiredInitializerTest
+    /* [ Init ] */ SymbolTestsCore.Initializers.RequiredInitializerTest.__allocating_init() -> SymbolTestsCore.Initializers.RequiredInitializerTest
+
+    /* Allocator */
+    SymbolTestsCore.Initializers.RequiredInitializerTest.__allocating_init() -> SymbolTestsCore.Initializers.RequiredInitializerTest
+    SymbolTestsCore.Initializers.RequiredInitializerTest.__allocating_init(value: Swift.Int) -> SymbolTestsCore.Initializers.RequiredInitializerTest
+
+    /* Deallocator */
+    SymbolTestsCore.Initializers.RequiredInitializerTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.Initializers.RequiredInitializerTest.init(value: Swift.Int) -> SymbolTestsCore.Initializers.RequiredInitializerTest
+
+    /* Destructor */
+    SymbolTestsCore.Initializers.RequiredInitializerTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.Initializers.RequiredInitializerTest.value.getter : Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.Initializers.RequiredInitializerTest.__allocating_init(value: Swift.Int) -> SymbolTestsCore.Initializers.RequiredInitializerTest
+    method descriptor for SymbolTestsCore.Initializers.RequiredInitializerTest.__allocating_init() -> SymbolTestsCore.Initializers.RequiredInitializerTest
+}
+class SymbolTestsCore.Initializers.RequiredInitializerSubclass: SymbolTestsCore.Initializers.RequiredInitializerTest {
+    let extraValue: Swift.String
+
+    /* [ Init ] */ override SymbolTestsCore.Initializers.RequiredInitializerSubclass.__allocating_init(value: Swift.Int) -> SymbolTestsCore.Initializers.RequiredInitializerSubclass
+    /* [ Init ] */ override SymbolTestsCore.Initializers.RequiredInitializerSubclass.__allocating_init() -> SymbolTestsCore.Initializers.RequiredInitializerSubclass
+
+    /* Allocator */
+    SymbolTestsCore.Initializers.RequiredInitializerSubclass.__allocating_init(value: Swift.Int) -> SymbolTestsCore.Initializers.RequiredInitializerSubclass
+    SymbolTestsCore.Initializers.RequiredInitializerSubclass.__allocating_init() -> SymbolTestsCore.Initializers.RequiredInitializerSubclass
+
+    /* Deallocator */
+    SymbolTestsCore.Initializers.RequiredInitializerSubclass.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.Initializers.RequiredInitializerSubclass.init(value: Swift.Int) -> SymbolTestsCore.Initializers.RequiredInitializerSubclass
+
+    /* Destructor */
+    SymbolTestsCore.Initializers.RequiredInitializerSubclass.deinit
+
+    /* Variable */
+    SymbolTestsCore.Initializers.RequiredInitializerSubclass.extraValue.getter : Swift.String
+}
+struct SymbolTestsCore.Initializers.FailableInitializerTest {
+    let value: Swift.Int
+
+    /* Allocator */
+    SymbolTestsCore.Initializers.FailableInitializerTest.init(value: Swift.Int) -> SymbolTestsCore.Initializers.FailableInitializerTest?
+    SymbolTestsCore.Initializers.FailableInitializerTest.init(unsafe: Swift.Int) -> SymbolTestsCore.Initializers.FailableInitializerTest?
+
+    /* Variable */
+    SymbolTestsCore.Initializers.FailableInitializerTest.value.getter : Swift.Int
+}
+struct SymbolTestsCore.Initializers.TypedThrowingInitializerTest {
+    let value: Swift.Int
+
+    /* Allocator */
+    SymbolTestsCore.Initializers.TypedThrowingInitializerTest.init(value: Swift.Int) throws(SymbolTestsCore.Initializers.CustomInitializerError) -> SymbolTestsCore.Initializers.TypedThrowingInitializerTest
+
+    /* Variable */
+    SymbolTestsCore.Initializers.TypedThrowingInitializerTest.value.getter : Swift.Int
+}
+actor SymbolTestsCore.Initializers.AsyncInitializerActorTest {
+    var $defaultActor: Builtin.DefaultActorStorage
+    let identifier: Swift.Int
+
+    /* [ Init ] */ async function pointer to SymbolTestsCore.Initializers.AsyncInitializerActorTest.__allocating_init(identifier: Swift.Int) async -> SymbolTestsCore.Initializers.AsyncInitializerActorTest
+
+    /* Allocator */
+    SymbolTestsCore.Initializers.AsyncInitializerActorTest.__allocating_init(identifier: Swift.Int) async -> SymbolTestsCore.Initializers.AsyncInitializerActorTest
+
+    /* Deallocator */
+    SymbolTestsCore.Initializers.AsyncInitializerActorTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.Initializers.AsyncInitializerActorTest.init(identifier: Swift.Int) async -> SymbolTestsCore.Initializers.AsyncInitializerActorTest
+
+    /* Destructor */
+    SymbolTestsCore.Initializers.AsyncInitializerActorTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.Initializers.AsyncInitializerActorTest.identifier.getter : Swift.Int
+    SymbolTestsCore.Initializers.AsyncInitializerActorTest.unownedExecutor.getter : Swift.UnownedSerialExecutor
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.Initializers.AsyncInitializerActorTest.__allocating_init(identifier: Swift.Int) async -> SymbolTestsCore.Initializers.AsyncInitializerActorTest
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.Initializers.CustomInitializerError: Swift.Error {
+    protocol witness for Swift.Error._domain.getter : Swift.String in conformance SymbolTestsCore.Initializers.CustomInitializerError : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._code.getter : Swift.Int in conformance SymbolTestsCore.Initializers.CustomInitializerError : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._userInfo.getter : Swift.AnyObject? in conformance SymbolTestsCore.Initializers.CustomInitializerError : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._getEmbeddedNSError() -> Swift.AnyObject? in conformance SymbolTestsCore.Initializers.CustomInitializerError : Swift.Error in SymbolTestsCore
+}
+extension SymbolTestsCore.Initializers.AsyncInitializerActorTest: Swift.Actor {
+    protocol witness for Swift.Actor.unownedExecutor.getter : Swift.UnownedSerialExecutor in conformance SymbolTestsCore.Initializers.AsyncInitializerActorTest : Swift.Actor in SymbolTestsCore
+}

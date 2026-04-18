@@ -1,0 +1,374 @@
+// MARK: - Types
+
+enum SymbolTestsCore.CodableTests {}
+struct SymbolTestsCore.CodableTests.SynthesizedCodableTest {
+    var identifier: Swift.Int
+    var name: Swift.String
+    var optionalValue: Swift.Double?
+
+    /* Allocator */
+    SymbolTestsCore.CodableTests.SynthesizedCodableTest.init(identifier: Swift.Int, name: Swift.String, optionalValue: Swift.Double?) -> SymbolTestsCore.CodableTests.SynthesizedCodableTest
+    SymbolTestsCore.CodableTests.SynthesizedCodableTest.init(from: Swift.Decoder) throws -> SymbolTestsCore.CodableTests.SynthesizedCodableTest
+
+    /* Variable */
+    SymbolTestsCore.CodableTests.SynthesizedCodableTest.optionalValue.getter : Swift.Double?
+    SymbolTestsCore.CodableTests.SynthesizedCodableTest.optionalValue.setter : Swift.Double?
+    SymbolTestsCore.CodableTests.SynthesizedCodableTest.identifier.getter : Swift.Int
+    SymbolTestsCore.CodableTests.SynthesizedCodableTest.identifier.setter : Swift.Int
+    SymbolTestsCore.CodableTests.SynthesizedCodableTest.name.getter : Swift.String
+    SymbolTestsCore.CodableTests.SynthesizedCodableTest.name.setter : Swift.String
+
+    /* Function */
+    SymbolTestsCore.CodableTests.SynthesizedCodableTest.encode(to: Swift.Encoder) throws -> ()
+}
+struct SymbolTestsCore.CodableTests.CustomCodableTest {
+    var displayName: Swift.String
+    var hiddenCount: Swift.Int
+
+    /* Allocator */
+    SymbolTestsCore.CodableTests.CustomCodableTest.init(displayName: Swift.String, hiddenCount: Swift.Int) -> SymbolTestsCore.CodableTests.CustomCodableTest
+    SymbolTestsCore.CodableTests.CustomCodableTest.init(from: Swift.Decoder) throws -> SymbolTestsCore.CodableTests.CustomCodableTest
+
+    /* Variable */
+    SymbolTestsCore.CodableTests.CustomCodableTest.displayName.getter : Swift.String
+    SymbolTestsCore.CodableTests.CustomCodableTest.displayName.setter : Swift.String
+    SymbolTestsCore.CodableTests.CustomCodableTest.hiddenCount.getter : Swift.Int
+    SymbolTestsCore.CodableTests.CustomCodableTest.hiddenCount.setter : Swift.Int
+
+    /* Function */
+    SymbolTestsCore.CodableTests.CustomCodableTest.encode(to: Swift.Encoder) throws -> ()
+}
+class SymbolTestsCore.CodableTests.CodableClassTest {
+    var identifier: Swift.Int
+    var label: Swift.String
+
+    /* [Getter] */ SymbolTestsCore.CodableTests.CodableClassTest.identifier.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.CodableTests.CodableClassTest.identifier.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.CodableTests.CodableClassTest.identifier.modify : Swift.Int
+    /* [Getter] */ SymbolTestsCore.CodableTests.CodableClassTest.label.getter : Swift.String
+    /* [Setter] */ SymbolTestsCore.CodableTests.CodableClassTest.label.setter : Swift.String
+    /* [Modify] */ SymbolTestsCore.CodableTests.CodableClassTest.label.modify : Swift.String
+    /* [ Init ] */ SymbolTestsCore.CodableTests.CodableClassTest.__allocating_init(identifier: Swift.Int, label: Swift.String) -> SymbolTestsCore.CodableTests.CodableClassTest
+    /* [Method] */ func SymbolTestsCore.CodableTests.CodableClassTest.encode(to: Swift.Encoder) throws -> ()
+    /* [ Init ] */ SymbolTestsCore.CodableTests.CodableClassTest.__allocating_init(from: Swift.Decoder) throws -> SymbolTestsCore.CodableTests.CodableClassTest
+
+    /* Allocator */
+    SymbolTestsCore.CodableTests.CodableClassTest.__allocating_init(identifier: Swift.Int, label: Swift.String) -> SymbolTestsCore.CodableTests.CodableClassTest
+    SymbolTestsCore.CodableTests.CodableClassTest.__allocating_init(from: Swift.Decoder) throws -> SymbolTestsCore.CodableTests.CodableClassTest
+
+    /* Deallocator */
+    SymbolTestsCore.CodableTests.CodableClassTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.CodableTests.CodableClassTest.init(identifier: Swift.Int, label: Swift.String) -> SymbolTestsCore.CodableTests.CodableClassTest
+    SymbolTestsCore.CodableTests.CodableClassTest.init(from: Swift.Decoder) throws -> SymbolTestsCore.CodableTests.CodableClassTest
+
+    /* Destructor */
+    SymbolTestsCore.CodableTests.CodableClassTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.CodableTests.CodableClassTest.identifier.getter : Swift.Int
+    SymbolTestsCore.CodableTests.CodableClassTest.identifier.setter : Swift.Int
+    SymbolTestsCore.CodableTests.CodableClassTest.label.getter : Swift.String
+    SymbolTestsCore.CodableTests.CodableClassTest.label.setter : Swift.String
+
+    /* Function */
+    SymbolTestsCore.CodableTests.CodableClassTest.encode(to: Swift.Encoder) throws -> ()
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.CodableTests.CodableClassTest.__allocating_init(identifier: Swift.Int, label: Swift.String) -> SymbolTestsCore.CodableTests.CodableClassTest
+    method descriptor for SymbolTestsCore.CodableTests.CodableClassTest.__allocating_init(from: Swift.Decoder) throws -> SymbolTestsCore.CodableTests.CodableClassTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.CodableTests.CodableClassTest.identifier.getter : Swift.Int
+    method descriptor for SymbolTestsCore.CodableTests.CodableClassTest.identifier.setter : Swift.Int
+    method descriptor for SymbolTestsCore.CodableTests.CodableClassTest.label.getter : Swift.String
+    method descriptor for SymbolTestsCore.CodableTests.CodableClassTest.label.setter : Swift.String
+
+    /* [Method] Function */
+    method descriptor for SymbolTestsCore.CodableTests.CodableClassTest.encode(to: Swift.Encoder) throws -> ()
+}
+enum SymbolTestsCore.CodableTests.CodableEnumTest {
+    case withValue(Swift.Int)
+    case withPair(left: Swift.String, right: Swift.Int)
+    case empty
+
+    /* Allocator */
+    SymbolTestsCore.CodableTests.CodableEnumTest.init(from: Swift.Decoder) throws -> SymbolTestsCore.CodableTests.CodableEnumTest
+
+    /* Function */
+    SymbolTestsCore.CodableTests.CodableEnumTest.encode(to: Swift.Encoder) throws -> ()
+}
+struct SymbolTestsCore.CodableTests.GenericCodableTest<A> where A: Swift.Decodable, A: Swift.Encodable {
+    var element: A
+    var metadata: [Swift.String : Swift.String]
+
+    /* Allocator */
+    SymbolTestsCore.CodableTests.GenericCodableTest.init(element: A, metadata: [Swift.String : Swift.String]) -> SymbolTestsCore.CodableTests.GenericCodableTest<A>
+    SymbolTestsCore.CodableTests.GenericCodableTest.init(from: Swift.Decoder) throws -> SymbolTestsCore.CodableTests.GenericCodableTest<A>
+
+    /* Variable */
+    SymbolTestsCore.CodableTests.GenericCodableTest.metadata.getter : [Swift.String : Swift.String]
+    SymbolTestsCore.CodableTests.GenericCodableTest.metadata.setter : [Swift.String : Swift.String]
+    SymbolTestsCore.CodableTests.GenericCodableTest.element.getter : A
+    SymbolTestsCore.CodableTests.GenericCodableTest.element.setter : A
+
+    /* Function */
+    SymbolTestsCore.CodableTests.GenericCodableTest.encode(to: Swift.Encoder) throws -> ()
+}
+enum SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys {
+    case element
+    case metadata
+
+    /* Allocator */
+    SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys.init(stringValue: Swift.String) -> SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys?
+
+    /* Variable */
+    SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys.hashValue.getter : Swift.Int
+    SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys.stringValue.getter : Swift.String
+
+    /* Function */
+    SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys.hash(into: inout Swift.Hasher) -> ()
+
+    /* Static Function */
+    static SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys.== infix(SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys, SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys) -> Swift.Bool
+}
+enum SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys {
+    case empty
+    case withValue
+    case withPair
+}
+enum SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys {}
+enum SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys {
+    case _0
+}
+enum SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys {
+    case left
+    case right
+}
+enum SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys {
+    case identifier
+    case label
+}
+enum SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys {
+    case displayName
+    case hiddenCount
+}
+enum SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys {
+    case identifier
+    case name
+    case optionalValue
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest: Swift.Decodable {
+    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest : Swift.Decodable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest: Swift.Encodable {
+    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest : Swift.Encodable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest: Swift.Decodable {
+    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.CodableTests.CustomCodableTest : Swift.Decodable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest: Swift.Encodable {
+    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.CodableTests.CustomCodableTest : Swift.Encodable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest: Swift.Decodable {
+    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.CodableTests.CodableClassTest : Swift.Decodable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest: Swift.Encodable {
+    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.CodableTests.CodableClassTest : Swift.Encodable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest: Swift.Decodable {
+    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.CodableTests.CodableEnumTest : Swift.Decodable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest: Swift.Encodable {
+    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.CodableTests.CodableEnumTest : Swift.Encodable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest: Swift.Decodable {
+    protocol witness for Swift.Decodable.init(from: Swift.Decoder) throws -> A in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A> : Swift.Decodable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest: Swift.Encodable {
+    protocol witness for Swift.Encodable.encode(to: Swift.Encoder) throws -> () in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A> : Swift.Encodable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.CustomStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys: Swift.CustomDebugStringConvertible {
+    protocol witness for Swift.CustomDebugStringConvertible.debugDescription.getter : Swift.String in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.CustomDebugStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.CustomStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys: Swift.CustomDebugStringConvertible {
+    protocol witness for Swift.CustomDebugStringConvertible.debugDescription.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.CustomDebugStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.RawRepresentable in SymbolTestsCore
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.RawRepresentable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys : Swift.CustomStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys: Swift.CustomDebugStringConvertible {
+    protocol witness for Swift.CustomDebugStringConvertible.debugDescription.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys : Swift.CustomDebugStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys : Swift.CustomStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys: Swift.CustomDebugStringConvertible {
+    protocol witness for Swift.CustomDebugStringConvertible.debugDescription.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys : Swift.CustomDebugStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys : Swift.CustomStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys: Swift.CustomDebugStringConvertible {
+    protocol witness for Swift.CustomDebugStringConvertible.debugDescription.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys : Swift.CustomDebugStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys : Swift.CustomStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys: Swift.CustomDebugStringConvertible {
+    protocol witness for Swift.CustomDebugStringConvertible.debugDescription.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys : Swift.CustomDebugStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys : Swift.CustomStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys: Swift.CustomDebugStringConvertible {
+    protocol witness for Swift.CustomDebugStringConvertible.debugDescription.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys : Swift.CustomDebugStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys: Swift.CustomStringConvertible {
+    protocol witness for Swift.CustomStringConvertible.description.getter : Swift.String in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys : Swift.CustomStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys: Swift.CustomDebugStringConvertible {
+    protocol witness for Swift.CustomDebugStringConvertible.debugDescription.getter : Swift.String in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys : Swift.CustomDebugStringConvertible in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.GenericCodableTest.CodingKeys: Swift.CodingKey {
+    base conformance descriptor for Swift.CodingKey: Swift.CustomDebugStringConvertible
+    base conformance descriptor for Swift.CodingKey: Swift.CustomStringConvertible
+    protocol witness for Swift.CodingKey.stringValue.getter : Swift.String in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(stringValue: Swift.String) -> A? in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.intValue.getter : Swift.Int? in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(intValue: Swift.Int) -> A? in conformance SymbolTestsCore.CodableTests.GenericCodableTest<A>.CodingKeys : Swift.CodingKey in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys: Swift.CodingKey {
+    base conformance descriptor for Swift.CodingKey: Swift.CustomDebugStringConvertible
+    base conformance descriptor for Swift.CodingKey: Swift.CustomStringConvertible
+    protocol witness for Swift.CodingKey.stringValue.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(stringValue: Swift.String) -> A? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.intValue.getter : Swift.Int? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(intValue: Swift.Int) -> A? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.EmptyCodingKeys : Swift.CodingKey in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys: Swift.CodingKey {
+    base conformance descriptor for Swift.CodingKey: Swift.CustomDebugStringConvertible
+    base conformance descriptor for Swift.CodingKey: Swift.CustomStringConvertible
+    protocol witness for Swift.CodingKey.stringValue.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(stringValue: Swift.String) -> A? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.intValue.getter : Swift.Int? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(intValue: Swift.Int) -> A? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithValueCodingKeys : Swift.CodingKey in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys: Swift.CodingKey {
+    base conformance descriptor for Swift.CodingKey: Swift.CustomDebugStringConvertible
+    base conformance descriptor for Swift.CodingKey: Swift.CustomStringConvertible
+    protocol witness for Swift.CodingKey.stringValue.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(stringValue: Swift.String) -> A? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.intValue.getter : Swift.Int? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(intValue: Swift.Int) -> A? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.WithPairCodingKeys : Swift.CodingKey in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys: Swift.CodingKey {
+    base conformance descriptor for Swift.CodingKey: Swift.CustomDebugStringConvertible
+    base conformance descriptor for Swift.CodingKey: Swift.CustomStringConvertible
+    protocol witness for Swift.CodingKey.stringValue.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(stringValue: Swift.String) -> A? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.intValue.getter : Swift.Int? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(intValue: Swift.Int) -> A? in conformance SymbolTestsCore.CodableTests.CodableEnumTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys: Swift.CodingKey {
+    base conformance descriptor for Swift.CodingKey: Swift.CustomDebugStringConvertible
+    base conformance descriptor for Swift.CodingKey: Swift.CustomStringConvertible
+    protocol witness for Swift.CodingKey.stringValue.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(stringValue: Swift.String) -> A? in conformance SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.intValue.getter : Swift.Int? in conformance SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(intValue: Swift.Int) -> A? in conformance SymbolTestsCore.CodableTests.CodableClassTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys: Swift.CodingKey {
+    base conformance descriptor for Swift.CodingKey: Swift.CustomDebugStringConvertible
+    base conformance descriptor for Swift.CodingKey: Swift.CustomStringConvertible
+    protocol witness for Swift.CodingKey.stringValue.getter : Swift.String in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(stringValue: Swift.String) -> A? in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.intValue.getter : Swift.Int? in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(intValue: Swift.Int) -> A? in conformance SymbolTestsCore.CodableTests.CustomCodableTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+}
+extension SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys: Swift.CodingKey {
+    base conformance descriptor for Swift.CodingKey: Swift.CustomDebugStringConvertible
+    base conformance descriptor for Swift.CodingKey: Swift.CustomStringConvertible
+    protocol witness for Swift.CodingKey.stringValue.getter : Swift.String in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(stringValue: Swift.String) -> A? in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.intValue.getter : Swift.Int? in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+    protocol witness for Swift.CodingKey.init(intValue: Swift.Int) -> A? in conformance SymbolTestsCore.CodableTests.SynthesizedCodableTest.CodingKeys : Swift.CodingKey in SymbolTestsCore
+}

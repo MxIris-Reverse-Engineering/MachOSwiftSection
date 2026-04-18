@@ -1,0 +1,60 @@
+// MARK: - Types
+
+enum SymbolTestsCore.DiamondInheritance {}
+struct SymbolTestsCore.DiamondInheritance.DiamondImplementationTest {
+    /* Allocator */
+    SymbolTestsCore.DiamondInheritance.DiamondImplementationTest.init() -> SymbolTestsCore.DiamondInheritance.DiamondImplementationTest
+
+    /* Function */
+    SymbolTestsCore.DiamondInheritance.DiamondImplementationTest.baseMethod() -> Swift.String
+    SymbolTestsCore.DiamondInheritance.DiamondImplementationTest.leftMethod() -> Swift.Int
+    SymbolTestsCore.DiamondInheritance.DiamondImplementationTest.rightMethod() -> Swift.Double
+    SymbolTestsCore.DiamondInheritance.DiamondImplementationTest.bottomMethod() -> Swift.Bool
+}
+
+// MARK: - Protocols
+
+protocol SymbolTestsCore.DiamondInheritance.DiamondBaseProtocol {
+    method descriptor for SymbolTestsCore.DiamondInheritance.DiamondBaseProtocol.baseMethod() -> Swift.String
+}
+protocol SymbolTestsCore.DiamondInheritance.DiamondLeftProtocol: SymbolTestsCore.DiamondInheritance.DiamondBaseProtocol {
+    base conformance descriptor for SymbolTestsCore.DiamondInheritance.DiamondLeftProtocol: SymbolTestsCore.DiamondInheritance.DiamondBaseProtocol
+    method descriptor for SymbolTestsCore.DiamondInheritance.DiamondLeftProtocol.leftMethod() -> Swift.Int
+}
+protocol SymbolTestsCore.DiamondInheritance.DiamondRightProtocol: SymbolTestsCore.DiamondInheritance.DiamondBaseProtocol {
+    base conformance descriptor for SymbolTestsCore.DiamondInheritance.DiamondRightProtocol: SymbolTestsCore.DiamondInheritance.DiamondBaseProtocol
+    method descriptor for SymbolTestsCore.DiamondInheritance.DiamondRightProtocol.rightMethod() -> Swift.Double
+}
+protocol SymbolTestsCore.DiamondInheritance.DiamondBottomProtocol: SymbolTestsCore.DiamondInheritance.DiamondLeftProtocol, SymbolTestsCore.DiamondInheritance.DiamondRightProtocol {
+    base conformance descriptor for SymbolTestsCore.DiamondInheritance.DiamondBottomProtocol: SymbolTestsCore.DiamondInheritance.DiamondLeftProtocol
+    base conformance descriptor for SymbolTestsCore.DiamondInheritance.DiamondBottomProtocol: SymbolTestsCore.DiamondInheritance.DiamondRightProtocol
+    method descriptor for SymbolTestsCore.DiamondInheritance.DiamondBottomProtocol.bottomMethod() -> Swift.Bool
+}
+protocol SymbolTestsCore.DiamondInheritance.TriDiamondRootProtocol {
+    method descriptor for SymbolTestsCore.DiamondInheritance.TriDiamondRootProtocol.root() -> Swift.String
+}
+protocol SymbolTestsCore.DiamondInheritance.TriDiamondFirstProtocol: SymbolTestsCore.DiamondInheritance.TriDiamondRootProtocol {
+    base conformance descriptor for SymbolTestsCore.DiamondInheritance.TriDiamondFirstProtocol: SymbolTestsCore.DiamondInheritance.TriDiamondRootProtocol
+    method descriptor for SymbolTestsCore.DiamondInheritance.TriDiamondFirstProtocol.first() -> Swift.Int
+}
+protocol SymbolTestsCore.DiamondInheritance.TriDiamondSecondProtocol: SymbolTestsCore.DiamondInheritance.TriDiamondRootProtocol {
+    base conformance descriptor for SymbolTestsCore.DiamondInheritance.TriDiamondSecondProtocol: SymbolTestsCore.DiamondInheritance.TriDiamondRootProtocol
+    method descriptor for SymbolTestsCore.DiamondInheritance.TriDiamondSecondProtocol.second() -> Swift.Int
+}
+protocol SymbolTestsCore.DiamondInheritance.TriDiamondThirdProtocol: SymbolTestsCore.DiamondInheritance.TriDiamondRootProtocol {
+    base conformance descriptor for SymbolTestsCore.DiamondInheritance.TriDiamondThirdProtocol: SymbolTestsCore.DiamondInheritance.TriDiamondRootProtocol
+    method descriptor for SymbolTestsCore.DiamondInheritance.TriDiamondThirdProtocol.third() -> Swift.Int
+}
+protocol SymbolTestsCore.DiamondInheritance.TriDiamondLeafProtocol: SymbolTestsCore.DiamondInheritance.TriDiamondFirstProtocol, SymbolTestsCore.DiamondInheritance.TriDiamondSecondProtocol, SymbolTestsCore.DiamondInheritance.TriDiamondThirdProtocol {
+    base conformance descriptor for SymbolTestsCore.DiamondInheritance.TriDiamondLeafProtocol: SymbolTestsCore.DiamondInheritance.TriDiamondFirstProtocol
+    base conformance descriptor for SymbolTestsCore.DiamondInheritance.TriDiamondLeafProtocol: SymbolTestsCore.DiamondInheritance.TriDiamondSecondProtocol
+    base conformance descriptor for SymbolTestsCore.DiamondInheritance.TriDiamondLeafProtocol: SymbolTestsCore.DiamondInheritance.TriDiamondThirdProtocol
+    method descriptor for SymbolTestsCore.DiamondInheritance.TriDiamondLeafProtocol.leaf() -> Swift.Int
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.DiamondInheritance.DiamondImplementationTest: SymbolTestsCore.DiamondInheritance.DiamondBottomProtocol {}
+extension SymbolTestsCore.DiamondInheritance.DiamondImplementationTest: SymbolTestsCore.DiamondInheritance.DiamondLeftProtocol {}
+extension SymbolTestsCore.DiamondInheritance.DiamondImplementationTest: SymbolTestsCore.DiamondInheritance.DiamondRightProtocol {}
+extension SymbolTestsCore.DiamondInheritance.DiamondImplementationTest: SymbolTestsCore.DiamondInheritance.DiamondBaseProtocol {}

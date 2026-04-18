@@ -1,0 +1,68 @@
+// MARK: - Types
+
+enum SymbolTestsCore.DependentTypeAccess {}
+struct SymbolTestsCore.DependentTypeAccess.DependentAccessTest<A> where A: SymbolTestsCore.DependentTypeAccess.OuterProtocol {
+    var middleLeaf: A.OuterProtocol.Middle.MiddleProtocol.Leaf?
+    var innerValue: A.OuterProtocol.Inner.InnerProtocol.Value?
+
+    /* Allocator */
+    SymbolTestsCore.DependentTypeAccess.DependentAccessTest.init(middleLeaf: A.Middle.Leaf?, innerValue: A.Inner.Value?) -> SymbolTestsCore.DependentTypeAccess.DependentAccessTest<A>
+
+    /* Variable */
+    SymbolTestsCore.DependentTypeAccess.DependentAccessTest.middleLeaf.getter : A.Middle.Leaf?
+    SymbolTestsCore.DependentTypeAccess.DependentAccessTest.middleLeaf.setter : A.Middle.Leaf?
+    SymbolTestsCore.DependentTypeAccess.DependentAccessTest.innerValue.getter : A.Inner.Value?
+    SymbolTestsCore.DependentTypeAccess.DependentAccessTest.innerValue.setter : A.Inner.Value?
+}
+struct SymbolTestsCore.DependentTypeAccess.DeepDependentAccessTest<A> where A: SymbolTestsCore.DependentTypeAccess.OuterProtocol {
+    var branchFinal: A.OuterProtocol.Middle.MiddleProtocol.Branch.BranchProtocol.Final?
+
+    /* Allocator */
+    SymbolTestsCore.DependentTypeAccess.DeepDependentAccessTest.init(branchFinal: A.Middle.Branch.Final?) -> SymbolTestsCore.DependentTypeAccess.DeepDependentAccessTest<A>
+
+    /* Variable */
+    SymbolTestsCore.DependentTypeAccess.DeepDependentAccessTest.branchFinal.getter : A.Middle.Branch.Final?
+    SymbolTestsCore.DependentTypeAccess.DeepDependentAccessTest.branchFinal.setter : A.Middle.Branch.Final?
+}
+struct SymbolTestsCore.DependentTypeAccess.DependentFunctionTest {
+    /* Function */
+    SymbolTestsCore.DependentTypeAccess.DependentFunctionTest.acceptDependent<A>(_: A, middleLeaf: A.Middle.Leaf, innerValue: A.Inner.Value) -> A.Middle.Branch.Final?
+}
+
+// MARK: - Protocols
+
+protocol SymbolTestsCore.DependentTypeAccess.OuterProtocol where Self.Inner: SymbolTestsCore.DependentTypeAccess.InnerProtocol, Self.Middle: SymbolTestsCore.DependentTypeAccess.MiddleProtocol {
+    associatedtype Middle
+    associatedtype Inner
+
+    associated conformance descriptor for SymbolTestsCore.DependentTypeAccess.OuterProtocol.SymbolTestsCore.DependentTypeAccess.OuterProtocol.Inner: SymbolTestsCore.DependentTypeAccess.InnerProtocol
+    associated conformance descriptor for SymbolTestsCore.DependentTypeAccess.OuterProtocol.SymbolTestsCore.DependentTypeAccess.OuterProtocol.Middle: SymbolTestsCore.DependentTypeAccess.MiddleProtocol
+    associated type descriptor for SymbolTestsCore.DependentTypeAccess.OuterProtocol.Middle
+    associated type descriptor for SymbolTestsCore.DependentTypeAccess.OuterProtocol.Inner
+}
+protocol SymbolTestsCore.DependentTypeAccess.MiddleProtocol where Self.Branch: SymbolTestsCore.DependentTypeAccess.BranchProtocol {
+    associatedtype Leaf
+    associatedtype Branch
+
+    associated conformance descriptor for SymbolTestsCore.DependentTypeAccess.MiddleProtocol.SymbolTestsCore.DependentTypeAccess.MiddleProtocol.Branch: SymbolTestsCore.DependentTypeAccess.BranchProtocol
+    associated type descriptor for SymbolTestsCore.DependentTypeAccess.MiddleProtocol.Leaf
+    associated type descriptor for SymbolTestsCore.DependentTypeAccess.MiddleProtocol.Branch
+}
+protocol SymbolTestsCore.DependentTypeAccess.BranchProtocol {
+    associatedtype Final
+
+    associated type descriptor for SymbolTestsCore.DependentTypeAccess.BranchProtocol.Final
+}
+protocol SymbolTestsCore.DependentTypeAccess.InnerProtocol {
+    associatedtype Value
+
+    associated type descriptor for SymbolTestsCore.DependentTypeAccess.InnerProtocol.Value
+}
+protocol SymbolTestsCore.DependentTypeAccess.DependentProtocol where Self.First == Self.Second.Leaf, Self.Second: SymbolTestsCore.DependentTypeAccess.MiddleProtocol {
+    associatedtype First
+    associatedtype Second
+
+    associated conformance descriptor for SymbolTestsCore.DependentTypeAccess.DependentProtocol.SymbolTestsCore.DependentTypeAccess.DependentProtocol.Second: SymbolTestsCore.DependentTypeAccess.MiddleProtocol
+    associated type descriptor for SymbolTestsCore.DependentTypeAccess.DependentProtocol.First
+    associated type descriptor for SymbolTestsCore.DependentTypeAccess.DependentProtocol.Second
+}
