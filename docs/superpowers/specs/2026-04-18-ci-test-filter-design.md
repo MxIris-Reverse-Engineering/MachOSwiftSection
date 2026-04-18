@@ -59,32 +59,18 @@ excluded from CI runs. Those tests remain fully functional locally.
 
 ### 1. Build the fixture
 
-Add a step before `swift test` that builds `SymbolTestsCore.framework` using
-`xcodebuild`, writing to the exact `DerivedData` path that
+The `Build SymbolTestsCore fixture` step is already present on `main` (along
+with `Resolve SPM dependencies`, `Cache SymbolTests DerivedData`, and
+`Upload xcodebuild logs on failure`). It uses `-derivedDataPath
+Tests/Projects/SymbolTests/DerivedData`, which matches the path
 `MachOFileName.SymbolTestsCore` (in
-`Sources/MachOTestingSupport/MachOFileName.swift`) expects:
-
-```yaml
-- name: Build SymbolTestsCore fixture
-  run: |
-    xcodebuild \
-      -project Tests/Projects/SymbolTests/SymbolTests.xcodeproj \
-      -scheme SymbolTestsCore \
-      -configuration Release \
-      -derivedDataPath Tests/Projects/SymbolTests/DerivedData \
-      -destination 'generic/platform=macOS' \
-      build
-```
-
-`MachOFileName.SymbolTestsCore.rawValue` is a path relative to
-`#filePath` inside `MachOTestingSupport`:
+`Sources/MachOTestingSupport/MachOFileName.swift`) resolves:
 
 ```
 ../../Tests/Projects/SymbolTests/DerivedData/SymbolTests/Build/Products/Release/SymbolTestsCore.framework/Versions/A/SymbolTestsCore
 ```
 
-The `-derivedDataPath` value above resolves to the same `Release` product
-location. No test-code changes are required.
+No change is needed for fixture construction.
 
 ### 2. Filter test runs
 
@@ -109,7 +95,6 @@ Both workflows move to macOS 26.2 + Xcode 26.2.
 
 - `matrix.os`: `macos-15` → `macos-26`
 - `matrix.xcode-version`: `"16.3"` → `"26.2"`
-- `matrix.release`: `2024` → `2026`
 
 `.github/workflows/release.yml`:
 
@@ -118,62 +103,20 @@ Both workflows move to macOS 26.2 + Xcode 26.2.
 
 ## Final workflow shape
 
-```yaml
-# .github/workflows/macOS.yml
-name: macOS
+The `macOS.yml` workflow keeps its existing structure (Resolve SPM,
+Cache DerivedData, Build SymbolTestsCore fixture, Upload logs on failure,
+Build and run tests). Only three lines change:
 
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-jobs:
-  macos_test:
-    name: Execute tests on macOS
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-26]
-        xcode-version: ["26.2"]
-        release: [2026]
-    runs-on: ${{ matrix.os }}
-    env:
-      MACHO_SWIFT_SECTION_SILENT_TEST: 1
-      GH_TOKEN: ${{ github.token }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Xcode
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: ${{ matrix.xcode-version }}
-      - name: Swift version
-        run: swift --version
-      - name: Build SymbolTestsCore fixture
-        run: |
-          xcodebuild \
-            -project Tests/Projects/SymbolTests/SymbolTests.xcodeproj \
-            -scheme SymbolTestsCore \
-            -configuration Release \
-            -derivedDataPath Tests/Projects/SymbolTests/DerivedData \
-            -destination 'generic/platform=macOS' \
-            build
-      - name: Build and run tests in debug mode
-        run: |
-          swift test \
-            -c debug \
-            --build-path .build-test-debug \
-            --filter '\.(MachOFileDumpSnapshotTests|MachOFileInterfaceSnapshotTests|STCoreE2ETests|STCoreTests)(/|$)'
-      - name: Build and run tests in release mode
-        run: |
-          swift test \
-            -c release \
-            --build-path .build-test-release \
-            --filter '\.(MachOFileDumpSnapshotTests|MachOFileInterfaceSnapshotTests|STCoreE2ETests|STCoreTests)(/|$)'
-```
+- `matrix.os: macos-15` → `matrix.os: macos-26`
+- `matrix.xcode-version: "16.3"` → `matrix.xcode-version: "26.2"`
+- Both `swift test` invocations gain a single `--filter` argument:
+  `'\.(MachOFileDumpSnapshotTests|MachOFileInterfaceSnapshotTests|STCoreE2ETests|STCoreTests)(/|$)'`
 
 `release.yml` keeps its existing shape, with only the runner and Xcode
-version bumped.
+version bumped:
+
+- `runs-on: macos-15` → `runs-on: macos-26`
+- `xcode-version: "16.3"` → `xcode-version: "26.2"`
 
 ## Trade-offs
 
