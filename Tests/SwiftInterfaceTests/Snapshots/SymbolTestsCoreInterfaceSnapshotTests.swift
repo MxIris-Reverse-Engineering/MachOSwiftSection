@@ -7,7 +7,7 @@ import MachOKit
 @testable import SwiftInterface
 
 @Suite(.serialized, .snapshots(record: .missing))
-final class MachOFileInterfaceSnapshotTests: MachOFileTests, SnapshotInterfaceTests, @unchecked Sendable {
+final class SymbolTestsCoreInterfaceSnapshotTests: MachOFileTests, SnapshotInterfaceTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .SymbolTestsCore }
 
     @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
