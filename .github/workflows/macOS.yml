@@ -54,6 +54,29 @@ jobs:
             SWIFT_VERIFY_EMITTED_MODULE_INTERFACE=NO \
             build
 
+      - name: Normalize SymbolTestsCore fixture path
+        run: |
+          set -eo pipefail
+          expected="Tests/Projects/SymbolTests/DerivedData/SymbolTests/Build/Products/Release/SymbolTestsCore.framework"
+          echo "--- find SymbolTestsCore.framework under DerivedData ---"
+          find Tests/Projects/SymbolTests/DerivedData -name "SymbolTestsCore.framework" -type d 2>/dev/null || true
+          if [ -d "$expected" ]; then
+            echo "Framework already at expected path; nothing to do."
+            exit 0
+          fi
+          # Prefer a Release build product (skip Intermediates and Debug).
+          found=$(find Tests/Projects/SymbolTests/DerivedData -path '*/Build/Products/Release/SymbolTestsCore.framework' -type d 2>/dev/null | head -1)
+          if [ -z "$found" ]; then
+            echo "ERROR: SymbolTestsCore.framework not found at any Build/Products/Release/ path."
+            echo "--- DerivedData top 3 levels ---"
+            find Tests/Projects/SymbolTests/DerivedData -maxdepth 3 -type d
+            exit 1
+          fi
+          mkdir -p "$(dirname "$expected")"
+          ln -sfn "$(realpath "$found")" "$expected"
+          echo "Linked $found -> $expected"
+          ls -la "$expected/Versions/A/SymbolTestsCore"
+
       - name: Upload xcodebuild logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
