@@ -16,7 +16,7 @@ jobs:
         # Apple Silicon runners only: MachOFileTests.preferredArchitecture == .arm64.
         # Adding an Intel runner would load a different arch slice and drift snapshots.
         os: [macos-26]
-        xcode-version: ["26.2"]
+        xcode-version: ["26.4"]
     env:
       MACHO_SWIFT_SECTION_SILENT_TEST: 1
       GH_TOKEN: ${{ github.token }}
