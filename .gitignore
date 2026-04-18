@@ -15,6 +15,7 @@ Tests/__Snapshots__
 .claude
 .codex
 .opencode
+.worktrees/
 PrecompiledLibraries/swift-syntax/.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .derived-data-log-*
 .package.env
