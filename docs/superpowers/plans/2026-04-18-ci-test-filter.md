@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Restrict CI test runs to four `SymbolTestsCore` fixture test classes and bump both workflows to macOS 26.2 + Xcode 26.2.
+**Goal:** Restrict CI test runs to five `SymbolTestsCore`-based test classes and bump both workflows to macOS 26.2 + Xcode 26.2.
 
-**Architecture:** Pure CI configuration change. No source-code edits. Apply a `--filter` regex to `swift test` in `.github/workflows/macOS.yml`, and bump the runner image and Xcode version in both `macOS.yml` and `release.yml`. Verify the regex selects exactly the intended four test classes, then commit each workflow change separately.
+**Architecture:** Pure CI configuration change. No source-code edits. Apply a `--filter` regex to `swift test` in `.github/workflows/macOS.yml`, and bump the runner image and Xcode version in both `macOS.yml` and `release.yml`. Verify the regex selects exactly the intended five test classes, then commit each workflow change separately.
 
 **Tech Stack:** GitHub Actions, `xcodebuild`, SwiftPM `swift test --filter`.
 
@@ -27,27 +27,31 @@ No new files. No source files touched.
 
 **Files:** none modified. Verification only.
 
-**Goal:** Confirm the proposed regex matches exactly the four target test classes — `MachOFileDumpSnapshotTests`, `MachOFileInterfaceSnapshotTests`, `STCoreE2ETests`, `STCoreTests` — and nothing else.
+**Goal:** Confirm the proposed regex matches exactly the five target test classes and nothing else:
 
-- [ ] **Step 1: List every test method that matches the proposed regex**
-
-Run from repo root:
-
-```
-swift test --list-tests --filter '\.(MachOFileDumpSnapshotTests|MachOFileInterfaceSnapshotTests|STCoreE2ETests|STCoreTests)(/|$)' 2>&1 | tee /tmp/macho-filter-check.txt
-```
-
-Expected: A non-empty list containing only fully qualified test IDs whose
-class component is one of:
-
-- `SwiftDumpTests.MachOFileDumpSnapshotTests`
-- `SwiftInterfaceTests.MachOFileInterfaceSnapshotTests`
+- `SwiftDumpTests.SymbolTestsCoreDumpSnapshotTests`
+- `SwiftInterfaceTests.SymbolTestsCoreInterfaceSnapshotTests`
+- `SwiftDumpTests.SymbolTestsCoreCoverageInvariantTests`
 - `SwiftInterfaceTests.STCoreE2ETests`
 - `SwiftInterfaceTests.STCoreTests`
 
-If the build step inside `swift test --list-tests` fails because
-`SymbolTestsCore.framework` is missing, run the existing fixture build
-first:
+The proposed regex is:
+
+```
+\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests)(/|$)
+```
+
+Note on tooling: in the current Swift toolchain, `swift test --list-tests` is deprecated and `swift test list` does not accept `--filter`. We therefore enumerate every test ID with `swift test list`, then apply the regex with local `grep -E` to simulate what SwiftPM's `--filter` will admit at CI time.
+
+- [ ] **Step 1: Confirm the SymbolTestsCore fixture framework exists**
+
+Run:
+
+```
+ls Tests/Projects/SymbolTests/DerivedData/SymbolTests/Build/Products/Release/SymbolTestsCore.framework/Versions/A/SymbolTestsCore
+```
+
+Expected: the path lists. If it does not, build it once before continuing:
 
 ```
 xcodebuild \
@@ -59,9 +63,27 @@ xcodebuild \
   build
 ```
 
-Then re-run the `--list-tests` command.
+- [ ] **Step 2: Enumerate every test ID**
 
-- [ ] **Step 2: Confirm `STCoreE2ETests` and `STCoreTests` are both present and distinct**
+Run from repo root (allow up to 10 minutes — SwiftPM may build the entire test target graph on first run):
+
+```
+swift test list 2>&1 | tee /tmp/macho-all-tests.txt
+```
+
+Expected: the file ends with hundreds of lines of the form `<TargetName>.<ClassName>/<methodName>` (plus some build-progress noise lines that the later grep ignores).
+
+- [ ] **Step 3: Apply the proposed regex and capture matches**
+
+Run:
+
+```
+grep -E '\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests)(/|$)' /tmp/macho-all-tests.txt | tee /tmp/macho-filter-check.txt | wc -l
+```
+
+Expected: a non-zero count. Each line in `/tmp/macho-filter-check.txt` should be a fully qualified test ID whose class component is one of the five targets above.
+
+- [ ] **Step 4: Confirm `STCoreE2ETests` and `STCoreTests` are both present and distinct**
 
 Run:
 
@@ -70,11 +92,9 @@ grep -E '\.STCoreE2ETests/' /tmp/macho-filter-check.txt | head -3
 grep -E '\.STCoreTests/' /tmp/macho-filter-check.txt | head -3
 ```
 
-Expected: Both commands return at least one line each (i.e. the `\b`-style
-`(/|$)` anchor in the regex correctly distinguishes `STCoreTests` from
-`STCoreE2ETests`).
+Expected: Both commands return at least one line each (the `(/|$)` anchor in the regex correctly distinguishes `STCoreTests` from `STCoreE2ETests`).
 
-- [ ] **Step 3: Confirm no environment-dependent classes leak through**
+- [ ] **Step 5: Confirm no environment-dependent classes leak through**
 
 Run:
 
@@ -82,10 +102,9 @@ Run:
 grep -E '\.(DyldCache|XcodeMachOFile|MachOImage)' /tmp/macho-filter-check.txt || echo "no env-dependent classes matched"
 ```
 
-Expected output: `no env-dependent classes matched` (i.e. `grep` finds
-nothing).
+Expected output: `no env-dependent classes matched`.
 
-- [ ] **Step 4: Confirm no other test classes (e.g. unit tests in `MachOSwiftSectionTests`, `MachOSymbolsTests`, `TypeIndexingTests`) leak through**
+- [ ] **Step 6: Confirm the unique class set is exactly the five expected**
 
 Run:
 
@@ -93,23 +112,30 @@ Run:
 awk -F'/' '{print $1}' /tmp/macho-filter-check.txt | sort -u
 ```
 
-Expected: Output contains only the four fully qualified class names listed
-in Step 1, with no extras.
+Expected output (exactly these five lines, possibly in a different sort order — they will sort alphabetically):
 
-If anything other than the four expected classes appears, **stop**: the
-regex is wrong, fix it before continuing. If only the four expected
-classes appear, proceed.
+```
+SwiftDumpTests.SymbolTestsCoreCoverageInvariantTests
+SwiftDumpTests.SymbolTestsCoreDumpSnapshotTests
+SwiftInterfaceTests.STCoreE2ETests
+SwiftInterfaceTests.STCoreTests
+SwiftInterfaceTests.SymbolTestsCoreInterfaceSnapshotTests
+```
 
-- [ ] **Step 5: No commit — verification only**
+If any other class name appears, **stop**: the regex is admitting something it should not. Report and let the controller decide.
 
-Delete `/tmp/macho-filter-check.txt` (optional, just cleanup).
+If a name from the expected set is missing, **stop**: the regex is too restrictive. Report.
+
+- [ ] **Step 7: No commit — verification only**
+
+Optionally `rm /tmp/macho-all-tests.txt /tmp/macho-filter-check.txt` to clean up.
 
 ---
 
 ## Task 2: Update `.github/workflows/macOS.yml` — runner, Xcode version, and `--filter`
 
 **Files:**
-- Modify: `.github/workflows/macOS.yml` (lines 18, 19, 65-66, 71-72 — exact line numbers may shift; the changes are textual)
+- Modify: `.github/workflows/macOS.yml` (4 textual changes; exact line numbers may shift)
 
 **Goal:** Bump `macos-15` → `macos-26`, `"16.3"` → `"26.2"`, and add `--filter` to both `swift test` invocations. Leave the existing `Resolve SPM dependencies`, `Cache SymbolTests DerivedData`, `Build SymbolTestsCore fixture`, and `Upload xcodebuild logs on failure` steps untouched.
 
@@ -152,7 +178,7 @@ new_string:
           swift test \
             -c debug \
             --build-path .build-test-debug \
-            --filter '\.(MachOFileDumpSnapshotTests|MachOFileInterfaceSnapshotTests|STCoreE2ETests|STCoreTests)(/|$)'
+            --filter '\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests)(/|$)'
 ```
 
 - [ ] **Step 4: Add `--filter` to the Release `swift test` step**
@@ -172,7 +198,7 @@ new_string:
           swift test \
             -c release \
             --build-path .build-test-release \
-            --filter '\.(MachOFileDumpSnapshotTests|MachOFileInterfaceSnapshotTests|STCoreE2ETests|STCoreTests)(/|$)'
+            --filter '\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests)(/|$)'
 ```
 
 - [ ] **Step 5: Visually inspect the diff**
@@ -183,8 +209,7 @@ Run:
 git diff .github/workflows/macOS.yml
 ```
 
-Expected: Exactly the four textual changes above. No reflowing of unrelated
-lines, no accidental whitespace changes elsewhere.
+Expected: Exactly the four textual changes above. No reflowing of unrelated lines, no accidental whitespace changes elsewhere.
 
 - [ ] **Step 6: Validate YAML parses**
 
@@ -194,8 +219,7 @@ Run (Python is preinstalled on macOS):
 python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/macOS.yml'))" && echo "yaml OK"
 ```
 
-Expected output: `yaml OK`. If parsing fails, fix the indentation or
-quoting before continuing.
+Expected output: `yaml OK`. If parsing fails, fix the indentation or quoting before continuing.
 
 - [ ] **Step 7: Commit**
 
@@ -204,10 +228,11 @@ git add .github/workflows/macOS.yml
 git commit -m "$(cat <<'EOF'
 ci(macOS): pin to macos-26 + Xcode 26.2 and filter to fixture tests
 
-Restrict swift test runs to the four SymbolTestsCore-based test classes
-(MachOFileDumpSnapshotTests, MachOFileInterfaceSnapshotTests,
-STCoreE2ETests, STCoreTests) so the CI runner only executes tests that
-do not depend on a developer-machine environment.
+Restrict swift test runs to the five SymbolTestsCore-based test classes
+(SymbolTestsCoreDumpSnapshotTests, SymbolTestsCoreInterfaceSnapshotTests,
+SymbolTestsCoreCoverageInvariantTests, STCoreE2ETests, STCoreTests) so
+the CI runner only executes tests that do not depend on a developer-
+machine environment.
 
 Spec: docs/superpowers/specs/2026-04-18-ci-test-filter-design.md
 EOF
@@ -219,7 +244,7 @@ EOF
 ## Task 3: Update `.github/workflows/release.yml` — runner and Xcode version
 
 **Files:**
-- Modify: `.github/workflows/release.yml:14, 23`
+- Modify: `.github/workflows/release.yml` (2 textual changes)
 
 **Goal:** Match the runner and Xcode version of the test workflow. No other changes.
 
@@ -253,8 +278,7 @@ Run:
 git diff .github/workflows/release.yml
 ```
 
-Expected: Exactly two changed lines (`macos-15` → `macos-26`,
-`"16.3"` → `"26.2"`). Nothing else.
+Expected: Exactly two changed lines (`macos-15` → `macos-26`, `"16.3"` → `"26.2"`). Nothing else.
 
 - [ ] **Step 4: Validate YAML parses**
 
@@ -294,14 +318,14 @@ Run:
 git log --oneline origin/main..HEAD
 ```
 
-Expected: Three commits on `chore/ci-only-fixture-tests`:
+Expected: At least four commits on `chore/ci-only-fixture-tests`:
 
-1. `Add CI test filter and macOS 26.2 upgrade spec`
-2. `ci(macOS): pin to macos-26 + Xcode 26.2 and filter to fixture tests`
-3. `ci(release): bump runner to macos-26 + Xcode 26.2`
+1. `Add CI test filter and macOS 26.2 upgrade spec` (initial spec)
+2. `Refine CI filter spec to current state and add implementation plan` (spec correction + plan)
+3. `ci(macOS): pin to macos-26 + Xcode 26.2 and filter to fixture tests`
+4. `ci(release): bump runner to macos-26 + Xcode 26.2`
 
-(The order of 2 and 3 may differ depending on task ordering; the spec
-commit is required to be first.)
+Plus possibly an extra spec/plan correction commit (e.g. the regex update from four to five classes once that landed).
 
 - [ ] **Step 2: Push the branch**
 
@@ -318,9 +342,10 @@ Run:
 ```
 gh pr create --title "ci: filter to SymbolTestsCore fixture tests + bump to macOS 26.2" --body "$(cat <<'EOF'
 ## Summary
-- Restrict `swift test` runs in `.github/workflows/macOS.yml` to the four
-  `SymbolTestsCore`-based test classes (`MachOFileDumpSnapshotTests`,
-  `MachOFileInterfaceSnapshotTests`, `STCoreE2ETests`, `STCoreTests`).
+- Restrict `swift test` runs in `.github/workflows/macOS.yml` to the five
+  `SymbolTestsCore`-based test classes (`SymbolTestsCoreDumpSnapshotTests`,
+  `SymbolTestsCoreInterfaceSnapshotTests`,
+  `SymbolTestsCoreCoverageInvariantTests`, `STCoreE2ETests`, `STCoreTests`).
   Other tests depend on developer-machine resources (Xcode frameworks,
   iOS Simulator runtimes, dyld shared cache) that don't exist on the CI
   runner.
@@ -328,7 +353,7 @@ gh pr create --title "ci: filter to SymbolTestsCore fixture tests + bump to macO
 
 ## Test plan
 - [ ] CI run on this PR completes the `Build SymbolTestsCore fixture` step.
-- [ ] `Build and run tests in debug mode` and `Build and run tests in release mode` each report exactly the four whitelisted test classes (visible in the test log).
+- [ ] `Build and run tests in debug mode` and `Build and run tests in release mode` each report exactly the five whitelisted test classes (visible in the test log).
 - [ ] No `DyldCache*`, `Xcode*`, `MachOImage*`, or non-snapshot `*DumpTests` classes appear in the test log.
 
 Spec: `docs/superpowers/specs/2026-04-18-ci-test-filter-design.md`
@@ -346,11 +371,7 @@ gh pr checks --watch
 
 Expected: Both Debug and Release `swift test` steps pass.
 
-If a step fails, do **not** patch it blindly. Read the failure log,
-identify root cause, and decide whether the fix belongs in this PR
-(adjust filter regex, fix YAML) or is a separate concern (real test
-breakage on macOS 26.2). For test breakage, file a follow-up issue
-rather than disabling the failing test in this PR.
+If a step fails, do **not** patch it blindly. Read the failure log, identify root cause, and decide whether the fix belongs in this PR (adjust filter regex, fix YAML) or is a separate concern (real test breakage on macOS 26.2). For test breakage, file a follow-up issue rather than disabling the failing test in this PR.
 
 ---
 
@@ -358,4 +379,4 @@ rather than disabling the failing test in this PR.
 
 - **Spec coverage:** Filter regex (Tasks 1, 2), env upgrade for `macOS.yml` (Task 2), env upgrade for `release.yml` (Task 3). Fixture build is already in place — explicitly noted in the spec, no task needed.
 - **No placeholders:** Every textual edit is given as a concrete `old_string`/`new_string` pair; the regex is identical across all uses.
-- **Type consistency:** The four test class names are spelled identically in Tasks 1, 2, and the PR body. The `--filter` regex is byte-identical in Steps 3 and 4 of Task 2 and in Task 1 verification.
+- **Type consistency:** The five test class names are spelled identically in Tasks 1, 2, the commit message, and the PR body. The `--filter` regex is byte-identical in Steps 3 and 4 of Task 2, in Task 1 verification, and in the spec's "Filter test runs" section.

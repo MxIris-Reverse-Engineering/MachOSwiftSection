@@ -40,13 +40,17 @@ have moved to macOS 26.2 + Xcode 26.2.
 
 ## Scope: Tests that run in CI (whitelist)
 
-Exactly four test classes run in CI. All of them read from
-`SymbolTestsCore.framework`:
+Exactly five test classes run in CI. Four of them read from
+`SymbolTestsCore.framework`; the fifth (`SymbolTestsCoreCoverageInvariantTests`)
+is a pure-Swift invariant that walks the `SymbolTestsCore/*.swift` source
+files and confirms `SymbolTestsCoreDumpSnapshotTests` has a per-category
+`@Test` method for each of them:
 
 | Test class | File | Category |
 |---|---|---|
-| `MachOFileDumpSnapshotTests` | `Tests/SwiftDumpTests/Snapshots/MachOFileDumpSnapshotTests.swift` | Dump snapshot |
-| `MachOFileInterfaceSnapshotTests` | `Tests/SwiftInterfaceTests/Snapshots/MachOFileInterfaceSnapshotTests.swift` | Interface snapshot |
+| `SymbolTestsCoreDumpSnapshotTests` | `Tests/SwiftDumpTests/Snapshots/SymbolTestsCoreDumpSnapshotTests.swift` | Dump snapshot |
+| `SymbolTestsCoreInterfaceSnapshotTests` | `Tests/SwiftInterfaceTests/Snapshots/SymbolTestsCoreInterfaceSnapshotTests.swift` | Interface snapshot |
+| `SymbolTestsCoreCoverageInvariantTests` | `Tests/SwiftDumpTests/Snapshots/SymbolTestsCoreCoverageInvariantTests.swift` | Coverage invariant |
 | `STCoreE2ETests` | `Tests/SwiftInterfaceTests/SymbolTestsCoreE2ETests.swift` | Fixture E2E |
 | `STCoreTests` | `Tests/SwiftInterfaceTests/SymbolTestsCoreIntegrationTests.swift` | Fixture integration |
 
@@ -77,13 +81,15 @@ No change is needed for fixture construction.
 Pass a single combined regex to `swift test --filter`:
 
 ```
-\.(MachOFileDumpSnapshotTests|MachOFileInterfaceSnapshotTests|STCoreE2ETests|STCoreTests)(/|$)
+\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests)(/|$)
 ```
 
 - Leading `\.` anchors against the module prefix (`SwiftDumpTests.`,
   `SwiftInterfaceTests.`) so the names can't match module-less substrings.
 - Trailing `(/|$)` uses a word-boundary-style anchor so `STCoreTests` does
-  **not** also match `STCoreE2ETests`.
+  **not** also match `STCoreE2ETests`, and `SymbolTestsCoreDumpSnapshotTests`
+  does not also accidentally match a hypothetical
+  `SymbolTestsCoreDumpSnapshotTestsExtra`.
 
 Both Debug and Release `swift test` invocations receive this filter.
 
@@ -110,7 +116,7 @@ Build and run tests). Only three lines change:
 - `matrix.os: macos-15` → `matrix.os: macos-26`
 - `matrix.xcode-version: "16.3"` → `matrix.xcode-version: "26.2"`
 - Both `swift test` invocations gain a single `--filter` argument:
-  `'\.(MachOFileDumpSnapshotTests|MachOFileInterfaceSnapshotTests|STCoreE2ETests|STCoreTests)(/|$)'`
+  `'\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests)(/|$)'`
 
 `release.yml` keeps its existing shape, with only the runner and Xcode
 version bumped:
@@ -134,7 +140,7 @@ version bumped:
   is a one-line change.
 - **Regex vs. multiple `--filter` flags.** A single regex with an anchored
   word boundary is more compact and avoids the `STCoreTests` ⊂ `STCoreE2ETests`
-  substring pitfall that four separate `--filter` flags would have.
+  substring pitfall that separate `--filter` flags would have.
 
 ## Verification
 
@@ -143,7 +149,7 @@ After the workflow change lands, a CI run on the next PR should:
 1. Successfully complete the `Build SymbolTestsCore fixture` step and leave a
    framework at
    `Tests/Projects/SymbolTests/DerivedData/SymbolTests/Build/Products/Release/SymbolTestsCore.framework`.
-2. Run exactly the four whitelisted test classes (visible in the test log),
+2. Run exactly the five whitelisted test classes (visible in the test log),
    one invocation per config (Debug + Release).
 3. Not attempt `DyldCache*`, `Xcode*`, `MachOImage*`, or `*DumpTests` (non-
    Snapshot) classes.
