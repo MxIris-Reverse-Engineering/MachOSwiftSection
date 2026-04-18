@@ -13,6 +13,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Apple Silicon runners only: MachOFileTests.preferredArchitecture == .arm64.
+        # Adding an Intel runner would load a different arch slice and drift snapshots.
         os: [macos-15]
         xcode-version: ["16.3"]
     env:

@@ -26,3 +26,5 @@ xcodebuild \
     -destination 'generic/platform=macOS' \
     -quiet \
     build
+
+echo "SymbolTestsCore fixture built. Next: swift package update && swift test"
