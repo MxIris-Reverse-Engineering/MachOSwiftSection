@@ -4,6 +4,7 @@ import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
 import Demangling
+// Needs SPI access to MetadataReader.demangleType for associated-type owning-protocol lookup.
 @_spi(Internals) import SwiftInspection
 
 @MainActor
@@ -120,7 +121,7 @@ extension SnapshotDumpableTests {
         in machO: MachO
     ) throws -> String? {
         let selfName = try descriptor.namedContextDescriptor.name(in: machO)
-        return try _rootNamespace(
+        return try walkRootNamespace(
             initialName: selfName,
             startingParent: try descriptor.parent(in: machO),
             in: machO
@@ -135,7 +136,7 @@ extension SnapshotDumpableTests {
         in machO: MachO
     ) throws -> String? {
         let selfName = try descriptor.name(in: machO)
-        return try _rootNamespace(
+        return try walkRootNamespace(
             initialName: selfName,
             startingParent: try descriptor.parent(in: machO),
             in: machO
@@ -145,7 +146,7 @@ extension SnapshotDumpableTests {
     /// Walks the parent chain, returning the name of the last *named, non-module* context
     /// encountered. `initialName` is the name of the descriptor whose namespace is being
     /// resolved — it becomes the result if the descriptor sits directly under the module.
-    private func _rootNamespace<MachO: MachOSwiftSectionRepresentableWithCache>(
+    private func walkRootNamespace<MachO: MachOSwiftSectionRepresentableWithCache>(
         initialName: String,
         startingParent: SymbolOrElement<ContextDescriptorWrapper>?,
         in machO: MachO
@@ -285,7 +286,7 @@ extension SnapshotDumpableTests {
         }
         // Special-case NeverExtensions when the default rule couldn't attribute the
         // conformance (e.g. the conforming type is an external symbol like Swift.Never).
-        if category == SnapshotDumpableNeverExtensionsCategory,
+        if category == snapshotDumpableNeverExtensionsCategory,
            defaultRuleNamespace == nil,
            isSwiftNeverConformance(resolvedTypeReference: resolvedTypeReference) {
             return true
@@ -324,12 +325,12 @@ extension SnapshotDumpableTests {
         switch resolvedTypeReference {
         case .indirectTypeDescriptor(let symbolOrElement):
             if case .symbol(let symbol) = symbolOrElement {
-                return symbol.name == SwiftNeverMangledSymbol
+                return symbol.name == swiftNeverMangledSymbol
             }
             return false
         case .indirectObjCClass(let symbolOrElement):
             if case .symbol(let symbol) = symbolOrElement {
-                return symbol.name == SwiftNeverMangledSymbol
+                return symbol.name == swiftNeverMangledSymbol
             }
             return false
         case .directTypeDescriptor,
@@ -453,7 +454,7 @@ extension SnapshotDumpableTests {
 }
 
 /// Marker string used to opt a category into the Swift.Never-extensions bucket.
-private let SnapshotDumpableNeverExtensionsCategory = "NeverExtensions"
+private let snapshotDumpableNeverExtensionsCategory = "NeverExtensions"
 
 /// Mangled symbol for `Swift.Never` (from the Swift standard library ABI).
-private let SwiftNeverMangledSymbol = "$ss5NeverO"
+private let swiftNeverMangledSymbol = "$ss5NeverO"
