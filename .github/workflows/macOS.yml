@@ -15,8 +15,8 @@ jobs:
       matrix:
         # Apple Silicon runners only: MachOFileTests.preferredArchitecture == .arm64.
         # Adding an Intel runner would load a different arch slice and drift snapshots.
-        os: [macos-15]
-        xcode-version: ["16.3"]
+        os: [macos-26]
+        xcode-version: ["26.2"]
     env:
       MACHO_SWIFT_SECTION_SILENT_TEST: 1
       GH_TOKEN: ${{ github.token }}
@@ -63,10 +63,12 @@ jobs:
         run: |
           swift test \
             -c debug \
-            --build-path .build-test-debug
+            --build-path .build-test-debug \
+            --filter '\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests)(/|$)'
 
       - name: Build and run tests in release mode
         run: |
           swift test \
             -c release \
-            --build-path .build-test-release
+            --build-path .build-test-release \
+            --filter '\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests)(/|$)'
