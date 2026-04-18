@@ -1,0 +1,21 @@
+// MARK: - Types
+
+enum SymbolTestsCore.DefaultImplementationVariants {}
+
+// MARK: - Protocols
+
+protocol SymbolTestsCore.DefaultImplementationVariants.BasicDefaultProtocol {
+    method descriptor for SymbolTestsCore.DefaultImplementationVariants.BasicDefaultProtocol.required() -> Swift.Int
+    method descriptor for SymbolTestsCore.DefaultImplementationVariants.BasicDefaultProtocol.withDefault() -> Swift.String
+    method descriptor for SymbolTestsCore.DefaultImplementationVariants.BasicDefaultProtocol.withDefaultAndGeneric<A>(A1) -> A1
+
+    /* [Default Implementation] */
+    SymbolTestsCore.DefaultImplementationVariants.BasicDefaultProtocol.withDefault() -> Swift.String
+    SymbolTestsCore.DefaultImplementationVariants.BasicDefaultProtocol.withDefaultAndGeneric<A>(A1) -> A1
+}
+protocol SymbolTestsCore.DefaultImplementationVariants.ConstrainedDefaultProtocol {
+    associatedtype Element
+
+    associated type descriptor for SymbolTestsCore.DefaultImplementationVariants.ConstrainedDefaultProtocol.Element
+    method descriptor for SymbolTestsCore.DefaultImplementationVariants.ConstrainedDefaultProtocol.element.getter : A.Element
+}

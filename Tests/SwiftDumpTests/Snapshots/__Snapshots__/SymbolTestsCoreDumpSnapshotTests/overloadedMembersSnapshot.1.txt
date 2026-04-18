@@ -1,0 +1,21 @@
+// MARK: - Types
+
+enum SymbolTestsCore.OverloadedMembers {}
+struct SymbolTestsCore.OverloadedMembers.OverloadedMethodTest {
+    /* Function */
+    SymbolTestsCore.OverloadedMembers.OverloadedMethodTest.process(Swift.String) -> Swift.String
+    SymbolTestsCore.OverloadedMembers.OverloadedMethodTest.process<A>(A) -> A
+    SymbolTestsCore.OverloadedMembers.OverloadedMethodTest.process<A>(equatable: A) -> Swift.Bool
+    SymbolTestsCore.OverloadedMembers.OverloadedMethodTest.process(_: Swift.Int, label: Swift.String) -> Swift.String
+    SymbolTestsCore.OverloadedMembers.OverloadedMethodTest.process(Swift.Double) -> Swift.Double
+    SymbolTestsCore.OverloadedMembers.OverloadedMethodTest.process(Swift.Int) -> Swift.Int
+    SymbolTestsCore.OverloadedMembers.OverloadedMethodTest.process(Swift.Int, Swift.Int) -> Swift.Int
+}
+struct SymbolTestsCore.OverloadedMembers.OverloadedInitializerTest {
+    /* Allocator */
+    SymbolTestsCore.OverloadedMembers.OverloadedInitializerTest.init(Swift.String) -> SymbolTestsCore.OverloadedMembers.OverloadedInitializerTest
+    SymbolTestsCore.OverloadedMembers.OverloadedInitializerTest.init<A>(element: A) -> SymbolTestsCore.OverloadedMembers.OverloadedInitializerTest
+    SymbolTestsCore.OverloadedMembers.OverloadedInitializerTest.init(first: Swift.Int, second: Swift.Int) -> SymbolTestsCore.OverloadedMembers.OverloadedInitializerTest
+    SymbolTestsCore.OverloadedMembers.OverloadedInitializerTest.init(Swift.Double) -> SymbolTestsCore.OverloadedMembers.OverloadedInitializerTest
+    SymbolTestsCore.OverloadedMembers.OverloadedInitializerTest.init(Swift.Int) -> SymbolTestsCore.OverloadedMembers.OverloadedInitializerTest
+}

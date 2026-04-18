@@ -1,0 +1,242 @@
+// MARK: - Types
+
+enum SymbolTestsCore.GenericFieldLayout {}
+struct SymbolTestsCore.GenericFieldLayout.GenericStructNonRequirement<A> {
+    var field1: Swift.Double
+    var field2: A
+    var field3: Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.GenericStructNonRequirement.field1.setter : Swift.Double
+    SymbolTestsCore.GenericFieldLayout.GenericStructNonRequirement.field2.getter : A
+    SymbolTestsCore.GenericFieldLayout.GenericStructNonRequirement.field2.setter : A
+    SymbolTestsCore.GenericFieldLayout.GenericStructNonRequirement.field3.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.GenericStructNonRequirement.field3.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.GenericStructNonRequirement.field1.getter : Swift.Double
+}
+struct SymbolTestsCore.GenericFieldLayout.GenericStructLayoutRequirement<A> where A: AnyObject {
+    var field1: Swift.Double
+    var field2: A
+    var field3: Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.GenericStructLayoutRequirement.field3.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.GenericStructLayoutRequirement.field3.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.GenericStructLayoutRequirement.field2.setter : A
+    SymbolTestsCore.GenericFieldLayout.GenericStructLayoutRequirement.field2.getter : A
+    SymbolTestsCore.GenericFieldLayout.GenericStructLayoutRequirement.field1.getter : Swift.Double
+    SymbolTestsCore.GenericFieldLayout.GenericStructLayoutRequirement.field1.setter : Swift.Double
+}
+struct SymbolTestsCore.GenericFieldLayout.GenericStructSwiftProtocolRequirement<A> where A: Swift.Equatable {
+    var field1: Swift.Double
+    var field2: A
+    var field3: Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.GenericStructSwiftProtocolRequirement.field2.getter : A
+    SymbolTestsCore.GenericFieldLayout.GenericStructSwiftProtocolRequirement.field2.setter : A
+    SymbolTestsCore.GenericFieldLayout.GenericStructSwiftProtocolRequirement.field3.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.GenericStructSwiftProtocolRequirement.field3.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.GenericStructSwiftProtocolRequirement.field1.getter : Swift.Double
+    SymbolTestsCore.GenericFieldLayout.GenericStructSwiftProtocolRequirement.field1.setter : Swift.Double
+}
+struct SymbolTestsCore.GenericFieldLayout.GenericStructObjCProtocolRequirement<A> where A: NSCopying {
+    var field1: Swift.Double
+    var field2: A
+    var field3: Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.GenericStructObjCProtocolRequirement.field2.getter : A
+    SymbolTestsCore.GenericFieldLayout.GenericStructObjCProtocolRequirement.field2.setter : A
+    SymbolTestsCore.GenericFieldLayout.GenericStructObjCProtocolRequirement.field1.getter : Swift.Double
+    SymbolTestsCore.GenericFieldLayout.GenericStructObjCProtocolRequirement.field1.setter : Swift.Double
+    SymbolTestsCore.GenericFieldLayout.GenericStructObjCProtocolRequirement.field3.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.GenericStructObjCProtocolRequirement.field3.setter : Swift.Int
+}
+class SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement<A> {
+    var field1: Swift.Double
+    var field2: A
+    var field3: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field1.getter : Swift.Double
+    /* [Setter] */ SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field1.setter : Swift.Double
+    /* [Modify] */ SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field1.modify : Swift.Double
+    /* [Getter] */ SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field2.getter : A
+    /* [Setter] */ SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field2.setter : A
+    /* [Modify] */ SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field2.modify : A
+    /* [Getter] */ SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field3.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field3.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field3.modify : Swift.Int
+    /* [ Init ] */ SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.__allocating_init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement<A>
+
+    /* Allocator */
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.__allocating_init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement<A>
+
+    /* Deallocator */
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement<A>
+
+    /* Destructor */
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.deinit
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field1.getter : Swift.Double
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field1.setter : Swift.Double
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field2.getter : A
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field2.setter : A
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field3.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field3.setter : Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.__allocating_init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement<A>
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field1.getter : Swift.Double
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field1.setter : Swift.Double
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field2.getter : A
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field2.setter : A
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field3.getter : Swift.Int
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement.field3.setter : Swift.Int
+}
+class SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement<A> where A: AnyObject {
+    var field1: Swift.Double
+    var field2: A
+    var field3: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field1.getter : Swift.Double
+    /* [Setter] */ SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field1.setter : Swift.Double
+    /* [Modify] */ SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field1.modify : Swift.Double
+    /* [Getter] */ SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field2.getter : A
+    /* [Setter] */ SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field2.setter : A
+    /* [Modify] */ SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field2.modify : A
+    /* [Getter] */ SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field3.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field3.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field3.modify : Swift.Int
+    /* [ Init ] */ SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.__allocating_init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement<A>
+
+    /* Allocator */
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.__allocating_init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement<A>
+
+    /* Deallocator */
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement<A>
+
+    /* Destructor */
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.deinit
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field3.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field3.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field2.getter : A
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field2.setter : A
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field1.getter : Swift.Double
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field1.setter : Swift.Double
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.__allocating_init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement<A>
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field1.getter : Swift.Double
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field1.setter : Swift.Double
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field2.getter : A
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field2.setter : A
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field3.getter : Swift.Int
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field3.setter : Swift.Int
+}
+class SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject<A>: NSObject {
+    var field1: Swift.Double
+    var field2: A
+    var field3: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field1.getter : Swift.Double
+    /* [Setter] */ SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field1.setter : Swift.Double
+    /* [Modify] */ SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field1.modify : Swift.Double
+    /* [Getter] */ SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field2.getter : A
+    /* [Setter] */ SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field2.setter : A
+    /* [Modify] */ SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field2.modify : A
+    /* [Getter] */ SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field3.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field3.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field3.modify : Swift.Int
+    /* [ Init ] */ SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.__allocating_init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject<A>
+
+    /* Allocator */
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.__allocating_init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject<A>
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.__allocating_init() -> SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject<A>
+
+    /* Deallocator */
+    merged SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.__deallocating_deinit
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject<A>
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.init() -> SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject<A>
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field1.getter : Swift.Double
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field1.setter : Swift.Double
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field2.getter : A
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field2.setter : A
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field3.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field3.setter : Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.__allocating_init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject<A>
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field1.getter : Swift.Double
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field1.setter : Swift.Double
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field2.getter : A
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field2.setter : A
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field3.getter : Swift.Int
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirementInheritNSObject.field3.setter : Swift.Int
+}
+class SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject<A>: NSObject where A: AnyObject {
+    var field1: Swift.Double
+    var field2: A
+    var field3: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field1.getter : Swift.Double
+    /* [Setter] */ SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field1.setter : Swift.Double
+    /* [Modify] */ SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field1.modify : Swift.Double
+    /* [Getter] */ SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field2.getter : A
+    /* [Setter] */ SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field2.setter : A
+    /* [Modify] */ SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field2.modify : A
+    /* [Getter] */ SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field3.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field3.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field3.modify : Swift.Int
+    /* [ Init ] */ SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.__allocating_init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject<A>
+
+    /* Allocator */
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.__allocating_init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject<A>
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.__allocating_init() -> SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject<A>
+
+    /* Deallocator */
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject<A>
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.init() -> SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject<A>
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field1.getter : Swift.Double
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field1.setter : Swift.Double
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field2.getter : A
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field2.setter : A
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field3.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field3.setter : Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.__allocating_init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject<A>
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field1.getter : Swift.Double
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field1.setter : Swift.Double
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field2.getter : A
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field2.setter : A
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field3.getter : Swift.Int
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field3.setter : Swift.Int
+}

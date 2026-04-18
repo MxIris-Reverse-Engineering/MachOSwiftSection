@@ -1,0 +1,41 @@
+// MARK: - Types
+
+enum SymbolTestsCore.ExistentialAny {}
+struct SymbolTestsCore.ExistentialAny.ExistentialFieldTest {
+    var simpleExistential: SymbolTestsCore.Protocols.ProtocolTest
+    var compositionExistential: SymbolTestsCore.Protocols.ProtocolTest
+    var optionalExistential: SymbolTestsCore.Protocols.ProtocolTest?
+    var existentialArray: [SymbolTestsCore.Protocols.ProtocolTest]
+    var existentialDictionary: [Swift.String : SymbolTestsCore.Protocols.ProtocolTest]
+    var existentialFunction: (SymbolTestsCore.Protocols.ProtocolTest) -> ()
+
+    /* Allocator */
+    SymbolTestsCore.ExistentialAny.ExistentialFieldTest.init(simpleExistential: SymbolTestsCore.Protocols.ProtocolTest, compositionExistential: Swift.Sendable & SymbolTestsCore.Protocols.ProtocolTest, optionalExistential: SymbolTestsCore.Protocols.ProtocolTest?, existentialArray: [SymbolTestsCore.Protocols.ProtocolTest], existentialDictionary: [Swift.String : SymbolTestsCore.Protocols.ProtocolTest], existentialFunction: (SymbolTestsCore.Protocols.ProtocolTest) -> ()) -> SymbolTestsCore.ExistentialAny.ExistentialFieldTest
+
+    /* Variable */
+    SymbolTestsCore.ExistentialAny.ExistentialFieldTest.simpleExistential.getter : SymbolTestsCore.Protocols.ProtocolTest
+    SymbolTestsCore.ExistentialAny.ExistentialFieldTest.simpleExistential.setter : SymbolTestsCore.Protocols.ProtocolTest
+    SymbolTestsCore.ExistentialAny.ExistentialFieldTest.compositionExistential.getter : Swift.Sendable & SymbolTestsCore.Protocols.ProtocolTest
+    SymbolTestsCore.ExistentialAny.ExistentialFieldTest.compositionExistential.setter : Swift.Sendable & SymbolTestsCore.Protocols.ProtocolTest
+    SymbolTestsCore.ExistentialAny.ExistentialFieldTest.optionalExistential.getter : SymbolTestsCore.Protocols.ProtocolTest?
+    SymbolTestsCore.ExistentialAny.ExistentialFieldTest.optionalExistential.setter : SymbolTestsCore.Protocols.ProtocolTest?
+    SymbolTestsCore.ExistentialAny.ExistentialFieldTest.existentialArray.getter : [SymbolTestsCore.Protocols.ProtocolTest]
+    SymbolTestsCore.ExistentialAny.ExistentialFieldTest.existentialArray.setter : [SymbolTestsCore.Protocols.ProtocolTest]
+    SymbolTestsCore.ExistentialAny.ExistentialFieldTest.existentialDictionary.getter : [Swift.String : SymbolTestsCore.Protocols.ProtocolTest]
+    SymbolTestsCore.ExistentialAny.ExistentialFieldTest.existentialDictionary.setter : [Swift.String : SymbolTestsCore.Protocols.ProtocolTest]
+    SymbolTestsCore.ExistentialAny.ExistentialFieldTest.existentialFunction.getter : (SymbolTestsCore.Protocols.ProtocolTest) -> ()
+    SymbolTestsCore.ExistentialAny.ExistentialFieldTest.existentialFunction.setter : (SymbolTestsCore.Protocols.ProtocolTest) -> ()
+}
+struct SymbolTestsCore.ExistentialAny.ExistentialClassBoundTest {
+    var classBound: SymbolTestsCore.Protocols.ClassBoundProtocolTest
+    var anyObjectReference: Swift.AnyObject
+
+    /* Allocator */
+    SymbolTestsCore.ExistentialAny.ExistentialClassBoundTest.init(classBound: SymbolTestsCore.Protocols.ClassBoundProtocolTest, anyObjectReference: Swift.AnyObject) -> SymbolTestsCore.ExistentialAny.ExistentialClassBoundTest
+
+    /* Variable */
+    SymbolTestsCore.ExistentialAny.ExistentialClassBoundTest.classBound.getter : SymbolTestsCore.Protocols.ClassBoundProtocolTest
+    SymbolTestsCore.ExistentialAny.ExistentialClassBoundTest.classBound.setter : SymbolTestsCore.Protocols.ClassBoundProtocolTest
+    SymbolTestsCore.ExistentialAny.ExistentialClassBoundTest.anyObjectReference.getter : Swift.AnyObject
+    SymbolTestsCore.ExistentialAny.ExistentialClassBoundTest.anyObjectReference.setter : Swift.AnyObject
+}

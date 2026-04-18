@@ -1,0 +1,55 @@
+// MARK: - Types
+
+enum SymbolTestsCore.Subscripts {}
+struct SymbolTestsCore.Subscripts.SubscriptGetSetTest {
+    /* Subscript */
+    SymbolTestsCore.Subscripts.SubscriptGetSetTest.subscript.getter : (Swift.Int) -> Swift.Int
+    SymbolTestsCore.Subscripts.SubscriptGetSetTest.subscript.setter : (Swift.Int) -> Swift.Int
+}
+struct SymbolTestsCore.Subscripts.SubscriptMultiParamTest {
+    /* Subscript */
+    SymbolTestsCore.Subscripts.SubscriptMultiParamTest.subscript.getter : (Swift.Int, Swift.Int) -> Swift.Int
+}
+struct SymbolTestsCore.Subscripts.SubscriptStaticTest {
+    /* Static Subscript */
+    static SymbolTestsCore.Subscripts.SubscriptStaticTest.subscript.getter : (Swift.Int) -> Swift.String
+}
+class SymbolTestsCore.Subscripts.ClassSubscriptTest {
+    var elements: [Swift.Int]
+
+    /* [Getter] */ Symbol not found
+    /* [Setter] */ Symbol not found
+    /* [Modify] */ Symbol not found
+    /* [Getter] */ SymbolTestsCore.Subscripts.ClassSubscriptTest.subscript.getter : (Swift.Int) -> Swift.Int
+    /* [Setter] */ SymbolTestsCore.Subscripts.ClassSubscriptTest.subscript.setter : (Swift.Int) -> Swift.Int
+    /* [Modify] */ SymbolTestsCore.Subscripts.ClassSubscriptTest.subscript.modify : (Swift.Int) -> Swift.Int
+    /* [ Init ] */ Symbol not found
+
+    /* Deallocator */
+    SymbolTestsCore.Subscripts.ClassSubscriptTest.__deallocating_deinit
+
+    /* Destructor */
+    SymbolTestsCore.Subscripts.ClassSubscriptTest.deinit
+
+    /* Subscript */
+    SymbolTestsCore.Subscripts.ClassSubscriptTest.subscript.getter : (Swift.Int) -> Swift.Int
+    SymbolTestsCore.Subscripts.ClassSubscriptTest.subscript.setter : (Swift.Int) -> Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.Subscripts.ClassSubscriptTest.__allocating_init() -> SymbolTestsCore.Subscripts.ClassSubscriptTest
+
+    /* [Method] Subscript */
+    method descriptor for SymbolTestsCore.Subscripts.ClassSubscriptTest.subscript.getter : (Swift.Int) -> Swift.Int
+    method descriptor for SymbolTestsCore.Subscripts.ClassSubscriptTest.subscript.setter : (Swift.Int) -> Swift.Int
+}
+struct SymbolTestsCore.Subscripts.SubscriptGenericTest<A> {
+    /* Subscript */
+    SymbolTestsCore.Subscripts.SubscriptGenericTest.subscript.getter : <A>(A1) -> A?
+}
+struct SymbolTestsCore.Subscripts.SubscriptStringKeyTest {
+    var storage: [Swift.String : Swift.Int]
+
+    /* Subscript */
+    SymbolTestsCore.Subscripts.SubscriptStringKeyTest.subscript.getter : (Swift.String) -> Swift.Int?
+    SymbolTestsCore.Subscripts.SubscriptStringKeyTest.subscript.setter : (Swift.String) -> Swift.Int?
+}

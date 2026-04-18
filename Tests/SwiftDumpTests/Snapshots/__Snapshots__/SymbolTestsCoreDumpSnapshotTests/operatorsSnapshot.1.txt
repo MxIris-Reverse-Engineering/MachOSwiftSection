@@ -1,0 +1,29 @@
+// MARK: - Types
+
+enum SymbolTestsCore.Operators {}
+struct SymbolTestsCore.Operators.OperatorTestType {
+    var value: Swift.Int
+
+    /* Allocator */
+    SymbolTestsCore.Operators.OperatorTestType.init(value: Swift.Int) -> SymbolTestsCore.Operators.OperatorTestType
+
+    /* Variable */
+    SymbolTestsCore.Operators.OperatorTestType.value.getter : Swift.Int
+    SymbolTestsCore.Operators.OperatorTestType.value.setter : Swift.Int
+
+    /* Static Function */
+    static SymbolTestsCore.Operators.OperatorTestType.+ infix(SymbolTestsCore.Operators.OperatorTestType, SymbolTestsCore.Operators.OperatorTestType) -> SymbolTestsCore.Operators.OperatorTestType
+    static SymbolTestsCore.Operators.OperatorTestType.- infix(SymbolTestsCore.Operators.OperatorTestType, SymbolTestsCore.Operators.OperatorTestType) -> SymbolTestsCore.Operators.OperatorTestType
+    static SymbolTestsCore.Operators.OperatorTestType.* infix(SymbolTestsCore.Operators.OperatorTestType, SymbolTestsCore.Operators.OperatorTestType) -> SymbolTestsCore.Operators.OperatorTestType
+    static SymbolTestsCore.Operators.OperatorTestType.- prefix(SymbolTestsCore.Operators.OperatorTestType) -> SymbolTestsCore.Operators.OperatorTestType
+    static SymbolTestsCore.Operators.OperatorTestType.+= infix(inout SymbolTestsCore.Operators.OperatorTestType, SymbolTestsCore.Operators.OperatorTestType) -> ()
+    static SymbolTestsCore.Operators.OperatorTestType.< infix(SymbolTestsCore.Operators.OperatorTestType, SymbolTestsCore.Operators.OperatorTestType) -> Swift.Bool
+    static SymbolTestsCore.Operators.OperatorTestType.<=> infix(SymbolTestsCore.Operators.OperatorTestType, SymbolTestsCore.Operators.OperatorTestType) -> Swift.Int
+    static SymbolTestsCore.Operators.OperatorTestType.== infix(SymbolTestsCore.Operators.OperatorTestType, SymbolTestsCore.Operators.OperatorTestType) -> Swift.Bool
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.Operators.OperatorTestType: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.Operators.OperatorTestType : Swift.Equatable in SymbolTestsCore
+}

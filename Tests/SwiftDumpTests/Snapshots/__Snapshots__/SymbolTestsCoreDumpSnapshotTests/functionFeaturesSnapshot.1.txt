@@ -1,0 +1,137 @@
+// MARK: - Types
+
+enum SymbolTestsCore.FunctionFeatures {}
+struct SymbolTestsCore.FunctionFeatures.InoutFunctionTest {
+    var value: Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.FunctionFeatures.InoutFunctionTest.value.getter : Swift.Int
+    SymbolTestsCore.FunctionFeatures.InoutFunctionTest.value.setter : Swift.Int
+
+    /* Function */
+    SymbolTestsCore.FunctionFeatures.InoutFunctionTest.increment() -> ()
+
+    /* Static Function */
+    static SymbolTestsCore.FunctionFeatures.InoutFunctionTest.swap(inout Swift.Int, inout Swift.Int) -> ()
+    static SymbolTestsCore.FunctionFeatures.InoutFunctionTest.modify(_: inout Swift.Int, by: Swift.Int) -> ()
+}
+class SymbolTestsCore.FunctionFeatures.ClosureParameterTest {
+    var storedCallbacks: [() -> ()]
+
+    /* [Getter] */ SymbolTestsCore.FunctionFeatures.ClosureParameterTest.storedCallbacks.getter : [() -> ()]
+    /* [Setter] */ SymbolTestsCore.FunctionFeatures.ClosureParameterTest.storedCallbacks.setter : [() -> ()]
+    /* [Modify] */ SymbolTestsCore.FunctionFeatures.ClosureParameterTest.storedCallbacks.modify : [() -> ()]
+    /* [Method] */ func SymbolTestsCore.FunctionFeatures.ClosureParameterTest.acceptEscaping(() -> ()) -> ()
+    /* [Method] */ func SymbolTestsCore.FunctionFeatures.ClosureParameterTest.acceptAutoclosure(@autoclosure () -> Swift.Bool) -> Swift.Bool
+    /* [Method] */ func SymbolTestsCore.FunctionFeatures.ClosureParameterTest.acceptEscapingAutoclosure(@autoclosure () -> Swift.Bool) -> ()
+    /* [ Init ] */ Symbol not found
+
+    /* Deallocator */
+    SymbolTestsCore.FunctionFeatures.ClosureParameterTest.__deallocating_deinit
+
+    /* Destructor */
+    SymbolTestsCore.FunctionFeatures.ClosureParameterTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.FunctionFeatures.ClosureParameterTest.storedCallbacks.getter : [() -> ()]
+    SymbolTestsCore.FunctionFeatures.ClosureParameterTest.storedCallbacks.setter : [() -> ()]
+
+    /* Function */
+    SymbolTestsCore.FunctionFeatures.ClosureParameterTest.acceptEscaping(() -> ()) -> ()
+    SymbolTestsCore.FunctionFeatures.ClosureParameterTest.acceptAutoclosure(@autoclosure () -> Swift.Bool) -> Swift.Bool
+    SymbolTestsCore.FunctionFeatures.ClosureParameterTest.acceptEscapingAutoclosure(@autoclosure () -> Swift.Bool) -> ()
+    merged SymbolTestsCore.FunctionFeatures.ClosureParameterTest.acceptEscaping(() -> ()) -> ()
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.FunctionFeatures.ClosureParameterTest.__allocating_init() -> SymbolTestsCore.FunctionFeatures.ClosureParameterTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.FunctionFeatures.ClosureParameterTest.storedCallbacks.getter : [() -> ()]
+    method descriptor for SymbolTestsCore.FunctionFeatures.ClosureParameterTest.storedCallbacks.setter : [() -> ()]
+
+    /* [Method] Function */
+    method descriptor for SymbolTestsCore.FunctionFeatures.ClosureParameterTest.acceptEscaping(() -> ()) -> ()
+    method descriptor for SymbolTestsCore.FunctionFeatures.ClosureParameterTest.acceptAutoclosure(@autoclosure () -> Swift.Bool) -> Swift.Bool
+    method descriptor for SymbolTestsCore.FunctionFeatures.ClosureParameterTest.acceptEscapingAutoclosure(@autoclosure () -> Swift.Bool) -> ()
+}
+struct SymbolTestsCore.FunctionFeatures.OwnershipParameterTest {
+    /* Function */
+    SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.consumeBox(__owned SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box) -> ()
+    SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.twoConsuming(__owned SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box, __owned SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box) -> ()
+    SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.consumeWithLabel(_: __owned SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box, label: Swift.Int) -> ()
+
+    /* Static Function */
+    static SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.staticConsume(__owned SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box) -> ()
+}
+class SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box {
+    var value: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box.value.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box.value.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box.value.modify : Swift.Int
+    /* [ Init ] */ SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box.__allocating_init(Swift.Int) -> SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box
+
+    /* Allocator */
+    SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box.__allocating_init(Swift.Int) -> SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box
+
+    /* Deallocator */
+    SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box.init(Swift.Int) -> SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box
+
+    /* Destructor */
+    SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box.deinit
+
+    /* Variable */
+    SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box.value.getter : Swift.Int
+    SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box.value.setter : Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box.__allocating_init(Swift.Int) -> SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box.value.getter : Swift.Int
+    method descriptor for SymbolTestsCore.FunctionFeatures.OwnershipParameterTest.Box.value.setter : Swift.Int
+}
+struct SymbolTestsCore.FunctionFeatures.VariadicFunctionTest {
+    /* Function */
+    SymbolTestsCore.FunctionFeatures.VariadicFunctionTest.format(Swift.String, Swift.CVarArg...) -> Swift.String
+    SymbolTestsCore.FunctionFeatures.VariadicFunctionTest.sum(Swift.Int...) -> Swift.Int
+}
+struct SymbolTestsCore.FunctionFeatures.ConventionFunctionTest {
+    /* Function */
+    SymbolTestsCore.FunctionFeatures.ConventionFunctionTest.acceptCFunction(@convention(c) (Swift.Int32, Swift.Int32) -> Swift.Int32) -> Swift.Int32
+    SymbolTestsCore.FunctionFeatures.ConventionFunctionTest.acceptBlockFunction(@convention(block) (Swift.Int32) -> Swift.Int32) -> Swift.Int32
+}
+struct SymbolTestsCore.FunctionFeatures.ExistentialAndMetatypeTest {
+    /* Function */
+    SymbolTestsCore.FunctionFeatures.ExistentialAndMetatypeTest.returnExistential() -> Swift.Sendable & SymbolTestsCore.Protocols.ProtocolTest
+    SymbolTestsCore.FunctionFeatures.ExistentialAndMetatypeTest.acceptMetatype(Any.Type) -> Swift.String
+    SymbolTestsCore.FunctionFeatures.ExistentialAndMetatypeTest.acceptExistentialCollection([SymbolTestsCore.Protocols.ProtocolTest]) -> Swift.Int
+    SymbolTestsCore.FunctionFeatures.ExistentialAndMetatypeTest.acceptProtocolMetatype(SymbolTestsCore.Protocols.ProtocolTest.Protocol) -> Swift.Bool
+    SymbolTestsCore.FunctionFeatures.ExistentialAndMetatypeTest.acceptExistential(SymbolTestsCore.Protocols.ProtocolTest) -> ()
+    SymbolTestsCore.FunctionFeatures.ExistentialAndMetatypeTest.acceptComposition(Swift.Sendable & SymbolTestsCore.Protocols.ProtocolTest) -> ()
+}
+struct SymbolTestsCore.FunctionFeatures.FailableInitTest {
+    let value: Swift.Int
+
+    /* Allocator */
+    SymbolTestsCore.FunctionFeatures.FailableInitTest.init(value: Swift.Int) -> SymbolTestsCore.FunctionFeatures.FailableInitTest?
+    SymbolTestsCore.FunctionFeatures.FailableInitTest.init(unsafeValue: Swift.Int) -> SymbolTestsCore.FunctionFeatures.FailableInitTest?
+
+    /* Variable */
+    SymbolTestsCore.FunctionFeatures.FailableInitTest.value.getter : Swift.Int
+}
+struct SymbolTestsCore.FunctionFeatures.MainActorClosureTest {
+    /* Function */
+    SymbolTestsCore.FunctionFeatures.MainActorClosureTest.acceptMainActorAsync(@Swift.MainActor @Sendable () async -> ()) -> ()
+    SymbolTestsCore.FunctionFeatures.MainActorClosureTest.acceptMainActorClosure(@Swift.MainActor @Sendable () -> ()) -> ()
+}
+struct SymbolTestsCore.FunctionFeatures.DefaultParameterFunctionTest {
+    /* Function */
+    SymbolTestsCore.FunctionFeatures.DefaultParameterFunctionTest.defaultMethod(value: Swift.Int, label: Swift.String, flag: Swift.Bool) -> Swift.String
+
+    /* Static Function */
+    static SymbolTestsCore.FunctionFeatures.DefaultParameterFunctionTest.staticDefault(first: Swift.Int, second: Swift.Int) -> Swift.Int
+}

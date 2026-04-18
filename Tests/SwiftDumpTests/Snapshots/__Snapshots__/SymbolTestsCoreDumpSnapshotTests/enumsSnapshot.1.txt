@@ -1,0 +1,220 @@
+// MARK: - Types
+
+enum SymbolTestsCore.Enums {}
+enum SymbolTestsCore.Enums.MultiPayloadEnumTests {
+    case closure(() -> ())
+    case object(NSObject)
+    case tuple(a: Swift.Int, b: Swift.Double)
+    case empty
+}
+enum SymbolTestsCore.Enums.MultiPayloadEnumTests1 {
+    case string(Swift.String)
+    case data(Foundation.Data)
+    case nsNumber(Decimal)
+    case date(Foundation.Date)
+    case url(Foundation.URL)
+    case attributedString(Foundation.AttributedString)
+}
+enum SymbolTestsCore.Enums.MultiPayloadEnumTests2 {
+    case string(Swift.String)
+    case data(Foundation.Data)
+    case nsNumber(NSNumber)
+    case nsNumber1(NSNumber)
+    case nsNumber2(NSNumber)
+    case nsNumber3(NSNumber)
+    case nsNumber4(NSNumber)
+    case nsNumber5(NSNumber)
+}
+enum SymbolTestsCore.Enums.NoPayloadEnumTest {
+    case north
+    case south
+    case east
+    case west
+
+    /* Variable */
+    SymbolTestsCore.Enums.NoPayloadEnumTest.hashValue.getter : Swift.Int
+
+    /* Function */
+    SymbolTestsCore.Enums.NoPayloadEnumTest.hash(into: inout Swift.Hasher) -> ()
+
+    /* Static Function */
+    static SymbolTestsCore.Enums.NoPayloadEnumTest.== infix(SymbolTestsCore.Enums.NoPayloadEnumTest, SymbolTestsCore.Enums.NoPayloadEnumTest) -> Swift.Bool
+}
+enum SymbolTestsCore.Enums.SinglePayloadEnumTest {
+    case value(Swift.String)
+    case none
+    case error
+}
+enum SymbolTestsCore.Enums.IndirectEnumTest {
+    indirect case leaf(Swift.Int)
+    indirect case node(SymbolTestsCore.Enums.IndirectEnumTest, SymbolTestsCore.Enums.IndirectEnumTest)
+}
+enum SymbolTestsCore.Enums.PartialIndirectEnumTest {
+    case leaf(Swift.Int)
+    indirect case node(SymbolTestsCore.Enums.PartialIndirectEnumTest, SymbolTestsCore.Enums.PartialIndirectEnumTest)
+    indirect case chain(SymbolTestsCore.Enums.PartialIndirectEnumTest)
+}
+enum SymbolTestsCore.Enums.RawValueEnumTest {
+    case first
+    case second
+    case third
+
+    /* Allocator */
+    SymbolTestsCore.Enums.RawValueEnumTest.init(rawValue: Swift.Int) -> SymbolTestsCore.Enums.RawValueEnumTest?
+
+    /* Variable */
+    SymbolTestsCore.Enums.RawValueEnumTest.description.getter : Swift.String
+    SymbolTestsCore.Enums.RawValueEnumTest.rawValue.getter : Swift.Int
+
+    /* Function */
+    SymbolTestsCore.Enums.RawValueEnumTest.doubled() -> Swift.Int
+
+    /* Static Function */
+    static SymbolTestsCore.Enums.RawValueEnumTest.fromString(Swift.String) -> SymbolTestsCore.Enums.RawValueEnumTest?
+}
+enum SymbolTestsCore.Enums.StringRawValueEnumTest {
+    case hello
+    case world
+
+    /* Allocator */
+    SymbolTestsCore.Enums.StringRawValueEnumTest.init(rawValue: Swift.String) -> SymbolTestsCore.Enums.StringRawValueEnumTest?
+
+    /* Variable */
+    SymbolTestsCore.Enums.StringRawValueEnumTest.rawValue.getter : Swift.String
+}
+enum SymbolTestsCore.Enums.CaseIterableEnumTest {
+    case alpha
+    case beta
+    case gamma
+
+    /* Allocator */
+    SymbolTestsCore.Enums.CaseIterableEnumTest.init(rawValue: Swift.String) -> SymbolTestsCore.Enums.CaseIterableEnumTest?
+
+    /* Variable */
+    SymbolTestsCore.Enums.CaseIterableEnumTest.rawValue.getter : Swift.String
+
+    /* Static Variable */
+    static SymbolTestsCore.Enums.CaseIterableEnumTest.allCases.getter : [SymbolTestsCore.Enums.CaseIterableEnumTest]
+}
+enum SymbolTestsCore.Enums.ObjCEnumTest {
+    /* Allocator */
+    SymbolTestsCore.Enums.ObjCEnumTest.init(rawValue: Swift.Int) -> SymbolTestsCore.Enums.ObjCEnumTest?
+
+    /* Variable */
+    SymbolTestsCore.Enums.ObjCEnumTest.rawValue.getter : Swift.Int
+}
+enum SymbolTestsCore.Enums.LargeFrozenEnumTest {
+    case alpha
+    case beta
+    case gamma
+    case delta
+    case epsilon
+    case zeta
+    case eta
+    case theta
+    case iota
+    case kappa
+
+    /* Variable */
+    SymbolTestsCore.Enums.LargeFrozenEnumTest.hashValue.getter : Swift.Int
+
+    /* Function */
+    SymbolTestsCore.Enums.LargeFrozenEnumTest.hash(into: inout Swift.Hasher) -> ()
+
+    /* Static Function */
+    static SymbolTestsCore.Enums.LargeFrozenEnumTest.== infix(SymbolTestsCore.Enums.LargeFrozenEnumTest, SymbolTestsCore.Enums.LargeFrozenEnumTest) -> Swift.Bool
+}
+enum SymbolTestsCore.Enums.GenericPayloadEnumTest<A> {
+    case first(A)
+    case second(A, A)
+    case empty
+}
+enum SymbolTestsCore.Enums.FunctionReferenceCaseTest {
+    case first(Swift.Int)
+    case second(Swift.String)
+
+    /* Static Function */
+    static SymbolTestsCore.Enums.FunctionReferenceCaseTest.selectFirst() -> (Swift.Int) -> SymbolTestsCore.Enums.FunctionReferenceCaseTest
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.Enums.NoPayloadEnumTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.Enums.NoPayloadEnumTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.NoPayloadEnumTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.Enums.NoPayloadEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.Enums.NoPayloadEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.Enums.NoPayloadEnumTest : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.RawValueEnumTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.Enums.RawValueEnumTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.RawValueEnumTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.Enums.RawValueEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.Enums.RawValueEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.Enums.RawValueEnumTest : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.RawValueEnumTest: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance SymbolTestsCore.Enums.RawValueEnumTest : Swift.RawRepresentable in SymbolTestsCore
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance SymbolTestsCore.Enums.RawValueEnumTest : Swift.RawRepresentable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.StringRawValueEnumTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.Enums.StringRawValueEnumTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.StringRawValueEnumTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.Enums.StringRawValueEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.Enums.StringRawValueEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.Enums.StringRawValueEnumTest : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.StringRawValueEnumTest: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance SymbolTestsCore.Enums.StringRawValueEnumTest : Swift.RawRepresentable in SymbolTestsCore
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance SymbolTestsCore.Enums.StringRawValueEnumTest : Swift.RawRepresentable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.CaseIterableEnumTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.Enums.CaseIterableEnumTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.CaseIterableEnumTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.Enums.CaseIterableEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.Enums.CaseIterableEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.Enums.CaseIterableEnumTest : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.CaseIterableEnumTest: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance SymbolTestsCore.Enums.CaseIterableEnumTest : Swift.RawRepresentable in SymbolTestsCore
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance SymbolTestsCore.Enums.CaseIterableEnumTest : Swift.RawRepresentable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.CaseIterableEnumTest: Swift.CaseIterable {
+    associated conformance descriptor for Swift.CaseIterable.Swift.CaseIterable.AllCases: Swift.Collection
+    associated type descriptor for Swift.CaseIterable.AllCases
+    protocol witness for static Swift.CaseIterable.allCases.getter : A.AllCases in conformance SymbolTestsCore.Enums.CaseIterableEnumTest : Swift.CaseIterable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.ObjCEnumTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.Enums.ObjCEnumTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.ObjCEnumTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.Enums.ObjCEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.Enums.ObjCEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.Enums.ObjCEnumTest : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.ObjCEnumTest: Swift.RawRepresentable {
+    associated type descriptor for Swift.RawRepresentable.RawValue
+    protocol witness for Swift.RawRepresentable.init(rawValue: A.RawValue) -> A? in conformance SymbolTestsCore.Enums.ObjCEnumTest : Swift.RawRepresentable in SymbolTestsCore
+    protocol witness for Swift.RawRepresentable.rawValue.getter : A.RawValue in conformance SymbolTestsCore.Enums.ObjCEnumTest : Swift.RawRepresentable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.LargeFrozenEnumTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.Enums.LargeFrozenEnumTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.Enums.LargeFrozenEnumTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.Enums.LargeFrozenEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.Enums.LargeFrozenEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.Enums.LargeFrozenEnumTest : Swift.Hashable in SymbolTestsCore
+}

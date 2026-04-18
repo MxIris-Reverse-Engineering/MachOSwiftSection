@@ -1,0 +1,68 @@
+// MARK: - Types
+
+enum SymbolTestsCore.ClassBoundGenerics {}
+struct SymbolTestsCore.ClassBoundGenerics.AnyObjectBoundTest<A> where A: AnyObject {
+    var element: A
+
+    /* Allocator */
+    SymbolTestsCore.ClassBoundGenerics.AnyObjectBoundTest.init(element: A) -> SymbolTestsCore.ClassBoundGenerics.AnyObjectBoundTest<A>
+
+    /* Variable */
+    SymbolTestsCore.ClassBoundGenerics.AnyObjectBoundTest.element.setter : A
+    SymbolTestsCore.ClassBoundGenerics.AnyObjectBoundTest.element.getter : A
+}
+struct SymbolTestsCore.ClassBoundGenerics.AnyObjectAndProtocolBoundTest<A> where A: AnyObject, A: SymbolTestsCore.Protocols.ProtocolTest {
+    var element: A
+
+    /* Allocator */
+    SymbolTestsCore.ClassBoundGenerics.AnyObjectAndProtocolBoundTest.init(element: A) -> SymbolTestsCore.ClassBoundGenerics.AnyObjectAndProtocolBoundTest<A>
+
+    /* Variable */
+    SymbolTestsCore.ClassBoundGenerics.AnyObjectAndProtocolBoundTest.element.getter : A
+    SymbolTestsCore.ClassBoundGenerics.AnyObjectAndProtocolBoundTest.element.setter : A
+}
+class SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericClassTest<A> where A: AnyObject {
+    var element: A
+
+    /* [Getter] */ SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericClassTest.element.getter : A
+    /* [Setter] */ SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericClassTest.element.setter : A
+    /* [Modify] */ SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericClassTest.element.modify : A
+    /* [ Init ] */ SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericClassTest.__allocating_init(element: A) -> SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericClassTest<A>
+
+    /* Allocator */
+    SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericClassTest.__allocating_init(element: A) -> SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericClassTest<A>
+
+    /* Deallocator */
+    SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericClassTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericClassTest.init(element: A) -> SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericClassTest<A>
+
+    /* Destructor */
+    SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericClassTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericClassTest.element.getter : A
+    SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericClassTest.element.setter : A
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericClassTest.__allocating_init(element: A) -> SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericClassTest<A>
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericClassTest.element.getter : A
+    method descriptor for SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericClassTest.element.setter : A
+}
+struct SymbolTestsCore.ClassBoundGenerics.ClassBoundFunctionTest {
+    /* Function */
+    SymbolTestsCore.ClassBoundGenerics.ClassBoundFunctionTest.acceptClassBound<A>(A) -> A
+    SymbolTestsCore.ClassBoundGenerics.ClassBoundFunctionTest.acceptClassAndProtocol<A>(A) -> A
+}
+
+// MARK: - Protocols
+
+protocol SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericProtocol: AnyObject where Self.Item: AnyObject {
+    associatedtype Item
+
+    associated type descriptor for SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericProtocol.Item
+    method descriptor for SymbolTestsCore.ClassBoundGenerics.ClassBoundGenericProtocol.item.getter : A.Item
+}

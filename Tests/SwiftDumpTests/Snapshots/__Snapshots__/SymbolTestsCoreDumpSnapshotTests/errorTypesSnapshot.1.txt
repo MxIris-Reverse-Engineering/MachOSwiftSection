@@ -1,0 +1,117 @@
+// MARK: - Types
+
+enum SymbolTestsCore.ErrorTypes {}
+enum SymbolTestsCore.ErrorTypes.SimpleErrorTest {
+    case notFound
+    case invalid
+    case unknown
+
+    /* Variable */
+    SymbolTestsCore.ErrorTypes.SimpleErrorTest.hashValue.getter : Swift.Int
+
+    /* Function */
+    SymbolTestsCore.ErrorTypes.SimpleErrorTest.hash(into: inout Swift.Hasher) -> ()
+
+    /* Static Function */
+    static SymbolTestsCore.ErrorTypes.SimpleErrorTest.== infix(SymbolTestsCore.ErrorTypes.SimpleErrorTest, SymbolTestsCore.ErrorTypes.SimpleErrorTest) -> Swift.Bool
+}
+enum SymbolTestsCore.ErrorTypes.AssociatedValueErrorTest {
+    case withMessage(Swift.String)
+    case withCode(Swift.Int)
+    case withContext(message: Swift.String, code: Swift.Int, underlying: Swift.Error?)
+}
+struct SymbolTestsCore.ErrorTypes.LocalizedErrorTest {
+    let errorDescription: Swift.String?
+    let failureReason: Swift.String?
+    let recoverySuggestion: Swift.String?
+    let helpAnchor: Swift.String?
+
+    /* Allocator */
+    SymbolTestsCore.ErrorTypes.LocalizedErrorTest.init(description: Swift.String, reason: Swift.String, suggestion: Swift.String, helpAnchor: Swift.String) -> SymbolTestsCore.ErrorTypes.LocalizedErrorTest
+
+    /* Variable */
+    SymbolTestsCore.ErrorTypes.LocalizedErrorTest.recoverySuggestion.getter : Swift.String?
+    SymbolTestsCore.ErrorTypes.LocalizedErrorTest.helpAnchor.getter : Swift.String?
+    SymbolTestsCore.ErrorTypes.LocalizedErrorTest.failureReason.getter : Swift.String?
+    SymbolTestsCore.ErrorTypes.LocalizedErrorTest.errorDescription.getter : Swift.String?
+}
+struct SymbolTestsCore.ErrorTypes.CustomNSErrorTest {
+    let errorCode: Swift.Int
+    let errorUserInfo: [Swift.String : Any]
+
+    /* Allocator */
+    SymbolTestsCore.ErrorTypes.CustomNSErrorTest.init(errorCode: Swift.Int, errorUserInfo: [Swift.String : Any]) -> SymbolTestsCore.ErrorTypes.CustomNSErrorTest
+
+    /* Variable */
+    SymbolTestsCore.ErrorTypes.CustomNSErrorTest.errorUserInfo.getter : [Swift.String : Any]
+    SymbolTestsCore.ErrorTypes.CustomNSErrorTest.errorCode.getter : Swift.Int
+
+    /* Static Variable */
+    static SymbolTestsCore.ErrorTypes.CustomNSErrorTest.errorDomain.getter : Swift.String
+}
+struct SymbolTestsCore.ErrorTypes.SendableErrorTest {
+    let identifier: Swift.Int
+    let descriptionText: Swift.String
+
+    /* Allocator */
+    SymbolTestsCore.ErrorTypes.SendableErrorTest.init(identifier: Swift.Int, descriptionText: Swift.String) -> SymbolTestsCore.ErrorTypes.SendableErrorTest
+
+    /* Variable */
+    SymbolTestsCore.ErrorTypes.SendableErrorTest.identifier.getter : Swift.Int
+    SymbolTestsCore.ErrorTypes.SendableErrorTest.descriptionText.getter : Swift.String
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.ErrorTypes.SimpleErrorTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.ErrorTypes.SimpleErrorTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.ErrorTypes.SimpleErrorTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.ErrorTypes.SimpleErrorTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.ErrorTypes.SimpleErrorTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.ErrorTypes.SimpleErrorTest : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.ErrorTypes.SimpleErrorTest: Swift.Error {
+    protocol witness for Swift.Error._domain.getter : Swift.String in conformance SymbolTestsCore.ErrorTypes.SimpleErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._code.getter : Swift.Int in conformance SymbolTestsCore.ErrorTypes.SimpleErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._userInfo.getter : Swift.AnyObject? in conformance SymbolTestsCore.ErrorTypes.SimpleErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._getEmbeddedNSError() -> Swift.AnyObject? in conformance SymbolTestsCore.ErrorTypes.SimpleErrorTest : Swift.Error in SymbolTestsCore
+}
+extension SymbolTestsCore.ErrorTypes.AssociatedValueErrorTest: Swift.Error {
+    protocol witness for Swift.Error._domain.getter : Swift.String in conformance SymbolTestsCore.ErrorTypes.AssociatedValueErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._code.getter : Swift.Int in conformance SymbolTestsCore.ErrorTypes.AssociatedValueErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._userInfo.getter : Swift.AnyObject? in conformance SymbolTestsCore.ErrorTypes.AssociatedValueErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._getEmbeddedNSError() -> Swift.AnyObject? in conformance SymbolTestsCore.ErrorTypes.AssociatedValueErrorTest : Swift.Error in SymbolTestsCore
+}
+extension SymbolTestsCore.ErrorTypes.LocalizedErrorTest: Foundation.LocalizedError {
+    base conformance descriptor for Foundation.LocalizedError: Swift.Error
+    protocol witness for Foundation.LocalizedError.errorDescription.getter : Swift.String? in conformance SymbolTestsCore.ErrorTypes.LocalizedErrorTest : Foundation.LocalizedError in SymbolTestsCore
+    protocol witness for Foundation.LocalizedError.failureReason.getter : Swift.String? in conformance SymbolTestsCore.ErrorTypes.LocalizedErrorTest : Foundation.LocalizedError in SymbolTestsCore
+    protocol witness for Foundation.LocalizedError.recoverySuggestion.getter : Swift.String? in conformance SymbolTestsCore.ErrorTypes.LocalizedErrorTest : Foundation.LocalizedError in SymbolTestsCore
+    protocol witness for Foundation.LocalizedError.helpAnchor.getter : Swift.String? in conformance SymbolTestsCore.ErrorTypes.LocalizedErrorTest : Foundation.LocalizedError in SymbolTestsCore
+}
+extension SymbolTestsCore.ErrorTypes.LocalizedErrorTest: Swift.Error {
+    protocol witness for Swift.Error._domain.getter : Swift.String in conformance SymbolTestsCore.ErrorTypes.LocalizedErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._code.getter : Swift.Int in conformance SymbolTestsCore.ErrorTypes.LocalizedErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._userInfo.getter : Swift.AnyObject? in conformance SymbolTestsCore.ErrorTypes.LocalizedErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._getEmbeddedNSError() -> Swift.AnyObject? in conformance SymbolTestsCore.ErrorTypes.LocalizedErrorTest : Swift.Error in SymbolTestsCore
+}
+extension SymbolTestsCore.ErrorTypes.CustomNSErrorTest: Foundation.CustomNSError {
+    base conformance descriptor for Foundation.CustomNSError: Swift.Error
+    protocol witness for static Foundation.CustomNSError.errorDomain.getter : Swift.String in conformance SymbolTestsCore.ErrorTypes.CustomNSErrorTest : Foundation.CustomNSError in SymbolTestsCore
+    protocol witness for Foundation.CustomNSError.errorCode.getter : Swift.Int in conformance SymbolTestsCore.ErrorTypes.CustomNSErrorTest : Foundation.CustomNSError in SymbolTestsCore
+    protocol witness for Foundation.CustomNSError.errorUserInfo.getter : [Swift.String : Any] in conformance SymbolTestsCore.ErrorTypes.CustomNSErrorTest : Foundation.CustomNSError in SymbolTestsCore
+}
+extension SymbolTestsCore.ErrorTypes.CustomNSErrorTest: Swift.Error {
+    protocol witness for Swift.Error._domain.getter : Swift.String in conformance SymbolTestsCore.ErrorTypes.CustomNSErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._code.getter : Swift.Int in conformance SymbolTestsCore.ErrorTypes.CustomNSErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._userInfo.getter : Swift.AnyObject? in conformance SymbolTestsCore.ErrorTypes.CustomNSErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._getEmbeddedNSError() -> Swift.AnyObject? in conformance SymbolTestsCore.ErrorTypes.CustomNSErrorTest : Swift.Error in SymbolTestsCore
+}
+extension SymbolTestsCore.ErrorTypes.SendableErrorTest: Swift.Error {
+    protocol witness for Swift.Error._domain.getter : Swift.String in conformance SymbolTestsCore.ErrorTypes.SendableErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._code.getter : Swift.Int in conformance SymbolTestsCore.ErrorTypes.SendableErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._userInfo.getter : Swift.AnyObject? in conformance SymbolTestsCore.ErrorTypes.SendableErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._getEmbeddedNSError() -> Swift.AnyObject? in conformance SymbolTestsCore.ErrorTypes.SendableErrorTest : Swift.Error in SymbolTestsCore
+}

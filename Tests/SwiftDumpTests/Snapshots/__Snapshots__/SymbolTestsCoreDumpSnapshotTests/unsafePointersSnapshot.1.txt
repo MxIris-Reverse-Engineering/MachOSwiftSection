@@ -1,0 +1,54 @@
+// MARK: - Types
+
+enum SymbolTestsCore.UnsafePointers {}
+struct SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest {
+    var readPointer: Swift.UnsafePointer<Swift.Int>
+    var mutablePointer: Swift.UnsafeMutablePointer<Swift.Int>
+    var rawPointer: Swift.UnsafeRawPointer
+    var mutableRawPointer: Swift.UnsafeMutableRawPointer
+    var bufferPointer: Swift.UnsafeBufferPointer<Swift.Int>
+    var mutableBufferPointer: Swift.UnsafeMutableBufferPointer<Swift.Int>
+    var rawBufferPointer: Swift.UnsafeRawBufferPointer
+    var opaquePointer: Swift.OpaquePointer
+
+    /* Allocator */
+    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.init(readPointer: Swift.UnsafePointer<Swift.Int>, mutablePointer: Swift.UnsafeMutablePointer<Swift.Int>, rawPointer: Swift.UnsafeRawPointer, mutableRawPointer: Swift.UnsafeMutableRawPointer, bufferPointer: Swift.UnsafeBufferPointer<Swift.Int>, mutableBufferPointer: Swift.UnsafeMutableBufferPointer<Swift.Int>, rawBufferPointer: Swift.UnsafeRawBufferPointer, opaquePointer: Swift.OpaquePointer) -> SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest
+
+    /* Variable */
+    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.mutablePointer.getter : Swift.UnsafeMutablePointer<Swift.Int>
+    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.mutablePointer.setter : Swift.UnsafeMutablePointer<Swift.Int>
+    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.bufferPointer.getter : Swift.UnsafeBufferPointer<Swift.Int>
+    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.bufferPointer.setter : Swift.UnsafeBufferPointer<Swift.Int>
+    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.mutableBufferPointer.getter : Swift.UnsafeMutableBufferPointer<Swift.Int>
+    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.mutableBufferPointer.setter : Swift.UnsafeMutableBufferPointer<Swift.Int>
+    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.rawBufferPointer.getter : Swift.UnsafeRawBufferPointer
+    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.rawBufferPointer.setter : Swift.UnsafeRawBufferPointer
+    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.opaquePointer.getter : Swift.OpaquePointer
+    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.opaquePointer.setter : Swift.OpaquePointer
+    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.mutableRawPointer.getter : Swift.UnsafeMutableRawPointer
+    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.mutableRawPointer.setter : Swift.UnsafeMutableRawPointer
+    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.rawPointer.getter : Swift.UnsafeRawPointer
+    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.rawPointer.setter : Swift.UnsafeRawPointer
+    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.readPointer.getter : Swift.UnsafePointer<Swift.Int>
+    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.readPointer.setter : Swift.UnsafePointer<Swift.Int>
+}
+struct SymbolTestsCore.UnsafePointers.UnmanagedFieldTest {
+    var unmanagedReference: Swift.Unmanaged<Swift.AnyObject>
+
+    /* Allocator */
+    SymbolTestsCore.UnsafePointers.UnmanagedFieldTest.init(unmanagedReference: Swift.Unmanaged<Swift.AnyObject>) -> SymbolTestsCore.UnsafePointers.UnmanagedFieldTest
+
+    /* Variable */
+    SymbolTestsCore.UnsafePointers.UnmanagedFieldTest.unmanagedReference.getter : Swift.Unmanaged<Swift.AnyObject>
+    SymbolTestsCore.UnsafePointers.UnmanagedFieldTest.unmanagedReference.setter : Swift.Unmanaged<Swift.AnyObject>
+}
+struct SymbolTestsCore.UnsafePointers.AutoreleasingPointerFieldTest {
+    var autoreleasing: Swift.AutoreleasingUnsafeMutablePointer<Swift.AnyObject?>
+
+    /* Allocator */
+    SymbolTestsCore.UnsafePointers.AutoreleasingPointerFieldTest.init(autoreleasing: Swift.AutoreleasingUnsafeMutablePointer<Swift.AnyObject?>) -> SymbolTestsCore.UnsafePointers.AutoreleasingPointerFieldTest
+
+    /* Variable */
+    SymbolTestsCore.UnsafePointers.AutoreleasingPointerFieldTest.autoreleasing.setter : Swift.AutoreleasingUnsafeMutablePointer<Swift.AnyObject?>
+    SymbolTestsCore.UnsafePointers.AutoreleasingPointerFieldTest.autoreleasing.getter : Swift.AutoreleasingUnsafeMutablePointer<Swift.AnyObject?>
+}

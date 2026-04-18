@@ -1,0 +1,35 @@
+// MARK: - Types
+
+enum SymbolTestsCore.Structs {}
+struct SymbolTestsCore.Structs.StructTest {
+    /* Variable */
+    SymbolTestsCore.Structs.StructTest.body.getter : some
+
+    /* Static Variable */
+    static SymbolTestsCore.Structs.StructTest.body.getter : some
+
+    /* Function */
+    SymbolTestsCore.Structs.StructTest.a() -> ()
+    SymbolTestsCore.Structs.StructTest.b() -> ()
+    SymbolTestsCore.Structs.StructTest.c() -> ()
+    SymbolTestsCore.Structs.StructTest.d() -> ()
+    SymbolTestsCore.Structs.StructTest.e() -> ()
+}
+enum SymbolTestsCore.Structs.PrivateProtocolTest {
+    case empty
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.Structs.StructTest: SymbolTestsCore.Protocols.ProtocolTest {}
+extension SymbolTestsCore.Structs.StructTest: SymbolTestsCore.Protocols.ProtocolWitnessTableTest {}
+extension SymbolTestsCore.Structs.PrivateProtocolTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.Structs.PrivateProtocolTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.Structs.PrivateProtocolTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.Structs.PrivateProtocolTest : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.Structs.PrivateProtocolTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.Structs.PrivateProtocolTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.Structs.PrivateProtocolTest: SymbolTestsCore.Protocols.ProtocolTest {}

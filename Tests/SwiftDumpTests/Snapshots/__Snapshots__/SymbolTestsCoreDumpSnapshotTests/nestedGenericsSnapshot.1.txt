@@ -1,0 +1,45 @@
+// MARK: - Types
+
+enum SymbolTestsCore.NestedGenerics {}
+struct SymbolTestsCore.NestedGenerics.OuterGenericTest<A> {}
+struct SymbolTestsCore.NestedGenerics.OuterGenericTest.InnerGenericTest<A1> {}
+struct SymbolTestsCore.NestedGenerics.OuterGenericTest.InnerGenericTest.InnerMostGenericTest<A2> {
+    var outer: A
+    var inner: A1
+    var innerMost: A2
+
+    /* Allocator */
+    SymbolTestsCore.NestedGenerics.OuterGenericTest.InnerGenericTest.InnerMostGenericTest.init(outer: A, inner: A1, innerMost: A2) -> SymbolTestsCore.NestedGenerics.OuterGenericTest<A>.InnerGenericTest<A1>.InnerMostGenericTest<A2>
+
+    /* Variable */
+    SymbolTestsCore.NestedGenerics.OuterGenericTest.InnerGenericTest.InnerMostGenericTest.inner.getter : A1
+    SymbolTestsCore.NestedGenerics.OuterGenericTest.InnerGenericTest.InnerMostGenericTest.inner.setter : A1
+    SymbolTestsCore.NestedGenerics.OuterGenericTest.InnerGenericTest.InnerMostGenericTest.innerMost.getter : A2
+    SymbolTestsCore.NestedGenerics.OuterGenericTest.InnerGenericTest.InnerMostGenericTest.innerMost.setter : A2
+    SymbolTestsCore.NestedGenerics.OuterGenericTest.InnerGenericTest.InnerMostGenericTest.outer.getter : A
+    SymbolTestsCore.NestedGenerics.OuterGenericTest.InnerGenericTest.InnerMostGenericTest.outer.setter : A
+}
+struct SymbolTestsCore.NestedGenerics.NestedGenericWithConstraintsTest<A> where A: Swift.Comparable {}
+struct SymbolTestsCore.NestedGenerics.NestedGenericWithConstraintsTest.InnerConstrainedTest<A1> where A1: Swift.Hashable {
+    var outer: A
+    var inner: A1
+
+    /* Allocator */
+    SymbolTestsCore.NestedGenerics.NestedGenericWithConstraintsTest.InnerConstrainedTest.init(outer: A, inner: A1) -> SymbolTestsCore.NestedGenerics.NestedGenericWithConstraintsTest<A>.InnerConstrainedTest<A1>
+
+    /* Variable */
+    SymbolTestsCore.NestedGenerics.NestedGenericWithConstraintsTest.InnerConstrainedTest.inner.getter : A1
+    SymbolTestsCore.NestedGenerics.NestedGenericWithConstraintsTest.InnerConstrainedTest.inner.setter : A1
+    SymbolTestsCore.NestedGenerics.NestedGenericWithConstraintsTest.InnerConstrainedTest.outer.getter : A
+    SymbolTestsCore.NestedGenerics.NestedGenericWithConstraintsTest.InnerConstrainedTest.outer.setter : A
+}
+struct SymbolTestsCore.NestedGenerics.NestedTypealiasGenericTest<A> {
+    var elements: [A]
+
+    /* Allocator */
+    SymbolTestsCore.NestedGenerics.NestedTypealiasGenericTest.init(elements: [A]) -> SymbolTestsCore.NestedGenerics.NestedTypealiasGenericTest<A>
+
+    /* Variable */
+    SymbolTestsCore.NestedGenerics.NestedTypealiasGenericTest.elements.setter : [A]
+    SymbolTestsCore.NestedGenerics.NestedTypealiasGenericTest.elements.getter : [A]
+}

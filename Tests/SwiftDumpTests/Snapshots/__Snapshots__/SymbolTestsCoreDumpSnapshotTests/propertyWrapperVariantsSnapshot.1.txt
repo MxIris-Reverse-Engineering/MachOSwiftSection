@@ -1,0 +1,39 @@
+// MARK: - Types
+
+enum SymbolTestsCore.PropertyWrapperVariants {}
+struct SymbolTestsCore.PropertyWrapperVariants.ProjectedValueWrapperTest<A> {
+    var storage: A
+
+    /* Allocator */
+    SymbolTestsCore.PropertyWrapperVariants.ProjectedValueWrapperTest.init(wrappedValue: A) -> SymbolTestsCore.PropertyWrapperVariants.ProjectedValueWrapperTest<A>
+
+    /* Variable */
+    SymbolTestsCore.PropertyWrapperVariants.ProjectedValueWrapperTest.projectedValue.getter : SymbolTestsCore.PropertyWrapperVariants.ProjectedValueWrapperTest<A>
+    SymbolTestsCore.PropertyWrapperVariants.ProjectedValueWrapperTest.wrappedValue.getter : A
+    SymbolTestsCore.PropertyWrapperVariants.ProjectedValueWrapperTest.wrappedValue.setter : A
+}
+struct SymbolTestsCore.PropertyWrapperVariants.DefaultInitializableWrapperTest {
+    var wrappedValue: Swift.Int
+
+    /* Allocator */
+    SymbolTestsCore.PropertyWrapperVariants.DefaultInitializableWrapperTest.init(wrappedValue: Swift.Int) -> SymbolTestsCore.PropertyWrapperVariants.DefaultInitializableWrapperTest
+    SymbolTestsCore.PropertyWrapperVariants.DefaultInitializableWrapperTest.init() -> SymbolTestsCore.PropertyWrapperVariants.DefaultInitializableWrapperTest
+
+    /* Variable */
+    SymbolTestsCore.PropertyWrapperVariants.DefaultInitializableWrapperTest.wrappedValue.getter : Swift.Int
+    SymbolTestsCore.PropertyWrapperVariants.DefaultInitializableWrapperTest.wrappedValue.setter : Swift.Int
+}
+struct SymbolTestsCore.PropertyWrapperVariants.StaticSubscriptWrapperTest<A, B> where A: AnyObject {
+    var storage: B
+
+    /* Allocator */
+    SymbolTestsCore.PropertyWrapperVariants.StaticSubscriptWrapperTest.init(wrappedValue: B) -> SymbolTestsCore.PropertyWrapperVariants.StaticSubscriptWrapperTest<A, B>
+
+    /* Static Subscript */
+    static SymbolTestsCore.PropertyWrapperVariants.StaticSubscriptWrapperTest.subscript.getter : (_enclosingInstance: A, wrapped: Swift.ReferenceWritableKeyPath<A, B>, storage: Swift.ReferenceWritableKeyPath<A, SymbolTestsCore.PropertyWrapperVariants.StaticSubscriptWrapperTest<A, B>>) -> B
+    static SymbolTestsCore.PropertyWrapperVariants.StaticSubscriptWrapperTest.subscript.setter : (_enclosingInstance: A, wrapped: Swift.ReferenceWritableKeyPath<A, B>, storage: Swift.ReferenceWritableKeyPath<A, SymbolTestsCore.PropertyWrapperVariants.StaticSubscriptWrapperTest<A, B>>) -> B
+
+    /* Variable */
+    SymbolTestsCore.PropertyWrapperVariants.StaticSubscriptWrapperTest.wrappedValue.getter : B
+    SymbolTestsCore.PropertyWrapperVariants.StaticSubscriptWrapperTest.wrappedValue.setter : B
+}

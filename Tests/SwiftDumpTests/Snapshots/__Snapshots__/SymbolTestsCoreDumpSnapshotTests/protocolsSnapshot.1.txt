@@ -1,0 +1,78 @@
+// MARK: - Types
+
+enum SymbolTestsCore.Protocols {}
+
+// MARK: - Protocols
+
+protocol SymbolTestsCore.Protocols.ProtocolTest where Self.Body: SymbolTestsCore.Protocols.ProtocolTest {
+    associatedtype Body
+
+    associated conformance descriptor for SymbolTestsCore.Protocols.ProtocolTest.SymbolTestsCore.Protocols.ProtocolTest.Body: SymbolTestsCore.Protocols.ProtocolTest
+    associated type descriptor for SymbolTestsCore.Protocols.ProtocolTest.Body
+    method descriptor for SymbolTestsCore.Protocols.ProtocolTest.body.getter : A.Body
+    method descriptor for static SymbolTestsCore.Protocols.ProtocolTest.body.getter : A.Body?
+
+    /* [Default Implementation] */
+    protocol witness for static SymbolTestsCore.Protocols.ProtocolTest.body.getter : A.Body? in conformance SymbolTestsCore.Generics.GenericPackTest<A, Pack{repeat B}, C> : SymbolTestsCore.Protocols.ProtocolTest in SymbolTestsCore
+}
+protocol SymbolTestsCore.Protocols.ProtocolWitnessTableTest {
+    method descriptor for SymbolTestsCore.Protocols.ProtocolWitnessTableTest.a() -> ()
+    method descriptor for SymbolTestsCore.Protocols.ProtocolWitnessTableTest.b() -> ()
+    method descriptor for SymbolTestsCore.Protocols.ProtocolWitnessTableTest.c() -> ()
+    method descriptor for SymbolTestsCore.Protocols.ProtocolWitnessTableTest.d() -> ()
+    method descriptor for SymbolTestsCore.Protocols.ProtocolWitnessTableTest.e() -> ()
+}
+protocol SymbolTestsCore.Protocols.TestCollection {
+    associatedtype Element
+
+    associated type descriptor for SymbolTestsCore.Protocols.TestCollection.Element
+}
+protocol SymbolTestsCore.Protocols.BaseProtocolTest {
+    method descriptor for SymbolTestsCore.Protocols.BaseProtocolTest.baseMethod() -> Swift.String
+}
+protocol SymbolTestsCore.Protocols.DerivedProtocolTest: SymbolTestsCore.Protocols.BaseProtocolTest {
+    base conformance descriptor for SymbolTestsCore.Protocols.DerivedProtocolTest: SymbolTestsCore.Protocols.BaseProtocolTest
+    method descriptor for SymbolTestsCore.Protocols.DerivedProtocolTest.derivedMethod() -> Swift.Int
+}
+protocol SymbolTestsCore.Protocols.ClassBoundProtocolTest: AnyObject {
+    method descriptor for SymbolTestsCore.Protocols.ClassBoundProtocolTest.classProperty.getter : Swift.Int
+    method descriptor for SymbolTestsCore.Protocols.ClassBoundProtocolTest.classProperty.setter : Swift.Int
+    method descriptor for SymbolTestsCore.Protocols.ClassBoundProtocolTest.classProperty.modify : Swift.Int
+    method descriptor for SymbolTestsCore.Protocols.ClassBoundProtocolTest.classMethod() -> ()
+}
+protocol SymbolTestsCore.Protocols.ObjCInheritingProtocolTest: NSObject {
+    method descriptor for SymbolTestsCore.Protocols.ObjCInheritingProtocolTest.swiftMethod() -> Swift.String
+}
+protocol SymbolTestsCore.Protocols.MultiInheritanceProtocolTest: SymbolTestsCore.Protocols.BaseProtocolTest, SymbolTestsCore.Protocols.ProtocolTest {
+    base conformance descriptor for SymbolTestsCore.Protocols.MultiInheritanceProtocolTest: SymbolTestsCore.Protocols.BaseProtocolTest
+    base conformance descriptor for SymbolTestsCore.Protocols.MultiInheritanceProtocolTest: SymbolTestsCore.Protocols.ProtocolTest
+    method descriptor for SymbolTestsCore.Protocols.MultiInheritanceProtocolTest.multiMethod() -> ()
+}
+protocol SymbolTestsCore.Protocols.ProtocolWithInitTest {
+    method descriptor for SymbolTestsCore.Protocols.ProtocolWithInitTest.init() -> A
+    method descriptor for SymbolTestsCore.Protocols.ProtocolWithInitTest.init(value: Swift.Int) -> A
+}
+protocol SymbolTestsCore.Protocols.ProtocolWithSubscriptTest {
+    method descriptor for SymbolTestsCore.Protocols.ProtocolWithSubscriptTest.subscript.getter : (Swift.Int) -> Swift.String
+}
+protocol SymbolTestsCore.Protocols.ProtocolWithReadWriteSubscriptTest {
+    method descriptor for SymbolTestsCore.Protocols.ProtocolWithReadWriteSubscriptTest.subscript.getter : (Swift.String) -> Swift.Int
+    method descriptor for SymbolTestsCore.Protocols.ProtocolWithReadWriteSubscriptTest.subscript.setter : (Swift.String) -> Swift.Int
+    method descriptor for SymbolTestsCore.Protocols.ProtocolWithReadWriteSubscriptTest.subscript.modify : (Swift.String) -> Swift.Int
+}
+protocol SymbolTestsCore.Protocols.ProtocolWithStaticTest {
+    method descriptor for static SymbolTestsCore.Protocols.ProtocolWithStaticTest.staticProperty.getter : Swift.Int
+    method descriptor for static SymbolTestsCore.Protocols.ProtocolWithStaticTest.staticMethod() -> A
+}
+protocol SymbolTestsCore.Protocols.SelfConstraintProtocolTest: AnyObject {
+    method descriptor for SymbolTestsCore.Protocols.SelfConstraintProtocolTest.method() -> A
+}
+protocol SymbolTestsCore.Protocols.MultiPrimaryAssociatedTypeTest {
+    associatedtype First
+    associatedtype Second
+    associatedtype Third
+
+    associated type descriptor for SymbolTestsCore.Protocols.MultiPrimaryAssociatedTypeTest.First
+    associated type descriptor for SymbolTestsCore.Protocols.MultiPrimaryAssociatedTypeTest.Second
+    associated type descriptor for SymbolTestsCore.Protocols.MultiPrimaryAssociatedTypeTest.Third
+}

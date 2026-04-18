@@ -1,0 +1,84 @@
+// MARK: - Types
+
+enum SymbolTestsCore.MarkerProtocols {}
+struct SymbolTestsCore.MarkerProtocols.MarkerConformingStructTest {
+    var value: Swift.Int
+
+    /* Allocator */
+    SymbolTestsCore.MarkerProtocols.MarkerConformingStructTest.init(value: Swift.Int) -> SymbolTestsCore.MarkerProtocols.MarkerConformingStructTest
+
+    /* Variable */
+    SymbolTestsCore.MarkerProtocols.MarkerConformingStructTest.value.getter : Swift.Int
+    SymbolTestsCore.MarkerProtocols.MarkerConformingStructTest.value.setter : Swift.Int
+}
+class SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest {
+    var label: Swift.String
+
+    /* [Getter] */ SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest.label.getter : Swift.String
+    /* [Setter] */ SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest.label.setter : Swift.String
+    /* [Modify] */ SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest.label.modify : Swift.String
+    /* [ Init ] */ SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest.__allocating_init(label: Swift.String) -> SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest
+
+    /* Allocator */
+    SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest.__allocating_init(label: Swift.String) -> SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest
+
+    /* Deallocator */
+    SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest.init(label: Swift.String) -> SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest
+
+    /* Destructor */
+    SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest.label.getter : Swift.String
+    SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest.label.setter : Swift.String
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest.__allocating_init(label: Swift.String) -> SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest.label.getter : Swift.String
+    method descriptor for SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest.label.setter : Swift.String
+}
+enum SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest {
+    case first
+    case second
+
+    /* Variable */
+    SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest.hashValue.getter : Swift.Int
+
+    /* Function */
+    SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest.hash(into: inout Swift.Hasher) -> ()
+
+    /* Static Function */
+    static SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest.== infix(SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest, SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest) -> Swift.Bool
+}
+
+// MARK: - Protocols
+
+protocol SymbolTestsCore.MarkerProtocols.MarkerProtocolTest {}
+protocol SymbolTestsCore.MarkerProtocols.EmptyMarkerProtocolTest {}
+protocol SymbolTestsCore.MarkerProtocols.ClassBoundMarkerProtocol: AnyObject {}
+protocol SymbolTestsCore.MarkerProtocols.InheritingMarkerProtocol: SymbolTestsCore.MarkerProtocols.MarkerProtocolTest {
+    base conformance descriptor for SymbolTestsCore.MarkerProtocols.InheritingMarkerProtocol: SymbolTestsCore.MarkerProtocols.MarkerProtocolTest
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingStructTest: SymbolTestsCore.MarkerProtocols.MarkerProtocolTest {}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingStructTest: SymbolTestsCore.MarkerProtocols.EmptyMarkerProtocolTest {}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest: SymbolTestsCore.MarkerProtocols.ClassBoundMarkerProtocol {}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest: SymbolTestsCore.MarkerProtocols.InheritingMarkerProtocol {}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingClassTest: SymbolTestsCore.MarkerProtocols.MarkerProtocolTest {}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest: Swift.Equatable {
+    protocol witness for static Swift.Equatable.== infix(A, A) -> Swift.Bool in conformance SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest : Swift.Equatable in SymbolTestsCore
+}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest: Swift.Hashable {
+    base conformance descriptor for Swift.Hashable: Swift.Equatable
+    protocol witness for Swift.Hashable.hashValue.getter : Swift.Int in conformance SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable.hash(into: inout Swift.Hasher) -> () in conformance SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest : Swift.Hashable in SymbolTestsCore
+    protocol witness for Swift.Hashable._rawHashValue(seed: Swift.Int) -> Swift.Int in conformance SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest : Swift.Hashable in SymbolTestsCore
+}
+extension SymbolTestsCore.MarkerProtocols.MarkerConformingEnumTest: SymbolTestsCore.MarkerProtocols.MarkerProtocolTest {}

@@ -1,0 +1,91 @@
+// MARK: - Types
+
+enum SymbolTestsCore.BuiltinTypeFields {}
+struct SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest {
+    var intField: Swift.Int
+    var int8Field: Swift.Int8
+    var int16Field: Swift.Int16
+    var int32Field: Swift.Int32
+    var int64Field: Swift.Int64
+    var uintField: Swift.UInt
+    var uint8Field: Swift.UInt8
+    var uint16Field: Swift.UInt16
+    var uint32Field: Swift.UInt32
+    var uint64Field: Swift.UInt64
+
+    /* Allocator */
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.init(intField: Swift.Int, int8Field: Swift.Int8, int16Field: Swift.Int16, int32Field: Swift.Int32, int64Field: Swift.Int64, uintField: Swift.UInt, uint8Field: Swift.UInt8, uint16Field: Swift.UInt16, uint32Field: Swift.UInt32, uint64Field: Swift.UInt64) -> SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest
+
+    /* Variable */
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.intField.getter : Swift.Int
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.intField.setter : Swift.Int
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.int8Field.getter : Swift.Int8
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.int8Field.setter : Swift.Int8
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.int16Field.getter : Swift.Int16
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.int16Field.setter : Swift.Int16
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.int32Field.getter : Swift.Int32
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.int32Field.setter : Swift.Int32
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.int64Field.getter : Swift.Int64
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.int64Field.setter : Swift.Int64
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.uintField.getter : Swift.UInt
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.uintField.setter : Swift.UInt
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.uint8Field.getter : Swift.UInt8
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.uint8Field.setter : Swift.UInt8
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.uint16Field.getter : Swift.UInt16
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.uint16Field.setter : Swift.UInt16
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.uint32Field.getter : Swift.UInt32
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.uint32Field.setter : Swift.UInt32
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.uint64Field.getter : Swift.UInt64
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.uint64Field.setter : Swift.UInt64
+}
+struct SymbolTestsCore.BuiltinTypeFields.FloatingTypesTest {
+    var floatField: Swift.Float
+    var doubleField: Swift.Double
+    var float32Field: Swift.Float
+    var float64Field: Swift.Double
+
+    /* Allocator */
+    SymbolTestsCore.BuiltinTypeFields.FloatingTypesTest.init(floatField: Swift.Float, doubleField: Swift.Double, float32Field: Swift.Float, float64Field: Swift.Double) -> SymbolTestsCore.BuiltinTypeFields.FloatingTypesTest
+
+    /* Variable */
+    SymbolTestsCore.BuiltinTypeFields.FloatingTypesTest.floatField.getter : Swift.Float
+    SymbolTestsCore.BuiltinTypeFields.FloatingTypesTest.floatField.setter : Swift.Float
+    SymbolTestsCore.BuiltinTypeFields.FloatingTypesTest.doubleField.getter : Swift.Double
+    SymbolTestsCore.BuiltinTypeFields.FloatingTypesTest.doubleField.setter : Swift.Double
+    SymbolTestsCore.BuiltinTypeFields.FloatingTypesTest.float32Field.getter : Swift.Float
+    SymbolTestsCore.BuiltinTypeFields.FloatingTypesTest.float32Field.setter : Swift.Float
+    SymbolTestsCore.BuiltinTypeFields.FloatingTypesTest.float64Field.getter : Swift.Double
+    SymbolTestsCore.BuiltinTypeFields.FloatingTypesTest.float64Field.setter : Swift.Double
+}
+struct SymbolTestsCore.BuiltinTypeFields.PrimitiveTypesTest {
+    var boolField: Swift.Bool
+    var characterField: Swift.Character
+    var stringField: Swift.String
+
+    /* Allocator */
+    SymbolTestsCore.BuiltinTypeFields.PrimitiveTypesTest.init(boolField: Swift.Bool, characterField: Swift.Character, stringField: Swift.String) -> SymbolTestsCore.BuiltinTypeFields.PrimitiveTypesTest
+
+    /* Variable */
+    SymbolTestsCore.BuiltinTypeFields.PrimitiveTypesTest.boolField.getter : Swift.Bool
+    SymbolTestsCore.BuiltinTypeFields.PrimitiveTypesTest.boolField.setter : Swift.Bool
+    SymbolTestsCore.BuiltinTypeFields.PrimitiveTypesTest.characterField.getter : Swift.Character
+    SymbolTestsCore.BuiltinTypeFields.PrimitiveTypesTest.characterField.setter : Swift.Character
+    SymbolTestsCore.BuiltinTypeFields.PrimitiveTypesTest.stringField.getter : Swift.String
+    SymbolTestsCore.BuiltinTypeFields.PrimitiveTypesTest.stringField.setter : Swift.String
+}
+struct SymbolTestsCore.BuiltinTypeFields.TupleBuiltinTest {
+    var pairField: (Swift.Int, Swift.Double)
+    var tripleField: (Swift.Int, Swift.Double, Swift.Bool)
+    var quadrupleField: (Swift.Int8, Swift.Int16, Swift.Int32, Swift.Int64)
+
+    /* Allocator */
+    SymbolTestsCore.BuiltinTypeFields.TupleBuiltinTest.init(pairField: (Swift.Int, Swift.Double), tripleField: (Swift.Int, Swift.Double, Swift.Bool), quadrupleField: (Swift.Int8, Swift.Int16, Swift.Int32, Swift.Int64)) -> SymbolTestsCore.BuiltinTypeFields.TupleBuiltinTest
+
+    /* Variable */
+    SymbolTestsCore.BuiltinTypeFields.TupleBuiltinTest.pairField.getter : (Swift.Int, Swift.Double)
+    SymbolTestsCore.BuiltinTypeFields.TupleBuiltinTest.pairField.setter : (Swift.Int, Swift.Double)
+    SymbolTestsCore.BuiltinTypeFields.TupleBuiltinTest.tripleField.getter : (Swift.Int, Swift.Double, Swift.Bool)
+    SymbolTestsCore.BuiltinTypeFields.TupleBuiltinTest.tripleField.setter : (Swift.Int, Swift.Double, Swift.Bool)
+    SymbolTestsCore.BuiltinTypeFields.TupleBuiltinTest.quadrupleField.getter : (Swift.Int8, Swift.Int16, Swift.Int32, Swift.Int64)
+    SymbolTestsCore.BuiltinTypeFields.TupleBuiltinTest.quadrupleField.setter : (Swift.Int8, Swift.Int16, Swift.Int32, Swift.Int64)
+}

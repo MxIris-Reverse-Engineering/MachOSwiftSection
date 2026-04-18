@@ -1,0 +1,52 @@
+// MARK: - Types
+
+enum SymbolTestsCore.Concurrency {}
+struct SymbolTestsCore.Concurrency.AsyncFunctionTest {
+    /* Function */
+    SymbolTestsCore.Concurrency.AsyncFunctionTest.asyncFunction() async -> Swift.Int
+    SymbolTestsCore.Concurrency.AsyncFunctionTest.asyncThrowsFunction() async throws -> Swift.Int
+    SymbolTestsCore.Concurrency.AsyncFunctionTest.throwsFunction() throws -> Swift.Int
+}
+struct SymbolTestsCore.Concurrency.TypedThrowsErrorTest {
+    var message: Swift.String
+
+    /* Variable */
+    SymbolTestsCore.Concurrency.TypedThrowsErrorTest.message.getter : Swift.String
+    SymbolTestsCore.Concurrency.TypedThrowsErrorTest.message.setter : Swift.String
+}
+struct SymbolTestsCore.Concurrency.TypedThrowsFunctionTest {
+    /* Function */
+    SymbolTestsCore.Concurrency.TypedThrowsFunctionTest.asyncTypedThrowsFunction() async throws(SymbolTestsCore.Concurrency.TypedThrowsErrorTest) -> Swift.Int
+    SymbolTestsCore.Concurrency.TypedThrowsFunctionTest.typedThrowsFunction() throws(SymbolTestsCore.Concurrency.TypedThrowsErrorTest) -> Swift.Int
+}
+struct SymbolTestsCore.Concurrency.SendableClosureTest {
+    var sendableClosure: @Sendable () -> ()
+
+    /* Variable */
+    SymbolTestsCore.Concurrency.SendableClosureTest.sendableClosure.getter : @Sendable () -> ()
+    SymbolTestsCore.Concurrency.SendableClosureTest.sendableClosure.setter : @Sendable () -> ()
+
+    /* Function */
+    SymbolTestsCore.Concurrency.SendableClosureTest.acceptSendable(@Sendable () -> ()) -> ()
+    SymbolTestsCore.Concurrency.SendableClosureTest.acceptSendableAsync(nonisolated(nonsending) @Sendable () async -> ()) -> ()
+    SymbolTestsCore.Concurrency.SendableClosureTest.acceptSendableThrows(@Sendable () throws -> ()) -> ()
+}
+struct SymbolTestsCore.Concurrency.SendableTest {
+    var value: Swift.Int
+    var name: Swift.String
+
+    /* Variable */
+    SymbolTestsCore.Concurrency.SendableTest.name.getter : Swift.String
+    SymbolTestsCore.Concurrency.SendableTest.name.setter : Swift.String
+    SymbolTestsCore.Concurrency.SendableTest.value.getter : Swift.Int
+    SymbolTestsCore.Concurrency.SendableTest.value.setter : Swift.Int
+}
+
+// MARK: - Protocol Conformances
+
+extension SymbolTestsCore.Concurrency.TypedThrowsErrorTest: Swift.Error {
+    protocol witness for Swift.Error._domain.getter : Swift.String in conformance SymbolTestsCore.Concurrency.TypedThrowsErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._code.getter : Swift.Int in conformance SymbolTestsCore.Concurrency.TypedThrowsErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._userInfo.getter : Swift.AnyObject? in conformance SymbolTestsCore.Concurrency.TypedThrowsErrorTest : Swift.Error in SymbolTestsCore
+    protocol witness for Swift.Error._getEmbeddedNSError() -> Swift.AnyObject? in conformance SymbolTestsCore.Concurrency.TypedThrowsErrorTest : Swift.Error in SymbolTestsCore
+}
