@@ -145,7 +145,7 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.4"),
     .package(url: "https://github.com/MxIris-DeveloperTool/swift-clang", from: "0.2.0"),
     .package(url: "https://github.com/MxIris-DeveloperTool/swift-apinotes", from: "0.1.0"),
-    .package(url: "https://github.com/MxIris-Reverse-Engineering/DyldPrivate", from: "1330.0.0"),
+    .package(url: "https://github.com/MxIris-Reverse-Engineering/swift-dyld-private", from: "1.1.0"),
     
     // CLI
     .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
@@ -414,7 +414,7 @@ extension Target {
             .target(.MachOFoundation),
             .target(.MachOSwiftSectionC),
             .target(.Utilities),
-            .product(name: "DyldPrivate", package: "DyldPrivate"),
+            .product(name: "DyldPrivate", package: "swift-dyld-private"),
         ]
     )
 

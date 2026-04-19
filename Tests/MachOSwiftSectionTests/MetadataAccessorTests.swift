@@ -6,7 +6,6 @@ import MachOKit
 @testable import MachOTestingSupport
 @testable import MachOSwiftSection
 @testable import SwiftDump
-import DyldPrivate
 
 #if canImport(SwiftUI)
 import SwiftUI

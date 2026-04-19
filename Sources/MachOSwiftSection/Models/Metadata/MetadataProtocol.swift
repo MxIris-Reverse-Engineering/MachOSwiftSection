@@ -2,7 +2,6 @@ import Foundation
 import MachOKit
 import MachOExtensions
 import MachOReading
-import DyldPrivate
 
 public protocol MetadataProtocol<HeaderType>: ResolvableLocatableLayoutWrapper where Layout: MetadataLayout {
     associatedtype HeaderType: ResolvableLocatableLayoutWrapper = TypeMetadataHeader
