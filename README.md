@@ -35,7 +35,7 @@ Add the package to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection", from: "0.9.1"),
+    .package(url: "https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection", from: "0.10.0"),
 ],
 targets: [
     .target(
@@ -153,7 +153,7 @@ You can get the swift-section CLI tool in three ways:
 The swift-section CLI tool provides two main subcommands: `dump`, and `interface`.
 
 > [!IMPORTANT]
-> As of 0.9.0, when the input is a fat / universal binary you must pass `--architecture <arch>`. The tool no longer picks a default slice silently.
+> As of 0.10.0, when the input is a fat / universal binary you must pass `--architecture <arch>`. The tool no longer picks a default slice silently.
 
 #### dump - Dump Swift Information
 
