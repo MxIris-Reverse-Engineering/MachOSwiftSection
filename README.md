@@ -8,6 +8,12 @@ It may be the most powerful swift dump you can find so far, as it uses a custom 
 > [!NOTE]
 > This library is developed as an extension of [MachOKit](https://github.com/p-x9/MachOKit) for Swift
 
+## Requirements
+
+- Swift 6.2+
+- Xcode 26.0+
+- macOS 10.15+ / iOS 13+ / tvOS 13+ / watchOS 6+ / visionOS 1+
+
 ## MachOSwiftSection Library
 
 ### Roadmap
@@ -19,8 +25,40 @@ It may be the most powerful swift dump you can find so far, as it uses a custom 
 - [x] Method Symbol For Dyld Caches
 - [x] Builtin Type Descriptors
 - [x] Swift Interface Support
+- [x] Runtime Metadata Inspection (`SwiftInspection`)
 - [ ] Type Member Layout (WIP, MachOImage only)
 - [ ] Swift Section MCP
+
+### Swift Package Manager
+
+Add the package to your `Package.swift`:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/MxIris-Reverse-Engineering/MachOSwiftSection", from: "0.9.1"),
+],
+targets: [
+    .target(
+        name: "YourTarget",
+        dependencies: [
+            .product(name: "MachOSwiftSection", package: "MachOSwiftSection"),
+            // Optional higher-level products:
+            .product(name: "SwiftInspection", package: "MachOSwiftSection"),
+            .product(name: "SwiftDump", package: "MachOSwiftSection"),
+            .product(name: "SwiftInterface", package: "MachOSwiftSection"),
+            .product(name: "TypeIndexing", package: "MachOSwiftSection"),
+        ]
+    ),
+]
+```
+
+| Product | Purpose |
+| --- | --- |
+| `MachOSwiftSection` | Low-level parsing of `__swift5_*` sections (raw descriptors). |
+| `SwiftInspection` | Runtime metadata inspection — `EnumLayoutCalculator` (multi-payload enum layouts), `ClassHierarchyDumper`, `MetadataReader`. |
+| `SwiftDump` | High-level type wrappers (`Struct`, `Enum`, `Class`, `Protocol`, `ProtocolConformance`, …). |
+| `SwiftInterface` | End-to-end Swift interface generation. |
+| `TypeIndexing` | Index types / extensions / conformances for cross-binary analysis. |
 
 ### Usage
 
@@ -83,6 +121,23 @@ try await builder.prepare()
 let result = try await builder.printRoot()
 ```
 
+Generated interfaces reflect a wide range of Swift language features:
+
+- Type / member attributes: `@objc`, `@nonobjc`, `dynamic`, `@retroactive`, `@globalActor`, `@escaping`, `consuming` / `borrowing` parameter modifiers
+- `distributed actor` declarations and `distributed func` members
+- `deinit` for classes and noncopyable types
+- VTable offset comments alongside class members, ordered to match the on-disk layout
+- Expanded field offsets for nested struct fields, rendered as a tree
+- Inverted protocols (`~Copyable`, `~Escapable`) on types and generic requirements
+
+#### Inspect Runtime Metadata
+
+`SwiftInspection` exposes higher-level inspection utilities built on top of `MachOSwiftSection`:
+
+- `EnumLayoutCalculator` — compute the on-disk layout of Swift enums, including single-payload and multi-payload (tagged and untagged) cases. Mirrors the ABI rules in `swift/ABI/Enum.h`.
+- `ClassHierarchyDumper` — walk a class's inheritance chain across Swift/ObjC boundaries (requires `@_spi(Internals) import SwiftInspection`, `MachOImage` only).
+- `MetadataReader` — demangle types, symbols, context descriptors, and build generic signatures against a Mach-O.
+
 ## swift-section CLI Tool
 
 ### Installation
@@ -96,6 +151,9 @@ You can get the swift-section CLI tool in three ways:
 ### Usage
 
 The swift-section CLI tool provides two main subcommands: `dump`, and `interface`.
+
+> [!IMPORTANT]
+> As of 0.9.0, when the input is a fat / universal binary you must pass `--architecture <arch>`. The tool no longer picks a default slice silently.
 
 #### dump - Dump Swift Information
 
@@ -116,7 +174,7 @@ swift-section dump --sections types,protocols /path/to/binary
 # Save output to file
 swift-section dump --output-path output.txt /path/to/binary
 
-# Use specific architecture
+# Use specific architecture (required for fat binaries)
 swift-section dump --architecture arm64 /path/to/binary
 ```
 
@@ -128,6 +186,12 @@ swift-section dump --uses-system-dyld-shared-cache --cache-image-name SwiftUICor
 # Dump from specific dyld shared cache
 swift-section dump --dyld-shared-cache --cache-image-path /path/to/cache /path/to/dyld_shared_cache
 ```
+
+Dump output includes richer annotations:
+
+- Protocol witness table (PWT) entries are annotated with the requirement they satisfy
+- Inverted protocol constraints (`~Copyable`, `~Escapable`) are rendered on types and generic requirements
+- Protocol conformances can include the PWT address
 
 #### interface - Generate Swift Interface
 
@@ -146,7 +210,7 @@ swift-section interface /path/to/binary
 # Save interface to file
 swift-section interface --output-path interface.swiftinterface /path/to/binary
 
-# Use specific architecture
+# Use specific architecture (required for fat binaries)
 swift-section interface --architecture arm64 /path/to/binary
 ```
 
