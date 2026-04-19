@@ -17,6 +17,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Locate changelog
+        id: changelog
+        run: |
+          notes_file="Changelogs/${{ github.ref_name }}.md"
+          if [ ! -f "$notes_file" ]; then
+            echo "::error::Missing changelog file: $notes_file"
+            echo "Create $notes_file before tagging this release."
+            exit 1
+          fi
+          echo "path=$notes_file" >> "$GITHUB_OUTPUT"
+
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
@@ -55,17 +66,6 @@ jobs:
         run: |
           cd Products
           zip swift-section-macos-universal.zip swift-section
-
-      - name: Locate changelog
-        id: changelog
-        run: |
-          notes_file="Changelogs/${{ github.ref_name }}.md"
-          if [ ! -f "$notes_file" ]; then
-            echo "::error::Missing changelog file: $notes_file"
-            echo "Create $notes_file before tagging this release."
-            exit 1
-          fi
-          echo "path=$notes_file" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         run: |
