@@ -40,7 +40,7 @@ jobs:
         run: |
           set -euo pipefail
           file="Sources/swift-section/Version.swift"
-          value=$(grep -E 'static let value = "[^"]+"' "$file" | sed -E 's/.*"([^"]+)".*/\1/')
+          value=$(grep -m1 -E 'static[[:space:]]+let[[:space:]]+value[[:space:]]*=[[:space:]]*"[^"]+"' "$file" | sed -E 's/.*"([^"]+)".*/\1/' || true)
           if [ -z "$value" ]; then
             echo "::error file=$file::Failed to extract BundledVersion.value"
             exit 1
