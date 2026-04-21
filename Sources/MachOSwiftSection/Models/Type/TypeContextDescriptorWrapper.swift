@@ -61,11 +61,25 @@ public enum TypeContextDescriptorWrapper {
     public func genericContext() throws -> GenericContext? {
         return try contextDescriptor.genericContext()
     }
-    
+
     public func typeGenericContext() throws -> TypeGenericContext? {
         return try typeContextDescriptor.typeGenericContext()
     }
-    
+
+    // MARK: - ReadingContext Support
+
+    public func parent<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+        return try contextDescriptor.parent(in: context)
+    }
+
+    public func genericContext<Context: ReadingContext>(in context: Context) throws -> GenericContext? {
+        return try contextDescriptor.genericContext(in: context)
+    }
+
+    public func typeGenericContext<Context: ReadingContext>(in context: Context) throws -> TypeGenericContext? {
+        return try typeContextDescriptor.typeGenericContext(in: context)
+    }
+
     public var asContextDescriptorWrapper: ContextDescriptorWrapper {
         return .type(self)
     }
@@ -207,7 +221,17 @@ public enum ValueTypeDescriptorWrapper {
     public func genericContext() throws -> GenericContext? {
         return try contextDescriptor.genericContext()
     }
-    
+
+    // MARK: - ReadingContext Support
+
+    public func parent<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+        return try contextDescriptor.parent(in: context)
+    }
+
+    public func genericContext<Context: ReadingContext>(in context: Context) throws -> GenericContext? {
+        return try contextDescriptor.genericContext(in: context)
+    }
+
     public var asTypeContextDescriptorWrapper: TypeContextDescriptorWrapper {
         switch self {
         case .enum(let enumDescriptor):

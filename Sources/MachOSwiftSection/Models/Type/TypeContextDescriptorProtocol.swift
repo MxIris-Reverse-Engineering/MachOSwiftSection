@@ -46,6 +46,20 @@ extension TypeContextDescriptorProtocol {
     }
 }
 
+// MARK: - ReadingContext Support
+
+extension TypeContextDescriptorProtocol {
+    public func genericContext<Context: ReadingContext>(in context: Context) throws -> GenericContext? {
+        guard layout.flags.isGeneric else { return nil }
+        return try typeGenericContext(in: context)?.asGenericContext()
+    }
+
+    public func typeGenericContext<Context: ReadingContext>(in context: Context) throws -> TypeGenericContext? {
+        guard layout.flags.isGeneric else { return nil }
+        return try .init(contextDescriptor: self, in: context)
+    }
+}
+
 extension TypeContextDescriptorProtocol {
     public var hasSingletonMetadataInitialization: Bool {
         return layout.flags.kindSpecificFlags?.typeFlags?.hasSingletonMetadataInitialization ?? false
