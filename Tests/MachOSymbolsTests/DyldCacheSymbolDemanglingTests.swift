@@ -13,7 +13,7 @@ final class DyldCacheSymbolDemanglingTests: DyldCacheSymbolTests, DemanglingTest
     }
 
     @Test func demangle() async throws {
-        let node = try Demangling.demangleAsNode("_$sSis15WritableKeyPathCy17RealityFoundation23PhysicallyBasedMaterialVAE9BaseColorVGTHTm")
+        let node = try await Demangling.demangleAsNode("_$sSis15WritableKeyPathCy17RealityFoundation23PhysicallyBasedMaterialVAE9BaseColorVGTHTm")
 //        try Demangling.mangleAsString(node).print()
         node.description.print()
     }
@@ -22,7 +22,7 @@ final class DyldCacheSymbolDemanglingTests: DyldCacheSymbolTests, DemanglingTest
         let mangledName = "_$s7SwiftUI11DisplayListV10PropertiesVs9OptionSetAAsAFP8rawValuex03RawI0Qz_tcfCTW"
         let demangleNodeTree = MachOTestingSupport.stdlib_demangleNodeTree(mangledName)
         let stdlibNodeDescription = try #require(demangleNodeTree)
-        let swiftSectionNodeDescription = try demangleAsNode(mangledName).description + "\n"
+        let swiftSectionNodeDescription = try await demangleAsNode(mangledName).description + "\n"
         #expect(stdlibNodeDescription == swiftSectionNodeDescription)
     }
 }

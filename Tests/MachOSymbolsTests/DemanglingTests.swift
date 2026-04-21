@@ -36,7 +36,7 @@ extension DemanglingTests {
             let stdlibTree = MachOTestingSupport.stdlib_demangleNodeTree(mangledName)
 
             do {
-                let node = try demangleAsNode(mangledName)
+                let node = try await demangleAsNode(mangledName)
                 var allPassed = true
 
                 // 1. Node tree check
@@ -57,7 +57,7 @@ extension DemanglingTests {
                 }
 
                 // 2. Remangle check
-                let remangled = try Demangling.mangleAsString(node)
+                let remangled = try await Demangling.mangleAsString(node)
                 if remangled != mangledName {
                     // Known issue: Md vs MD (Apple-internal lowercase 'd')
                     if mangledName.hasSuffix("Md"), remangled.hasSuffix("MD"),

@@ -147,7 +147,7 @@ package struct ProtocolDumper<MachO: MachOSwiftSectionRepresentableWithCache>: N
     private func validNode(for symbols: Symbols, visitedNode: borrowing OrderedSet<Node> = []) async throws -> Node? {
         let currentInterfaceName = try await _name(using: .options(.interfaceType)).string
         for symbol in symbols {
-            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), protocolNode.print(using: .interfaceType) == currentInterfaceName, !visitedNode.contains(node) {
+            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), await protocolNode.print(using: .interfaceType) == currentInterfaceName, !visitedNode.contains(node) {
                 return node
             }
         }

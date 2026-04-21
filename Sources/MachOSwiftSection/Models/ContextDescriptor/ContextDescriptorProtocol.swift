@@ -13,7 +13,10 @@ public protocol ContextDescriptorProtocol: ResolvableLocatableLayoutWrapper wher
     func parent() throws -> SymbolOrElement<ContextDescriptorWrapper>?
     func moduleContextDesciptor() throws -> (any ModuleContextDescriptorProtocol)?
     func isCImportedContextDescriptor() throws -> Bool
-    
+
+    func genericContext<Context: ReadingContext>(in context: Context) throws -> GenericContext?
+    func parent<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ContextDescriptorWrapper>?
+
     subscript<T>(dynamicMember keyPath: KeyPath<ContextDescriptorFlags, T>) -> T { get }
 }
 

@@ -27,7 +27,7 @@ final class MultiPayloadEnumTests: MachOImageTests {
         let descriptors = try machO.swift.multiPayloadEnumDescriptors
         for descriptor in descriptors {
             let inProcessDescriptor = descriptor.asPointerWrapper(in: machO)
-            try multiPayloadEnumDescriptorByMangledName[MetadataReader.demangleType(for: inProcessDescriptor.mangledTypeName()).print(using: demangleOptions)] = inProcessDescriptor
+            try await multiPayloadEnumDescriptorByMangledName[MetadataReader.demangleType(for: inProcessDescriptor.mangledTypeName()).print(using: demangleOptions)] = inProcessDescriptor
         }
     }
 
@@ -54,7 +54,7 @@ final class MultiPayloadEnumTests: MachOImageTests {
             let records = try fieldDescriptor.records()
             guard !records.isEmpty else { continue }
 
-            let typeName = try MetadataReader.demangleContext(for: .type(.enum(typeContextDescriptor as! EnumDescriptor))).print(using: demangleOptions)
+            let typeName = try await MetadataReader.demangleContext(for: .type(.enum(typeContextDescriptor as! EnumDescriptor))).print(using: demangleOptions)
 
             print(typeName)
             print("")
@@ -117,10 +117,10 @@ final class MultiPayloadEnumTests: MachOImageTests {
                     }
                 }
 
-                let mangledTypeNameString = try mangleAsString(node)
+                let mangledTypeNameString = try await mangleAsString(node)
                 if let metatype = try RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, genericContext: nil, genericArguments: nil) {
                     let currentMetadata = try Metadata.createInProcess(metatype)
-                    try print("\(indirectCaseString)case \(record.fieldName())\(payloadString("\(node.print(using: .interfaceTypeBuilderOnly))"))")
+                    try print("\(indirectCaseString)case \(record.fieldName())\(payloadString("\(await node.print(using: .interfaceTypeBuilderOnly))"))")
                     let metadataWrapper = try currentMetadata.asMetadataWrapper()
                     let typeLayout = try currentMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
                     let indentLevel = 1
@@ -130,7 +130,7 @@ final class MultiPayloadEnumTests: MachOImageTests {
                             let tupleElementMetadata = try element.type.resolve()
                             if let descriptor = try tupleElementMetadata.typeContextDescriptorWrapper()?.asContextDescriptorWrapper {
                                 print(indent + "Index: " + index.description)
-                                try print(indent + "Type: " + MetadataReader.demangleContext(for: descriptor).print(using: demangleOptions))
+                                try await print(indent + "Type: " + MetadataReader.demangleContext(for: descriptor).print(using: demangleOptions))
                             }
                             let tupleElementTypeLayout = try tupleElementMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
                             print(indent + "- " + tupleElementTypeLayout.description)
@@ -146,7 +146,7 @@ final class MultiPayloadEnumTests: MachOImageTests {
                     optionalSize = optionalTypeLayout.size.cast()
 
                 } else {
-                    try print("NotFound:", "case", record.fieldName(), mangledTypeNameString, node.print(using: .default))
+                    try await print("NotFound:", "case", record.fieldName(), mangledTypeNameString, node.print(using: .default))
                 }
             }
             print("")

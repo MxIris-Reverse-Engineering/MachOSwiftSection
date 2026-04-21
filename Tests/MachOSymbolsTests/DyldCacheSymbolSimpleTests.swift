@@ -16,13 +16,13 @@ final class DyldCacheSymbolSimpleTests: DyldCacheSymbolTests, @unchecked Sendabl
         let imageName: MachOImageName = .SwiftUICore
         let symbols = try await symbols(for: imageName)
         for symbol in symbols {
-            let node = try demangleAsNode(symbol.stringValue)
+            let node = try await demangleAsNode(symbol.stringValue)
             guard !symbol.stringValue.hasSuffix("$delayInitStub") else { continue }
             string += "---------------------------------------"
             string += "\n"
             string += symbol.stringValue
             string += "\n"
-            string += node.print(using: .default)
+            await string += node.print(using: .default)
             string += "\n"
             string += node.description
             string += "\n"
@@ -38,7 +38,7 @@ final class DyldCacheSymbolSimpleTests: DyldCacheSymbolTests, @unchecked Sendabl
     }
 
     @Test func demangle() async throws {
-        try demangleAsNode("_TtCs12_SwiftObject").print().print()
+        try await demangleAsNode("_TtCs12_SwiftObject").print().print()
     }
 }
 

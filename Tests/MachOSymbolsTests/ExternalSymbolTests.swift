@@ -9,7 +9,7 @@ final class ExternalSymbolTests: MachOFileTests, @unchecked Sendable {
     @Test func machOSections() async throws {
         for symbol in machOFile.symbols where symbol.nlist.isExternal && symbol.name.isSwiftSymbol {
             let demangledNode = try symbol.demangledNode
-            demangledNode.print(using: .default).print()
+            await demangledNode.print(using: .default).print()
             demangledNode.description.print()
             "-----------------------------".print()
         }

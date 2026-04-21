@@ -161,7 +161,7 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
         guard let symbols = try await Symbols.resolve(from: requirement.offset, in: machO) else { return nil }
         for symbol in symbols {
             if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO) {
-                return node.print(using: typeNameOptions)
+                return await node.print(using: typeNameOptions)
             }
         }
         return nil
@@ -169,7 +169,7 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
 
     private func _node(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<Node> = []) async throws -> Node? {
         for symbol in symbols {
-            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let dumpedNode = node.preorder().first(where: { $0.kind == .protocolConformance }), let symbolTypeName = dumpedNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.storage(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(node) {
+            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let dumpedNode = node.preorder().first(where: { $0.kind == .protocolConformance }), let symbolTypeName = await dumpedNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.storage(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(node) {
                 return node
             }
         }

@@ -42,7 +42,7 @@ final class SymbolIndexStoreTests: DyldCacheTests, @unchecked Sendable {
     @Test func globalSymbols() async throws {
         let symbols = symbolIndexStore.globalSymbols(of: .function, in: machOFileInCache)
         for symbol in symbols {
-            symbol.demangledNode.print(using: .default).print()
+            await symbol.demangledNode.print(using: .default).print()
             symbol.demangledNode.description.print()
             print("----------------------------")
         }
@@ -66,7 +66,7 @@ final class SymbolIndexStoreTests: DyldCacheTests, @unchecked Sendable {
                 for (node, _) in memberSymbolsByNode {
                     print("Node: ")
                     print(node)
-                    print(node.print())
+                    await print(node.print())
                 }
             }
             print("---------------------")
