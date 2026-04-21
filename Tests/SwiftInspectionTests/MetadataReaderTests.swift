@@ -65,7 +65,7 @@ final class MetadataReaderImageTests: MachOImageTests, @unchecked Sendable {
 
     @Test func demangleTypeFromMachO() async throws {
         // Test that demangling works with in-process metadata
-        let node = try demangleAsNode("$sSi")
+        let node = try await demangleAsNode("$sSi")
 
         #expect(node.kind == .global)
         #expect(node.first(of: .structure) != nil)
@@ -85,7 +85,7 @@ final class MetadataReaderFileTests: MachOFileTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .iOS_26_2_Simulator_SwiftUI }
 
     @Test func demangleTypeFromFile() async throws {
-        let node = try demangleAsNode("$sSi")
+        let node = try await demangleAsNode("$sSi")
         #expect(node.kind == .global)
     }
 

@@ -62,13 +62,13 @@ public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRe
                 if let associatedTypes = associatedTypeByParamType[param] {
                     for associatedType in associatedTypes {
                         let primaryAssociatedTypeNode = substitutionMap.rootOriginal(for: associatedType)
-                        primaryAssociatedTypes.append(primaryAssociatedTypeNode.print(using: .opaqueTypeBuilderOnly))
+                        await primaryAssociatedTypes.append(primaryAssociatedTypeNode.print(using: .opaqueTypeBuilderOnly))
                     }
                 }
 
                 if let witnessTypes = witnessTypeByParamType[param] {
                     for witnessType in witnessTypes {
-                        primaryAssociatedTypes.append(witnessType.print(using: .opaqueTypeBuilderOnly))
+                        await primaryAssociatedTypes.append(witnessType.print(using: .opaqueTypeBuilderOnly))
                     }
                 }
 

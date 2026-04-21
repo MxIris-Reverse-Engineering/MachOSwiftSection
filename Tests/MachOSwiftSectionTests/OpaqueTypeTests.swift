@@ -16,7 +16,7 @@ extension OpaqueTypeTests {
             guard symbol.offset > 0 else { continue }
             print("Offset:", symbol.offset)
             print("Demangled:")
-            symbol.demangledNode.print(using: .default).print()
+            await symbol.demangledNode.print(using: .default).print()
             symbol.demangledNode.description.print()
             let opaqueTypeDescriptor = try OpaqueTypeDescriptor.resolve(from: symbol.offset, in: machO)
             let opaqueType = try OpaqueType(descriptor: opaqueTypeDescriptor, in: machO)
@@ -32,7 +32,7 @@ extension OpaqueTypeTests {
             for underlyingTypeArgumentMangledName in opaqueType.underlyingTypeArgumentMangledNames {
                 let node = try MetadataReader.demangleType(for: underlyingTypeArgumentMangledName, in: machO)
                 node.description.print()
-                node.print(using: .default).print()
+                await node.print(using: .default).print()
             }
             print("--------------------")
         }

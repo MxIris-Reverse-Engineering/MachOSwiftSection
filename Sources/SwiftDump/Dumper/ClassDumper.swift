@@ -466,7 +466,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
     package func validNode(for symbols: Symbols, visitedNodes: borrowing OrderedSet<Node> = []) async throws -> Node? {
         let currentInterfaceName = try await _name(using: .options(.interfaceType)).string
         for symbol in symbols {
-            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let classNode = node.first(of: .class), classNode.print(using: .interfaceType) == currentInterfaceName, !visitedNodes.contains(node) {
+            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let classNode = node.first(of: .class), await classNode.print(using: .interfaceType) == currentInterfaceName, !visitedNodes.contains(node) {
                 return node
             }
         }

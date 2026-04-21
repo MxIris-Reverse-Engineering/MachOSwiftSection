@@ -578,7 +578,7 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
         var failedExtensions = 0
 
         for (node, memberSymbols) in memberSymbolsByName {
-            let name = node.print(using: .interfaceTypeBuilderOnly)
+            let name = await node.print(using: .interfaceTypeBuilderOnly)
             guard let typeInfo = symbolIndexStore.typeInfo(for: name, in: machO) else {
                 eventDispatcher.dispatch(.extensionTargetNotFound(targetName: name))
                 continue

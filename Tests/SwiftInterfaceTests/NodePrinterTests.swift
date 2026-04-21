@@ -22,7 +22,7 @@ struct NodePrinterUnitTests {
         ("$s4Main3barSiyF", "func bar() -> Int"),
     ])
     func functionNodePrinterBasic(mangled: String, expectedContains: String) async throws {
-        let node = try demangleAsNode(mangled)
+        let node = try await demangleAsNode(mangled)
         var printer = FunctionNodePrinter(isOverride: false)
         let result = try await printer.printRoot(node).string
 
@@ -30,7 +30,7 @@ struct NodePrinterUnitTests {
     }
 
     @Test func functionNodePrinterWithOverride() async throws {
-        let node = try demangleAsNode("$s4Main3fooyySiF")
+        let node = try await demangleAsNode("$s4Main3fooyySiF")
         var printer = FunctionNodePrinter(isOverride: true)
         let result = try await printer.printRoot(node).string
 
@@ -40,7 +40,7 @@ struct NodePrinterUnitTests {
     // MARK: - VariableNodePrinter
 
     @Test func variableNodePrinterStored() async throws {
-        let node = try demangleAsNode("$s4Main3fooSivp")  // Main.foo: Int
+        let node = try await demangleAsNode("$s4Main3fooSivp")  // Main.foo: Int
         var printer = VariableNodePrinter(isStored: true, isOverride: false, hasSetter: true, indentation: 0)
         let result = try await printer.printRoot(node).string
 
@@ -48,7 +48,7 @@ struct NodePrinterUnitTests {
     }
 
     @Test func variableNodePrinterComputed() async throws {
-        let node = try demangleAsNode("$s4Main3fooSivg")  // Main.foo.getter
+        let node = try await demangleAsNode("$s4Main3fooSivg")  // Main.foo.getter
         var printer = VariableNodePrinter(isStored: false, isOverride: false, hasSetter: false, indentation: 0)
         let result = try await printer.printRoot(node).string
 
@@ -56,7 +56,7 @@ struct NodePrinterUnitTests {
     }
 
     @Test func variableNodePrinterWithOverride() async throws {
-        let node = try demangleAsNode("$s4Main3fooSivp")
+        let node = try await demangleAsNode("$s4Main3fooSivp")
         var printer = VariableNodePrinter(isStored: true, isOverride: true, hasSetter: true, indentation: 0)
         let result = try await printer.printRoot(node).string
 
@@ -74,7 +74,7 @@ struct NodePrinterUnitTests {
         ("$sSd", "Swift.Double"),
     ])
     func typeNodePrinterBasicTypes(mangled: String, expected: String) async throws {
-        let node = try demangleAsNode(mangled)
+        let node = try await demangleAsNode(mangled)
         var printer = TypeNodePrinter()
 
         // For type aliases like $sSi, the structure is Global > Structure
@@ -88,7 +88,7 @@ struct NodePrinterUnitTests {
     }
 
     @Test func typeNodePrinterOptional() async throws {
-        let node = try demangleAsNode("$sSiSg")  // Int?
+        let node = try await demangleAsNode("$sSiSg")  // Int?
         var printer = TypeNodePrinter()
 
         guard let typeNode = node.children.first else {
@@ -102,7 +102,7 @@ struct NodePrinterUnitTests {
     }
 
     @Test func typeNodePrinterArray() async throws {
-        let node = try demangleAsNode("$sSaySiG")  // [Int]
+        let node = try await demangleAsNode("$sSaySiG")  // [Int]
         var printer = TypeNodePrinter()
 
         guard let typeNode = node.children.first else {
@@ -116,7 +116,7 @@ struct NodePrinterUnitTests {
     }
 
     @Test func typeNodePrinterDictionary() async throws {
-        let node = try demangleAsNode("$sSDySSSiG")  // [String: Int]
+        let node = try await demangleAsNode("$sSDySSSiG")  // [String: Int]
         var printer = TypeNodePrinter()
 
         guard let typeNode = node.children.first else {
@@ -132,7 +132,7 @@ struct NodePrinterUnitTests {
 
     @Test func typeNodePrinterGenericArray() async throws {
         // Test with a type that should produce non-empty output
-        let node = try demangleAsNode("$sSaySiGD")  // [Int] destructor
+        let node = try await demangleAsNode("$sSaySiGD")  // [Int] destructor
 
         // This demangled symbol has different structure, just verify no crash
         #expect(node.kind == .global)
@@ -140,7 +140,7 @@ struct NodePrinterUnitTests {
 
     @Test func typeNodePrinterModuleQualified() async throws {
         // Test custom type
-        let node = try demangleAsNode("$s4Main3FooV")
+        let node = try await demangleAsNode("$s4Main3FooV")
         var printer = TypeNodePrinter()
 
         guard let typeNode = node.children.first else {
@@ -156,7 +156,7 @@ struct NodePrinterUnitTests {
 
     @Test func subscriptNodePrinterBasic() async throws {
         // subscript with getter only
-        let node = try demangleAsNode("$s4Main3FooVyS2icig")  // Main.Foo.subscript(_:) getter
+        let node = try await demangleAsNode("$s4Main3FooVyS2icig")  // Main.Foo.subscript(_:) getter
         var printer = SubscriptNodePrinter(isOverride: false, hasSetter: false, indentation: 1)
         let result = try await printer.printRoot(node).string
 
@@ -166,7 +166,7 @@ struct NodePrinterUnitTests {
     }
 
     @Test func subscriptNodePrinterWithSetter() async throws {
-        let node = try demangleAsNode("$s4Main3FooVyS2icig")
+        let node = try await demangleAsNode("$s4Main3FooVyS2icig")
         var printer = SubscriptNodePrinter(isOverride: false, hasSetter: true, indentation: 1)
         let result = try await printer.printRoot(node).string
 
@@ -186,7 +186,7 @@ final class NodePrinterIntegrationTests: DyldCacheTests, @unchecked Sendable {
     override class var cacheImageName: MachOImageName { .SwiftUICore }
 
     @Test func functionNodeFromSymbol() async throws {
-        let node = try demangleAsNode("_$s7SwiftUI19AnyStyleContextTypeV07acceptsC0ySbxmxQpRvzAA0dE0RzlF")
+        let node = try await demangleAsNode("_$s7SwiftUI19AnyStyleContextTypeV07acceptsC0ySbxmxQpRvzAA0dE0RzlF")
         var printer = FunctionNodePrinter(isOverride: false)
         let result = try await printer.printRoot(node).string
 
@@ -196,7 +196,7 @@ final class NodePrinterIntegrationTests: DyldCacheTests, @unchecked Sendable {
     }
 
     @Test func variableNodeFromSymbol() async throws {
-        let variableNode = try demangleAsNode("_$s7SwiftUI38HostingViewTransparentBackgroundReasonVs10SetAlgebraAAsADP7isEmptySbvgTW")
+        let variableNode = try await demangleAsNode("_$s7SwiftUI38HostingViewTransparentBackgroundReasonVs10SetAlgebraAAsADP7isEmptySbvgTW")
         var variableNodePrinter = VariableNodePrinter(isStored: false, isOverride: false, hasSetter: true, indentation: 0)
 
         guard let firstChild = variableNode.children.first else {
