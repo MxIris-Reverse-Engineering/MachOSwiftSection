@@ -152,6 +152,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
         private(set) var symbolsByOffset: OrderedDictionary<Int, [Symbol]> = [:]
 
+        @Mutex
         private(set) var demangledNodeBySymbol: [Symbol: Node] = [:]
 
         private(set) var thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: [ThunkAttributeMember]]] = [:]

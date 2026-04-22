@@ -89,11 +89,13 @@ jobs:
           swift test \
             -c debug \
             --build-path .build-test-debug \
-            --filter '\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests|GenericSpecializationTests|GenericSpecializerAPITests|MultiPayloadEnumTests|MetadataReaderDemanglingTests)(/|$)'
+            --no-parallel \
+            --filter '\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests|GenericSpecializationTests|MultiPayloadEnumTests|MetadataReaderDemanglingTests)(/|$)'
 
       - name: Build and run tests in release mode
         run: |
           swift test \
             -c release \
             --build-path .build-test-release \
-            --filter '\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests|GenericSpecializationTests|GenericSpecializerAPITests|MultiPayloadEnumTests|MetadataReaderDemanglingTests)(/|$)'
+            --no-parallel \
+            --filter '\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests|GenericSpecializationTests|MultiPayloadEnumTests|MetadataReaderDemanglingTests)(/|$)'

@@ -18,6 +18,7 @@ struct TestGenericStruct<A, B, C> where A: Collection, B: Equatable, C: Hashable
     let c: C
 }
 
+@Suite(.serialized)
 final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     override class var imageName: MachOImageName { .SwiftUICore }
 
@@ -72,12 +73,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         )
         try #expect(#require(metadata.value.resolve().struct).fieldOffsets() == [0, 8, 16])
     }
-}
-
-// MARK: - GenericSpecializer API Tests
-
-@Suite
-struct GenericSpecializerAPITests {
+    
     @Test func makeRequest() async throws {
         let machO = MachOImage.current()
 
