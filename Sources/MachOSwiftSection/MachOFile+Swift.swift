@@ -121,3 +121,6 @@ extension MachOFile.Swift {
 }
 
 extension RelativeDirectPointer: LayoutProtocol {}
+extension RelativeIndirectPointer: LayoutProtocol {}
+extension RelativeIndirectablePointer: LayoutProtocol {}
+extension RelativeIndirectablePointerIntPair: LayoutProtocol {}

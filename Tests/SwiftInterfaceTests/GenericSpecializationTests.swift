@@ -18,7 +18,6 @@ struct TestGenericStruct<A, B, C> where A: Collection, B: Equatable, C: Hashable
     let c: C
 }
 
-@Suite(.serialized)
 final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     override class var imageName: MachOImageName { .SwiftUICore }
 

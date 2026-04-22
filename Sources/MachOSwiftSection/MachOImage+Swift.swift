@@ -110,8 +110,11 @@ extension MachOImage.Swift {
         let vmaddrSlide = try required(machO.vmaddrSlide)
         let start = try required(UnsafeRawPointer(bitPattern: section.address + vmaddrSlide))
         let offset = start.bitPattern.int - machO.ptr.bitPattern.int
-        let pointerSize: Int = MemoryLayout<RelativeDirectPointer<Descriptor>>.size
-        let data: [AnyLocatableLayoutWrapper<RelativeDirectPointer<Descriptor>>] = try machO.readWrapperElements(offset: offset, numberOfElements: section.size / pointerSize)
+        typealias P = RelativeIndirectablePointer<Descriptor, Pointer<Descriptor>>
+        let pointerSize: Int = MemoryLayout<P>.size
+        let data: [AnyLocatableLayoutWrapper<P>] = try machO.readWrapperElements(offset: offset, numberOfElements: section.size / pointerSize)
         return try data.map { try $0.layout.resolve(from: $0.offset, in: machO) }
     }
 }
+
+
