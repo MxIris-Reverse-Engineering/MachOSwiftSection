@@ -72,12 +72,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         )
         try #expect(#require(metadata.value.resolve().struct).fieldOffsets() == [0, 8, 16])
     }
-}
-
-// MARK: - GenericSpecializer API Tests
-
-@Suite
-struct GenericSpecializerAPITests {
+    
     @Test func makeRequest() async throws {
         let machO = MachOImage.current()
 

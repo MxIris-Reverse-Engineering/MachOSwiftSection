@@ -8,6 +8,10 @@ public typealias RelativeDirectPointer<Pointee: Resolvable> = TargetRelativeDire
 
 public typealias RelativeDirectRawPointer = TargetRelativeDirectPointer<AnyResolvable, RelativeOffset>
 
+public typealias RelativeDirectPointerIntPair<Pointee: Resolvable, Integer: RawRepresentable> = TargetRelativeDirectPointerIntPair<Pointee, RelativeOffset, Integer> where Integer.RawValue: FixedWidthInteger
+
+public typealias RelativeDirectRawPointerIntPair<Integer: RawRepresentable> = TargetRelativeDirectPointerIntPair<AnyResolvable, RelativeOffset, Integer> where Integer.RawValue: FixedWidthInteger
+
 public typealias RelativeIndirectPointer<Pointee: Resolvable, IndirectType: RelativeIndirectType> = TargetRelativeIndirectPointer<Pointee, RelativeOffset, IndirectType> where Pointee == IndirectType.Resolved
 
 public typealias RelativeIndirectRawPointer = TargetRelativeIndirectPointer<AnyResolvable, RelativeOffset, Pointer<AnyResolvable>>

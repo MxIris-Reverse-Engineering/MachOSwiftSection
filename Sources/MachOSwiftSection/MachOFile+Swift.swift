@@ -47,7 +47,7 @@ extension MachOFile.Swift: SwiftSectionRepresentable {
 
     public var contextDescriptors: [ContextDescriptorWrapper] {
         get throws {
-            return try _readRelativeDescriptors(from: .__swift5_types, in: machO) + (try? _readRelativeDescriptors(from: .__swift5_types2, in: machO))
+            return try _readTypeMetadataRecords(from: .__swift5_types, in: machO) + (try? _readTypeMetadataRecords(from: .__swift5_types2, in: machO))
         }
     }
 
@@ -59,7 +59,7 @@ extension MachOFile.Swift: SwiftSectionRepresentable {
 
     public var protocolDescriptors: [ProtocolDescriptor] {
         get throws {
-            return try _readRelativeDescriptors(from: .__swift5_protos, in: machO)
+            return try _readProtocolRecords(from: .__swift5_protos, in: machO)
         }
     }
 
@@ -116,7 +116,31 @@ extension MachOFile.Swift {
             section.offset
         }
         let data: [AnyLocatableLayoutWrapper<RelativeDirectPointer<Descriptor>>] = try machO.readWrapperElements(offset: offset, numberOfElements: section.size / pointerSize)
-        return data.compactMap { try? $0.layout.resolve(from: $0.offset, in: machO) }
+        return try data.map { try $0.layout.resolve(from: $0.offset, in: machO) }
+    }
+
+    private func _readTypeMetadataRecords(from swiftMachOSection: MachOSwiftSectionName, in machO: MachOFile) throws -> [ContextDescriptorWrapper] {
+        let section = try machO.section(for: swiftMachOSection)
+        let offset = if let cache = machO.cache {
+            section.address - cache.mainCacheHeader.sharedRegionStart.cast()
+        } else {
+            section.offset
+        }
+        let recordSize = MemoryLayout<TypeMetadataRecord.Layout>.size
+        let records: [TypeMetadataRecord] = try machO.readWrapperElements(offset: offset, numberOfElements: section.size / recordSize)
+        return try records.compactMap { try $0.contextDescriptor(in: machO) }
+    }
+
+    private func _readProtocolRecords(from swiftMachOSection: MachOSwiftSectionName, in machO: MachOFile) throws -> [ProtocolDescriptor] {
+        let section = try machO.section(for: swiftMachOSection)
+        let offset = if let cache = machO.cache {
+            section.address - cache.mainCacheHeader.sharedRegionStart.cast()
+        } else {
+            section.offset
+        }
+        let recordSize = MemoryLayout<ProtocolRecord.Layout>.size
+        let records: [ProtocolRecord] = try machO.readWrapperElements(offset: offset, numberOfElements: section.size / recordSize)
+        return try records.compactMap { try $0.protocolDescriptor(in: machO) }
     }
 }
 
