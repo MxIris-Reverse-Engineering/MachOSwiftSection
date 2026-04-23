@@ -89,14 +89,19 @@ extension MachOImage.Swift: SwiftSectionRepresentable {
 }
 
 extension MachOImage.Swift {
-    private func _readDescriptors<Descriptor: TopLevelDescriptor>(from swiftMachOSection: MachOSwiftSectionName, in machO: MachOImage) throws -> [Descriptor] {
+    private func _sectionOffsetAndSize(of swiftMachOSection: MachOSwiftSectionName, in machO: MachOImage) throws -> (offset: Int, size: Int) {
         let section = try machO.section(for: swiftMachOSection)
-        var descriptors: [Descriptor] = []
         let vmaddrSlide = try required(machO.vmaddrSlide)
         let start = try required(UnsafeRawPointer(bitPattern: section.address + vmaddrSlide))
         let offset = start.bitPattern.int - machO.ptr.bitPattern.int
+        return (offset, section.size)
+    }
+
+    private func _readDescriptors<Descriptor: TopLevelDescriptor>(from swiftMachOSection: MachOSwiftSectionName, in machO: MachOImage) throws -> [Descriptor] {
+        let (offset, size) = try _sectionOffsetAndSize(of: swiftMachOSection, in: machO)
+        var descriptors: [Descriptor] = []
         var currentOffset = offset
-        let endOffset = offset + section.size
+        let endOffset = offset + size
         while currentOffset < endOffset {
             let descriptor: Descriptor = try machO.readWrapperElement(offset: currentOffset)
             currentOffset += descriptor.actualSize
@@ -106,32 +111,23 @@ extension MachOImage.Swift {
     }
 
     private func _readRelativeDescriptors<Descriptor: Resolvable>(from swiftMachOSection: MachOSwiftSectionName, in machO: MachOImage) throws -> [Descriptor] {
-        let section = try machO.section(for: swiftMachOSection)
-        let vmaddrSlide = try required(machO.vmaddrSlide)
-        let start = try required(UnsafeRawPointer(bitPattern: section.address + vmaddrSlide))
-        let offset = start.bitPattern.int - machO.ptr.bitPattern.int
+        let (offset, size) = try _sectionOffsetAndSize(of: swiftMachOSection, in: machO)
         let pointerSize: Int = MemoryLayout<RelativeDirectPointer<Descriptor>>.size
-        let data: [AnyLocatableLayoutWrapper<RelativeDirectPointer<Descriptor>>] = try machO.readWrapperElements(offset: offset, numberOfElements: section.size / pointerSize)
+        let data: [AnyLocatableLayoutWrapper<RelativeDirectPointer<Descriptor>>] = try machO.readWrapperElements(offset: offset, numberOfElements: size / pointerSize)
         return try data.map { try $0.layout.resolve(from: $0.offset, in: machO) }
     }
 
     private func _readTypeMetadataRecords(from swiftMachOSection: MachOSwiftSectionName, in machO: MachOImage) throws -> [ContextDescriptorWrapper] {
-        let section = try machO.section(for: swiftMachOSection)
-        let vmaddrSlide = try required(machO.vmaddrSlide)
-        let start = try required(UnsafeRawPointer(bitPattern: section.address + vmaddrSlide))
-        let offset = start.bitPattern.int - machO.ptr.bitPattern.int
+        let (offset, size) = try _sectionOffsetAndSize(of: swiftMachOSection, in: machO)
         let recordSize = MemoryLayout<TypeMetadataRecord.Layout>.size
-        let records: [TypeMetadataRecord] = try machO.readWrapperElements(offset: offset, numberOfElements: section.size / recordSize)
+        let records: [TypeMetadataRecord] = try machO.readWrapperElements(offset: offset, numberOfElements: size / recordSize)
         return try records.compactMap { try $0.contextDescriptor(in: machO) }
     }
 
     private func _readProtocolRecords(from swiftMachOSection: MachOSwiftSectionName, in machO: MachOImage) throws -> [ProtocolDescriptor] {
-        let section = try machO.section(for: swiftMachOSection)
-        let vmaddrSlide = try required(machO.vmaddrSlide)
-        let start = try required(UnsafeRawPointer(bitPattern: section.address + vmaddrSlide))
-        let offset = start.bitPattern.int - machO.ptr.bitPattern.int
+        let (offset, size) = try _sectionOffsetAndSize(of: swiftMachOSection, in: machO)
         let recordSize = MemoryLayout<ProtocolRecord.Layout>.size
-        let records: [ProtocolRecord] = try machO.readWrapperElements(offset: offset, numberOfElements: section.size / recordSize)
+        let records: [ProtocolRecord] = try machO.readWrapperElements(offset: offset, numberOfElements: size / recordSize)
         return try records.compactMap { try $0.protocolDescriptor(in: machO) }
     }
 }
