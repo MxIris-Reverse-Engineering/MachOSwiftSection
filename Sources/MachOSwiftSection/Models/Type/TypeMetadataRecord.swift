@@ -49,4 +49,19 @@ extension TypeMetadataRecord {
             return nil
         }
     }
+    
+    public func contextDescriptor<Context: ReadingContext>(in context: Context) throws -> ContextDescriptorWrapper? {
+        let fieldOffset = offset(of: \.nominalTypeDescriptor)
+        let relativeOffset = layout.nominalTypeDescriptor.relativeOffset
+        switch typeKind {
+        case .directTypeDescriptor:
+            let pointer = RelativeDirectPointer<ContextDescriptorWrapper>(relativeOffset: relativeOffset)
+            return try pointer.resolve(at: context.addressFromOffset(fieldOffset), in: context)
+        case .indirectTypeDescriptor:
+            let pointer = RelativeIndirectPointer<ContextDescriptorWrapper, Pointer<ContextDescriptorWrapper>>(relativeOffset: relativeOffset)
+            return try pointer.resolve(at: context.addressFromOffset(fieldOffset), in: context)
+        case .directObjCClassName, .indirectObjCClass:
+            return nil
+        }
+    }
 }
