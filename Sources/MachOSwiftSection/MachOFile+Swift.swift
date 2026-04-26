@@ -128,14 +128,7 @@ extension MachOFile.Swift {
         }
         let recordSize = MemoryLayout<TypeMetadataRecord.Layout>.size
         let records: [TypeMetadataRecord] = try machO.readWrapperElements(offset: offset, numberOfElements: section.size / recordSize)
-        return try records.compactMap {
-            do {
-                return try $0.contextDescriptor(in: machO)
-            } catch {
-                print(error)
-                throw error
-            }
-        }
+        return try records.compactMap { try $0.contextDescriptor(in: machO) }
     }
 
     private func _readProtocolRecords(from swiftMachOSection: MachOSwiftSectionName, in machO: MachOFile) throws -> [ProtocolDescriptor] {
