@@ -239,4 +239,21 @@ public protocol ReadingContext: Sendable {
     /// - Returns: The integer offset representation
     /// - Throws: If the address cannot be converted
     func offsetFromAddress(_ address: Address) throws -> Int
+
+    /// Optional bridge to dyld bind / rebase resolution.
+    ///
+    /// Indirect symbolic references encoded in Swift mangled names point at
+    /// relocation sites whose bytes are still chained-fixup encoded on disk.
+    /// Readers must consult bind / rebase tables before treating those bytes
+    /// as a real address. Contexts that wrap a `MachOFile` return the
+    /// underlying file (or any `MachOBindRebaseResolving` adapter) here;
+    /// contexts that read already-relocated memory (in-process images, etc.)
+    /// return `nil` and the caller falls back to a direct read.
+    var bindRebaseResolver: (any MachOBindRebaseResolving)? { get }
+}
+
+extension ReadingContext {
+    /// Default: no bind/rebase support. Concrete contexts override when they
+    /// can vend a resolver (see `MachOContext`'s implementation).
+    public var bindRebaseResolver: (any MachOBindRebaseResolving)? { nil }
 }

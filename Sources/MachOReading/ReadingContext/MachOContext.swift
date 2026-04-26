@@ -81,6 +81,15 @@ public struct MachOContext<MachO: MachORepresentableWithCache & Readable>: Readi
     public func offsetFromAddress(_ address: Int) throws -> Int {
         address
     }
+
+    /// Vends the underlying MachO object as a bind/rebase resolver when it
+    /// conforms to `MachOBindRebaseResolving`. The runtime cast keeps the
+    /// generic parameter `MachO` unconstrained, so wrapper types (e.g.
+    /// UI-layer projections that compose a `MachOFile`) can opt in by
+    /// declaring conformance themselves without changing this site.
+    public var bindRebaseResolver: (any MachOBindRebaseResolving)? {
+        machO as? any MachOBindRebaseResolving
+    }
 }
 
 // MARK: - Convenience Extensions
