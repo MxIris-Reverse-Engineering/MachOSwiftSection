@@ -47,7 +47,7 @@ extension MachOImage.Swift: SwiftSectionRepresentable {
 
     public var contextDescriptors: [ContextDescriptorWrapper] {
         get throws {
-            return try _readTypeMetadataRecords(from: .__swift5_types, in: machO) + (try? _readTypeMetadataRecords(from: .__swift5_types2, in: machO))
+            return try _readTypeMetadataRecords(from: .__swift5_types) + (try? _readTypeMetadataRecords(from: .__swift5_types2))
         }
     }
 
@@ -59,46 +59,46 @@ extension MachOImage.Swift: SwiftSectionRepresentable {
 
     public var protocolDescriptors: [ProtocolDescriptor] {
         get throws {
-            return try _readProtocolRecords(from: .__swift5_protos, in: machO)
+            return try _readProtocolRecords(from: .__swift5_protos)
         }
     }
 
     public var protocolConformanceDescriptors: [ProtocolConformanceDescriptor] {
         get throws {
-            return try _readRelativeDescriptors(from: .__swift5_proto, in: machO)
+            return try _readRelativeDescriptors(from: .__swift5_proto)
         }
     }
 
     public var associatedTypeDescriptors: [AssociatedTypeDescriptor] {
         get throws {
-            return try _readDescriptors(from: .__swift5_assocty, in: machO)
+            return try _readDescriptors(from: .__swift5_assocty)
         }
     }
 
     public var builtinTypeDescriptors: [BuiltinTypeDescriptor] {
         get throws {
-            return try _readDescriptors(from: .__swift5_builtin, in: machO)
+            return try _readDescriptors(from: .__swift5_builtin)
         }
     }
 
     public var multiPayloadEnumDescriptors: [MultiPayloadEnumDescriptor] {
         get throws {
-            return try _readDescriptors(from: .__swift5_mpenum, in: machO)
+            return try _readDescriptors(from: .__swift5_mpenum)
         }
     }
 }
 
 extension MachOImage.Swift {
-    private func _sectionOffsetAndSize(of swiftMachOSection: MachOSwiftSectionName, in machO: MachOImage) throws -> (offset: Int, size: Int) {
+    private func _sectionOffsetAndSize(of swiftMachOSection: MachOSwiftSectionName) throws -> (offset: Int, size: Int) {
         let section = try machO.section(for: swiftMachOSection)
         let vmaddrSlide = try required(machO.vmaddrSlide)
         let start = try required(UnsafeRawPointer(bitPattern: section.address + vmaddrSlide))
-        let offset = start.bitPattern.int - machO.ptr.bitPattern.int
+        let offset = machO.ptr.distance(to: start)
         return (offset, section.size)
     }
 
-    private func _readDescriptors<Descriptor: TopLevelDescriptor>(from swiftMachOSection: MachOSwiftSectionName, in machO: MachOImage) throws -> [Descriptor] {
-        let (offset, size) = try _sectionOffsetAndSize(of: swiftMachOSection, in: machO)
+    private func _readDescriptors<Descriptor: TopLevelDescriptor>(from swiftMachOSection: MachOSwiftSectionName) throws -> [Descriptor] {
+        let (offset, size) = try _sectionOffsetAndSize(of: swiftMachOSection)
         var descriptors: [Descriptor] = []
         var currentOffset = offset
         let endOffset = offset + size
@@ -110,22 +110,22 @@ extension MachOImage.Swift {
         return descriptors
     }
 
-    private func _readRelativeDescriptors<Descriptor: Resolvable>(from swiftMachOSection: MachOSwiftSectionName, in machO: MachOImage) throws -> [Descriptor] {
-        let (offset, size) = try _sectionOffsetAndSize(of: swiftMachOSection, in: machO)
+    private func _readRelativeDescriptors<Descriptor: Resolvable>(from swiftMachOSection: MachOSwiftSectionName) throws -> [Descriptor] {
+        let (offset, size) = try _sectionOffsetAndSize(of: swiftMachOSection)
         let pointerSize: Int = MemoryLayout<RelativeDirectPointer<Descriptor>>.size
         let data: [AnyLocatableLayoutWrapper<RelativeDirectPointer<Descriptor>>] = try machO.readWrapperElements(offset: offset, numberOfElements: size / pointerSize)
         return try data.map { try $0.layout.resolve(from: $0.offset, in: machO) }
     }
 
-    private func _readTypeMetadataRecords(from swiftMachOSection: MachOSwiftSectionName, in machO: MachOImage) throws -> [ContextDescriptorWrapper] {
-        let (offset, size) = try _sectionOffsetAndSize(of: swiftMachOSection, in: machO)
+    private func _readTypeMetadataRecords(from swiftMachOSection: MachOSwiftSectionName) throws -> [ContextDescriptorWrapper] {
+        let (offset, size) = try _sectionOffsetAndSize(of: swiftMachOSection)
         let recordSize = MemoryLayout<TypeMetadataRecord.Layout>.size
         let records: [TypeMetadataRecord] = try machO.readWrapperElements(offset: offset, numberOfElements: size / recordSize)
         return try records.compactMap { try $0.contextDescriptor(in: machO) }
     }
 
-    private func _readProtocolRecords(from swiftMachOSection: MachOSwiftSectionName, in machO: MachOImage) throws -> [ProtocolDescriptor] {
-        let (offset, size) = try _sectionOffsetAndSize(of: swiftMachOSection, in: machO)
+    private func _readProtocolRecords(from swiftMachOSection: MachOSwiftSectionName) throws -> [ProtocolDescriptor] {
+        let (offset, size) = try _sectionOffsetAndSize(of: swiftMachOSection)
         let recordSize = MemoryLayout<ProtocolRecord.Layout>.size
         let records: [ProtocolRecord] = try machO.readWrapperElements(offset: offset, numberOfElements: size / recordSize)
         return try records.compactMap { try $0.protocolDescriptor(in: machO) }
