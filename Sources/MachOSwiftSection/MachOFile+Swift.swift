@@ -121,14 +121,14 @@ extension MachOFile.Swift {
 
     private func _readTypeMetadataRecords(from swiftMachOSection: MachOSwiftSectionName) throws -> [ContextDescriptorWrapper] {
         let (offset, size) = try _sectionOffsetAndSize(of: swiftMachOSection)
-        let recordSize = MemoryLayout<TypeMetadataRecord.Layout>.size
+        let recordSize = TypeMetadataRecord.layoutSize
         let records: [TypeMetadataRecord] = try machO.readWrapperElements(offset: offset, numberOfElements: size / recordSize)
         return try records.compactMap { try $0.contextDescriptor(in: machO) }
     }
 
     private func _readProtocolRecords(from swiftMachOSection: MachOSwiftSectionName) throws -> [ProtocolDescriptor] {
         let (offset, size) = try _sectionOffsetAndSize(of: swiftMachOSection)
-        let recordSize = MemoryLayout<ProtocolRecord.Layout>.size
+        let recordSize = ProtocolRecord.layoutSize
         let records: [ProtocolRecord] = try machO.readWrapperElements(offset: offset, numberOfElements: size / recordSize)
         return try records.compactMap { try $0.protocolDescriptor(in: machO) }
     }
