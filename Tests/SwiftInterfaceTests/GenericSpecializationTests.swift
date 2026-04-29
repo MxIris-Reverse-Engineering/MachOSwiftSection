@@ -13,46 +13,14 @@ import MachOFixtureSupport
 @testable import Demangling
 import OrderedCollections
 
-struct TestGenericStruct<A, B, C> where A: Collection, B: Equatable, C: Hashable, A.Element: Hashable, A.Element: Decodable, A.Element: Encodable {
-    let a: A
-    let b: B
-    let c: C
-}
-
-struct TestUnconstrainedStruct<A> {
-    let a: A
-}
-
-struct TestSingleProtocolStruct<A: Hashable> {
-    let a: A
-}
-
-struct TestMultiProtocolStruct<A> where A: Hashable, A: Decodable, A: Encodable {
-    let a: A
-}
-
-struct TestClassConstraintStruct<A: AnyObject> {
-    let a: A
-}
-
-struct TestNestedAssociatedStruct<A> where A: Sequence, A.Element: Sequence, A.Element.Element: Hashable {
-    let a: A
-}
-
-struct TestMixedConstraintsStruct<A, B> where A: Collection, A.Element: Hashable, B: Hashable {
-    let a: A
-    let b: B
-}
-
-struct TestDualAssociatedStruct<A, B> where A: Sequence, B: Sequence, A.Element: Hashable, B.Element: Hashable {
-    let a: A
-    let b: B
-}
-
-final class TestRefClass {}
-
 final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     override class var imageName: MachOImageName { .SwiftUICore }
+
+    struct TestGenericStruct<A, B, C> where A: Collection, B: Equatable, C: Hashable, A.Element: Hashable, A.Element: Decodable, A.Element: Encodable {
+        let a: A
+        let b: B
+        let c: C
+    }
 
     @Test func main() async throws {
         let machO = MachOImage.current()
@@ -64,7 +32,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
 
         try await indexer.prepare()
 
-        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestGenericStruct" }?.struct?.asPointerWrapper(in: machO))
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestGenericStruct") == true }?.struct?.asPointerWrapper(in: machO))
 
         let genericContext = try #require(try descriptor.genericContext())
 
@@ -105,16 +73,16 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         )
         try #expect(#require(metadata.value.resolve().struct).fieldOffsets() == [0, 8, 16])
     }
-    
+
     @Test func makeRequest() async throws {
         let machO = MachOImage.current()
 
-        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestGenericStruct" }?.struct)
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestGenericStruct") == true }?.struct)
 
         let indexer = SwiftInterfaceIndexer(in: machO)
-        
+
         try await indexer.prepare()
-        
+
         let specializer = GenericSpecializer(
             machO: machO,
             conformanceProvider: IndexerConformanceProvider(indexer: indexer)
@@ -124,7 +92,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         for candidate in request.parameters[1].candidates {
             candidate.typeName.name.print()
         }
-        
+
         // Should have 3 parameters: A, B, C
         #expect(request.parameters.count == 3)
 
@@ -145,7 +113,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     @Test func validation() throws {
         let machO = MachOImage.current()
 
-        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestGenericStruct" }?.struct)
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestGenericStruct") == true }?.struct)
 
         let specializer = GenericSpecializer(
             machO: machO,
@@ -172,7 +140,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     @Test func specialize() async throws {
         let machO = MachOImage.current()
 
-        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestGenericStruct" }?.struct)
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestGenericStruct") == true }?.struct)
 
         let indexer = SwiftInterfaceIndexer(in: machO)
         try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "Foundation"))))
@@ -225,10 +193,14 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
 
     // MARK: - Unconstrained generics
 
+    struct TestUnconstrainedStruct<A> {
+        let a: A
+    }
+
     @Test func unconstrainedSpecialize() async throws {
         let machO = MachOImage.current()
 
-        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestUnconstrainedStruct" }?.struct)
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestUnconstrainedStruct") == true }?.struct)
         let genericContext = try #require(try descriptor.genericContext(in: machO))
 
         // 1 metadata, 0 PWT
@@ -256,10 +228,14 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
 
     // MARK: - Single protocol on a single parameter
 
+    struct TestSingleProtocolStruct<A: Hashable> {
+        let a: A
+    }
+
     @Test func singleProtocolSpecialize() async throws {
         let machO = MachOImage.current()
 
-        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestSingleProtocolStruct" }?.struct)
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestSingleProtocolStruct") == true }?.struct)
         let genericContext = try #require(try descriptor.genericContext(in: machO))
 
         // 1 metadata + 1 PWT (Hashable)
@@ -288,10 +264,14 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
 
     // MARK: - Multiple protocols on the same parameter
 
+    struct TestMultiProtocolStruct<A> where A: Hashable, A: Decodable, A: Encodable {
+        let a: A
+    }
+
     @Test func multiProtocolSpecialize() async throws {
         let machO = MachOImage.current()
 
-        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestMultiProtocolStruct" }?.struct)
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestMultiProtocolStruct") == true }?.struct)
         let genericContext = try #require(try descriptor.genericContext(in: machO))
 
         // 1 metadata + 3 PWT (Hashable, Decodable, Encodable)
@@ -318,10 +298,16 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
 
     // MARK: - Class constraint (layout requirement)
 
+    struct TestClassConstraintStruct<A: AnyObject> {
+        let a: A
+    }
+
+    final class TestRefClass {}
+
     @Test func classConstraintSpecialize() async throws {
         let machO = MachOImage.current()
 
-        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestClassConstraintStruct" }?.struct)
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestClassConstraintStruct") == true }?.struct)
         let genericContext = try #require(try descriptor.genericContext(in: machO))
 
         // 1 metadata, no PWT (layout requirement does not require WT)
@@ -352,10 +338,14 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
 
     // MARK: - Multi-level associated type
 
+    struct TestNestedAssociatedStruct<A> where A: Sequence, A.Element: Sequence, A.Element.Element: Hashable {
+        let a: A
+    }
+
     @Test func nestedAssociatedTypeRequest() async throws {
         let machO = MachOImage.current()
 
-        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestNestedAssociatedStruct" }?.struct)
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestNestedAssociatedStruct") == true }?.struct)
         let genericContext = try #require(try descriptor.genericContext(in: machO))
 
         // 1 metadata + 3 PWT (A:Sequence, A.Element:Sequence, A.Element.Element:Hashable)
@@ -384,7 +374,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     @Test func nestedAssociatedTypeSpecialize() async throws {
         let machO = MachOImage.current()
 
-        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestNestedAssociatedStruct" }?.struct)
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestNestedAssociatedStruct") == true }?.struct)
 
         let indexer = SwiftInterfaceIndexer(in: machO)
         try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
@@ -407,10 +397,15 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
 
     // MARK: - Two distinct associated-type chains
 
+    struct TestDualAssociatedStruct<A, B> where A: Sequence, B: Sequence, A.Element: Hashable, B.Element: Hashable {
+        let a: A
+        let b: B
+    }
+
     @Test func dualAssociatedSpecialize() async throws {
         let machO = MachOImage.current()
 
-        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestDualAssociatedStruct" }?.struct)
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestDualAssociatedStruct") == true }?.struct)
         let genericContext = try #require(try descriptor.genericContext(in: machO))
 
         // 2 metadata + 4 PWT (A:Sequence, B:Sequence, A.Element:Hashable, B.Element:Hashable)
@@ -448,10 +443,15 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         #expect(try structMetadata.fieldOffsets() == [0, 8])
     }
 
+    struct TestMixedConstraintsStruct<A, B> where A: Collection, A.Element: Hashable, B: Hashable {
+        let a: A
+        let b: B
+    }
+
     @Test func mixedConstraintsSpecialize() async throws {
         let machO = MachOImage.current()
 
-        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestMixedConstraintsStruct" }?.struct)
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestMixedConstraintsStruct") == true }?.struct)
         let genericContext = try #require(try descriptor.genericContext(in: machO))
 
         // 2 metadata + 3 PWT (A:Collection, B:Hashable, A.Element:Hashable)
