@@ -19,6 +19,38 @@ struct TestGenericStruct<A, B, C> where A: Collection, B: Equatable, C: Hashable
     let c: C
 }
 
+struct TestUnconstrainedStruct<A> {
+    let a: A
+}
+
+struct TestSingleProtocolStruct<A: Hashable> {
+    let a: A
+}
+
+struct TestMultiProtocolStruct<A> where A: Hashable, A: Decodable, A: Encodable {
+    let a: A
+}
+
+struct TestClassConstraintStruct<A: AnyObject> {
+    let a: A
+}
+
+struct TestNestedAssociatedStruct<A> where A: Sequence, A.Element: Sequence, A.Element.Element: Hashable {
+    let a: A
+}
+
+struct TestMixedConstraintsStruct<A, B> where A: Collection, A.Element: Hashable, B: Hashable {
+    let a: A
+    let b: B
+}
+
+struct TestDualAssociatedStruct<A, B> where A: Sequence, B: Sequence, A.Element: Hashable, B.Element: Hashable {
+    let a: A
+    let b: B
+}
+
+final class TestRefClass {}
+
 final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     override class var imageName: MachOImageName { .SwiftUICore }
 
@@ -189,5 +221,269 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         #expect(selection.hasArgument(for: "B"))
         #expect(!selection.hasArgument(for: "C"))
         #expect(selection.selectedParameterNames.count == 2)
+    }
+
+    // MARK: - Unconstrained generics
+
+    @Test func unconstrainedSpecialize() async throws {
+        let machO = MachOImage.current()
+
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestUnconstrainedStruct" }?.struct)
+        let genericContext = try #require(try descriptor.genericContext(in: machO))
+
+        // 1 metadata, 0 PWT
+        #expect(genericContext.header.numKeyArguments == 1)
+
+        let indexer = SwiftInterfaceIndexer(in: machO)
+        try await indexer.prepare()
+
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        #expect(request.parameters.count == 1)
+        #expect(request.parameters[0].name == "A")
+        #expect(!request.parameters[0].hasProtocolRequirements)
+        #expect(request.associatedTypeRequirements.isEmpty)
+
+        let result = try specializer.specialize(request, with: ["A": .metatype(Int.self)])
+        #expect(result.resolvedArguments.count == 1)
+        #expect(!result.resolvedArguments[0].hasWitnessTables)
+
+        let metadata = try result.resolveMetadata()
+        let structMetadata = try #require(metadata.struct)
+        #expect(try structMetadata.fieldOffsets() == [0])
+    }
+
+    // MARK: - Single protocol on a single parameter
+
+    @Test func singleProtocolSpecialize() async throws {
+        let machO = MachOImage.current()
+
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestSingleProtocolStruct" }?.struct)
+        let genericContext = try #require(try descriptor.genericContext(in: machO))
+
+        // 1 metadata + 1 PWT (Hashable)
+        #expect(genericContext.header.numKeyArguments == 2)
+
+        let indexer = SwiftInterfaceIndexer(in: machO)
+        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
+        try await indexer.prepare()
+
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        #expect(request.parameters.count == 1)
+        #expect(request.parameters[0].hasProtocolRequirements)
+        #expect(request.parameters[0].protocolRequirements.count == 1)
+        #expect(request.associatedTypeRequirements.isEmpty)
+
+        let result = try specializer.specialize(request, with: ["A": .metatype(Int.self)])
+        #expect(result.resolvedArguments.count == 1)
+        #expect(result.resolvedArguments[0].hasWitnessTables)
+
+        let metadata = try result.resolveMetadata()
+        let structMetadata = try #require(metadata.struct)
+        #expect(try structMetadata.fieldOffsets() == [0])
+    }
+
+    // MARK: - Multiple protocols on the same parameter
+
+    @Test func multiProtocolSpecialize() async throws {
+        let machO = MachOImage.current()
+
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestMultiProtocolStruct" }?.struct)
+        let genericContext = try #require(try descriptor.genericContext(in: machO))
+
+        // 1 metadata + 3 PWT (Hashable, Decodable, Encodable)
+        #expect(genericContext.header.numKeyArguments == 4)
+
+        let indexer = SwiftInterfaceIndexer(in: machO)
+        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
+        try await indexer.prepare()
+
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        #expect(request.parameters.count == 1)
+        #expect(request.parameters[0].protocolRequirements.count == 3)
+        #expect(request.associatedTypeRequirements.isEmpty)
+
+        let result = try specializer.specialize(request, with: ["A": .metatype(Int.self)])
+        #expect(result.resolvedArguments[0].witnessTables.count == 3)
+
+        let metadata = try result.resolveMetadata()
+        let structMetadata = try #require(metadata.struct)
+        #expect(try structMetadata.fieldOffsets() == [0])
+    }
+
+    // MARK: - Class constraint (layout requirement)
+
+    @Test func classConstraintSpecialize() async throws {
+        let machO = MachOImage.current()
+
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestClassConstraintStruct" }?.struct)
+        let genericContext = try #require(try descriptor.genericContext(in: machO))
+
+        // 1 metadata, no PWT (layout requirement does not require WT)
+        #expect(genericContext.header.numKeyArguments == 1)
+
+        let indexer = SwiftInterfaceIndexer(in: machO)
+        try await indexer.prepare()
+
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        #expect(request.parameters.count == 1)
+        // Layout requirement is recorded but does not need a witness table
+        #expect(!request.parameters[0].hasProtocolRequirements)
+        let hasLayout = request.parameters[0].requirements.contains { req in
+            if case .layout = req { return true }
+            return false
+        }
+        #expect(hasLayout)
+
+        let result = try specializer.specialize(request, with: ["A": .metatype(TestRefClass.self)])
+        #expect(!result.resolvedArguments[0].hasWitnessTables)
+
+        let metadata = try result.resolveMetadata()
+        let structMetadata = try #require(metadata.struct)
+        #expect(try structMetadata.fieldOffsets() == [0])
+    }
+
+    // MARK: - Multi-level associated type
+
+    @Test func nestedAssociatedTypeRequest() async throws {
+        let machO = MachOImage.current()
+
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestNestedAssociatedStruct" }?.struct)
+        let genericContext = try #require(try descriptor.genericContext(in: machO))
+
+        // 1 metadata + 3 PWT (A:Sequence, A.Element:Sequence, A.Element.Element:Hashable)
+        #expect(genericContext.header.numKeyArguments == 4)
+
+        let indexer = SwiftInterfaceIndexer(in: machO)
+        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
+        try await indexer.prepare()
+
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        #expect(request.parameters.count == 1)
+        #expect(request.parameters[0].protocolRequirements.count == 1)
+
+        // Two associated requirements: A.Element and A.Element.Element
+        #expect(request.associatedTypeRequirements.count == 2)
+
+        let pathByDepth = request.associatedTypeRequirements.map(\.path)
+        // The single-level path "[Element]" must exist (A.Element: Sequence)
+        #expect(pathByDepth.contains(["Element"]))
+        // The two-level path "[Element, Element]" must exist (A.Element.Element: Hashable)
+        #expect(pathByDepth.contains(["Element", "Element"]))
+    }
+
+    @Test func nestedAssociatedTypeSpecialize() async throws {
+        let machO = MachOImage.current()
+
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestNestedAssociatedStruct" }?.struct)
+
+        let indexer = SwiftInterfaceIndexer(in: machO)
+        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
+        try await indexer.prepare()
+
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        // A = [[Int]] satisfies: Sequence, Element=[Int] is a Sequence, Element.Element=Int is Hashable
+        let result = try specializer.specialize(request, with: ["A": .metatype([[Int]].self)])
+        #expect(result.resolvedArguments.count == 1)
+
+        let metadata = try result.resolveMetadata()
+        let structMetadata = try #require(metadata.struct)
+        // Single field of type [[Int]] occupies one pointer slot
+        #expect(try structMetadata.fieldOffsets() == [0])
+    }
+
+    // MARK: - Mixed direct + associated requirements
+
+    // MARK: - Two distinct associated-type chains
+
+    @Test func dualAssociatedSpecialize() async throws {
+        let machO = MachOImage.current()
+
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestDualAssociatedStruct" }?.struct)
+        let genericContext = try #require(try descriptor.genericContext(in: machO))
+
+        // 2 metadata + 4 PWT (A:Sequence, B:Sequence, A.Element:Hashable, B.Element:Hashable)
+        #expect(genericContext.header.numKeyArguments == 6)
+
+        let indexer = SwiftInterfaceIndexer(in: machO)
+        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
+        try await indexer.prepare()
+
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        #expect(request.parameters.count == 2)
+        #expect(request.parameters[0].protocolRequirements.count == 1) // A: Sequence
+        #expect(request.parameters[1].protocolRequirements.count == 1) // B: Sequence
+        #expect(request.associatedTypeRequirements.count == 2)
+
+        let pathByParam = Dictionary(grouping: request.associatedTypeRequirements, by: \.parameterName)
+        #expect(pathByParam["A"]?.first?.path == ["Element"])
+        #expect(pathByParam["B"]?.first?.path == ["Element"])
+
+        // A = [Int] (Element = Int), B = [String] (Element = Character).
+        let result = try specializer.specialize(request, with: [
+            "A": .metatype([Int].self),
+            "B": .metatype([String].self),
+        ])
+
+        #expect(result.resolvedArguments.count == 2)
+        #expect(result.resolvedArguments[0].witnessTables.count == 1)
+        #expect(result.resolvedArguments[1].witnessTables.count == 1)
+
+        let metadata = try result.resolveMetadata()
+        let structMetadata = try #require(metadata.struct)
+        // [Int] occupies 8 bytes, [String] occupies 8 bytes (Array storage pointer)
+        #expect(try structMetadata.fieldOffsets() == [0, 8])
+    }
+
+    @Test func mixedConstraintsSpecialize() async throws {
+        let machO = MachOImage.current()
+
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO) == "TestMixedConstraintsStruct" }?.struct)
+        let genericContext = try #require(try descriptor.genericContext(in: machO))
+
+        // 2 metadata + 3 PWT (A:Collection, B:Hashable, A.Element:Hashable)
+        #expect(genericContext.header.numKeyArguments == 5)
+
+        let indexer = SwiftInterfaceIndexer(in: machO)
+        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
+        try await indexer.prepare()
+
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        #expect(request.parameters.count == 2)
+        #expect(request.parameters[0].name == "A")
+        #expect(request.parameters[1].name == "B")
+        #expect(request.parameters[0].protocolRequirements.count == 1) // Collection
+        #expect(request.parameters[1].protocolRequirements.count == 1) // Hashable
+        #expect(request.associatedTypeRequirements.count == 1)
+        #expect(request.associatedTypeRequirements[0].parameterName == "A")
+        #expect(request.associatedTypeRequirements[0].path == ["Element"])
+
+        let result = try specializer.specialize(request, with: [
+            "A": .metatype([Int].self),
+            "B": .metatype(String.self),
+        ])
+        #expect(result.resolvedArguments[0].witnessTables.count == 1) // A: Collection
+        #expect(result.resolvedArguments[1].witnessTables.count == 1) // B: Hashable
+
+        let metadata = try result.resolveMetadata()
+        let structMetadata = try #require(metadata.struct)
+        // [Int] is one pointer (8 bytes), String is 16 bytes
+        // a at offset 0, b at offset 8
+        #expect(try structMetadata.fieldOffsets() == [0, 8])
     }
 }

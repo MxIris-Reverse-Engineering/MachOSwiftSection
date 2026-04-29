@@ -129,29 +129,93 @@ extension GenericSpecializer {
         var requirements: [SpecializationRequest.Requirement] = []
 
         for genericRequirement in genericRequirements {
-            guard genericRequirement.flags.contains(.hasKeyArgument) else { continue }
             // Get the mangled param name and demangle it
             let mangledParamName = try genericRequirement.paramMangledName(in: machO)
             let paramNode = try MetadataReader.demangleType(for: mangledParamName, in: machO)
 
-            // Check if this requirement applies to our parameter
-            guard let dependentGenericParamType = paramNode.first(of: .dependentGenericParamType) else {
-                // This might be an associated type requirement - handle separately
+            // The requirement applies to this parameter only if its LHS is the
+            // generic parameter directly (not an associated-type reference like A.Element).
+            guard let directParamName = Self.directGenericParamName(of: paramNode),
+                  directParamName == paramName else {
                 continue
             }
 
-            guard let nodeParamName = dependentGenericParamType.text, nodeParamName == paramName else {
+            // ObjC-only protocol requirements have no key argument and no PWT;
+            // skip them. Other kinds (layout/sameType/baseClass) have no key
+            // argument either but should still be exposed for validation.
+            if genericRequirement.flags.kind == .protocol,
+               !genericRequirement.flags.contains(.hasKeyArgument) {
                 continue
             }
 
-            // Build requirement based on kind
-            let requirement = try buildRequirement(from: genericRequirement)
-            if let requirement = requirement {
+            if let requirement = try buildRequirement(from: genericRequirement) {
                 requirements.append(requirement)
             }
         }
 
         return requirements
+    }
+
+    /// Returns the parameter name when `paramNode` describes a direct generic
+    /// parameter (e.g. `A`). Returns `nil` when the node is an associated-type
+    /// reference such as `A.Element` or `A.Element.Element`.
+    static func directGenericParamName(of paramNode: Node) -> String? {
+        let typeNode = (paramNode.kind == .type) ? paramNode.firstChild : paramNode
+        guard let typeNode, typeNode.kind == .dependentGenericParamType else { return nil }
+        return typeNode.text
+    }
+
+    /// Parsed associated-type access path extracted from a demangled requirement
+    /// LHS. The chain `A.Element.Element` produces `baseParamName == "A"` and
+    /// `steps == [(Element, Sequence), (Element, Sequence)]` in source order.
+    struct AssociatedPathInfo {
+        let baseParamName: String
+        let steps: [Step]
+
+        struct Step {
+            let name: String
+            /// `Type` node wrapping the protocol that owns this associated type.
+            let protocolNode: Node
+        }
+    }
+
+    /// Walk a demangled `LHS` node and split it into the root generic parameter
+    /// name plus the ordered chain of associated-type accesses. Returns `nil`
+    /// when the structure does not match an `A` or `A.X.Y...` reference.
+    static func extractAssociatedPath(of paramNode: Node) -> AssociatedPathInfo? {
+        var current: Node = paramNode
+        if current.kind == .type, let inner = current.firstChild {
+            current = inner
+        }
+
+        // The OUTERMOST DependentMemberType represents the LAST step; we
+        // traverse outer→inner pushing each step, then reverse to get source order.
+        var stepsOuterToInner: [AssociatedPathInfo.Step] = []
+
+        while current.kind == .dependentMemberType {
+            guard current.numberOfChildren >= 2 else { return nil }
+            let baseTypeWrapper = current.children[0]
+            let assocRef = current.children[1]
+            guard assocRef.kind == .dependentAssociatedTypeRef,
+                  assocRef.numberOfChildren >= 2,
+                  let nameChild = assocRef.firstChild,
+                  case .text(let stepName) = nameChild.contents else {
+                return nil
+            }
+            let protocolNode = assocRef.children[1]
+            guard protocolNode.kind == .type else { return nil }
+            stepsOuterToInner.append(.init(name: stepName, protocolNode: protocolNode))
+
+            guard baseTypeWrapper.kind == .type, let baseInner = baseTypeWrapper.firstChild else {
+                return nil
+            }
+            current = baseInner
+        }
+
+        guard current.kind == .dependentGenericParamType, let baseName = current.text else {
+            return nil
+        }
+        return .init(baseParamName: baseName, steps: Array(stepsOuterToInner.reversed()))
     }
 
     /// Build a requirement from a requirement descriptor
@@ -224,28 +288,17 @@ extension GenericSpecializer {
             let mangledParamName = try genericRequirement.paramMangledName(in: machO)
             let paramNode = try MetadataReader.demangleType(for: mangledParamName, in: machO)
 
-            // Check for dependent member type (associated type requirement)
-            guard let dependentMemberType = paramNode.first(of: .dependentMemberType) else {
-                continue
-            }
-
-            // Get base parameter name
-            guard let dependentGenericParamType = dependentMemberType.first(of: .dependentGenericParamType),
-                  let baseParamName = dependentGenericParamType.text else {
-                continue
-            }
-
-            // Get associated type path
-            guard let dependentAssociatedTypeRef = dependentMemberType.first(of: .dependentAssociatedTypeRef),
-                  let associatedTypeName = dependentAssociatedTypeRef.children.first?.text else {
+            // Only handle dependent-member chains here; direct GP requirements
+            // are collected per parameter in `collectRequirements`.
+            guard let pathInfo = Self.extractAssociatedPath(of: paramNode), !pathInfo.steps.isEmpty else {
                 continue
             }
 
             // Build requirement for this associated type
             if let requirement = try buildRequirement(from: genericRequirement) {
                 associatedTypeRequirements.append(SpecializationRequest.AssociatedTypeRequirement(
-                    parameterName: baseParamName,
-                    path: [associatedTypeName],
+                    parameterName: pathInfo.baseParamName,
+                    path: pathInfo.steps.map(\.name),
                     requirements: [requirement]
                 ))
             }
@@ -538,144 +591,141 @@ extension GenericSpecializer where MachO == MachOImage {
         }
 
         let requirements = try genericContextInProcess.requirements.map { try GenericRequirement(descriptor: $0) }
-        var conformingTypeMetadataByGenericParam: [String: Metadata] = [:]
         let allProtocolDefinitions = indexer.allAllProtocolDefinitions
 
         for requirement in requirements {
-            guard let requirementProtocolDescriptor = requirement.content.protocol?.resolved,
-                  let protocolDescriptor = requirementProtocolDescriptor.swift,
-                  requirement.flags.contains(.hasKeyArgument) else { continue }
+            // Only protocol conformance requirements with key arguments produce
+            // associated-type witness tables; everything else is irrelevant here.
+            guard requirement.flags.kind == .protocol,
+                  requirement.flags.contains(.hasKeyArgument),
+                  let requirementProtocolDescriptor = requirement.content.protocol?.resolved,
+                  let protocolDescriptor = requirementProtocolDescriptor.swift else { continue }
 
             let requirementProtocol = try MachOSwiftSection.`Protocol`(descriptor: protocolDescriptor)
             let paramNode = try MetadataReader.demangleType(for: requirement.paramManagledName)
 
-            if let dependentMemberType = paramNode.first(of: .dependentMemberType) {
-                // Associated type requirement (e.g., A.Element: Hashable)
-                guard let dependentGenericParamType = dependentMemberType.first(of: .dependentGenericParamType) else {
-                    throw AssociatedTypeResolutionError.missingDependentGenericParamType(dependentMemberType: dependentMemberType)
-                }
-
-                guard let genericParamType = dependentGenericParamType.text else {
-                    throw AssociatedTypeResolutionError.missingGenericParamTypeText(dependentGenericParamType: dependentGenericParamType)
-                }
-
-                guard let conformingTypeMetadata = conformingTypeMetadataByGenericParam[genericParamType] else {
-                    throw AssociatedTypeResolutionError.missingConformingTypeMetadata(
-                        genericParam: genericParamType,
-                        availableParams: Array(conformingTypeMetadataByGenericParam.keys)
-                    )
-                }
-
-                guard let dependentAssociatedTypeRef = dependentMemberType.first(of: .dependentAssociatedTypeRef) else {
-                    throw AssociatedTypeResolutionError.missingDependentAssociatedTypeRef(dependentMemberType: dependentMemberType)
-                }
-
-                guard let associatedTypeName = dependentAssociatedTypeRef.children.first?.text else {
-                    throw AssociatedTypeResolutionError.missingAssociatedTypeName(dependentAssociatedTypeRef: dependentAssociatedTypeRef)
-                }
-
-                guard let associatedTypeRefProtocolTypeNode = dependentAssociatedTypeRef.children.second else {
-                    throw AssociatedTypeResolutionError.missingAssociatedTypeRefProtocolTypeNode(dependentAssociatedTypeRef: dependentAssociatedTypeRef)
-                }
-
-                guard let associatedTypeRefMachOAndProtocol = allProtocolDefinitions[.init(node: associatedTypeRefProtocolTypeNode)] else {
-                    throw AssociatedTypeResolutionError.missingAssociatedTypeRefMachOAndProtocol(protocolTypeNode: associatedTypeRefProtocolTypeNode)
-                }
-
-                let associatedTypeRefProtocol: MachOSwiftSection.`Protocol`
-                do {
-                    associatedTypeRefProtocol = try MachOSwiftSection.`Protocol`(
-                        descriptor: associatedTypeRefMachOAndProtocol.value.protocol.descriptor.asPointerWrapper(in: associatedTypeRefMachOAndProtocol.machO)
-                    )
-                } catch {
-                    throw AssociatedTypeResolutionError.failedToCreateAssociatedTypeRefProtocol(underlyingError: error)
-                }
-
-                let associatedTypeRefProtocolName = try associatedTypeRefProtocol.protocolName()
-                let availableAssociatedTypes = try associatedTypeRefProtocol.descriptor.associatedTypes()
-
-                guard let associatedTypeIndex = availableAssociatedTypes.firstIndex(of: associatedTypeName) else {
-                    throw AssociatedTypeResolutionError.missingAssociatedTypeIndex(
-                        associatedTypeName: associatedTypeName,
-                        protocolName: associatedTypeRefProtocolName,
-                        availableAssociatedTypes: availableAssociatedTypes
-                    )
-                }
-
-                guard let associatedTypeBaseRequirement = associatedTypeRefProtocol.baseRequirement else {
-                    throw AssociatedTypeResolutionError.missingAssociatedTypeBaseRequirement(protocolName: associatedTypeRefProtocolName)
-                }
-
-                let associatedTypeAccessFunctionRequirements = associatedTypeRefProtocol.requirements.filter {
-                    $0.flags.kind.isAssociatedTypeAccessFunction
-                }
-
-                guard let associatedTypeAccessFunctionRequirement = associatedTypeAccessFunctionRequirements[safe: associatedTypeIndex] else {
-                    throw AssociatedTypeResolutionError.missingAssociatedTypeAccessFunctionRequirement(
-                        index: associatedTypeIndex,
-                        protocolName: associatedTypeRefProtocolName,
-                        requirementCount: associatedTypeAccessFunctionRequirements.count
-                    )
-                }
-
-                guard let conformingTypePWT = try RuntimeFunctions.conformsToProtocol(
-                    metadata: conformingTypeMetadata,
-                    protocolDescriptor: associatedTypeRefProtocol.descriptor
-                ) else {
-                    throw AssociatedTypeResolutionError.conformingTypeDoesNotConformToProtocol(
-                        conformingType: conformingTypeMetadata,
-                        protocolName: associatedTypeRefProtocolName
-                    )
-                }
-
-                guard let associatedTypeMetadata = try? RuntimeFunctions.getAssociatedTypeWitness(
-                    request: .init(),
-                    protocolWitnessTable: conformingTypePWT,
-                    conformingTypeMetadata: conformingTypeMetadata,
-                    baseRequirement: associatedTypeBaseRequirement,
-                    associatedTypeRequirement: associatedTypeAccessFunctionRequirement
-                ).value.resolve().metadata else {
-                    throw AssociatedTypeResolutionError.failedToGetAssociatedTypeWitness(
-                        conformingType: conformingTypeMetadata,
-                        protocolName: associatedTypeRefProtocolName,
-                        associatedTypeName: associatedTypeName
-                    )
-                }
-
-                let currentProtocolName = try requirementProtocol.protocolName()
-
-                guard let associatedTypePWT = try? RuntimeFunctions.conformsToProtocol(
-                    metadata: associatedTypeMetadata,
-                    protocolDescriptor: requirementProtocol.descriptor
-                ) else {
-                    throw AssociatedTypeResolutionError.associatedTypeDoesNotConformToProtocol(
-                        associatedType: associatedTypeMetadata,
-                        protocolName: currentProtocolName
-                    )
-                }
-
-                results[associatedTypeMetadata, default: []].append(associatedTypePWT)
-
-            } else if let dependentGenericParamType = paramNode.first(of: .dependentGenericParamType) {
-                // Direct generic parameter - record metadata mapping
-                guard let genericParamType = dependentGenericParamType.text else {
-                    throw AssociatedTypeResolutionError.missingGenericParamTypeText(dependentGenericParamType: dependentGenericParamType)
-                }
-
-                guard let conformingTypeMetadata = genericArguments[genericParamType] else {
-                    throw AssociatedTypeResolutionError.missingConformingTypeMetadata(
-                        genericParam: genericParamType,
-                        availableParams: Array(genericArguments.keys)
-                    )
-                }
-
-                conformingTypeMetadataByGenericParam[genericParamType] = conformingTypeMetadata
-            } else {
+            guard let pathInfo = Self.extractAssociatedPath(of: paramNode) else {
                 throw AssociatedTypeResolutionError.unknownParamNodeStructure(paramNode: paramNode)
             }
+
+            // Direct generic parameter requirement: handled by `specialize()`, skip here.
+            guard !pathInfo.steps.isEmpty else { continue }
+
+            // Walk the associated-type chain step by step starting from the
+            // root generic parameter's metadata.
+            guard var currentMetadata = genericArguments[pathInfo.baseParamName] else {
+                throw AssociatedTypeResolutionError.missingConformingTypeMetadata(
+                    genericParam: pathInfo.baseParamName,
+                    availableParams: Array(genericArguments.keys)
+                )
+            }
+
+            for step in pathInfo.steps {
+                currentMetadata = try resolveAssociatedTypeStep(
+                    currentMetadata: currentMetadata,
+                    step: step,
+                    allProtocolDefinitions: allProtocolDefinitions
+                )
+            }
+
+            // The leaf metadata must conform to the requirement protocol; that
+            // conformance PWT is the value the runtime expects in the slot.
+            let currentProtocolName = try requirementProtocol.protocolName()
+            guard let associatedTypePWT = try? RuntimeFunctions.conformsToProtocol(
+                metadata: currentMetadata,
+                protocolDescriptor: requirementProtocol.descriptor
+            ) else {
+                throw AssociatedTypeResolutionError.associatedTypeDoesNotConformToProtocol(
+                    associatedType: currentMetadata,
+                    protocolName: currentProtocolName
+                )
+            }
+
+            results[currentMetadata, default: []].append(associatedTypePWT)
         }
 
         return results
+    }
+
+    /// Resolve a single associated-type access (`Type → Type.Step`).
+    ///
+    /// Given the current conforming type's metadata and the protocol that
+    /// declares the associated type, the function:
+    /// 1. retrieves the protocol descriptor from the indexer,
+    /// 2. fetches the witness table for `currentMetadata: stepProtocol`,
+    /// 3. locates the associated-type access function for `step.name`,
+    /// 4. invokes the runtime function to obtain the next metadata in the chain.
+    private func resolveAssociatedTypeStep(
+        currentMetadata: Metadata,
+        step: AssociatedPathInfo.Step,
+        allProtocolDefinitions: OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolDefinition>>
+    ) throws -> Metadata {
+        let stepProtocolName = ProtocolName(node: step.protocolNode)
+        guard let entry = allProtocolDefinitions[stepProtocolName] else {
+            throw AssociatedTypeResolutionError.missingAssociatedTypeRefMachOAndProtocol(protocolTypeNode: step.protocolNode)
+        }
+
+        let stepProtocol: MachOSwiftSection.`Protocol`
+        do {
+            stepProtocol = try MachOSwiftSection.`Protocol`(
+                descriptor: entry.value.protocol.descriptor.asPointerWrapper(in: entry.machO)
+            )
+        } catch {
+            throw AssociatedTypeResolutionError.failedToCreateAssociatedTypeRefProtocol(underlyingError: error)
+        }
+
+        let stepProtocolFullName = try stepProtocol.protocolName()
+        let availableAssociatedTypes = try stepProtocol.descriptor.associatedTypes()
+
+        guard let associatedTypeIndex = availableAssociatedTypes.firstIndex(of: step.name) else {
+            throw AssociatedTypeResolutionError.missingAssociatedTypeIndex(
+                associatedTypeName: step.name,
+                protocolName: stepProtocolFullName,
+                availableAssociatedTypes: availableAssociatedTypes
+            )
+        }
+
+        guard let baseRequirement = stepProtocol.baseRequirement else {
+            throw AssociatedTypeResolutionError.missingAssociatedTypeBaseRequirement(protocolName: stepProtocolFullName)
+        }
+
+        let accessFunctionRequirements = stepProtocol.requirements.filter {
+            $0.flags.kind.isAssociatedTypeAccessFunction
+        }
+
+        guard let accessFunctionRequirement = accessFunctionRequirements[safe: associatedTypeIndex] else {
+            throw AssociatedTypeResolutionError.missingAssociatedTypeAccessFunctionRequirement(
+                index: associatedTypeIndex,
+                protocolName: stepProtocolFullName,
+                requirementCount: accessFunctionRequirements.count
+            )
+        }
+
+        guard let conformingPWT = try RuntimeFunctions.conformsToProtocol(
+            metadata: currentMetadata,
+            protocolDescriptor: stepProtocol.descriptor
+        ) else {
+            throw AssociatedTypeResolutionError.conformingTypeDoesNotConformToProtocol(
+                conformingType: currentMetadata,
+                protocolName: stepProtocolFullName
+            )
+        }
+
+        guard let nextMetadata = try? RuntimeFunctions.getAssociatedTypeWitness(
+            request: .init(),
+            protocolWitnessTable: conformingPWT,
+            conformingTypeMetadata: currentMetadata,
+            baseRequirement: baseRequirement,
+            associatedTypeRequirement: accessFunctionRequirement
+        ).value.resolve().metadata else {
+            throw AssociatedTypeResolutionError.failedToGetAssociatedTypeWitness(
+                conformingType: currentMetadata,
+                protocolName: stepProtocolFullName,
+                associatedTypeName: step.name
+            )
+        }
+
+        return nextMetadata
     }
 
     /// Errors for associated type witness resolution
