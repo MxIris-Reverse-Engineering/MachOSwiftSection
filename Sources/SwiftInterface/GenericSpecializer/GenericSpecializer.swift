@@ -390,6 +390,11 @@ extension GenericSpecializer where MachO == MachOImage {
     /// - Parameters:
     ///   - request: The specialization request
     ///   - selection: The user's type selections
+    ///   - metadataRequest: Freshness state requested for the *returned*
+    ///     metadata. Internal accessor calls used to resolve candidate
+    ///     types and associated-type witnesses always use fully-complete
+    ///     blocking requests, matching the semantics of
+    ///     `swift_getGenericMetadata`.
     /// - Returns: Specialized metadata result
     /// - Throws: If specialization fails
     public func specialize(
