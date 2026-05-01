@@ -75,6 +75,18 @@ extension GenericSpecializer {
         return genericContext
     }
 
+    /// All requirements visible to the specializer: the cumulative
+    /// `allRequirements` chain plus any conditional requirements stored
+    /// under `hasConditionalInvertedProtocols`. The current scope keeps
+    /// every candidate Copyable / Escapable, so conditional requirements
+    /// always evaluate active and can be merged unconditionally.
+    private static func mergedRequirements(
+        from genericContext: GenericContext
+    ) -> [GenericRequirementDescriptor] {
+        genericContext.allRequirements.flatMap { $0 }
+            + genericContext.conditionalInvertibleProtocolsRequirements
+    }
+
     /// Build parameter list from generic context
     private func buildParameters(from genericContext: GenericContext, for type: TypeContextDescriptorWrapper) throws -> [SpecializationRequest.Parameter] {
         var parameters: [SpecializationRequest.Parameter] = []
@@ -91,7 +103,7 @@ extension GenericSpecializer {
                 // Collect requirements for this parameter (ordered for PWT passing)
                 let requirements = try collectRequirements(
                     for: paramName,
-                    from: genericContext.allRequirements.flatMap { $0 },
+                    from: Self.mergedRequirements(from: genericContext),
                     parameterIndex: index,
                     depth: depth
                 )
@@ -286,7 +298,7 @@ extension GenericSpecializer {
         for type: TypeContextDescriptorWrapper
     ) throws -> [SpecializationRequest.AssociatedTypeRequirement] {
         var associatedTypeRequirements: [SpecializationRequest.AssociatedTypeRequirement] = []
-        let genericRequirements = genericContext.allRequirements.flatMap { $0 }
+        let genericRequirements = Self.mergedRequirements(from: genericContext)
 
         for genericRequirement in genericRequirements {
             let mangledParamName = try genericRequirement.paramMangledName(in: machO)
@@ -603,7 +615,8 @@ extension GenericSpecializer where MachO == MachOImage {
             throw AssociatedTypeResolutionError.unsupportedGenericParameter(parameterKind: unsupportedParameter.kind)
         }
 
-        let requirements = try genericContextInProcess.requirements.map { try GenericRequirement(descriptor: $0) }
+        let requirements = try Self.mergedRequirements(from: genericContextInProcess)
+            .map { try GenericRequirement(descriptor: $0) }
         let allProtocolDefinitions = indexer.allAllProtocolDefinitions
 
         for requirement in requirements {
