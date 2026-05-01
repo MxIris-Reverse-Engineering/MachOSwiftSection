@@ -268,14 +268,6 @@ extension GenericSpecializer {
         }
     }
 
-    /// Convert runtime layout kind to our model
-    private func convertLayoutKind(_ kind: GenericRequirementLayoutKind) -> SpecializationRequest.LayoutKind {
-        switch kind {
-        case .class:
-            return .class
-        }
-    }
-
     /// Build associated type requirements (ordered for PWT passing)
     private func buildAssociatedTypeRequirements(
         from genericContext: GenericContext,
