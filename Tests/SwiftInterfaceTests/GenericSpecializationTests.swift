@@ -486,4 +486,42 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         // a at offset 0, b at offset 8
         #expect(try structMetadata.fieldOffsets() == [0, 8])
     }
+
+    @Test func configurableMetadataRequest() async throws {
+        let machO = MachOImage.current()
+
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first {
+            try $0.struct?.name(in: machO).contains("TestGenericStruct") == true
+        }?.struct)
+
+        let indexer = SwiftInterfaceIndexer(in: machO)
+        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "Foundation"))))
+        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
+        try await indexer.prepare()
+
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        let selection: SpecializationSelection = [
+            "A": .metatype([Int].self),
+            "B": .metatype(Double.self),
+            "C": .metatype(Data.self),
+        ]
+
+        // Default request (existing behaviour)
+        let defaultResult = try specializer.specialize(request, with: selection)
+        let defaultOffsets = try #require(defaultResult.resolveMetadata().struct).fieldOffsets()
+
+        // Explicit non-blocking complete request
+        let nonBlocking = MetadataRequest(state: .complete, isBlocking: false)
+        let explicitResult = try specializer.specialize(
+            request,
+            with: selection,
+            metadataRequest: nonBlocking
+        )
+        let explicitOffsets = try #require(explicitResult.resolveMetadata().struct).fieldOffsets()
+
+        #expect(defaultOffsets == [0, 8, 16])
+        #expect(explicitOffsets == defaultOffsets)
+    }
 }

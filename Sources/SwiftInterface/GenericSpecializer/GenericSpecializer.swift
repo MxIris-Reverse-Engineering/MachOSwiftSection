@@ -392,7 +392,11 @@ extension GenericSpecializer where MachO == MachOImage {
     ///   - selection: The user's type selections
     /// - Returns: Specialized metadata result
     /// - Throws: If specialization fails
-    public func specialize(_ request: SpecializationRequest, with selection: SpecializationSelection) throws -> SpecializationResult {
+    public func specialize(
+        _ request: SpecializationRequest,
+        with selection: SpecializationSelection,
+        metadataRequest: MetadataRequest = .completeAndBlocking
+    ) throws -> SpecializationResult {
         let typeDescriptor = request.typeDescriptor.asPointerWrapper(in: machO)
         // Validate selection first
         let validation = validate(selection: selection, for: request)
@@ -459,7 +463,7 @@ extension GenericSpecializer where MachO == MachOImage {
 
         // Call accessor with metadatas and witness tables
         let response = try accessorFunction(
-            request: .completeAndBlocking,
+            request: metadataRequest,
             metadatas: metadatas,
             witnessTables: witnessTables,
         )
