@@ -262,8 +262,20 @@ extension GenericSpecializer {
                 return .layout(.class)
             }
 
-        case .sameConformance, .sameShape, .invertedProtocols:
-            // These are more advanced requirements that we don't need for basic specialization
+        case .sameConformance:
+            // Derived from SameType / BaseClass; compiler forces hasKeyArgument=false,
+            // so it never participates in metadata accessor key arguments.
+            return nil
+
+        case .sameShape:
+            // Pack-shape constraint between two TypePacks. Relevant only to variadic
+            // generics, which are out of scope for this specializer.
+            return nil
+
+        case .invertedProtocols:
+            // Capability declaration (~Copyable / ~Escapable) — surfaced on
+            // Parameter.invertibleProtocols rather than as a Requirement, because
+            // it relaxes rather than constrains the parameter.
             return nil
         }
     }
