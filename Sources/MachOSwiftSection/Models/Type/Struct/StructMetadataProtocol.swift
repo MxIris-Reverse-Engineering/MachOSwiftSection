@@ -28,3 +28,19 @@ extension StructMetadataProtocol {
         return try asPointer.advanced(by: descriptor.fieldOffsetVector.cast() * MemoryLayout<StoredSize>.size).readElements(numberOfElements: descriptor.numFields.cast())
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension StructMetadataProtocol {
+    public func structDescriptor<Context: ReadingContext>(in context: Context) throws -> StructDescriptor {
+        try layout.descriptor.resolve(in: context).struct!
+    }
+
+    public func fieldOffsets<Context: ReadingContext>(for descriptor: StructDescriptor? = nil, in context: Context) throws -> [UInt32] {
+        let descriptor = try descriptor ?? structDescriptor(in: context)
+        guard descriptor.fieldOffsetVector != .zero else { return [] }
+        // Metadata.offset + fieldOffset (eg. 2 * 8)
+        let offset = offset + (descriptor.fieldOffsetVector.cast() * MemoryLayout<StoredSize>.size)
+        return try context.readElements(at: try context.addressFromOffset(offset), numberOfElements: descriptor.numFields.cast())
+    }
+}

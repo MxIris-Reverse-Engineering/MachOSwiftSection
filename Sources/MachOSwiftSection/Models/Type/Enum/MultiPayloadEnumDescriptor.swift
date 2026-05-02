@@ -115,3 +115,36 @@ extension MultiPayloadEnumDescriptor: TopLevelDescriptor {
         MemoryLayout<RelativeDirectPointer<String>>.size + (contentsSizeInWord.cast() * MemoryLayout<UInt32>.size)
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension MultiPayloadEnumDescriptor {
+    public func mangledTypeName<Context: ReadingContext>(in context: Context) throws -> MangledName {
+        return try layout.mangledTypeName.resolve(at: try context.addressFromOffset(offset), in: context)
+    }
+
+    public func contents<Context: ReadingContext>(in context: Context) throws -> [UInt32] {
+        return try context.readElements(at: try context.addressFromOffset(offset(of: \.sizeFlags)), numberOfElements: contentsSizeInWord.cast())
+    }
+
+    public func payloadSpareBits<Context: ReadingContext>(in context: Context) throws -> [UInt8] {
+        guard usesPayloadSpareBits else { return [] }
+        return try context.readElements(at: try context.addressFromOffset(offset + MemoryLayout<RelativeOffset>.size + MemoryLayout<UInt32>.size * payloadSpareBitsIndex), numberOfElements: payloadSpareBitMaskByteCount(in: context).cast())
+    }
+
+    public func payloadSpareBitMaskByteOffset<Context: ReadingContext>(in context: Context) throws -> UInt32 {
+        if usesPayloadSpareBits {
+            return try contents(in: context)[payloadSpareBitMaskByteCountIndex] >> 16
+        } else {
+            return 0
+        }
+    }
+
+    public func payloadSpareBitMaskByteCount<Context: ReadingContext>(in context: Context) throws -> UInt32 {
+        if usesPayloadSpareBits {
+            return try contents(in: context)[payloadSpareBitMaskByteCountIndex] & 0xFFFF
+        } else {
+            return 0
+        }
+    }
+}

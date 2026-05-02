@@ -99,3 +99,67 @@ public struct Enum: TopLevelType, ContextProtocol {
         }
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension Enum {
+    public init<Context: ReadingContext>(descriptor: EnumDescriptor, in context: Context) throws {
+        self.descriptor = descriptor
+        var currentOffset = descriptor.offset + descriptor.layoutSize
+        let genericContext = try descriptor.typeGenericContext(in: context)
+        if let genericContext {
+            currentOffset += genericContext.size
+        }
+        self.genericContext = genericContext
+        try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: context)
+    }
+
+    private mutating func initialize<Context: ReadingContext>(descriptor: EnumDescriptor, currentOffset: inout Int, in context: Context) throws {
+
+        let typeFlags = try required(descriptor.flags.kindSpecificFlags?.typeFlags)
+
+        if typeFlags.hasForeignMetadataInitialization {
+            self.foreignMetadataInitialization = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset)) as ForeignMetadataInitialization
+            currentOffset.offset(of: ForeignMetadataInitialization.self)
+        } else {
+            self.foreignMetadataInitialization = nil
+        }
+
+        if typeFlags.hasSingletonMetadataInitialization {
+            self.singletonMetadataInitialization = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset)) as SingletonMetadataInitialization
+            currentOffset.offset(of: SingletonMetadataInitialization.self)
+        } else {
+            self.singletonMetadataInitialization = nil
+        }
+
+        if descriptor.hasCanonicalMetadataPrespecializations {
+            let count: CanonicalSpecializedMetadatasListCount = try context.readElement(at: try context.addressFromOffset(currentOffset))
+            currentOffset.offset(of: CanonicalSpecializedMetadatasListCount.self)
+            let countValue = count.rawValue
+            let canonicalMetadataPrespecializations: [CanonicalSpecializedMetadatasListEntry] = try context.readWrapperElements(at: try context.addressFromOffset(currentOffset), numberOfElements: countValue.cast())
+            currentOffset.offset(of: CanonicalSpecializedMetadatasListEntry.self, numbersOfElements: countValue.cast())
+            self.canonicalSpecializedMetadatas = canonicalMetadataPrespecializations
+            self.canonicalSpecializedMetadatasListCount = count
+            self.canonicalSpecializedMetadatasCachingOnceToken = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset)) as CanonicalSpecializedMetadatasCachingOnceToken
+            currentOffset.offset(of: CanonicalSpecializedMetadatasCachingOnceToken.self)
+        } else {
+            self.canonicalSpecializedMetadatas = []
+            self.canonicalSpecializedMetadatasListCount = nil
+            self.canonicalSpecializedMetadatasCachingOnceToken = nil
+        }
+
+        if descriptor.flags.hasInvertibleProtocols {
+            self.invertibleProtocolSet = try context.readElement(at: try context.addressFromOffset(currentOffset)) as InvertibleProtocolSet
+            currentOffset.offset(of: InvertibleProtocolSet.self)
+        } else {
+            self.invertibleProtocolSet = nil
+        }
+
+        if descriptor.hasSingletonMetadataPointer {
+            self.singletonMetadataPointer = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset)) as SingletonMetadataPointer
+            currentOffset.offset(of: SingletonMetadataPointer.self)
+        } else {
+            self.singletonMetadataPointer = nil
+        }
+    }
+}
