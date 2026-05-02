@@ -40,6 +40,16 @@ package enum BaselineGenerator {
         try dispatchSuite("AnonymousContextDescriptor", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("AnonymousContextDescriptorFlags", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("AnonymousContextDescriptorProtocol", in: machOFile, outputDirectory: outputDirectory)
+        // ContextDescriptor/
+        try dispatchSuite("ContextDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ContextDescriptorFlags", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ContextDescriptorKind", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ContextDescriptorKindSpecificFlags", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ContextDescriptorProtocol", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ContextDescriptorWrapper", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ContextProtocol", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ContextWrapper", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("NamedContextDescriptorProtocol", in: machOFile, outputDirectory: outputDirectory)
         // Extension/
         try dispatchSuite("ExtensionContext", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("ExtensionContextDescriptor", in: machOFile, outputDirectory: outputDirectory)
@@ -73,6 +83,25 @@ package enum BaselineGenerator {
             try AnonymousContextDescriptorFlagsBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         case "AnonymousContextDescriptorProtocol":
             try AnonymousContextDescriptorProtocolBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        // ContextDescriptor/
+        case "ContextDescriptor":
+            try ContextDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ContextDescriptorFlags":
+            try ContextDescriptorFlagsBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ContextDescriptorKind":
+            try ContextDescriptorKindBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ContextDescriptorKindSpecificFlags":
+            try ContextDescriptorKindSpecificFlagsBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ContextDescriptorProtocol":
+            try ContextDescriptorProtocolBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ContextDescriptorWrapper":
+            try ContextDescriptorWrapperBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ContextProtocol":
+            try ContextProtocolBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ContextWrapper":
+            try ContextWrapperBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "NamedContextDescriptorProtocol":
+            try NamedContextDescriptorProtocolBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         // Extension/
         case "ExtensionContext":
             try ExtensionContextBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
