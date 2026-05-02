@@ -17,3 +17,12 @@ public struct ModuleContext: TopLevelType, ContextProtocol {
         self.name = try descriptor.name()
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension ModuleContext {
+    public init<Context: ReadingContext>(descriptor: ModuleContextDescriptor, in context: Context) throws {
+        self.descriptor = descriptor
+        self.name = try descriptor.name(in: context)
+    }
+}
