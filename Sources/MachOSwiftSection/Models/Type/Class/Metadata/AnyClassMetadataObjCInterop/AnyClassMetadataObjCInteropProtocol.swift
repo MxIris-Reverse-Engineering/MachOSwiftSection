@@ -31,3 +31,15 @@ extension AnyClassMetadataObjCInteropProtocol {
         layout.data & 2 != 0
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension AnyClassMetadataObjCInteropProtocol {
+    public func asFinalClassMetadata<Context: ReadingContext>(in context: Context) throws -> ClassMetadataObjCInterop {
+        try .resolve(at: try context.addressFromOffset(offset), in: context)
+    }
+
+    public func superclass<Context: ReadingContext>(in context: Context) throws -> AnyClassMetadataObjCInterop? {
+        try layout.superclass.resolve(in: context)
+    }
+}

@@ -175,3 +175,125 @@ public struct Class: TopLevelType, ContextProtocol {
         }
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension Class {
+    public init<Context: ReadingContext>(descriptor: ClassDescriptor, in context: Context) throws {
+        self.descriptor = descriptor
+        let genericContext = try descriptor.typeGenericContext(in: context)
+        self.genericContext = genericContext
+        var currentOffset = descriptor.offset + descriptor.layoutSize
+        if let genericContext {
+            currentOffset += genericContext.size
+        }
+        try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: context)
+    }
+
+    private mutating func initialize<Context: ReadingContext>(descriptor: ClassDescriptor, currentOffset: inout Int, in context: Context) throws {
+        if descriptor.hasResilientSuperclass {
+            let resilientSuperclass: ResilientSuperclass = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            self.resilientSuperclass = resilientSuperclass
+            currentOffset.offset(of: ResilientSuperclass.self)
+        } else {
+            self.resilientSuperclass = nil
+        }
+
+        if descriptor.hasForeignMetadataInitialization {
+            let foreignMetadataInitialization: ForeignMetadataInitialization = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            self.foreignMetadataInitialization = foreignMetadataInitialization
+            currentOffset.offset(of: ForeignMetadataInitialization.self)
+        } else {
+            self.foreignMetadataInitialization = nil
+        }
+
+        if descriptor.hasSingletonMetadataInitialization {
+            let singletonMetadataInitialization: SingletonMetadataInitialization = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            self.singletonMetadataInitialization = singletonMetadataInitialization
+            currentOffset.offset(of: SingletonMetadataInitialization.self)
+        } else {
+            self.singletonMetadataInitialization = nil
+        }
+
+        if descriptor.hasVTable {
+            let vTableDescriptorHeader: VTableDescriptorHeader = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            self.vTableDescriptorHeader = vTableDescriptorHeader
+            currentOffset.offset(of: VTableDescriptorHeader.self)
+            let methodDescriptors: [MethodDescriptor] = try context.readWrapperElements(at: try context.addressFromOffset(currentOffset), numberOfElements: vTableDescriptorHeader.vTableSize.cast())
+            self.methodDescriptors = methodDescriptors
+            currentOffset.offset(of: MethodDescriptor.self, numbersOfElements: vTableDescriptorHeader.vTableSize.cast())
+        } else {
+            self.vTableDescriptorHeader = nil
+            self.methodDescriptors = []
+        }
+
+        if descriptor.hasOverrideTable {
+            let overrideTableHeader: OverrideTableHeader = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            self.overrideTableHeader = overrideTableHeader
+            currentOffset.offset(of: OverrideTableHeader.self)
+            let methodOverrideDescriptors: [MethodOverrideDescriptor] = try context.readWrapperElements(at: try context.addressFromOffset(currentOffset), numberOfElements: overrideTableHeader.numEntries.cast())
+            self.methodOverrideDescriptors = methodOverrideDescriptors
+            currentOffset.offset(of: MethodOverrideDescriptor.self, numbersOfElements: overrideTableHeader.numEntries.cast())
+        } else {
+            self.overrideTableHeader = nil
+            self.methodOverrideDescriptors = []
+        }
+
+        if descriptor.hasObjCResilientClassStub {
+            let objcResilientClassStubInfo: ObjCResilientClassStubInfo = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            self.objcResilientClassStubInfo = objcResilientClassStubInfo
+            currentOffset.offset(of: ObjCResilientClassStubInfo.self)
+        } else {
+            self.objcResilientClassStubInfo = nil
+        }
+
+        if descriptor.hasCanonicalMetadataPrespecializations {
+            let count: CanonicalSpecializedMetadatasListCount = try context.readElement(at: try context.addressFromOffset(currentOffset))
+            self.canonicalSpecializedMetadatasListCount = count
+            currentOffset.offset(of: CanonicalSpecializedMetadatasListCount.self)
+            let countValue = count.rawValue
+            let canonicalSpecializedMetadatas: [CanonicalSpecializedMetadatasListEntry] = try context.readWrapperElements(at: try context.addressFromOffset(currentOffset), numberOfElements: countValue.cast())
+            self.canonicalSpecializedMetadatas = canonicalSpecializedMetadatas
+            currentOffset.offset(of: CanonicalSpecializedMetadatasListEntry.self, numbersOfElements: countValue.cast())
+            let canonicalSpecializedMetadataAccessors: [CanonicalSpecializedMetadataAccessorsListEntry] = try context.readWrapperElements(at: try context.addressFromOffset(currentOffset), numberOfElements: countValue.cast())
+            self.canonicalSpecializedMetadataAccessors = canonicalSpecializedMetadataAccessors
+            currentOffset.offset(of: CanonicalSpecializedMetadataAccessorsListEntry.self, numbersOfElements: countValue.cast())
+            let canonicalSpecializedMetadatasCachingOnceToken: CanonicalSpecializedMetadatasCachingOnceToken = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            self.canonicalSpecializedMetadatasCachingOnceToken = canonicalSpecializedMetadatasCachingOnceToken
+            currentOffset.offset(of: CanonicalSpecializedMetadatasCachingOnceToken.self)
+        } else {
+            self.canonicalSpecializedMetadatasListCount = nil
+            self.canonicalSpecializedMetadatas = []
+            self.canonicalSpecializedMetadataAccessors = []
+            self.canonicalSpecializedMetadatasCachingOnceToken = nil
+        }
+
+        if descriptor.flags.contains(.hasInvertibleProtocols) {
+            let invertibleProtocolSet: InvertibleProtocolSet = try context.readElement(at: try context.addressFromOffset(currentOffset))
+            self.invertibleProtocolSet = invertibleProtocolSet
+            currentOffset.offset(of: InvertibleProtocolSet.self)
+        } else {
+            self.invertibleProtocolSet = nil
+        }
+
+        if descriptor.hasSingletonMetadataPointer {
+            let singletonMetadataPointer: SingletonMetadataPointer = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            self.singletonMetadataPointer = singletonMetadataPointer
+            currentOffset.offset(of: SingletonMetadataPointer.self)
+        } else {
+            self.singletonMetadataPointer = nil
+        }
+
+        if descriptor.hasDefaultOverrideTable {
+            let methodDefaultOverrideTableHeader: MethodDefaultOverrideTableHeader = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            self.methodDefaultOverrideTableHeader = methodDefaultOverrideTableHeader
+            currentOffset.offset(of: MethodDefaultOverrideTableHeader.self)
+            let methodDefaultOverrideDescriptors: [MethodDefaultOverrideDescriptor] = try context.readWrapperElements(at: try context.addressFromOffset(currentOffset), numberOfElements: methodDefaultOverrideTableHeader.numEntries.cast())
+            self.methodDefaultOverrideDescriptors = methodDefaultOverrideDescriptors
+            currentOffset.offset(of: MethodDefaultOverrideDescriptor.self, numbersOfElements: methodDefaultOverrideTableHeader.numEntries.cast())
+        } else {
+            self.methodDefaultOverrideTableHeader = nil
+            self.methodDefaultOverrideDescriptors = []
+        }
+    }
+}

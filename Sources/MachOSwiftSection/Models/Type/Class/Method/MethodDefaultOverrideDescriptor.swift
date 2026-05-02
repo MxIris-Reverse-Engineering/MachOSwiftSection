@@ -42,3 +42,19 @@ extension MethodDefaultOverrideDescriptor {
         return try layout.replacement.resolve(from: pointer(of: \.original)).asOptional
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension MethodDefaultOverrideDescriptor {
+    public func originalMethodDescriptor<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<MethodDescriptor>? {
+        return try layout.original.resolve(at: try context.addressFromOffset(offset(of: \.original)), in: context).asOptional
+    }
+
+    public func replacementMethodDescriptor<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<MethodDescriptor>? {
+        return try layout.replacement.resolve(at: try context.addressFromOffset(offset(of: \.original)), in: context).asOptional
+    }
+
+    public func implementationSymbols<Context: ReadingContext>(in context: Context) throws -> Symbols? {
+        return try layout.implementation.resolve(at: try context.addressFromOffset(offset(of: \.implementation)), in: context)
+    }
+}
