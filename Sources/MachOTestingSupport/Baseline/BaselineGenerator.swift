@@ -99,6 +99,18 @@ package enum BaselineGenerator {
         try dispatchSuite("EnumMetadata", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("EnumMetadataProtocol", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("MultiPayloadEnumDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        // Type/ root — sub-generators live in Generators/Type/, mirroring
+        // the Type/Class/ and Type/Enum/ layout conventions from Tasks 7-8.
+        try dispatchSuite("TypeContextDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("TypeContextDescriptorFlags", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("TypeContextDescriptorProtocol", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("TypeContextDescriptorWrapper", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("TypeContextWrapper", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("TypeMetadataRecord", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("TypeReference", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ValueMetadata", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ValueMetadataProtocol", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ValueTypeDescriptorWrapper", in: machOFile, outputDirectory: outputDirectory)
     }
 
     /// Regenerates a single Suite's baseline file. Used by the polished
@@ -224,6 +236,27 @@ package enum BaselineGenerator {
             try EnumMetadataProtocolBaselineGenerator.generate(outputDirectory: outputDirectory)
         case "MultiPayloadEnumDescriptor":
             try MultiPayloadEnumDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        // Type/ root
+        case "TypeContextDescriptor":
+            try TypeContextDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "TypeContextDescriptorFlags":
+            try TypeContextDescriptorFlagsBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "TypeContextDescriptorProtocol":
+            try TypeContextDescriptorProtocolBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "TypeContextDescriptorWrapper":
+            try TypeContextDescriptorWrapperBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "TypeContextWrapper":
+            try TypeContextWrapperBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "TypeMetadataRecord":
+            try TypeMetadataRecordBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "TypeReference":
+            try TypeReferenceBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ValueMetadata":
+            try ValueMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "ValueMetadataProtocol":
+            try ValueMetadataProtocolBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "ValueTypeDescriptorWrapper":
+            try ValueTypeDescriptorWrapperBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         default:
             throw BaselineGeneratorError.unknownSuite(name)
         }
