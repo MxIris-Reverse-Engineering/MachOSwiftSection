@@ -15,7 +15,7 @@ package enum FixtureLoadError: Error, CustomStringConvertible {
             """
         case .imageNotFoundAfterDlopen(let path, let dlerror):
             return """
-            dlopen succeeded but MachOImage(named:) returned nil for \(path).
+            dlopen succeeded but MachOImage(name:) returned nil for \(path).
             dlerror: \(dlerror ?? "<none>")
             """
         }

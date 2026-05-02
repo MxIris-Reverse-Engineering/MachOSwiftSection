@@ -20,7 +20,19 @@ package class MachOSwiftSectionFixtureTests: Sendable {
 
     package init() async throws {
         // 1) Load MachO from disk.
-        let file = try loadFromFile(named: Self.fixtureFileName)
+        let file: File
+        do {
+            file = try loadFromFile(named: Self.fixtureFileName)
+        } catch {
+            // If the file doesn't exist on disk, surface a fixture-specific
+            // error with rebuild instructions. Otherwise propagate the original
+            // error so unrelated load failures aren't masked.
+            let resolvedPath = Self.resolveFixturePath(Self.fixtureFileName.rawValue)
+            if !FileManager.default.fileExists(atPath: resolvedPath) {
+                throw FixtureLoadError.fixtureFileMissing(path: resolvedPath)
+            }
+            throw error
+        }
         switch file {
         case .fat(let fatFile):
             self.machOFile = try required(
