@@ -38,3 +38,15 @@ extension FieldRecord {
         return try layout.fieldName.resolve(from: pointer(of: \.fieldName))
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension FieldRecord {
+    public func mangledTypeName<Context: ReadingContext>(in context: Context) throws -> MangledName {
+        return try layout.mangledTypeName.resolve(at: try context.addressFromOffset(offset(of: \.mangledTypeName)), in: context)
+    }
+
+    public func fieldName<Context: ReadingContext>(in context: Context) throws -> String {
+        return try layout.fieldName.resolve(at: try context.addressFromOffset(offset(of: \.fieldName)), in: context)
+    }
+}

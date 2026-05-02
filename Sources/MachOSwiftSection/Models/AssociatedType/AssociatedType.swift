@@ -25,3 +25,14 @@ public struct AssociatedType: TopLevelType {
         self.records = try descriptor.associatedTypeRecords()
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension AssociatedType {
+    public init<Context: ReadingContext>(descriptor: AssociatedTypeDescriptor, in context: Context) throws {
+        self.descriptor = descriptor
+        self.conformingTypeName = try descriptor.conformingTypeName(in: context)
+        self.protocolTypeName = try descriptor.protocolTypeName(in: context)
+        self.records = try descriptor.associatedTypeRecords(in: context)
+    }
+}

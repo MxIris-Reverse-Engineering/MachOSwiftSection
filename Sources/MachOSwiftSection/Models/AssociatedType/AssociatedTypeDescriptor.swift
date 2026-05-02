@@ -50,3 +50,19 @@ extension AssociatedTypeDescriptor {
 extension AssociatedTypeDescriptor: TopLevelDescriptor {
     public var actualSize: Int { layoutSize + (layout.numAssociatedTypes * layout.associatedTypeRecordSize).cast() }
 }
+
+// MARK: - ReadingContext Support
+
+extension AssociatedTypeDescriptor {
+    public func conformingTypeName<Context: ReadingContext>(in context: Context) throws -> MangledName {
+        return try layout.conformingTypeName.resolve(at: try context.addressFromOffset(offset(of: \.conformingTypeName)), in: context)
+    }
+
+    public func protocolTypeName<Context: ReadingContext>(in context: Context) throws -> MangledName {
+        return try layout.protocolTypeName.resolve(at: try context.addressFromOffset(offset(of: \.protocolTypeName)), in: context)
+    }
+
+    public func associatedTypeRecords<Context: ReadingContext>(in context: Context) throws -> [AssociatedTypeRecord] {
+        return try context.readWrapperElements(at: try context.addressFromOffset(offset + layoutSize), numberOfElements: layout.numAssociatedTypes.cast())
+    }
+}

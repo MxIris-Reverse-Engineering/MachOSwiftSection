@@ -48,3 +48,17 @@ extension FieldDescriptor {
         return try asPointer.readWrapperElements(offset: offset, numberOfElements: layout.numFields.cast())
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension FieldDescriptor {
+    public func mangledTypeName<Context: ReadingContext>(in context: Context) throws -> MangledName {
+        return try layout.mangledTypeName.resolve(at: try context.addressFromOffset(offset(of: \.mangledTypeName)), in: context)
+    }
+
+    public func records<Context: ReadingContext>(in context: Context) throws -> [FieldRecord] {
+        guard layout.fieldRecordSize != 0 else { return [] }
+        let offset = offset + MemoryLayout<FieldDescriptor.Layout>.size
+        return try context.readWrapperElements(at: try context.addressFromOffset(offset), numberOfElements: layout.numFields.cast())
+    }
+}
