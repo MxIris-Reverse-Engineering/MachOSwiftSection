@@ -3,7 +3,7 @@ import SwiftSyntax
 import SwiftParser
 
 /// Scans a directory of Swift source files and extracts the set of public/open
-/// `func`, `var`, and `init` members, keyed by `(typeName, memberName)`.
+/// `func`, `var`, `init`, and `subscript` members, keyed by `(typeName, memberName)`.
 ///
 /// Skipped:
 /// - `internal`, `private`, `fileprivate` declarations
@@ -131,6 +131,16 @@ private final class PublicMemberVisitor: SyntaxVisitor {
         if isMemberwiseSynthesizedInit(node) { return .skipChildren }
         let signature = node.signature.parameterClause.parameters.map { $0.firstName.text }.joined(separator: ":")
         let memberName = signature.isEmpty ? "init" : "init(\(signature):)"
+        collected.append(MethodKey(typeName: typeName, memberName: memberName))
+        return .skipChildren
+    }
+
+    override func visit(_ node: SubscriptDeclSyntax) -> SyntaxVisitorContinueKind {
+        guard isPublicLike(node.modifiers, attributes: node.attributes) else { return .skipChildren }
+        guard let typeName = currentTypeName() else { return .skipChildren }
+        if shouldSkip(typeName: typeName) { return .skipChildren }
+        let signature = node.parameterClause.parameters.map { $0.firstName.text }.joined(separator: ":")
+        let memberName = signature.isEmpty ? "subscript" : "subscript(\(signature):)"
         collected.append(MethodKey(typeName: typeName, memberName: memberName))
         return .skipChildren
     }

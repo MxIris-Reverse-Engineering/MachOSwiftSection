@@ -80,4 +80,13 @@ struct PublicMemberScannerTests {
         let result = try scanner.scan(applyingAllowlist: allowlist)
         #expect(!result.contains(MethodKey(typeName: "SampleDescriptor", memberName: "name")))
     }
+
+    @Test func collectsPublicSubscript() throws {
+        let root = try makeScanRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let scanner = PublicMemberScanner(sourceRoot: root)
+        let result = try scanner.scan()
+
+        #expect(result.contains(MethodKey(typeName: "SampleDescriptor", memberName: "subscript(dynamicMember:)")))
+    }
 }

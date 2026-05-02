@@ -15,6 +15,10 @@ extension SampleDescriptor {
     public func sectionedFoo() -> Int { 0 }
 }
 
+extension SampleDescriptor {
+    public subscript(dynamicMember key: String) -> Int { 0 }
+}
+
 @_spi(Internals)
 extension SampleDescriptor {
     public func spiHidden() -> Int { 0 }
