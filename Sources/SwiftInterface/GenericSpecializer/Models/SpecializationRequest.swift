@@ -49,18 +49,27 @@ extension SpecializationRequest {
         /// Candidate types that satisfy all requirements
         public var candidates: [Candidate]
 
+        /// Invertible protocols (~Copyable / ~Escapable) that the parameter
+        /// declares. The set carries the bits that ARE present — e.g.
+        /// `<A: ~Copyable>` produces a set without `.copyable`. `nil` means
+        /// the parameter has no `invertedProtocols` requirement and retains
+        /// every invertible protocol by default (the typical Swift case).
+        public let invertibleProtocols: InvertibleProtocolSet?
+
         public init(
             name: String,
             index: Int,
             depth: Int,
             requirements: [Requirement],
-            candidates: [Candidate] = []
+            candidates: [Candidate] = [],
+            invertibleProtocols: InvertibleProtocolSet? = nil
         ) {
             self.name = name
             self.index = index
             self.depth = depth
             self.requirements = requirements
             self.candidates = candidates
+            self.invertibleProtocols = invertibleProtocols
         }
 
         /// Protocol requirements that require witness tables (in order)

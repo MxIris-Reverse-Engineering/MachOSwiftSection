@@ -572,4 +572,41 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
             #expect(parameterCount >= 1)
         }
     }
+
+    // MARK: - Inverted protocols (~Copyable)
+
+    struct TestInvertedCopyableStruct<A: ~Copyable>: ~Copyable {
+        let a: A
+    }
+
+    @Test func invertedProtocolsExposed() async throws {
+        let machO = MachOImage.current()
+
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first {
+            try $0.struct?.name(in: machO).contains("TestInvertedCopyableStruct") == true
+        }?.struct)
+
+        let indexer = SwiftInterfaceIndexer(in: machO)
+        try await indexer.prepare()
+
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        #expect(request.parameters.count == 1)
+
+        let invertible = try #require(request.parameters[0].invertibleProtocols)
+        // ~Copyable means the .copyable bit IS set in the inverted-protocols set:
+        // the set encodes which protocols are suppressed, so .copyable present means
+        // the parameter declares ~Copyable (matching the existing dump code convention).
+        #expect(invertible.contains(.copyable))
+
+        // Specialize with a Copyable type (Int) — the conditional Copyable
+        // extension makes the struct itself Copyable when A is Copyable, so
+        // the metadata accessor should succeed.
+        let result = try specializer.specialize(request, with: ["A": .metatype(Int.self)])
+        let structMetadata = try #require(result.resolveMetadata().struct)
+        #expect(try structMetadata.fieldOffsets() == [0])
+    }
 }
+
+extension GenericSpecializationTests.TestInvertedCopyableStruct: Copyable where A: Copyable {}

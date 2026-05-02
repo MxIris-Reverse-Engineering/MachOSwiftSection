@@ -87,6 +87,38 @@ extension GenericSpecializer {
             + genericContext.conditionalInvertibleProtocolsRequirements
     }
 
+    /// Pick out the `~Copyable` / `~Escapable` declaration for the
+    /// generic parameter at `(depth, index)`, intersecting if multiple
+    /// `invertedProtocols` requirements target the same parameter.
+    /// Returns `nil` when no requirement targets this parameter.
+    private static func collectInvertibleProtocols(
+        for index: Int,
+        depth: Int,
+        in genericContext: GenericContext
+    ) -> InvertibleProtocolSet? {
+        // The binary stores the parameter index as a flat 16-bit value
+        // across all depth levels: it equals the cumulative count of
+        // parameters in prior depths plus the current depth's index.
+        let priorDepthParameterCount = genericContext.allParameters
+            .prefix(depth)
+            .reduce(0) { $0 + $1.count }
+        let flatIndex = UInt16(priorDepthParameterCount + index)
+
+        var result: InvertibleProtocolSet?
+        for descriptor in mergedRequirements(from: genericContext)
+        where descriptor.layout.flags.kind == .invertedProtocols {
+            guard case .invertedProtocols(let inverted) = descriptor.content else { continue }
+            guard inverted.genericParamIndex == flatIndex else { continue }
+
+            if let existing = result {
+                result = existing.intersection(inverted.protocols)
+            } else {
+                result = inverted.protocols
+            }
+        }
+        return result
+    }
+
     /// Build parameter list from generic context
     private func buildParameters(from genericContext: GenericContext, for type: TypeContextDescriptorWrapper) throws -> [SpecializationRequest.Parameter] {
         var parameters: [SpecializationRequest.Parameter] = []
@@ -118,12 +150,19 @@ extension GenericSpecializer {
 
                 let candidates = findCandidates(satisfying: protocolRequirements)
 
+                let invertibleProtocols = Self.collectInvertibleProtocols(
+                    for: index,
+                    depth: depth,
+                    in: genericContext
+                )
+
                 parameters.append(SpecializationRequest.Parameter(
                     name: paramName,
                     index: index,
                     depth: depth,
                     requirements: requirements,
-                    candidates: candidates
+                    candidates: candidates,
+                    invertibleProtocols: invertibleProtocols
                 ))
             }
         }
