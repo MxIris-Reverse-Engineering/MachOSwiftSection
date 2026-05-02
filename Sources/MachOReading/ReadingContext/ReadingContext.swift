@@ -257,3 +257,20 @@ extension ReadingContext {
     /// can vend a resolver (see `MachOContext`'s implementation).
     public var bindRebaseResolver: (any MachOBindRebaseResolving)? { nil }
 }
+
+extension ReadingContext {
+    /// Converts a context-specific address to a runtime `UnsafeRawPointer`,
+    /// when this context is mapped into the current process.
+    ///
+    /// - `InProcessContext`: returns the address itself (already a pointer).
+    /// - `MachOContext<MachOImage>`: returns `machO.ptr + address`.
+    /// - `MachOContext<MachOFile>` / other readers: returns `nil`.
+    ///
+    /// This is an extension method (not a protocol requirement) so adding
+    /// new `ReadingContext` conformers does not become a breaking change.
+    /// Concrete contexts that *can* vend a runtime pointer override this in
+    /// their own files.
+    public func runtimePointer(at address: Address) throws -> UnsafeRawPointer? {
+        nil
+    }
+}
