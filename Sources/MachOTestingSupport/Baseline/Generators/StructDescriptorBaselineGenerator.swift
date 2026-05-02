@@ -27,7 +27,7 @@ package enum StructDescriptorBaselineGenerator {
 
         let header = """
         // AUTO-GENERATED — DO NOT EDIT.
-        // Regenerate via: swift run baseline-generator
+        // Regenerate via: Scripts/regen-baselines.sh
         // Source fixture: SymbolTestsCore.framework
         """
 

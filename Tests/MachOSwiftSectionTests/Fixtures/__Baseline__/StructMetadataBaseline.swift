@@ -1,5 +1,5 @@
 // AUTO-GENERATED — DO NOT EDIT.
-// Regenerate via: swift run baseline-generator
+// Regenerate via: Scripts/regen-baselines.sh
 // Source fixture: SymbolTestsCore.framework
 //
 // StructMetadata can only be materialized via MachOImage's accessor

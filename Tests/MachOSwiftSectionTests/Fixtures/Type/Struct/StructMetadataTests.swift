@@ -43,7 +43,7 @@ final class StructMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @u
         // inProcess) reader axes by re-querying via static lookup; the value
         // is reader-independent at runtime.
         #expect(staticOffset > 0, "descriptor offset should be non-zero")
-        #expect(staticOffset == 8, "on 64-bit ABI, kind precedes descriptor pointer (8 bytes)")
+        #expect(staticOffset == MemoryLayout<UnsafeRawPointer>.size, "kind precedes descriptor pointer; size = pointer width")
     }
 
     @Test func offset() async throws {

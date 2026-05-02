@@ -4,6 +4,19 @@ import SwiftSyntaxBuilder
 import MachOFoundation
 @testable import MachOSwiftSection
 
+// Pattern note: this generator and its corresponding Suite use **presence flags**
+// (`hasGenericContext: Bool`, etc.) for heavy optional ivars rather than full
+// structural equality. Rationale: the underlying types (TypeGenericContext,
+// SingletonMetadataPointer, ...) are non-Equatable and would require deep,
+// brittle equality assertions. Presence + cardinality catches the structural
+// invariant we care about — that the descriptor's optional fields appear when
+// expected and not when not.
+//
+// Limitation: a regression that produces a *wrong-shaped* generic context (with
+// the optional field set but its contents corrupted) is not caught by these
+// tests. Where deeper structural assertions matter, Tasks 12 (Generic/) and 14
+// (Metadata/) will add type-specific tests.
+
 /// Emits `__Baseline__/StructBaseline.swift` from the `SymbolTestsCore`
 /// fixture via the MachOFile reader.
 ///
@@ -47,7 +60,7 @@ package enum StructBaselineGenerator {
 
         let header = """
         // AUTO-GENERATED — DO NOT EDIT.
-        // Regenerate via: swift run baseline-generator
+        // Regenerate via: Scripts/regen-baselines.sh
         // Source fixture: SymbolTestsCore.framework
         """
 

@@ -22,7 +22,7 @@ package enum StructMetadataProtocolBaselineGenerator {
 
         let header = """
         // AUTO-GENERATED — DO NOT EDIT.
-        // Regenerate via: swift run baseline-generator
+        // Regenerate via: Scripts/regen-baselines.sh
         // Source fixture: SymbolTestsCore.framework
         //
         // Live StructMetadata pointers cannot be embedded as literals; the

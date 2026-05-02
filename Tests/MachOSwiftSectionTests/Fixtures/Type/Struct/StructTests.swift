@@ -26,6 +26,19 @@ final class StructTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked
         StructBaseline.registeredTestMethodNames
     }
 
+    /// Helper: instantiate the `Struct` wrapper for `Structs.StructTest` against
+    /// both the file and image readers using the MachO-direct initializer.
+    /// Used by every ivar test — the in-process and ReadingContext-based
+    /// initializer paths are exercised separately by `initializerWithMachO()`
+    /// / `initializerInProcess()`.
+    private func loadStructTestStructs() throws -> (file: Struct, image: Struct) {
+        let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
+        let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
+        let file = try Struct(descriptor: fileDescriptor, in: machOFile)
+        let image = try Struct(descriptor: imageDescriptor, in: machOImage)
+        return (file: file, image: image)
+    }
+
     // MARK: - Initializers
 
     @Test("init(descriptor:in:)") func initializerWithMachO() async throws {
@@ -61,32 +74,21 @@ final class StructTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked
     // MARK: - Ivars
 
     @Test func descriptor() async throws {
-        let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
-        let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
-
-        let fileStruct = try Struct(descriptor: fileDescriptor, in: machOFile)
-        let imageStruct = try Struct(descriptor: imageDescriptor, in: machOImage)
+        let structs = try loadStructTestStructs()
 
         let descriptorOffsets = try acrossAllReaders(
-            file: { fileStruct.descriptor.offset },
-            image: { imageStruct.descriptor.offset }
+            file: { structs.file.descriptor.offset },
+            image: { structs.image.descriptor.offset }
         )
         #expect(descriptorOffsets == StructBaseline.structTest.descriptorOffset)
     }
 
     @Test func genericContext() async throws {
         // Concrete struct (`StructTest`): no generic context.
-        let structTestFile = try Struct(
-            descriptor: try BaselineFixturePicker.struct_StructTest(in: machOFile),
-            in: machOFile
-        )
-        let structTestImage = try Struct(
-            descriptor: try BaselineFixturePicker.struct_StructTest(in: machOImage),
-            in: machOImage
-        )
+        let structs = try loadStructTestStructs()
         let structTestPresence = try acrossAllReaders(
-            file: { structTestFile.genericContext != nil },
-            image: { structTestImage.genericContext != nil }
+            file: { structs.file.genericContext != nil },
+            image: { structs.image.genericContext != nil }
         )
         #expect(structTestPresence == StructBaseline.structTest.hasGenericContext)
 
@@ -107,113 +109,64 @@ final class StructTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked
     }
 
     @Test func foreignMetadataInitialization() async throws {
-        let fileStruct = try Struct(
-            descriptor: try BaselineFixturePicker.struct_StructTest(in: machOFile),
-            in: machOFile
-        )
-        let imageStruct = try Struct(
-            descriptor: try BaselineFixturePicker.struct_StructTest(in: machOImage),
-            in: machOImage
-        )
+        let structs = try loadStructTestStructs()
         let presence = try acrossAllReaders(
-            file: { fileStruct.foreignMetadataInitialization != nil },
-            image: { imageStruct.foreignMetadataInitialization != nil }
+            file: { structs.file.foreignMetadataInitialization != nil },
+            image: { structs.image.foreignMetadataInitialization != nil }
         )
         #expect(presence == StructBaseline.structTest.hasForeignMetadataInitialization)
     }
 
     @Test func singletonMetadataInitialization() async throws {
-        let fileStruct = try Struct(
-            descriptor: try BaselineFixturePicker.struct_StructTest(in: machOFile),
-            in: machOFile
-        )
-        let imageStruct = try Struct(
-            descriptor: try BaselineFixturePicker.struct_StructTest(in: machOImage),
-            in: machOImage
-        )
+        let structs = try loadStructTestStructs()
         let presence = try acrossAllReaders(
-            file: { fileStruct.singletonMetadataInitialization != nil },
-            image: { imageStruct.singletonMetadataInitialization != nil }
+            file: { structs.file.singletonMetadataInitialization != nil },
+            image: { structs.image.singletonMetadataInitialization != nil }
         )
         #expect(presence == StructBaseline.structTest.hasSingletonMetadataInitialization)
     }
 
     @Test func canonicalSpecializedMetadatas() async throws {
-        let fileStruct = try Struct(
-            descriptor: try BaselineFixturePicker.struct_StructTest(in: machOFile),
-            in: machOFile
-        )
-        let imageStruct = try Struct(
-            descriptor: try BaselineFixturePicker.struct_StructTest(in: machOImage),
-            in: machOImage
-        )
+        let structs = try loadStructTestStructs()
         let count = try acrossAllReaders(
-            file: { fileStruct.canonicalSpecializedMetadatas.count },
-            image: { imageStruct.canonicalSpecializedMetadatas.count }
+            file: { structs.file.canonicalSpecializedMetadatas.count },
+            image: { structs.image.canonicalSpecializedMetadatas.count }
         )
         #expect(count == StructBaseline.structTest.canonicalSpecializedMetadatasCount)
     }
 
     @Test func canonicalSpecializedMetadatasListCount() async throws {
-        let fileStruct = try Struct(
-            descriptor: try BaselineFixturePicker.struct_StructTest(in: machOFile),
-            in: machOFile
-        )
-        let imageStruct = try Struct(
-            descriptor: try BaselineFixturePicker.struct_StructTest(in: machOImage),
-            in: machOImage
-        )
+        let structs = try loadStructTestStructs()
         let presence = try acrossAllReaders(
-            file: { fileStruct.canonicalSpecializedMetadatasListCount != nil },
-            image: { imageStruct.canonicalSpecializedMetadatasListCount != nil }
+            file: { structs.file.canonicalSpecializedMetadatasListCount != nil },
+            image: { structs.image.canonicalSpecializedMetadatasListCount != nil }
         )
         #expect(presence == StructBaseline.structTest.hasCanonicalSpecializedMetadatasListCount)
     }
 
     @Test func canonicalSpecializedMetadatasCachingOnceToken() async throws {
-        let fileStruct = try Struct(
-            descriptor: try BaselineFixturePicker.struct_StructTest(in: machOFile),
-            in: machOFile
-        )
-        let imageStruct = try Struct(
-            descriptor: try BaselineFixturePicker.struct_StructTest(in: machOImage),
-            in: machOImage
-        )
+        let structs = try loadStructTestStructs()
         let presence = try acrossAllReaders(
-            file: { fileStruct.canonicalSpecializedMetadatasCachingOnceToken != nil },
-            image: { imageStruct.canonicalSpecializedMetadatasCachingOnceToken != nil }
+            file: { structs.file.canonicalSpecializedMetadatasCachingOnceToken != nil },
+            image: { structs.image.canonicalSpecializedMetadatasCachingOnceToken != nil }
         )
         #expect(presence == StructBaseline.structTest.hasCanonicalSpecializedMetadatasCachingOnceToken)
     }
 
     @Test func invertibleProtocolSet() async throws {
-        let fileStruct = try Struct(
-            descriptor: try BaselineFixturePicker.struct_StructTest(in: machOFile),
-            in: machOFile
-        )
-        let imageStruct = try Struct(
-            descriptor: try BaselineFixturePicker.struct_StructTest(in: machOImage),
-            in: machOImage
-        )
+        let structs = try loadStructTestStructs()
         let presence = try acrossAllReaders(
-            file: { fileStruct.invertibleProtocolSet != nil },
-            image: { imageStruct.invertibleProtocolSet != nil }
+            file: { structs.file.invertibleProtocolSet != nil },
+            image: { structs.image.invertibleProtocolSet != nil }
         )
         #expect(presence == StructBaseline.structTest.hasInvertibleProtocolSet)
     }
 
     @Test func singletonMetadataPointer() async throws {
-        let fileStruct = try Struct(
-            descriptor: try BaselineFixturePicker.struct_StructTest(in: machOFile),
-            in: machOFile
-        )
-        let imageStruct = try Struct(
-            descriptor: try BaselineFixturePicker.struct_StructTest(in: machOImage),
-            in: machOImage
-        )
+        let structs = try loadStructTestStructs()
         let presence = try acrossAllReaders(
-            file: { fileStruct.singletonMetadataPointer != nil },
-            image: { imageStruct.singletonMetadataPointer != nil }
+            file: { structs.file.singletonMetadataPointer != nil },
+            image: { structs.image.singletonMetadataPointer != nil }
         )
         #expect(presence == StructBaseline.structTest.hasSingletonMetadataPointer)
     }
