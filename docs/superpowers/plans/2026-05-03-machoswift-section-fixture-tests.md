@@ -6,7 +6,9 @@
 
 **Architecture:** Four pillars. (1) `MachOSwiftSectionFixtureTests` base loads `SymbolTestsCore.framework` from disk *and* `dlopen`s it into the test process, exposing `machOFile`, `machOImage`, three `ReadingContext` instances. (2) Per-method `@Test` Suites under `Tests/MachOSwiftSectionTests/Fixtures/` mirror the `Models/` directory; each `@Test` does cross-reader equality + reference to a baseline literal. (3) `baseline-generator` executable target reads fixture via MachOFile path, emits `__Baseline__/<Suite>Baseline.swift` literal data files committed to git. (4) `MachOSwiftSectionCoverageInvariantTests` uses SwiftSyntax to scan `Models/` source and reflects all `FixtureSuite`-conforming Suites; missing/extra members fail the build.
 
-**Tech Stack:** Swift 6.2 / Xcode 26.0+, swift-testing, SwiftSyntax (already a Package.swift dep), MachOKit, dlopen/dlfcn, ArgumentParser.
+**Tech Stack:** Swift 6.2 / Xcode 26.0+, swift-testing, SwiftSyntax + SwiftParser + SwiftSyntaxBuilder (already a Package.swift dep), MachOKit, dlopen/dlfcn, ArgumentParser.
+
+**Code generation strategy:** Baseline files are produced via SwiftSyntaxBuilder's string-interpolation form (`SourceFileSyntax(stringLiteral:)` + `\(literal:)` / `\(raw:)`). SwiftSyntax parses the interpolated source, rejecting any malformed syntax at generation time, and `.formatted()` normalizes indentation/whitespace. A small `BaselineEmitter` helper covers cases `\(literal:)` doesn't natively support (hex literals — Int default to decimal in `\(literal:)`).
 
 **Branch:** `feature/machoswift-section-fixture-tests` (already created from `feature/reading-context-api`).
 
@@ -26,7 +28,7 @@
 - **Create** `Coverage/FixtureSuite.swift` — protocol Suite types conform to
 - **Create** `Coverage/PublicMemberScanner.swift` — SwiftSyntax static scan
 - **Create** `Coverage/CoverageAllowlist.swift` — allowlist data type (entries supplied by test target)
-- **Create** `Baseline/BaselineEmitter.swift` — value → Swift literal serialization
+- **Create** `Baseline/BaselineEmitter.swift` — small helper (`hex`/`hexArray`) for emitting hex integer literals as `\(raw:)` interpolations; strings/bools/decimal ints/optionals/arrays-of-strings handled directly by SwiftSyntaxBuilder's `\(literal:)`
 - **Create** `Baseline/BaselineGenerator.swift` — top-level orchestration
 - **Create** `Baseline/BaselineFixturePicker.swift` — selects "main + variants" per descriptor type
 - **Create** `Baseline/Generators/<TypeName>BaselineGenerator.swift` — one per descriptor family (added incrementally per Phase 2 task)
@@ -282,16 +284,38 @@ EOF
 
 ---
 
-## Task 2: BaselineEmitter
+## Task 2: BaselineEmitter (hex helper) + SwiftSyntaxBuilder dep
 
 **Files:**
+- Modify: `Package.swift` — add `SwiftSyntaxBuilder` to `MachOTestingSupport` deps; declare `MachOTestingSupportTests` test target if it doesn't already exist
 - Create: `Sources/MachOTestingSupport/Baseline/BaselineEmitter.swift`
 - Create: `Tests/MachOTestingSupportTests/Baseline/BaselineEmitterTests.swift`
-- Modify: `Package.swift` — declare `MachOTestingSupportTests` test target if it doesn't already exist
 
-- [ ] **Step 1: Confirm `MachOTestingSupportTests` test target exists in Package.swift**
+**Background.** Most ABI baseline data (strings, bools, decimal ints, arrays of strings, optionals) will be emitted via SwiftSyntaxBuilder's `\(literal:)` interpolation, which auto-escapes and parses-validates at generation time. The exception is **hex literals** — `\(literal: 0x10)` produces `16` (decimal), not `0x10`. We emit hex via `\(raw:)` and a small `BaselineEmitter` helper that returns the hex literal string. That helper, plus its hex-array variant, is the entirety of `BaselineEmitter`.
 
-Read `Package.swift`. If a `MachOTestingSupportTests` target is not present, add this declaration alongside the other testTargets (mirror `MachOSwiftSectionTests` style):
+- [ ] **Step 1: Add `SwiftSyntaxBuilder` to `MachOTestingSupport` target deps**
+
+Inspect `Package.swift`. The `MachOTestingSupport` target currently depends on `SwiftSyntax`/`SwiftParser` (added in Task 3). Add `SwiftSyntaxBuilder` alongside:
+
+```swift
+// In Package.swift, MachOTestingSupport target dependencies:
+.product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
+```
+
+And in `extension Target.Dependency` near the other SwiftSyntax aliases:
+
+```swift
+static let SwiftSyntaxBuilder = Target.Dependency.product(
+    name: "SwiftSyntaxBuilder",
+    package: "swift-syntax"
+)
+```
+
+(Note: Task 3 also adds `SwiftSyntax`/`SwiftParser` deps. If executing Task 2 before Task 3, add all three at once and Task 3 Step 1 becomes a no-op.)
+
+- [ ] **Step 2: Confirm `MachOTestingSupportTests` test target exists in `Package.swift`**
+
+If a `MachOTestingSupportTests` target is not present, add this declaration alongside the other testTargets (mirror `MachOSwiftSectionTests` style):
 
 ```swift
 // Sources/Package.swift (extension Target, near other testTargets)
@@ -306,7 +330,12 @@ static let MachOTestingSupportTests = Target.testTarget(
 
 And register it in the `targets:` array of the `Package(...)` declaration.
 
-- [ ] **Step 2: Write failing emitter test**
+- [ ] **Step 3: Build to verify deps wire up**
+
+Run: `swift package update && swift build 2>&1 | xcsift`
+Expected: clean build.
+
+- [ ] **Step 4: Write failing emitter test**
 
 Create `Tests/MachOTestingSupportTests/Baseline/BaselineEmitterTests.swift`:
 
@@ -317,136 +346,88 @@ import Testing
 
 @Suite
 struct BaselineEmitterTests {
-    @Test func emitsBareString() {
-        #expect(BaselineEmitter.emit("hello") == "\"hello\"")
-    }
-
-    @Test func emitsStringWithQuotesAndBackslashes() {
-        #expect(BaselineEmitter.emit("a\"b\\c") == "\"a\\\"b\\\\c\"")
-    }
-
-    @Test func emitsIntDecimal() {
-        #expect(BaselineEmitter.emit(decimal: 42) == "42")
-    }
-
     @Test func emitsIntHex() {
-        #expect(BaselineEmitter.emit(hex: 0x10) == "0x10")
+        #expect(BaselineEmitter.hex(0x10) == "0x10")
+    }
+
+    @Test func emitsZeroHex() {
+        #expect(BaselineEmitter.hex(0) == "0x0")
     }
 
     @Test func emitsUInt32Hex() {
-        #expect(BaselineEmitter.emit(hex: UInt32(0x40000051)) == "0x40000051")
+        #expect(BaselineEmitter.hex(UInt32(0x40000051)) == "0x40000051")
     }
 
-    @Test func emitsBool() {
-        #expect(BaselineEmitter.emit(true) == "true")
-        #expect(BaselineEmitter.emit(false) == "false")
+    @Test func emitsNegativeIntAsTwosComplementHex() {
+        // Negative Int sign-extends to UInt64 representation.
+        #expect(BaselineEmitter.hex(Int(-1)) == "0xffffffffffffffff")
     }
 
-    @Test func emitsArrayOfStrings() {
-        #expect(BaselineEmitter.emit(["a", "b\"c"]) == "[\"a\", \"b\\\"c\"]")
+    @Test func emitsHexArray() {
+        #expect(BaselineEmitter.hexArray([0x10, 0x18, 0x28]) == "[0x10, 0x18, 0x28]")
     }
 
-    @Test func emitsArrayOfIntsHex() {
-        #expect(BaselineEmitter.emit(hexArray: [0x10, 0x18, 0x28]) == "[0x10, 0x18, 0x28]")
-    }
-
-    @Test func emitsOptionalNil() {
-        #expect(BaselineEmitter.emit(stringOptional: nil) == "nil")
-    }
-
-    @Test func emitsOptionalSome() {
-        #expect(BaselineEmitter.emit(stringOptional: "x") == "\"x\"")
-    }
-
-    @Test func emitsEnumDotForm() {
-        #expect(BaselineEmitter.emitEnumCase("class") == ".class")
+    @Test func emitsEmptyHexArray() {
+        #expect(BaselineEmitter.hexArray([Int]()) == "[]")
     }
 }
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [ ] **Step 5: Run test to verify it fails**
 
 Run: `swift test --filter BaselineEmitterTests 2>&1 | xcsift`
 Expected: FAIL — `BaselineEmitter` not defined.
 
-- [ ] **Step 4: Implement `BaselineEmitter`**
+- [ ] **Step 6: Implement `BaselineEmitter`**
 
 Create `Sources/MachOTestingSupport/Baseline/BaselineEmitter.swift`:
 
 ```swift
 import Foundation
 
+/// Tiny helper providing the few literal forms that SwiftSyntaxBuilder's
+/// `\(literal:)` does NOT produce in the form we want for ABI baselines.
+///
+/// Specifically: integers via `\(literal:)` come out as decimal Swift literals,
+/// but baseline files emit offsets/sizes/flags as hex (`0x...`) for parity with
+/// `otool` / Hopper output. Use these helpers with `\(raw:)` in the
+/// SwiftSyntaxBuilder source string.
+///
+/// For everything else — strings, bools, decimal ints, arrays of strings,
+/// optionals — use `\(literal:)` directly; SwiftSyntaxBuilder handles escaping.
 package enum BaselineEmitter {
-    /// Emit a Swift string literal with quotes and backslashes properly escaped.
-    package static func emit(_ value: String) -> String {
-        let escaped = value
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        return "\"\(escaped)\""
-    }
-
-    /// Emit a Swift Bool literal: `true` or `false`.
-    package static func emit(_ value: Bool) -> String {
-        value ? "true" : "false"
-    }
-
-    /// Emit decimal integer literal — for counts/indices/cardinality.
-    package static func emit<T: BinaryInteger>(decimal value: T) -> String {
-        "\(value)"
-    }
-
-    /// Emit hex integer literal — for offsets/sizes/flags raw values.
-    package static func emit<T: BinaryInteger>(hex value: T) -> String {
+    /// Emit `0x<lowercase-hex>` for any binary integer (sign-extends to UInt64).
+    package static func hex<T: BinaryInteger>(_ value: T) -> String {
         let unsigned = UInt64(truncatingIfNeeded: value)
         return "0x\(String(unsigned, radix: 16))"
     }
 
-    /// Emit `[...]` of strings.
-    package static func emit(_ values: [String]) -> String {
-        "[\(values.map(emit).joined(separator: ", "))]"
-    }
-
-    /// Emit `[...]` of hex integers.
-    package static func emit<T: BinaryInteger>(hexArray values: [T]) -> String {
-        "[\(values.map { emit(hex: $0) }.joined(separator: ", "))]"
-    }
-
-    /// Emit `[...]` of decimal integers.
-    package static func emit<T: BinaryInteger>(decimalArray values: [T]) -> String {
-        "[\(values.map { emit(decimal: $0) }.joined(separator: ", "))]"
-    }
-
-    /// Emit `nil` or recurse into the wrapped value (specialized for String).
-    package static func emit(stringOptional value: String?) -> String {
-        guard let value else { return "nil" }
-        return emit(value)
-    }
-
-    /// Emit a Swift dot-form enum case, e.g. `.class`.
-    package static func emitEnumCase(_ caseName: String) -> String {
-        ".\(caseName)"
+    /// Emit `[0x..., 0x..., ...]` for an array of binary integers.
+    package static func hexArray<T: BinaryInteger>(_ values: [T]) -> String {
+        "[\(values.map(hex).joined(separator: ", "))]"
     }
 }
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [ ] **Step 7: Run test to verify it passes**
 
 Run: `swift test --filter BaselineEmitterTests 2>&1 | xcsift`
-Expected: 11 tests pass.
+Expected: 6 tests pass.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add Package.swift \
         Sources/MachOTestingSupport/Baseline/BaselineEmitter.swift \
         Tests/MachOTestingSupportTests/Baseline/BaselineEmitterTests.swift
 git commit -m "$(cat <<'EOF'
-test(MachOTestingSupport): add BaselineEmitter for ABI literal serialization
+test(MachOTestingSupport): add BaselineEmitter hex helper + SwiftSyntaxBuilder dep
 
-Pure value → Swift literal conversion: strings (escaped quotes/backslashes),
-ints (decimal for counts, hex for offsets/flags), bools, arrays, optionals,
-enum dot-form cases. Used by baseline-generator to produce committed expected
-values.
+Adds two-function helper (hex/hexArray) for emitting integer literals as
+hex (`0x...`) for ABI baseline files. Strings/bools/decimal ints/arrays of
+strings/optionals are emitted via SwiftSyntaxBuilder's `\(literal:)`
+interpolation directly. Hex needs a helper because `\(literal: 0x10)` outputs
+`16` (decimal). Wires SwiftSyntaxBuilder into MachOTestingSupport deps.
 EOF
 )"
 ```
@@ -1052,6 +1033,8 @@ Now Tasks 5-15 each add **one line** to `dispatchSuite` and **one line** to `gen
 
 ```swift
 import Foundation
+import SwiftSyntax
+import SwiftSyntaxBuilder
 import MachOFoundation
 @testable import MachOSwiftSection
 
@@ -1067,22 +1050,28 @@ package enum StructDescriptorBaselineGenerator {
         let structTest = try BaselineFixturePicker.struct_StructTest(in: machO)
         let genericStruct = try BaselineFixturePicker.struct_GenericStructNonRequirement(in: machO)
 
-        // Read each public member for both variants. Adapt to your StructDescriptor API.
-        // For each member, emit one struct field. Here's the full template:
-        let structTestEntry = try emitEntry(for: structTest, in: machO)
-        let genericStructEntry = try emitEntry(for: genericStruct, in: machO)
+        // Read ABI fields per variant. Each helper returns the precise Swift
+        // initializer expression as a SourceFileSyntax-compatible string.
+        let structTestExpr = try emitEntryExpr(for: structTest, in: machO)
+        let genericStructExpr = try emitEntryExpr(for: genericStruct, in: machO)
 
-        let registered = try memberNames(of: structTest, in: machO).sorted()
+        let registered = memberNames().sorted()
 
-        let body = """
+        // SwiftSyntaxBuilder string-interpolation form. SwiftSyntax parses this
+        // string at construction time — any malformed Swift fails immediately.
+        let header = """
         // AUTO-GENERATED — DO NOT EDIT.
         // Regenerate via: swift run baseline-generator --suite StructDescriptor
         // Source fixture: SymbolTestsCore.framework
         // Toolchain: \(toolchain)
         // Generated: \(date)
+        """
+
+        let file: SourceFileSyntax = """
+        \(raw: header)
 
         enum StructDescriptorBaseline {
-            static let registeredTestMethodNames: Set<String> = \(emitStringSet(registered))
+            static let registeredTestMethodNames: Set<String> = \(literal: registered)
 
             struct Entry {
                 let name: String
@@ -1094,17 +1083,23 @@ package enum StructDescriptorBaselineGenerator {
                 // ... extend per StructDescriptor public member
             }
 
-            static let structTest = \(structTestEntry)
+            static let structTest = \(raw: structTestExpr)
 
-            static let genericStructNonRequirement = \(genericStructEntry)
+            static let genericStructNonRequirement = \(raw: genericStructExpr)
         }
         """
 
+        // `.formatted()` normalizes indentation/whitespace so re-runs produce
+        // byte-identical output (idempotency; verified in Task 4 Step 12).
+        let formatted = file.formatted().description + "\n"
+
         let outputURL = outputDirectory.appendingPathComponent("StructDescriptorBaseline.swift")
-        try body.write(to: outputURL, atomically: true, encoding: .utf8)
+        try formatted.write(to: outputURL, atomically: true, encoding: .utf8)
     }
 
-    private static func emitEntry(
+    /// Build the `Entry(...)` initializer expression as a Swift source fragment.
+    /// Plain values use `\(literal:)`; hex values use `\(raw:)` + `BaselineEmitter.hex`.
+    private static func emitEntryExpr(
         for descriptor: StructDescriptor,
         in machO: some MachOSwiftSectionRepresentableWithCache
     ) throws -> String {
@@ -1116,25 +1111,27 @@ package enum StructDescriptorBaselineGenerator {
         let isGeneric = descriptor.layout.flags.isGeneric
         let flagsRaw = descriptor.layout.flags.rawValue
 
-        return """
+        // We build this expression as an ExprSyntax to get string-interpolation
+        // ergonomics, then return its description (the resulting source fragment
+        // is later embedded into the SourceFileSyntax above).
+        let expr: ExprSyntax = """
         Entry(
-            name: \(BaselineEmitter.emit("SymbolTestsCore." + name)),
-            numberOfFields: \(BaselineEmitter.emit(decimal: numFields)),
-            fieldNames: \(BaselineEmitter.emit(fieldNames)),
-            fieldOffsets: \(BaselineEmitter.emit(hexArray: fieldOffsets)),
-            isGeneric: \(BaselineEmitter.emit(isGeneric)),
-            flagsRawValue: \(BaselineEmitter.emit(hex: flagsRaw))
+            name: \(literal: "SymbolTestsCore." + name),
+            numberOfFields: \(literal: numFields),
+            fieldNames: \(literal: fieldNames),
+            fieldOffsets: \(raw: BaselineEmitter.hexArray(fieldOffsets)),
+            isGeneric: \(literal: isGeneric),
+            flagsRawValue: \(raw: BaselineEmitter.hex(flagsRaw))
         )
         """
+        return expr.description
     }
 
-    private static func memberNames(
-        of descriptor: StructDescriptor,
-        in machO: some MachOSwiftSectionRepresentableWithCache
-    ) throws -> [String] {
-        // Hand-curated member name list mirroring StructDescriptor public surface.
-        // Each entry must correspond to a `@Test func <name>` in StructDescriptorTests.swift.
-        // The Coverage Invariant test verifies this matches the static scan.
+    /// Hand-curated member name list mirroring StructDescriptor public surface.
+    /// Each entry must correspond to a `@Test func <name>` in
+    /// StructDescriptorTests.swift. The Coverage Invariant test (Task 16)
+    /// verifies this matches the static scan output.
+    private static func memberNames() -> [String] {
         [
             "name",
             "fields",
@@ -1144,14 +1141,16 @@ package enum StructDescriptorBaselineGenerator {
             // ... extend per StructDescriptor public surface inventoried in Step 1
         ]
     }
-
-    private static func emitStringSet(_ values: [String]) -> String {
-        "[\(values.map(BaselineEmitter.emit).joined(separator: ", "))]"
-    }
 }
 ```
 
 (Adapt method calls to actual `StructDescriptor` public API — Step 1's inventory is the source of truth.)
+
+**SwiftSyntaxBuilder primer:**
+- `\(literal: x)` — `x` is `ExpressibleByLiteralSyntax`-conforming (`String`, `Int`, `Bool`, `[String]`, `Optional`, etc.). Output is a properly escaped/formatted Swift literal token. SwiftSyntax parses + validates at construction time.
+- `\(raw: string)` — inserts `string` as raw Swift source. Use when `\(literal:)` doesn't apply (e.g. hex literals, pre-built expressions).
+- `SourceFileSyntax`/`ExprSyntax` accept multi-line string literals and parse them; malformed Swift throws at construction site.
+- `.formatted()` returns a copy with normalized trivia (indentation, whitespace, newlines).
 
 - [ ] **Step 6: Add `baseline-generator` executable target stub to Package.swift**
 
@@ -1192,6 +1191,10 @@ cat Tests/MachOSwiftSectionTests/Fixtures/__Baseline__/StructDescriptorBaseline.
 ```
 
 Confirm names/offsets look plausible. If a value looks suspicious (e.g. `numberOfFields: 0`, `fieldOffsets: []`), recheck `BaselineFixturePicker` — likely picked wrong type.
+
+Note: SwiftSyntax's `.formatted()` normalizes whitespace, so the actual layout might differ slightly from the source string template — that's expected and desirable (idempotent re-runs produce byte-identical output).
+
+If `swift run baseline-generator` itself crashes with a SwiftSyntax parse error, the source string template has malformed Swift; SwiftSyntax catches this at construction time so the message will point at the offending line.
 
 - [ ] **Step 8: Write `StructDescriptorTests` Suite using the baseline**
 
@@ -1872,29 +1875,51 @@ Either:
 - Extend `BaselineGenerator.generateAll()` to emit `AllFixtureSuites.swift` listing every Suite registered so far.
 - Or hand-write one (pre-populating with the Suites added in Tasks 4-15).
 
-For the auto-generated form, append to `BaselineGenerator.generateAll()`:
+For the auto-generated form, replace the `writeAllFixtureSuitesIndex` no-op stub in `BaselineGenerator.swift` (Task 4 Step 5) with an implementation that uses SwiftSyntaxBuilder:
 
 ```swift
-let allSuitesContents = """
-// AUTO-GENERATED — DO NOT EDIT.
-// Regenerate via: swift run baseline-generator
-// Generated: \(ISO8601DateFormatter().string(from: Date()))
+import SwiftSyntax
+import SwiftSyntaxBuilder
 
-let allFixtureSuites: [any FixtureSuite.Type] = [
-    StructDescriptorTests.self,
-    StructTests.self,
-    StructMetadataTests.self,
-    StructMetadataProtocolTests.self,
-    AnonymousContextTests.self,
-    AnonymousContextDescriptorTests.self,
-    // ... full list maintained by the generator
-]
-"""
-let allSuitesURL = outputDirectory.appendingPathComponent("AllFixtureSuites.swift")
-try allSuitesContents.write(to: allSuitesURL, atomically: true, encoding: .utf8)
+private static func writeAllFixtureSuitesIndex(outputDirectory: URL) throws {
+    // Hand-maintained list of every Suite type registered across Tasks 4-15.
+    // When a new Suite is added, update this list AND the dispatchSuite case
+    // (both can be done from one editor pass).
+    let suiteTypeNames = [
+        "StructDescriptorTests",
+        "StructTests",
+        "StructMetadataTests",
+        "StructMetadataProtocolTests",
+        "AnonymousContextTests",
+        "AnonymousContextDescriptorTests",
+        // ... extend per Task 5-15 as Suites land
+    ].sorted()
+
+    // `\(raw: "Foo.self")` because `\(literal:)` would treat the string as a
+    // String literal (i.e. emit `"Foo.self"`).
+    let suiteListItems = suiteTypeNames.map { "\($0).self" }.joined(separator: ",\n    ")
+
+    let header = """
+    // AUTO-GENERATED — DO NOT EDIT.
+    // Regenerate via: swift run baseline-generator
+    // Generated: \(ISO8601DateFormatter().string(from: Date()))
+    """
+
+    let file: SourceFileSyntax = """
+    \(raw: header)
+
+    let allFixtureSuites: [any FixtureSuite.Type] = [
+        \(raw: suiteListItems)
+    ]
+    """
+
+    let formatted = file.formatted().description + "\n"
+    let outputURL = outputDirectory.appendingPathComponent("AllFixtureSuites.swift")
+    try formatted.write(to: outputURL, atomically: true, encoding: .utf8)
+}
 ```
 
-(In practice, the generator builds the list from a registry populated by each sub-generator's call.)
+(In practice, the generator could build the list from a registry populated by each sub-generator's call — but the hand-maintained list in `writeAllFixtureSuitesIndex` is simpler and the Coverage Invariant test in Step 4 below catches drift if a Suite is missing.)
 
 Run `swift run baseline-generator` to produce the file.
 
@@ -2150,7 +2175,7 @@ Expected: ~18 commits showing the structured implementation.
 | §4.1 baseline-generator executable | Task 4 Step 6 (stub), Task 17 (CLI) |
 | §4.2 模块组织 | Task 4 Step 5 |
 | §4.3 生成流程 | Task 4 Step 7 + per-task generator runs |
-| §4.4 数值进制约定 | Task 2 (BaselineEmitter design) |
+| §4.4 数值进制约定 | Task 2 (BaselineEmitter hex helper, with `\(literal:)` covering decimal/string/bool/array) |
 | §4.5 重生成流程 | Task 18 Step 4 (CLAUDE.md docs) |
 | §4.6 Generator 自身正确性保证 | Task 4 Step 5 (generator only uses MachOFile path) + Task 2 (emitter unit tests) |
 | §5.1 数据源 (expected via SwiftSyntax + registered via reflection) | Task 3 (scanner) + Task 16 (invariant test) |
