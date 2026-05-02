@@ -9,22 +9,20 @@ import MachOFoundation
 ///
 /// `ExtensionContextDescriptor` declares only the `offset` and `layout`
 /// ivars (`init(layout:offset:)` is filtered as memberwise-synthesized).
-/// The protocol-extension `extendedContext(in:)` family of methods returns
-/// an `Optional MangledName`; we record presence as a presence flag.
+/// The protocol-extension `extendedContext(in:)` family of methods is
+/// attributed to `ExtensionContextDescriptorProtocol` by
+/// `PublicMemberScanner` (see the protocol-extension attribution rule in
+/// `BaselineGenerator.swift`); its baseline/Suite live separately.
 package enum ExtensionContextDescriptorBaselineGenerator {
     package static func generate(
         in machO: some MachOSwiftSectionRepresentableWithCache,
         outputDirectory: URL
     ) throws {
         let descriptor = try BaselineFixturePicker.extension_first(in: machO)
-        let entryExpr = try emitEntryExpr(for: descriptor, in: machO)
+        let entryExpr = emitEntryExpr(for: descriptor)
 
         // Public members declared directly in ExtensionContextDescriptor.swift.
-        // The `extendedContext(in:)` overload group (MachO / InProcess /
-        // ReadingContext) collapses to a single MethodKey via
-        // PublicMemberScanner's name-only key.
         let registered = [
-            "extendedContext",
             "layout",
             "offset",
         ]
@@ -44,7 +42,6 @@ package enum ExtensionContextDescriptorBaselineGenerator {
             struct Entry {
                 let offset: Int
                 let layoutFlagsRawValue: UInt32
-                let hasExtendedContext: Bool
             }
 
             static let firstExtension = \(raw: entryExpr)
@@ -57,18 +54,15 @@ package enum ExtensionContextDescriptorBaselineGenerator {
     }
 
     private static func emitEntryExpr(
-        for descriptor: ExtensionContextDescriptor,
-        in machO: some MachOSwiftSectionRepresentableWithCache
-    ) throws -> String {
+        for descriptor: ExtensionContextDescriptor
+    ) -> String {
         let offset = descriptor.offset
         let flagsRaw = descriptor.layout.flags.rawValue
-        let hasExtendedContext = (try descriptor.extendedContext(in: machO)) != nil
 
         let expr: ExprSyntax = """
         Entry(
             offset: \(raw: BaselineEmitter.hex(offset)),
-            layoutFlagsRawValue: \(raw: BaselineEmitter.hex(flagsRaw)),
-            hasExtendedContext: \(literal: hasExtendedContext)
+            layoutFlagsRawValue: \(raw: BaselineEmitter.hex(flagsRaw))
         )
         """
         return expr.description

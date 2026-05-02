@@ -14,6 +14,21 @@ import MachOKit
 /// Pilot scope (Task 4): only `Type/Struct/` Suites. Tasks 5-15 each add one
 /// `case` to `dispatchSuite` and one `try dispatchSuite(...)` line to
 /// `generateAll`.
+///
+/// **Protocol-extension method attribution rule.**
+///
+/// `PublicMemberScanner` attributes a method's `MethodKey.typeName` based on the
+/// `extendedType` of its enclosing `extension`, NOT the file it lives in.
+///
+/// Example: `Extension/ExtensionContextDescriptor.swift` contains
+/// `extension ExtensionContextDescriptorProtocol { public func extendedContext(in:) ... }`.
+/// The scanner emits `MethodKey(typeName: "ExtensionContextDescriptorProtocol",
+/// memberName: "extendedContext")`. The Suite/baseline for that method must be
+/// `ExtensionContextDescriptorProtocolBaseline` / `ExtensionContextDescriptorProtocolTests`,
+/// regardless of which file the extension is declared in.
+///
+/// When adding a new sub-generator/Suite, look at the actual `extension` declarations,
+/// not just the file structure under `Models/<dir>/`.
 package enum BaselineGenerator {
     /// Regenerates every baseline file in deterministic order. Idempotent —
     /// calling twice in a row leaves `__Baseline__/` byte-identical.
@@ -28,6 +43,7 @@ package enum BaselineGenerator {
         // Extension/
         try dispatchSuite("ExtensionContext", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("ExtensionContextDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ExtensionContextDescriptorProtocol", in: machOFile, outputDirectory: outputDirectory)
         // Module/
         try dispatchSuite("ModuleContext", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("ModuleContextDescriptor", in: machOFile, outputDirectory: outputDirectory)
@@ -56,12 +72,14 @@ package enum BaselineGenerator {
         case "AnonymousContextDescriptorFlags":
             try AnonymousContextDescriptorFlagsBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         case "AnonymousContextDescriptorProtocol":
-            try AnonymousContextDescriptorProtocolBaselineGenerator.generate(outputDirectory: outputDirectory)
+            try AnonymousContextDescriptorProtocolBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         // Extension/
         case "ExtensionContext":
             try ExtensionContextBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         case "ExtensionContextDescriptor":
             try ExtensionContextDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ExtensionContextDescriptorProtocol":
+            try ExtensionContextDescriptorProtocolBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         // Module/
         case "ModuleContext":
             try ModuleContextBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)

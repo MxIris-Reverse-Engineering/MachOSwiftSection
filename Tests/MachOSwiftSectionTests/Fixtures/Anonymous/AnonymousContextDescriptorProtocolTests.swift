@@ -27,9 +27,9 @@ final class AnonymousContextDescriptorProtocolTests: MachOSwiftSectionFixtureTes
             file: { fileDescriptor.hasMangledName },
             image: { imageDescriptor.hasMangledName }
         )
-        // The presence flag's value is recorded against the same picker in
-        // AnonymousContextDescriptorFlagsBaseline.
-        #expect(result == AnonymousContextDescriptorFlagsBaseline.firstAnonymous.hasMangledName)
+        // The presence flag's value is recorded against the same picker
+        // (`anonymous_first`) on this Suite's own baseline.
+        #expect(result == AnonymousContextDescriptorProtocolBaseline.firstAnonymous.hasMangledName)
     }
 
     @Test func mangledName() async throws {
@@ -47,6 +47,6 @@ final class AnonymousContextDescriptorProtocolTests: MachOSwiftSectionFixtureTes
 
         #expect(filePresence == imagePresence)
         #expect(filePresence == imageCtxPresence)
-        #expect(filePresence == AnonymousContextDescriptorFlagsBaseline.firstAnonymous.hasMangledName)
+        #expect(filePresence == AnonymousContextDescriptorProtocolBaseline.firstAnonymous.hasMangledName)
     }
 }

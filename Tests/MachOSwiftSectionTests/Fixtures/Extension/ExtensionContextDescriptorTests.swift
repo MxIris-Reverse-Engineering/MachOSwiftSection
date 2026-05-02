@@ -6,10 +6,12 @@ import MachOFoundation
 
 /// Fixture-based Suite for `ExtensionContextDescriptor`.
 ///
-/// `ExtensionContextDescriptor` declares `offset`, `layout`, and the
-/// `extendedContext(in:)` family of overloads as protocol-extension
-/// methods on `ExtensionContextDescriptorProtocol` (declared in this
-/// file). The `init(layout:offset:)` is filtered as memberwise-synthesized.
+/// `ExtensionContextDescriptor` declares only `offset` and `layout`
+/// directly (the `init(layout:offset:)` is filtered as memberwise-
+/// synthesized). The protocol-extension `extendedContext(in:)` family of
+/// overloads is attributed to `ExtensionContextDescriptorProtocol` by
+/// `PublicMemberScanner` and is covered by
+/// `ExtensionContextDescriptorProtocolTests`.
 @Suite
 final class ExtensionContextDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
     static let testedTypeName = "ExtensionContextDescriptor"
@@ -37,25 +39,5 @@ final class ExtensionContextDescriptorTests: MachOSwiftSectionFixtureTests, Fixt
             image: { imageSubject.layout.flags.rawValue }
         )
         #expect(flagsRaw == ExtensionContextDescriptorBaseline.firstExtension.layoutFlagsRawValue)
-    }
-
-    @Test func extendedContext() async throws {
-        let fileSubject = try BaselineFixturePicker.extension_first(in: machOFile)
-        let imageSubject = try BaselineFixturePicker.extension_first(in: machOImage)
-
-        // Cross-reader equality on the *presence* of the extended-context
-        // mangled name. The MangledName tree itself is Hashable but we
-        // record presence-only in the baseline for parity with the
-        // wrapper Suite.
-        let presence = try acrossAllReaders(
-            file: { (try fileSubject.extendedContext(in: machOFile)) != nil },
-            image: { (try imageSubject.extendedContext(in: machOImage)) != nil }
-        )
-        #expect(presence == ExtensionContextDescriptorBaseline.firstExtension.hasExtendedContext)
-
-        // Also exercise the ReadingContext-based overload to ensure the
-        // third reader axis agrees.
-        let imageCtxPresence = (try imageSubject.extendedContext(in: imageContext)) != nil
-        #expect(imageCtxPresence == ExtensionContextDescriptorBaseline.firstExtension.hasExtendedContext)
     }
 }

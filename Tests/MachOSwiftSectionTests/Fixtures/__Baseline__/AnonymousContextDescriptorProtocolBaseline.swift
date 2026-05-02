@@ -8,4 +8,12 @@
 
 enum AnonymousContextDescriptorProtocolBaseline {
     static let registeredTestMethodNames: Set<String> = ["hasMangledName", "mangledName"]
+
+    struct Entry {
+        let hasMangledName: Bool
+    }
+
+    static let firstAnonymous = Entry(
+    hasMangledName: false
+    )
 }
