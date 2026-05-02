@@ -328,13 +328,15 @@ extension GenericSpecializer {
         guard !protocols.isEmpty else {
             // No constraints - return all indexed types
             return conformanceProvider.allTypeNames.compactMap { typeName -> SpecializationRequest.Candidate? in
-                guard conformanceProvider.typeDefinition(for: typeName) != nil else {
+                guard let typeDefinition = conformanceProvider.typeDefinition(for: typeName) else {
                     return nil
                 }
                 let imagePath = conformanceProvider.imagePath(for: typeName) ?? ""
+                let isGeneric = typeDefinition.type.typeContextDescriptorWrapper.typeContextDescriptor.layout.flags.isGeneric
                 return SpecializationRequest.Candidate(
                     typeName: typeName,
-                    source: .image(imagePath)
+                    source: .image(imagePath),
+                    isGeneric: isGeneric
                 )
             }
         }
@@ -343,13 +345,15 @@ extension GenericSpecializer {
         let conformingTypes = conformanceProvider.types(conformingToAll: protocols)
 
         return conformingTypes.compactMap { typeName -> SpecializationRequest.Candidate? in
-            guard conformanceProvider.typeDefinition(for: typeName) != nil else {
+            guard let typeDefinition = conformanceProvider.typeDefinition(for: typeName) else {
                 return nil
             }
             let imagePath = conformanceProvider.imagePath(for: typeName) ?? ""
+            let isGeneric = typeDefinition.type.typeContextDescriptorWrapper.typeContextDescriptor.layout.flags.isGeneric
             return SpecializationRequest.Candidate(
                 typeName: typeName,
-                source: .image(imagePath)
+                source: .image(imagePath),
+                isGeneric: isGeneric
             )
         }
     }
@@ -527,9 +531,20 @@ extension GenericSpecializer where MachO == MachOImage {
         }
 
         let typeDefinition = typeDefinitionEntry.value
+        let typeContext = typeDefinition.type.typeContextDescriptorWrapper.typeContextDescriptor
+
+        // Generic candidates need nested specialization; surface a typed error
+        // rather than letting the no-argument accessor call below fail with
+        // a generic message.
+        if let genericContext = try typeContext.genericContext(in: typeDefinitionEntry.machO) {
+            throw SpecializerError.candidateRequiresNestedSpecialization(
+                candidate: candidate,
+                parameterCount: Int(genericContext.header.numParams)
+            )
+        }
 
         // Get accessor function from type definition's type context
-        let accessorFunction = try typeDefinition.type.typeContextDescriptorWrapper.typeContextDescriptor.metadataAccessorFunction(in: typeDefinitionEntry.machO)
+        let accessorFunction = try typeContext.metadataAccessorFunction(in: typeDefinitionEntry.machO)
         guard let accessorFunction else {
             throw SpecializerError.candidateResolutionFailed(
                 candidate: candidate,
@@ -537,7 +552,7 @@ extension GenericSpecializer where MachO == MachOImage {
             )
         }
 
-        // For non-generic types, just call the accessor
+        // Non-generic: call accessor with no arguments
         let response = try accessorFunction(request: .completeAndBlocking)
         let wrapper = try response.value.resolve()
         return try wrapper.metadata
@@ -829,6 +844,10 @@ extension GenericSpecializer {
         case invalidParameterIndex(index: Int, max: Int)
         case requirementParsingFailed(reason: String)
         case candidateResolutionFailed(candidate: SpecializationRequest.Candidate, reason: String)
+        case candidateRequiresNestedSpecialization(
+            candidate: SpecializationRequest.Candidate,
+            parameterCount: Int
+        )
         case metadataCreationFailed(typeName: String, reason: String)
         case witnessTableNotFound(typeName: String, protocolName: String)
         case specializationFailed(reason: String)
@@ -845,6 +864,8 @@ extension GenericSpecializer {
                 return "Failed to parse requirement: \(reason)"
             case .candidateResolutionFailed(let candidate, let reason):
                 return "Failed to resolve candidate \(candidate.typeName.name): \(reason)"
+            case .candidateRequiresNestedSpecialization(let candidate, let parameterCount):
+                return "Candidate \(candidate.typeName.name) is generic with \(parameterCount) parameter(s); pass Argument.specialized(...) instead of Argument.candidate(...)"
             case .metadataCreationFailed(let typeName, let reason):
                 return "Failed to create metadata for \(typeName): \(reason)"
             case .witnessTableNotFound(let typeName, let protocolName):

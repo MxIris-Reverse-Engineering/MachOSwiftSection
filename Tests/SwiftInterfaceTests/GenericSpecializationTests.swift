@@ -524,4 +524,49 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         #expect(defaultOffsets == [0, 8, 16])
         #expect(explicitOffsets == defaultOffsets)
     }
+
+    @Test func genericCandidateFailFast() async throws {
+        let machO = MachOImage.current()
+
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first {
+            try $0.struct?.name(in: machO).contains("TestSingleProtocolStruct") == true
+        }?.struct)
+
+        let indexer = SwiftInterfaceIndexer(in: machO)
+        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
+        try await indexer.prepare()
+
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        // Pick a generic candidate from the candidate list (e.g. Optional or Array
+        // — anything generic that conforms to Hashable). We deliberately do not
+        // assert that *some* candidate is generic in case the candidate set
+        // changes; we only assert the property holds for any generic ones we find.
+        let genericCandidate = request.parameters[0].candidates.first { $0.isGeneric }
+        let nonGenericCandidate = request.parameters[0].candidates.first { !$0.isGeneric }
+
+        // At minimum the standard library exposes both shapes for Hashable.
+        try #require(genericCandidate != nil, "expected at least one generic candidate")
+        try #require(nonGenericCandidate != nil, "expected at least one non-generic candidate")
+
+        // Non-generic candidate still resolves successfully.
+        let okResult = try specializer.specialize(
+            request,
+            with: ["A": .candidate(nonGenericCandidate!)]
+        )
+        _ = try okResult.resolveMetadata()
+
+        // Generic candidate throws the new typed error.
+        do {
+            _ = try specializer.specialize(
+                request,
+                with: ["A": .candidate(genericCandidate!)]
+            )
+            Issue.record("expected candidateRequiresNestedSpecialization to be thrown")
+        } catch let GenericSpecializer<MachOImage>.SpecializerError.candidateRequiresNestedSpecialization(candidate, parameterCount) {
+            #expect(candidate.typeName == genericCandidate!.typeName)
+            #expect(parameterCount >= 1)
+        }
+    }
 }

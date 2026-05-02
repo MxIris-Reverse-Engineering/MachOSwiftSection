@@ -127,12 +127,19 @@ extension SpecializationRequest {
         /// Source of this candidate
         public let source: Source
 
+        /// True when the candidate's type descriptor is itself generic.
+        /// Selecting such a candidate via `Argument.candidate(...)` will
+        /// throw `candidateRequiresNestedSpecialization` from `specialize`.
+        public let isGeneric: Bool
+
         public init(
             typeName: TypeName,
             source: Source,
+            isGeneric: Bool = false
         ) {
             self.typeName = typeName
             self.source = source
+            self.isGeneric = isGeneric
         }
 
         /// Source of candidate type
