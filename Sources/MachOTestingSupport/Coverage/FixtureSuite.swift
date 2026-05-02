@@ -9,6 +9,11 @@ import Foundation
 /// - `registeredTestMethodNames`: the member names covered by `@Test` methods in this Suite.
 ///   For each entry "foo", the Coverage Invariant test expects a public member
 ///   `<testedTypeName>.foo` (any overload group) to exist in the source.
+///
+/// `@MainActor`-isolated because conforming Suites also inherit from
+/// `MachOSwiftSectionFixtureTests`, which is `@MainActor`. This avoids
+/// per-Suite `@preconcurrency` / per-conformance isolation annotations.
+@MainActor
 package protocol FixtureSuite {
     static var testedTypeName: String { get }
     static var registeredTestMethodNames: Set<String> { get }

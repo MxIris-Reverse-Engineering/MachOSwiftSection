@@ -483,6 +483,15 @@ extension Target {
         ]
     )
 
+    static let baseline_generator = Target.executableTarget(
+        name: "baseline-generator",
+        dependencies: [
+            .target(.MachOTestingSupport),
+            .product(name: "ArgumentParser", package: "swift-argument-parser"),
+        ],
+        swiftSettings: testSettings
+    )
+
     // MARK: - Macros
 
     static let MachOMacros = Target.macro(
@@ -626,6 +635,7 @@ let package = Package(
         
         // Executable
         .swift_section,
+        .baseline_generator,
 
         // Testing
         .MachOSymbolsTests,
