@@ -33,7 +33,7 @@ These are rules the implementer follows for every batch — the per-task steps b
 - Modify: `Sources/MachOReading/ReadingContext/MachOContext.swift` (append extension)
 - Modify: `Sources/MachOReading/ReadingContext/InProcessContext.swift` (append extension)
 
-- [ ] **Step 1: Read the three target files end-to-end**
+- [x] **Step 1: Read the three target files end-to-end**
 
 Read all three files completely so the extension placement matches existing style (imports, doc comment style, ordering).
 
@@ -42,7 +42,7 @@ Read all three files completely so the extension placement matches existing styl
 grep -n "import" Sources/MachOReading/ReadingContext/MachOContext.swift
 ```
 
-- [ ] **Step 2: Append default extension to `ReadingContext.swift`**
+- [x] **Step 2: Append default extension to `ReadingContext.swift`**
 
 After the existing `extension ReadingContext { ... bindRebaseResolver default ... }` block, add:
 
@@ -65,7 +65,7 @@ extension ReadingContext {
 }
 ```
 
-- [ ] **Step 3: Append override to `MachOContext.swift`**
+- [x] **Step 3: Append override to `MachOContext.swift`**
 
 At the bottom of the file (after the `Convenience Extensions` MARK):
 
@@ -85,7 +85,7 @@ extension MachOContext {
 }
 ```
 
-- [ ] **Step 4: Append override to `InProcessContext.swift`**
+- [x] **Step 4: Append override to `InProcessContext.swift`**
 
 At the bottom of the file:
 
@@ -101,7 +101,7 @@ extension InProcessContext {
 }
 ```
 
-- [ ] **Step 5: Build**
+- [x] **Step 5: Build**
 
 ```bash
 swift package update && swift build 2>&1 | xcsift
@@ -109,7 +109,7 @@ swift package update && swift build 2>&1 | xcsift
 
 Expected: build succeeds.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add Sources/MachOReading/ReadingContext/ReadingContext.swift \
@@ -135,7 +135,7 @@ abstraction without per-call type dispatch."
 
 These three files each have a MachO `init(descriptor:in:)` and an InProcess `init(descriptor:)`. Add a third `init(descriptor:in:Context)` mirroring the MachO version.
 
-- [ ] **Step 1: Add `init(descriptor:in:Context)` to `AnonymousContext.swift`**
+- [x] **Step 1: Add `init(descriptor:in:Context)` to `AnonymousContext.swift`**
 
 Append at bottom:
 
@@ -163,7 +163,7 @@ extension AnonymousContext {
 }
 ```
 
-- [ ] **Step 2: Add `init(descriptor:in:Context)` to `ModuleContext.swift`**
+- [x] **Step 2: Add `init(descriptor:in:Context)` to `ModuleContext.swift`**
 
 Append at bottom:
 
@@ -178,7 +178,7 @@ extension ModuleContext {
 
 (`name(in: Context)` already exists on `NamedContextDescriptorProtocol`.)
 
-- [ ] **Step 3: Add `init(descriptor:in:Context)` to `ExtensionContext.swift`**
+- [x] **Step 3: Add `init(descriptor:in:Context)` to `ExtensionContext.swift`**
 
 Append at bottom:
 
@@ -194,13 +194,13 @@ extension ExtensionContext {
 
 If `extendedContext(in: Context)` does not yet exist on `ExtensionContextDescriptor`, add it first inside `Sources/MachOSwiftSection/Models/Extension/ExtensionContextDescriptor.swift` mirroring the MachO version, then complete this step.
 
-- [ ] **Step 4: Build**
+- [x] **Step 4: Build**
 
 ```bash
 swift build 2>&1 | xcsift
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add Sources/MachOSwiftSection/Models/Anonymous/AnonymousContext.swift \
@@ -331,11 +331,11 @@ overloads (Task 11)."
 - Modify: `Sources/MachOSwiftSection/Models/Type/Class/Method/MethodOverrideDescriptor.swift`
 - Modify: `Sources/MachOSwiftSection/Models/Type/Class/Method/MethodDefaultOverrideDescriptor.swift`
 
-- [ ] **Step 1: Read each file end-to-end**
+- [x] **Step 1: Read each file end-to-end**
 
 For each of the 8 files, list every method with a `<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO)` signature. Those are the methods that need a sibling `<Context: ReadingContext>(in context: Context)` overload.
 
-- [ ] **Step 2: Add ReadingContext overloads to each file**
+- [x] **Step 2: Add ReadingContext overloads to each file**
 
 Apply the substitution table from the design doc to each MachO method. Place new overloads in a `// MARK: - ReadingContext Support` extension at the bottom of each file.
 
@@ -345,13 +345,13 @@ For `ClassDescriptor.swift`: mirror every descriptor method one-by-one.
 
 For metadata protocols: mirror every method that reads through `machO`.
 
-- [ ] **Step 3: Build**
+- [x] **Step 3: Build**
 
 ```bash
 swift build 2>&1 | xcsift
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add Sources/MachOSwiftSection/Models/Type/Class/
@@ -374,7 +374,7 @@ end-to-end."
 - Modify: `Sources/MachOSwiftSection/Models/Type/Struct/Struct.swift`
 - Modify: `Sources/MachOSwiftSection/Models/Type/Struct/StructMetadataProtocol.swift`
 
-- [ ] **Step 1: Add ReadingContext overloads to each file**
+- [x] **Step 1: Add ReadingContext overloads to each file**
 
 For each file, list every method whose signature uses `<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO)` and add a sibling `<Context: ReadingContext>(in context: Context)` overload using the substitution table from the design doc. Place new overloads in a `// MARK: - ReadingContext Support` extension at the bottom of each file.
 
@@ -383,13 +383,13 @@ Specifics for this batch:
 - `EnumMetadataProtocol` and `StructMetadataProtocol`: mirror metadata-reading methods (e.g. `payloadCases`, `typeDescriptor`).
 - `MultiPayloadEnumDescriptor`: mirror payload-tag and case helpers.
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 ```bash
 swift build 2>&1 | xcsift
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add Sources/MachOSwiftSection/Models/Type/Enum/ \
@@ -412,11 +412,11 @@ MultiPayloadEnumDescriptor."
 - Modify: `Sources/MachOSwiftSection/Models/Type/ValueMetadataProtocol.swift`
 - Modify (partial top-up): `Sources/MachOSwiftSection/Models/Type/TypeContextDescriptorProtocol.swift`
 
-- [ ] **Step 1: Add ReadingContext overloads to the four uncovered files**
+- [x] **Step 1: Add ReadingContext overloads to the four uncovered files**
 
 Same procedure as prior batches.
 
-- [ ] **Step 2: Top up `TypeContextDescriptorProtocol.swift`**
+- [x] **Step 2: Top up `TypeContextDescriptorProtocol.swift`**
 
 The file already has `genericContext(in:Context)` and `typeGenericContext(in:Context)`. Add the missing `fieldDescriptor(in:Context)` and `metadataAccessorFunction(in:Context)`:
 
@@ -438,13 +438,13 @@ extension TypeContextDescriptorProtocol {
 
 The `metadataAccessorFunction(in:Context)` returns `nil` for `MachOContext<MachOFile>` (matching the existing MachO overload), and returns the function pointer for `InProcessContext` and `MachOContext<MachOImage>`.
 
-- [ ] **Step 3: Build**
+- [x] **Step 3: Build**
 
 ```bash
 swift build 2>&1 | xcsift
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add Sources/MachOSwiftSection/Models/Type/TypeContextDescriptor.swift \
@@ -459,7 +459,11 @@ TypeReference, and ValueMetadataProtocol. Add the missing
 fieldDescriptor(in:context:) and metadataAccessorFunction(in:context:)
 overloads on TypeContextDescriptorProtocol — the latter uses the new
 runtimePointer(at:) extension to return the function pointer for
-InProcess and MachOImage contexts and nil for MachOFile."
+InProcess and MachOImage contexts and nil for MachOFile.
+
+Also retarget EnumMetadataProtocol.enumDescriptor and
+StructMetadataProtocol.structDescriptor to call descriptor(in:context:)
+now that the helper exists."
 ```
 
 ---
@@ -477,19 +481,19 @@ InProcess and MachOImage contexts and nil for MachOFile."
 - Modify: `Sources/MachOSwiftSection/Models/ProtocolConformance/ProtocolConformance.swift`
 - Modify: `Sources/MachOSwiftSection/Models/ProtocolConformance/ProtocolConformanceDescriptor.swift`
 
-- [ ] **Step 1: Add ReadingContext overloads to each file**
+- [x] **Step 1: Add ReadingContext overloads to each file**
 
 For each file, list every method whose signature uses `<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO)` and add a sibling `<Context: ReadingContext>(in context: Context)` overload using the substitution table from the design doc. Place new overloads in a `// MARK: - ReadingContext Support` extension at the bottom of each file.
 
 Note: `Protocol.swift` and `ProtocolConformance.swift` are the highest-level wrappers — their `init(descriptor:in:Context)` overloads are required by Task 11 (`ContextWrapper.forContextDescriptorWrapper(_:in:context:)`), so do not skip them.
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 ```bash
 swift build 2>&1 | xcsift
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add Sources/MachOSwiftSection/Models/Protocol/ \
@@ -500,6 +504,10 @@ Mirror MachO overloads on Protocol, ProtocolDescriptor, ProtocolDescriptorRef,
 ProtocolRecord, ProtocolRequirement, ResilientWitness, GlobalActorReference,
 ProtocolConformance, and ProtocolConformanceDescriptor."
 ```
+
+The implementation also added two prerequisite mirrors needed by `Protocol.swift` and `ProtocolDescriptorRef.swift`:
+- `GenericRequirement.init<Context>` (would otherwise be in Task 8).
+- `ObjCProtocolPrefix.name<Context>` (a partial file from the Task 12 audit list).
 
 ---
 
@@ -513,29 +521,31 @@ ProtocolConformance, and ProtocolConformanceDescriptor."
 - Modify: `Sources/MachOSwiftSection/Models/AssociatedType/AssociatedTypeDescriptor.swift`
 - Modify: `Sources/MachOSwiftSection/Models/AssociatedType/AssociatedTypeRecord.swift`
 
-- [ ] **Step 1: Add ReadingContext overloads to each file**
+- [x] **Step 1: Add ReadingContext overloads to each file**
 
 For each file, list every method whose signature uses `<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO)` and add a sibling `<Context: ReadingContext>(in context: Context)` overload using the substitution table from the design doc. Place new overloads in a `// MARK: - ReadingContext Support` extension at the bottom of each file.
 
-Note: `GenericRequirement.swift` only needs an `init(descriptor:in:Context)` mirror — `paramMangledName(in:Context)` and `resolvedContent(in:Context)` already exist on `GenericRequirementDescriptor` (one of the partial files).
+Note: `GenericRequirement.swift` only needs an `init(descriptor:in:Context)` mirror — `paramMangledName(in:Context)` and `resolvedContent(in:Context)` already exist on `GenericRequirementDescriptor` (one of the partial files). Already added in Task 7 as a prerequisite, so this batch covers only the field/associated-type files.
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 ```bash
 swift build 2>&1 | xcsift
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
-git add Sources/MachOSwiftSection/Models/Generic/GenericRequirement.swift \
-        Sources/MachOSwiftSection/Models/FieldDescriptor/ \
+git add Sources/MachOSwiftSection/Models/FieldDescriptor/ \
         Sources/MachOSwiftSection/Models/FieldRecord/ \
         Sources/MachOSwiftSection/Models/AssociatedType/
 git commit -m "feat(MachOSwiftSection): add ReadingContext API for generic/field/associated-type
 
-Mirror MachO overloads on GenericRequirement, FieldDescriptor, FieldRecord,
-and the AssociatedType family."
+Mirror MachO overloads on FieldDescriptor, FieldRecord, and the
+AssociatedType family.
+
+GenericRequirement.init<Context> was added as a prerequisite in the
+preceding protocol/conformance batch."
 ```
 
 ---
@@ -546,7 +556,7 @@ and the AssociatedType family."
 - Modify: `Sources/MachOSwiftSection/Models/Metadata/MetadataProtocol.swift`
 - Modify: `Sources/MachOSwiftSection/Models/Metadata/MetadataWrapper.swift`
 
-- [ ] **Step 1: Add ReadingContext overloads to each file**
+- [x] **Step 1: Add ReadingContext overloads to each file**
 
 For each file, list every method whose signature uses `<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO)` and add a sibling `<Context: ReadingContext>(in context: Context)` overload using the substitution table from the design doc. Place new overloads in a `// MARK: - ReadingContext Support` extension at the bottom of each file.
 
@@ -554,13 +564,13 @@ Specifics for this batch:
 - `MetadataProtocol`: mirror metadata-reading methods (e.g. `valueWitnessTable`, `typeContextDescriptor`, kind-specific accessors).
 - `MetadataWrapper`: mirror the static `forMetadata(_:in:)` factory (the switch over metadata kinds) and any wrapper-level methods that take `in: machO`.
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 ```bash
 swift build 2>&1 | xcsift
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add Sources/MachOSwiftSection/Models/Metadata/MetadataProtocol.swift \
