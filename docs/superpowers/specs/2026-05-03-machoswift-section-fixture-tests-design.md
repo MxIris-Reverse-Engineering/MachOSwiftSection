@@ -2,7 +2,7 @@
 
 **日期:** 2026-05-03
 **状态:** 待实施
-**分支:** `feature/machoswift-section-fixture-tests`(待创建,从 `main` 拉)
+**分支:** `feature/machoswift-section-fixture-tests`(从 `feature/reading-context-api` 拉,因新测试要覆盖 ReadingContext API)
 
 ## 问题
 
