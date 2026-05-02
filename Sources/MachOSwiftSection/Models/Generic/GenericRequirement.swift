@@ -21,3 +21,13 @@ public struct GenericRequirement: Sendable, TopLevelType {
         self.content = try descriptor.resolvedContent()
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension GenericRequirement {
+    public init<Context: ReadingContext>(descriptor: GenericRequirementDescriptor, in context: Context) throws {
+        self.descriptor = descriptor
+        self.paramManagledName = try descriptor.paramMangledName(in: context)
+        self.content = try descriptor.resolvedContent(in: context)
+    }
+}

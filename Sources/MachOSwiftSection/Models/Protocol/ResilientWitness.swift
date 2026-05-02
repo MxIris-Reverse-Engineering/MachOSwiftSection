@@ -39,3 +39,15 @@ extension ResilientWitness {
         return try layout.implementation.resolve(from: offset(of: \.implementation), in: machO)
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension ResilientWitness {
+    public func requirement<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ProtocolRequirement>? {
+        return try layout.requirement.resolve(at: try context.addressFromOffset(offset(of: \.requirement)), in: context).asOptional
+    }
+
+    public func implementationSymbols<Context: ReadingContext>(in context: Context) throws -> Symbols? {
+        return try layout.implementation.resolve(at: try context.addressFromOffset(offset(of: \.implementation)), in: context)
+    }
+}

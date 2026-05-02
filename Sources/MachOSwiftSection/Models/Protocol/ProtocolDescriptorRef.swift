@@ -65,3 +65,23 @@ extension ProtocolDescriptorRef {
         }
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension ProtocolDescriptorRef {
+    public func objcProtocol<Context: ReadingContext>(in context: Context) throws -> ObjCProtocolPrefix {
+        try Pointer<ObjCProtocolPrefix>(address: storage & ~Bits.isObjC).resolve(in: context)
+    }
+
+    public func swiftProtocol<Context: ReadingContext>(in context: Context) throws -> ProtocolDescriptor {
+        try Pointer<ProtocolDescriptor>(address: storage).resolve(in: context)
+    }
+
+    public func name<Context: ReadingContext>(in context: Context) throws -> String {
+        if isObjC {
+            return try objcProtocol(in: context).name(in: context)
+        } else {
+            return try swiftProtocol(in: context).name(in: context)
+        }
+    }
+}

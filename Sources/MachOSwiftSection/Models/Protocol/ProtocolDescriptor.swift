@@ -41,3 +41,12 @@ extension ProtocolDescriptor {
         return try layout.associatedTypes.resolve(from: pointer(of: \.associatedTypes)).components(separatedBy: " ")
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension ProtocolDescriptor {
+    public func associatedTypes<Context: ReadingContext>(in context: Context) throws -> [String] {
+        guard layout.associatedTypes.isValid else { return [] }
+        return try layout.associatedTypes.resolve(at: try context.addressFromOffset(offset(of: \.associatedTypes)), in: context).components(separatedBy: " ")
+    }
+}

@@ -38,3 +38,11 @@ extension GlobalActorReference {
         try layout.type.resolve(from: pointer(of: \.type))
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension GlobalActorReference {
+    public func typeName<Context: ReadingContext>(in context: Context) throws -> MangledName {
+        try layout.type.resolve(at: try context.addressFromOffset(offset(of: \.type)), in: context)
+    }
+}
