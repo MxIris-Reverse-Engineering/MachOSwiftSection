@@ -595,10 +595,11 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         #expect(request.parameters.count == 1)
 
         let invertible = try #require(request.parameters[0].invertibleProtocols)
-        // ~Copyable means the .copyable bit IS set in the inverted-protocols set:
-        // the set encodes which protocols are suppressed, so .copyable present means
-        // the parameter declares ~Copyable (matching the existing dump code convention).
-        #expect(invertible.contains(.copyable))
+        // ~Copyable only: the set encodes which protocols are suppressed, so
+        // the parameter declaring `~Copyable` (and not `~Escapable`) must
+        // produce exactly `[.copyable]` — using `==` instead of `contains`
+        // catches a regression where extra bits leak into the set.
+        #expect(invertible == .copyable)
 
         // Specialize with a Copyable type (Int) — the conditional Copyable
         // extension makes the struct itself Copyable when A is Copyable, so

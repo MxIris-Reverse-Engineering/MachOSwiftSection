@@ -88,9 +88,13 @@ extension GenericSpecializer {
     }
 
     /// Pick out the `~Copyable` / `~Escapable` declaration for the
-    /// generic parameter at `(depth, index)`, intersecting if multiple
+    /// generic parameter at `(depth, index)`, unioning if multiple
     /// `invertedProtocols` requirements target the same parameter.
     /// Returns `nil` when no requirement targets this parameter.
+    ///
+    /// Aggregation is union, matching Swift IRGen's `suppressed[index].insert(...)`:
+    /// each requirement adds suppressions for the parameter, and a parent
+    /// context's suppressions accumulate with the current context's.
     private static func collectInvertibleProtocols(
         for index: Int,
         depth: Int,
@@ -111,7 +115,7 @@ extension GenericSpecializer {
             guard inverted.genericParamIndex == flatIndex else { continue }
 
             if let existing = result {
-                result = existing.intersection(inverted.protocols)
+                result = existing.union(inverted.protocols)
             } else {
                 result = inverted.protocols
             }
