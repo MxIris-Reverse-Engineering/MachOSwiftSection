@@ -223,7 +223,7 @@ ModuleContext, and ExtensionContext under the ReadingContext abstraction."
 
 `ContextProtocol` exposes `parent(in: machO)`. `ContextWrapper` exposes `parent(in: machO)` and `forContextDescriptorWrapper(_:in:)`. Mirror both.
 
-- [ ] **Step 1: Add ReadingContext extension to `ContextProtocol.swift`**
+- [x] **Step 1: Add ReadingContext extension to `ContextProtocol.swift`**
 
 Append at bottom:
 
@@ -237,7 +237,7 @@ extension ContextProtocol {
 }
 ```
 
-- [ ] **Step 2: Add ReadingContext methods to `ContextWrapper.swift`**
+- [x] **Step 2: Add ReadingContext methods to `ContextWrapper.swift`**
 
 Append at bottom (after the existing `parent()` method):
 
@@ -299,13 +299,13 @@ extension ContextWrapper {
 
 **Recommended:** Land *only* the `parent(in:context:)` portion now (which depends on `descriptor.parent(in:context:)` already provided by `ContextDescriptorProtocol`), and defer `forContextDescriptorWrapper(_:in:context:)` to a later task (Task 11) once all `init(descriptor:in:context:)` overloads exist.
 
-- [ ] **Step 3: Build**
+- [x] **Step 3: Build**
 
 ```bash
 swift build 2>&1 | xcsift
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add Sources/MachOSwiftSection/Models/ContextDescriptor/ContextProtocol.swift \
@@ -316,6 +316,8 @@ Adds parent(in:context:) on both. forContextDescriptorWrapper(_:in:context:)
 is deferred until concrete Context types have their ReadingContext init
 overloads (Task 11)."
 ```
+
+Combined with Task 11 below into a single commit `d5d1d74` since the dependency only resolves once all concrete `init(descriptor:in:Context)` overloads exist.
 
 ---
 
@@ -597,25 +599,27 @@ For each file, list every method whose signature uses `<MachO: MachOSwiftSection
 
 These are the remaining metadata wrappers — most have one to three methods each. Read each file end-to-end before mirroring.
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 ```bash
 swift build 2>&1 | xcsift
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add Sources/MachOSwiftSection/Models/ExistentialType/ \
-        Sources/MachOSwiftSection/Models/ForeignType/ \
         Sources/MachOSwiftSection/Models/TupleType/ \
         Sources/MachOSwiftSection/Models/OpaqueType/ \
         Sources/MachOSwiftSection/Models/BuiltinType/
 git commit -m "feat(MachOSwiftSection): add ReadingContext API for remaining metadata types
 
-Mirror MachO overloads on ExistentialTypeMetadata, ForeignClassMetadata,
-ForeignReferenceTypeMetadata, TupleTypeMetadata, OpaqueType, BuiltinType,
-and BuiltinTypeDescriptor."
+Mirror MachO overloads on ExistentialTypeMetadata, TupleTypeMetadata,
+OpaqueType, BuiltinType, and BuiltinTypeDescriptor.
+
+ForeignClassMetadata.classDescriptor and
+ForeignReferenceTypeMetadata.classDescriptor were added as prerequisites
+in the preceding Metadata batch."
 ```
 
 ---
@@ -627,7 +631,7 @@ and BuiltinTypeDescriptor."
 
 This was deferred from Task 3 because it depends on every concrete Context type having a `init(descriptor:in:Context)` overload, which Tasks 2/4/5/6/7 add.
 
-- [ ] **Step 1: Add `forContextDescriptorWrapper(_:in:Context)` to `ContextWrapper.swift`**
+- [x] **Step 1: Add `forContextDescriptorWrapper(_:in:Context)` to `ContextWrapper.swift`**
 
 Inside the existing `// MARK: - ReadingContext Support` extension (added in Task 3), add:
 
@@ -659,21 +663,28 @@ public static func forContextDescriptorWrapper<Context: ReadingContext>(_ contex
 
 Also retrofit the `parent(in:context:)` method added in Task 3 to call this new helper instead of inlining it (search for the eight `forContextDescriptorWrapper($0, in: context)` call sites — they should already be calling this name; this step just adds the actual implementation).
 
-- [ ] **Step 2: Build**
+- [x] **Step 2: Build**
 
 ```bash
 swift build 2>&1 | xcsift
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
-```bash
-git add Sources/MachOSwiftSection/Models/ContextDescriptor/ContextWrapper.swift
-git commit -m "feat(MachOSwiftSection): wire ContextWrapper.forContextDescriptorWrapper for ReadingContext
+Combined with Task 3 above into a single commit `d5d1d74` with body:
 
-Now that every concrete Context type has an init(descriptor:in:Context)
-overload (Tasks 2/4/5/6/7), implement the ReadingContext version of
-forContextDescriptorWrapper that the parent(in:context:) helper depends on."
+```
+feat(MachOSwiftSection): wire ContextProtocol/ContextWrapper for ReadingContext
+
+Add parent(in:context:) on ContextProtocol and ContextWrapper, and the
+forContextDescriptorWrapper(_:in:context:) static factory on ContextWrapper.
+
+These three methods were deferred from earlier batches because
+forContextDescriptorWrapper(_:in:context:) depends on every concrete
+Context type having an init(descriptor:in:context:) overload — and those
+landed across Tasks 2, 4, 5, 6, and 7. Now that all dependencies exist,
+this commit closes the dependency and completes the parent traversal API
+under the unified ReadingContext abstraction.
 ```
 
 ---
@@ -703,7 +714,7 @@ Models/Type/TypeContextDescriptorWrapper.swift
 Models/Type/TypeMetadataRecord.swift
 ```
 
-- [ ] **Step 1: Per-file audit**
+- [x] **Step 1: Per-file audit**
 
 For each of the 15 files, list its `<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO)` methods and its `<Context: ReadingContext>(in context: Context)` methods. Any MachO method without a sibling ReadingContext method is a gap — add it using the same substitution table. Skip files with no gap.
 
@@ -718,11 +729,11 @@ done
 
 Look for method names that appear with `MachO` but not with `Context`.
 
-- [ ] **Step 2: Add missing ReadingContext overloads found in Step 1**
+- [x] **Step 2: Add missing ReadingContext overloads found in Step 1**
 
 Apply the substitution table. If no gaps were found, this step is a no-op.
 
-- [ ] **Step 3: Full test pass**
+- [x] **Step 3: Full test pass**
 
 ```bash
 swift package update && swift test 2>&1 | xcsift
@@ -732,7 +743,7 @@ Expected: existing tests pass (`MachOSwiftSectionTests`, `DemanglingTests`, `Swi
 
 If a test fails: read the failure carefully. The most likely cause is a typo in a substitution (e.g. forgot `try`, wrong type cast). Fix in place and re-run.
 
-- [ ] **Step 4: Final coverage check**
+- [x] **Step 4: Final coverage check**
 
 Run the gap query from the design doc one more time:
 
@@ -743,7 +754,7 @@ grep -lL "ReadingContext" $(grep -l "MachOSwiftSectionRepresentableWithCache" \
 
 Expected: empty output (every model file with a MachO API now has a ReadingContext API).
 
-- [ ] **Step 5: Commit (only if Step 2 produced changes; otherwise skip)**
+- [x] **Step 5: Commit (only if Step 2 produced changes; otherwise skip)**
 
 ```bash
 git add Sources/MachOSwiftSection/Models/
