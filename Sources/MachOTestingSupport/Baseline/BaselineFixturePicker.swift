@@ -137,17 +137,4 @@ package enum BaselineFixturePicker {
             })
         )
     }
-
-    /// Picks `Classes.ExternalObjCSubclassTest: NSObject` from the
-    /// `SymbolTestsCore` fixture. Used to exercise the ObjC-interop class
-    /// API surface (vtable shape, resilient class stub paths, etc.).
-    package static func class_ObjCInteropTest(
-        in machO: some MachOSwiftSectionRepresentableWithCache
-    ) throws -> ClassDescriptor {
-        try required(
-            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
-                try descriptor.name(in: machO) == "ExternalObjCSubclassTest"
-            })
-        )
-    }
 }

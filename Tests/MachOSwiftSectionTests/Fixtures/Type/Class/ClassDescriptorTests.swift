@@ -21,11 +21,22 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
         ClassDescriptorBaseline.registeredTestMethodNames
     }
 
+    private func loadClassTestDescriptors() throws -> (file: ClassDescriptor, image: ClassDescriptor) {
+        let file = try BaselineFixturePicker.class_ClassTest(in: machOFile)
+        let image = try BaselineFixturePicker.class_ClassTest(in: machOImage)
+        return (file: file, image: image)
+    }
+
+    private func loadSubclassTestDescriptors() throws -> (file: ClassDescriptor, image: ClassDescriptor) {
+        let file = try BaselineFixturePicker.class_SubclassTest(in: machOFile)
+        let image = try BaselineFixturePicker.class_SubclassTest(in: machOImage)
+        return (file: file, image: image)
+    }
+
     // MARK: - Layout / offset
 
     @Test func offset() async throws {
-        let fileSubject = try BaselineFixturePicker.class_ClassTest(in: machOFile)
-        let imageSubject = try BaselineFixturePicker.class_ClassTest(in: machOImage)
+        let (fileSubject, imageSubject) = try loadClassTestDescriptors()
 
         let result = try acrossAllReaders(
             file: { fileSubject.offset },
@@ -35,8 +46,7 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     }
 
     @Test func layout() async throws {
-        let fileSubject = try BaselineFixturePicker.class_ClassTest(in: machOFile)
-        let imageSubject = try BaselineFixturePicker.class_ClassTest(in: machOImage)
+        let (fileSubject, imageSubject) = try loadClassTestDescriptors()
 
         let numFields = try acrossAllReaders(
             file: { fileSubject.layout.numFields },
@@ -64,8 +74,7 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     // MARK: - Boolean predicates (kind-specific flag accessors)
 
     @Test func hasFieldOffsetVector() async throws {
-        let fileSubject = try BaselineFixturePicker.class_ClassTest(in: machOFile)
-        let imageSubject = try BaselineFixturePicker.class_ClassTest(in: machOImage)
+        let (fileSubject, imageSubject) = try loadClassTestDescriptors()
         let result = try acrossAllReaders(
             file: { fileSubject.hasFieldOffsetVector },
             image: { imageSubject.hasFieldOffsetVector }
@@ -74,8 +83,7 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     }
 
     @Test func hasDefaultOverrideTable() async throws {
-        let fileSubject = try BaselineFixturePicker.class_ClassTest(in: machOFile)
-        let imageSubject = try BaselineFixturePicker.class_ClassTest(in: machOImage)
+        let (fileSubject, imageSubject) = try loadClassTestDescriptors()
         let result = try acrossAllReaders(
             file: { fileSubject.hasDefaultOverrideTable },
             image: { imageSubject.hasDefaultOverrideTable }
@@ -84,8 +92,7 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     }
 
     @Test func isActor() async throws {
-        let fileSubject = try BaselineFixturePicker.class_ClassTest(in: machOFile)
-        let imageSubject = try BaselineFixturePicker.class_ClassTest(in: machOImage)
+        let (fileSubject, imageSubject) = try loadClassTestDescriptors()
         let result = try acrossAllReaders(
             file: { fileSubject.isActor },
             image: { imageSubject.isActor }
@@ -94,8 +101,7 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     }
 
     @Test func isDefaultActor() async throws {
-        let fileSubject = try BaselineFixturePicker.class_ClassTest(in: machOFile)
-        let imageSubject = try BaselineFixturePicker.class_ClassTest(in: machOImage)
+        let (fileSubject, imageSubject) = try loadClassTestDescriptors()
         let result = try acrossAllReaders(
             file: { fileSubject.isDefaultActor },
             image: { imageSubject.isDefaultActor }
@@ -104,8 +110,7 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     }
 
     @Test func hasVTable() async throws {
-        let fileSubject = try BaselineFixturePicker.class_ClassTest(in: machOFile)
-        let imageSubject = try BaselineFixturePicker.class_ClassTest(in: machOImage)
+        let (fileSubject, imageSubject) = try loadClassTestDescriptors()
         let result = try acrossAllReaders(
             file: { fileSubject.hasVTable },
             image: { imageSubject.hasVTable }
@@ -115,8 +120,7 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
 
     @Test func hasOverrideTable() async throws {
         // Use SubclassTest here — the override table is exclusive to subclasses.
-        let fileSubject = try BaselineFixturePicker.class_SubclassTest(in: machOFile)
-        let imageSubject = try BaselineFixturePicker.class_SubclassTest(in: machOImage)
+        let (fileSubject, imageSubject) = try loadSubclassTestDescriptors()
         let result = try acrossAllReaders(
             file: { fileSubject.hasOverrideTable },
             image: { imageSubject.hasOverrideTable }
@@ -125,8 +129,7 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     }
 
     @Test func hasResilientSuperclass() async throws {
-        let fileSubject = try BaselineFixturePicker.class_ClassTest(in: machOFile)
-        let imageSubject = try BaselineFixturePicker.class_ClassTest(in: machOImage)
+        let (fileSubject, imageSubject) = try loadClassTestDescriptors()
         let result = try acrossAllReaders(
             file: { fileSubject.hasResilientSuperclass },
             image: { imageSubject.hasResilientSuperclass }
@@ -135,8 +138,7 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     }
 
     @Test func areImmediateMembersNegative() async throws {
-        let fileSubject = try BaselineFixturePicker.class_ClassTest(in: machOFile)
-        let imageSubject = try BaselineFixturePicker.class_ClassTest(in: machOImage)
+        let (fileSubject, imageSubject) = try loadClassTestDescriptors()
         let result = try acrossAllReaders(
             file: { fileSubject.areImmediateMembersNegative },
             image: { imageSubject.areImmediateMembersNegative }
@@ -145,8 +147,7 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     }
 
     @Test func hasObjCResilientClassStub() async throws {
-        let fileSubject = try BaselineFixturePicker.class_ClassTest(in: machOFile)
-        let imageSubject = try BaselineFixturePicker.class_ClassTest(in: machOImage)
+        let (fileSubject, imageSubject) = try loadClassTestDescriptors()
         let result = try acrossAllReaders(
             file: { fileSubject.hasObjCResilientClassStub },
             image: { imageSubject.hasObjCResilientClassStub }
@@ -157,8 +158,7 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     // MARK: - Derived size scalars
 
     @Test func immediateMemberSize() async throws {
-        let fileSubject = try BaselineFixturePicker.class_ClassTest(in: machOFile)
-        let imageSubject = try BaselineFixturePicker.class_ClassTest(in: machOImage)
+        let (fileSubject, imageSubject) = try loadClassTestDescriptors()
         let result = try acrossAllReaders(
             file: { fileSubject.immediateMemberSize },
             image: { imageSubject.immediateMemberSize }
@@ -167,8 +167,7 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     }
 
     @Test func nonResilientImmediateMembersOffset() async throws {
-        let fileSubject = try BaselineFixturePicker.class_ClassTest(in: machOFile)
-        let imageSubject = try BaselineFixturePicker.class_ClassTest(in: machOImage)
+        let (fileSubject, imageSubject) = try loadClassTestDescriptors()
         let result = try acrossAllReaders(
             file: { fileSubject.nonResilientImmediateMembersOffset },
             image: { imageSubject.nonResilientImmediateMembersOffset }
@@ -185,8 +184,7 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     /// non-nil for both `ClassTest` and `SubclassTest`. We exercise
     /// cross-reader equality on the rawValue.
     @Test func resilientSuperclassReferenceKind() async throws {
-        let fileSubject = try BaselineFixturePicker.class_ClassTest(in: machOFile)
-        let imageSubject = try BaselineFixturePicker.class_ClassTest(in: machOImage)
+        let (fileSubject, imageSubject) = try loadClassTestDescriptors()
         let result = try acrossAllReaders(
             file: { fileSubject.resilientSuperclassReferenceKind?.rawValue ?? UInt8.max },
             image: { imageSubject.resilientSuperclassReferenceKind?.rawValue ?? UInt8.max }
@@ -202,7 +200,7 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     /// one. We exercise both the MachO and ReadingContext overloads here on
     /// the no-resilient case to confirm they raise (or return) consistently.
     @Test func resilientMetadataBounds() async throws {
-        let fileSubject = try BaselineFixturePicker.class_ClassTest(in: machOFile)
+        let (fileSubject, _) = try loadClassTestDescriptors()
         // Predicate: no resilient superclass.
         #expect(fileSubject.hasResilientSuperclass == false)
     }
@@ -210,8 +208,7 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
     /// `superclassTypeMangledName(in:)` returns nil for `ClassTest` and a
     /// non-nil mangled name for `SubclassTest`.
     @Test func superclassTypeMangledName() async throws {
-        let classTestFile = try BaselineFixturePicker.class_ClassTest(in: machOFile)
-        let classTestImage = try BaselineFixturePicker.class_ClassTest(in: machOImage)
+        let (classTestFile, classTestImage) = try loadClassTestDescriptors()
         let classTestPresence = try acrossAllReaders(
             file: { (try classTestFile.superclassTypeMangledName(in: machOFile)) != nil },
             image: { (try classTestImage.superclassTypeMangledName(in: machOImage)) != nil }
@@ -222,8 +219,7 @@ final class ClassDescriptorTests: MachOSwiftSectionFixtureTests, FixtureSuite, @
         let classTestImageCtxPresence = (try classTestImage.superclassTypeMangledName(in: imageContext)) != nil
         #expect(classTestImageCtxPresence == ClassDescriptorBaseline.classTest.hasSuperclassTypeMangledName)
 
-        let subclassFile = try BaselineFixturePicker.class_SubclassTest(in: machOFile)
-        let subclassImage = try BaselineFixturePicker.class_SubclassTest(in: machOImage)
+        let (subclassFile, subclassImage) = try loadSubclassTestDescriptors()
         let subclassPresence = try acrossAllReaders(
             file: { (try subclassFile.superclassTypeMangledName(in: machOFile)) != nil },
             image: { (try subclassImage.superclassTypeMangledName(in: machOImage)) != nil }
