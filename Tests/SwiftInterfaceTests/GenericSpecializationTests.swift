@@ -608,6 +608,71 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         let structMetadata = try #require(result.resolveMetadata().struct)
         #expect(try structMetadata.fieldOffsets() == [0])
     }
+
+    // MARK: - Default invertible-protocol case
+
+    @Test func noInvertedRequirementYieldsNil() async throws {
+        // `TestGenericStruct<A, B, C>` declares no `~Copyable` / `~Escapable`,
+        // so every parameter retains every invertible protocol by default and
+        // `Parameter.invertibleProtocols` must be `nil` on each — the typical
+        // Swift case the doc comment promises.
+        let machO = MachOImage.current()
+
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first {
+            try $0.struct?.name(in: machO).contains("TestGenericStruct") == true
+        }?.struct)
+
+        let indexer = SwiftInterfaceIndexer(in: machO)
+        try await indexer.prepare()
+
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        #expect(request.parameters.count == 3)
+        for parameter in request.parameters {
+            #expect(parameter.invertibleProtocols == nil)
+        }
+    }
+
+    // MARK: - Generic-candidate error message
+
+    @Test func candidateErrorMessageMentionsSpecialized() async throws {
+        // The thrown `candidateRequiresNestedSpecialization` carries a
+        // human-readable description that must guide callers toward
+        // `Argument.specialized(...)` and name the offending candidate.
+        // Locking the description text via `errorDescription` keeps any
+        // future rewording from silently breaking surfaced UI strings.
+        let machO = MachOImage.current()
+
+        let descriptor = try #require(try machO.swift.typeContextDescriptors.first {
+            try $0.struct?.name(in: machO).contains("TestSingleProtocolStruct") == true
+        }?.struct)
+
+        let indexer = SwiftInterfaceIndexer(in: machO)
+        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
+        try await indexer.prepare()
+
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        let genericCandidate = try #require(
+            request.parameters[0].candidates.first { $0.typeName.currentName == "Array" && $0.isGeneric },
+            "expected Swift.Array candidate flagged isGeneric"
+        )
+
+        do {
+            _ = try specializer.specialize(
+                request,
+                with: ["A": .candidate(genericCandidate)]
+            )
+            Issue.record("expected candidateRequiresNestedSpecialization to be thrown")
+        } catch let error as GenericSpecializer<MachOImage>.SpecializerError {
+            let description = try #require(error.errorDescription)
+            #expect(description.contains("Argument.specialized"))
+            #expect(description.contains("Array"))
+            #expect(description.contains("generic"))
+        }
+    }
 }
 
 extension GenericSpecializationTests.TestInvertedCopyableStruct: Copyable where A: Copyable {}
