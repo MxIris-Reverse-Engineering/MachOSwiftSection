@@ -91,6 +91,14 @@ package enum BaselineGenerator {
         try dispatchSuite("ResilientSuperclass", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("StoredClassMetadataBounds", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("VTableDescriptorHeader", in: machOFile, outputDirectory: outputDirectory)
+        // Type/Enum/ — sub-generators live in Generators/Enum/, mirroring
+        // the Type/Class/ layout convention from Task 7.
+        try dispatchSuite("Enum", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("EnumDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("EnumFunctions", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("EnumMetadata", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("EnumMetadataProtocol", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("MultiPayloadEnumDescriptor", in: machOFile, outputDirectory: outputDirectory)
     }
 
     /// Regenerates a single Suite's baseline file. Used by the polished
@@ -203,6 +211,19 @@ package enum BaselineGenerator {
             try StoredClassMetadataBoundsBaselineGenerator.generate(outputDirectory: outputDirectory)
         case "VTableDescriptorHeader":
             try VTableDescriptorHeaderBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        // Type/Enum/
+        case "Enum":
+            try EnumBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "EnumDescriptor":
+            try EnumDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "EnumFunctions":
+            try EnumFunctionsBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "EnumMetadata":
+            try EnumMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "EnumMetadataProtocol":
+            try EnumMetadataProtocolBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "MultiPayloadEnumDescriptor":
+            try MultiPayloadEnumDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         default:
             throw BaselineGeneratorError.unknownSuite(name)
         }

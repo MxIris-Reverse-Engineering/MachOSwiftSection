@@ -137,4 +137,77 @@ package enum BaselineFixturePicker {
             })
         )
     }
+
+    /// Picks the no-payload enum `Enums.NoPayloadEnumTest` (4 cases:
+    /// north/south/east/west) from the `SymbolTestsCore` fixture. Used as
+    /// the primary enum fixture: zero payload cases means `isMultiPayload`
+    /// is false and `payloadSizeOffset` is zero.
+    package static func enum_NoPayloadEnumTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> EnumDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.enum).first(where: { descriptor in
+                try descriptor.name(in: machO) == "NoPayloadEnumTest"
+            })
+        )
+    }
+
+    /// Picks the single-payload enum `Enums.SinglePayloadEnumTest`
+    /// (`case value(String)`, `case none`, `case error`) from the
+    /// `SymbolTestsCore` fixture. Used to exercise the `isSinglePayload`
+    /// branch of the predicate accessors on `EnumDescriptor`.
+    package static func enum_SinglePayloadEnumTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> EnumDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.enum).first(where: { descriptor in
+                try descriptor.name(in: machO) == "SinglePayloadEnumTest"
+            })
+        )
+    }
+
+    /// Picks the multi-payload enum `Enums.MultiPayloadEnumTests`
+    /// (closure / NSObject / tuple / empty) from the `SymbolTestsCore`
+    /// fixture. Used as the primary multi-payload fixture: it surfaces a
+    /// `MultiPayloadEnumDescriptor` in `__swift5_mpenum` and exercises the
+    /// `isMultiPayload` branch on `EnumDescriptor`.
+    package static func enum_MultiPayloadEnumTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> EnumDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.enum).first(where: { descriptor in
+                try descriptor.name(in: machO) == "MultiPayloadEnumTests"
+            })
+        )
+    }
+
+    /// Picks the `MultiPayloadEnumDescriptor` for `Enums.MultiPayloadEnumTests`
+    /// from the `SymbolTestsCore` fixture's `__swift5_mpenum` section. The
+    /// section emits one descriptor per multi-payload enum found.
+    ///
+    /// The mangled-name string applies Swift's identifier substitution rules
+    /// (repeat tokens become `O[A-Z]` byte references), so the literal
+    /// `MultiPayloadEnumTests` may not appear textually. Instead we resolve
+    /// the matching `EnumDescriptor` (which uses its own `name(in:)` ivar)
+    /// and pick the multi-payload descriptor whose mangled-name lookup
+    /// targets it.
+    package static func multiPayloadEnumDescriptor_MultiPayloadEnumTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> MultiPayloadEnumDescriptor {
+        let enumDescriptor = try enum_MultiPayloadEnumTest(in: machO)
+        let targetOffset = enumDescriptor.offset
+        return try required(
+            try machO.swift.multiPayloadEnumDescriptors.first(where: { descriptor in
+                let mangledName = try descriptor.mangledTypeName(in: machO)
+                for lookup in mangledName.lookupElements {
+                    guard case .relative(let relative) = lookup.reference else { continue }
+                    let resolvedOffset = lookup.offset + Int(relative.relativeOffset)
+                    if resolvedOffset == targetOffset {
+                        return true
+                    }
+                }
+                return false
+            })
+        )
+    }
 }
