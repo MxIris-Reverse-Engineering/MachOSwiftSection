@@ -20,6 +20,18 @@ package enum BaselineGenerator {
     package static func generateAll(outputDirectory: URL) async throws {
         try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
         let machOFile = try loadFixtureMachOFile()
+        // Anonymous/
+        try dispatchSuite("AnonymousContext", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("AnonymousContextDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("AnonymousContextDescriptorFlags", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("AnonymousContextDescriptorProtocol", in: machOFile, outputDirectory: outputDirectory)
+        // Extension/
+        try dispatchSuite("ExtensionContext", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ExtensionContextDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        // Module/
+        try dispatchSuite("ModuleContext", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ModuleContextDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        // Type/Struct/
         try dispatchSuite("StructDescriptor", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("Struct", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("StructMetadata", in: machOFile, outputDirectory: outputDirectory)
@@ -36,6 +48,26 @@ package enum BaselineGenerator {
 
     private static func dispatchSuite(_ name: String, in machOFile: MachOFile, outputDirectory: URL) throws {
         switch name {
+        // Anonymous/
+        case "AnonymousContext":
+            try AnonymousContextBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "AnonymousContextDescriptor":
+            try AnonymousContextDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "AnonymousContextDescriptorFlags":
+            try AnonymousContextDescriptorFlagsBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "AnonymousContextDescriptorProtocol":
+            try AnonymousContextDescriptorProtocolBaselineGenerator.generate(outputDirectory: outputDirectory)
+        // Extension/
+        case "ExtensionContext":
+            try ExtensionContextBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ExtensionContextDescriptor":
+            try ExtensionContextDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        // Module/
+        case "ModuleContext":
+            try ModuleContextBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ModuleContextDescriptor":
+            try ModuleContextDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        // Type/Struct/
         case "StructDescriptor":
             try StructDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         case "Struct":

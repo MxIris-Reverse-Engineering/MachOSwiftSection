@@ -34,4 +34,80 @@ package enum BaselineFixturePicker {
             })
         )
     }
+
+    /// Picks an `AnonymousContextDescriptor` from the `SymbolTestsCore`
+    /// fixture. Anonymous contexts arise from generic parameter scopes,
+    /// closures, and other unnamed contexts; they don't appear directly in
+    /// `__swift5_types`/`__swift5_types2` records, so we discover them by
+    /// walking the parent chain of every type descriptor and returning the
+    /// first anonymous one encountered.
+    package static func anonymous_first(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AnonymousContextDescriptor {
+        for typeDescriptor in try machO.swift.contextDescriptors {
+            var current: SymbolOrElement<ContextDescriptorWrapper>? = try typeDescriptor.parent(in: machO)
+            while let cursor = current {
+                if let resolved = cursor.resolved {
+                    if let anonymous = resolved.anonymousContextDescriptor {
+                        return anonymous
+                    }
+                    current = try resolved.parent(in: machO)
+                } else {
+                    current = nil
+                }
+            }
+        }
+        throw RequiredError.requiredNonOptional
+    }
+
+    /// Picks the `SymbolTestsCore` module's `ModuleContextDescriptor` —
+    /// every type in the fixture chains up to it. Module contexts don't
+    /// appear directly in `__swift5_types`/`__swift5_types2` records, so we
+    /// discover them by walking the parent chain of every type descriptor
+    /// and selecting the module whose `name(in:)` is `"SymbolTestsCore"`.
+    package static func module_SymbolTestsCore(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ModuleContextDescriptor {
+        for typeDescriptor in try machO.swift.contextDescriptors {
+            var current: SymbolOrElement<ContextDescriptorWrapper>? = try typeDescriptor.parent(in: machO)
+            while let cursor = current {
+                if let resolved = cursor.resolved {
+                    if let module = resolved.moduleContextDescriptor,
+                       try module.name(in: machO) == "SymbolTestsCore" {
+                        return module
+                    }
+                    current = try resolved.parent(in: machO)
+                } else {
+                    current = nil
+                }
+            }
+        }
+        throw RequiredError.requiredNonOptional
+    }
+
+    /// Picks an `ExtensionContextDescriptor` from the `SymbolTestsCore`
+    /// fixture. Extensions don't appear directly in
+    /// `__swift5_types`/`__swift5_types2` records (only the types declared
+    /// inside an extension do), so we discover them by walking the parent
+    /// chain of every type descriptor and returning the first extension
+    /// context encountered. The fixture declares several extensions (e.g.
+    /// `Structs.StructTest: Protocols.ProtocolWitnessTableTest`).
+    package static func extension_first(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ExtensionContextDescriptor {
+        for typeDescriptor in try machO.swift.contextDescriptors {
+            var current: SymbolOrElement<ContextDescriptorWrapper>? = try typeDescriptor.parent(in: machO)
+            while let cursor = current {
+                if let resolved = cursor.resolved {
+                    if let ext = resolved.extensionContextDescriptor {
+                        return ext
+                    }
+                    current = try resolved.parent(in: machO)
+                } else {
+                    current = nil
+                }
+            }
+        }
+        throw RequiredError.requiredNonOptional
+    }
 }
