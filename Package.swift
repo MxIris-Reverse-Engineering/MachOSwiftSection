@@ -506,6 +506,7 @@ extension Target {
             .target(.SwiftInterface),
             .target(.MachOTestingSupportC),
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+            .product(.SwiftSyntaxBuilder),
         ],
         swiftSettings: testSettings
     )
@@ -575,6 +576,14 @@ extension Target {
         ],
         swiftSettings: testSettings
     )
+
+    static let MachOTestingSupportTests = Target.testTarget(
+        name: "MachOTestingSupportTests",
+        dependencies: [
+            .target(.MachOTestingSupport),
+        ],
+        swiftSettings: testSettings
+    )
 }
 
 let package = Package(
@@ -620,6 +629,7 @@ let package = Package(
         .SwiftDumpTests,
         .TypeIndexingTests,
         .SwiftInterfaceTests,
+        .MachOTestingSupportTests,
     ]
 )
 
