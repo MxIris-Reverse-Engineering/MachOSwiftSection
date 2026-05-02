@@ -18,3 +18,12 @@ public struct BuiltinType: TopLevelType {
         self.typeName = try descriptor.typeName()
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension BuiltinType {
+    public init<Context: ReadingContext>(descriptor: BuiltinTypeDescriptor, in context: Context) throws {
+        self.descriptor = descriptor
+        self.typeName = try descriptor.typeName(in: context)
+    }
+}

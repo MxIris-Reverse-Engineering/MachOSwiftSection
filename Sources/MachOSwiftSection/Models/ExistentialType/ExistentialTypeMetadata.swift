@@ -82,3 +82,21 @@ public enum ExistentialTypeRepresentation {
     case `class`
     case error
 }
+
+// MARK: - ReadingContext Support
+
+extension ExistentialTypeMetadata {
+    public func superclassConstraint<Context: ReadingContext>(in context: Context) throws -> ConstMetadataPointer<Metadata>? {
+        guard layout.flags.hasSuperclassConstraint else { return nil }
+        return try .resolve(at: try context.addressFromOffset(offset + layoutSize), in: context)
+    }
+
+    public func protocols<Context: ReadingContext>(in context: Context) throws -> [ProtocolDescriptorRef] {
+        guard layout.numberOfProtocols != .zero else { return [] }
+        var offset = offset + layoutSize
+        if layout.flags.hasSuperclassConstraint {
+            offset.offset(of: ConstMetadataPointer<Metadata>.self)
+        }
+        return try context.readElements(at: try context.addressFromOffset(offset), numberOfElements: layout.numberOfProtocols.cast())
+    }
+}
