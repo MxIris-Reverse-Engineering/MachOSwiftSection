@@ -12,8 +12,16 @@ extension ContextProtocol {
     public func parent(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> SymbolOrElement<ContextWrapper>? {
         try descriptor.parent(in: machO)?.map { try ContextWrapper.forContextDescriptorWrapper($0, in: machO) }
     }
-    
+
     public func parent() throws -> SymbolOrElement<ContextWrapper>? {
         try descriptor.parent()?.map { try ContextWrapper.forContextDescriptorWrapper($0) }
+    }
+}
+
+// MARK: - ReadingContext Support
+
+extension ContextProtocol {
+    public func parent<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ContextWrapper>? {
+        try descriptor.parent(in: context)?.map { try ContextWrapper.forContextDescriptorWrapper($0, in: context) }
     }
 }
