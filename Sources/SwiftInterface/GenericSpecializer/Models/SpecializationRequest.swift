@@ -50,10 +50,12 @@ extension SpecializationRequest {
         public var candidates: [Candidate]
 
         /// Invertible protocols (~Copyable / ~Escapable) that the parameter
-        /// declares. The set carries the bits that ARE present — e.g.
-        /// `<A: ~Copyable>` produces a set without `.copyable`. `nil` means
-        /// the parameter has no `invertedProtocols` requirement and retains
-        /// every invertible protocol by default (the typical Swift case).
+        /// suppresses. The set encodes which protocols are inverted, matching
+        /// the binary's encoding and the existing `hasCopyable` /
+        /// `hasEscapable` convention — e.g. `<A: ~Copyable>` produces a set
+        /// containing `.copyable`. `nil` means the parameter has no
+        /// `invertedProtocols` requirement and retains every invertible
+        /// protocol by default (the typical Swift case).
         public let invertibleProtocols: InvertibleProtocolSet?
 
         public init(
