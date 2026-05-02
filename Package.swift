@@ -506,6 +506,8 @@ extension Target {
             .target(.SwiftInterface),
             .target(.MachOTestingSupportC),
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+            .product(.SwiftSyntax),
+            .product(.SwiftParser),
             .product(.SwiftSyntaxBuilder),
         ],
         swiftSettings: testSettings
@@ -581,6 +583,9 @@ extension Target {
         name: "MachOTestingSupportTests",
         dependencies: [
             .target(.MachOTestingSupport),
+        ],
+        exclude: [
+            "Coverage/Fixtures/SampleSource.swift.txt",
         ],
         swiftSettings: testSettings
     )
