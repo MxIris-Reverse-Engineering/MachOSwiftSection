@@ -110,4 +110,44 @@ package enum BaselineFixturePicker {
         }
         throw RequiredError.requiredNonOptional
     }
+
+    /// Picks the concrete plain Swift class `Classes.ClassTest` from the
+    /// `SymbolTestsCore` fixture. Used as the primary class fixture: it has
+    /// instance/dynamic vars and methods (so a non-empty vtable), no
+    /// resilient superclass, no ObjC interop, and is not a generic class.
+    package static func class_ClassTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                try descriptor.name(in: machO) == "ClassTest"
+            })
+        )
+    }
+
+    /// Picks `Classes.SubclassTest: ClassTest` from the `SymbolTestsCore`
+    /// fixture. Used to exercise inheritance/superclass paths in the
+    /// `ClassDescriptor` API surface (e.g. `superclassTypeMangledName`).
+    package static func class_SubclassTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                try descriptor.name(in: machO) == "SubclassTest"
+            })
+        )
+    }
+
+    /// Picks `Classes.ExternalObjCSubclassTest: NSObject` from the
+    /// `SymbolTestsCore` fixture. Used to exercise the ObjC-interop class
+    /// API surface (vtable shape, resilient class stub paths, etc.).
+    package static func class_ObjCInteropTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                try descriptor.name(in: machO) == "ExternalObjCSubclassTest"
+            })
+        )
+    }
 }

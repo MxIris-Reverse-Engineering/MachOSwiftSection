@@ -62,6 +62,35 @@ package enum BaselineGenerator {
         try dispatchSuite("Struct", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("StructMetadata", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("StructMetadataProtocol", in: machOFile, outputDirectory: outputDirectory)
+        // Type/Class/ — sub-generators live in Generators/Class/.
+        // The Class group is large (~22 files) so the source files are
+        // grouped under Generators/Class/ for readability; flat naming is
+        // retained for the smaller groups (Tasks 4-6).
+        try dispatchSuite("AnyClassMetadata", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("AnyClassMetadataObjCInterop", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("AnyClassMetadataObjCInteropProtocol", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("AnyClassMetadataProtocol", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("Class", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ClassDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ClassFlags", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ClassMetadata", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ClassMetadataBounds", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ClassMetadataBoundsProtocol", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ClassMetadataObjCInterop", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ExtraClassDescriptorFlags", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("FinalClassMetadataProtocol", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("MethodDefaultOverrideDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("MethodDefaultOverrideTableHeader", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("MethodDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("MethodDescriptorFlags", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("MethodDescriptorKind", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("MethodOverrideDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ObjCClassWrapperMetadata", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ObjCResilientClassStubInfo", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("OverrideTableHeader", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ResilientSuperclass", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("StoredClassMetadataBounds", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("VTableDescriptorHeader", in: machOFile, outputDirectory: outputDirectory)
     }
 
     /// Regenerates a single Suite's baseline file. Used by the polished
@@ -123,6 +152,57 @@ package enum BaselineGenerator {
             try StructMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
         case "StructMetadataProtocol":
             try StructMetadataProtocolBaselineGenerator.generate(outputDirectory: outputDirectory)
+        // Type/Class/
+        case "AnyClassMetadata":
+            try AnyClassMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "AnyClassMetadataObjCInterop":
+            try AnyClassMetadataObjCInteropBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "AnyClassMetadataObjCInteropProtocol":
+            try AnyClassMetadataObjCInteropProtocolBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "AnyClassMetadataProtocol":
+            try AnyClassMetadataProtocolBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "Class":
+            try ClassBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ClassDescriptor":
+            try ClassDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ClassFlags":
+            try ClassFlagsBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "ClassMetadata":
+            try ClassMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "ClassMetadataBounds":
+            try ClassMetadataBoundsBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "ClassMetadataBoundsProtocol":
+            try ClassMetadataBoundsProtocolBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "ClassMetadataObjCInterop":
+            try ClassMetadataObjCInteropBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "ExtraClassDescriptorFlags":
+            try ExtraClassDescriptorFlagsBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "FinalClassMetadataProtocol":
+            try FinalClassMetadataProtocolBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "MethodDefaultOverrideDescriptor":
+            try MethodDefaultOverrideDescriptorBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "MethodDefaultOverrideTableHeader":
+            try MethodDefaultOverrideTableHeaderBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "MethodDescriptor":
+            try MethodDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "MethodDescriptorFlags":
+            try MethodDescriptorFlagsBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "MethodDescriptorKind":
+            try MethodDescriptorKindBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "MethodOverrideDescriptor":
+            try MethodOverrideDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ObjCClassWrapperMetadata":
+            try ObjCClassWrapperMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "ObjCResilientClassStubInfo":
+            try ObjCResilientClassStubInfoBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "OverrideTableHeader":
+            try OverrideTableHeaderBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ResilientSuperclass":
+            try ResilientSuperclassBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "StoredClassMetadataBounds":
+            try StoredClassMetadataBoundsBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "VTableDescriptorHeader":
+            try VTableDescriptorHeaderBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         default:
             throw BaselineGeneratorError.unknownSuite(name)
         }
