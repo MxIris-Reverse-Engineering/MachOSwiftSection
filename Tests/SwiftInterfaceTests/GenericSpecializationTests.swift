@@ -13,8 +13,100 @@ import MachOFixtureSupport
 @testable import Demangling
 import OrderedCollections
 
+/// One-shot cache of the three `SwiftInterfaceIndexer` shapes used across
+/// `GenericSpecializationTests`. swift-testing instantiates the test class
+/// once per `@Test`, so naive per-test setup re-prepares every indexer
+/// 18 times and dominates suite runtime. The actor preserves correctness
+/// (preparation runs to completion before the indexer is observed) while
+/// guaranteeing each shape is built at most once per process.
+private actor SharedIndexerCache {
+    static let shared = SharedIndexerCache()
+
+    private var localCache: SwiftInterfaceIndexer<MachOImage>?
+    private var coreCache: SwiftInterfaceIndexer<MachOImage>?
+    private var fullCache: SwiftInterfaceIndexer<MachOImage>?
+
+    enum CacheError: Error, LocalizedError {
+        case missingImage(name: String)
+
+        var errorDescription: String? {
+            switch self {
+            case .missingImage(let name):
+                return "expected MachOImage(name: \"\(name)\") to be loadable for the test fixture"
+            }
+        }
+    }
+
+    /// Indexer over the current process only — no sub-indexers attached.
+    func localIndexer() async throws -> SwiftInterfaceIndexer<MachOImage> {
+        if let localCache { return localCache }
+        let indexer = SwiftInterfaceIndexer(in: MachOImage.current())
+        try await indexer.prepare()
+        localCache = indexer
+        return indexer
+    }
+
+    /// Indexer over the current process plus libswiftCore.
+    func coreIndexer() async throws -> SwiftInterfaceIndexer<MachOImage> {
+        if let coreCache { return coreCache }
+        let indexer = SwiftInterfaceIndexer(in: MachOImage.current())
+        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: try Self.requireImage(name: "libswiftCore")))
+        try await indexer.prepare()
+        coreCache = indexer
+        return indexer
+    }
+
+    /// Indexer over the current process plus Foundation and libswiftCore.
+    func fullIndexer() async throws -> SwiftInterfaceIndexer<MachOImage> {
+        if let fullCache { return fullCache }
+        let indexer = SwiftInterfaceIndexer(in: MachOImage.current())
+        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: try Self.requireImage(name: "Foundation")))
+        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: try Self.requireImage(name: "libswiftCore")))
+        try await indexer.prepare()
+        fullCache = indexer
+        return indexer
+    }
+
+    private static func requireImage(name: String) throws -> MachOImage {
+        guard let image = MachOImage(name: name) else {
+            throw CacheError.missingImage(name: name)
+        }
+        return image
+    }
+}
+
 final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     override class var imageName: MachOImageName { .SwiftUICore }
+
+    /// `MachOImage.current()` for the test process. Trivial to fetch but
+    /// kept as a stored property so test bodies can reference it directly
+    /// instead of calling `.current()` 17+ times across the suite.
+    let currentMachO: MachOImage
+
+    /// Indexer attached only to the current process. Populated lazily via
+    /// `SharedIndexerCache` on first access (across the whole test run).
+    let localIndexer: SwiftInterfaceIndexer<MachOImage>
+
+    /// Indexer attached to the current process + libswiftCore.
+    let coreIndexer: SwiftInterfaceIndexer<MachOImage>
+
+    /// Indexer attached to the current process + Foundation + libswiftCore.
+    let fullIndexer: SwiftInterfaceIndexer<MachOImage>
+
+    override init() async throws {
+        self.currentMachO = MachOImage.current()
+        // Kick off all three preparations concurrently so the cold-start
+        // path waits on `max(prepare)` instead of `sum(prepare)`. After the
+        // first test populates the cache, every subsequent call is an
+        // immediate actor lookup and the cost vanishes regardless.
+        async let local = SharedIndexerCache.shared.localIndexer()
+        async let core = SharedIndexerCache.shared.coreIndexer()
+        async let full = SharedIndexerCache.shared.fullIndexer()
+        self.localIndexer = try await local
+        self.coreIndexer = try await core
+        self.fullIndexer = try await full
+        try await super.init()
+    }
 
     struct TestGenericStruct<A, B, C> where A: Collection, B: Equatable, C: Hashable, A.Element: Hashable, A.Element: Decodable, A.Element: Encodable {
         let a: A
@@ -23,14 +115,9 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     }
 
     @Test func main() async throws {
-        let machO = MachOImage.current()
+        let machO = currentMachO
 
-        let indexer = SwiftInterfaceIndexer(in: machO)
-
-        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "Foundation"))))
-        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
-
-        try await indexer.prepare()
+        let indexer = fullIndexer
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestGenericStruct") == true }?.struct?.asPointerWrapper(in: machO))
 
@@ -75,13 +162,11 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     }
 
     @Test func makeRequest() async throws {
-        let machO = MachOImage.current()
+        let machO = currentMachO
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestGenericStruct") == true }?.struct)
 
-        let indexer = SwiftInterfaceIndexer(in: machO)
-
-        try await indexer.prepare()
+        let indexer = localIndexer
 
         let specializer = GenericSpecializer(
             machO: machO,
@@ -111,7 +196,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     }
 
     @Test func validation() throws {
-        let machO = MachOImage.current()
+        let machO = currentMachO
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestGenericStruct") == true }?.struct)
 
@@ -138,15 +223,11 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     }
 
     @Test func specialize() async throws {
-        let machO = MachOImage.current()
+        let machO = currentMachO
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestGenericStruct") == true }?.struct)
 
-        let indexer = SwiftInterfaceIndexer(in: machO)
-        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "Foundation"))))
-        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
-
-        try await indexer.prepare()
+        let indexer = fullIndexer
 
         let specializer = GenericSpecializer(indexer: indexer)
         let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
@@ -198,7 +279,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     }
 
     @Test func unconstrainedSpecialize() async throws {
-        let machO = MachOImage.current()
+        let machO = currentMachO
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestUnconstrainedStruct") == true }?.struct)
         let genericContext = try #require(try descriptor.genericContext(in: machO))
@@ -206,8 +287,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         // 1 metadata, 0 PWT
         #expect(genericContext.header.numKeyArguments == 1)
 
-        let indexer = SwiftInterfaceIndexer(in: machO)
-        try await indexer.prepare()
+        let indexer = localIndexer
 
         let specializer = GenericSpecializer(indexer: indexer)
         let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
@@ -233,7 +313,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     }
 
     @Test func singleProtocolSpecialize() async throws {
-        let machO = MachOImage.current()
+        let machO = currentMachO
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestSingleProtocolStruct") == true }?.struct)
         let genericContext = try #require(try descriptor.genericContext(in: machO))
@@ -241,9 +321,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         // 1 metadata + 1 PWT (Hashable)
         #expect(genericContext.header.numKeyArguments == 2)
 
-        let indexer = SwiftInterfaceIndexer(in: machO)
-        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
-        try await indexer.prepare()
+        let indexer = coreIndexer
 
         let specializer = GenericSpecializer(indexer: indexer)
         let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
@@ -269,7 +347,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     }
 
     @Test func multiProtocolSpecialize() async throws {
-        let machO = MachOImage.current()
+        let machO = currentMachO
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestMultiProtocolStruct") == true }?.struct)
         let genericContext = try #require(try descriptor.genericContext(in: machO))
@@ -277,9 +355,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         // 1 metadata + 3 PWT (Hashable, Decodable, Encodable)
         #expect(genericContext.header.numKeyArguments == 4)
 
-        let indexer = SwiftInterfaceIndexer(in: machO)
-        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
-        try await indexer.prepare()
+        let indexer = coreIndexer
 
         let specializer = GenericSpecializer(indexer: indexer)
         let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
@@ -305,7 +381,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     final class TestRefClass {}
 
     @Test func classConstraintSpecialize() async throws {
-        let machO = MachOImage.current()
+        let machO = currentMachO
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestClassConstraintStruct") == true }?.struct)
         let genericContext = try #require(try descriptor.genericContext(in: machO))
@@ -313,8 +389,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         // 1 metadata, no PWT (layout requirement does not require WT)
         #expect(genericContext.header.numKeyArguments == 1)
 
-        let indexer = SwiftInterfaceIndexer(in: machO)
-        try await indexer.prepare()
+        let indexer = localIndexer
 
         let specializer = GenericSpecializer(indexer: indexer)
         let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
@@ -343,7 +418,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     }
 
     @Test func nestedAssociatedTypeRequest() async throws {
-        let machO = MachOImage.current()
+        let machO = currentMachO
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestNestedAssociatedStruct") == true }?.struct)
         let genericContext = try #require(try descriptor.genericContext(in: machO))
@@ -351,9 +426,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         // 1 metadata + 3 PWT (A:Sequence, A.Element:Sequence, A.Element.Element:Hashable)
         #expect(genericContext.header.numKeyArguments == 4)
 
-        let indexer = SwiftInterfaceIndexer(in: machO)
-        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
-        try await indexer.prepare()
+        let indexer = coreIndexer
 
         let specializer = GenericSpecializer(indexer: indexer)
         let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
@@ -372,13 +445,11 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     }
 
     @Test func nestedAssociatedTypeSpecialize() async throws {
-        let machO = MachOImage.current()
+        let machO = currentMachO
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestNestedAssociatedStruct") == true }?.struct)
 
-        let indexer = SwiftInterfaceIndexer(in: machO)
-        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
-        try await indexer.prepare()
+        let indexer = coreIndexer
 
         let specializer = GenericSpecializer(indexer: indexer)
         let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
@@ -403,7 +474,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     }
 
     @Test func dualAssociatedSpecialize() async throws {
-        let machO = MachOImage.current()
+        let machO = currentMachO
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestDualAssociatedStruct") == true }?.struct)
         let genericContext = try #require(try descriptor.genericContext(in: machO))
@@ -411,9 +482,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         // 2 metadata + 4 PWT (A:Sequence, B:Sequence, A.Element:Hashable, B.Element:Hashable)
         #expect(genericContext.header.numKeyArguments == 6)
 
-        let indexer = SwiftInterfaceIndexer(in: machO)
-        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
-        try await indexer.prepare()
+        let indexer = coreIndexer
 
         let specializer = GenericSpecializer(indexer: indexer)
         let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
@@ -449,7 +518,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     }
 
     @Test func mixedConstraintsSpecialize() async throws {
-        let machO = MachOImage.current()
+        let machO = currentMachO
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first { try $0.struct?.name(in: machO).contains("TestMixedConstraintsStruct") == true }?.struct)
         let genericContext = try #require(try descriptor.genericContext(in: machO))
@@ -457,9 +526,7 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         // 2 metadata + 3 PWT (A:Collection, B:Hashable, A.Element:Hashable)
         #expect(genericContext.header.numKeyArguments == 5)
 
-        let indexer = SwiftInterfaceIndexer(in: machO)
-        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
-        try await indexer.prepare()
+        let indexer = coreIndexer
 
         let specializer = GenericSpecializer(indexer: indexer)
         let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
@@ -488,16 +555,13 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     }
 
     @Test func configurableMetadataRequest() async throws {
-        let machO = MachOImage.current()
+        let machO = currentMachO
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first {
             try $0.struct?.name(in: machO).contains("TestGenericStruct") == true
         }?.struct)
 
-        let indexer = SwiftInterfaceIndexer(in: machO)
-        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "Foundation"))))
-        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
-        try await indexer.prepare()
+        let indexer = fullIndexer
 
         let specializer = GenericSpecializer(indexer: indexer)
         let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
@@ -526,15 +590,13 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     }
 
     @Test func genericCandidateFailFast() async throws {
-        let machO = MachOImage.current()
+        let machO = currentMachO
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first {
             try $0.struct?.name(in: machO).contains("TestSingleProtocolStruct") == true
         }?.struct)
 
-        let indexer = SwiftInterfaceIndexer(in: machO)
-        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
-        try await indexer.prepare()
+        let indexer = coreIndexer
 
         let specializer = GenericSpecializer(indexer: indexer)
         let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
@@ -580,14 +642,13 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
     }
 
     @Test func invertedProtocolsExposed() async throws {
-        let machO = MachOImage.current()
+        let machO = currentMachO
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first {
             try $0.struct?.name(in: machO).contains("TestInvertedCopyableStruct") == true
         }?.struct)
 
-        let indexer = SwiftInterfaceIndexer(in: machO)
-        try await indexer.prepare()
+        let indexer = localIndexer
 
         let specializer = GenericSpecializer(indexer: indexer)
         let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
@@ -616,14 +677,13 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         // so every parameter retains every invertible protocol by default and
         // `Parameter.invertibleProtocols` must be `nil` on each — the typical
         // Swift case the doc comment promises.
-        let machO = MachOImage.current()
+        let machO = currentMachO
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first {
             try $0.struct?.name(in: machO).contains("TestGenericStruct") == true
         }?.struct)
 
-        let indexer = SwiftInterfaceIndexer(in: machO)
-        try await indexer.prepare()
+        let indexer = localIndexer
 
         let specializer = GenericSpecializer(indexer: indexer)
         let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
@@ -642,15 +702,13 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         // `Argument.specialized(...)` and name the offending candidate.
         // Locking the description text via `errorDescription` keeps any
         // future rewording from silently breaking surfaced UI strings.
-        let machO = MachOImage.current()
+        let machO = currentMachO
 
         let descriptor = try #require(try machO.swift.typeContextDescriptors.first {
             try $0.struct?.name(in: machO).contains("TestSingleProtocolStruct") == true
         }?.struct)
 
-        let indexer = SwiftInterfaceIndexer(in: machO)
-        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: #require(MachOImage(name: "libswiftCore"))))
-        try await indexer.prepare()
+        let indexer = coreIndexer
 
         let specializer = GenericSpecializer(indexer: indexer)
         let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
