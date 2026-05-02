@@ -16,6 +16,8 @@ public protocol ContextDescriptorProtocol: ResolvableLocatableLayoutWrapper wher
 
     func genericContext<Context: ReadingContext>(in context: Context) throws -> GenericContext?
     func parent<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ContextDescriptorWrapper>?
+    func moduleContextDesciptor<Context: ReadingContext>(in context: Context) throws -> (any ModuleContextDescriptorProtocol)?
+    func isCImportedContextDescriptor<Context: ReadingContext>(in context: Context) throws -> Bool
 
     subscript<T>(dynamicMember keyPath: KeyPath<ContextDescriptorFlags, T>) -> T { get }
 }
@@ -104,5 +106,26 @@ extension ContextDescriptorProtocol {
     public func genericContext<Context: ReadingContext>(in context: Context) throws -> GenericContext? {
         guard layout.flags.isGeneric else { return nil }
         return try GenericContext(contextDescriptor: self, in: context)
+    }
+
+    public func moduleContextDesciptor<Context: ReadingContext>(in context: Context) throws -> (any ModuleContextDescriptorProtocol)? {
+        if let module = self as? (any ModuleContextDescriptorProtocol) {
+            return module
+        } else {
+            var parent: SymbolOrElement<ContextDescriptorWrapper>? = try parent(in: context)
+            while let currentParent = parent {
+                if let module = currentParent.resolved?.contextDescriptor as? (any ModuleContextDescriptorProtocol) {
+                    return module
+                }
+                parent = try currentParent.resolved?.parent(in: context)
+            }
+            return nil
+        }
+    }
+
+    public func isCImportedContextDescriptor<Context: ReadingContext>(in context: Context) throws -> Bool {
+        guard let moduleContextDescriptor = try moduleContextDesciptor(in: context) else { return false }
+        let moduleName = try moduleContextDescriptor.name(in: context)
+        return moduleName == cModule || moduleName == objcModule
     }
 }

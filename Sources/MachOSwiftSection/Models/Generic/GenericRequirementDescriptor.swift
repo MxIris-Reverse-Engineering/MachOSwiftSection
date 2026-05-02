@@ -113,6 +113,12 @@ extension GenericRequirementDescriptor {
 // MARK: - ReadingContext Support
 
 extension GenericRequirementDescriptor {
+    public func isContentEqual<Context: ReadingContext>(to other: GenericRequirementDescriptor, in context: Context) -> Bool {
+        guard let lhsResolvedParam = try? paramMangledName(in: context), let rhsResolvedParam = try? other.paramMangledName(in: context) else { return false }
+        guard let lhsResolvedContent = try? resolvedContent(in: context), let rhsResolvedContent = try? other.resolvedContent(in: context) else { return false }
+        return layout.flags == other.flags && lhsResolvedParam == rhsResolvedParam && lhsResolvedContent == rhsResolvedContent
+    }
+
     public func paramMangledName<Context: ReadingContext>(in context: Context) throws -> MangledName {
         let baseAddress = try context.addressFromOffset(offset(of: \.param))
         return try layout.param.resolve(at: baseAddress, in: context)
