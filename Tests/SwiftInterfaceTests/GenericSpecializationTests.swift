@@ -539,21 +539,24 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         let specializer = GenericSpecializer(indexer: indexer)
         let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
 
-        // Pick a generic candidate from the candidate list (e.g. Optional or Array
-        // — anything generic that conforms to Hashable). We deliberately do not
-        // assert that *some* candidate is generic in case the candidate set
-        // changes; we only assert the property holds for any generic ones we find.
-        let genericCandidate = request.parameters[0].candidates.first { $0.isGeneric }
-        let nonGenericCandidate = request.parameters[0].candidates.first { !$0.isGeneric }
-
-        // At minimum the standard library exposes both shapes for Hashable.
-        try #require(genericCandidate != nil, "expected at least one generic candidate")
-        try #require(nonGenericCandidate != nil, "expected at least one non-generic candidate")
+        // Pin to specific stdlib types so a failure points clearly at either
+        // the fail-fast logic (test body) or a fixture shift (#require message),
+        // rather than the generic "no isGeneric candidate" mode the original
+        // first-matching-any-candidate form would silently degrade into.
+        // `currentName` strips the module prefix (e.g. "Swift.Int" → "Int").
+        let genericCandidate = try #require(
+            request.parameters[0].candidates.first { $0.typeName.currentName == "Array" && $0.isGeneric },
+            "expected Swift.Array candidate flagged isGeneric"
+        )
+        let nonGenericCandidate = try #require(
+            request.parameters[0].candidates.first { $0.typeName.currentName == "Int" && !$0.isGeneric },
+            "expected Swift.Int candidate flagged non-generic"
+        )
 
         // Non-generic candidate still resolves successfully.
         let okResult = try specializer.specialize(
             request,
-            with: ["A": .candidate(nonGenericCandidate!)]
+            with: ["A": .candidate(nonGenericCandidate)]
         )
         _ = try okResult.resolveMetadata()
 
@@ -561,11 +564,11 @@ final class GenericSpecializationTests: MachOImageTests, @unchecked Sendable {
         do {
             _ = try specializer.specialize(
                 request,
-                with: ["A": .candidate(genericCandidate!)]
+                with: ["A": .candidate(genericCandidate)]
             )
             Issue.record("expected candidateRequiresNestedSpecialization to be thrown")
         } catch let GenericSpecializer<MachOImage>.SpecializerError.candidateRequiresNestedSpecialization(candidate, parameterCount) {
-            #expect(candidate.typeName == genericCandidate!.typeName)
+            #expect(candidate.typeName == genericCandidate.typeName)
             #expect(parameterCount >= 1)
         }
     }
