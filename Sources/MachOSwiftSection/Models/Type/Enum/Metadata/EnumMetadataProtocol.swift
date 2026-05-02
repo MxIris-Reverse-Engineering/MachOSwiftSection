@@ -35,7 +35,7 @@ extension EnumMetadataProtocol {
 
 extension EnumMetadataProtocol {
     public func enumDescriptor<Context: ReadingContext>(in context: Context) throws -> EnumDescriptor {
-        try layout.descriptor.resolve(in: context).enum!
+        try descriptor(in: context).enum!
     }
 
     public func payloadSize<Context: ReadingContext>(descriptor: EnumDescriptor? = nil, in context: Context) throws -> StoredSize? {

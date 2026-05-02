@@ -33,7 +33,7 @@ extension StructMetadataProtocol {
 
 extension StructMetadataProtocol {
     public func structDescriptor<Context: ReadingContext>(in context: Context) throws -> StructDescriptor {
-        try layout.descriptor.resolve(in: context).struct!
+        try descriptor(in: context).struct!
     }
 
     public func fieldOffsets<Context: ReadingContext>(for descriptor: StructDescriptor? = nil, in context: Context) throws -> [UInt32] {

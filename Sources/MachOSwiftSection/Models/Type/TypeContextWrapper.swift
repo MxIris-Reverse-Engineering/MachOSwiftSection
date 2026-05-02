@@ -58,3 +58,18 @@ public enum TypeContextWrapper: Sendable {
         }
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension TypeContextWrapper {
+    public static func forTypeContextDescriptorWrapper<Context: ReadingContext>(_ typeContextDescriptorWrapper: TypeContextDescriptorWrapper, in context: Context) throws -> Self {
+        switch typeContextDescriptorWrapper {
+        case .enum(let enumDescriptor):
+            try .enum(.init(descriptor: enumDescriptor, in: context))
+        case .struct(let structDescriptor):
+            try .struct(.init(descriptor: structDescriptor, in: context))
+        case .class(let classDescriptor):
+            try .class(.init(descriptor: classDescriptor, in: context))
+        }
+    }
+}

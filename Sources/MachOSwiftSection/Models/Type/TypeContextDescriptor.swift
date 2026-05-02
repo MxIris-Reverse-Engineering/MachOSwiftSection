@@ -54,3 +54,22 @@ extension TypeContextDescriptor {
         return try asPointer.readWrapperElement() as ClassDescriptor
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension TypeContextDescriptor {
+    public func enumDescriptor<Context: ReadingContext>(in context: Context) throws -> EnumDescriptor? {
+        guard layout.flags.kind == .enum else { return nil }
+        return try context.readWrapperElement(at: try context.addressFromOffset(offset)) as EnumDescriptor
+    }
+
+    public func structDescriptor<Context: ReadingContext>(in context: Context) throws -> StructDescriptor? {
+        guard layout.flags.kind == .struct else { return nil }
+        return try context.readWrapperElement(at: try context.addressFromOffset(offset)) as StructDescriptor
+    }
+
+    public func classDescriptor<Context: ReadingContext>(in context: Context) throws -> ClassDescriptor? {
+        guard layout.flags.kind == .class else { return nil }
+        return try context.readWrapperElement(at: try context.addressFromOffset(offset)) as ClassDescriptor
+    }
+}

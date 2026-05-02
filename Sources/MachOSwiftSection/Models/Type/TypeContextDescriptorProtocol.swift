@@ -58,6 +58,18 @@ extension TypeContextDescriptorProtocol {
         guard layout.flags.isGeneric else { return nil }
         return try .init(contextDescriptor: self, in: context)
     }
+
+    public func fieldDescriptor<Context: ReadingContext>(in context: Context) throws -> FieldDescriptor {
+        let address = try context.addressFromOffset(offset + layout.offset(of: .fieldDescriptor))
+        return try layout.fieldDescriptor.resolve(at: address, in: context)
+    }
+
+    public func metadataAccessorFunction<Context: ReadingContext>(in context: Context) throws -> MetadataAccessorFunction? {
+        let fieldAddress = try context.addressFromOffset(offset + layout.offset(of: .accessFunctionPtr))
+        let relativeOffset: Int32 = try context.readElement(at: fieldAddress)
+        let targetAddress = context.advanceAddress(fieldAddress, by: Int(relativeOffset))
+        return try context.runtimePointer(at: targetAddress).map { MetadataAccessorFunction(ptr: $0) }
+    }
 }
 
 extension TypeContextDescriptorProtocol {
