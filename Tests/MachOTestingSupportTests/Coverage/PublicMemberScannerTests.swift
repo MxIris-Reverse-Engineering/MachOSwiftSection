@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 
 @Suite
 struct PublicMemberScannerTests {

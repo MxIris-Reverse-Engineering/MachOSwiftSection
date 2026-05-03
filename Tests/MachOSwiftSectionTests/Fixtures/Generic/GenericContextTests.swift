@@ -4,6 +4,7 @@ import MachOKit
 import MachOFoundation
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 
 /// Fixture-based Suite for `TargetGenericContext` (the underlying generic
 /// struct behind both the `GenericContext` and `TypeGenericContext`

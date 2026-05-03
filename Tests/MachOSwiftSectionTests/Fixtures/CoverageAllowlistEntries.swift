@@ -1,5 +1,6 @@
 import Foundation
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 
 /// Public members of `Sources/MachOSwiftSection/Models/` that are intentionally
 /// not under fixture-based test coverage. Each entry MUST carry a human-readable

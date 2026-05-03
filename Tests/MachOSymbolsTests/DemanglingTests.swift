@@ -4,6 +4,7 @@ import Testing
 import MachOKit
 import MachOFoundation
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 import Dependencies
 
 @MainActor
@@ -33,7 +34,7 @@ extension DemanglingTests {
         for symbol in allSwiftSymbols {
             totalCount += 1
             let mangledName = symbol.stringValue
-            let stdlibTree = MachOTestingSupport.stdlib_demangleNodeTree(mangledName)
+            let stdlibTree = MachOFixtureSupport.stdlib_demangleNodeTree(mangledName)
 
             do {
                 let node = try await demangleAsNode(mangledName)

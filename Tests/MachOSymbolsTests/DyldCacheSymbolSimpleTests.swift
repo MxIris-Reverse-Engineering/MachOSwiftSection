@@ -4,6 +4,7 @@ import Testing
 import MachOKit
 import MachOFoundation
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 import Dependencies
 
 #if !SILENT_TEST && os(macOS)

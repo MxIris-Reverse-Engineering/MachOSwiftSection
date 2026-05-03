@@ -486,7 +486,7 @@ extension Target {
     static let baseline_generator = Target.executableTarget(
         name: "baseline-generator",
         dependencies: [
-            .target(.MachOTestingSupport),
+            .target(.MachOFixtureSupport),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ],
         swiftSettings: testSettings
@@ -506,22 +506,44 @@ extension Target {
 
     // MARK: - Testing
 
-    static let MachOTestingSupport = Target.target(
-        name: "MachOTestingSupport",
+    /// Fixture-loading helpers, baseline generators, coverage scanners, and
+    /// non-Testing-dependent code. Importable from non-test targets (e.g.
+    /// `baseline-generator`) without dragging in `Testing.framework`.
+    static let MachOFixtureSupport = Target.target(
+        name: "MachOFixtureSupport",
         dependencies: [
             .product(.MachOKit),
             .target(.MachOExtensions),
+            .target(.MachOFoundation),
+            .target(.MachOReading),
+            .target(.MachOResolving),
             .target(.SwiftDump),
             .target(.SwiftInterface),
             .target(.MachOTestingSupportC),
-            .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+            .product(.Demangling),
             .product(.SwiftSyntax),
             .product(.SwiftParser),
             .product(.SwiftSyntaxBuilder),
         ],
         swiftSettings: testSettings
     )
-    
+
+    /// `swift-testing` base classes (`MachOFileTests`, `MachOImageTests`,
+    /// `DyldCacheTests`, `XcodeMachOFileTests`, `MachOSwiftSectionFixtureTests`).
+    /// Splitting this out from `MachOFixtureSupport` keeps `Testing.framework`
+    /// out of the link line for non-test targets.
+    static let MachOTestingSupport = Target.target(
+        name: "MachOTestingSupport",
+        dependencies: [
+            .product(.MachOKit),
+            .target(.MachOFoundation),
+            .target(.MachOReading),
+            .target(.MachOResolving),
+            .target(.MachOFixtureSupport),
+        ],
+        swiftSettings: testSettings
+    )
+
     static let MachOTestingSupportC = Target.target(
         name: "MachOTestingSupportC",
         dependencies: [
@@ -534,6 +556,7 @@ extension Target {
         dependencies: [
             .target(.MachOSymbols),
             .target(.MachOTestingSupport),
+            .target(.MachOFixtureSupport),
         ],
         swiftSettings: testSettings
     )
@@ -543,6 +566,7 @@ extension Target {
         dependencies: [
             .target(.MachOSwiftSection),
             .target(.MachOTestingSupport),
+            .target(.MachOFixtureSupport),
             .target(.SwiftDump),
         ],
         swiftSettings: testSettings
@@ -553,6 +577,7 @@ extension Target {
         dependencies: [
             .target(.MachOSwiftSection),
             .target(.MachOTestingSupport),
+            .target(.MachOFixtureSupport),
             .target(.SwiftInspection),
         ],
         swiftSettings: testSettings
@@ -563,6 +588,7 @@ extension Target {
         dependencies: [
             .target(.SwiftDump),
             .target(.MachOTestingSupport),
+            .target(.MachOFixtureSupport),
             .product(.MachOObjCSection),
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
         ],
@@ -574,6 +600,7 @@ extension Target {
         dependencies: [
             .target(.TypeIndexing),
             .target(.MachOTestingSupport),
+            .target(.MachOFixtureSupport),
         ],
         swiftSettings: testSettings
     )
@@ -583,6 +610,7 @@ extension Target {
         dependencies: [
             .target(.SwiftInterface),
             .target(.MachOTestingSupport),
+            .target(.MachOFixtureSupport),
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
         ],
         swiftSettings: testSettings
@@ -592,9 +620,37 @@ extension Target {
         name: "MachOTestingSupportTests",
         dependencies: [
             .target(.MachOTestingSupport),
+            .target(.MachOFixtureSupport),
         ],
         exclude: [
             "Coverage/Fixtures/SampleSource.swift.txt",
+        ],
+        swiftSettings: testSettings
+    )
+
+    static let IntegrationTests = Target.testTarget(
+        name: "IntegrationTests",
+        dependencies: [
+            .target(.MachOExtensions),
+            .target(.MachOCaches),
+            .target(.MachOReading),
+            .target(.MachOResolving),
+            .target(.MachOSymbols),
+            .target(.MachOPointers),
+            .target(.MachOSymbolPointers),
+            .target(.MachOFoundation),
+            .target(.MachOSwiftSection),
+            .target(.SwiftInspection),
+            .target(.SwiftDump),
+            .target(.SwiftInterface),
+            .target(.TypeIndexing),
+            .target(.MachOTestingSupport),
+            .target(.MachOFixtureSupport),
+            .product(.MachOKit),
+            .product(.MachOObjCSection),
+            .product(.Demangling),
+            .product(.Semantic),
+            .product(name: "Dependencies", package: "swift-dependencies"),
         ],
         swiftSettings: testSettings
     )
@@ -630,6 +686,7 @@ let package = Package(
         .SwiftInterface,
         .TypeIndexing,
         .MachOMacros,
+        .MachOFixtureSupport,
         .MachOTestingSupport,
         .MachOTestingSupportC,
         
@@ -645,6 +702,7 @@ let package = Package(
         .TypeIndexingTests,
         .SwiftInterfaceTests,
         .MachOTestingSupportTests,
+        .IntegrationTests,
     ]
 )
 

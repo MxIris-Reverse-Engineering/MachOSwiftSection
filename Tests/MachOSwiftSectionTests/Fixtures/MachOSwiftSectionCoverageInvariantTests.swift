@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 
 /// Static-vs-runtime invariant guard for fixture-based test coverage.
 ///

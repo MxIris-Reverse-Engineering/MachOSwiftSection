@@ -4,6 +4,7 @@ import MachOFoundation
 import MachOKit
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 
 /// Fixture-based Suite for `TypeReference`.
 ///

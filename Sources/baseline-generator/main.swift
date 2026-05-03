@@ -1,8 +1,7 @@
 import Foundation
 import ArgumentParser
-import MachOTestingSupport
+import MachOFixtureSupport
 
-@main
 struct BaselineGeneratorMain: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "baseline-generator",

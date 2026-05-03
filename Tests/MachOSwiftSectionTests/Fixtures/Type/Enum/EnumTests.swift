@@ -3,6 +3,7 @@ import Testing
 import MachOFoundation
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 
 /// Fixture-based Suite for `Enum` (the high-level wrapper around
 /// `EnumDescriptor`).

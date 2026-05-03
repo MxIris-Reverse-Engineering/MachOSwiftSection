@@ -4,6 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOReading
 import MachOResolving
+import MachOFixtureSupport
 
 @MainActor
 package class MachOSwiftSectionFixtureTests: Sendable {

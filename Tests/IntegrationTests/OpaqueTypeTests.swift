@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import Demangling
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 import MachOSwiftSection
 @testable import SwiftDump
 @_spi(Internals) import MachOSymbols

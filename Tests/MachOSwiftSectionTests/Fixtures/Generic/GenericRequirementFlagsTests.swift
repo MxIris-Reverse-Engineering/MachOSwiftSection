@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 
 /// Fixture-based Suite for `GenericRequirementFlags`.
 ///

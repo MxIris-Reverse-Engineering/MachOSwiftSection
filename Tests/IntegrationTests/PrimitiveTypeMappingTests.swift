@@ -4,6 +4,7 @@ import MachOKit
 import Demangling
 import MachOFoundation
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 @testable import MachOSwiftSection
 @testable import SwiftDump
 @testable @_spi(Internals) import SwiftInspection

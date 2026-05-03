@@ -7,6 +7,7 @@ import Dependencies
 @_spi(Support) @testable import SwiftInterface
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 
 final class SwiftInterfaceIndexerTests: MachOImageTests, @unchecked Sendable {
     override class var imageName: MachOImageName { .SwiftUICore }

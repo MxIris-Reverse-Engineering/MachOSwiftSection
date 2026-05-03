@@ -3,6 +3,7 @@ import Testing
 import MachO
 @_spi(Internals) @testable import MachOSymbols
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 
 public enum ProcessMemory {
     public enum Metric {

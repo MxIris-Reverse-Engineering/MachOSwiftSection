@@ -3,6 +3,7 @@ import Testing
 @testable import MachOSwiftSection
 @testable import SwiftDump
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 
 final class ProtocolRequirementSignatureTests: MachOFileTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .SymbolTestsCore }

@@ -5,6 +5,7 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 
 @Suite(.serialized)
 final class DyldCacheDumpTests: DyldCacheTests, DumpableTests, @unchecked Sendable {

@@ -3,6 +3,7 @@ import Testing
 import Dependencies
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 @_spi(Internals) @testable import MachOSymbols
 @_spi(Internals) @testable import MachOCaches
 

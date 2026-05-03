@@ -8,6 +8,7 @@ import Dependencies
 @testable import MachOSwiftSection
 @testable import SwiftDump
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 @testable @_spi(Internals) import SwiftInspection
 
 #if os(macOS)

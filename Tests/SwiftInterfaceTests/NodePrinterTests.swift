@@ -4,6 +4,7 @@ import Testing
 import Dependencies
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 @_spi(Internals) import MachOSymbols
 @testable import SwiftDump
 @testable import SwiftInterface

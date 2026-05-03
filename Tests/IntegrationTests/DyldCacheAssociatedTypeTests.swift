@@ -3,6 +3,7 @@ import Testing
 import Demangling
 @testable import SwiftDump
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 @_spi(Internals) @testable import MachOSymbols
 @testable @_spi(Internals) import SwiftInspection
 

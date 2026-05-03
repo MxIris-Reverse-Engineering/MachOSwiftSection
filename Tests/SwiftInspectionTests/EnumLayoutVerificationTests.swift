@@ -3,6 +3,7 @@ import Testing
 import MachOKit
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 @testable @_spi(Internals) import SwiftInspection
 
 // MARK: - Test Enum Definitions

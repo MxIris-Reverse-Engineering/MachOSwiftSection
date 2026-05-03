@@ -3,6 +3,7 @@ import Testing
 import MachOKit
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 
 @Suite
 final class FixtureLoadingProbeTests: MachOSwiftSectionFixtureTests, @unchecked Sendable {

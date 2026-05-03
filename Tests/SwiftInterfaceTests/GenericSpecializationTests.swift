@@ -7,6 +7,7 @@ import Dependencies
 @_spi(Support) @testable import SwiftInterface
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 @testable import SwiftDump
 @testable @_spi(Internals) import SwiftInspection
 @testable import Demangling

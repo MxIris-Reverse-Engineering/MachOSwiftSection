@@ -1,6 +1,7 @@
 // AUTO-GENERATED — DO NOT EDIT.
 // Regenerate via: Scripts/regen-baselines.sh
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 
 // `FixtureSuite` is `@MainActor`-isolated, so its metatype likewise inherits
 // main-actor isolation. Annotating the constant binds access to MainActor and
