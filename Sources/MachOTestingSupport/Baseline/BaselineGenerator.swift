@@ -169,6 +169,43 @@ package enum BaselineGenerator {
         try dispatchSuite("AssociatedType", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("AssociatedTypeDescriptor", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("AssociatedTypeRecord", in: machOFile, outputDirectory: outputDirectory)
+        // Metadata/ — sub-generators live in Generators/Metadata/, with
+        // Headers/ and MetadataInitialization/ subdirectories mirroring
+        // the source layout. Most metadata types are runtime-only or
+        // require a MachOImage accessor invocation; baselines emit only
+        // registered names where live data isn't reachable from the
+        // static section walks. Pure enums (`MetadataKind`, `MetadataState`)
+        // and marker protocols (`HeapMetadataProtocol`,
+        // `HeapMetadataHeaderProtocol`, `HeapMetadataHeaderPrefixProtocol`,
+        // `TypeMetadataHeaderProtocol`, `TypeMetadataHeaderBaseProtocol`,
+        // `TypeMetadataLayoutPrefixProtocol`) carry no public extension
+        // members so PublicMemberScanner emits no MethodKey entries —
+        // no Suite/baseline is needed.
+        try dispatchSuite("CanonicalSpecializedMetadataAccessorsListEntry", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("CanonicalSpecializedMetadatasCachingOnceToken", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("CanonicalSpecializedMetadatasListCount", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("CanonicalSpecializedMetadatasListEntry", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("FixedArrayTypeMetadata", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("FullMetadata", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("Metadata", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("MetadataAccessorFunction", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("MetadataBounds", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("MetadataBoundsProtocol", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("MetadataProtocol", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("MetadataRequest", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("MetadataResponse", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("MetadataWrapper", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("MetatypeMetadata", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("SingletonMetadataPointer", in: machOFile, outputDirectory: outputDirectory)
+        // Metadata/Headers/
+        try dispatchSuite("HeapMetadataHeader", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("HeapMetadataHeaderPrefix", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("TypeMetadataHeader", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("TypeMetadataHeaderBase", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("TypeMetadataLayoutPrefix", in: machOFile, outputDirectory: outputDirectory)
+        // Metadata/MetadataInitialization/
+        try dispatchSuite("ForeignMetadataInitialization", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("SingletonMetadataInitialization", in: machOFile, outputDirectory: outputDirectory)
     }
 
     /// Regenerates a single Suite's baseline file. Used by the polished
@@ -407,6 +444,55 @@ package enum BaselineGenerator {
             try AssociatedTypeDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         case "AssociatedTypeRecord":
             try AssociatedTypeRecordBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        // Metadata/
+        case "CanonicalSpecializedMetadataAccessorsListEntry":
+            try CanonicalSpecializedMetadataAccessorsListEntryBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "CanonicalSpecializedMetadatasCachingOnceToken":
+            try CanonicalSpecializedMetadatasCachingOnceTokenBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "CanonicalSpecializedMetadatasListCount":
+            try CanonicalSpecializedMetadatasListCountBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "CanonicalSpecializedMetadatasListEntry":
+            try CanonicalSpecializedMetadatasListEntryBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "FixedArrayTypeMetadata":
+            try FixedArrayTypeMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "FullMetadata":
+            try FullMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "Metadata":
+            try MetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "MetadataAccessorFunction":
+            try MetadataAccessorFunctionBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "MetadataBounds":
+            try MetadataBoundsBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "MetadataBoundsProtocol":
+            try MetadataBoundsProtocolBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "MetadataProtocol":
+            try MetadataProtocolBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "MetadataRequest":
+            try MetadataRequestBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "MetadataResponse":
+            try MetadataResponseBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "MetadataWrapper":
+            try MetadataWrapperBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "MetatypeMetadata":
+            try MetatypeMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "SingletonMetadataPointer":
+            try SingletonMetadataPointerBaselineGenerator.generate(outputDirectory: outputDirectory)
+        // Metadata/Headers/
+        case "HeapMetadataHeader":
+            try HeapMetadataHeaderBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "HeapMetadataHeaderPrefix":
+            try HeapMetadataHeaderPrefixBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "TypeMetadataHeader":
+            try TypeMetadataHeaderBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "TypeMetadataHeaderBase":
+            try TypeMetadataHeaderBaseBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "TypeMetadataLayoutPrefix":
+            try TypeMetadataLayoutPrefixBaselineGenerator.generate(outputDirectory: outputDirectory)
+        // Metadata/MetadataInitialization/
+        case "ForeignMetadataInitialization":
+            try ForeignMetadataInitializationBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "SingletonMetadataInitialization":
+            try SingletonMetadataInitializationBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         default:
             throw BaselineGeneratorError.unknownSuite(name)
         }

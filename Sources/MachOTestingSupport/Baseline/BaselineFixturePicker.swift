@@ -556,6 +556,21 @@ package enum BaselineFixturePicker {
         throw RequiredError.requiredNonOptional
     }
 
+    /// Picks the first `ClassDescriptor` from the `SymbolTestsCore` fixture
+    /// that carries the `hasSingletonMetadataInitialization` bit. Used as
+    /// the live carrier for `SingletonMetadataInitialization`. The bit
+    /// fires for resilient-superclass scenarios and certain generic-class
+    /// shapes (e.g. `Classes.ExternalSwiftSubclassTest`).
+    package static func class_singletonMetadataInitFirst(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                descriptor.hasSingletonMetadataInitialization
+            })
+        )
+    }
+
     /// Picks the `AssociatedTypeDescriptor` whose conforming type is
     /// `AssociatedTypeWitnessPatterns.ConcreteWitnessTest` and whose protocol
     /// is `AssociatedTypeWitnessPatterns.AssociatedPatternProtocol`. The
