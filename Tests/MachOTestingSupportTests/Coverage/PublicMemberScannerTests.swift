@@ -69,7 +69,10 @@ struct PublicMemberScannerTests {
         let scanner = PublicMemberScanner(sourceRoot: root)
         let result = try scanner.scan()
 
-        #expect(!result.contains(MethodKey(typeName: "SampleLayout", memberName: "offset")))
+        // Scanner skips members of types named exactly `Layout` (the nested
+        // record struct convention), but does NOT skip top-level types whose
+        // name merely ends with `Layout` (e.g., real public API like TypeLayout).
+        #expect(!result.contains(MethodKey(typeName: "Layout", memberName: "offset")))
     }
 
     @Test func appliesAllowlist() throws {

@@ -24,6 +24,8 @@ extension SampleDescriptor {
     public func spiHidden() -> Int { 0 }
 }
 
-public struct SampleLayout {
-    public static func offset(of field: PartialKeyPath<SampleLayout>) -> Int { 0 }
+public struct SampleDescriptorWithNestedLayout {
+    public struct Layout {
+        public static func offset(of field: PartialKeyPath<Layout>) -> Int { 0 }
+    }
 }
