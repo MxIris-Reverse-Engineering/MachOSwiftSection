@@ -138,6 +138,25 @@ package enum BaselineGenerator {
         try dispatchSuite("ProtocolConformance", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("ProtocolConformanceDescriptor", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("ProtocolConformanceFlags", in: machOFile, outputDirectory: outputDirectory)
+        // Generic/ — sub-generators live in Generators/Generic/, mirroring
+        // the Type/Class/, Type/Enum/, Type/, Protocol/, and
+        // ProtocolConformance/ layout conventions from Tasks 7-11.
+        try dispatchSuite("GenericContext", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("GenericContextDescriptorFlags", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("GenericContextDescriptorHeader", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("GenericEnvironment", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("GenericEnvironmentFlags", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("GenericPackShapeDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("GenericPackShapeHeader", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("GenericParamDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("GenericRequirement", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("GenericRequirementContent", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("GenericRequirementDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("GenericRequirementFlags", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("GenericValueDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("GenericValueHeader", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("GenericWitnessTable", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("TypeGenericContextDescriptorHeader", in: machOFile, outputDirectory: outputDirectory)
     }
 
     /// Regenerates a single Suite's baseline file. Used by the polished
@@ -328,6 +347,39 @@ package enum BaselineGenerator {
             try ProtocolConformanceDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         case "ProtocolConformanceFlags":
             try ProtocolConformanceFlagsBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        // Generic/
+        case "GenericContext":
+            try GenericContextBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "GenericContextDescriptorFlags":
+            try GenericContextDescriptorFlagsBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "GenericContextDescriptorHeader":
+            try GenericContextDescriptorHeaderBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "GenericEnvironment":
+            try GenericEnvironmentBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "GenericEnvironmentFlags":
+            try GenericEnvironmentFlagsBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "GenericPackShapeDescriptor":
+            try GenericPackShapeDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "GenericPackShapeHeader":
+            try GenericPackShapeHeaderBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "GenericParamDescriptor":
+            try GenericParamDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "GenericRequirement":
+            try GenericRequirementBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "GenericRequirementContent":
+            try GenericRequirementContentBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "GenericRequirementDescriptor":
+            try GenericRequirementDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "GenericRequirementFlags":
+            try GenericRequirementFlagsBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "GenericValueDescriptor":
+            try GenericValueDescriptorBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "GenericValueHeader":
+            try GenericValueHeaderBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "GenericWitnessTable":
+            try GenericWitnessTableBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "TypeGenericContextDescriptorHeader":
+            try TypeGenericContextDescriptorHeaderBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         default:
             throw BaselineGeneratorError.unknownSuite(name)
         }

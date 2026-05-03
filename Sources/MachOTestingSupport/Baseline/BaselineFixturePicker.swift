@@ -36,6 +36,119 @@ package enum BaselineFixturePicker {
         )
     }
 
+    /// Picks the generic struct
+    /// `GenericFieldLayout.GenericStructLayoutRequirement<A: AnyObject>` from
+    /// the `SymbolTestsCore` fixture. Exercises a layout-class generic
+    /// requirement (`A: AnyObject`) — surfaces a single
+    /// `GenericRequirementDescriptor` whose flags carry
+    /// `GenericRequirementKind.layout` with payload `class`.
+    package static func struct_GenericStructLayoutRequirement(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO) == "GenericStructLayoutRequirement"
+            })
+        )
+    }
+
+    /// Picks the generic struct
+    /// `GenericFieldLayout.GenericStructSwiftProtocolRequirement<A: Equatable>`
+    /// from the `SymbolTestsCore` fixture. Exercises a Swift-protocol
+    /// generic requirement (`A: Equatable`) — surfaces
+    /// `GenericRequirementDescriptor` with kind `.protocol`, content carrying a
+    /// Swift `RelativeProtocolDescriptorPointer`.
+    package static func struct_GenericStructSwiftProtocolRequirement(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO) == "GenericStructSwiftProtocolRequirement"
+            })
+        )
+    }
+
+    /// Picks the generic struct
+    /// `GenericFieldLayout.GenericStructObjCProtocolRequirement<A: NSCopying>`
+    /// from the `SymbolTestsCore` fixture. Exercises an ObjC-protocol
+    /// generic requirement (`A: NSCopying`) — surfaces a
+    /// `GenericRequirementDescriptor` with kind `.protocol`, content carrying
+    /// an ObjC `RelativeProtocolDescriptorPointer`.
+    package static func struct_GenericStructObjCProtocolRequirement(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO) == "GenericStructObjCProtocolRequirement"
+            })
+        )
+    }
+
+    /// Picks the generic struct
+    /// `GenericRequirementVariants.SameTypeRequirementTest<First, Second>`
+    /// (`where First == Second`) from the `SymbolTestsCore` fixture.
+    /// Exercises a `sameType` generic requirement — surfaces a
+    /// `GenericRequirementDescriptor` with kind `.sameType`, content carrying
+    /// a `RelativeDirectPointer<MangledName>`.
+    package static func struct_SameTypeRequirementTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO) == "SameTypeRequirementTest"
+            })
+        )
+    }
+
+    /// Picks the generic struct
+    /// `GenericRequirementVariants.ParameterPackRequirementTest<each Element>`
+    /// from the `SymbolTestsCore` fixture. Exercises a parameter-pack
+    /// generic context — the type's generic context surfaces a non-nil
+    /// `typePackHeader` and at least one `GenericPackShapeDescriptor`.
+    package static func struct_ParameterPackRequirementTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO) == "ParameterPackRequirementTest"
+            })
+        )
+    }
+
+    /// Picks the generic struct
+    /// `GenericRequirementVariants.InvertibleProtocolRequirementTest<Element: ~Copyable>: ~Copyable`
+    /// from the `SymbolTestsCore` fixture. Exercises a generic context
+    /// carrying conditional invertible-protocol requirements (the `~Copyable`
+    /// bit is encoded inline on the type's generic signature) — surfaces a
+    /// non-nil `conditionalInvertibleProtocolSet` /
+    /// `conditionalInvertibleProtocolsRequirementsCount` on the
+    /// `TargetGenericContext`.
+    package static func struct_InvertibleProtocolRequirementTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO) == "InvertibleProtocolRequirementTest"
+            })
+        )
+    }
+
+    /// Picks the generic struct
+    /// `GenericRequirementVariants.BaseClassRequirementTest<Element: GenericBaseClassForRequirementTest>`
+    /// from the `SymbolTestsCore` fixture. Exercises a `baseClass` generic
+    /// requirement — surfaces a `GenericRequirementDescriptor` with kind
+    /// `.baseClass`, content carrying a `RelativeDirectPointer<MangledName>`
+    /// to the base-class mangled name.
+    package static func struct_BaseClassRequirementTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO) == "BaseClassRequirementTest"
+            })
+        )
+    }
+
     /// Picks an `AnonymousContextDescriptor` from the `SymbolTestsCore`
     /// fixture. Anonymous contexts arise from generic parameter scopes,
     /// closures, and other unnamed contexts; they don't appear directly in
