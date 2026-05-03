@@ -111,6 +111,25 @@ package enum BaselineGenerator {
         try dispatchSuite("ValueMetadata", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("ValueMetadataProtocol", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("ValueTypeDescriptorWrapper", in: machOFile, outputDirectory: outputDirectory)
+        // Protocol/ — sub-generators live in Generators/Protocol/, with
+        // Invertible/ and ObjC/ subdirectories mirroring the source layout.
+        try dispatchSuite("InvertibleProtocolSet", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("InvertibleProtocolsRequirementCount", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ObjCProtocolPrefix", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("Protocol", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ProtocolBaseRequirement", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ProtocolContextDescriptorFlags", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ProtocolDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ProtocolDescriptorFlags", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ProtocolDescriptorRef", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ProtocolRecord", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ProtocolRequirement", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ProtocolRequirementFlags", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ProtocolRequirementKind", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ProtocolWitnessTable", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("RelativeObjCProtocolPrefix", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ResilientWitness", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ResilientWitnessesHeader", in: machOFile, outputDirectory: outputDirectory)
     }
 
     /// Regenerates a single Suite's baseline file. Used by the polished
@@ -257,6 +276,41 @@ package enum BaselineGenerator {
             try ValueMetadataProtocolBaselineGenerator.generate(outputDirectory: outputDirectory)
         case "ValueTypeDescriptorWrapper":
             try ValueTypeDescriptorWrapperBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        // Protocol/
+        case "InvertibleProtocolSet":
+            try InvertibleProtocolSetBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "InvertibleProtocolsRequirementCount":
+            try InvertibleProtocolsRequirementCountBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "ObjCProtocolPrefix":
+            try ObjCProtocolPrefixBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "Protocol":
+            try ProtocolBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ProtocolBaseRequirement":
+            try ProtocolBaseRequirementBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ProtocolContextDescriptorFlags":
+            try ProtocolContextDescriptorFlagsBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ProtocolDescriptor":
+            try ProtocolDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ProtocolDescriptorFlags":
+            try ProtocolDescriptorFlagsBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "ProtocolDescriptorRef":
+            try ProtocolDescriptorRefBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ProtocolRecord":
+            try ProtocolRecordBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ProtocolRequirement":
+            try ProtocolRequirementBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ProtocolRequirementFlags":
+            try ProtocolRequirementFlagsBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ProtocolRequirementKind":
+            try ProtocolRequirementKindBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "ProtocolWitnessTable":
+            try ProtocolWitnessTableBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "RelativeObjCProtocolPrefix":
+            try RelativeObjCProtocolPrefixBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "ResilientWitness":
+            try ResilientWitnessBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ResilientWitnessesHeader":
+            try ResilientWitnessesHeaderBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         default:
             throw BaselineGeneratorError.unknownSuite(name)
         }

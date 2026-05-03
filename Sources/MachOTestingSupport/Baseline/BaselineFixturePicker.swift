@@ -1,6 +1,7 @@
 import Foundation
 import MachOExtensions
 import MachOFoundation
+import MachOKit
 @testable import MachOSwiftSection
 
 /// Centralizes the "pick (main + variants) fixture entities for each descriptor type"
@@ -210,4 +211,140 @@ package enum BaselineFixturePicker {
             })
         )
     }
+
+    /// Picks the associated-type protocol `Protocols.ProtocolTest` from the
+    /// `SymbolTestsCore` fixture. Used as the primary protocol fixture: it
+    /// declares an associated type (`Body`) and the `body` requirement, and
+    /// has a default implementation extension that surfaces a non-empty
+    /// `associatedTypes(in:)` payload.
+    package static func protocol_ProtocolTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ProtocolDescriptor {
+        try required(
+            try machO.swift.protocolDescriptors.first(where: { descriptor in
+                try descriptor.name(in: machO) == "ProtocolTest"
+            })
+        )
+    }
+
+    /// Picks `Protocols.ProtocolWitnessTableTest` from the `SymbolTestsCore`
+    /// fixture. Used to exercise non-trivial witness-table layout: the
+    /// protocol declares five method requirements (`a`/`b`/`c`/`d`/`e`),
+    /// so `numRequirements` is non-zero and the trailing
+    /// `ProtocolRequirement` array is fully populated.
+    package static func protocol_ProtocolWitnessTableTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ProtocolDescriptor {
+        try required(
+            try machO.swift.protocolDescriptors.first(where: { descriptor in
+                try descriptor.name(in: machO) == "ProtocolWitnessTableTest"
+            })
+        )
+    }
+
+    /// Picks `Protocols.BaseProtocolTest` from the `SymbolTestsCore`
+    /// fixture. Used as the base side of the inheritance fixture pair
+    /// (`BaseProtocolTest` / `DerivedProtocolTest`). Has a single
+    /// `baseMethod()` requirement.
+    package static func protocol_BaseProtocolTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ProtocolDescriptor {
+        try required(
+            try machO.swift.protocolDescriptors.first(where: { descriptor in
+                try descriptor.name(in: machO) == "BaseProtocolTest"
+            })
+        )
+    }
+
+    /// Picks the first `ProtocolRecord` from the `SymbolTestsCore` fixture's
+    /// `__swift5_protos` section. Each record is a one-pointer entry that
+    /// resolves to a `ProtocolDescriptor`; we pick the first record so a
+    /// stable, deterministic offset is always available.
+    ///
+    /// The section walk requires the concrete `MachOFile` API
+    /// (`section(for:)`), so the helper is `MachOFile`-only. The companion
+    /// `MachOImage` lookup is performed by re-reading the same section
+    /// offset from the in-memory image.
+    package static func protocolRecord_first(in machO: MachOFile) throws -> ProtocolRecord {
+        let section = try machO.section(for: .__swift5_protos)
+        let sectionOffset: Int
+        if let cache = machO.cache {
+            sectionOffset = section.address - cache.mainCacheHeader.sharedRegionStart.cast()
+        } else {
+            sectionOffset = section.offset
+        }
+        let recordSize = ProtocolRecord.layoutSize
+        let count = section.size / recordSize
+        guard count > 0 else { throw RequiredError.requiredNonOptional }
+        let records: [ProtocolRecord] = try machO.readWrapperElements(
+            offset: sectionOffset,
+            numberOfElements: count
+        )
+        return try required(records.first)
+    }
+
+    /// Image-side companion to `protocolRecord_first(in:)`. Resolves the
+    /// `__swift5_protos` section from the in-memory MachOImage layout so
+    /// the Suite can compare records read via two different code paths.
+    package static func protocolRecord_first(in machO: MachOImage) throws -> ProtocolRecord {
+        let section = try machO.section(for: .__swift5_protos)
+        let sectionOffset: Int
+        if let cache = machO.cache {
+            sectionOffset = section.address - cache.mainCacheHeader.sharedRegionStart.cast()
+        } else {
+            sectionOffset = section.offset
+        }
+        let recordSize = ProtocolRecord.layoutSize
+        let count = section.size / recordSize
+        guard count > 0 else { throw RequiredError.requiredNonOptional }
+        let records: [ProtocolRecord] = try machO.readWrapperElements(
+            offset: sectionOffset,
+            numberOfElements: count
+        )
+        return try required(records.first)
+    }
+
+    /// Picks the first `ProtocolConformance` from the `SymbolTestsCore`
+    /// fixture that declares resilient witnesses. Used to surface a
+    /// non-empty `ResilientWitnessesHeader` and at least one
+    /// `ResilientWitness`. Falls back to a `RequiredError` if no
+    /// resilient-witness conformance exists.
+    package static func protocolConformance_resilientWitnessFirst(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ProtocolConformance {
+        try required(
+            try machO.swift.protocolConformances.first(where: { conformance in
+                conformance.descriptor.flags.hasResilientWitnesses
+                    && !conformance.resilientWitnesses.isEmpty
+            })
+        )
+    }
+
+    /// Picks the first ObjC protocol prefix referenced anywhere in the
+    /// `SymbolTestsCore` fixture. The fixture's `ObjCInheritingProtocolTest`
+    /// inherits from `NSObjectProtocol`, so at least one ObjC reference is
+    /// materialized via the protocol's requirementInSignatures.
+    ///
+    /// We materialize a `Protocol` for `ObjCInheritingProtocolTest`, then
+    /// walk its requirementInSignatures looking for a `.protocol(ObjC(...))`
+    /// case, returning the resolved `ObjCProtocolPrefix`.
+    package static func objcProtocolPrefix_first(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ObjCProtocolPrefix {
+        let inheritingProtoDescriptor = try required(
+            try machO.swift.protocolDescriptors.first(where: { descriptor in
+                try descriptor.name(in: machO) == "ObjCInheritingProtocolTest"
+            })
+        )
+        let protocolType = try `Protocol`(descriptor: inheritingProtoDescriptor, in: machO)
+        for requirementInSignature in protocolType.requirementInSignatures {
+            if case .protocol(let symbolOrElement) = requirementInSignature.content,
+               case .element(let descriptorWithObjCInterop) = symbolOrElement,
+               case .objc(let objcPrefix) = descriptorWithObjCInterop {
+                return objcPrefix
+            }
+        }
+        throw RequiredError.requiredNonOptional
+    }
+
 }
