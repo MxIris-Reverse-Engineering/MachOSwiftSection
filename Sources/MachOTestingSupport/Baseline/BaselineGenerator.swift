@@ -2,6 +2,8 @@ import Foundation
 import MachOExtensions
 import MachOFoundation
 import MachOKit
+import SwiftSyntax
+import SwiftSyntaxBuilder
 @testable import MachOSwiftSection
 
 /// Top-level dispatcher for the per-suite baseline sub-generators.
@@ -253,6 +255,11 @@ package enum BaselineGenerator {
         //   - Misc/SpecialPointerAuthDiscriminators.swift uses package-
         //     scoped declarations only, so PublicMemberScanner emits no
         //     entries for it.
+
+        // Index of every Suite type registered above. Consumed by
+        // MachOSwiftSectionCoverageInvariantTests (Task 16) to enumerate
+        // `[any FixtureSuite.Type]` for the static-vs-runtime guard.
+        try writeAllFixtureSuitesIndex(outputDirectory: outputDirectory)
     }
 
     /// Regenerates a single Suite's baseline file. Used by the polished
@@ -620,6 +627,207 @@ package enum BaselineGenerator {
         @unknown default:
             fatalError()
         }
+    }
+
+    /// Hand-maintained index of every Suite type registered in `dispatchSuite`.
+    /// Emits `__Baseline__/AllFixtureSuites.swift`, which the Coverage Invariant
+    /// Test (Task 16) reads as `[any FixtureSuite.Type]`.
+    ///
+    /// When adding a new Suite, append its type name (the class name, NOT the
+    /// `testedTypeName` String) to `suiteTypeNames`. The list is sorted at emit
+    /// time, so order here doesn't matter — keep it stable for code review.
+    ///
+    /// Note: `OpaqueTypeFixtureTests` covers `OpaqueType` (the file is named
+    /// `OpaqueTypeFixtureTests.swift` to avoid collision with the
+    /// `OpaqueTypeTests` SnapshotInterfaceTests Suite that lives in the same
+    /// target). The Coverage Invariant test keys by `testedTypeName`, so the
+    /// class-name suffix is irrelevant for coverage purposes.
+    private static func writeAllFixtureSuitesIndex(outputDirectory: URL) throws {
+        let suiteTypeNames = [
+            "AnonymousContextDescriptorFlagsTests",
+            "AnonymousContextDescriptorProtocolTests",
+            "AnonymousContextDescriptorTests",
+            "AnonymousContextTests",
+            "AnyClassMetadataObjCInteropProtocolTests",
+            "AnyClassMetadataObjCInteropTests",
+            "AnyClassMetadataProtocolTests",
+            "AnyClassMetadataTests",
+            "AssociatedTypeDescriptorTests",
+            "AssociatedTypeRecordTests",
+            "AssociatedTypeTests",
+            "BuiltinTypeDescriptorTests",
+            "BuiltinTypeTests",
+            "CanonicalSpecializedMetadataAccessorsListEntryTests",
+            "CanonicalSpecializedMetadatasCachingOnceTokenTests",
+            "CanonicalSpecializedMetadatasListCountTests",
+            "CanonicalSpecializedMetadatasListEntryTests",
+            "ClassDescriptorTests",
+            "ClassFlagsTests",
+            "ClassMetadataBoundsProtocolTests",
+            "ClassMetadataBoundsTests",
+            "ClassMetadataObjCInteropTests",
+            "ClassMetadataTests",
+            "ClassTests",
+            "ContextDescriptorFlagsTests",
+            "ContextDescriptorKindSpecificFlagsTests",
+            "ContextDescriptorKindTests",
+            "ContextDescriptorProtocolTests",
+            "ContextDescriptorTests",
+            "ContextDescriptorWrapperTests",
+            "ContextProtocolTests",
+            "ContextWrapperTests",
+            "DispatchClassMetadataTests",
+            "EnumDescriptorTests",
+            "EnumFunctionsTests",
+            "EnumMetadataProtocolTests",
+            "EnumMetadataTests",
+            "EnumTests",
+            "ExistentialMetatypeMetadataTests",
+            "ExistentialTypeFlagsTests",
+            "ExistentialTypeMetadataTests",
+            "ExtendedExistentialTypeMetadataTests",
+            "ExtendedExistentialTypeShapeFlagsTests",
+            "ExtendedExistentialTypeShapeTests",
+            "ExtensionContextDescriptorProtocolTests",
+            "ExtensionContextDescriptorTests",
+            "ExtensionContextTests",
+            "ExtraClassDescriptorFlagsTests",
+            "FieldDescriptorTests",
+            "FieldRecordFlagsTests",
+            "FieldRecordTests",
+            "FinalClassMetadataProtocolTests",
+            "FixedArrayTypeMetadataTests",
+            "ForeignClassMetadataTests",
+            "ForeignMetadataInitializationTests",
+            "ForeignReferenceTypeMetadataTests",
+            "FullMetadataTests",
+            "FunctionTypeFlagsTests",
+            "FunctionTypeMetadataTests",
+            "GenericBoxHeapMetadataTests",
+            "GenericContextDescriptorFlagsTests",
+            "GenericContextDescriptorHeaderTests",
+            "GenericContextTests",
+            "GenericEnvironmentFlagsTests",
+            "GenericEnvironmentTests",
+            "GenericPackShapeDescriptorTests",
+            "GenericPackShapeHeaderTests",
+            "GenericParamDescriptorTests",
+            "GenericRequirementContentTests",
+            "GenericRequirementDescriptorTests",
+            "GenericRequirementFlagsTests",
+            "GenericRequirementTests",
+            "GenericValueDescriptorTests",
+            "GenericValueHeaderTests",
+            "GenericWitnessTableTests",
+            "GlobalActorReferenceTests",
+            "HeapLocalVariableMetadataTests",
+            "HeapMetadataHeaderPrefixTests",
+            "HeapMetadataHeaderTests",
+            "InvertibleProtocolSetTests",
+            "InvertibleProtocolsRequirementCountTests",
+            "MangledNameTests",
+            "MetadataAccessorFunctionTests",
+            "MetadataBoundsProtocolTests",
+            "MetadataBoundsTests",
+            "MetadataProtocolTests",
+            "MetadataRequestTests",
+            "MetadataResponseTests",
+            "MetadataTests",
+            "MetadataWrapperTests",
+            "MetatypeMetadataTests",
+            "MethodDefaultOverrideDescriptorTests",
+            "MethodDefaultOverrideTableHeaderTests",
+            "MethodDescriptorFlagsTests",
+            "MethodDescriptorKindTests",
+            "MethodDescriptorTests",
+            "MethodOverrideDescriptorTests",
+            "ModuleContextDescriptorTests",
+            "ModuleContextTests",
+            "MultiPayloadEnumDescriptorTests",
+            "NamedContextDescriptorProtocolTests",
+            "NonUniqueExtendedExistentialTypeShapeTests",
+            "ObjCClassWrapperMetadataTests",
+            "ObjCProtocolPrefixTests",
+            "ObjCResilientClassStubInfoTests",
+            "OpaqueMetadataTests",
+            "OpaqueTypeDescriptorProtocolTests",
+            "OpaqueTypeDescriptorTests",
+            "OpaqueTypeFixtureTests",
+            "OverrideTableHeaderTests",
+            "ProtocolBaseRequirementTests",
+            "ProtocolConformanceDescriptorTests",
+            "ProtocolConformanceFlagsTests",
+            "ProtocolConformanceTests",
+            "ProtocolContextDescriptorFlagsTests",
+            "ProtocolDescriptorFlagsTests",
+            "ProtocolDescriptorRefTests",
+            "ProtocolDescriptorTests",
+            "ProtocolRecordTests",
+            "ProtocolRequirementFlagsTests",
+            "ProtocolRequirementKindTests",
+            "ProtocolRequirementTests",
+            "ProtocolTests",
+            "ProtocolWitnessTableTests",
+            "RelativeObjCProtocolPrefixTests",
+            "ResilientSuperclassTests",
+            "ResilientWitnessTests",
+            "ResilientWitnessesHeaderTests",
+            "SingletonMetadataInitializationTests",
+            "SingletonMetadataPointerTests",
+            "StoredClassMetadataBoundsTests",
+            "StructDescriptorTests",
+            "StructMetadataProtocolTests",
+            "StructMetadataTests",
+            "StructTests",
+            "TupleTypeMetadataElementTests",
+            "TupleTypeMetadataTests",
+            "TypeContextDescriptorFlagsTests",
+            "TypeContextDescriptorProtocolTests",
+            "TypeContextDescriptorTests",
+            "TypeContextDescriptorWrapperTests",
+            "TypeContextWrapperTests",
+            "TypeGenericContextDescriptorHeaderTests",
+            "TypeLayoutTests",
+            "TypeMetadataHeaderBaseTests",
+            "TypeMetadataHeaderTests",
+            "TypeMetadataLayoutPrefixTests",
+            "TypeMetadataRecordTests",
+            "TypeReferenceTests",
+            "VTableDescriptorHeaderTests",
+            "ValueMetadataProtocolTests",
+            "ValueMetadataTests",
+            "ValueTypeDescriptorWrapperTests",
+            "ValueWitnessFlagsTests",
+            "ValueWitnessTableTests",
+        ].sorted()
+
+        // Use `\(raw:)` because `\(literal:)` would treat each `Foo.self` as a
+        // String literal (i.e. emit `"Foo.self"`).
+        let suiteListItems = suiteTypeNames
+            .map { "\($0).self" }
+            .joined(separator: ",\n    ") + ","
+
+        let header = """
+        // AUTO-GENERATED — DO NOT EDIT.
+        // Regenerate via: Scripts/regen-baselines.sh
+        @testable import MachOTestingSupport
+
+        // `FixtureSuite` is `@MainActor`-isolated, so its metatype likewise inherits
+        // main-actor isolation. Annotating the constant binds access to MainActor and
+        // avoids the Sendable diagnostic on this global.
+        @MainActor
+        """
+
+        let file: SourceFileSyntax = """
+        \(raw: header)
+        let allFixtureSuites: [any FixtureSuite.Type] = [
+            \(raw: suiteListItems)
+        ]
+        """
+
+        let formatted = file.formatted().description + "\n"
+        let outputURL = outputDirectory.appendingPathComponent("AllFixtureSuites.swift")
+        try formatted.write(to: outputURL, atomically: true, encoding: .utf8)
     }
 }
 

@@ -8,10 +8,19 @@ import SwiftParser
 /// Skipped:
 /// - `internal`, `private`, `fileprivate` declarations
 /// - `@_spi(...)` declarations (treated as non-public)
-/// - members on types whose name ends with `Layout` (covered by LayoutTests)
+/// - members on types named exactly `Layout` (the nested record struct used
+///   by `*Descriptor`/`*Metadata` wrappers — exercised via parent's tests
+///   and `LayoutTests` rather than standalone Suites). Top-level types
+///   whose name happens to end with `Layout` (e.g., `TypeLayout`) are NOT
+///   filtered.
 /// - `init(layout:offset:)` synthesized by `@MemberwiseInit`
 /// - extensions on enums whose name ends with `Kind`/`Flags` and similar pure-data utilities
 ///   (handled via allowlist if they slip through)
+///
+/// Identifier normalization: backtick-quoted identifiers (e.g.,
+/// `` `Protocol` ``, `` `protocol` ``) appear without the backticks in
+/// emitted MethodKeys so they align with `Suite.testedTypeName` /
+/// `registeredTestMethodNames` (which are plain Strings).
 package struct PublicMemberScanner {
     package let sourceRoot: URL
 
@@ -54,7 +63,7 @@ private final class PublicMemberVisitor: SyntaxVisitor {
     private var spiStack: [Bool] = []
 
     override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
-        typeStack.append(node.name.text)
+        typeStack.append(stripBackticks(node.name.text))
         spiStack.append(hasSPI(attributes: node.attributes))
         return .visitChildren
     }
@@ -64,7 +73,7 @@ private final class PublicMemberVisitor: SyntaxVisitor {
     }
 
     override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
-        typeStack.append(node.name.text)
+        typeStack.append(stripBackticks(node.name.text))
         spiStack.append(hasSPI(attributes: node.attributes))
         return .visitChildren
     }
@@ -74,7 +83,7 @@ private final class PublicMemberVisitor: SyntaxVisitor {
     }
 
     override func visit(_ node: EnumDeclSyntax) -> SyntaxVisitorContinueKind {
-        typeStack.append(node.name.text)
+        typeStack.append(stripBackticks(node.name.text))
         spiStack.append(hasSPI(attributes: node.attributes))
         return .visitChildren
     }
@@ -84,7 +93,7 @@ private final class PublicMemberVisitor: SyntaxVisitor {
     }
 
     override func visit(_ node: ProtocolDeclSyntax) -> SyntaxVisitorContinueKind {
-        typeStack.append(node.name.text)
+        typeStack.append(stripBackticks(node.name.text))
         spiStack.append(hasSPI(attributes: node.attributes))
         return .visitChildren
     }
@@ -94,8 +103,11 @@ private final class PublicMemberVisitor: SyntaxVisitor {
     }
 
     override func visit(_ node: ExtensionDeclSyntax) -> SyntaxVisitorContinueKind {
-        // Push the extended type as the current scope.
-        typeStack.append(node.extendedType.trimmedDescription)
+        // Push the extended type as the current scope. Strip surrounding
+        // backticks so identifiers like `extension `Protocol`` resolve to
+        // the same MethodKey typeName ("Protocol") that Suites declare via
+        // their `testedTypeName: String` constants.
+        typeStack.append(stripBackticks(node.extendedType.trimmedDescription))
         spiStack.append(hasSPI(attributes: node.attributes))
         return .visitChildren
     }
@@ -108,7 +120,7 @@ private final class PublicMemberVisitor: SyntaxVisitor {
         guard isPublicLike(node.modifiers, attributes: node.attributes) else { return .skipChildren }
         guard let typeName = currentTypeName() else { return .skipChildren }
         if shouldSkip(typeName: typeName) { return .skipChildren }
-        collected.append(MethodKey(typeName: typeName, memberName: node.name.text))
+        collected.append(MethodKey(typeName: typeName, memberName: stripBackticks(node.name.text)))
         return .skipChildren
     }
 
@@ -118,7 +130,7 @@ private final class PublicMemberVisitor: SyntaxVisitor {
         if shouldSkip(typeName: typeName) { return .skipChildren }
         for binding in node.bindings {
             if let pattern = binding.pattern.as(IdentifierPatternSyntax.self) {
-                collected.append(MethodKey(typeName: typeName, memberName: pattern.identifier.text))
+                collected.append(MethodKey(typeName: typeName, memberName: stripBackticks(pattern.identifier.text)))
             }
         }
         return .skipChildren
@@ -150,7 +162,17 @@ private final class PublicMemberVisitor: SyntaxVisitor {
     }
 
     private func shouldSkip(typeName: String) -> Bool {
-        if typeName.hasSuffix("Layout") { return true }
+        // Skip the nested `Layout` struct used by `*Descriptor`/`*Metadata`
+        // wrappers (e.g., `StructDescriptor.Layout`). Those record types
+        // intentionally project raw on-disk fields and are exercised via
+        // their parent's tests, not as standalone Suites.
+        //
+        // We deliberately match only the nested name (after typeStack
+        // resolution returns the immediate enclosing identifier "Layout"),
+        // NOT every type whose name happens to end with "Layout". A
+        // top-level type like `TypeLayout` is a real public API surface
+        // with its own Suite, so it must NOT be filtered here.
+        if typeName == "Layout" { return true }
         return false
     }
 
@@ -182,5 +204,17 @@ private final class PublicMemberVisitor: SyntaxVisitor {
         // the macro expands to init(layout: ..., offset: ...).
         let names = node.signature.parameterClause.parameters.map { $0.firstName.text }
         return names == ["layout", "offset"] || names == ["offset", "layout"]
+    }
+
+    /// Identifiers that collide with Swift keywords (e.g., `protocol`,
+    /// `Protocol`) appear in source as backtick-quoted (`` `protocol` ``). The
+    /// token text retains those backticks; strip them so MethodKey lookups
+    /// align with the unquoted form Suites use in `testedTypeName` /
+    /// `registeredTestMethodNames`.
+    private func stripBackticks(_ identifier: String) -> String {
+        var stripped = identifier
+        if stripped.hasPrefix("`") { stripped.removeFirst() }
+        if stripped.hasSuffix("`") { stripped.removeLast() }
+        return stripped
     }
 }
