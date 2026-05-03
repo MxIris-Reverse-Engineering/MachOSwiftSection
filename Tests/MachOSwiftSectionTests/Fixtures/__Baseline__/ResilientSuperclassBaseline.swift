@@ -15,7 +15,7 @@ enum ResilientSuperclassBaseline {
     }
 
     static let firstResilientSuperclass = Entry(
-        sourceClassOffset: 0x31d54,
-        offset: 0x31d80
+        sourceClassOffset: 0x32b58,
+        offset: 0x32b84
     )
 }

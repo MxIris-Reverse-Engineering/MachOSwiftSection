@@ -320,6 +320,102 @@ package enum BaselineFixturePicker {
         )
     }
 
+    /// Picks the `Structs.StructTest: Protocols.ProtocolTest` conformance
+    /// from the `SymbolTestsCore` fixture. Used as the primary
+    /// `ProtocolConformance` fixture: the conforming type is a concrete
+    /// struct, the protocol is the plain associated-type-bearing
+    /// `ProtocolTest`, and the conformance is non-retroactive with no
+    /// global-actor isolation, so the trailing-objects layout exercises
+    /// the simplest path.
+    ///
+    /// Identification scheme: walk the conformance list and match the
+    /// pair (conforming-type-descriptor name, protocol-descriptor name).
+    /// Both names are resolved via `NamedContextDescriptorProtocol.name(in:)`
+    /// and are unique within the fixture, so no parent-chain disambiguator
+    /// is needed.
+    package static func protocolConformance_StructTestProtocolTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ProtocolConformance {
+        try required(
+            try machO.swift.protocolConformances.first(where: { conformance in
+                guard try conformanceProtocolName(of: conformance, in: machO) == "ProtocolTest" else {
+                    return false
+                }
+                return try conformanceTypeName(of: conformance, in: machO) == "StructTest"
+            })
+        )
+    }
+
+    /// Picks the first conditional `ProtocolConformance` from the
+    /// `SymbolTestsCore` fixture — i.e. a conformance whose
+    /// `ProtocolConformanceFlags.numConditionalRequirements > 0`. Used to
+    /// exercise the trailing `conditionalRequirements` array on
+    /// `ProtocolConformance` and the `numConditionalRequirements` accessor
+    /// on `ProtocolConformanceFlags`. The fixture's
+    /// `ConditionalConformanceVariants.ConditionalContainerTest` extensions
+    /// (e.g. `: Equatable where Element: Equatable`) emit several
+    /// such conformances.
+    package static func protocolConformance_conditionalFirst(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ProtocolConformance {
+        try required(
+            try machO.swift.protocolConformances.first(where: { conformance in
+                conformance.descriptor.flags.numConditionalRequirements > 0
+                    && !conformance.conditionalRequirements.isEmpty
+            })
+        )
+    }
+
+    /// Picks the first `ProtocolConformance` from the `SymbolTestsCore`
+    /// fixture that has the `hasGlobalActorIsolation` bit set. The fixture
+    /// declares two such conformances under `Actors`:
+    ///   - `Actors.GlobalActorIsolatedConformanceTest: @MainActor Actors.GlobalActorIsolatedProtocolTest`
+    ///   - `Actors.GlobalActorIsolatedConformanceTest: @CustomGlobalActor Actors.CustomGlobalActorIsolatedProtocolTest`
+    /// Used to surface a non-nil `globalActorReference` so the
+    /// `GlobalActorReference` Suite has a live carrier.
+    package static func protocolConformance_globalActorFirst(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ProtocolConformance {
+        try required(
+            try machO.swift.protocolConformances.first(where: { conformance in
+                conformance.descriptor.flags.hasGlobalActorIsolation
+                    && conformance.globalActorReference != nil
+            })
+        )
+    }
+
+    /// Helper: extract the protocol-descriptor name from a conformance,
+    /// returning `nil` when the protocol pointer is unresolved (a
+    /// cross-image symbol bind) or absent.
+    private static func conformanceProtocolName(
+        of conformance: ProtocolConformance,
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> String? {
+        guard let protocolReference = conformance.protocol else { return nil }
+        guard case .element(let descriptor) = protocolReference else { return nil }
+        return try descriptor.name(in: machO)
+    }
+
+    /// Helper: extract the conforming-type-descriptor name from a
+    /// conformance, returning `nil` for indirect / ObjC type references
+    /// (which don't carry a Swift name we can match against).
+    private static func conformanceTypeName(
+        of conformance: ProtocolConformance,
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> String? {
+        switch conformance.typeReference {
+        case .directTypeDescriptor(let wrapper):
+            guard let wrapper else { return nil }
+            return try wrapper.namedContextDescriptor?.name(in: machO)
+        case .indirectTypeDescriptor:
+            return nil
+        case .directObjCClassName:
+            return nil
+        case .indirectObjCClass:
+            return nil
+        }
+    }
+
     /// Picks the first ObjC protocol prefix referenced anywhere in the
     /// `SymbolTestsCore` fixture. The fixture's `ObjCInheritingProtocolTest`
     /// inherits from `NSObjectProtocol`, so at least one ObjC reference is

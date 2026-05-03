@@ -12,7 +12,7 @@ enum ExtensionContextBaseline {
     }
 
     static let firstExtension = Entry(
-    descriptorOffset: 0x33ce4,
+    descriptorOffset: 0x3492c,
     hasGenericContext: true,
     hasExtendedContextMangledName: true
     )

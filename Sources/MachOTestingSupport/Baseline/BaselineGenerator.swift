@@ -130,6 +130,14 @@ package enum BaselineGenerator {
         try dispatchSuite("RelativeObjCProtocolPrefix", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("ResilientWitness", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("ResilientWitnessesHeader", in: machOFile, outputDirectory: outputDirectory)
+        // ProtocolConformance/ — sub-generators live in
+        // Generators/ProtocolConformance/, mirroring the Type/Class/,
+        // Type/Enum/, Type/, and Protocol/ layout conventions from
+        // Tasks 7-10.
+        try dispatchSuite("GlobalActorReference", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ProtocolConformance", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ProtocolConformanceDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ProtocolConformanceFlags", in: machOFile, outputDirectory: outputDirectory)
     }
 
     /// Regenerates a single Suite's baseline file. Used by the polished
@@ -311,6 +319,15 @@ package enum BaselineGenerator {
             try ResilientWitnessBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         case "ResilientWitnessesHeader":
             try ResilientWitnessesHeaderBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        // ProtocolConformance/
+        case "GlobalActorReference":
+            try GlobalActorReferenceBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ProtocolConformance":
+            try ProtocolConformanceBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ProtocolConformanceDescriptor":
+            try ProtocolConformanceDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "ProtocolConformanceFlags":
+            try ProtocolConformanceFlagsBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         default:
             throw BaselineGeneratorError.unknownSuite(name)
         }
