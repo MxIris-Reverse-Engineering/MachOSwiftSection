@@ -613,4 +613,29 @@ package enum BaselineFixturePicker {
         )
     }
 
+    /// Picks the first `BuiltinTypeDescriptor` from the `SymbolTestsCore`
+    /// fixture's `__swift5_builtin` section. The fixture's
+    /// `BuiltinTypeFields` namespace declares structs with `Int`/`Float`/
+    /// `Bool`/`Character`/`String` fields, which causes the Swift compiler
+    /// to emit one `BuiltinTypeDescriptor` per primitive backing type used
+    /// in fields. We pick the first descriptor for stability — the order
+    /// is deterministic across builds with the same toolchain.
+    package static func builtinTypeDescriptor_first(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> BuiltinTypeDescriptor {
+        try required(try machO.swift.builtinTypeDescriptors.first)
+    }
+
+    // Note: an `opaqueTypeDescriptor_first` picker was attempted but
+    // SymbolTestsCore's opaque-type descriptors don't surface via
+    // `swift.contextDescriptors` (the `__swift5_types2` records on the
+    // current toolchain index struct/enum extras, not opaque types) nor
+    // via any context's parent chain. The OpaqueType, OpaqueTypeDescriptor,
+    // and OpaqueTypeDescriptorProtocol Suites therefore exercise their
+    // public surface against synthetic memberwise instances. Adding a
+    // fixture variant that emits an opaque type via a discoverable
+    // channel (e.g. a top-level typealias whose underlying-type
+    // relationship can be walked back) would let those Suites use a
+    // live carrier.
+
 }

@@ -206,6 +206,53 @@ package enum BaselineGenerator {
         // Metadata/MetadataInitialization/
         try dispatchSuite("ForeignMetadataInitialization", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("SingletonMetadataInitialization", in: machOFile, outputDirectory: outputDirectory)
+        // BuiltinType/
+        try dispatchSuite("BuiltinType", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("BuiltinTypeDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        // DispatchClass/
+        try dispatchSuite("DispatchClassMetadata", in: machOFile, outputDirectory: outputDirectory)
+        // ExistentialType/
+        try dispatchSuite("ExistentialMetatypeMetadata", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ExistentialTypeFlags", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ExistentialTypeMetadata", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ExtendedExistentialTypeMetadata", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ExtendedExistentialTypeShape", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ExtendedExistentialTypeShapeFlags", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("NonUniqueExtendedExistentialTypeShape", in: machOFile, outputDirectory: outputDirectory)
+        // ForeignType/ — registration-only; SymbolTestsCore declares no
+        // CF/ObjC foreign-class bridges or foreign-reference-type imports.
+        try dispatchSuite("ForeignClassMetadata", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ForeignReferenceTypeMetadata", in: machOFile, outputDirectory: outputDirectory)
+        // Function/ — FunctionTypeMetadata is runtime-allocated only.
+        try dispatchSuite("FunctionTypeFlags", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("FunctionTypeMetadata", in: machOFile, outputDirectory: outputDirectory)
+        // Heap/ — both metadata types are runtime-allocated only.
+        try dispatchSuite("GenericBoxHeapMetadata", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("HeapLocalVariableMetadata", in: machOFile, outputDirectory: outputDirectory)
+        // Mangling/ — MangledNameKind is a pure enum (no public func/var/init),
+        // so only MangledName needs a Suite.
+        try dispatchSuite("MangledName", in: machOFile, outputDirectory: outputDirectory)
+        // OpaqueType/ — OpaqueMetadata is runtime-allocated only.
+        try dispatchSuite("OpaqueMetadata", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("OpaqueType", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("OpaqueTypeDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("OpaqueTypeDescriptorProtocol", in: machOFile, outputDirectory: outputDirectory)
+        // TupleType/ — TupleTypeMetadata is runtime-allocated only;
+        // TupleTypeMetadata.Element gets its own Suite (testedTypeName ==
+        // "Element") because PublicMemberScanner keys nested types by
+        // their inner struct name.
+        try dispatchSuite("TupleTypeMetadata", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("TupleTypeMetadataElement", in: machOFile, outputDirectory: outputDirectory)
+        // ValueWitnessTable/
+        try dispatchSuite("TypeLayout", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ValueWitnessFlags", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("ValueWitnessTable", in: machOFile, outputDirectory: outputDirectory)
+        // Capture/ and Misc/ are skipped:
+        //   - Capture/Capture.swift / CaptureDescriptor.swift declare no
+        //     public surface (both are essentially placeholder files).
+        //   - Misc/SpecialPointerAuthDiscriminators.swift uses package-
+        //     scoped declarations only, so PublicMemberScanner emits no
+        //     entries for it.
     }
 
     /// Regenerates a single Suite's baseline file. Used by the polished
@@ -493,6 +540,68 @@ package enum BaselineGenerator {
             try ForeignMetadataInitializationBaselineGenerator.generate(outputDirectory: outputDirectory)
         case "SingletonMetadataInitialization":
             try SingletonMetadataInitializationBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        // BuiltinType/
+        case "BuiltinType":
+            try BuiltinTypeBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "BuiltinTypeDescriptor":
+            try BuiltinTypeDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        // DispatchClass/
+        case "DispatchClassMetadata":
+            try DispatchClassMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        // ExistentialType/
+        case "ExistentialMetatypeMetadata":
+            try ExistentialMetatypeMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "ExistentialTypeFlags":
+            try ExistentialTypeFlagsBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "ExistentialTypeMetadata":
+            try ExistentialTypeMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "ExtendedExistentialTypeMetadata":
+            try ExtendedExistentialTypeMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "ExtendedExistentialTypeShape":
+            try ExtendedExistentialTypeShapeBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "ExtendedExistentialTypeShapeFlags":
+            try ExtendedExistentialTypeShapeFlagsBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "NonUniqueExtendedExistentialTypeShape":
+            try NonUniqueExtendedExistentialTypeShapeBaselineGenerator.generate(outputDirectory: outputDirectory)
+        // ForeignType/
+        case "ForeignClassMetadata":
+            try ForeignClassMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "ForeignReferenceTypeMetadata":
+            try ForeignReferenceTypeMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        // Function/
+        case "FunctionTypeFlags":
+            try FunctionTypeFlagsBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "FunctionTypeMetadata":
+            try FunctionTypeMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        // Heap/
+        case "GenericBoxHeapMetadata":
+            try GenericBoxHeapMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "HeapLocalVariableMetadata":
+            try HeapLocalVariableMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        // Mangling/
+        case "MangledName":
+            try MangledNameBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        // OpaqueType/
+        case "OpaqueMetadata":
+            try OpaqueMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "OpaqueType":
+            try OpaqueTypeBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "OpaqueTypeDescriptor":
+            try OpaqueTypeDescriptorBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "OpaqueTypeDescriptorProtocol":
+            try OpaqueTypeDescriptorProtocolBaselineGenerator.generate(outputDirectory: outputDirectory)
+        // TupleType/
+        case "TupleTypeMetadata":
+            try TupleTypeMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "TupleTypeMetadataElement":
+            try TupleTypeMetadataElementBaselineGenerator.generate(outputDirectory: outputDirectory)
+        // ValueWitnessTable/
+        case "TypeLayout":
+            try TypeLayoutBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "ValueWitnessFlags":
+            try ValueWitnessFlagsBaselineGenerator.generate(outputDirectory: outputDirectory)
+        case "ValueWitnessTable":
+            try ValueWitnessTableBaselineGenerator.generate(outputDirectory: outputDirectory)
         default:
             throw BaselineGeneratorError.unknownSuite(name)
         }
