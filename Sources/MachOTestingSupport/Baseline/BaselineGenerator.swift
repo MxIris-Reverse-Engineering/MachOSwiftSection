@@ -157,6 +157,18 @@ package enum BaselineGenerator {
         try dispatchSuite("GenericValueHeader", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("GenericWitnessTable", in: machOFile, outputDirectory: outputDirectory)
         try dispatchSuite("TypeGenericContextDescriptorHeader", in: machOFile, outputDirectory: outputDirectory)
+        // FieldDescriptor/ — sub-generators live in Generators/FieldDescriptor/.
+        // FieldDescriptorKind is a pure enum (only `case` declarations, no
+        // public func/var/init), so PublicMemberScanner emits no MethodKey
+        // entries for it — no Suite/baseline is needed.
+        try dispatchSuite("FieldDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        // FieldRecord/ — sub-generators live in Generators/FieldRecord/.
+        try dispatchSuite("FieldRecord", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("FieldRecordFlags", in: machOFile, outputDirectory: outputDirectory)
+        // AssociatedType/ — sub-generators live in Generators/AssociatedType/.
+        try dispatchSuite("AssociatedType", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("AssociatedTypeDescriptor", in: machOFile, outputDirectory: outputDirectory)
+        try dispatchSuite("AssociatedTypeRecord", in: machOFile, outputDirectory: outputDirectory)
     }
 
     /// Regenerates a single Suite's baseline file. Used by the polished
@@ -380,6 +392,21 @@ package enum BaselineGenerator {
             try GenericWitnessTableBaselineGenerator.generate(outputDirectory: outputDirectory)
         case "TypeGenericContextDescriptorHeader":
             try TypeGenericContextDescriptorHeaderBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        // FieldDescriptor/
+        case "FieldDescriptor":
+            try FieldDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        // FieldRecord/
+        case "FieldRecord":
+            try FieldRecordBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "FieldRecordFlags":
+            try FieldRecordFlagsBaselineGenerator.generate(outputDirectory: outputDirectory)
+        // AssociatedType/
+        case "AssociatedType":
+            try AssociatedTypeBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "AssociatedTypeDescriptor":
+            try AssociatedTypeDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
+        case "AssociatedTypeRecord":
+            try AssociatedTypeRecordBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         default:
             throw BaselineGeneratorError.unknownSuite(name)
         }

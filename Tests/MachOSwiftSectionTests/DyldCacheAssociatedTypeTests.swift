@@ -6,7 +6,7 @@ import Demangling
 @_spi(Internals) @testable import MachOSymbols
 @testable @_spi(Internals) import SwiftInspection
 
-final class AssociatedTypeTests: DyldCacheTests, @unchecked Sendable {
+final class DyldCacheAssociatedTypeTests: DyldCacheTests, @unchecked Sendable {
     @MainActor
     @Test
     func associatedTypes() throws {

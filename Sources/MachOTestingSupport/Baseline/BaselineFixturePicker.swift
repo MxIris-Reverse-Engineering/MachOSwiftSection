@@ -556,4 +556,46 @@ package enum BaselineFixturePicker {
         throw RequiredError.requiredNonOptional
     }
 
+    /// Picks the `AssociatedTypeDescriptor` whose conforming type is
+    /// `AssociatedTypeWitnessPatterns.ConcreteWitnessTest` and whose protocol
+    /// is `AssociatedTypeWitnessPatterns.AssociatedPatternProtocol`. The
+    /// fixture declares this conformance with five concrete witnesses
+    /// (`First = Int`, `Second = [String]`, `Third = Double`, `Fourth = Bool`,
+    /// `Fifth = Character`), so the descriptor surfaces five
+    /// `AssociatedTypeRecord`s — non-trivial test data for both
+    /// `AssociatedTypeDescriptor` (the raw payload) and `AssociatedType`
+    /// (the high-level wrapper).
+    ///
+    /// Identification scheme: `AssociatedTypeDescriptor` does not carry a
+    /// direct name. Instead its `conformingTypeName(in:)` resolves to a
+    /// `MangledName` whose lookup elements point back to the
+    /// `TypeContextDescriptor` for the conforming type. We resolve the
+    /// `StructDescriptor` for `ConcreteWitnessTest` first, then walk the
+    /// `__swift5_assocty` records and pick the one whose conformingTypeName
+    /// targets that descriptor's offset. (Mirrors
+    /// `multiPayloadEnumDescriptor_MultiPayloadEnumTest`'s strategy.)
+    package static func associatedTypeDescriptor_ConcreteWitnessTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> AssociatedTypeDescriptor {
+        let conformingDescriptor = try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO) == "ConcreteWitnessTest"
+            })
+        )
+        let targetOffset = conformingDescriptor.offset
+        return try required(
+            try machO.swift.associatedTypeDescriptors.first(where: { descriptor in
+                let mangledName = try descriptor.conformingTypeName(in: machO)
+                for lookup in mangledName.lookupElements {
+                    guard case .relative(let relative) = lookup.reference else { continue }
+                    let resolvedOffset = lookup.offset + Int(relative.relativeOffset)
+                    if resolvedOffset == targetOffset {
+                        return true
+                    }
+                }
+                return false
+            })
+        )
+    }
+
 }
