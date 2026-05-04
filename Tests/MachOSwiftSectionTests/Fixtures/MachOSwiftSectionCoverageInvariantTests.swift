@@ -5,26 +5,24 @@ import MachOFixtureSupport
 
 /// Static-vs-runtime invariant guard for fixture-based test coverage.
 ///
-/// Compares two `MethodKey` sets:
-///   - **Expected** (from source): SwiftSyntax scan of
-///     `Sources/MachOSwiftSection/Models/` produces the set of
-///     `(typeName, memberName)` pairs for `public`/`open` `func` / `var` /
-///     `init` / `subscript` declarations.
-///   - **Registered** (from Suites): reflection over `allFixtureSuites`
-///     produces `(testedTypeName, registeredTestMethodName)` pairs.
+/// Compares four sets:
+///   - **Expected** (source-code public members, scanned by SwiftSyntax).
+///   - **Registered** (Suite-declared `registeredTestMethodNames`, reflected).
+///   - **Behavior** (per-method behavior inferred from Suite source by
+///     SuiteBehaviorScanner: acrossAllReaders / inProcessOnly / sentinel).
+///   - **Allowlist** (`CoverageAllowlistEntries`, with typed `SentinelReason`).
 ///
 /// Failure modes:
-///   - `missing` (expected − registered): a declared public member has no
-///     corresponding registered test name. Either add a `@Test`/registration,
-///     or — if the omission is intentional — add a `CoverageAllowlistEntry`
-///     with a reason in `CoverageAllowlistEntries.swift`.
-///   - `extra` (registered − expected): a registered name does not match any
-///     declaration. Likely a renamed/removed source method — sync the Suite's
-///     `registeredTestMethodNames` and remove the orphan `@Test`.
-///
-/// `@MainActor` is required because `FixtureSuite` is `@MainActor`-isolated
-/// (Task 4 deviation: every conformer inherits from
-/// `MachOSwiftSectionFixtureTests`, which is itself `@MainActor`).
+///   ① missing — declared public member with no registered name and no
+///     allowlist entry → add `@Test` or sentinel allowlist entry.
+///   ② extra — registered name not matching any declaration → sync
+///     `registeredTestMethodNames` and remove orphan `@Test`.
+///   ③ liarSentinel — sentinel-tagged key whose Suite actually calls
+///     `acrossAllReaders` / `inProcessContext` → tag is stale, remove
+///     sentinel entry or revert test.
+///   ④ unmarkedSentinel — Suite method behavior is sentinel but the key
+///     isn't declared sentinel in the allowlist → either implement a real
+///     test, or add a `SentinelReason` entry.
 @Suite
 @MainActor
 struct MachOSwiftSectionCoverageInvariantTests {
@@ -38,26 +36,32 @@ struct MachOSwiftSectionCoverageInvariantTests {
             .standardizedFileURL
     }
 
+    private var suitesRoot: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // Fixtures/
+            .standardizedFileURL
+    }
+
     @Test func everyPublicMemberHasATest() throws {
         let scanner = PublicMemberScanner(sourceRoot: modelsRoot)
-        let allowlist = CoverageAllowlistEntries.keys
-        let expected = try scanner.scan(applyingAllowlist: allowlist)
+        let allowlistKeys = CoverageAllowlistEntries.keys
+        let sentinelKeys = CoverageAllowlistEntries.sentinelKeys
 
-        // Subtract the allowlist from `registered` as well, so that an
-        // intentionally exempted (typeName, memberName) — e.g., a
-        // macro-synthesized memberwise init that the scanner cannot see but
-        // the Suite still exercises — does not surface as "extra".
+        let expected = try scanner.scan(applyingAllowlist: allowlistKeys)
+
         let registered: Set<MethodKey> = Set(
             allFixtureSuites.flatMap { suite -> [MethodKey] in
                 suite.registeredTestMethodNames.map { name in
                     MethodKey(typeName: suite.testedTypeName, memberName: name)
                 }
             }
-        ).subtracting(allowlist)
+        ).subtracting(allowlistKeys)
 
+        let behaviorScanner = SuiteBehaviorScanner(suiteRoot: suitesRoot)
+        let behaviorMap = try behaviorScanner.scan()
+
+        // ① missing
         let missing = expected.subtracting(registered)
-        let extra = registered.subtracting(expected)
-
         #expect(
             missing.isEmpty,
             """
@@ -66,9 +70,13 @@ struct MachOSwiftSectionCoverageInvariantTests {
 
             Tip: add the corresponding @Test func to the matching Suite, append the
             name to its registeredTestMethodNames (or rerun
-            `Scripts/regen-baselines.sh --suite <Name>`), and re-run.
+            `swift package --allow-writing-to-package-directory regen-baselines --suite <Name>`),
+            and re-run.
             """
         )
+
+        // ② extra
+        let extra = registered.subtracting(expected)
         #expect(
             extra.isEmpty,
             """
@@ -77,6 +85,44 @@ struct MachOSwiftSectionCoverageInvariantTests {
 
             Tip: source method was renamed or removed — sync the Suite's
             registeredTestMethodNames + remove the orphan @Test.
+            """
+        )
+
+        // ③ liarSentinel — sentinel tag claims sentinel but suite actually tests
+        let liarSentinels = sentinelKeys.filter { key in
+            if let behavior = behaviorMap[key], behavior != .sentinel {
+                return true
+            }
+            return false
+        }
+        #expect(
+            liarSentinels.isEmpty,
+            """
+            These methods are tagged sentinel in CoverageAllowlistEntries but
+            their Suite actually calls acrossAllReaders / inProcessContext — the
+            sentinel tag is stale. Remove the sentinel entry or revert the test
+            to registration-only:
+            \(liarSentinels.sorted().map { "  \($0)" }.joined(separator: "\n"))
+            """
+        )
+
+        // ④ unmarkedSentinel — suite behavior is sentinel but key isn't declared
+        let actualSentinelKeys = Set(behaviorMap.compactMap { (key, behavior) in
+            behavior == .sentinel ? key : nil
+        })
+        let unmarked = actualSentinelKeys
+            .subtracting(sentinelKeys)
+            .subtracting(allowlistKeys)
+            .intersection(expected)  // only flag if it's actually a public method
+        #expect(
+            unmarked.isEmpty,
+            """
+            These methods are sentinel-only (the Suite never calls
+            acrossAllReaders / inProcessContext) but are not declared in
+            CoverageAllowlistEntries. Either implement a real test, or add a
+            SentinelReason entry explaining why this is the right level of
+            coverage:
+            \(unmarked.sorted().map { "  \($0)" }.joined(separator: "\n"))
             """
         )
     }
