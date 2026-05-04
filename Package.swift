@@ -647,6 +647,7 @@ extension Target {
         ],
         exclude: [
             "Coverage/Fixtures/SampleSource.swift.txt",
+            "Coverage/Fixtures/SuiteSampleSource.swift.txt",
         ],
         swiftSettings: testSettings
     )

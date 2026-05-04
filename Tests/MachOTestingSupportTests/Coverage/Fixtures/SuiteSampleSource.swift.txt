@@ -1,0 +1,41 @@
+// Sample suites consumed by SuiteBehaviorScannerTests via on-disk reads.
+// File extension intentionally `.swift.txt` so SPM ignores it during builds.
+
+import Testing
+
+@Suite
+final class CrossReaderTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
+    static let testedTypeName = "CrossReaderType"
+    static var registeredTestMethodNames: Set<String> { ["liveMethod"] }
+
+    @Test func liveMethod() async throws {
+        let result = try acrossAllReaders(
+            file: { 1 },
+            image: { 1 }
+        )
+        #expect(result == 1)
+    }
+}
+
+@Suite
+final class InProcessOnlyTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
+    static let testedTypeName = "RuntimeOnlyType"
+    static var registeredTestMethodNames: Set<String> { ["kind"] }
+
+    @Test func kind() async throws {
+        let result = try usingInProcessOnly { context in
+            42
+        }
+        #expect(result == 42)
+    }
+}
+
+@Suite
+final class SentinelTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
+    static let testedTypeName = "RegistrationOnlyType"
+    static var registeredTestMethodNames: Set<String> { ["registeredOnly"] }
+
+    @Test func registrationOnly() async throws {
+        #expect(SentinelTests.registeredTestMethodNames.contains("registeredOnly"))
+    }
+}
