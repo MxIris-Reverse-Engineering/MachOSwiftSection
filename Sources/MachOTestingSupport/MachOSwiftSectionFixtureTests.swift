@@ -134,3 +134,20 @@ extension MachOSwiftSectionFixtureTests {
         return fromFileCtx
     }
 }
+
+extension MachOSwiftSectionFixtureTests {
+    /// Run `body` against the in-process reader only. Used by Suites covering
+    /// runtime-only metadata types (MetatypeMetadata, TupleTypeMetadata,
+    /// FunctionTypeMetadata, etc.) — types that the Swift runtime allocates
+    /// at type-load time and that have no Mach-O section to read from.
+    ///
+    /// Cross-reader equality is not asserted because `MachOFile` and
+    /// `MachOImage` cannot reach this metadata. Single-reader assertion +
+    /// baseline literal pinning is the deepest coverage achievable.
+    package func usingInProcessOnly<T: Equatable>(
+        _ work: (InProcessContext) throws -> T,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) throws -> T {
+        try work(inProcessContext)
+    }
+}
