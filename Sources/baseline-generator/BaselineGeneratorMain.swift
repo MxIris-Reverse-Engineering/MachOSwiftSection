@@ -2,6 +2,8 @@ import Foundation
 import ArgumentParser
 import MachOFixtureSupport
 
+@main
+@available(macOS 12, macCatalyst 15, iOS 15, tvOS 15, watchOS 8, *)
 struct BaselineGeneratorMain: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "baseline-generator",
