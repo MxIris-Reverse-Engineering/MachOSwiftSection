@@ -48,3 +48,18 @@ package struct CoverageAllowlistEntry: Hashable, CustomStringConvertible {
         }
     }
 }
+
+package enum CoverageAllowlistHelpers {
+    /// Construct flat `[CoverageAllowlistEntry]` with the same `SentinelReason`
+    /// applied to every member of `typeName`. Used in `CoverageAllowlistEntries.entries`
+    /// to avoid repeating the reason on every method.
+    package static func sentinelGroup(
+        typeName: String,
+        members: [String],
+        reason: SentinelReason
+    ) -> [CoverageAllowlistEntry] {
+        members.map { memberName in
+            CoverageAllowlistEntry(typeName: typeName, memberName: memberName, sentinel: reason)
+        }
+    }
+}
