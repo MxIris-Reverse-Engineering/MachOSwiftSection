@@ -298,17 +298,17 @@ enum CoverageAllowlistEntries {
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "MethodDefaultOverrideDescriptor",
             members: ["originalMethodDescriptor", "replacementMethodDescriptor", "implementationSymbols", "layout", "offset"],
-            reason: .needsFixtureExtension(detail: "no class with default-override table in SymbolTestsCore — Phase B1")
+            reason: .needsFixtureExtension(detail: "MethodDefaultOverrideTable requires experimental CoroutineAccessors (read2/modify2) on a resilient open class; macOS Swift runtime does not yet export _swift_deletedCalleeAllocatedCoroutineMethodErrorTwc, so the fixture cannot be built. Defer until ABI stabilizes.")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "MethodDefaultOverrideTableHeader",
             members: ["init", "numEntries"],
-            reason: .needsFixtureExtension(detail: "no class with default-override table in SymbolTestsCore — Phase B1")
+            reason: .needsFixtureExtension(detail: "MethodDefaultOverrideTable requires experimental CoroutineAccessors (read2/modify2) on a resilient open class; macOS Swift runtime does not yet export _swift_deletedCalleeAllocatedCoroutineMethodErrorTwc, so the fixture cannot be built. Defer until ABI stabilizes.")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "OverrideTableHeader",
             members: ["init", "numEntries"],
-            reason: .needsFixtureExtension(detail: "no class triggers method-override table in SymbolTestsCore — Phase B1")
+            reason: .needsFixtureExtension(detail: "init is synthesized memberwise init; numEntries is reached transitively via layout.numEntries (already exercised by the real OverrideTableHeader suite on Classes.SubclassTest).")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ResilientSuperclass",
