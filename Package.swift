@@ -540,6 +540,7 @@ extension Target {
             .target(.MachOFoundation),
             .target(.MachOReading),
             .target(.MachOResolving),
+            .target(.MachOSwiftSectionC),
             .target(.SwiftDump),
             .target(.SwiftInterface),
             .target(.MachOTestingSupportC),

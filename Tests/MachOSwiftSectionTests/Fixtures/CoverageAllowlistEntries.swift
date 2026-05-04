@@ -172,8 +172,8 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "DispatchClassMetadata",
-            members: ["init", "kind", "isaPointer", "superclass", "data", "ivar1", "flags", "layout", "offset"],
-            reason: .runtimeOnly(detail: "Swift class with embedded ObjC metadata for dispatch; covered via InProcess")
+            members: ["init", "kind", "isaPointer", "superclass", "data", "ivar1", "flags"],
+            reason: .runtimeOnly(detail: "Swift class with embedded ObjC metadata for dispatch; `layout`/`offset` covered via InProcess in Phase C4, remaining members scanner-attributed via marker protocols")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ValueMetadata",

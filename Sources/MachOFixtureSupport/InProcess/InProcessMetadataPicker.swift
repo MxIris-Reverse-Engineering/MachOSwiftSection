@@ -1,4 +1,5 @@
 import Foundation
+import MachOSwiftSectionC
 
 /// Static `UnsafeRawPointer` constants exposing Swift runtime metadata
 /// for Suites that exercise `*Metadata` types without a fixture-binary
@@ -102,4 +103,81 @@ package enum InProcessMetadataPicker {
         unsafeBitCast(InlineArray<3, Int>.self, to: UnsafeRawPointer.self)
     }()
     #endif
+}
+
+extension InProcessMetadataPicker {
+    /// Returns a metadata pointer for SymbolTestsCore's nominal type by
+    /// dlsym'ing the type's metadata accessor function and invoking it.
+    ///
+    /// `symbol` is the Swift mangled C symbol of the metadata accessor
+    /// (no leading underscore — `dlsym` adds it), e.g.
+    /// `$s15SymbolTestsCore7ClassesO9ClassTestCMa`.
+    ///
+    /// The fixture binary is loaded into the current process on first
+    /// call (idempotent). In the test process, `MachOSwiftSectionFixtureTests`
+    /// has already loaded it; this function's `dlopen` is then a no-op.
+    /// In the standalone `baseline-generator` process, this function's
+    /// load is the one that brings the framework's symbols into scope.
+    package static func fixtureMetadata(symbol: String) throws -> UnsafeRawPointer {
+        // Ensure the SymbolTestsCore fixture binary is dlopen'd into the
+        // current process. In the test process, MachOSwiftSectionFixtureTests
+        // already does this; calling here is a no-op the second time. In the
+        // standalone baseline-generator process, this is the only path that
+        // loads the framework.
+        try ensureFixtureLoaded()
+        guard let handle = dlopen(nil, RTLD_NOW) else {
+            throw FixtureLoadError.imageNotFoundAfterDlopen(path: "<self>", dlerror: nil)
+        }
+        guard let accessorAddress = dlsym(handle, symbol) else {
+            throw FixtureLoadError.imageNotFoundAfterDlopen(
+                path: symbol,
+                dlerror: dlerror().map { String(cString: $0) }
+            )
+        }
+        // Type metadata accessor signature: `MetadataResponse(MetadataRequest)`
+        // with `swiftcall` calling convention. Swift `@convention(c)` cannot
+        // express a struct return that matches `swiftcc`, so dispatch through
+        // the C wrapper that uses `__attribute__((swiftcall))` internally.
+        // For non-generic types, pass MetadataRequest(0) and return the
+        // metadata pointer from the response.
+        let response = swift_section_callAccessor0(accessorAddress, 0)
+        guard let metadataPointer = response.Metadata else {
+            throw FixtureLoadError.imageNotFoundAfterDlopen(
+                path: symbol,
+                dlerror: "metadata accessor returned nil"
+            )
+        }
+        return UnsafeRawPointer(metadataPointer)
+    }
+
+    /// Idempotently dlopens `SymbolTestsCore.framework` so that subsequent
+    /// `dlsym(RTLD_NOW, ...)` calls can locate fixture-binary symbols.
+    /// Resolves the framework path relative to this source file, mirroring
+    /// `MachOSwiftSectionFixtureTests.dlopenOnce` so the test process and
+    /// the standalone `baseline-generator` process behave identically.
+    private static func ensureFixtureLoaded() throws {
+        _ = dlopenOnce
+    }
+
+    private static let dlopenOnce: Void = {
+        let absolute = resolveFixturePath(MachOImageName.SymbolTestsCore.rawValue)
+        _ = absolute.withCString { dlopen($0, RTLD_LAZY) }
+    }()
+
+    /// Resolve a relative `MachOImageName` path (rooted at the package-relative
+    /// `../../Tests/...` convention used by `loadFromFile`) to an absolute path.
+    ///
+    /// Caveat: `MachOImageName.SymbolTestsCore.rawValue` is rooted as if the
+    /// caller lives in `Sources/<TopLevelTarget>/Foo.swift`, i.e. exactly two
+    /// `../` hops to reach the package root. This file lives one level deeper
+    /// in `Sources/MachOFixtureSupport/InProcess/`, so we anchor against
+    /// `Sources/MachOFixtureSupport/` (one path component up from `#filePath`'s
+    /// parent) to make the existing `../../...` rawValue resolve correctly.
+    private static func resolveFixturePath(_ relativePath: String) -> String {
+        if relativePath.hasPrefix("/") { return relativePath }
+        let parentOfThisFile = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let oneLevelUp = parentOfThisFile.deletingLastPathComponent()
+        let url = URL(fileURLWithPath: relativePath, relativeTo: oneLevelUp)
+        return url.standardizedFileURL.path
+    }
 }
