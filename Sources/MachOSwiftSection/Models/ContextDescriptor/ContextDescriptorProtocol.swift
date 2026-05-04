@@ -6,16 +6,18 @@ import Demangling
 public protocol ContextDescriptorProtocol: ResolvableLocatableLayoutWrapper where Layout: ContextDescriptorLayout {
     func genericContext<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> GenericContext?
     func parent<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> SymbolOrElement<ContextDescriptorWrapper>?
-    func moduleContextDesciptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> (any ModuleContextDescriptorProtocol)?
+    func moduleContextDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> (any ModuleContextDescriptorProtocol)?
     func isCImportedContextDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Bool
 
     func genericContext() throws -> GenericContext?
     func parent() throws -> SymbolOrElement<ContextDescriptorWrapper>?
-    func moduleContextDesciptor() throws -> (any ModuleContextDescriptorProtocol)?
+    func moduleContextDescriptor() throws -> (any ModuleContextDescriptorProtocol)?
     func isCImportedContextDescriptor() throws -> Bool
 
     func genericContext<Context: ReadingContext>(in context: Context) throws -> GenericContext?
     func parent<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ContextDescriptorWrapper>?
+    func moduleContextDescriptor<Context: ReadingContext>(in context: Context) throws -> (any ModuleContextDescriptorProtocol)?
+    func isCImportedContextDescriptor<Context: ReadingContext>(in context: Context) throws -> Bool
 
     subscript<T>(dynamicMember keyPath: KeyPath<ContextDescriptorFlags, T>) -> T { get }
 }
@@ -36,7 +38,7 @@ extension ContextDescriptorProtocol {
         return try GenericContext(contextDescriptor: self, in: machO)
     }
 
-    public func moduleContextDesciptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> (any ModuleContextDescriptorProtocol)? {
+    public func moduleContextDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> (any ModuleContextDescriptorProtocol)? {
         if let module = self as? (any ModuleContextDescriptorProtocol) {
             return module
         } else {
@@ -52,7 +54,7 @@ extension ContextDescriptorProtocol {
     }
 
     public func isCImportedContextDescriptor<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Bool {
-        guard let moduleContextDescriptor = try moduleContextDesciptor(in: machO) else { return false }
+        guard let moduleContextDescriptor = try moduleContextDescriptor(in: machO) else { return false }
         let moduleName = try moduleContextDescriptor.name(in: machO)
         return moduleName == cModule || moduleName == objcModule
     }
@@ -69,7 +71,7 @@ extension ContextDescriptorProtocol {
         return try GenericContext(contextDescriptor: self)
     }
 
-    public func moduleContextDesciptor() throws -> (any ModuleContextDescriptorProtocol)? {
+    public func moduleContextDescriptor() throws -> (any ModuleContextDescriptorProtocol)? {
         if let module = self as? (any ModuleContextDescriptorProtocol) {
             return module
         } else {
@@ -85,7 +87,7 @@ extension ContextDescriptorProtocol {
     }
 
     public func isCImportedContextDescriptor() throws -> Bool {
-        guard let moduleContextDescriptor = try moduleContextDesciptor() else { return false }
+        guard let moduleContextDescriptor = try moduleContextDescriptor() else { return false }
         let moduleName = try moduleContextDescriptor.name()
         return moduleName == cModule || moduleName == objcModule
     }
@@ -104,5 +106,26 @@ extension ContextDescriptorProtocol {
     public func genericContext<Context: ReadingContext>(in context: Context) throws -> GenericContext? {
         guard layout.flags.isGeneric else { return nil }
         return try GenericContext(contextDescriptor: self, in: context)
+    }
+
+    public func moduleContextDescriptor<Context: ReadingContext>(in context: Context) throws -> (any ModuleContextDescriptorProtocol)? {
+        if let module = self as? (any ModuleContextDescriptorProtocol) {
+            return module
+        } else {
+            var parent: SymbolOrElement<ContextDescriptorWrapper>? = try parent(in: context)
+            while let currentParent = parent {
+                if let module = currentParent.resolved?.contextDescriptor as? (any ModuleContextDescriptorProtocol) {
+                    return module
+                }
+                parent = try currentParent.resolved?.parent(in: context)
+            }
+            return nil
+        }
+    }
+
+    public func isCImportedContextDescriptor<Context: ReadingContext>(in context: Context) throws -> Bool {
+        guard let moduleContextDescriptor = try moduleContextDescriptor(in: context) else { return false }
+        let moduleName = try moduleContextDescriptor.name(in: context)
+        return moduleName == cModule || moduleName == objcModule
     }
 }

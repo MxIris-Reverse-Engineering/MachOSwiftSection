@@ -8,8 +8,16 @@ extension AnyClassMetadataProtocol {
     public func asFinalClassMetadata<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> AnyClassMetadata {
         try .resolve(from: offset, in: machO)
     }
-    
+
     public func asFinalClassMetadata() throws -> AnyClassMetadata {
         try .resolve(from: asPointer)
+    }
+}
+
+// MARK: - ReadingContext Support
+
+extension AnyClassMetadataProtocol {
+    public func asFinalClassMetadata<Context: ReadingContext>(in context: Context) throws -> AnyClassMetadata {
+        try .resolve(at: try context.addressFromOffset(offset), in: context)
     }
 }

@@ -131,3 +131,72 @@ public struct ProtocolConformance: TopLevelType {
         }
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension ProtocolConformance {
+    public init<Context: ReadingContext>(descriptor: ProtocolConformanceDescriptor, in context: Context) throws {
+        self.descriptor = descriptor
+
+        self.protocol = try descriptor.protocolDescriptor(in: context)
+
+        self.typeReference = try descriptor.resolvedTypeReference(in: context)
+
+        self.witnessTablePattern = try descriptor.witnessTablePattern(in: context)
+
+        var currentOffset = descriptor.offset + descriptor.layoutSize
+
+        if descriptor.flags.isRetroactive {
+            let retroactiveContextPointer: RelativeContextPointer = try context.readElement(at: try context.addressFromOffset(currentOffset))
+            self.retroactiveContextDescriptor = try retroactiveContextPointer.resolve(at: try context.addressFromOffset(currentOffset), in: context).asOptional
+            currentOffset.offset(of: RelativeIndirectablePointer<ContextDescriptorWrapper?, Pointer<ContextDescriptorWrapper?>>.self)
+        } else {
+            self.retroactiveContextDescriptor = nil
+        }
+
+        try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: context)
+    }
+
+    private mutating func initialize<Context: ReadingContext>(descriptor: ProtocolConformanceDescriptor, currentOffset: inout Int, in context: Context) throws {
+        if descriptor.flags.numConditionalRequirements > 0 {
+            conditionalRequirements = try context.readWrapperElements(at: try context.addressFromOffset(currentOffset), numberOfElements: descriptor.flags.numConditionalRequirements.cast()) as [GenericRequirementDescriptor]
+            currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: descriptor.flags.numConditionalRequirements.cast())
+        } else {
+            conditionalRequirements = []
+        }
+
+        if descriptor.flags.numConditionalPackShapeDescriptors > 0 {
+            conditionalPackShapeDescriptors = try context.readWrapperElements(at: try context.addressFromOffset(currentOffset), numberOfElements: descriptor.flags.numConditionalPackShapeDescriptors.cast()) as [GenericPackShapeDescriptor]
+            currentOffset.offset(of: GenericPackShapeDescriptor.self, numbersOfElements: descriptor.flags.numConditionalPackShapeDescriptors.cast())
+        } else {
+            conditionalPackShapeDescriptors = []
+        }
+
+        if descriptor.flags.hasResilientWitnesses {
+            let header: ResilientWitnessesHeader = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            resilientWitnessesHeader = header
+            currentOffset.offset(of: ResilientWitnessesHeader.self)
+            resilientWitnesses = try context.readWrapperElements(at: try context.addressFromOffset(currentOffset), numberOfElements: header.numWitnesses.cast()) as [ResilientWitness]
+            currentOffset.offset(of: ResilientWitness.self, numbersOfElements: header.numWitnesses.cast())
+        } else {
+            resilientWitnessesHeader = nil
+            resilientWitnesses = []
+        }
+
+        if descriptor.flags.hasGenericWitnessTable {
+            let genericWitnessTable: GenericWitnessTable = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            self.genericWitnessTable = genericWitnessTable
+            currentOffset.offset(of: GenericWitnessTable.self)
+        } else {
+            genericWitnessTable = nil
+        }
+
+        if descriptor.flags.hasGlobalActorIsolation {
+            let globalActorReference: GlobalActorReference = try context.readWrapperElement(at: try context.addressFromOffset(currentOffset))
+            self.globalActorReference = globalActorReference
+            currentOffset.offset(of: GlobalActorReference.self)
+        } else {
+            globalActorReference = nil
+        }
+    }
+}

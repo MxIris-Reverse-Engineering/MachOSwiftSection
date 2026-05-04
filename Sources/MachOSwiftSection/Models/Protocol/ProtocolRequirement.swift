@@ -36,3 +36,12 @@ public struct ProtocolBaseRequirement: ResolvableLocatableLayoutWrapper {
         self.layout = layout
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension ProtocolRequirement {
+    public func defaultImplementationSymbols<Context: ReadingContext>(in context: Context) throws -> Symbols? {
+        guard layout.defaultImplementation.isValid else { return nil }
+        return try layout.defaultImplementation.resolve(at: try context.addressFromOffset(offset(of: \.defaultImplementation)), in: context)
+    }
+}

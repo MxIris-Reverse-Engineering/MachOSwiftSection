@@ -84,3 +84,38 @@ public struct `Protocol`: TopLevelType, ContextProtocol {
         }
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension `Protocol` {
+    public init<Context: ReadingContext>(descriptor: ProtocolDescriptor, in context: Context) throws {
+        guard let protocolFlags = descriptor.flags.kindSpecificFlags?.protocolFlags else {
+            throw Error.invalidProtocolDescriptor
+        }
+        self.descriptor = descriptor
+        self.protocolFlags = protocolFlags
+        self.name = try descriptor.name(in: context)
+        var currentOffset = descriptor.offset + descriptor.layoutSize
+        if descriptor.numRequirementsInSignature > 0 {
+            let requirementInSignatures = try context.readWrapperElements(at: try context.addressFromOffset(currentOffset), numberOfElements: descriptor.numRequirementsInSignature.cast()) as [GenericRequirementDescriptor]
+            self.requirementInSignatures = try requirementInSignatures.map { try .init(descriptor: $0, in: context) }
+            currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: descriptor.numRequirementsInSignature.cast())
+            currentOffset.align(to: 4)
+        } else {
+            self.requirementInSignatures = []
+        }
+        try initialize(descriptor: descriptor, currentOffset: &currentOffset, in: context)
+    }
+
+    private mutating func initialize<Context: ReadingContext>(descriptor: ProtocolDescriptor, currentOffset: inout Int, in context: Context) throws {
+        if descriptor.numRequirements > 0 {
+            let baseRequirementOffset = currentOffset - ProtocolRequirement.layoutSize
+            baseRequirement = try context.readWrapperElement(at: try context.addressFromOffset(baseRequirementOffset)) as ProtocolBaseRequirement
+            requirements = try context.readWrapperElements(at: try context.addressFromOffset(currentOffset), numberOfElements: descriptor.numRequirements.cast()) as [ProtocolRequirement]
+            currentOffset.offset(of: ProtocolRequirement.self, numbersOfElements: descriptor.numRequirements.cast())
+        } else {
+            baseRequirement = nil
+            requirements = []
+        }
+    }
+}

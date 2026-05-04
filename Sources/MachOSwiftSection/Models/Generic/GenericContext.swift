@@ -391,3 +391,18 @@ extension Array {
         return copy
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension TargetGenericContext {
+    public func uniqueCurrentRequirements<Context: ReadingContext>(in context: Context) -> [GenericRequirementDescriptor] {
+        let parentRequirements = parentRequirements.flatMap { $0 }
+        var currentRequirements: [GenericRequirementDescriptor] = []
+        for requirement in requirements {
+            if !parentRequirements.contains(where: { $0.isContentEqual(to: requirement, in: context) }) {
+                currentRequirements.append(requirement)
+            }
+        }
+        return currentRequirements
+    }
+}

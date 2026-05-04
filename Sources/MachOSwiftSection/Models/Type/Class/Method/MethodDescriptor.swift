@@ -23,3 +23,11 @@ extension MethodDescriptor {
         return try layout.implementation.resolve(from: offset(of: \.implementation), in: machO)
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension MethodDescriptor {
+    public func implementationSymbols<Context: ReadingContext>(in context: Context) throws -> Symbols? {
+        return try layout.implementation.resolve(at: try context.addressFromOffset(offset(of: \.implementation)), in: context)
+    }
+}

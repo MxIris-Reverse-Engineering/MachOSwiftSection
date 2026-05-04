@@ -37,3 +37,15 @@ extension AssociatedTypeRecord {
         return try layout.substitutedTypeName.resolve(from: pointer(of: \.substitutedTypeName))
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension AssociatedTypeRecord {
+    public func name<Context: ReadingContext>(in context: Context) throws -> String {
+        return try layout.name.resolve(at: try context.addressFromOffset(offset(of: \.name)), in: context)
+    }
+
+    public func substitutedTypeName<Context: ReadingContext>(in context: Context) throws -> MangledName {
+        return try layout.substitutedTypeName.resolve(at: try context.addressFromOffset(offset(of: \.substitutedTypeName)), in: context)
+    }
+}

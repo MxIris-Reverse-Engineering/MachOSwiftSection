@@ -17,11 +17,11 @@ public enum TypeContextWrapper: Sendable {
     public var typeContextDescriptorWrapper: TypeContextDescriptorWrapper {
         switch self {
         case .enum(let `enum`):
-            .enum(`enum`.descriptor)
+            return .enum(`enum`.descriptor)
         case .struct(let `struct`):
-            .struct(`struct`.descriptor)
+            return .struct(`struct`.descriptor)
         case .class(let `class`):
-            .class(`class`.descriptor)
+            return .class(`class`.descriptor)
         }
     }
     
@@ -39,22 +39,37 @@ public enum TypeContextWrapper: Sendable {
     public static func forTypeContextDescriptorWrapper(_ typeContextDescriptorWrapper: TypeContextDescriptorWrapper) throws -> Self {
         switch typeContextDescriptorWrapper {
         case .enum(let enumDescriptor):
-            try .enum(.init(descriptor: enumDescriptor))
+            return try .enum(.init(descriptor: enumDescriptor))
         case .struct(let structDescriptor):
-            try .struct(.init(descriptor: structDescriptor))
+            return try .struct(.init(descriptor: structDescriptor))
         case .class(let classDescriptor):
-            try .class(.init(descriptor: classDescriptor))
+            return try .class(.init(descriptor: classDescriptor))
         }
     }
 
     public static func forTypeContextDescriptorWrapper(_ typeContextDescriptorWrapper: TypeContextDescriptorWrapper, in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Self {
         switch typeContextDescriptorWrapper {
         case .enum(let enumDescriptor):
-            try .enum(.init(descriptor: enumDescriptor, in: machO))
+            return try .enum(.init(descriptor: enumDescriptor, in: machO))
         case .struct(let structDescriptor):
-            try .struct(.init(descriptor: structDescriptor, in: machO))
+            return try .struct(.init(descriptor: structDescriptor, in: machO))
         case .class(let classDescriptor):
-            try .class(.init(descriptor: classDescriptor, in: machO))
+            return try .class(.init(descriptor: classDescriptor, in: machO))
+        }
+    }
+}
+
+// MARK: - ReadingContext Support
+
+extension TypeContextWrapper {
+    public static func forTypeContextDescriptorWrapper<Context: ReadingContext>(_ typeContextDescriptorWrapper: TypeContextDescriptorWrapper, in context: Context) throws -> Self {
+        switch typeContextDescriptorWrapper {
+        case .enum(let enumDescriptor):
+            return try .enum(.init(descriptor: enumDescriptor, in: context))
+        case .struct(let structDescriptor):
+            return try .struct(.init(descriptor: structDescriptor, in: context))
+        case .class(let classDescriptor):
+            return try .class(.init(descriptor: classDescriptor, in: context))
         }
     }
 }

@@ -42,3 +42,11 @@ extension BuiltinTypeDescriptor {
         layout.typeName.isNull == false
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension BuiltinTypeDescriptor {
+    public func typeName<Context: ReadingContext>(in context: Context) throws -> MangledName? {
+        return try layout.typeName.resolve(at: try context.addressFromOffset(offset(of: \.typeName)), in: context)
+    }
+}

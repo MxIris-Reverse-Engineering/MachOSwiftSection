@@ -30,3 +30,20 @@ extension EnumMetadataProtocol {
         return try asPointer.readElement(offset: offset)
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension EnumMetadataProtocol {
+    public func enumDescriptor<Context: ReadingContext>(in context: Context) throws -> EnumDescriptor {
+        try descriptor(in: context).enum!
+    }
+
+    public func payloadSize<Context: ReadingContext>(descriptor: EnumDescriptor? = nil, in context: Context) throws -> StoredSize? {
+        let descriptor = try descriptor ?? enumDescriptor(in: context)
+        guard descriptor.hasPayloadSizeOffset else {
+            return nil
+        }
+        let offset = offset.offseting(of: StoredSize.self, numbersOfElements: descriptor.payloadSizeOffset)
+        return try context.readElement(at: try context.addressFromOffset(offset))
+    }
+}

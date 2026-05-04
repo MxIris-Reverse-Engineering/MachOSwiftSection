@@ -133,3 +133,55 @@ public enum ContextWrapper: Resolvable {
         }
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension ContextWrapper {
+    public static func forContextDescriptorWrapper<Context: ReadingContext>(_ contextDescriptorWrapper: ContextDescriptorWrapper, in context: Context) throws -> Self {
+        switch contextDescriptorWrapper {
+        case .type(let typeContextDescriptorWrapper):
+            switch typeContextDescriptorWrapper {
+            case .enum(let enumDescriptor):
+                return try .type(.enum(.init(descriptor: enumDescriptor, in: context)))
+            case .struct(let structDescriptor):
+                return try .type(.struct(.init(descriptor: structDescriptor, in: context)))
+            case .class(let classDescriptor):
+                return try .type(.class(.init(descriptor: classDescriptor, in: context)))
+            }
+        case .protocol(let protocolDescriptor):
+            return try .protocol(.init(descriptor: protocolDescriptor, in: context))
+        case .anonymous(let anonymousContextDescriptor):
+            return try .anonymous(.init(descriptor: anonymousContextDescriptor, in: context))
+        case .extension(let extensionContextDescriptor):
+            return try .extension(.init(descriptor: extensionContextDescriptor, in: context))
+        case .module(let moduleContextDescriptor):
+            return try .module(.init(descriptor: moduleContextDescriptor, in: context))
+        case .opaqueType(let opaqueTypeDescriptor):
+            return try .opaqueType(.init(descriptor: opaqueTypeDescriptor, in: context))
+        }
+    }
+
+    public func parent<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ContextWrapper>? {
+        switch self {
+        case .type(let typeWrapper):
+            switch typeWrapper {
+            case .enum(let `enum`):
+                return try `enum`.descriptor.parent(in: context)?.map { try ContextWrapper.forContextDescriptorWrapper($0, in: context) }
+            case .struct(let `struct`):
+                return try `struct`.descriptor.parent(in: context)?.map { try ContextWrapper.forContextDescriptorWrapper($0, in: context) }
+            case .class(let `class`):
+                return try `class`.descriptor.parent(in: context)?.map { try ContextWrapper.forContextDescriptorWrapper($0, in: context) }
+            }
+        case .protocol(let `protocol`):
+            return try `protocol`.descriptor.parent(in: context)?.map { try ContextWrapper.forContextDescriptorWrapper($0, in: context) }
+        case .anonymous(let anonymousContext):
+            return try anonymousContext.descriptor.parent(in: context)?.map { try ContextWrapper.forContextDescriptorWrapper($0, in: context) }
+        case .extension(let extensionContext):
+            return try extensionContext.descriptor.parent(in: context)?.map { try ContextWrapper.forContextDescriptorWrapper($0, in: context) }
+        case .module(let moduleContext):
+            return try moduleContext.descriptor.parent(in: context)?.map { try ContextWrapper.forContextDescriptorWrapper($0, in: context) }
+        case .opaqueType(let opaqueType):
+            return try opaqueType.descriptor.parent(in: context)?.map { try ContextWrapper.forContextDescriptorWrapper($0, in: context) }
+        }
+    }
+}

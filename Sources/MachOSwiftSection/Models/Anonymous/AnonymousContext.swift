@@ -49,3 +49,27 @@ public struct AnonymousContext: TopLevelType, ContextProtocol {
         }
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension AnonymousContext {
+    public init<Context: ReadingContext>(descriptor: AnonymousContextDescriptor, in context: Context) throws {
+        self.descriptor = descriptor
+        var currentOffset = descriptor.offset + descriptor.layoutSize
+
+        let genericContext = try descriptor.genericContext(in: context)
+        if let genericContext {
+            currentOffset += genericContext.size
+        }
+        self.genericContext = genericContext
+
+        if descriptor.hasMangledName {
+            let mangledNamePointerAddress = try context.addressFromOffset(currentOffset)
+            let mangledNamePointer: RelativeDirectPointer<MangledName> = try context.readElement(at: mangledNamePointerAddress)
+            self.mangledName = try mangledNamePointer.resolve(at: mangledNamePointerAddress, in: context)
+            currentOffset += MemoryLayout<RelativeDirectPointer<MangledName>>.size
+        } else {
+            self.mangledName = nil
+        }
+    }
+}

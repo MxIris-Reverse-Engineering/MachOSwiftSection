@@ -89,3 +89,13 @@ public struct InProcessContext: ReadingContext, Sendable {
         Int(bitPattern: address)
     }
 }
+
+// MARK: - Runtime Pointer Support
+
+extension InProcessContext {
+    /// In-process addresses are already runtime pointers, so this returns
+    /// the address unchanged.
+    public func runtimePointer(at address: UnsafeRawPointer) throws -> UnsafeRawPointer? {
+        address
+    }
+}

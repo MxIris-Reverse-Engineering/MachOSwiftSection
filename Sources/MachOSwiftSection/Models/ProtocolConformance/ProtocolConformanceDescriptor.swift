@@ -54,3 +54,20 @@ extension ProtocolConformanceDescriptor {
         try layout.witnessTablePattern.resolve(from: pointer(of: \.witnessTablePattern))
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension ProtocolConformanceDescriptor {
+    public func protocolDescriptor<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ProtocolDescriptor>? {
+        try layout.protocolDescriptor.resolve(at: try context.addressFromOffset(offset(of: \.protocolDescriptor)), in: context).asOptional
+    }
+
+    public func resolvedTypeReference<Context: ReadingContext>(in context: Context) throws -> ResolvedTypeReference {
+        let offset = offset(of: \.typeReference)
+        return try typeReference.resolve(at: offset, in: context)
+    }
+
+    public func witnessTablePattern<Context: ReadingContext>(in context: Context) throws -> ProtocolWitnessTable? {
+        try layout.witnessTablePattern.resolve(at: try context.addressFromOffset(offset(of: \.witnessTablePattern)), in: context)
+    }
+}

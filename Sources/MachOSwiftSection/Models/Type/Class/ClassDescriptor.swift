@@ -99,3 +99,15 @@ extension ClassDescriptor {
         return ExtraClassDescriptorFlags(rawValue: layout.metadataPositiveSizeInWordsOrExtraClassFlags).hasObjCResilientClassStub
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension ClassDescriptor {
+    public func resilientMetadataBounds<Context: ReadingContext>(in context: Context) throws -> StoredClassMetadataBounds {
+        return try RelativeDirectPointer<StoredClassMetadataBounds>(relativeOffset: Int32(bitPattern: layout.metadataNegativeSizeInWordsOrResilientMetadataBounds)).resolve(at: try context.addressFromOffset(offset(of: \.metadataNegativeSizeInWordsOrResilientMetadataBounds)), in: context)
+    }
+
+    public func superclassTypeMangledName<Context: ReadingContext>(in context: Context) throws -> MangledName? {
+        try layout.superclassType.resolve(at: try context.addressFromOffset(offset(of: \.superclassType)), in: context)
+    }
+}

@@ -12,3 +12,11 @@ extension ValueMetadataProtocol {
         try layout.descriptor.resolve()
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension ValueMetadataProtocol {
+    public func descriptor<Context: ReadingContext>(in context: Context) throws -> ValueTypeDescriptorWrapper {
+        try layout.descriptor.resolve(in: context)
+    }
+}

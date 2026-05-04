@@ -21,3 +21,13 @@ public struct ExtensionContext: TopLevelType, ContextProtocol {
         self.genericContext = try descriptor.genericContext()
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension ExtensionContext {
+    public init<Context: ReadingContext>(descriptor: ExtensionContextDescriptor, in context: Context) throws {
+        self.descriptor = descriptor
+        self.extendedContextMangledName = try descriptor.extendedContext(in: context)
+        self.genericContext = try descriptor.genericContext(in: context)
+    }
+}

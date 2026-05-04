@@ -31,11 +31,26 @@ extension ResilientWitness {
         layout.implementation.resolveDirectOffset(from: offset(of: \.implementation))
     }
     
+    /// MachO-only debug formatter; no `ReadingContext` mirror exists because
+    /// `addressString(forOffset:)` is a MachO display helper (not a data read)
+    /// and has no counterpart on the unified `ReadingContext` abstraction.
     public func implementationAddress(in machO: some MachOSwiftSectionRepresentableWithCache) -> String {
         return machO.addressString(forOffset: implementationOffset)
     }
     
     public func implementationSymbols<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Symbols? {
         return try layout.implementation.resolve(from: offset(of: \.implementation), in: machO)
+    }
+}
+
+// MARK: - ReadingContext Support
+
+extension ResilientWitness {
+    public func requirement<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ProtocolRequirement>? {
+        return try layout.requirement.resolve(at: try context.addressFromOffset(offset(of: \.requirement)), in: context).asOptional
+    }
+
+    public func implementationSymbols<Context: ReadingContext>(in context: Context) throws -> Symbols? {
+        return try layout.implementation.resolve(at: try context.addressFromOffset(offset(of: \.implementation)), in: context)
     }
 }

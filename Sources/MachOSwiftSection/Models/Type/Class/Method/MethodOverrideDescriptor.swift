@@ -36,3 +36,19 @@ extension MethodOverrideDescriptor {
         return try layout.implementation.resolve(from: offset(of: \.implementation), in: machO)
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension MethodOverrideDescriptor {
+    public func classDescriptor<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<ContextDescriptorWrapper>? {
+        return try layout.`class`.resolve(at: try context.addressFromOffset(offset(of: \.`class`)), in: context).asOptional
+    }
+
+    public func methodDescriptor<Context: ReadingContext>(in context: Context) throws -> SymbolOrElement<MethodDescriptor>? {
+        return try layout.method.resolve(at: try context.addressFromOffset(offset(of: \.method)), in: context).asOptional
+    }
+
+    public func implementationSymbols<Context: ReadingContext>(in context: Context) throws -> Symbols? {
+        return try layout.implementation.resolve(at: try context.addressFromOffset(offset(of: \.implementation)), in: context)
+    }
+}

@@ -53,3 +53,20 @@ public enum ResolvedTypeReference: Sendable {
     case directObjCClassName(String?)
     case indirectObjCClass(SymbolOrElement<ClassMetadataObjCInterop>?)
 }
+
+// MARK: - ReadingContext Support
+
+extension TypeReference {
+    public func resolve<Context: ReadingContext>(at offset: Int, in context: Context) throws -> ResolvedTypeReference {
+        switch self {
+        case .directTypeDescriptor(let relativeDirectPointer):
+            return try .directTypeDescriptor(relativeDirectPointer.resolve(at: try context.addressFromOffset(offset), in: context))
+        case .indirectTypeDescriptor(let relativeIndirectPointer):
+            return try .indirectTypeDescriptor(relativeIndirectPointer.resolve(at: try context.addressFromOffset(offset), in: context).resolve(in: context).asOptional)
+        case .directObjCClassName(let relativeDirectPointer):
+            return try .directObjCClassName(relativeDirectPointer.resolve(at: try context.addressFromOffset(offset), in: context))
+        case .indirectObjCClass(let relativeIndirectPointer):
+            return try .indirectObjCClass(relativeIndirectPointer.resolve(at: try context.addressFromOffset(offset), in: context).resolve(in: context).asOptional)
+        }
+    }
+}

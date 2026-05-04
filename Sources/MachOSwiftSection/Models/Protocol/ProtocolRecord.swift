@@ -32,3 +32,11 @@ extension ProtocolRecord {
         try layout.protocol.resolve(from: offset(of: \.protocol), in: machO)
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension ProtocolRecord {
+    public func protocolDescriptor<Context: ReadingContext>(in context: Context) throws -> ProtocolDescriptor? {
+        try layout.protocol.resolve(at: try context.addressFromOffset(offset(of: \.protocol)), in: context)
+    }
+}

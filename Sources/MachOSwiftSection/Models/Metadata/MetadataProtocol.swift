@@ -138,3 +138,54 @@ extension MetadataProtocol where HeaderType: TypeMetadataHeaderBaseProtocol {
         }
     }
 }
+
+// MARK: - ReadingContext Support
+
+extension MetadataProtocol {
+    public func asMetadataWrapper<Context: ReadingContext>(in context: Context) throws -> MetadataWrapper {
+        try .resolve(at: try context.addressFromOffset(offset), in: context)
+    }
+
+    public func asMetadata<Context: ReadingContext>(in context: Context) throws -> Metadata {
+        try .resolve(at: try context.addressFromOffset(offset), in: context)
+    }
+}
+
+extension MetadataProtocol where HeaderType: TypeMetadataHeaderBaseProtocol {
+    public func asFullMetadata<Context: ReadingContext>(in context: Context) throws -> FullMetadata<Self> {
+        try FullMetadata<Self>.resolve(at: try context.addressFromOffset(offset - HeaderType.layoutSize), in: context)
+    }
+
+    public func valueWitnesses<Context: ReadingContext>(in context: Context) throws -> ValueWitnessTable {
+        let fullMetadata = try asFullMetadata(in: context)
+        return try fullMetadata.layout.header.valueWitnesses.resolve(in: context)
+    }
+}
+
+extension MetadataProtocol where HeaderType: TypeMetadataHeaderBaseProtocol {
+    public func typeLayout<Context: ReadingContext>(in context: Context) throws -> TypeLayout {
+        try valueWitnesses(in: context).typeLayout
+    }
+
+    public func typeContextDescriptorWrapper<Context: ReadingContext>(in context: Context) throws -> TypeContextDescriptorWrapper? {
+        switch kind {
+        case .class:
+            let cls = try AnyClassMetadataObjCInterop.resolve(at: try context.addressFromOffset(offset), in: context)
+            if cls.isPureObjC {
+                return nil
+            } else {
+                return try .class(ClassMetadataObjCInterop.resolve(at: try context.addressFromOffset(offset), in: context).descriptor(in: context)!)
+            }
+        case .struct,
+             .enum,
+             .optional:
+            return try ValueMetadata.resolve(at: try context.addressFromOffset(offset), in: context).descriptor(in: context).asTypeContextDescriptorWrapper
+        case .foreignClass:
+            return try .class(ForeignClassMetadata.resolve(at: try context.addressFromOffset(offset), in: context).classDescriptor(in: context))
+        case .foreignReferenceType:
+            return try .class(ForeignReferenceTypeMetadata.resolve(at: try context.addressFromOffset(offset), in: context).classDescriptor(in: context))
+        default:
+            return nil
+        }
+    }
+}

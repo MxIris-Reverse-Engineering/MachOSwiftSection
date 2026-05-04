@@ -110,3 +110,17 @@ extension MachORepresentableWithCache where Self: Readable {
         MachOContext(self)
     }
 }
+
+// MARK: - Runtime Pointer Support
+
+extension MachOContext {
+    /// Returns the runtime pointer for the given file offset when the
+    /// underlying reader is a `MachOImage` mapped into the current process.
+    /// Returns `nil` for `MachOFile` and other non-resident readers.
+    public func runtimePointer(at address: Int) throws -> UnsafeRawPointer? {
+        if let machOImage = machO as? MachOImage {
+            return machOImage.ptr + UnsafeRawPointer.Stride(address)
+        }
+        return nil
+    }
+}

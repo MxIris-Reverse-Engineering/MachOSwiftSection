@@ -118,7 +118,7 @@ extension UnsafeRawPointer: AddressArithmetic {}
 /// // Use with in-process memory
 /// let desc2 = try readDescriptor(at: ptr, in: InProcessContext.shared)
 /// ```
-public protocol ReadingContext: Sendable {
+public protocol ReadingContext<Runtime, Address>: Sendable {
     /// The runtime target this context operates on.
     associatedtype Runtime: RuntimeProtocol
 
@@ -250,10 +250,32 @@ public protocol ReadingContext: Sendable {
     /// contexts that read already-relocated memory (in-process images, etc.)
     /// return `nil` and the caller falls back to a direct read.
     var bindRebaseResolver: (any MachOBindRebaseResolving)? { get }
+
+    /// Converts a context-specific address to a runtime `UnsafeRawPointer`,
+    /// when this context is mapped into the current process.
+    ///
+    /// - `InProcessContext`: returns the address itself (already a pointer).
+    /// - `MachOContext<MachOImage>`: returns `machO.ptr + address`.
+    /// - `MachOContext<MachOFile>` / other readers: returns `nil`.
+    ///
+    /// Declared as a protocol requirement (with a default `nil` implementation
+    /// in the extension below) so existential `any ReadingContext` calls
+    /// dynamic-dispatch to the concrete context's override. The default keeps
+    /// adding new conformers non-breaking.
+    func runtimePointer(at address: Address) throws -> UnsafeRawPointer?
 }
 
 extension ReadingContext {
     /// Default: no bind/rebase support. Concrete contexts override when they
     /// can vend a resolver (see `MachOContext`'s implementation).
     public var bindRebaseResolver: (any MachOBindRebaseResolving)? { nil }
+}
+
+extension ReadingContext {
+    /// Default: contexts that aren't mapped into the current process can't
+    /// vend a runtime pointer. Concrete contexts override this in their own
+    /// files (`InProcessContext`, `MachOContext`).
+    public func runtimePointer(at address: Address) throws -> UnsafeRawPointer? {
+        nil
+    }
 }

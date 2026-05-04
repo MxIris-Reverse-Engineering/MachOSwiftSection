@@ -29,8 +29,16 @@ extension TupleTypeMetadata {
     public func elements<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> [Element] {
         try machO.readElements(offset: offset + layoutSize, numberOfElements: layout.numberOfElements.cast())
     }
-    
+
     public func elements() throws -> [Element] {
         try asPointer.readElements(offset: layoutSize, numberOfElements: layout.numberOfElements.cast())
+    }
+}
+
+// MARK: - ReadingContext Support
+
+extension TupleTypeMetadata {
+    public func elements<Context: ReadingContext>(in context: Context) throws -> [Element] {
+        try context.readElements(at: try context.addressFromOffset(offset + layoutSize), numberOfElements: layout.numberOfElements.cast())
     }
 }
