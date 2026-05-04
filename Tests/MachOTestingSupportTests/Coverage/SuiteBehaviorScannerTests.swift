@@ -65,4 +65,18 @@ struct SuiteBehaviorScannerTests {
         let key = MethodKey(typeName: "DirectReaderType", memberName: "contextMethod")
         #expect(result[key] == .acrossAllReaders)
     }
+
+    /// A `@Test func` body with no reader markers should still be classified
+    /// as `.acrossAllReaders` when a private helper inside the same enclosing
+    /// class references a reader (the test transitively exercises the
+    /// reader through the helper-call). Without this fallback the scanner
+    /// would misreport a real test as sentinel.
+    @Test func detectsHelperReaderAsAcrossAllReaders() throws {
+        let root = try makeScanRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let scanner = SuiteBehaviorScanner(suiteRoot: root)
+        let result = try scanner.scan()
+        let key = MethodKey(typeName: "HelperReaderType", memberName: "helperUsingMethod")
+        #expect(result[key] == .acrossAllReaders)
+    }
 }

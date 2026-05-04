@@ -60,7 +60,7 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "MetadataProtocol",
-            members: ["kind", "valueWitnessTable"],
+            members: ["valueWitnessTable"],
             reason: .runtimeOnly(detail: "marker protocol on runtime metadata")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
@@ -70,12 +70,12 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "MetadataRequest",
-            members: ["init", "rawValue", "state", "isBlocking", "isNonBlocking"],
+            members: ["init", "rawValue", "state", "isBlocking", "isNonBlocking", "completeAndBlocking"],
             reason: .runtimeOnly(detail: "passed to runtime metadata accessor functions")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "MetadataResponse",
-            members: ["metadata", "state"],
+            members: ["metadata"],
             reason: .runtimeOnly(detail: "returned by runtime metadata accessor functions")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
@@ -85,27 +85,27 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "SingletonMetadataPointer",
-            members: ["init", "pointer", "metadata"],
+            members: ["init", "pointer", "metadata", "layout", "offset"],
             reason: .runtimeOnly(detail: "runtime singleton metadata cache pointer")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "MetadataBounds",
-            members: ["init", "negativeSizeInWords", "positiveSizeInWords"],
+            members: ["init", "negativeSizeInWords", "positiveSizeInWords", "layout", "offset"],
             reason: .runtimeOnly(detail: "computed by runtime, not in section data")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "MetadataBoundsProtocol",
-            members: ["negativeSizeInWords", "positiveSizeInWords"],
+            members: ["negativeSizeInWords", "positiveSizeInWords", "addressPointInBytes", "totalSizeInBytes"],
             reason: .runtimeOnly(detail: "marker protocol on runtime-computed bounds")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ClassMetadataBounds",
-            members: ["init", "immediateMembers", "negativeSizeInWords", "positiveSizeInWords"],
+            members: ["init", "immediateMembers", "negativeSizeInWords", "positiveSizeInWords", "layout", "offset"],
             reason: .runtimeOnly(detail: "computed by runtime from ClassDescriptor + parent chain")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ClassMetadataBoundsProtocol",
-            members: ["immediateMembers", "negativeSizeInWords", "positiveSizeInWords"],
+            members: ["immediateMembers", "negativeSizeInWords", "positiveSizeInWords", "adjustForSubclass", "forAddressPointAndSize", "forSwiftRootClass"],
             reason: .runtimeOnly(detail: "marker protocol on runtime-computed class bounds")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
@@ -162,7 +162,7 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "AnyClassMetadataObjCInteropProtocol",
-            members: ["isaPointer", "superclass", "cacheData0", "cacheData1", "data"],
+            members: ["isaPointer", "cacheData0", "cacheData1", "data"],
             reason: .runtimeOnly(detail: "marker protocol on AnyClassMetadataObjCInterop")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
@@ -172,7 +172,7 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "DispatchClassMetadata",
-            members: ["init", "kind", "isaPointer", "superclass", "data", "ivar1", "flags"],
+            members: ["init", "kind", "isaPointer", "superclass", "data", "ivar1", "flags", "layout", "offset"],
             reason: .runtimeOnly(detail: "Swift class with embedded ObjC metadata for dispatch; covered via InProcess")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
@@ -188,33 +188,33 @@ enum CoverageAllowlistEntries {
         // Existentials
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ExistentialTypeMetadata",
-            members: ["init", "kind", "flags", "numberOfWitnessTables", "numberOfProtocols", "isClassConstrained", "isErrorExistential", "superclassConstraint", "protocols"],
+            members: ["init", "kind", "flags", "numberOfWitnessTables", "numberOfProtocols", "isClassConstrained", "isErrorExistential"],
             reason: .runtimeOnly(detail: "live existential metadata; covered via InProcess in Phase C")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ExistentialMetatypeMetadata",
-            members: ["init", "kind", "instanceType", "flags"],
+            members: ["init", "kind", "instanceType", "flags", "layout", "offset"],
             reason: .runtimeOnly(detail: "live existential metatype; covered via InProcess in Phase C")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ExtendedExistentialTypeMetadata",
-            members: ["init", "kind", "shape", "genericArguments"],
+            members: ["init", "kind", "shape", "genericArguments", "layout", "offset"],
             reason: .runtimeOnly(detail: "Swift 5.7+ extended existential metadata; covered via InProcess")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ExtendedExistentialTypeShape",
-            members: ["init", "flags", "existentialType", "requirementSignatureHeader", "typeExpression", "suggestedValueWitnesses"],
+            members: ["init", "flags", "existentialType", "requirementSignatureHeader", "typeExpression", "suggestedValueWitnesses", "layout", "offset"],
             reason: .runtimeOnly(detail: "Shape descriptor stored alongside extended existential metadata at runtime")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "NonUniqueExtendedExistentialTypeShape",
-            members: ["init", "uniqueShape", "specializedShape"],
+            members: ["init", "uniqueShape", "specializedShape", "existentialType", "layout", "offset"],
             reason: .runtimeOnly(detail: "non-uniqued shape variant computed at runtime")
         ),
         // Tuple/function/metatype/opaque/fixed-array/heap
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "TupleTypeMetadata",
-            members: ["init", "kind", "numberOfElements", "labels", "elements"],
+            members: ["init", "kind", "numberOfElements", "labels"],
             reason: .runtimeOnly(detail: "tuple metadata is allocated lazily by the runtime; covered via InProcess")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
@@ -224,32 +224,32 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "FunctionTypeMetadata",
-            members: ["init", "kind", "flags", "result", "parameters", "parameterFlags"],
+            members: ["init", "kind", "flags", "result", "parameters", "parameterFlags", "layout", "offset"],
             reason: .runtimeOnly(detail: "function-type metadata is uniqued at runtime; covered via InProcess")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "MetatypeMetadata",
-            members: ["init", "kind", "instanceType"],
+            members: ["init", "kind", "instanceType", "layout", "offset"],
             reason: .runtimeOnly(detail: "metatype metadata is per-type runtime singleton; covered via InProcess")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "OpaqueMetadata",
-            members: ["init", "kind", "instanceType"],
+            members: ["init", "kind", "instanceType", "layout", "offset"],
             reason: .runtimeOnly(detail: "Swift Builtin opaque metadata; covered via InProcess")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "FixedArrayTypeMetadata",
-            members: ["init", "kind", "count", "element"],
+            members: ["init", "kind", "count", "element", "layout", "offset"],
             reason: .runtimeOnly(detail: "InlineArray<N, T> runtime metadata; covered via InProcess on Swift 6.2+")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "GenericBoxHeapMetadata",
-            members: ["init", "kind", "valueWitnessTable", "offsetOfBoxHeader", "captureOffset", "boxedType"],
+            members: ["init", "kind", "valueWitnessTable", "offsetOfBoxHeader", "captureOffset", "boxedType", "layout", "offset"],
             reason: .runtimeOnly(detail: "swift_allocBox-allocated; not feasible to construct stably from tests")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "HeapLocalVariableMetadata",
-            members: ["init", "kind", "offsetToFirstCapture", "captureDescription"],
+            members: ["init", "kind", "offsetToFirstCapture", "captureDescription", "layout", "offset"],
             reason: .runtimeOnly(detail: "captured by closures; not feasible to construct stably from tests")
         ),
         // Headers (live in metadata layout prefix)
@@ -260,7 +260,7 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "HeapMetadataHeaderPrefix",
-            members: ["init", "destroy"],
+            members: ["init", "destroy", "layout", "offset"],
             reason: .runtimeOnly(detail: "metadata layout prefix")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
@@ -270,12 +270,12 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "TypeMetadataHeaderBase",
-            members: ["destroy", "valueWitnessTable"],
+            members: ["destroy", "valueWitnessTable", "layout", "offset"],
             reason: .runtimeOnly(detail: "marker protocol on type-metadata layout prefix")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "TypeMetadataLayoutPrefix",
-            members: ["destroy", "valueWitnessTable"],
+            members: ["destroy", "valueWitnessTable", "layout", "offset"],
             reason: .runtimeOnly(detail: "marker protocol on layout prefix")
         ),
         // Generic / VWT / runtime layer
@@ -296,13 +296,13 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "TypeLayout",
-            members: ["init", "size", "stride", "flags", "extraInhabitantCount"],
+            members: ["init", "size", "stride", "flags", "extraInhabitantCount", "description", "debugDescription"],
             reason: .runtimeOnly(detail: "value-witness-table layout slice; covered via InProcess")
         ),
         // Foreign metadata initialization
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ForeignMetadataInitialization",
-            members: ["init", "completionFunction"],
+            members: ["init", "completionFunction", "layout", "offset"],
             reason: .runtimeOnly(detail: "foreign-metadata callback installed by runtime")
         ),
     ].flatMap { $0 }
@@ -327,7 +327,7 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ResilientSuperclass",
-            members: ["init", "superclass", "layout", "offset"],
+            members: ["init", "superclass"],
             reason: .needsFixtureExtension(detail: "no resilient class with explicit superclass reference — Phase B2")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
@@ -352,33 +352,48 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "CanonicalSpecializedMetadataAccessorsListEntry",
-            members: ["init", "accessor"],
+            members: ["init", "accessor", "layout", "offset"],
             reason: .needsFixtureExtension(detail: "no @_specialize(exported:) generic in SymbolTestsCore — Phase B5")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "CanonicalSpecializedMetadatasCachingOnceToken",
-            members: ["init", "token"],
+            members: ["init", "token", "layout", "offset"],
             reason: .needsFixtureExtension(detail: "no @_specialize(exported:) generic in SymbolTestsCore — Phase B5")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "CanonicalSpecializedMetadatasListCount",
-            members: ["init", "count"],
+            members: ["init", "count", "rawValue"],
             reason: .needsFixtureExtension(detail: "no @_specialize(exported:) generic in SymbolTestsCore — Phase B5")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "CanonicalSpecializedMetadatasListEntry",
-            members: ["init", "metadata"],
+            members: ["init", "metadata", "layout", "offset"],
             reason: .needsFixtureExtension(detail: "no @_specialize(exported:) generic in SymbolTestsCore — Phase B5")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ForeignClassMetadata",
-            members: ["init", "kind", "name", "superclass", "reserved"],
+            members: ["init", "kind", "name", "superclass", "reserved", "classDescriptor", "layout", "offset"],
             reason: .needsFixtureExtension(detail: "no foreign class import in SymbolTestsCore — Phase B6")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ForeignReferenceTypeMetadata",
-            members: ["init", "kind", "name"],
+            members: ["init", "kind", "name", "classDescriptor", "layout", "offset"],
             reason: .needsFixtureExtension(detail: "no foreign reference type in SymbolTestsCore — Phase B6")
+        ),
+        CoverageAllowlistHelpers.sentinelGroup(
+            typeName: "OpaqueType",
+            members: ["descriptor", "genericContext", "invertedProtocols", "underlyingTypeArgumentMangledNames"],
+            reason: .needsFixtureExtension(detail: "opaque-type descriptors in SymbolTestsCore aren't reachable through swift.contextDescriptors on current toolchain")
+        ),
+        CoverageAllowlistHelpers.sentinelGroup(
+            typeName: "OpaqueTypeDescriptor",
+            members: ["layout", "offset"],
+            reason: .needsFixtureExtension(detail: "opaque-type descriptor not reachable from SymbolTestsCore section walks; suite uses synthetic memberwise instance")
+        ),
+        CoverageAllowlistHelpers.sentinelGroup(
+            typeName: "OpaqueTypeDescriptorProtocol",
+            members: ["numUnderlyingTypeArugments"],
+            reason: .needsFixtureExtension(detail: "opaque-type descriptor not reachable; protocol extension exercised on synthetic descriptor")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "GenericValueDescriptor",
@@ -397,8 +412,8 @@ enum CoverageAllowlistEntries {
     private static let pureDataUtilityEntries: [CoverageAllowlistEntry] = [
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ContextDescriptorFlags",
-            members: ["init", "rawValue", "kind", "isGeneric", "isUnique", "version", "kindSpecificFlags"],
-            reason: .pureDataUtility(detail: "raw bitfield over context descriptor flag word")
+            members: ["init"],
+            reason: .pureDataUtility(detail: "memberwise initializer not surfaced by the public-member scanner")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ContextDescriptorKindSpecificFlags",
@@ -407,13 +422,13 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "AnonymousContextDescriptorFlags",
-            members: ["init", "rawValue", "hasMangledName"],
-            reason: .pureDataUtility(detail: "raw bitfield over anonymous descriptor flags")
+            members: ["init"],
+            reason: .pureDataUtility(detail: "memberwise initializer not surfaced by the public-member scanner")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "TypeContextDescriptorFlags",
-            members: ["init", "rawValue", "metadataInitialization", "hasImportInfo", "hasCanonicalMetadataPrespecializations", "hasLayoutString"],
-            reason: .pureDataUtility(detail: "raw bitfield over type-context flags")
+            members: ["init", "metadataInitialization", "hasCanonicalMetadataPrespecializations"],
+            reason: .pureDataUtility(detail: "memberwise initializer + accessors not exercised by the cross-reader Suite")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ClassFlags",
@@ -427,37 +442,37 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "MethodDescriptorFlags",
-            members: ["init", "rawValue", "isInstance", "isDynamic", "kind", "extraDiscriminator"],
-            reason: .pureDataUtility(detail: "raw bitfield over method descriptor flags")
+            members: ["init"],
+            reason: .pureDataUtility(detail: "memberwise initializer not surfaced by the public-member scanner")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "MethodDescriptorKind",
-            members: ["init", "rawValue"],
+            members: ["init", "rawValue", "description"],
             reason: .pureDataUtility(detail: "method descriptor kind enum")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ProtocolDescriptorFlags",
-            members: ["init", "rawValue", "hasClassConstraint", "isResilient", "specialProtocol", "dispatchStrategy"],
+            members: ["init", "rawValue", "hasClassConstraint", "isResilient", "specialProtocol", "dispatchStrategy", "classConstraint", "isSwift", "needsProtocolWitnessTable", "specialProtocolKind"],
             reason: .pureDataUtility(detail: "raw bitfield over protocol descriptor flags")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ProtocolContextDescriptorFlags",
-            members: ["init", "rawValue", "isClassConstrained", "isResilient", "specialProtocol"],
-            reason: .pureDataUtility(detail: "raw bitfield over protocol-context flags")
+            members: ["init", "isClassConstrained", "specialProtocol"],
+            reason: .pureDataUtility(detail: "memberwise initializer + accessors not exercised by the cross-reader Suite")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ProtocolRequirementFlags",
-            members: ["init", "rawValue", "kind", "isInstance", "extraDiscriminator"],
-            reason: .pureDataUtility(detail: "raw bitfield over protocol requirement flags")
+            members: ["init", "extraDiscriminator"],
+            reason: .pureDataUtility(detail: "memberwise initializer + accessors not exercised by the cross-reader Suite")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ProtocolRequirementKind",
-            members: ["init", "rawValue"],
+            members: ["init", "rawValue", "description"],
             reason: .pureDataUtility(detail: "protocol requirement kind enum")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "GenericContextDescriptorFlags",
-            members: ["init", "rawValue", "hasTypePacks", "hasConditionalInvertedRequirements"],
+            members: ["init", "rawValue", "hasTypePacks", "hasConditionalInvertedRequirements", "hasConditionalInvertedProtocols", "hasValues"],
             reason: .pureDataUtility(detail: "raw bitfield over generic context flags")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
@@ -467,22 +482,22 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "GenericEnvironmentFlags",
-            members: ["init", "rawValue", "numGenericParameterLevels"],
+            members: ["init", "rawValue", "numGenericParameterLevels", "numberOfGenericParameterLevels", "numberOfGenericRequirements"],
             reason: .pureDataUtility(detail: "raw bitfield over generic environment flags")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "FieldRecordFlags",
-            members: ["init", "rawValue", "isVar", "isArtificial"],
+            members: ["init", "rawValue", "isVar", "isArtificial", "isIndirectCase", "isVariadic"],
             reason: .pureDataUtility(detail: "raw bitfield over field record flags")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ProtocolConformanceFlags",
-            members: ["init", "rawValue", "kind", "isRetroactive", "isSynthesizedNonUnique", "numConditionalRequirements", "numConditionalPackShapeDescriptors", "hasResilientWitnesses", "hasGenericWitnessTable", "isGlobalActorIsolated"],
+            members: ["init", "rawValue", "kind", "isRetroactive", "isSynthesizedNonUnique", "numConditionalRequirements", "numConditionalPackShapeDescriptors", "hasResilientWitnesses", "hasGenericWitnessTable", "isGlobalActorIsolated", "hasGlobalActorIsolation", "hasNonDefaultSerialExecutorIsIsolatingCurrentContext", "isConformanceOfProtocol", "typeReferenceKind"],
             reason: .pureDataUtility(detail: "raw bitfield over protocol conformance flags")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ExistentialTypeFlags",
-            members: ["init", "rawValue", "numProtocols", "numWitnessTables", "isClassConstraint", "isErrorExistential", "isObjCExistential"],
+            members: ["init", "rawValue", "numProtocols", "numWitnessTables", "isClassConstraint", "isErrorExistential", "isObjCExistential", "classConstraint", "hasSuperclassConstraint", "numberOfWitnessTables", "specialProtocol"],
             reason: .pureDataUtility(detail: "raw bitfield over existential type flags")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
@@ -492,12 +507,12 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "FunctionTypeFlags",
-            members: ["init", "rawValue", "numParameters", "convention", "isThrowing", "isAsync", "isEscaping", "isSendable", "hasParameterFlags", "hasGlobalActor", "hasThrownError"],
+            members: ["init", "rawValue", "numParameters", "convention", "isThrowing", "isAsync", "isEscaping", "isSendable", "hasParameterFlags", "hasGlobalActor", "hasThrownError", "hasExtendedFlags", "isDifferentiable", "numberOfParameters"],
             reason: .pureDataUtility(detail: "raw bitfield over function type flags")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ValueWitnessFlags",
-            members: ["init", "rawValue", "alignmentMask", "isNonPOD", "isNonInline", "hasExtraInhabitants", "hasSpareBits", "isNonBitwiseTakable", "isIncomplete"],
+            members: ["init", "rawValue", "alignmentMask", "isNonPOD", "isNonInline", "hasExtraInhabitants", "hasSpareBits", "isNonBitwiseTakable", "isIncomplete", "alignment", "hasEnumWitnesses", "inComplete", "isBitwiseBorrowable", "isBitwiseTakable", "isCopyable", "isInlineStorage", "isNonBitwiseBorrowable", "isNonCopyable", "isPOD", "maxNumExtraInhabitants"],
             reason: .pureDataUtility(detail: "raw bitfield over value witness flags")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
@@ -511,8 +526,13 @@ enum CoverageAllowlistEntries {
             reason: .pureDataUtility(detail: "enum-specific value witness function group; covered via VWT InProcess test")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
+            typeName: "EnumTagCounts",
+            members: ["numTags", "numTagBytes"],
+            reason: .pureDataUtility(detail: "result struct of pure function getEnumTagCounts; covered via literal-baseline assertions")
+        ),
+        CoverageAllowlistHelpers.sentinelGroup(
             typeName: "InvertibleProtocolSet",
-            members: ["init", "rawValue", "contains", "isSuppressedByDefault"],
+            members: ["init", "rawValue", "contains", "isSuppressedByDefault", "copyable", "escapable", "hasCopyable", "hasEscapable"],
             reason: .pureDataUtility(detail: "raw bitset over invertible protocols")
         ),
         CoverageAllowlistHelpers.sentinelGroup(

@@ -54,3 +54,21 @@ final class DirectReaderTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unc
         let _ = try Foo(in: imageContext)
     }
 }
+
+@Suite
+final class HelperReaderTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
+    static let testedTypeName = "HelperReaderType"
+    static var registeredTestMethodNames: Set<String> { ["helperUsingMethod"] }
+
+    /// Helper that references the reader. The @Test func body below has
+    /// no reader markers itself — only the helper does.
+    private func loadValue() throws -> Int {
+        let _ = try Foo(in: machOImage)
+        return 42
+    }
+
+    @Test func helperUsingMethod() async throws {
+        let value = try loadValue()
+        #expect(value == 42)
+    }
+}

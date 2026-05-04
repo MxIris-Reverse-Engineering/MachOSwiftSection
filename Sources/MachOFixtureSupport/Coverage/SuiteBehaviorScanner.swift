@@ -3,8 +3,25 @@ import SwiftSyntax
 import SwiftParser
 
 /// Scans `*Tests.swift` Suite source files and reports per-method behavior:
-/// whether each `@Test func` calls `acrossAllReaders` / `acrossAllContexts`,
-/// `usingInProcessOnly` / `inProcessContext`, or neither.
+/// whether each `@Test func` exercises any reader/context machinery, only
+/// touches the in-process context, or is a pure registration-only sentinel.
+///
+/// Classification rules (applied in order):
+///
+///   1. If the `@Test func` body itself references any reader/context
+///      identifier (`acrossAllReaders`, `acrossAllContexts`, `machOFile`,
+///      `machOImage`, `fileContext`, `imageContext`) → `.acrossAllReaders`.
+///   2. Otherwise, if the body explicitly uses `usingInProcessOnly` or
+///      `inProcessContext` → `.inProcessOnly`.
+///   3. Otherwise, fall back to the *enclosing class body*: if the entire
+///      class references any cross-reader identifier (typically through a
+///      private helper like `loadStructTestMetadata()` that the test calls),
+///      treat the method as `.acrossAllReaders` because the helper-call
+///      pattern means the test transitively exercises the reader. If only
+///      `usingInProcessOnly` / `inProcessContext` shows up class-wide, treat
+///      it as `.inProcessOnly`.
+///   4. Bodies and classes with none of those markers classify as
+///      `.sentinel` (registration-only / synthetic memberwise tests).
 ///
 /// Used by `MachOSwiftSectionCoverageInvariantTests` to enforce that every
 /// sentinel-only method is declared in `CoverageAllowlistEntries`.
@@ -56,21 +73,29 @@ private final class SuiteBehaviorVisitor: SyntaxVisitor {
     }
     private(set) var collected: [Entry] = []
     private var currentTestedTypeName: String?
+    /// The serialized text of the enclosing class/struct member block, used
+    /// as a fallback when the immediate `@Test func` body has no reader
+    /// markers (the test typically calls a private helper that does).
+    private var currentEnclosingClassBodyText: String?
 
     override func visit(_ node: ClassDeclSyntax) -> SyntaxVisitorContinueKind {
         currentTestedTypeName = extractTestedTypeName(from: node.memberBlock)
+        currentEnclosingClassBodyText = node.memberBlock.description
         return .visitChildren
     }
     override func visitPost(_ node: ClassDeclSyntax) {
         currentTestedTypeName = nil
+        currentEnclosingClassBodyText = nil
     }
 
     override func visit(_ node: StructDeclSyntax) -> SyntaxVisitorContinueKind {
         currentTestedTypeName = extractTestedTypeName(from: node.memberBlock)
+        currentEnclosingClassBodyText = node.memberBlock.description
         return .visitChildren
     }
     override func visitPost(_ node: StructDeclSyntax) {
         currentTestedTypeName = nil
+        currentEnclosingClassBodyText = nil
     }
 
     override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind {
@@ -79,7 +104,10 @@ private final class SuiteBehaviorVisitor: SyntaxVisitor {
               let body = node.body else {
             return .skipChildren
         }
-        let behavior = inferBehavior(from: body)
+        let behavior = inferBehavior(
+            fromBody: body,
+            enclosingClassBodyText: currentEnclosingClassBodyText
+        )
         collected.append(Entry(
             testedTypeName: testedTypeName,
             methodName: node.name.text,
@@ -118,19 +146,36 @@ private final class SuiteBehaviorVisitor: SyntaxVisitor {
         return false
     }
 
-    private func inferBehavior(from body: CodeBlockSyntax) -> SuiteBehaviorScanner.MethodBehavior {
+    private static let crossReaderMarkers = [
+        "acrossAllReaders", "acrossAllContexts",
+        "machOFile", "machOImage",
+        "fileContext", "imageContext",
+    ]
+    private static let inProcessMarkers = ["usingInProcessOnly", "inProcessContext"]
+
+    private func inferBehavior(
+        fromBody body: CodeBlockSyntax,
+        enclosingClassBodyText: String?
+    ) -> SuiteBehaviorScanner.MethodBehavior {
         let bodyText = body.description
-        let crossReaderMarkers = [
-            "acrossAllReaders", "acrossAllContexts",
-            "machOFile", "machOImage",
-            "fileContext", "imageContext",
-        ]
-        if crossReaderMarkers.contains(where: { bodyText.contains($0) }) {
+        if Self.crossReaderMarkers.contains(where: { bodyText.contains($0) }) {
             return .acrossAllReaders
         }
-        let inProcessMarkers = ["usingInProcessOnly", "inProcessContext"]
-        if inProcessMarkers.contains(where: { bodyText.contains($0) }) {
+        if Self.inProcessMarkers.contains(where: { bodyText.contains($0) }) {
             return .inProcessOnly
+        }
+        // Fall back to the enclosing class body. Tests frequently call a
+        // private helper (e.g. `loadStructTestMetadata()`) whose body is the
+        // only place the reader is referenced; the @Test func body itself
+        // contains no reader marker. Treat the test as `.acrossAllReaders`
+        // when the enclosing class as a whole references reader markers.
+        if let enclosingText = enclosingClassBodyText {
+            if Self.crossReaderMarkers.contains(where: { enclosingText.contains($0) }) {
+                return .acrossAllReaders
+            }
+            if Self.inProcessMarkers.contains(where: { enclosingText.contains($0) }) {
+                return .inProcessOnly
+            }
         }
         return .sentinel
     }
