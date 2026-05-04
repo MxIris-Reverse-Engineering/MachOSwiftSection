@@ -121,16 +121,22 @@ To add a new public method:
 1. Add the method.
 2. Run `swift test --filter MachOSwiftSectionCoverageInvariantTests` to see which Suite needs updating.
 3. Add a `@Test` to that Suite + append the member name to `registeredTestMethodNames`.
-4. Run `Scripts/regen-baselines.sh --suite <Name>` to regenerate the baseline.
+4. Run `swift package --allow-writing-to-package-directory regen-baselines --suite <Name>` to regenerate the baseline.
 5. Re-run the affected Suite.
 
 To regenerate all baselines after fixture rebuild or toolchain upgrade:
 
 ```bash
 xcodebuild -project Tests/Projects/SymbolTests/SymbolTests.xcodeproj -scheme SymbolTestsCore -configuration Release build
-Scripts/regen-baselines.sh
+swift package --allow-writing-to-package-directory regen-baselines
 git diff Tests/MachOSwiftSectionTests/Fixtures/__Baseline__/  # review drift
 ```
+
+The `regen-baselines` command is provided by the `RegenerateBaselinesPlugin`
+SwiftPM command plugin (`Plugins/RegenerateBaselinesPlugin/`). It builds and
+invokes the `baseline-generator` executable target. From Xcode you can also
+right-click the package → "Regenerate MachOSwiftSection fixture-test ABI
+baselines.".
 
 ## Work In Progress
 

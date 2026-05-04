@@ -138,7 +138,7 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
     .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", from: "0.4.0"),
     
-    .package(url: "https://github.com/MxIris-Library-Forks/swift-memberwise-init-macro", from: "0.5.3-fork"),
+    .package(url: "https://github.com/gohanlon/swift-memberwise-init-macro", from: "0.6.0"),
     .package(url: "https://github.com/Mx-Iris/SourceKitD", from: "0.1.0"),
     .package(url: "https://github.com/christophhagen/BinaryCodable", from: "3.1.0"),
     
@@ -492,6 +492,29 @@ extension Target {
         swiftSettings: testSettings
     )
 
+    // MARK: - Plugins
+
+    /// `swift package regen-baselines` — regenerates the auto-generated
+    /// `__Baseline__/<File>Baseline.swift` files consumed by the fixture-based
+    /// test coverage suites. Replaces the legacy `Scripts/regen-baselines.sh`.
+    static let RegenerateBaselinesPlugin = Target.plugin(
+        name: "RegenerateBaselinesPlugin",
+        capability: .command(
+            intent: .custom(
+                verb: "regen-baselines",
+                description: "Regenerate MachOSwiftSection fixture-test ABI baselines."
+            ),
+            permissions: [
+                .writeToPackageDirectory(
+                    reason: "Writes regenerated baselines under Tests/MachOSwiftSectionTests/Fixtures/__Baseline__/."
+                )
+            ]
+        ),
+        dependencies: [
+            .target(.baseline_generator),
+        ]
+    )
+
     // MARK: - Macros
 
     static let MachOMacros = Target.macro(
@@ -693,6 +716,9 @@ let package = Package(
         // Executable
         .swift_section,
         .baseline_generator,
+
+        // Plugins
+        .RegenerateBaselinesPlugin,
 
         // Testing
         .MachOSymbolsTests,
