@@ -1,10 +1,8 @@
 // AUTO-GENERATED — DO NOT EDIT.
-// Regenerate via: Scripts/regen-baselines.sh
-// Source fixture: SymbolTestsCore.framework
-//
-// MetadataRequest is a value type round-tripped through its flag
-// accessors. No MachO fixture is required; the Suite verifies the
-// bit-packing invariants directly.
+// Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+// Source: bit-packing constants for MetadataRequest's MutableFlagSet
+// (no MachO fixture is required; the Suite verifies invariants
+// directly under `usingInProcessOnly`).
 
 enum MetadataRequestBaseline {
     static let registeredTestMethodNames: Set<String> = ["completeAndBlocking", "init", "init(rawValue:)", "init(state:isBlocking:)", "isBlocking", "rawValue", "state"]

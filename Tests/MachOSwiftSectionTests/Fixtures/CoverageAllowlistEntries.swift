@@ -68,11 +68,9 @@ enum CoverageAllowlistEntries {
             members: ["init", "pointer", "kind"],
             reason: .runtimeOnly(detail: "wraps live runtime metadata pointer")
         ),
-        CoverageAllowlistHelpers.sentinelGroup(
-            typeName: "MetadataRequest",
-            members: ["init", "rawValue", "state", "isBlocking", "isNonBlocking", "completeAndBlocking"],
-            reason: .runtimeOnly(detail: "passed to runtime metadata accessor functions")
-        ),
+        // MetadataRequest is covered as a real InProcess test in Phase C5
+        // (bit-packing invariants exercised under `usingInProcessOnly`); no
+        // sentinel entry remains.
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "MetadataResponse",
             members: ["metadata"],
@@ -86,12 +84,12 @@ enum CoverageAllowlistEntries {
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "SingletonMetadataPointer",
             members: ["init", "pointer", "metadata", "layout", "offset"],
-            reason: .runtimeOnly(detail: "runtime singleton metadata cache pointer")
+            reason: .runtimeOnly(detail: "trailing payload appended only to descriptors carrying the `hasSingletonMetadataPointer` bit (cross-module canonical metadata caching); SymbolTestsCore declares no descriptor that fires this bit, so no live entry exists. Phase C5 considered conversion and kept sentinel.")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "MetadataBounds",
             members: ["init", "negativeSizeInWords", "positiveSizeInWords", "layout", "offset"],
-            reason: .runtimeOnly(detail: "computed by runtime, not in section data")
+            reason: .runtimeOnly(detail: "computed by runtime, not in section data; only constructed synthetically via the memberwise initialiser. Phase C5 considered conversion and kept sentinel — same rationale as `ClassMetadataBounds`, which has no runtime derivation path from a class metadata pointer (only static factories).")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "MetadataBoundsProtocol",
@@ -247,8 +245,8 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "HeapMetadataHeaderPrefix",
-            members: ["init", "destroy", "layout", "offset"],
-            reason: .runtimeOnly(detail: "metadata layout prefix")
+            members: ["init", "destroy"],
+            reason: .runtimeOnly(detail: "metadata layout prefix; `layout`/`offset` covered via MachOImage in Phase C5, `destroy` scanner-attributed via the prefix-protocol layout")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "TypeMetadataHeader",

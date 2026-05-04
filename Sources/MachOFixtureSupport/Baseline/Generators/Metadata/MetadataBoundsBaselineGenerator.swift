@@ -5,12 +5,15 @@ import SwiftSyntaxBuilder
 /// Emits `__Baseline__/MetadataBoundsBaseline.swift`.
 ///
 /// `MetadataBounds` is the one-`(UInt32, UInt32)` payload describing a class
-/// metadata's negative/positive prefix bounds. It is reachable through
-/// `ClassMetadataBounds.layout.bounds` for any non-resilient Swift class.
-/// Rather than materialise a class metadata (a MachOImage-only path), we
-/// validate the structural fields via a constant round-trip — the Suite
-/// asserts `MetadataBounds(layout:offset:)` preserves the supplied
-/// `negativeSizeInWords`/`positiveSizeInWords`.
+/// metadata's negative/positive prefix bounds. The Suite validates the
+/// structural fields via a constant round-trip — `MetadataBounds(layout:offset:)`
+/// preserves the supplied `negativeSizeInWords`/`positiveSizeInWords`.
+///
+/// Phase C5 considered conversion to a real test and kept sentinel — same
+/// rationale as `ClassMetadataBounds`, which has no runtime derivation
+/// path from a class metadata pointer (only static factories
+/// `forSwiftRootClass`/`forAddressPointAndSize` and the `adjustForSubclass`
+/// instance method).
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized; the
 /// inherited `totalSizeInBytes`/`addressPointInBytes` are attributed to
@@ -24,12 +27,11 @@ package enum MetadataBoundsBaselineGenerator {
 
         let header = """
         // AUTO-GENERATED — DO NOT EDIT.
-        // Regenerate via: Scripts/regen-baselines.sh
-        // Source fixture: SymbolTestsCore.framework
-        //
-        // MetadataBounds is exercised via constant round-trip; live class-
-        // metadata bounds are reachable only through MachOImage and are
-        // covered by the ClassMetadataBoundsProtocol Suite.
+        // Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+        // Source: bit-packing constants for MetadataBounds (no MachO fixture
+        // is required; the Suite verifies the memberwise round-trip directly).
+        // Phase C5 kept this Suite sentinel — see CoverageAllowlistEntries
+        // for the rationale.
         """
 
         let file: SourceFileSyntax = """

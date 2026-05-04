@@ -9,7 +9,10 @@ import SwiftSyntaxBuilder
 /// `SymbolTestsCore` fixture has no descriptor that surfaces this bit (it
 /// fires for cross-module canonical metadata caching, which the fixture
 /// doesn't use), so no live entry is materialised. We emit only the
-/// registered member names.
+/// registered member names. Phase C5 considered conversion via
+/// `InProcessMetadataPicker` and kept sentinel because the trailing
+/// payload requires a descriptor with the corresponding bit, not just a
+/// runtime metadata pointer.
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 package enum SingletonMetadataPointerBaselineGenerator {
@@ -21,12 +24,11 @@ package enum SingletonMetadataPointerBaselineGenerator {
 
         let header = """
         // AUTO-GENERATED — DO NOT EDIT.
-        // Regenerate via: Scripts/regen-baselines.sh
-        // Source fixture: SymbolTestsCore.framework
-        //
-        // SymbolTestsCore declares no descriptors carrying a singleton-
+        // Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+        // Source: SymbolTestsCore declares no descriptors carrying a singleton-
         // metadata-pointer trailing object, so no live entry is materialised.
-        // The Suite asserts the type's structural members exist.
+        // The Suite asserts the type's structural members exist. Phase C5
+        // kept this Suite sentinel — see CoverageAllowlistEntries.
         """
 
         let file: SourceFileSyntax = """

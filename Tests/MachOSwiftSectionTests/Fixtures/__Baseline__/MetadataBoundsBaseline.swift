@@ -1,10 +1,9 @@
 // AUTO-GENERATED — DO NOT EDIT.
-// Regenerate via: Scripts/regen-baselines.sh
-// Source fixture: SymbolTestsCore.framework
-//
-// MetadataBounds is exercised via constant round-trip; live class-
-// metadata bounds are reachable only through MachOImage and are
-// covered by the ClassMetadataBoundsProtocol Suite.
+// Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+// Source: bit-packing constants for MetadataBounds (no MachO fixture
+// is required; the Suite verifies the memberwise round-trip directly).
+// Phase C5 kept this Suite sentinel — see CoverageAllowlistEntries
+// for the rationale.
 
 enum MetadataBoundsBaseline {
     static let registeredTestMethodNames: Set<String> = ["layout", "offset"]

@@ -7,7 +7,10 @@ import SwiftSyntaxBuilder
 /// `MetadataRequest` is a `MutableFlagSet` packing `state` (8 bits) and
 /// `isBlocking` (1 bit) into a single `Int` raw value. The Suite drives the
 /// type via constant round-trips through the three initialisers (no MachO
-/// fixture is required) and asserts the bit-packing invariants.
+/// fixture is required) and asserts the bit-packing invariants. Phase C5
+/// wraps the assertions in `usingInProcessOnly` so the suite is classified
+/// as `.inProcessOnly` rather than `.sentinel` — the `InProcessContext` is
+/// otherwise unused.
 ///
 /// Public surface (after PublicMemberScanner name-only collapsing):
 /// - `init(rawValue:)`, `init`, `init(state:isBlocking:)` — three distinct
@@ -30,12 +33,10 @@ package enum MetadataRequestBaselineGenerator {
 
         let header = """
         // AUTO-GENERATED — DO NOT EDIT.
-        // Regenerate via: Scripts/regen-baselines.sh
-        // Source fixture: SymbolTestsCore.framework
-        //
-        // MetadataRequest is a value type round-tripped through its flag
-        // accessors. No MachO fixture is required; the Suite verifies the
-        // bit-packing invariants directly.
+        // Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+        // Source: bit-packing constants for MetadataRequest's MutableFlagSet
+        // (no MachO fixture is required; the Suite verifies invariants
+        // directly under `usingInProcessOnly`).
         """
 
         let file: SourceFileSyntax = """
