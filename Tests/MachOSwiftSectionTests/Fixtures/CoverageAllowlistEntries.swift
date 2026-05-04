@@ -214,22 +214,22 @@ enum CoverageAllowlistEntries {
         // Tuple/function/metatype/opaque/fixed-array/heap
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "TupleTypeMetadata",
-            members: ["init", "kind", "numberOfElements", "labels"],
-            reason: .runtimeOnly(detail: "tuple metadata is allocated lazily by the runtime; covered via InProcess")
+            members: ["init"],
+            reason: .runtimeOnly(detail: "tuple metadata is allocated lazily by the runtime; covered via InProcess `layout`/`offset`/`elements` tests")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "Element",
-            members: ["init", "type", "offset"],
+            members: ["init"],
             reason: .runtimeOnly(detail: "TupleTypeMetadata.Element nested struct; lives in runtime tuple metadata")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "FunctionTypeMetadata",
-            members: ["init", "kind", "flags", "result", "parameters", "parameterFlags", "layout", "offset"],
-            reason: .runtimeOnly(detail: "function-type metadata is uniqued at runtime; covered via InProcess")
+            members: ["init"],
+            reason: .runtimeOnly(detail: "function-type metadata is uniqued at runtime; covered via InProcess `layout`/`offset` tests")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "MetatypeMetadata",
-            members: ["init", "kind", "instanceType", "layout", "offset"],
+            members: ["init"],
             reason: .runtimeOnly(detail: "metatype metadata is per-type runtime singleton; covered via InProcess")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
@@ -507,7 +507,7 @@ enum CoverageAllowlistEntries {
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "FunctionTypeFlags",
-            members: ["init", "rawValue", "numParameters", "convention", "isThrowing", "isAsync", "isEscaping", "isSendable", "hasParameterFlags", "hasGlobalActor", "hasThrownError", "hasExtendedFlags", "isDifferentiable", "numberOfParameters"],
+            members: ["init", "init(rawValue:)", "rawValue", "numParameters", "convention", "isThrowing", "isAsync", "isEscaping", "isSendable", "hasParameterFlags", "hasGlobalActor", "hasThrownError", "hasExtendedFlags", "isDifferentiable"],
             reason: .pureDataUtility(detail: "raw bitfield over function type flags")
         ),
         CoverageAllowlistHelpers.sentinelGroup(

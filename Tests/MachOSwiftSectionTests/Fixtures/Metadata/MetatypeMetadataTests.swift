@@ -7,11 +7,12 @@ import MachOFixtureSupport
 
 /// Fixture-based Suite for `MetatypeMetadata`.
 ///
-/// `MetatypeMetadata` (kind `0x304`) is the runtime metadata kind for
-/// metatype values (`T.Type`). It is materialised by the runtime when
-/// reflection asks for a metatype's metadata; a static MachO walk of the
-/// fixture never surfaces a live instance. We validate the structural
-/// members against a synthetic memberwise instance.
+/// Phase C2: real InProcess test against `type(of: Int.self)` (the
+/// runtime-allocated `MetatypeMetadata` whose `instanceType` is
+/// `Int.self`). We resolve via `InProcessMetadataPicker.stdlibIntMetatype`
+/// and assert the wrapper's observable `layout` (kind + instanceType
+/// pointer) and `offset` (runtime metadata pointer bit-pattern) against
+/// ABI literals pinned in the regenerated baseline.
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
@@ -21,19 +22,26 @@ final class MetatypeMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, 
         MetatypeMetadataBaseline.registeredTestMethodNames
     }
 
-    @Test func offset() async throws {
-        let metadata = MetatypeMetadata(
-            layout: .init(kind: 0x304, instanceType: .init(address: 0)),
-            offset: 0xCAFE
-        )
-        #expect(metadata.offset == 0xCAFE)
+    @Test func layout() async throws {
+        let resolved = try usingInProcessOnly { context in
+            try MetatypeMetadata.resolve(at: InProcessMetadataPicker.stdlibIntMetatype, in: context)
+        }
+        // The runtime-allocated metatype metadata's layout.kind decodes
+        // to MetadataKind.metatype (0x304); its layout.instanceType
+        // points to `Int.self`.
+        #expect(resolved.kind.rawValue == MetatypeMetadataBaseline.stdlibIntMetatype.kindRawValue)
+        let expectedInstanceTypeAddress = UInt64(UInt(bitPattern: unsafeBitCast(Int.self, to: UnsafeRawPointer.self)))
+        #expect(resolved.layout.instanceType.address == expectedInstanceTypeAddress)
     }
 
-    @Test func layout() async throws {
-        let metadata = MetatypeMetadata(
-            layout: .init(kind: 0x304, instanceType: .init(address: 0x42)),
-            offset: 0
-        )
-        #expect(metadata.layout.kind == 0x304)
+    @Test func offset() async throws {
+        let resolvedOffset = try usingInProcessOnly { context in
+            try MetatypeMetadata.resolve(at: InProcessMetadataPicker.stdlibIntMetatype, in: context).offset
+        }
+        // For InProcess resolution, `offset` is the bit-pattern of the
+        // runtime metadata pointer itself (since the in-process
+        // ReadingContext stores addresses as offsets verbatim).
+        let expectedOffset = Int(bitPattern: InProcessMetadataPicker.stdlibIntMetatype)
+        #expect(resolvedOffset == expectedOffset)
     }
 }

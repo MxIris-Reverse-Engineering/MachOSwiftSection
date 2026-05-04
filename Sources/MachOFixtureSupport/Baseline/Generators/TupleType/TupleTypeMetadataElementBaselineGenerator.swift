@@ -1,36 +1,26 @@
 import Foundation
 import SwiftSyntax
 import SwiftSyntaxBuilder
+@testable import MachOSwiftSection
 
 /// Emits `__Baseline__/TupleTypeMetadataElementBaseline.swift`.
 ///
-/// `TupleTypeMetadata.Element` is the nested struct describing a single
-/// tuple element entry — a `(type: ConstMetadataPointer<Metadata>,
-/// offset: StoredSize)` pair. `PublicMemberScanner` keys nested types
-/// by their inner struct name (`Element`), so the Suite registers under
-/// `testedTypeName == "Element"` and the baseline tracks the two
-/// stored properties.
-///
-/// `TupleTypeMetadata.Element` is conceptually a layout fixture (no
-/// methods, just stored ivars), so the baseline is round-trippable
-/// against synthetic raw values.
+/// Phase C2: emits ABI literals derived from in-process resolution of the
+/// first `Element` of `(Int, String).self`'s `TupleTypeMetadata`.
 package enum TupleTypeMetadataElementBaselineGenerator {
     package static func generate(outputDirectory: URL) throws {
-        // Public members declared on TupleTypeMetadata.Element.
-        let registered = [
-            "offset",
-            "type",
-        ]
+        let pointer = InProcessMetadataPicker.stdlibTupleIntString
+        let context = InProcessContext()
+        let tuple = try TupleTypeMetadata.resolve(at: pointer, in: context)
+        let firstElement = try tuple.elements(in: context).first!
+        let elementOffset = firstElement.offset
+
+        let registered = ["offset", "type"]
 
         let header = """
         // AUTO-GENERATED — DO NOT EDIT.
-        // Regenerate via: Scripts/regen-baselines.sh
-        // Source fixture: SymbolTestsCore.framework
-        //
-        // TupleTypeMetadata.Element is a nested struct describing one
-        // tuple element. It declares two public stored properties and
-        // no methods. The Suite round-trips the property values via a
-        // synthetic memberwise instance.
+        // Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+        // Source: InProcess first element of `(Int, String)`; no Mach-O section presence.
         """
 
         let file: SourceFileSyntax = """
@@ -39,8 +29,13 @@ package enum TupleTypeMetadataElementBaselineGenerator {
         enum TupleTypeMetadataElementBaseline {
             static let registeredTestMethodNames: Set<String> = \(literal: registered)
 
-            static let typeAddress: UInt64 = 0x1234_5000
-            static let elementOffset: UInt64 = 0x10
+            struct Entry {
+                let offset: UInt64
+            }
+
+            static let firstElementOfIntStringTuple = Entry(
+                offset: \(raw: BaselineEmitter.hex(elementOffset))
+            )
         }
         """
 

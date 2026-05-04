@@ -1,32 +1,31 @@
 import Foundation
 import SwiftSyntax
 import SwiftSyntaxBuilder
+@testable import MachOSwiftSection
 
 /// Emits `__Baseline__/MetatypeMetadataBaseline.swift`.
 ///
-/// `MetatypeMetadata` (kind `0x304`) is the runtime metadata for `T.Type`
-/// metatype values. It is materialised by the runtime when reflection asks
-/// for the metadata of a metatype expression; static section walks of a
-/// MachO never surface a live instance. We emit only the registered member
-/// names; the cross-reader equality block on the structural members is
-/// covered transitively by `MetadataWrapper.metatype(_:)`.
+/// Phase C2: emits ABI literals derived from in-process resolution of
+/// `type(of: Int.self)`'s `MetatypeMetadata`. The kind raw value matches
+/// `MetadataKind.metatype` (0x304); `instanceType` points to `Int.self`'s
+/// metadata (a struct kind 0x200).
 ///
-/// `init(layout:offset:)` is filtered as memberwise-synthesized.
+/// Registered names track the wrapper's directly-declared public
+/// surface (`layout`, `offset`); the layout subfields (`kind`,
+/// `instanceType`) are exercised inside the `layout` test body.
 package enum MetatypeMetadataBaselineGenerator {
     package static func generate(outputDirectory: URL) throws {
-        let registered = [
-            "layout",
-            "offset",
-        ]
+        let pointer = InProcessMetadataPicker.stdlibIntMetatype
+        let context = InProcessContext()
+        let metatype = try MetatypeMetadata.resolve(at: pointer, in: context)
+        let kindRaw = metatype.kind.rawValue
+
+        let registered = ["layout", "offset"]
 
         let header = """
         // AUTO-GENERATED — DO NOT EDIT.
-        // Regenerate via: Scripts/regen-baselines.sh
-        // Source fixture: SymbolTestsCore.framework
-        //
-        // MetatypeMetadata is a runtime-only metadata kind (kind 0x304); no
-        // section walk surfaces a live instance. The Suite asserts the type's
-        // structural members exist.
+        // Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+        // Source: InProcess (stdlib `type(of: Int.self)`); no Mach-O section presence.
         """
 
         let file: SourceFileSyntax = """
@@ -34,6 +33,14 @@ package enum MetatypeMetadataBaselineGenerator {
 
         enum MetatypeMetadataBaseline {
             static let registeredTestMethodNames: Set<String> = \(literal: registered)
+
+            struct Entry {
+                let kindRawValue: UInt32
+            }
+
+            static let stdlibIntMetatype = Entry(
+                kindRawValue: \(raw: BaselineEmitter.hex(kindRaw))
+            )
         }
         """
 

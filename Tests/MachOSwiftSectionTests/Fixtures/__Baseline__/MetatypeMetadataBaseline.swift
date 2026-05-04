@@ -1,11 +1,15 @@
 // AUTO-GENERATED — DO NOT EDIT.
-// Regenerate via: Scripts/regen-baselines.sh
-// Source fixture: SymbolTestsCore.framework
-//
-// MetatypeMetadata is a runtime-only metadata kind (kind 0x304); no
-// section walk surfaces a live instance. The Suite asserts the type's
-// structural members exist.
+// Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+// Source: InProcess (stdlib `type(of: Int.self)`); no Mach-O section presence.
 
 enum MetatypeMetadataBaseline {
     static let registeredTestMethodNames: Set<String> = ["layout", "offset"]
+
+    struct Entry {
+        let kindRawValue: UInt32
+    }
+
+    static let stdlibIntMetatype = Entry(
+        kindRawValue: 0x304
+    )
 }

@@ -13,10 +13,18 @@ import Foundation
 package enum InProcessMetadataPicker {
     // MARK: - stdlib metatype
 
-    /// `Int.self.self` — metatype of metatype. Exercises `MetatypeMetadata.kind`
-    /// + `instanceType` chain.
+    /// `type(of: Int.self)` — runtime-allocated `MetatypeMetadata` whose
+    /// `instanceType` is `Int.self`. Exercises `MetatypeMetadata.kind` +
+    /// `instanceType` chain.
+    ///
+    /// Note: `Int.self.self` is NOT the metatype metadata pointer — Swift
+    /// folds `T.self.self` to `T.self` (same metadata pointer to the
+    /// underlying type, kind 0x200/struct in this case). To obtain the
+    /// `MetatypeMetadata` instance the runtime allocates for `Int.Type`,
+    /// use `type(of: Int.self)`, which yields the `Int.Type.Type` value
+    /// whose pointer is the metatype metadata (kind 0x304).
     package nonisolated(unsafe) static let stdlibIntMetatype: UnsafeRawPointer = {
-        unsafeBitCast(Int.self.self, to: UnsafeRawPointer.self)
+        unsafeBitCast(type(of: Int.self), to: UnsafeRawPointer.self)
     }()
 
     // MARK: - stdlib tuple

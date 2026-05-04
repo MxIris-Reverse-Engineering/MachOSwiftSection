@@ -1,35 +1,30 @@
 import Foundation
 import SwiftSyntax
 import SwiftSyntaxBuilder
+@testable import MachOSwiftSection
 
 /// Emits `__Baseline__/FunctionTypeMetadataBaseline.swift`.
 ///
-/// `FunctionTypeMetadata` is the runtime metadata for function types
-/// (`(Int) -> Bool`, `() async throws -> ()`, etc.). The Swift runtime
-/// allocates these on demand; no static record is reachable from the
-/// SymbolTestsCore section walks. The Suite asserts the type's
-/// structural members behave correctly against a synthetic memberwise
-/// instance.
+/// Phase C2: emits ABI literals derived from in-process resolution of
+/// `((Int) -> Void).self`'s `FunctionTypeMetadata`.
 ///
-/// `init(layout:offset:)` is filtered as memberwise-synthesized.
+/// Registered names track the wrapper's directly-declared public surface
+/// (`layout`, `offset`); the layout subfields (`kind`, `flags`) are
+/// exercised inside the `layout` test body.
 package enum FunctionTypeMetadataBaselineGenerator {
     package static func generate(outputDirectory: URL) throws {
-        let registered = [
-            "layout",
-            "offset",
-        ]
+        let pointer = InProcessMetadataPicker.stdlibFunctionIntToVoid
+        let context = InProcessContext()
+        let metadata = try FunctionTypeMetadata.resolve(at: pointer, in: context)
+        let kindRaw = metadata.kind.rawValue
+        let flagsRaw = metadata.layout.flags.rawValue
+
+        let registered = ["layout", "offset"]
 
         let header = """
         // AUTO-GENERATED — DO NOT EDIT.
-        // Regenerate via: Scripts/regen-baselines.sh
-        // Source fixture: SymbolTestsCore.framework
-        //
-        // FunctionTypeMetadata is allocated by the Swift runtime on
-        // demand; no static carrier is reachable from SymbolTestsCore.
-        // The Suite asserts structural members behave against a
-        // synthetic memberwise instance.
-        //
-        // `init(layout:offset:)` is filtered as memberwise-synthesized.
+        // Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+        // Source: InProcess `((Int) -> Void).self`; no Mach-O section presence.
         """
 
         let file: SourceFileSyntax = """
@@ -37,6 +32,16 @@ package enum FunctionTypeMetadataBaselineGenerator {
 
         enum FunctionTypeMetadataBaseline {
             static let registeredTestMethodNames: Set<String> = \(literal: registered)
+
+            struct Entry {
+                let kindRawValue: UInt32
+                let flagsRawValue: UInt64
+            }
+
+            static let stdlibFunctionIntToVoid = Entry(
+                kindRawValue: \(raw: BaselineEmitter.hex(kindRaw)),
+                flagsRawValue: \(raw: BaselineEmitter.hex(flagsRaw))
+            )
         }
         """
 

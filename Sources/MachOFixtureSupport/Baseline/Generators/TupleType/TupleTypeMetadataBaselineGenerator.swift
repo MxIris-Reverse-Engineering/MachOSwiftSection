@@ -1,47 +1,32 @@
 import Foundation
 import SwiftSyntax
 import SwiftSyntaxBuilder
+@testable import MachOSwiftSection
 
 /// Emits `__Baseline__/TupleTypeMetadataBaseline.swift`.
 ///
-/// `TupleTypeMetadata` is the runtime metadata for tuple types. The
-/// Swift runtime allocates these on demand when a tuple is used as a
-/// type (field/parameter/return); there is no static record in
-/// `__swift5_types` for the tuple itself. The Suite asserts the type's
-/// structural members behave correctly against a synthetic memberwise
-/// instance; the `elements(in:)` accessor short-circuits when
-/// `numberOfElements == 0` so the early-out is safe to exercise on a
-/// synthetic carrier.
+/// Phase C2: emits ABI literals derived from in-process resolution of
+/// `(Int, String).self`'s `TupleTypeMetadata`.
 ///
-/// `init(layout:offset:)` is filtered as memberwise-synthesized.
-/// `Element` is a nested struct on `TupleTypeMetadata`; its public
-/// stored properties (`type`, `offset`) are scanned under the
-/// `Element` typeName. There's no separate `Element`/Layout file — the
-/// scanner bins those keys under `Element` and they're tracked here so
-/// the Coverage Invariant test sees them.
+/// Registered names track the wrapper's directly-declared public surface
+/// (`layout`, `offset`, `elements`); the layout subfields (`kind`,
+/// `numberOfElements`, `labels`) are exercised inside the `layout` test
+/// body.
 package enum TupleTypeMetadataBaselineGenerator {
     package static func generate(outputDirectory: URL) throws {
-        // Public members declared in TupleTypeMetadata.swift. The two
-        // `elements` overloads (MachO + ReadingContext) collapse to one
-        // MethodKey under the scanner's name-only key.
-        let registered = [
-            "elements",
-            "layout",
-            "offset",
-        ]
+        let pointer = InProcessMetadataPicker.stdlibTupleIntString
+        let context = InProcessContext()
+        let metadata = try TupleTypeMetadata.resolve(at: pointer, in: context)
+        let kindRaw = metadata.kind.rawValue
+        let count = metadata.layout.numberOfElements
+        let labelsAddress = metadata.layout.labels.address
+
+        let registered = ["elements", "layout", "offset"]
 
         let header = """
         // AUTO-GENERATED — DO NOT EDIT.
-        // Regenerate via: Scripts/regen-baselines.sh
-        // Source fixture: SymbolTestsCore.framework
-        //
-        // TupleTypeMetadata is allocated by the Swift runtime on demand;
-        // no static record is reachable from SymbolTestsCore section
-        // walks. The Suite asserts structural members behave correctly
-        // against a synthetic memberwise instance and exercises the
-        // zero-elements early-out of `elements(in:)`.
-        //
-        // `init(layout:offset:)` is filtered as memberwise-synthesized.
+        // Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+        // Source: InProcess (stdlib `(Int, String).self`); no Mach-O section presence.
         """
 
         let file: SourceFileSyntax = """
@@ -49,6 +34,18 @@ package enum TupleTypeMetadataBaselineGenerator {
 
         enum TupleTypeMetadataBaseline {
             static let registeredTestMethodNames: Set<String> = \(literal: registered)
+
+            struct Entry {
+                let kindRawValue: UInt32
+                let numberOfElements: UInt64
+                let labelsAddress: UInt64
+            }
+
+            static let stdlibTupleIntString = Entry(
+                kindRawValue: \(raw: BaselineEmitter.hex(kindRaw)),
+                numberOfElements: \(raw: BaselineEmitter.hex(count)),
+                labelsAddress: \(raw: BaselineEmitter.hex(labelsAddress))
+            )
         }
         """
 

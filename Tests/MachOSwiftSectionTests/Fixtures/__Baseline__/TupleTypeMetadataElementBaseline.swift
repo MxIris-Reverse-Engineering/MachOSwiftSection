@@ -1,15 +1,15 @@
 // AUTO-GENERATED — DO NOT EDIT.
-// Regenerate via: Scripts/regen-baselines.sh
-// Source fixture: SymbolTestsCore.framework
-//
-// TupleTypeMetadata.Element is a nested struct describing one
-// tuple element. It declares two public stored properties and
-// no methods. The Suite round-trips the property values via a
-// synthetic memberwise instance.
+// Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+// Source: InProcess first element of `(Int, String)`; no Mach-O section presence.
 
 enum TupleTypeMetadataElementBaseline {
     static let registeredTestMethodNames: Set<String> = ["offset", "type"]
 
-    static let typeAddress: UInt64 = 0x1234_5000
-    static let elementOffset: UInt64 = 0x10
+    struct Entry {
+        let offset: UInt64
+    }
+
+    static let firstElementOfIntStringTuple = Entry(
+        offset: 0x0
+    )
 }

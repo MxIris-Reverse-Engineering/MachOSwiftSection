@@ -7,12 +7,13 @@ import MachOFixtureSupport
 
 /// Fixture-based Suite for `TupleTypeMetadata`.
 ///
-/// `TupleTypeMetadata` is the runtime metadata for a tuple type. The
-/// Swift runtime allocates these on demand; no static record is
-/// reachable from the SymbolTestsCore section walks. The Suite
-/// asserts the type's structural members behave correctly against
-/// synthetic memberwise instances and exercises the zero-elements
-/// short-circuit of `elements(in:)`.
+/// Phase C2: real InProcess test against `(Int, String).self`. We resolve
+/// the runtime-allocated `TupleTypeMetadata` from
+/// `InProcessMetadataPicker.stdlibTupleIntString` and assert its
+/// observable `layout` (kind + numberOfElements + labels), `offset`
+/// (runtime metadata pointer bit-pattern), and `elements(in:)` (the
+/// per-element record array) against ABI literals pinned in the
+/// regenerated baseline.
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
@@ -22,40 +23,34 @@ final class TupleTypeMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite,
         TupleTypeMetadataBaseline.registeredTestMethodNames
     }
 
-    private func emptyTupleMetadata() -> TupleTypeMetadata {
-        TupleTypeMetadata(
-            layout: .init(
-                kind: 0x301,
-                numberOfElements: 0,
-                labels: .init(address: 0)
-            ),
-            offset: 0xCAFE
-        )
+    @Test func layout() async throws {
+        let resolved = try usingInProcessOnly { context in
+            try TupleTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibTupleIntString, in: context)
+        }
+        // The runtime tuple metadata's layout: kind decodes to
+        // MetadataKind.tuple (0x301); numberOfElements is 2 (Int + String);
+        // labels is null because the tuple has no labels.
+        #expect(resolved.kind.rawValue == TupleTypeMetadataBaseline.stdlibTupleIntString.kindRawValue)
+        #expect(resolved.layout.numberOfElements == TupleTypeMetadataBaseline.stdlibTupleIntString.numberOfElements)
+        #expect(resolved.layout.labels.address == TupleTypeMetadataBaseline.stdlibTupleIntString.labelsAddress)
     }
 
     @Test func offset() async throws {
-        let metadata = emptyTupleMetadata()
-        #expect(metadata.offset == 0xCAFE)
+        let resolvedOffset = try usingInProcessOnly { context in
+            try TupleTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibTupleIntString, in: context).offset
+        }
+        // For InProcess resolution, `offset` is the bit-pattern of the
+        // runtime metadata pointer itself.
+        let expectedOffset = Int(bitPattern: InProcessMetadataPicker.stdlibTupleIntString)
+        #expect(resolvedOffset == expectedOffset)
     }
 
-    @Test func layout() async throws {
-        let metadata = emptyTupleMetadata()
-        #expect(metadata.layout.kind == 0x301)
-        #expect(metadata.layout.numberOfElements == 0)
-        #expect(metadata.layout.labels.address == 0)
-    }
-
-    /// `elements(in:)` reads `numberOfElements` records starting at
-    /// `offset + layoutSize`. With our synthetic instance,
-    /// `numberOfElements == 0` so the read returns the empty array
-    /// regardless of reader.
     @Test func elements() async throws {
-        let metadata = emptyTupleMetadata()
-        let viaFile = try metadata.elements(in: machOFile)
-        let viaImage = try metadata.elements(in: machOImage)
-        let viaContext = try metadata.elements(in: imageContext)
-        #expect(viaFile.isEmpty)
-        #expect(viaImage.isEmpty)
-        #expect(viaContext.isEmpty)
+        let elementCount = try usingInProcessOnly { context in
+            let tuple = try TupleTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibTupleIntString, in: context)
+            return try tuple.elements(in: context).count
+        }
+        // `(Int, String)` has 2 elements.
+        #expect(elementCount == Int(TupleTypeMetadataBaseline.stdlibTupleIntString.numberOfElements))
     }
 }

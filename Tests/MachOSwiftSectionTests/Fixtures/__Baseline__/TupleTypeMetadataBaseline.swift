@@ -1,15 +1,19 @@
 // AUTO-GENERATED — DO NOT EDIT.
-// Regenerate via: Scripts/regen-baselines.sh
-// Source fixture: SymbolTestsCore.framework
-//
-// TupleTypeMetadata is allocated by the Swift runtime on demand;
-// no static record is reachable from SymbolTestsCore section
-// walks. The Suite asserts structural members behave correctly
-// against a synthetic memberwise instance and exercises the
-// zero-elements early-out of `elements(in:)`.
-//
-// `init(layout:offset:)` is filtered as memberwise-synthesized.
+// Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+// Source: InProcess (stdlib `(Int, String).self`); no Mach-O section presence.
 
 enum TupleTypeMetadataBaseline {
     static let registeredTestMethodNames: Set<String> = ["elements", "layout", "offset"]
+
+    struct Entry {
+        let kindRawValue: UInt32
+        let numberOfElements: UInt64
+        let labelsAddress: UInt64
+    }
+
+    static let stdlibTupleIntString = Entry(
+        kindRawValue: 0x301,
+        numberOfElements: 0x2,
+        labelsAddress: 0x0
+    )
 }
