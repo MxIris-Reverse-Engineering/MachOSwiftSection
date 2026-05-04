@@ -47,4 +47,22 @@ struct SuiteBehaviorScannerTests {
         let key = MethodKey(typeName: "RegistrationOnlyType", memberName: "registrationOnly")
         #expect(result[key] == .sentinel)
     }
+
+    @Test func detectsDirectReaderAsAcrossAllReaders() throws {
+        let root = try makeScanRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let scanner = SuiteBehaviorScanner(suiteRoot: root)
+        let result = try scanner.scan()
+        let key = MethodKey(typeName: "DirectReaderType", memberName: "readerMethod")
+        #expect(result[key] == .acrossAllReaders)
+    }
+
+    @Test func detectsDirectContextAsAcrossAllReaders() throws {
+        let root = try makeScanRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let scanner = SuiteBehaviorScanner(suiteRoot: root)
+        let result = try scanner.scan()
+        let key = MethodKey(typeName: "DirectReaderType", memberName: "contextMethod")
+        #expect(result[key] == .acrossAllReaders)
+    }
 }

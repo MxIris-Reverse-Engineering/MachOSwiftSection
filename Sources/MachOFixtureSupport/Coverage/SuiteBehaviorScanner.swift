@@ -120,10 +120,16 @@ private final class SuiteBehaviorVisitor: SyntaxVisitor {
 
     private func inferBehavior(from body: CodeBlockSyntax) -> SuiteBehaviorScanner.MethodBehavior {
         let bodyText = body.description
-        if bodyText.contains("acrossAllReaders") || bodyText.contains("acrossAllContexts") {
+        let crossReaderMarkers = [
+            "acrossAllReaders", "acrossAllContexts",
+            "machOFile", "machOImage",
+            "fileContext", "imageContext",
+        ]
+        if crossReaderMarkers.contains(where: { bodyText.contains($0) }) {
             return .acrossAllReaders
         }
-        if bodyText.contains("usingInProcessOnly") || bodyText.contains("inProcessContext") {
+        let inProcessMarkers = ["usingInProcessOnly", "inProcessContext"]
+        if inProcessMarkers.contains(where: { bodyText.contains($0) }) {
             return .inProcessOnly
         }
         return .sentinel

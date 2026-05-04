@@ -39,3 +39,18 @@ final class SentinelTests: MachOSwiftSectionFixtureTests, FixtureSuite, @uncheck
         #expect(SentinelTests.registeredTestMethodNames.contains("registeredOnly"))
     }
 }
+
+@Suite
+final class DirectReaderTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
+    static let testedTypeName = "DirectReaderType"
+    static var registeredTestMethodNames: Set<String> { ["readerMethod", "contextMethod"] }
+
+    @Test func readerMethod() async throws {
+        let _ = try Foo(in: machOFile)
+        let _ = try Foo(in: machOImage)
+    }
+
+    @Test func contextMethod() async throws {
+        let _ = try Foo(in: imageContext)
+    }
+}
