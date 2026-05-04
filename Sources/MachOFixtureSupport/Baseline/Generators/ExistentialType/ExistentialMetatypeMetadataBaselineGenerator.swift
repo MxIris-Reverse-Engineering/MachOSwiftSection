@@ -1,38 +1,35 @@
 import Foundation
 import SwiftSyntax
 import SwiftSyntaxBuilder
+@testable import MachOSwiftSection
 
 /// Emits `__Baseline__/ExistentialMetatypeMetadataBaseline.swift`.
 ///
-/// `ExistentialMetatypeMetadata` is the metadata for `(any P).Type` —
-/// the metatype of an opaque/class-bound existential. Live carriers
-/// require materialising the metatype value through Swift's runtime
-/// (e.g. `(any P).self`), which is reachable only from a loaded process,
-/// not from the static section walks. The fixture's existentials don't
-/// emit a standalone `ExistentialMetatypeMetadata` record in the
-/// `__swift5_types` family of sections, so we register only the
-/// memberwise-synthesized init's surviving public members.
+/// Phase C3: emits ABI literals derived from in-process resolution of
+/// `Any.Type.self`'s `ExistentialMetatypeMetadata`. The kind raw value
+/// matches `MetadataKind.existentialMetatype` (0x306); `instanceType`
+/// points to `Any.self`'s metadata; `flags` mirrors `Any.self`'s
+/// existential flags into the metatype layout.
 ///
-/// `init(layout:offset:)` is filtered as memberwise-synthesized.
+/// Registered names track the wrapper's directly-declared public surface
+/// (`layout`, `offset`); the layout subfields (`kind`, `instanceType`,
+/// `flags`) are exercised inside the `layout` test body.
 package enum ExistentialMetatypeMetadataBaselineGenerator {
     package static func generate(outputDirectory: URL) throws {
-        let registered = [
-            "layout",
-            "offset",
-        ]
+        let context = InProcessContext()
+        let metadata = try ExistentialMetatypeMetadata.resolve(
+            at: InProcessMetadataPicker.stdlibAnyMetatype,
+            in: context
+        )
+        let kindRaw = metadata.kind.rawValue
+        let flagsRaw = metadata.layout.flags.rawValue
+
+        let registered = ["layout", "offset"]
 
         let header = """
         // AUTO-GENERATED — DO NOT EDIT.
-        // Regenerate via: Scripts/regen-baselines.sh
-        // Source fixture: SymbolTestsCore.framework
-        //
-        // ExistentialMetatypeMetadata wraps a runtime metatype value
-        // (`(any P).Type`); no live carrier is materialised from the
-        // SymbolTestsCore section walks. The Suite asserts the type's
-        // structural members behave correctly against a synthetic
-        // memberwise instance.
-        //
-        // `init(layout:offset:)` is filtered as memberwise-synthesized.
+        // Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+        // Source: InProcess `Any.Type.self`; no Mach-O section presence.
         """
 
         let file: SourceFileSyntax = """
@@ -40,6 +37,16 @@ package enum ExistentialMetatypeMetadataBaselineGenerator {
 
         enum ExistentialMetatypeMetadataBaseline {
             static let registeredTestMethodNames: Set<String> = \(literal: registered)
+
+            struct Entry {
+                let kindRawValue: UInt32
+                let flagsRawValue: UInt32
+            }
+
+            static let stdlibAnyMetatype = Entry(
+                kindRawValue: \(raw: BaselineEmitter.hex(kindRaw)),
+                flagsRawValue: \(raw: BaselineEmitter.hex(flagsRaw))
+            )
         }
         """
 

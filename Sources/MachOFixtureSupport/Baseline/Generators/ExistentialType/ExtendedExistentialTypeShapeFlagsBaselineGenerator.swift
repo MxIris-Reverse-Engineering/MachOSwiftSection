@@ -1,17 +1,28 @@
 import Foundation
 import SwiftSyntax
 import SwiftSyntaxBuilder
+@testable import MachOSwiftSection
 
 /// Emits `__Baseline__/ExtendedExistentialTypeShapeFlagsBaseline.swift`.
 ///
-/// `ExtendedExistentialTypeShapeFlags` is a 32-bit `OptionSet` declared
-/// alongside `ExtendedExistentialTypeShape` in the same source file. It
-/// declares only `init(rawValue:)` and `rawValue` — no semantic accessors
-/// are exposed in the current source. The Suite round-trips raw values
-/// through the OptionSet membership API to catch any accidental
-/// public-surface changes.
+/// Phase C3: emits ABI literals derived from in-process resolution of the
+/// shape flags of `(any Sequence<Int>).self`. Currently `OptionSet`
+/// boilerplate (`init(rawValue:)` and `rawValue`); the test round-trips
+/// through both. The raw value reflects the special-kind /
+/// has-generalization-signature / has-type-expression /
+/// has-suggested-witnesses / has-implicit-generic-params bits set by
+/// the runtime for `(any Sequence<Int>)`.
+@available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
 package enum ExtendedExistentialTypeShapeFlagsBaselineGenerator {
     package static func generate(outputDirectory: URL) throws {
+        let context = InProcessContext()
+        let metadata = try ExtendedExistentialTypeMetadata.resolve(
+            at: InProcessMetadataPicker.stdlibAnyEquatable,
+            in: context
+        )
+        let shape = try metadata.layout.shape.resolve(in: context)
+        let rawValue = shape.layout.flags.rawValue
+
         let registered = [
             "init(rawValue:)",
             "rawValue",
@@ -19,12 +30,8 @@ package enum ExtendedExistentialTypeShapeFlagsBaselineGenerator {
 
         let header = """
         // AUTO-GENERATED — DO NOT EDIT.
-        // Regenerate via: Scripts/regen-baselines.sh
-        // Source fixture: SymbolTestsCore.framework
-        //
-        // ExtendedExistentialTypeShapeFlags currently exposes only
-        // OptionSet boilerplate (init(rawValue:) + rawValue). The Suite
-        // round-trips a small set of raw values to catch surface drift.
+        // Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+        // Source: InProcess shape of `(any Sequence<Int>).self`; no Mach-O section presence.
         """
 
         let file: SourceFileSyntax = """
@@ -33,7 +40,13 @@ package enum ExtendedExistentialTypeShapeFlagsBaselineGenerator {
         enum ExtendedExistentialTypeShapeFlagsBaseline {
             static let registeredTestMethodNames: Set<String> = \(literal: registered)
 
-            static let rawValues: [UInt32] = [0x0, 0x1, 0x2, 0xFF, 0xFFFF_FFFF]
+            struct Entry {
+                let rawValue: UInt32
+            }
+
+            static let equatableShape = Entry(
+                rawValue: \(raw: BaselineEmitter.hex(rawValue))
+            )
         }
         """
 

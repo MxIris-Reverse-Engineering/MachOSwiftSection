@@ -7,17 +7,21 @@ import MachOFixtureSupport
 
 /// Fixture-based Suite for `ExtendedExistentialTypeShape`.
 ///
-/// `ExtendedExistentialTypeShape` is the trailing-objects layout that
-/// describes a constrained existential's signature. The runtime
-/// allocates these on demand; no static record is reachable from the
-/// SymbolTestsCore section walks. The Suite asserts the type's
-/// structural members behave correctly against a synthetic memberwise
-/// instance.
-///
-/// The companion `ExtendedExistentialTypeShapeFlags` struct declared
-/// in the same source file has its own baseline / Suite.
+/// Phase C3: real InProcess test against the shape of `(any Sequence<Int>)`.
+/// The shape is reached by resolving
+/// `ExtendedExistentialTypeMetadata.layout.shape` through the InProcess
+/// context. We assert the wrapper's observable `layout` (flags raw value
+/// + requirement-signature header counts), `offset` (the resolved
+/// shape's runtime address bit-pattern), and `existentialType(in:)`
+/// (resolves a relative-direct mangled-name pointer; we assert the
+/// mangled-name string is non-empty). All ABI literals are pinned in the
+/// regenerated baseline.
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
+///
+/// Note: parameterized protocol existential metadata requires macOS 13.0+
+/// at the language-runtime level. Tests guard the in-process metadata
+/// access with `if #available` rather than annotating the suite class.
 @Suite
 final class ExtendedExistentialTypeShapeTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
     static let testedTypeName = "ExtendedExistentialTypeShape"
@@ -25,47 +29,53 @@ final class ExtendedExistentialTypeShapeTests: MachOSwiftSectionFixtureTests, Fi
         ExtendedExistentialTypeShapeBaseline.registeredTestMethodNames
     }
 
-    private func syntheticShape() -> ExtendedExistentialTypeShape {
-        ExtendedExistentialTypeShape(
-            layout: .init(
-                flags: .init(rawValue: 0x0000_0000),
-                existentialType: .init(relativeOffset: 0x0),
-                requirementSignatureHeader: .init(
-                    numParams: 0,
-                    numRequirements: 0,
-                    numKeyArguments: 0,
-                    flags: .init(rawValue: 0)
-                )
-            ),
-            offset: 0xCAFE
-        )
+    @Test func layout() async throws {
+        guard #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) else { return }
+        let flagsRaw = try usingInProcessOnly { context in
+            let metadata = try ExtendedExistentialTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibAnyEquatable, in: context)
+            let shape = try metadata.layout.shape.resolve(in: context)
+            return shape.layout.flags.rawValue
+        }
+        let numParams = try usingInProcessOnly { context in
+            let metadata = try ExtendedExistentialTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibAnyEquatable, in: context)
+            let shape = try metadata.layout.shape.resolve(in: context)
+            return shape.layout.requirementSignatureHeader.numParams
+        }
+        // The shape's `flags` raw value carries the constraints / type
+        // expression / generalisation bits for `(any Sequence<Int>)`. The
+        // requirement-signature header carries `numParams`/`numRequirements`
+        // for the parameterised protocol (Sequence has primary associated
+        // type Element).
+        #expect(flagsRaw == ExtendedExistentialTypeShapeBaseline.equatableShape.flagsRawValue)
+        #expect(numParams == ExtendedExistentialTypeShapeBaseline.equatableShape.requirementSignatureNumParams)
     }
 
     @Test func offset() async throws {
-        let shape = syntheticShape()
-        #expect(shape.offset == 0xCAFE)
+        guard #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) else { return }
+        let isNonZero = try usingInProcessOnly { context in
+            let metadata = try ExtendedExistentialTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibAnyEquatable, in: context)
+            let shape = try metadata.layout.shape.resolve(in: context)
+            return shape.offset != 0
+        }
+        // The shape's `offset` after InProcess resolution is the bit pattern
+        // of the runtime shape pointer (after tag-bit stripping). Its exact
+        // value is non-deterministic across process invocations, so we only
+        // assert it's non-zero (the shape was reached).
+        #expect(isNonZero == true)
     }
 
-    @Test func layout() async throws {
-        let shape = syntheticShape()
-        #expect(shape.layout.flags.rawValue == 0)
-        #expect(shape.layout.requirementSignatureHeader.numParams == 0)
-    }
-
-    /// `existentialType(in:)` resolves a relative pointer to a
-    /// `MangledName`. With our synthetic memberwise instance the
-    /// resolution would attempt to read from offset 0 in the
-    /// MachO/InProcess context, which would fail — we therefore only
-    /// assert the accessor's signature compiles, not its runtime
-    /// behaviour. A live carrier reachable through the section walks
-    /// would let the Suite exercise the resolution path; the fixture
-    /// does not currently emit one.
     @Test func existentialType() async throws {
-        let shape = syntheticShape()
-        // Verify the public method exists and is reachable. Resolution
-        // would require a real MachO carrier whose offset+relativeOffset
-        // points at a valid mangled-name byte sequence.
-        let layout = shape.layout
-        #expect(layout.existentialType.relativeOffset == 0)
+        guard #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) else { return }
+        // `existentialType(in:)` resolves a relative-direct pointer to a
+        // mangled-name. For `(any Sequence<Int>)` the mangled name describes
+        // the existential's shape (the parameterized protocol's signature).
+        // We check the mangled name resolves to a non-empty MangledName.
+        let isNonEmpty = try usingInProcessOnly { context in
+            let metadata = try ExtendedExistentialTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibAnyEquatable, in: context)
+            let shape = try metadata.layout.shape.resolve(in: context)
+            let mangled = try shape.existentialType(in: context)
+            return !mangled.isEmpty
+        }
+        #expect(isNonEmpty == true)
     }
 }

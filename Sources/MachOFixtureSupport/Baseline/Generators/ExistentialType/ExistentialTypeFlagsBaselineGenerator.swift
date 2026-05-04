@@ -5,41 +5,35 @@ import SwiftSyntaxBuilder
 
 /// Emits `__Baseline__/ExistentialTypeFlagsBaseline.swift`.
 ///
-/// `ExistentialTypeFlags` is a 32-bit `OptionSet` carried in the leading
-/// `flags` field of `ExistentialTypeMetadata` /
-/// `ExistentialMetatypeMetadata`. The bits are:
-///   - low 24 bits — `numberOfWitnessTables` (per-protocol witness count)
-///   - bit 30 — `hasSuperclassConstraint`
-///   - bits 24-29 — `specialProtocol` raw value (0 = none, 1 = error)
-///   - bit 31 — `classConstraint` selector
-///
-/// The flags type is reader-independent (a pure raw-value bit decoder),
-/// so the baseline embeds canonical synthetic raw values exercising each
-/// branch.
-///
-/// Note: the `classConstraint` accessor in source applies an
-/// `UInt8.init(rawValue & 0x8000_0000)` conversion that would trap when
-/// bit 31 is set. We therefore only encode raw values with bit 31 clear,
-/// i.e. exercise the `.class` arm of `ProtocolClassConstraint`. A
-/// future fix to the accessor (mask-and-shift to 1 bit) would let the
-/// `.any` arm be added.
+/// Phase C3: emits ABI literals derived from in-process resolution of
+/// stdlib existential metadata flags. Two metadata sources:
+///   - `Any.self` flags (`0x80000000`) — `numberOfWitnessTables`,
+///     `hasSuperclassConstraint`, `specialProtocol`, `rawValue`.
+///   - `AnyObject.self` flags (`0x0`) — `classConstraint`. Required
+///     because `Any.self`'s flags trap the source's
+///     `UInt8(rawValue & 0x80000000)` accessor.
 package enum ExistentialTypeFlagsBaselineGenerator {
     package static func generate(outputDirectory: URL) throws {
-        let entries: [(label: String, rawValue: UInt32)] = [
-            // Empty flags — class-bound, no witness tables.
-            ("empty", 0x0000_0000),
-            // Class-bound with one protocol witness table.
-            ("classBoundOneWitness", 0x0000_0001),
-            // Class-bound with three witness tables (composition `&`).
-            ("classBoundThreeWitnesses", 0x0000_0003),
-            // Error-special-protocol bit set, otherwise empty.
-            ("errorSpecial", 0x0100_0000),
-            // Has-superclass-constraint bit set.
-            ("withSuperclass", 0x4000_0001),
-        ]
-        let entriesExpr = emitEntriesExpr(for: entries)
+        let context = InProcessContext()
 
-        // Public members declared directly in ExistentialTypeFlags.swift.
+        let anyMetadata = try ExistentialTypeMetadata.resolve(
+            at: InProcessMetadataPicker.stdlibAnyExistential,
+            in: context
+        )
+        let anyFlags = anyMetadata.layout.flags
+        let anyRawValue = anyFlags.rawValue
+        let anyNumberOfWitnessTables = anyFlags.numberOfWitnessTables
+        let anyHasSuperclassConstraint = anyFlags.hasSuperclassConstraint
+        let anySpecialProtocolRaw = anyFlags.specialProtocol.rawValue
+
+        let anyObjectMetadata = try ExistentialTypeMetadata.resolve(
+            at: InProcessMetadataPicker.stdlibAnyObjectExistential,
+            in: context
+        )
+        let anyObjectFlags = anyObjectMetadata.layout.flags
+        let anyObjectRawValue = anyObjectFlags.rawValue
+        let anyObjectClassConstraintRaw = anyObjectFlags.classConstraint.rawValue
+
         let registered = [
             "classConstraint",
             "hasSuperclassConstraint",
@@ -51,12 +45,8 @@ package enum ExistentialTypeFlagsBaselineGenerator {
 
         let header = """
         // AUTO-GENERATED — DO NOT EDIT.
-        // Regenerate via: Scripts/regen-baselines.sh
-        // Source fixture: SymbolTestsCore.framework
-        //
-        // ExistentialTypeFlags is a pure raw-value bit decoder (no MachO
-        // dependency). The baseline embeds canonical synthetic raw values
-        // exercising each documented bit field.
+        // Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+        // Source: InProcess (`Any.self` + `AnyObject.self`); no Mach-O section presence.
         """
 
         let file: SourceFileSyntax = """
@@ -65,37 +55,34 @@ package enum ExistentialTypeFlagsBaselineGenerator {
         enum ExistentialTypeFlagsBaseline {
             static let registeredTestMethodNames: Set<String> = \(literal: registered)
 
-            struct Entry {
+            struct AnyEntry {
                 let rawValue: UInt32
                 let numberOfWitnessTables: UInt32
-                let classConstraintRawValue: UInt8
                 let hasSuperclassConstraint: Bool
                 let specialProtocolRawValue: UInt8
             }
 
-            static let cases: [Entry] = \(raw: entriesExpr)
+            struct AnyObjectEntry {
+                let rawValue: UInt32
+                let classConstraintRawValue: UInt8
+            }
+
+            static let stdlibAnyExistential = AnyEntry(
+                rawValue: \(raw: BaselineEmitter.hex(anyRawValue)),
+                numberOfWitnessTables: \(raw: BaselineEmitter.hex(anyNumberOfWitnessTables)),
+                hasSuperclassConstraint: \(literal: anyHasSuperclassConstraint),
+                specialProtocolRawValue: \(raw: BaselineEmitter.hex(anySpecialProtocolRaw))
+            )
+
+            static let stdlibAnyObjectExistential = AnyObjectEntry(
+                rawValue: \(raw: BaselineEmitter.hex(anyObjectRawValue)),
+                classConstraintRawValue: \(raw: BaselineEmitter.hex(anyObjectClassConstraintRaw))
+            )
         }
         """
 
         let formatted = file.formatted().description + "\n"
         let outputURL = outputDirectory.appendingPathComponent("ExistentialTypeFlagsBaseline.swift")
         try formatted.write(to: outputURL, atomically: true, encoding: .utf8)
-    }
-
-    private static func emitEntriesExpr(for entries: [(label: String, rawValue: UInt32)]) -> String {
-        let lines = entries.map { entry -> String in
-            let flags = ExistentialTypeFlags(rawValue: entry.rawValue)
-            return """
-            // \(entry.label)
-            Entry(
-                rawValue: \(BaselineEmitter.hex(entry.rawValue)),
-                numberOfWitnessTables: \(BaselineEmitter.hex(flags.numberOfWitnessTables)),
-                classConstraintRawValue: \(BaselineEmitter.hex(flags.classConstraint.rawValue)),
-                hasSuperclassConstraint: \(flags.hasSuperclassConstraint),
-                specialProtocolRawValue: \(BaselineEmitter.hex(flags.specialProtocol.rawValue))
-            )
-            """
-        }
-        return "[\n\(lines.joined(separator: ",\n"))\n]"
     }
 }

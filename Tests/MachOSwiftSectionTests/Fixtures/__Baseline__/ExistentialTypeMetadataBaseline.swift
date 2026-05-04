@@ -1,15 +1,31 @@
 // AUTO-GENERATED — DO NOT EDIT.
-// Regenerate via: Scripts/regen-baselines.sh
-// Source fixture: SymbolTestsCore.framework
-//
-// ExistentialTypeMetadata is allocated by the Swift runtime on
-// demand; no static record is reachable from SymbolTestsCore
-// section walks. The Suite asserts structural members behave
-// correctly against synthetic memberwise instances spanning
-// the documented kind/representation arms.
-//
-// `init(layout:offset:)` is filtered as memberwise-synthesized.
+// Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+// Source: InProcess (`Any.self` + `AnyObject.self`); no Mach-O section presence.
 
 enum ExistentialTypeMetadataBaseline {
     static let registeredTestMethodNames: Set<String> = ["isClassBounded", "isObjC", "layout", "offset", "protocols", "representation", "superclassConstraint"]
+
+    struct Entry {
+        let kindRawValue: UInt32
+        let flagsRawValue: UInt32
+        let numberOfProtocols: UInt32
+        let isClassBounded: Bool
+        let isObjC: Bool
+    }
+
+    static let stdlibAnyExistential = Entry(
+        kindRawValue: 0x303,
+        flagsRawValue: 0x80000000,
+        numberOfProtocols: 0x0,
+        isClassBounded: false,
+        isObjC: false
+    )
+
+    static let stdlibAnyObjectExistential = Entry(
+        kindRawValue: 0x303,
+        flagsRawValue: 0x0,
+        numberOfProtocols: 0x0,
+        isClassBounded: true,
+        isObjC: true
+    )
 }

@@ -1,17 +1,19 @@
 // AUTO-GENERATED — DO NOT EDIT.
-// Regenerate via: Scripts/regen-baselines.sh
-// Source fixture: SymbolTestsCore.framework
+// Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+// Source: InProcess `(any Sequence<Int>).self`; no Mach-O section presence.
 //
-// ExtendedExistentialTypeMetadata is a runtime-allocated metadata
-// shape with no static section emission. SymbolTestsCore declares
-// primary-associated-type protocols (e.g. ProtocolPrimaryAssociated
-// TypeTest), but the constrained metadata is materialised lazily
-// via `swift_getExtendedExistentialType` — no live carrier is
-// reachable from the static walks. The Suite asserts structural
-// members behave against a synthetic memberwise instance.
-//
-// `init(layout:offset:)` is filtered as memberwise-synthesized.
+// Note: the shape pointer's address is non-deterministic across
+// process invocations (runtime allocates lazily on first access).
+// Tests assert `shape.address != 0` rather than pinning a literal.
 
 enum ExtendedExistentialTypeMetadataBaseline {
     static let registeredTestMethodNames: Set<String> = ["layout", "offset"]
+
+    struct Entry {
+        let kindRawValue: UInt32
+    }
+
+    static let stdlibAnyEquatable = Entry(
+        kindRawValue: 0x307
+    )
 }

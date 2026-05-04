@@ -1,15 +1,17 @@
 // AUTO-GENERATED — DO NOT EDIT.
-// Regenerate via: Scripts/regen-baselines.sh
-// Source fixture: SymbolTestsCore.framework
-//
-// ExtendedExistentialTypeShape is a runtime-allocated trailing-
-// objects payload; no live carrier is reachable from the
-// SymbolTestsCore section walks. The Suite asserts the type's
-// structural members behave correctly against a synthetic
-// memberwise instance.
-//
-// `init(layout:offset:)` is filtered as memberwise-synthesized.
+// Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+// Source: InProcess shape of `(any Sequence<Int>).self`; no Mach-O section presence.
 
 enum ExtendedExistentialTypeShapeBaseline {
     static let registeredTestMethodNames: Set<String> = ["existentialType", "layout", "offset"]
+
+    struct Entry {
+        let flagsRawValue: UInt32
+        let requirementSignatureNumParams: UInt16
+    }
+
+    static let equatableShape = Entry(
+        flagsRawValue: 0x1900,
+        requirementSignatureNumParams: 0x2
+    )
 }

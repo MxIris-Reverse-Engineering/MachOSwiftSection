@@ -1,40 +1,41 @@
 import Foundation
 import SwiftSyntax
 import SwiftSyntaxBuilder
+@testable import MachOSwiftSection
 
 /// Emits `__Baseline__/ExtendedExistentialTypeMetadataBaseline.swift`.
 ///
-/// `ExtendedExistentialTypeMetadata` is the metadata for a constrained
-/// existential carrying primary associated types or `where`-clauses
-/// (e.g. `any P<Int>`, `any P where P.Element == Int`). The runtime
-/// allocates these on demand via the `swift_getExtendedExistentialType`
-/// machinery and there's no static record in `__swift5_types`/2 — so no
-/// live carrier is reachable from MachOFile section walks. The Suite
-/// asserts the type's structural members behave correctly against a
-/// synthetic memberwise instance.
+/// Phase C3: emits ABI literals derived from in-process resolution of
+/// `(any Sequence<Int>).self`'s `ExtendedExistentialTypeMetadata`. Kind
+/// raw value matches `MetadataKind.extendedExistential` (0x307). The
+/// `shape` field is a pointer to the runtime-allocated
+/// `ExtendedExistentialTypeShape` for `(any Sequence<Int>)`. The shape
+/// pointer's address may carry an in-process tag bit which the runtime
+/// strips during resolution; we record the post-strip address here.
 ///
-/// `init(layout:offset:)` is filtered as memberwise-synthesized.
+/// Registered names track the wrapper's directly-declared public surface
+/// (`layout`, `offset`); the layout subfields (`kind`, `shape`) are
+/// exercised inside the `layout` test body.
+@available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
 package enum ExtendedExistentialTypeMetadataBaselineGenerator {
     package static func generate(outputDirectory: URL) throws {
-        let registered = [
-            "layout",
-            "offset",
-        ]
+        let context = InProcessContext()
+        let metadata = try ExtendedExistentialTypeMetadata.resolve(
+            at: InProcessMetadataPicker.stdlibAnyEquatable,
+            in: context
+        )
+        let kindRaw = metadata.kind.rawValue
+
+        let registered = ["layout", "offset"]
 
         let header = """
         // AUTO-GENERATED — DO NOT EDIT.
-        // Regenerate via: Scripts/regen-baselines.sh
-        // Source fixture: SymbolTestsCore.framework
+        // Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+        // Source: InProcess `(any Sequence<Int>).self`; no Mach-O section presence.
         //
-        // ExtendedExistentialTypeMetadata is a runtime-allocated metadata
-        // shape with no static section emission. SymbolTestsCore declares
-        // primary-associated-type protocols (e.g. ProtocolPrimaryAssociated
-        // TypeTest), but the constrained metadata is materialised lazily
-        // via `swift_getExtendedExistentialType` — no live carrier is
-        // reachable from the static walks. The Suite asserts structural
-        // members behave against a synthetic memberwise instance.
-        //
-        // `init(layout:offset:)` is filtered as memberwise-synthesized.
+        // Note: the shape pointer's address is non-deterministic across
+        // process invocations (runtime allocates lazily on first access).
+        // Tests assert `shape.address != 0` rather than pinning a literal.
         """
 
         let file: SourceFileSyntax = """
@@ -42,6 +43,14 @@ package enum ExtendedExistentialTypeMetadataBaselineGenerator {
 
         enum ExtendedExistentialTypeMetadataBaseline {
             static let registeredTestMethodNames: Set<String> = \(literal: registered)
+
+            struct Entry {
+                let kindRawValue: UInt32
+            }
+
+            static let stdlibAnyEquatable = Entry(
+                kindRawValue: \(raw: BaselineEmitter.hex(kindRaw))
+            )
         }
         """
 

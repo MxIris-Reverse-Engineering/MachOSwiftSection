@@ -1,11 +1,8 @@
 // AUTO-GENERATED — DO NOT EDIT.
-// Regenerate via: Scripts/regen-baselines.sh
-// Source fixture: SymbolTestsCore.framework
-//
-// NonUniqueExtendedExistentialTypeShape is a runtime-allocated
-// payload; no live carrier is reachable from SymbolTestsCore
-// section walks. The Suite asserts structural members behave
-// correctly against a synthetic memberwise instance.
+// Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+// Source: sentinel — non-unique shape only reachable from compiler-emitted
+// static records before runtime dedup; runtime metadata always points at
+// the unique form. SymbolTestsCore doesn't currently emit one statically.
 //
 // `init(layout:offset:)` is filtered as memberwise-synthesized.
 

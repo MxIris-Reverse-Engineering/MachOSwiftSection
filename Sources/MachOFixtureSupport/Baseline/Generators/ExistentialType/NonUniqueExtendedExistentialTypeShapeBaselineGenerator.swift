@@ -5,12 +5,14 @@ import SwiftSyntaxBuilder
 /// Emits `__Baseline__/NonUniqueExtendedExistentialTypeShapeBaseline.swift`.
 ///
 /// `NonUniqueExtendedExistentialTypeShape` is the non-unique variant of
-/// `ExtendedExistentialTypeShape`, used by the runtime to cache shapes
-/// per-image before deduplication. It carries a `uniqueCache` relative
-/// pointer plus an embedded `localCopy` of the shape layout. As with
-/// `ExtendedExistentialTypeShape`, no live carrier is reachable from
-/// the SymbolTestsCore section walks; the Suite registers the type's
-/// public surface and exercises members against synthetic instances.
+/// `ExtendedExistentialTypeShape`, emitted statically by the compiler
+/// before runtime deduplication. Once the runtime uniques shapes,
+/// `ExtendedExistentialTypeMetadata.shape` always points at the unique
+/// form — so the non-unique form is not reachable through
+/// `InProcessMetadataPicker`. `SymbolTestsCore` doesn't currently emit a
+/// non-unique shape statically either. The Suite stays sentinel and
+/// asserts structural members behave correctly against a synthetic
+/// memberwise instance.
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 package enum NonUniqueExtendedExistentialTypeShapeBaselineGenerator {
@@ -27,13 +29,10 @@ package enum NonUniqueExtendedExistentialTypeShapeBaselineGenerator {
 
         let header = """
         // AUTO-GENERATED — DO NOT EDIT.
-        // Regenerate via: Scripts/regen-baselines.sh
-        // Source fixture: SymbolTestsCore.framework
-        //
-        // NonUniqueExtendedExistentialTypeShape is a runtime-allocated
-        // payload; no live carrier is reachable from SymbolTestsCore
-        // section walks. The Suite asserts structural members behave
-        // correctly against a synthetic memberwise instance.
+        // Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+        // Source: sentinel — non-unique shape only reachable from compiler-emitted
+        // static records before runtime dedup; runtime metadata always points at
+        // the unique form. SymbolTestsCore doesn't currently emit one statically.
         //
         // `init(layout:offset:)` is filtered as memberwise-synthesized.
         """

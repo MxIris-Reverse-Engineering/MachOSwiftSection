@@ -45,14 +45,38 @@ package enum InProcessMetadataPicker {
 
     /// `Any.self` — covers `ExistentialTypeMetadata` for the maximally-general
     /// existential.
+    ///
+    /// Note: `Any.self` has flags `0x80000000` (bit 31 set →
+    /// `classConstraint == .any`). Calling `flags.classConstraint` traps
+    /// because the source's accessor does `UInt8(rawValue & 0x80000000)`,
+    /// which overflows for any value ≥ 256. Tests that exercise
+    /// `classConstraint` / `isClassBounded` / `isObjC` / `representation`
+    /// must therefore use `stdlibAnyObjectExistential` instead.
     package nonisolated(unsafe) static let stdlibAnyExistential: UnsafeRawPointer = {
         unsafeBitCast(Any.self, to: UnsafeRawPointer.self)
     }()
 
-    /// `(any Equatable).self` — covers `ExtendedExistentialTypeMetadata` (with
-    /// shape) and constrained existential.
+    /// `AnyObject.self` — class-bounded existential with zero witness tables
+    /// (flags `0x0`). Safe substitute for `stdlibAnyExistential` when a test
+    /// needs to call `flags.classConstraint`.
+    package nonisolated(unsafe) static let stdlibAnyObjectExistential: UnsafeRawPointer = {
+        unsafeBitCast(AnyObject.self, to: UnsafeRawPointer.self)
+    }()
+
+    /// `(any Sequence<Int>).self` — covers `ExtendedExistentialTypeMetadata`
+    /// (with shape) and `ExtendedExistentialTypeShape`.
+    ///
+    /// Note: parameterized protocol existentials (with primary associated
+    /// types) are the only existentials whose runtime metadata kind is
+    /// `extendedExistential` (0x307). Bare existentials like `(any Equatable)`
+    /// or `Any` produce kind `existential` (0x303). The constant name retains
+    /// `stdlibAnyEquatable` for plan continuity, but the underlying type is
+    /// `(any Sequence<Int>)` because `Equatable` lacks a primary associated
+    /// type. Parameterized protocol existential metadata requires macOS
+    /// 13.0+ at the language-runtime level.
+    @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
     package nonisolated(unsafe) static let stdlibAnyEquatable: UnsafeRawPointer = {
-        unsafeBitCast((any Equatable).self, to: UnsafeRawPointer.self)
+        unsafeBitCast((any Sequence<Int>).self, to: UnsafeRawPointer.self)
     }()
 
     /// `(Any).Type.self` — covers `ExistentialMetatypeMetadata`.

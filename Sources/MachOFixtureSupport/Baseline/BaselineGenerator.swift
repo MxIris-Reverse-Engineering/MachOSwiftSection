@@ -563,11 +563,17 @@ package enum BaselineGenerator {
         case "ExistentialTypeMetadata":
             try ExistentialTypeMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
         case "ExtendedExistentialTypeMetadata":
-            try ExtendedExistentialTypeMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+            if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
+                try ExtendedExistentialTypeMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
+            }
         case "ExtendedExistentialTypeShape":
-            try ExtendedExistentialTypeShapeBaselineGenerator.generate(outputDirectory: outputDirectory)
+            if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
+                try ExtendedExistentialTypeShapeBaselineGenerator.generate(outputDirectory: outputDirectory)
+            }
         case "ExtendedExistentialTypeShapeFlags":
-            try ExtendedExistentialTypeShapeFlagsBaselineGenerator.generate(outputDirectory: outputDirectory)
+            if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
+                try ExtendedExistentialTypeShapeFlagsBaselineGenerator.generate(outputDirectory: outputDirectory)
+            }
         case "NonUniqueExtendedExistentialTypeShape":
             try NonUniqueExtendedExistentialTypeShapeBaselineGenerator.generate(outputDirectory: outputDirectory)
         // ForeignType/

@@ -1,13 +1,15 @@
 // AUTO-GENERATED — DO NOT EDIT.
-// Regenerate via: Scripts/regen-baselines.sh
-// Source fixture: SymbolTestsCore.framework
-//
-// ExtendedExistentialTypeShapeFlags currently exposes only
-// OptionSet boilerplate (init(rawValue:) + rawValue). The Suite
-// round-trips a small set of raw values to catch surface drift.
+// Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+// Source: InProcess shape of `(any Sequence<Int>).self`; no Mach-O section presence.
 
 enum ExtendedExistentialTypeShapeFlagsBaseline {
     static let registeredTestMethodNames: Set<String> = ["init(rawValue:)", "rawValue"]
 
-    static let rawValues: [UInt32] = [0x0, 0x1, 0x2, 0xFF, 0xFFFF_FFFF]
+    struct Entry {
+        let rawValue: UInt32
+    }
+
+    static let equatableShape = Entry(
+        rawValue: 0x1900
+    )
 }

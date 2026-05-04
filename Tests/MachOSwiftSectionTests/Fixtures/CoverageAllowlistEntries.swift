@@ -186,30 +186,17 @@ enum CoverageAllowlistEntries {
             reason: .runtimeOnly(detail: "marker protocol on ValueMetadata")
         ),
         // Existentials
-        CoverageAllowlistHelpers.sentinelGroup(
-            typeName: "ExistentialTypeMetadata",
-            members: ["init", "kind", "flags", "numberOfWitnessTables", "numberOfProtocols", "isClassConstrained", "isErrorExistential"],
-            reason: .runtimeOnly(detail: "live existential metadata; covered via InProcess in Phase C")
-        ),
-        CoverageAllowlistHelpers.sentinelGroup(
-            typeName: "ExistentialMetatypeMetadata",
-            members: ["init", "kind", "instanceType", "flags", "layout", "offset"],
-            reason: .runtimeOnly(detail: "live existential metatype; covered via InProcess in Phase C")
-        ),
-        CoverageAllowlistHelpers.sentinelGroup(
-            typeName: "ExtendedExistentialTypeMetadata",
-            members: ["init", "kind", "shape", "genericArguments", "layout", "offset"],
-            reason: .runtimeOnly(detail: "Swift 5.7+ extended existential metadata; covered via InProcess")
-        ),
-        CoverageAllowlistHelpers.sentinelGroup(
-            typeName: "ExtendedExistentialTypeShape",
-            members: ["init", "flags", "existentialType", "requirementSignatureHeader", "typeExpression", "suggestedValueWitnesses", "layout", "offset"],
-            reason: .runtimeOnly(detail: "Shape descriptor stored alongside extended existential metadata at runtime")
-        ),
+        // ExistentialTypeMetadata, ExistentialMetatypeMetadata,
+        // ExtendedExistentialTypeMetadata, and ExtendedExistentialTypeShape
+        // are covered as real InProcess tests in Phase C3 (no sentinel entries
+        // remain). NonUniqueExtendedExistentialTypeShape stays sentinel because
+        // its non-unique form is only emitted statically by the compiler before
+        // runtime deduplication; runtime metadata always points at the unique
+        // form, so it's not reachable through `InProcessMetadataPicker`.
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "NonUniqueExtendedExistentialTypeShape",
-            members: ["init", "uniqueShape", "specializedShape", "existentialType", "layout", "offset"],
-            reason: .runtimeOnly(detail: "non-uniqued shape variant computed at runtime")
+            members: ["existentialType", "layout", "offset"],
+            reason: .runtimeOnly(detail: "non-unique shape form is only reachable from the compiler-emitted static record before runtime dedup; runtime metadata always points at the unique form")
         ),
         // Tuple/function/metatype/opaque/fixed-array/heap
         CoverageAllowlistHelpers.sentinelGroup(
@@ -495,16 +482,9 @@ enum CoverageAllowlistEntries {
             members: ["init", "rawValue", "kind", "isRetroactive", "isSynthesizedNonUnique", "numConditionalRequirements", "numConditionalPackShapeDescriptors", "hasResilientWitnesses", "hasGenericWitnessTable", "isGlobalActorIsolated", "hasGlobalActorIsolation", "hasNonDefaultSerialExecutorIsIsolatingCurrentContext", "isConformanceOfProtocol", "typeReferenceKind"],
             reason: .pureDataUtility(detail: "raw bitfield over protocol conformance flags")
         ),
-        CoverageAllowlistHelpers.sentinelGroup(
-            typeName: "ExistentialTypeFlags",
-            members: ["init", "rawValue", "numProtocols", "numWitnessTables", "isClassConstraint", "isErrorExistential", "isObjCExistential", "classConstraint", "hasSuperclassConstraint", "numberOfWitnessTables", "specialProtocol"],
-            reason: .pureDataUtility(detail: "raw bitfield over existential type flags")
-        ),
-        CoverageAllowlistHelpers.sentinelGroup(
-            typeName: "ExtendedExistentialTypeShapeFlags",
-            members: ["init", "rawValue", "specialKind", "hasGeneralizationSignature", "hasTypeExpression", "hasSuggestedValueWitnesses", "hasImplicitGenericParamsCount"],
-            reason: .pureDataUtility(detail: "raw bitfield over extended existential shape flags")
-        ),
+        // ExistentialTypeFlags + ExtendedExistentialTypeShapeFlags are
+        // covered as real InProcess tests in Phase C3 (no sentinel entries
+        // remain).
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "FunctionTypeFlags",
             members: ["init", "init(rawValue:)", "rawValue", "numParameters", "convention", "isThrowing", "isAsync", "isEscaping", "isSendable", "hasParameterFlags", "hasGlobalActor", "hasThrownError", "hasExtendedFlags", "isDifferentiable"],

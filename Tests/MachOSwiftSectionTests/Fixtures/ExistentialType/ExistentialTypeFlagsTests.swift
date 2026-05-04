@@ -6,10 +6,15 @@ import MachOFixtureSupport
 
 /// Fixture-based Suite for `ExistentialTypeFlags`.
 ///
-/// `ExistentialTypeFlags` is a 32-bit `OptionSet` carrying the leading
-/// flags of `ExistentialTypeMetadata`. It's a pure raw-value bit decoder
-/// — no MachO dependency — so the Suite re-evaluates each accessor
-/// against synthetic raw values and compares against the baseline cases.
+/// Phase C3: real InProcess test against the flags slice of stdlib
+/// existentials. Two metadata sources are used:
+///
+///   - `Any.self` flags (`0x80000000`) — anchor `rawValue`,
+///     `init(rawValue:)`, `numberOfWitnessTables` (0),
+///     `hasSuperclassConstraint` (false), `specialProtocol` (`.none`).
+///
+///   - `AnyObject.self` flags (`0x0`) — anchor `classConstraint` because
+///     `Any.self`'s flags trap `UInt8(rawValue & 0x80000000)`.
 @Suite
 final class ExistentialTypeFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
     static let testedTypeName = "ExistentialTypeFlags"
@@ -18,44 +23,52 @@ final class ExistentialTypeFlagsTests: MachOSwiftSectionFixtureTests, FixtureSui
     }
 
     @Test("init(rawValue:)") func initializer() async throws {
-        for entry in ExistentialTypeFlagsBaseline.cases {
-            let flags = ExistentialTypeFlags(rawValue: entry.rawValue)
-            #expect(flags.rawValue == entry.rawValue)
+        let result = try usingInProcessOnly { context in
+            let metadata = try ExistentialTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibAnyExistential, in: context)
+            return ExistentialTypeFlags(rawValue: metadata.layout.flags.rawValue).rawValue
         }
+        #expect(result == ExistentialTypeFlagsBaseline.stdlibAnyExistential.rawValue)
     }
 
     @Test func rawValue() async throws {
-        for entry in ExistentialTypeFlagsBaseline.cases {
-            let flags = ExistentialTypeFlags(rawValue: entry.rawValue)
-            #expect(flags.rawValue == entry.rawValue)
+        let result = try usingInProcessOnly { context in
+            try ExistentialTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibAnyExistential, in: context)
+                .layout.flags.rawValue
         }
+        #expect(result == ExistentialTypeFlagsBaseline.stdlibAnyExistential.rawValue)
     }
 
     @Test func numberOfWitnessTables() async throws {
-        for entry in ExistentialTypeFlagsBaseline.cases {
-            let flags = ExistentialTypeFlags(rawValue: entry.rawValue)
-            #expect(flags.numberOfWitnessTables == entry.numberOfWitnessTables, "numberOfWitnessTables mismatch for raw \(entry.rawValue)")
+        let result = try usingInProcessOnly { context in
+            try ExistentialTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibAnyExistential, in: context)
+                .layout.flags.numberOfWitnessTables
         }
+        #expect(result == ExistentialTypeFlagsBaseline.stdlibAnyExistential.numberOfWitnessTables)
     }
 
     @Test func classConstraint() async throws {
-        for entry in ExistentialTypeFlagsBaseline.cases {
-            let flags = ExistentialTypeFlags(rawValue: entry.rawValue)
-            #expect(flags.classConstraint.rawValue == entry.classConstraintRawValue, "classConstraint mismatch for raw \(entry.rawValue)")
+        // `AnyObject.self` flags decode to `classConstraint == .class`.
+        // `Any.self` flags would trap (UInt8 conversion overflow).
+        let result = try usingInProcessOnly { context in
+            try ExistentialTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibAnyObjectExistential, in: context)
+                .layout.flags.classConstraint.rawValue
         }
+        #expect(result == ExistentialTypeFlagsBaseline.stdlibAnyObjectExistential.classConstraintRawValue)
     }
 
     @Test func hasSuperclassConstraint() async throws {
-        for entry in ExistentialTypeFlagsBaseline.cases {
-            let flags = ExistentialTypeFlags(rawValue: entry.rawValue)
-            #expect(flags.hasSuperclassConstraint == entry.hasSuperclassConstraint, "hasSuperclassConstraint mismatch for raw \(entry.rawValue)")
+        let result = try usingInProcessOnly { context in
+            try ExistentialTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibAnyExistential, in: context)
+                .layout.flags.hasSuperclassConstraint
         }
+        #expect(result == ExistentialTypeFlagsBaseline.stdlibAnyExistential.hasSuperclassConstraint)
     }
 
     @Test func specialProtocol() async throws {
-        for entry in ExistentialTypeFlagsBaseline.cases {
-            let flags = ExistentialTypeFlags(rawValue: entry.rawValue)
-            #expect(flags.specialProtocol.rawValue == entry.specialProtocolRawValue, "specialProtocol mismatch for raw \(entry.rawValue)")
+        let result = try usingInProcessOnly { context in
+            try ExistentialTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibAnyExistential, in: context)
+                .layout.flags.specialProtocol.rawValue
         }
+        #expect(result == ExistentialTypeFlagsBaseline.stdlibAnyExistential.specialProtocolRawValue)
     }
 }

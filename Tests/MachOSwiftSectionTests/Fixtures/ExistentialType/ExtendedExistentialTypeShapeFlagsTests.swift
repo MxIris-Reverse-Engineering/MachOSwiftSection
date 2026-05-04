@@ -6,9 +6,15 @@ import MachOFixtureSupport
 
 /// Fixture-based Suite for `ExtendedExistentialTypeShapeFlags`.
 ///
-/// Currently exposes only OptionSet boilerplate (`init(rawValue:)` and
-/// `rawValue`). The Suite round-trips a small set of raw values to
-/// catch any accidental public-surface changes.
+/// Phase C3: real InProcess test against the shape flags of
+/// `(any Sequence<Int>).self`'s shape. We resolve the shape via
+/// `InProcessMetadataPicker.stdlibAnyEquatable`, read its `flags` raw
+/// value, and round-trip through `init(rawValue:)` / `rawValue`. The ABI
+/// literal is pinned in the regenerated baseline.
+///
+/// Note: parameterized protocol existential metadata requires macOS 13.0+
+/// at the language-runtime level. Tests guard the in-process metadata
+/// access with `if #available` rather than annotating the suite class.
 @Suite
 final class ExtendedExistentialTypeShapeFlagsTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
     static let testedTypeName = "ExtendedExistentialTypeShapeFlags"
@@ -17,16 +23,22 @@ final class ExtendedExistentialTypeShapeFlagsTests: MachOSwiftSectionFixtureTest
     }
 
     @Test("init(rawValue:)") func initializer() async throws {
-        for rawValue in ExtendedExistentialTypeShapeFlagsBaseline.rawValues {
-            let flags = ExtendedExistentialTypeShapeFlags(rawValue: rawValue)
-            #expect(flags.rawValue == rawValue)
+        guard #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) else { return }
+        let result = try usingInProcessOnly { context in
+            let metadata = try ExtendedExistentialTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibAnyEquatable, in: context)
+            let shape = try metadata.layout.shape.resolve(in: context)
+            return ExtendedExistentialTypeShapeFlags(rawValue: shape.layout.flags.rawValue).rawValue
         }
+        #expect(result == ExtendedExistentialTypeShapeFlagsBaseline.equatableShape.rawValue)
     }
 
     @Test func rawValue() async throws {
-        for rawValue in ExtendedExistentialTypeShapeFlagsBaseline.rawValues {
-            let flags = ExtendedExistentialTypeShapeFlags(rawValue: rawValue)
-            #expect(flags.rawValue == rawValue)
+        guard #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) else { return }
+        let result = try usingInProcessOnly { context in
+            let metadata = try ExtendedExistentialTypeMetadata.resolve(at: InProcessMetadataPicker.stdlibAnyEquatable, in: context)
+            let shape = try metadata.layout.shape.resolve(in: context)
+            return shape.layout.flags.rawValue
         }
+        #expect(result == ExtendedExistentialTypeShapeFlagsBaseline.equatableShape.rawValue)
     }
 }

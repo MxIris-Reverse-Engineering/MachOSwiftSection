@@ -1,15 +1,17 @@
 // AUTO-GENERATED — DO NOT EDIT.
-// Regenerate via: Scripts/regen-baselines.sh
-// Source fixture: SymbolTestsCore.framework
-//
-// ExistentialMetatypeMetadata wraps a runtime metatype value
-// (`(any P).Type`); no live carrier is materialised from the
-// SymbolTestsCore section walks. The Suite asserts the type's
-// structural members behave correctly against a synthetic
-// memberwise instance.
-//
-// `init(layout:offset:)` is filtered as memberwise-synthesized.
+// Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+// Source: InProcess `Any.Type.self`; no Mach-O section presence.
 
 enum ExistentialMetatypeMetadataBaseline {
     static let registeredTestMethodNames: Set<String> = ["layout", "offset"]
+
+    struct Entry {
+        let kindRawValue: UInt32
+        let flagsRawValue: UInt32
+    }
+
+    static let stdlibAnyMetatype = Entry(
+        kindRawValue: 0x306,
+        flagsRawValue: 0x80000000
+    )
 }
