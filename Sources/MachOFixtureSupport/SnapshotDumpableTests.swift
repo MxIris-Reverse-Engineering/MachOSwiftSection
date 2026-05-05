@@ -395,7 +395,7 @@ extension SnapshotDumpableTests {
             } catch {
                 continue
             }
-            let moduleName = (try? protocolDescriptor.moduleContextDesciptor(in: machO)?.name(in: machO)) ?? ""
+            let moduleName = (try? protocolDescriptor.moduleContextDescriptor(in: machO)?.name(in: machO)) ?? ""
             let key = "\(moduleName).\(name)"
             // First writer wins; this produces stable behavior if duplicates exist.
             if lookup[key] == nil {

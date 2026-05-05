@@ -252,7 +252,7 @@ public enum MetadataWrapper: Resolvable {
         case .job:
             return try .job(machO.readWrapperElement(offset: offset))
         case .lastEnumerated:
-            fatalError()
+            throw MachOSwiftSectionError.unknownMetadataKind(rawValue: UInt(metadata.kind.rawValue))
         }
     }
 
@@ -300,7 +300,7 @@ public enum MetadataWrapper: Resolvable {
         case .job:
             return try .job(.resolve(from: ptr))
         case .lastEnumerated:
-            fatalError()
+            throw MachOSwiftSectionError.unknownMetadataKind(rawValue: UInt(metadata.kind.rawValue))
         }
     }
 }
@@ -397,7 +397,7 @@ extension MetadataWrapper {
         case .job:
             return try .job(context.readWrapperElement(at: address))
         case .lastEnumerated:
-            fatalError()
+            throw MachOSwiftSectionError.unknownMetadataKind(rawValue: UInt(metadata.kind.rawValue))
         }
     }
 }
