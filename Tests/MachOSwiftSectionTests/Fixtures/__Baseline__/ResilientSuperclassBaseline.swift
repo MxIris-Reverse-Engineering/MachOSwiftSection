@@ -2,9 +2,12 @@
 // Regenerate via: Scripts/regen-baselines.sh
 // Source fixture: SymbolTestsCore.framework
 //
-// ResilientSuperclass appears in classes with a resilient superclass.
-// The Suite picks the first such class via Class.resilientSuperclass
-// and asserts cross-reader agreement on the record offset.
+// ResilientSuperclass is the trailing-object record on a class
+// whose parent lives in a different module. The Suite drives
+// `ResilientClassFixtures.ResilientChild` (parent
+// `SymbolTestsHelper.ResilientBase`) and asserts cross-reader
+// agreement on the record offset and the superclass reference's
+// relative-offset scalar.
 
 enum ResilientSuperclassBaseline {
     static let registeredTestMethodNames: Set<String> = ["layout", "offset"]
@@ -12,10 +15,12 @@ enum ResilientSuperclassBaseline {
     struct Entry {
         let sourceClassOffset: Int
         let offset: Int
+        let layoutSuperclassRelativeOffset: Int32
     }
 
-    static let firstResilientSuperclass = Entry(
-        sourceClassOffset: 0x32b58,
-        offset: 0x32b84
+    static let resilientChild = Entry(
+        sourceClassOffset: 0x35e10,
+        offset: 0x35e3c,
+        layoutSuperclassRelativeOffset: 41452
     )
 }

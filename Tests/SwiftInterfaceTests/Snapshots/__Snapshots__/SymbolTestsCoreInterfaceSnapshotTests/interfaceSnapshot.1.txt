@@ -1524,6 +1524,15 @@ enum Protocols {
         associatedtype Third
     }
 }
+enum ResilientClassFixtures {
+    class ResilientChild: SymbolTestsHelper.ResilientBase {
+        var extraField: Swift.Int
+
+        override init()
+
+        deinit
+    }
+}
 enum ResultBuilderDSL {
     @resultBuilder
     struct FullResultBuilderTest {

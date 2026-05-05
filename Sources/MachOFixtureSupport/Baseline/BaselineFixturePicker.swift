@@ -571,6 +571,23 @@ package enum BaselineFixturePicker {
         )
     }
 
+    /// Picks the SymbolTestsCore class
+    /// `ResilientClassFixtures.ResilientChild` — a subclass of the
+    /// cross-module `SymbolTestsHelper.ResilientBase` (library-evolution
+    /// build mode), which causes the descriptor to carry a
+    /// `ResilientSuperclass` tail record (tail-objects layout) and forces
+    /// metadata bounds to be resolved at runtime via
+    /// `StoredClassMetadataBounds`.
+    package static func class_ResilientChild(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                try descriptor.name(in: machO) == "ResilientChild"
+            })
+        )
+    }
+
     /// Picks the `AssociatedTypeDescriptor` whose conforming type is
     /// `AssociatedTypeWitnessPatterns.ConcreteWitnessTest` and whose protocol
     /// is `AssociatedTypeWitnessPatterns.AssociatedPatternProtocol`. The

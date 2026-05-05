@@ -8,75 +8,60 @@ import MachOFoundation
 ///
 /// `ResilientSuperclass` is the trailing-object record carrying a
 /// `RelativeDirectRawPointer` to the superclass when a class has
-/// `hasResilientSuperclass == true`. The `Classes.ExternalSwiftSubclassTest`
-/// (which inherits from the SymbolTestsHelper `Object` resilient root)
-/// surfaces this record. We try to pick a class that exposes one; if
-/// none is available we fall back to a name-only baseline.
+/// `hasResilientSuperclass == true`. The fixture `ResilientChild`
+/// (whose parent `SymbolTestsHelper.ResilientBase` lives in a different
+/// module) is the canonical carrier — Phase B2 introduced it to give
+/// `ResilientSuperclassTests` a stably-named, deterministic subject.
 package enum ResilientSuperclassBaselineGenerator {
     package static func generate(
         in machO: some MachOSwiftSectionRepresentableWithCache,
         outputDirectory: URL
     ) throws {
         // Public members declared directly in ResilientSuperclass.swift.
-        // `init(layout:offset:)` is filtered as memberwise-synthesized.
+        // `init(layout:offset:)` is filtered as memberwise-synthesized;
+        // `superclass` is the inner Layout's stored field, exercised
+        // transitively via the `layout` test.
         let registered = [
             "layout",
             "offset",
         ]
 
-        // Search every Class in the fixture for one whose wrapper exposes
-        // a resilient superclass record. `Classes.ExternalSwiftSubclassTest`
-        // inherits from a resilient `Object`, so we expect at least one hit.
-        let classes = try machO.swift.typeContextDescriptors.compactMap(\.class)
-        var resilientSuperclassOffset: Int? = nil
-        var sourceClassOffset: Int? = nil
-        for descriptor in classes where descriptor.hasResilientSuperclass {
-            let classWrapper = try Class(descriptor: descriptor, in: machO)
-            if let resilient = classWrapper.resilientSuperclass {
-                resilientSuperclassOffset = resilient.offset
-                sourceClassOffset = descriptor.offset
-                break
-            }
-        }
+        let descriptor = try BaselineFixturePicker.class_ResilientChild(in: machO)
+        let classWrapper = try Class(descriptor: descriptor, in: machO)
+        let resilientSuperclass = try required(classWrapper.resilientSuperclass)
 
         let header = """
         // AUTO-GENERATED — DO NOT EDIT.
         // Regenerate via: Scripts/regen-baselines.sh
         // Source fixture: SymbolTestsCore.framework
         //
-        // ResilientSuperclass appears in classes with a resilient superclass.
-        // The Suite picks the first such class via Class.resilientSuperclass
-        // and asserts cross-reader agreement on the record offset.
+        // ResilientSuperclass is the trailing-object record on a class
+        // whose parent lives in a different module. The Suite drives
+        // `ResilientClassFixtures.ResilientChild` (parent
+        // `SymbolTestsHelper.ResilientBase`) and asserts cross-reader
+        // agreement on the record offset and the superclass reference's
+        // relative-offset scalar.
         """
 
-        let file: SourceFileSyntax
-        if let resilientSuperclassOffset, let sourceClassOffset {
-            file = """
-            \(raw: header)
+        let file: SourceFileSyntax = """
+        \(raw: header)
 
-            enum ResilientSuperclassBaseline {
-                static let registeredTestMethodNames: Set<String> = \(literal: registered)
+        enum ResilientSuperclassBaseline {
+            static let registeredTestMethodNames: Set<String> = \(literal: registered)
 
-                struct Entry {
-                    let sourceClassOffset: Int
-                    let offset: Int
-                }
-
-                static let firstResilientSuperclass = Entry(
-                    sourceClassOffset: \(raw: BaselineEmitter.hex(sourceClassOffset)),
-                    offset: \(raw: BaselineEmitter.hex(resilientSuperclassOffset))
-                )
+            struct Entry {
+                let sourceClassOffset: Int
+                let offset: Int
+                let layoutSuperclassRelativeOffset: Int32
             }
-            """
-        } else {
-            file = """
-            \(raw: header)
 
-            enum ResilientSuperclassBaseline {
-                static let registeredTestMethodNames: Set<String> = \(literal: registered)
-            }
-            """
+            static let resilientChild = Entry(
+                sourceClassOffset: \(raw: BaselineEmitter.hex(descriptor.offset)),
+                offset: \(raw: BaselineEmitter.hex(resilientSuperclass.offset)),
+                layoutSuperclassRelativeOffset: \(literal: resilientSuperclass.layout.superclass.relativeOffset)
+            )
         }
+        """
 
         let formatted = file.formatted().description + "\n"
         let outputURL = outputDirectory.appendingPathComponent("ResilientSuperclassBaseline.swift")

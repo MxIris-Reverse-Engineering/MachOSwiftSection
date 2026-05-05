@@ -4,15 +4,20 @@ import SwiftSyntaxBuilder
 
 /// Emits `__Baseline__/StoredClassMetadataBoundsBaseline.swift`.
 ///
-/// `StoredClassMetadataBounds` is a small wrapper carrying the bounds for
-/// a class that has a resilient superclass — it's pointed at by
-/// `ClassDescriptor.metadataNegativeSizeInWordsOrResilientMetadataBounds`.
-/// The fixture's resilient-superclass class exercises the lookup. The
-/// baseline records only the registered member names.
+/// Phase B2: `StoredClassMetadataBounds` is exercised as a real
+/// InProcess wrapper. The Suite dlsym's the nominal type descriptor of
+/// `ResilientClassFixtures.ResilientChild`, materialises the
+/// `ClassDescriptor`, then chases the resilient-metadata-bounds
+/// pointer via the InProcess `ReadingContext`. The bounds are
+/// runtime-allocated, so their address (`offset`) is ASLR-randomized
+/// and the `negativeSizeInWords` / `positiveSizeInWords` shape reflects
+/// the resilient root's metadata, which can drift across toolchain
+/// versions. The Suite asserts invariants (non-zero offset, sane word
+/// counts) rather than pinning literals.
+///
+/// `init(layout:offset:)` is filtered as memberwise-synthesized.
 package enum StoredClassMetadataBoundsBaselineGenerator {
     package static func generate(outputDirectory: URL) throws {
-        // Public members declared directly in StoredClassMetadataBounds.swift.
-        // `init(layout:offset:)` is filtered as memberwise-synthesized.
         let registered = [
             "layout",
             "offset",
@@ -20,13 +25,18 @@ package enum StoredClassMetadataBoundsBaselineGenerator {
 
         let header = """
         // AUTO-GENERATED — DO NOT EDIT.
-        // Regenerate via: Scripts/regen-baselines.sh
+        // Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
         // Source fixture: SymbolTestsCore.framework
         //
         // StoredClassMetadataBounds is reachable via
-        // ClassDescriptor.resilientMetadataBounds(...). The Suite picks a
-        // resilient-superclass class and asserts cross-reader agreement
-        // on the resolved bounds offset.
+        // ClassDescriptor.resilientMetadataBounds(in:context:). Phase B2
+        // converted the Suite to an InProcess-only real test against
+        // `ResilientClassFixtures.ResilientChild` (parent
+        // `SymbolTestsHelper.ResilientBase`, cross-module). The bounds
+        // are runtime-allocated so no ABI literal is pinned — the Suite
+        // asserts invariants on the resolved record instead.
+        //
+        // `init(layout:offset:)` is filtered as memberwise-synthesized.
         """
 
         let file: SourceFileSyntax = """

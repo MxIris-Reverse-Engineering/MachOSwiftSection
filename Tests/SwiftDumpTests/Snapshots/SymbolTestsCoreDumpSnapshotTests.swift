@@ -60,6 +60,7 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
         "propertyWrapperVariantsSnapshot",
         "protocolCompositionSnapshot",
         "protocolsSnapshot",
+        "resilientClassesSnapshot",
         "resultBuilderDSLSnapshot",
         "sameTypeRequirementsSnapshot",
         "staticMembersSnapshot",
@@ -293,6 +294,11 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
 
     @Test func protocolsSnapshot() async throws {
         let output = try await collectDump(for: machOFile, inNamespace: "Protocols")
+        assertSnapshot(of: output, as: .lines)
+    }
+
+    @Test func resilientClassesSnapshot() async throws {
+        let output = try await collectDump(for: machOFile, inNamespace: "ResilientClassFixtures")
         assertSnapshot(of: output, as: .lines)
     }
 

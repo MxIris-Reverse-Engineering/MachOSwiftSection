@@ -150,6 +150,27 @@ extension InProcessMetadataPicker {
         return UnsafeRawPointer(metadataPointer)
     }
 
+    /// Returns the address of a fixture-binary symbol by resolving it via
+    /// `dlsym` against the in-process image. Use this to obtain the address
+    /// of a Swift descriptor (e.g. `...Mn`) or any other static symbol
+    /// without invoking it through a metadata accessor.
+    ///
+    /// `symbol` is the Swift mangled C symbol (no leading underscore —
+    /// `dlsym` adds it).
+    package static func fixtureSymbol(_ symbol: String) throws -> UnsafeRawPointer {
+        try ensureFixtureLoaded()
+        guard let handle = dlopen(nil, RTLD_NOW) else {
+            throw FixtureLoadError.imageNotFoundAfterDlopen(path: "<self>", dlerror: nil)
+        }
+        guard let address = dlsym(handle, symbol) else {
+            throw FixtureLoadError.imageNotFoundAfterDlopen(
+                path: symbol,
+                dlerror: dlerror().map { String(cString: $0) }
+            )
+        }
+        return UnsafeRawPointer(address)
+    }
+
     /// Idempotently dlopens `SymbolTestsCore.framework` so that subsequent
     /// `dlsym(RTLD_NOW, ...)` calls can locate fixture-binary symbols.
     /// Resolves the framework path relative to this source file, mirroring

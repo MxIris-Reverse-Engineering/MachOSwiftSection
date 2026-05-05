@@ -1,11 +1,16 @@
 // AUTO-GENERATED — DO NOT EDIT.
-// Regenerate via: Scripts/regen-baselines.sh
+// Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
 // Source fixture: SymbolTestsCore.framework
 //
 // StoredClassMetadataBounds is reachable via
-// ClassDescriptor.resilientMetadataBounds(...). The Suite picks a
-// resilient-superclass class and asserts cross-reader agreement
-// on the resolved bounds offset.
+// ClassDescriptor.resilientMetadataBounds(in:context:). Phase B2
+// converted the Suite to an InProcess-only real test against
+// `ResilientClassFixtures.ResilientChild` (parent
+// `SymbolTestsHelper.ResilientBase`, cross-module). The bounds
+// are runtime-allocated so no ABI literal is pinned — the Suite
+// asserts invariants on the resolved record instead.
+//
+// `init(layout:offset:)` is filtered as memberwise-synthesized.
 
 enum StoredClassMetadataBoundsBaseline {
     static let registeredTestMethodNames: Set<String> = ["layout", "offset"]

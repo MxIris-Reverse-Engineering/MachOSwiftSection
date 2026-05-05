@@ -9,10 +9,11 @@ import MachOFixtureSupport
 ///
 /// `ResilientSuperclass` is the trailing-object record carrying a
 /// `RelativeDirectRawPointer` to the superclass when a class has
-/// `hasResilientSuperclass == true`. The fixture's
-/// `Classes.ExternalSwiftSubclassTest` (inherited from
-/// SymbolTestsHelper.Object) surfaces this record. We assert
-/// cross-reader agreement on the discovered offset.
+/// `hasResilientSuperclass == true`. The suite drives the new
+/// `ResilientClassFixtures.ResilientChild` (whose parent
+/// `SymbolTestsHelper.ResilientBase` is in a different module, so the
+/// child's class context descriptor carries the trailing record) and
+/// asserts cross-reader agreement on the discovered scalar offset.
 @Suite
 final class ResilientSuperclassTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
     static let testedTypeName = "ResilientSuperclass"
@@ -20,43 +21,37 @@ final class ResilientSuperclassTests: MachOSwiftSectionFixtureTests, FixtureSuit
         ResilientSuperclassBaseline.registeredTestMethodNames
     }
 
-    /// Helper: find the first class in the fixture with a resilient
-    /// superclass and return its `ResilientSuperclass` record.
-    private func loadFirstResilientSuperclass(in machO: some MachOSwiftSectionRepresentableWithCache)
-        throws -> ResilientSuperclass?
-    {
-        for descriptor in try machO.swift.typeContextDescriptors.compactMap(\.class)
-            where descriptor.hasResilientSuperclass
-        {
-            let classWrapper = try Class(descriptor: descriptor, in: machO)
-            if let resilient = classWrapper.resilientSuperclass {
-                return resilient
-            }
-        }
-        return nil
+    /// Helper: load the `ResilientSuperclass` record from
+    /// `ResilientClassFixtures.ResilientChild` (whose parent
+    /// `SymbolTestsHelper.ResilientBase` is cross-module — only that
+    /// triggers `hasResilientSuperclass`).
+    private func loadResilientChildSuperclass(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ResilientSuperclass {
+        let descriptor = try BaselineFixturePicker.class_ResilientChild(in: machO)
+        let classWrapper = try Class(descriptor: descriptor, in: machO)
+        return try required(classWrapper.resilientSuperclass)
     }
 
     @Test func offset() async throws {
-        guard
-            let fileSubject = try loadFirstResilientSuperclass(in: machOFile),
-            let imageSubject = try loadFirstResilientSuperclass(in: machOImage)
-        else {
-            // No resilient-superclass class in fixture; skip.
-            return
-        }
-        #expect(fileSubject.offset == imageSubject.offset)
-        #expect(fileSubject.offset == ResilientSuperclassBaseline.firstResilientSuperclass.offset)
+        let fileSubject = try loadResilientChildSuperclass(in: machOFile)
+        let imageSubject = try loadResilientChildSuperclass(in: machOImage)
+        let result = try acrossAllReaders(
+            file: { fileSubject.offset },
+            image: { imageSubject.offset }
+        )
+        #expect(result == ResilientSuperclassBaseline.resilientChild.offset)
     }
 
     @Test func layout() async throws {
-        guard
-            let fileSubject = try loadFirstResilientSuperclass(in: machOFile),
-            let imageSubject = try loadFirstResilientSuperclass(in: machOImage)
-        else {
-            return
-        }
+        let fileSubject = try loadResilientChildSuperclass(in: machOFile)
+        let imageSubject = try loadResilientChildSuperclass(in: machOImage)
         // The relative raw pointer's relativeOffset scalar must agree
         // across readers (it's a stable file/image-relative displacement).
-        #expect(fileSubject.layout.superclass.relativeOffset == imageSubject.layout.superclass.relativeOffset)
+        let result = try acrossAllReaders(
+            file: { fileSubject.layout.superclass.relativeOffset },
+            image: { imageSubject.layout.superclass.relativeOffset }
+        )
+        #expect(result == ResilientSuperclassBaseline.resilientChild.layoutSuperclassRelativeOffset)
     }
 }

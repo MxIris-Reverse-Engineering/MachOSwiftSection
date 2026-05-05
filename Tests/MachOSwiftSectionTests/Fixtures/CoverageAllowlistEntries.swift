@@ -106,11 +106,10 @@ enum CoverageAllowlistEntries {
             members: ["immediateMembers", "negativeSizeInWords", "positiveSizeInWords", "adjustForSubclass", "forAddressPointAndSize", "forSwiftRootClass"],
             reason: .runtimeOnly(detail: "marker protocol on runtime-computed class bounds")
         ),
-        CoverageAllowlistHelpers.sentinelGroup(
-            typeName: "StoredClassMetadataBounds",
-            members: ["init", "immediateMembers", "bounds"],
-            reason: .runtimeOnly(detail: "filled in by runtime at class-loading time")
-        ),
+        // StoredClassMetadataBounds is covered as a real InProcess test in
+        // Phase B2 against `ResilientClassFixtures.ResilientChild`'s
+        // descriptor (the runtime allocates the bounds slot when the class
+        // is loaded). No sentinel entry remains.
         // Type-flavored runtime metadata (B/C-eligible ones go here too;
         // C will convert them when InProcessMetadataPicker provides pointers)
         CoverageAllowlistHelpers.sentinelGroup(
@@ -310,11 +309,10 @@ enum CoverageAllowlistEntries {
             members: ["init", "numEntries"],
             reason: .needsFixtureExtension(detail: "init is synthesized memberwise init; numEntries is reached transitively via layout.numEntries (already exercised by the real OverrideTableHeader suite on Classes.SubclassTest).")
         ),
-        CoverageAllowlistHelpers.sentinelGroup(
-            typeName: "ResilientSuperclass",
-            members: ["init", "superclass"],
-            reason: .needsFixtureExtension(detail: "no resilient class with explicit superclass reference — Phase B2")
-        ),
+        // ResilientSuperclass is covered as a real cross-reader test in
+        // Phase B2 against `ResilientClassFixtures.ResilientChild` (parent
+        // `SymbolTestsHelper.ResilientBase`, cross-module). No sentinel
+        // entry remains.
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ObjCClassWrapperMetadata",
             members: ["init", "kind", "objcClass"],

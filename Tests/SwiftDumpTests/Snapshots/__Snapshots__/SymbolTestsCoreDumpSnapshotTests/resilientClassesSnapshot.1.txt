@@ -1,0 +1,32 @@
+// MARK: - Types
+
+enum SymbolTestsCore.ResilientClassFixtures {}
+class SymbolTestsCore.ResilientClassFixtures.ResilientChild: SymbolTestsHelper.ResilientBase {
+    var extraField: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.ResilientClassFixtures.ResilientChild.extraField.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.ResilientClassFixtures.ResilientChild.extraField.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.ResilientClassFixtures.ResilientChild.extraField.modify : Swift.Int
+
+    override SymbolTestsCore.ResilientClassFixtures.ResilientChild.__allocating_init() -> SymbolTestsCore.ResilientClassFixtures.ResilientChild
+
+    /* Allocator */
+    SymbolTestsCore.ResilientClassFixtures.ResilientChild.__allocating_init() -> SymbolTestsCore.ResilientClassFixtures.ResilientChild
+
+    /* Deallocator */
+    SymbolTestsCore.ResilientClassFixtures.ResilientChild.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.ResilientClassFixtures.ResilientChild.init() -> SymbolTestsCore.ResilientClassFixtures.ResilientChild
+
+    /* Destructor */
+    SymbolTestsCore.ResilientClassFixtures.ResilientChild.deinit
+
+    /* Variable */
+    SymbolTestsCore.ResilientClassFixtures.ResilientChild.extraField.getter : Swift.Int
+    SymbolTestsCore.ResilientClassFixtures.ResilientChild.extraField.setter : Swift.Int
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.ResilientClassFixtures.ResilientChild.extraField.getter : Swift.Int
+    method descriptor for SymbolTestsCore.ResilientClassFixtures.ResilientChild.extraField.setter : Swift.Int
+}
