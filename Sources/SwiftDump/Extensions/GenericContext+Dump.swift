@@ -86,9 +86,31 @@ extension TargetGenericContext {
                 }
             }
         } else {
-            var currentValueIndex = 0
-            for (offsetAndDepth, depthParameters) in allParameters.offsetEnumerated() {
-                for (offset, parameter) in depthParameters.offsetEnumerated() {
+            // `parameters` is cumulative — every nested generic context stores
+            // the full canonical parameter list. Naively iterating
+            // `allParameters` would re-emit each inherited level, producing
+            // duplicates at depth ≥ 2 (e.g. `<A, A1, B1, A2>` with `A`
+            // duplicated). Walk per-level "newly introduced" slices instead,
+            // mirroring the depth-aware visit order Swift's
+            // `forEachParam` produces.
+            let perLevelCounts = Self.dumpPerLevelNewParameterCounts(
+                parentParameters: parentParameters,
+                currentCount: currentParameters.count
+            )
+            let perLevelValueCounts = Self.dumpPerLevelNewValueCounts(
+                parentValues: parentValues,
+                currentCount: currentValues.count
+            )
+            var paramOffset = 0
+            var valueOffset = 0
+            var totalEmitted = 0
+            let totalParameters = parameters.count
+            for (depthIndex, newCount) in perLevelCounts.enumerated() {
+                let valuesAtThisLevel = perLevelValueCounts[safe: depthIndex] ?? 0
+                var currentValueIndexInLevel = 0
+                for indexInLevel in 0..<newCount {
+                    let parameter = parameters[paramOffset + indexInLevel]
+
                     if parameter.kind == .typePack {
                         Keyword(.each)
                         Space()
@@ -100,29 +122,62 @@ extension TargetGenericContext {
                     switch parameter.kind {
                     case .type,
                          .typePack:
-                        try Standard(genericParameterName(depth: offsetAndDepth.index, index: offset.index))
+                        try Standard(genericParameterName(depth: depthIndex, index: indexInLevel))
                     case .value:
-                        try Standard(genericValueName(depth: offsetAndDepth.index, index: offset.index))
+                        try Standard(genericValueName(depth: depthIndex, index: indexInLevel))
                         Standard(": ")
-                        switch values[currentValueIndex].type {
-                        case .int:
-                            TypeName(kind: .other, "Int")
+                        if valueOffset + currentValueIndexInLevel < values.count {
+                            switch values[valueOffset + currentValueIndexInLevel].type {
+                            case .int:
+                                TypeName(kind: .other, "Int")
+                            }
                         }
-                        currentValueIndex += 1
+                        currentValueIndexInLevel += 1
                     default:
                         Standard("")
                     }
 
-                    if !offset.isEnd {
+                    totalEmitted += 1
+                    if totalEmitted < totalParameters {
                         Standard(", ")
                     }
                 }
-                
-                if !offsetAndDepth.isEnd {
-                    Standard(", ")
-                }
+                paramOffset += newCount
+                valueOffset += valuesAtThisLevel
             }
         }
+    }
+
+    /// Per-level "newly introduced" parameter counts derived from the
+    /// cumulative `parentParameters` slices plus the current level's new
+    /// count. Mirrors `GenericSpecializer.perLevelNewParameterCounts`.
+    fileprivate static func dumpPerLevelNewParameterCounts(
+        parentParameters: [[GenericParamDescriptor]],
+        currentCount: Int
+    ) -> [Int] {
+        var counts: [Int] = []
+        var previous = 0
+        for parentCumulative in parentParameters {
+            counts.append(parentCumulative.count - previous)
+            previous = parentCumulative.count
+        }
+        counts.append(currentCount)
+        return counts
+    }
+
+    /// Same idea for value generics.
+    fileprivate static func dumpPerLevelNewValueCounts(
+        parentValues: [[GenericValueDescriptor]],
+        currentCount: Int
+    ) -> [Int] {
+        var counts: [Int] = []
+        var previous = 0
+        for parentCumulative in parentValues {
+            counts.append(parentCumulative.count - previous)
+            previous = parentCumulative.count
+        }
+        counts.append(currentCount)
+        return counts
     }
 
     @SemanticStringBuilder
