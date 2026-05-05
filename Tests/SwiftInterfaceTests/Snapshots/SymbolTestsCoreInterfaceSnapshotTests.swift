@@ -4,6 +4,7 @@ import SnapshotTesting
 import MachOKit
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 @testable import SwiftInterface
 
 @Suite(.serialized, .snapshots(record: .missing))

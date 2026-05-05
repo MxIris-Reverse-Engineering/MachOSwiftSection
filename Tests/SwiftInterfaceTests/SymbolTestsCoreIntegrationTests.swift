@@ -7,6 +7,7 @@ import Dependencies
 @_spi(Support) @testable import SwiftInterface
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 @testable import SwiftDump
 
 // MARK: - Shared Setup
@@ -31,13 +32,13 @@ final class STCoreTests: MachOFileTests, @unchecked Sendable {
 
     private func indexTypeDefinition(_ typeDefinition: TypeDefinition) async throws {
         nonisolated(unsafe) let unsafeTypeDefinition = typeDefinition
-        nonisolated(unsafe) let unsafeMachOFile = machOFile
+        let unsafeMachOFile = machOFile
         try await unsafeTypeDefinition.index(in: unsafeMachOFile)
     }
 
     private func indexProtocolDefinition(_ protocolDefinition: ProtocolDefinition) async throws {
         nonisolated(unsafe) let unsafeProtocolDefinition = protocolDefinition
-        nonisolated(unsafe) let unsafeMachOFile = machOFile
+        let unsafeMachOFile = machOFile
         try await unsafeProtocolDefinition.index(in: unsafeMachOFile)
     }
 }

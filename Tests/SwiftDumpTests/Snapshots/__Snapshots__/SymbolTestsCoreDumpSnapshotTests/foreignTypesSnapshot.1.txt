@@ -1,0 +1,7 @@
+// MARK: - Types
+
+enum SymbolTestsCore.ForeignTypeFixtures {
+    /* Static Function */
+    static SymbolTestsCore.ForeignTypeFixtures.foreignClassReference() -> CFStringRef
+    static SymbolTestsCore.ForeignTypeFixtures.foreignArrayReference() -> CFArrayRef
+}

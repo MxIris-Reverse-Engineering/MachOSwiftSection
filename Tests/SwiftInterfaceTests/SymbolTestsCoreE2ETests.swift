@@ -7,6 +7,7 @@ import Dependencies
 @_spi(Support) @testable import SwiftInterface
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 @testable import SwiftDump
 
 @Suite(.serialized)
@@ -27,7 +28,7 @@ final class STCoreE2ETests: MachOFileTests, @unchecked Sendable {
                 printEnumLayout: false
             )
         )
-        nonisolated(unsafe) let unsafeMachOFile = machOFile
+        let unsafeMachOFile = machOFile
         let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [], in: unsafeMachOFile)
         builder.addExtraDataProvider(SwiftInterfaceBuilderOpaqueTypeProvider(machO: unsafeMachOFile))
         try await builder.prepare()

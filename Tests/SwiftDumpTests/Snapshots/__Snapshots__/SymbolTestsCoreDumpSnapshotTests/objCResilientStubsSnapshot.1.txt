@@ -1,0 +1,32 @@
+// MARK: - Types
+
+enum SymbolTestsCore.ObjCResilientStubFixtures {}
+class SymbolTestsCore.ObjCResilientStubFixtures.ResilientObjCStubChild: SymbolTestsHelper.Object {
+    var stubField: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.ObjCResilientStubFixtures.ResilientObjCStubChild.stubField.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.ObjCResilientStubFixtures.ResilientObjCStubChild.stubField.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.ObjCResilientStubFixtures.ResilientObjCStubChild.stubField.modify : Swift.Int
+
+    override SymbolTestsCore.ObjCResilientStubFixtures.ResilientObjCStubChild.__allocating_init() -> SymbolTestsCore.ObjCResilientStubFixtures.ResilientObjCStubChild
+
+    /* Allocator */
+    SymbolTestsCore.ObjCResilientStubFixtures.ResilientObjCStubChild.__allocating_init() -> SymbolTestsCore.ObjCResilientStubFixtures.ResilientObjCStubChild
+
+    /* Deallocator */
+    SymbolTestsCore.ObjCResilientStubFixtures.ResilientObjCStubChild.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.ObjCResilientStubFixtures.ResilientObjCStubChild.init() -> SymbolTestsCore.ObjCResilientStubFixtures.ResilientObjCStubChild
+
+    /* Destructor */
+    SymbolTestsCore.ObjCResilientStubFixtures.ResilientObjCStubChild.deinit
+
+    /* Variable */
+    SymbolTestsCore.ObjCResilientStubFixtures.ResilientObjCStubChild.stubField.getter : Swift.Int
+    SymbolTestsCore.ObjCResilientStubFixtures.ResilientObjCStubChild.stubField.setter : Swift.Int
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.ObjCResilientStubFixtures.ResilientObjCStubChild.stubField.getter : Swift.Int
+    method descriptor for SymbolTestsCore.ObjCResilientStubFixtures.ResilientObjCStubChild.stubField.setter : Swift.Int
+}

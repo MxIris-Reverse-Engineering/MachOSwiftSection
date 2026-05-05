@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 
 final class ExternalSymbolTests: MachOFileTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .iOS_18_5_Simulator_SwiftUI }

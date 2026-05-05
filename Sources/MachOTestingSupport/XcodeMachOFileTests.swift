@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import MachOKit
 import MachOFoundation
+import MachOFixtureSupport
 
 package class XcodeMachOFileTests {
     package let machOFile: MachOFile

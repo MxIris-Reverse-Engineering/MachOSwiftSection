@@ -6,6 +6,7 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @testable import SwiftDump
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 
 @Suite(.serialized, .snapshots(record: .missing))
 final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTests, @unchecked Sendable {
@@ -38,10 +39,12 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
         "existentialAnySnapshot",
         "extensionsSnapshot",
         "fieldDescriptorVariantsSnapshot",
+        "foreignTypesSnapshot",
         "functionFeaturesSnapshot",
         "functionTypesSnapshot",
         "genericFieldLayoutSnapshot",
         "genericRequirementVariantsSnapshot",
+        "genericValueParametersSnapshot",
         "genericsSnapshot",
         "globalDeclarationsSnapshot",
         "initializersSnapshot",
@@ -52,6 +55,8 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
         "nestedGenericsSnapshot",
         "neverExtensionsSnapshot",
         "noncopyableSnapshot",
+        "objCClassWrappersSnapshot",
+        "objCResilientStubsSnapshot",
         "opaqueReturnTypesSnapshot",
         "operatorsSnapshot",
         "optionSetAndRawRepresentableSnapshot",
@@ -59,6 +64,7 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
         "propertyWrapperVariantsSnapshot",
         "protocolCompositionSnapshot",
         "protocolsSnapshot",
+        "resilientClassesSnapshot",
         "resultBuilderDSLSnapshot",
         "sameTypeRequirementsSnapshot",
         "staticMembersSnapshot",
@@ -186,6 +192,11 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
         assertSnapshot(of: output, as: .lines)
     }
 
+    @Test func foreignTypesSnapshot() async throws {
+        let output = try await collectDump(for: machOFile, inNamespace: "ForeignTypeFixtures")
+        assertSnapshot(of: output, as: .lines)
+    }
+
     @Test func functionFeaturesSnapshot() async throws {
         let output = try await collectDump(for: machOFile, inNamespace: "FunctionFeatures")
         assertSnapshot(of: output, as: .lines)
@@ -208,6 +219,11 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
 
     @Test func genericsSnapshot() async throws {
         let output = try await collectDump(for: machOFile, inNamespace: "Generics")
+        assertSnapshot(of: output, as: .lines)
+    }
+
+    @Test func genericValueParametersSnapshot() async throws {
+        let output = try await collectDump(for: machOFile, inNamespace: "GenericValueFixtures")
         assertSnapshot(of: output, as: .lines)
     }
 
@@ -260,6 +276,16 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
         assertSnapshot(of: output, as: .lines)
     }
 
+    @Test func objCClassWrappersSnapshot() async throws {
+        let output = try await collectDump(for: machOFile, inNamespace: "ObjCClassWrapperFixtures")
+        assertSnapshot(of: output, as: .lines)
+    }
+
+    @Test func objCResilientStubsSnapshot() async throws {
+        let output = try await collectDump(for: machOFile, inNamespace: "ObjCResilientStubFixtures")
+        assertSnapshot(of: output, as: .lines)
+    }
+
     @Test func opaqueReturnTypesSnapshot() async throws {
         let output = try await collectDump(for: machOFile, inNamespace: "OpaqueReturnTypes")
         assertSnapshot(of: output, as: .lines)
@@ -292,6 +318,11 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
 
     @Test func protocolsSnapshot() async throws {
         let output = try await collectDump(for: machOFile, inNamespace: "Protocols")
+        assertSnapshot(of: output, as: .lines)
+    }
+
+    @Test func resilientClassesSnapshot() async throws {
+        let output = try await collectDump(for: machOFile, inNamespace: "ResilientClassFixtures")
         assertSnapshot(of: output, as: .lines)
     }
 

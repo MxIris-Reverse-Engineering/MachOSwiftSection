@@ -5,6 +5,7 @@ import MachOKit
 import MachOFoundation
 @testable import Demangling
 @testable import MachOTestingSupport
+import MachOFixtureSupport
 
 @Suite
 final class DyldCacheSymbolDemanglingTests: DyldCacheSymbolTests, DemanglingTests {
@@ -20,7 +21,7 @@ final class DyldCacheSymbolDemanglingTests: DyldCacheSymbolTests, DemanglingTest
 
     @Test func stdlib_demangleNodeTree() async throws {
         let mangledName = "_$s7SwiftUI11DisplayListV10PropertiesVs9OptionSetAAsAFP8rawValuex03RawI0Qz_tcfCTW"
-        let demangleNodeTree = MachOTestingSupport.stdlib_demangleNodeTree(mangledName)
+        let demangleNodeTree = MachOFixtureSupport.stdlib_demangleNodeTree(mangledName)
         let stdlibNodeDescription = try #require(demangleNodeTree)
         let swiftSectionNodeDescription = try await demangleAsNode(mangledName).description + "\n"
         #expect(stdlibNodeDescription == swiftSectionNodeDescription)
