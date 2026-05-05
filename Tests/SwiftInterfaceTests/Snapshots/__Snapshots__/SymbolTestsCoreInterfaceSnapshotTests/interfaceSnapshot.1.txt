@@ -887,6 +887,10 @@ enum FieldDescriptorVariants {
         init(concreteInt: Swift.Int, concreteString: Swift.String, genericElement: A, arrayOfElement: [A], dictionaryOfElement: [Swift.String : A], optionalElement: A?, tupleField: (Swift.Int, A), functionField: @escaping (_: A) -> Swift.Int)
     }
 }
+enum ForeignTypeFixtures {
+    static func foreignClassReference() -> __C.CFStringRef
+    static func foreignArrayReference() -> __C.CFArrayRef
+}
 enum FunctionFeatures {
     struct InoutFunctionTest {
         var value: Swift.Int

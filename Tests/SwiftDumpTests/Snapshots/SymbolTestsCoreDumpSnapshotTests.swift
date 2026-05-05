@@ -39,6 +39,7 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
         "existentialAnySnapshot",
         "extensionsSnapshot",
         "fieldDescriptorVariantsSnapshot",
+        "foreignTypesSnapshot",
         "functionFeaturesSnapshot",
         "functionTypesSnapshot",
         "genericFieldLayoutSnapshot",
@@ -187,6 +188,11 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
 
     @Test func fieldDescriptorVariantsSnapshot() async throws {
         let output = try await collectDump(for: machOFile, inNamespace: "FieldDescriptorVariants")
+        assertSnapshot(of: output, as: .lines)
+    }
+
+    @Test func foreignTypesSnapshot() async throws {
+        let output = try await collectDump(for: machOFile, inNamespace: "ForeignTypeFixtures")
         assertSnapshot(of: output, as: .lines)
     }
 

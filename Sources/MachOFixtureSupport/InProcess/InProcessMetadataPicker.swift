@@ -114,6 +114,18 @@ package enum InProcessMetadataPicker {
     package nonisolated(unsafe) static let foundationNSObjectWrapper: UnsafeRawPointer = {
         unsafeBitCast(NSObject.self, to: UnsafeRawPointer.self)
     }()
+
+    // MARK: - foreign class
+
+    /// `CFString.self` — a CoreFoundation type imported as a Swift
+    /// foreign class. The Swift compiler emits `ForeignClassMetadata`
+    /// (kind 0x203) for such types; the metadata lives in CoreFoundation
+    /// and is reached via `unsafeBitCast(CFString.self, ...)`. This is
+    /// the canonical in-process source for `ForeignClassMetadataTests`
+    /// (Phase B6).
+    package nonisolated(unsafe) static let coreFoundationCFString: UnsafeRawPointer = {
+        unsafeBitCast(CFString.self, to: UnsafeRawPointer.self)
+    }()
 }
 
 extension InProcessMetadataPicker {

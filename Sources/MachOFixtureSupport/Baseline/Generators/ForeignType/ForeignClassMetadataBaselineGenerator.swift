@@ -1,23 +1,27 @@
 import Foundation
 import SwiftSyntax
 import SwiftSyntaxBuilder
+@testable import MachOSwiftSection
 
 /// Emits `__Baseline__/ForeignClassMetadataBaseline.swift`.
 ///
-/// `ForeignClassMetadata` is the metadata for foreign-class types — Swift
-/// representations of Core Foundation classes (`CFString`, `CFArray`, etc.)
-/// imported via `_objcRuntimeName` bridging. The fixture has no foreign
-/// CF/ObjC class bridging, so no live carrier is reachable from the
-/// SymbolTestsCore section walks. The Suite asserts structural members
-/// behave correctly against a synthetic memberwise instance.
+/// Phase B6: `ForeignClassMetadata` is exercised as a real InProcess
+/// test against `CFString.self` — the Swift compiler emits kind 0x203
+/// foreign-class metadata for CoreFoundation types imported into Swift.
+/// SymbolTestsCore's `ForeignTypeFixtures` references CFString /
+/// CFArray to make the bridging usage visible at the fixture level,
+/// but the canonical `ForeignClassMetadata` carrier is CoreFoundation's
+/// own metadata which the runtime returns via
+/// `unsafeBitCast(CFString.self, ...)`.
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 package enum ForeignClassMetadataBaselineGenerator {
     package static func generate(outputDirectory: URL) throws {
-        // Public members declared in ForeignClassMetadata.swift. The
-        // three `classDescriptor` overloads (MachO + InProcess +
-        // ReadingContext) collapse to one MethodKey under the scanner's
-        // name-only key.
+        let pointer = InProcessMetadataPicker.coreFoundationCFString
+        let context = InProcessContext()
+        let metadata = try ForeignClassMetadata.resolve(at: pointer, in: context)
+        let kindRaw = metadata.layout.kind
+
         let registered = [
             "classDescriptor",
             "layout",
@@ -26,16 +30,17 @@ package enum ForeignClassMetadataBaselineGenerator {
 
         let header = """
         // AUTO-GENERATED — DO NOT EDIT.
-        // Regenerate via: Scripts/regen-baselines.sh
-        // Source fixture: SymbolTestsCore.framework
+        // Regenerate via: swift package --allow-writing-to-package-directory regen-baselines
+        // Source: InProcess (`CoreFoundation.CFString.self`); no SymbolTestsCore section presence.
         //
-        // ForeignClassMetadata describes Swift representations of CF/ObjC
-        // foreign classes. SymbolTestsCore declares no such bridges, so
-        // no live carrier is reachable. The Suite asserts structural
-        // members behave correctly against a synthetic memberwise
-        // instance. Adding a `_objcRuntimeName`-bearing class to the
-        // fixture would let the Suite exercise `classDescriptor(in:)` on
-        // a real carrier.
+        // ForeignClassMetadata is the metadata kind the Swift compiler
+        // emits for CoreFoundation foreign classes (CFString, CFArray, etc.).
+        // The metadata lives in CoreFoundation; Swift uses
+        // `unsafeBitCast(CFString.self, to: UnsafeRawPointer.self)` to
+        // obtain the metadata pointer at runtime. Phase B6 introduced
+        // `ForeignTypeFixtures` to surface CFString/CFArray references
+        // in SymbolTestsCore so the bridging usage is documented; the
+        // canonical carrier is CoreFoundation's own runtime metadata.
         //
         // `init(layout:offset:)` is filtered as memberwise-synthesized.
         """
@@ -45,6 +50,14 @@ package enum ForeignClassMetadataBaselineGenerator {
 
         enum ForeignClassMetadataBaseline {
             static let registeredTestMethodNames: Set<String> = \(literal: registered)
+
+            struct Entry {
+                let kindRawValue: UInt64
+            }
+
+            static let coreFoundationCFString = Entry(
+                kindRawValue: \(raw: BaselineEmitter.hex(kindRaw))
+            )
         }
         """
 

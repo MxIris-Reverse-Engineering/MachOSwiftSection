@@ -373,15 +373,18 @@ enum CoverageAllowlistEntries {
             members: ["init", "metadata", "layout", "offset"],
             reason: .needsFixtureExtension(detail: "Swift 6.2 toolchain does not emit canonical-specialized-metadata records for `@_specialize(exported:)` on stdlib types under default build settings — the records require the `-prespecialize-generic-metadata` frontend flag (stdlib-only). Defer until emission rules stabilise or the parser handles the prespec-flag-enabled descriptor layout. Phase B5.")
         ),
-        CoverageAllowlistHelpers.sentinelGroup(
-            typeName: "ForeignClassMetadata",
-            members: ["init", "kind", "name", "superclass", "reserved", "classDescriptor", "layout", "offset"],
-            reason: .needsFixtureExtension(detail: "no foreign class import in SymbolTestsCore — Phase B6")
-        ),
+        // ForeignClassMetadata is covered as a real InProcess test in
+        // Phase B6 against `CoreFoundation.CFString.self` — the Swift
+        // compiler emits kind 0x203 foreign-class metadata for
+        // CoreFoundation types imported into Swift, and the metadata
+        // (including a real `descriptor` pointer) is reachable via
+        // `unsafeBitCast(CFString.self, ...)`. SymbolTestsCore's
+        // `ForeignTypeFixtures` references CFString/CFArray to surface
+        // the bridging usage. No sentinel entry remains.
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ForeignReferenceTypeMetadata",
             members: ["init", "kind", "name", "classDescriptor", "layout", "offset"],
-            reason: .needsFixtureExtension(detail: "no foreign reference type in SymbolTestsCore — Phase B6")
+            reason: .needsFixtureExtension(detail: "ForeignReferenceTypeMetadata represents the Swift 5.7 \"foreign reference type\" import for C++ types annotated with `SWIFT_SHARED_REFERENCE`. SymbolTestsCore does not enable C++ interop (no `cxx-interoperability-mode` Swift setting and no `.hpp` headers imported), so no live carrier exists. Defer until a C++-interop fixture is added or the parser is extended. Phase B6.")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "OpaqueType",

@@ -7,12 +7,23 @@ import MachOFixtureSupport
 
 /// Fixture-based Suite for `ForeignClassMetadata`.
 ///
-/// `ForeignClassMetadata` describes Swift representations of CF/ObjC
-/// foreign classes. SymbolTestsCore declares no such bridges, so no
-/// live carrier is reachable; the Suite asserts structural members
-/// behave correctly against a synthetic memberwise instance. The
-/// `classDescriptor(in:)` accessor cannot be exercised because the
-/// `descriptor` pointer in our synthetic instance points nowhere.
+/// `ForeignClassMetadata` (kind 0x203) is the metadata kind the Swift
+/// compiler emits for CoreFoundation foreign classes (CFString,
+/// CFArray, CFDictionary, etc.) imported into Swift. The metadata
+/// itself lives in CoreFoundation; Swift uses
+/// `unsafeBitCast(CFString.self, to: UnsafeRawPointer.self)` to obtain
+/// the metadata pointer at runtime.
+///
+/// **Reader asymmetry:** the metadata source originates from
+/// CoreFoundation, not the SymbolTestsCore Mach-O. `MachOFile` /
+/// `MachOImage` cannot reach it through SymbolTestsCore's section
+/// walks. The Suite therefore uses `usingInProcessOnly` and asserts
+/// against runtime-resolved metadata.
+///
+/// Phase B6 introduced `ForeignTypes.swift` to surface CFString /
+/// CFArray references in the fixture (so the bridging type usage is
+/// documented), and added the `coreFoundationCFString` picker for the
+/// canonical InProcess carrier.
 ///
 /// `init(layout:offset:)` is filtered as memberwise-synthesized.
 @Suite
@@ -22,42 +33,50 @@ final class ForeignClassMetadataTests: MachOSwiftSectionFixtureTests, FixtureSui
         ForeignClassMetadataBaseline.registeredTestMethodNames
     }
 
-    private func syntheticForeignClass() -> ForeignClassMetadata {
-        ForeignClassMetadata(
-            layout: .init(
-                kind: 0x203,
-                descriptor: .init(address: 0x1000),
-                superclass: .init(address: 0),
-                reserved: 0
-            ),
-            offset: 0xCAFE
-        )
+    @Test func layout() async throws {
+        let kindRaw = try usingInProcessOnly { context in
+            let metadata = try ForeignClassMetadata.resolve(
+                at: InProcessMetadataPicker.coreFoundationCFString,
+                in: context
+            )
+            return metadata.layout.kind
+        }
+        // The runtime-allocated ForeignClassMetadata for CFString
+        // carries kind 0x203 (`MetadataKind.foreignClass`).
+        #expect(kindRaw == ForeignClassMetadataBaseline.coreFoundationCFString.kindRawValue)
     }
 
     @Test func offset() async throws {
-        let metadata = syntheticForeignClass()
-        #expect(metadata.offset == 0xCAFE)
+        let resolvedOffset = try usingInProcessOnly { context in
+            try ForeignClassMetadata.resolve(
+                at: InProcessMetadataPicker.coreFoundationCFString,
+                in: context
+            ).offset
+        }
+        // For InProcess resolution, `offset` is the bit-pattern of the
+        // runtime metadata pointer itself.
+        let expectedOffset = Int(bitPattern: InProcessMetadataPicker.coreFoundationCFString)
+        #expect(resolvedOffset == expectedOffset)
     }
 
-    @Test func layout() async throws {
-        let metadata = syntheticForeignClass()
-        #expect(metadata.layout.kind == 0x203)
-        #expect(metadata.layout.descriptor.address == 0x1000)
-        #expect(metadata.layout.reserved == 0)
-    }
-
-    /// `classDescriptor(in:)` cannot be exercised against our synthetic
-    /// instance — the descriptor pointer (0x1000) doesn't resolve to a
-    /// valid class descriptor in the SymbolTestsCore image. We verify
-    /// the public method is reachable by referencing it via a
-    /// type-checking expression.
+    /// `classDescriptor(in:)` resolves the `descriptor` field of the
+    /// foreign class metadata to a `ClassDescriptor`. CFString's
+    /// descriptor lives in CoreFoundation. We assert that resolution
+    /// succeeds and returns a non-zero descriptor flags word — the
+    /// concrete flags are an ABI of CoreFoundation, not of this
+    /// codebase, so we pin only "successfully resolves to a non-zero
+    /// flags descriptor" rather than a literal flags value.
     @Test func classDescriptor() async throws {
-        // Smoke check: the method exists on the type.
-        let metadata = syntheticForeignClass()
-        // Simply reference the method to verify it compiles. Calling it
-        // on the synthetic instance would fault on a bogus descriptor
-        // pointer.
-        _ = type(of: metadata).self
-        #expect(metadata.layout.descriptor.address == 0x1000)
+        let flagsRaw = try usingInProcessOnly { context in
+            let metadata = try ForeignClassMetadata.resolve(
+                at: InProcessMetadataPicker.coreFoundationCFString,
+                in: context
+            )
+            let descriptor = try metadata.classDescriptor(in: context)
+            return descriptor.layout.flags.rawValue
+        }
+        // CFString's descriptor flags are a CoreFoundation-side ABI
+        // detail; we just verify a real descriptor was reached.
+        #expect(flagsRaw != 0)
     }
 }
