@@ -39,4 +39,30 @@ public enum NestedGenerics {
             self.elements = elements
         }
     }
+
+    /// Three-level nesting with one direct protocol constraint per level.
+    /// Used as the fixture-side counter-example for the `currentRequirements`,
+    /// `currentParameters`, `parentRequirements`, and `parentParameters`
+    /// invariants — the cumulative parent storage at depth ≥ 2 is the trigger
+    /// for the P0.1 / P0.2 / P0.3 bugs surfaced in `GenericSpecializer`.
+    /// `InnerMostConstrainedTest`'s generic context surfaces:
+    ///   - `parameters` (cumulative): [Outer, Middle, InnerMost]
+    ///   - `requirements` (cumulative): [Outer:Hashable, Middle:Equatable, InnerMost:Comparable]
+    ///   - `parentParameters[0]` (Outer cumulative): [Outer]
+    ///   - `parentParameters[1]` (Middle cumulative): [Outer, Middle]
+    public struct NestedGenericThreeLevelConstraintTest<Outer: Hashable> {
+        public struct MiddleConstrainedTest<Middle: Equatable> {
+            public struct InnerMostConstrainedTest<InnerMost: Comparable> {
+                public var outer: Outer
+                public var middle: Middle
+                public var innerMost: InnerMost
+
+                public init(outer: Outer, middle: Middle, innerMost: InnerMost) {
+                    self.outer = outer
+                    self.middle = middle
+                    self.innerMost = innerMost
+                }
+            }
+        }
+    }
 }
