@@ -336,25 +336,42 @@ enum CoverageAllowlistEntries {
             members: ["init", "rawValue"],
             reason: .needsFixtureExtension(detail: "no ObjC-prefix protocol references in SymbolTestsCore — Phase B3")
         ),
+        // Canonical-specialized-metadata records are emitted only when the
+        // Swift frontend is invoked with `-prespecialize-generic-metadata`
+        // (typically reserved for stdlib builds). `@_specialize(exported:)`
+        // alone does NOT cause the compiler to set the
+        // `hasCanonicalMetadataPrespecializations` bit on a generic type's
+        // descriptor — it only emits a specialized SIL function.
+        // Phase B5 verified this empirically: a fixture with
+        // `@_specialize(exported: true, where T == Int)` and
+        // `@_specialize(exported: true, where T == String)` on a generic
+        // function produced ZERO descriptors with the prespec bit set.
+        // Forcing the flag via `-Xfrontend -prespecialize-generic-metadata`
+        // does emit the records, but the resulting descriptor layout
+        // surfaces a separate `invalidContextDescriptor` parsing path that
+        // is out-of-scope for the fixture-coverage tightening effort.
+        // Defer until either the toolchain stabilises a user-facing way to
+        // emit these records, or the parser is extended to handle the
+        // prespec-flag-enabled descriptor layout.
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "CanonicalSpecializedMetadataAccessorsListEntry",
             members: ["init", "accessor", "layout", "offset"],
-            reason: .needsFixtureExtension(detail: "no @_specialize(exported:) generic in SymbolTestsCore — Phase B5")
+            reason: .needsFixtureExtension(detail: "Swift 6.2 toolchain does not emit canonical-specialized-metadata records for `@_specialize(exported:)` on stdlib types under default build settings — the records require the `-prespecialize-generic-metadata` frontend flag (stdlib-only). Defer until emission rules stabilise or the parser handles the prespec-flag-enabled descriptor layout. Phase B5.")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "CanonicalSpecializedMetadatasCachingOnceToken",
             members: ["init", "token", "layout", "offset"],
-            reason: .needsFixtureExtension(detail: "no @_specialize(exported:) generic in SymbolTestsCore — Phase B5")
+            reason: .needsFixtureExtension(detail: "Swift 6.2 toolchain does not emit canonical-specialized-metadata records for `@_specialize(exported:)` on stdlib types under default build settings — the records require the `-prespecialize-generic-metadata` frontend flag (stdlib-only). Defer until emission rules stabilise or the parser handles the prespec-flag-enabled descriptor layout. Phase B5.")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "CanonicalSpecializedMetadatasListCount",
             members: ["init", "count", "rawValue"],
-            reason: .needsFixtureExtension(detail: "no @_specialize(exported:) generic in SymbolTestsCore — Phase B5")
+            reason: .needsFixtureExtension(detail: "Swift 6.2 toolchain does not emit canonical-specialized-metadata records for `@_specialize(exported:)` on stdlib types under default build settings — the records require the `-prespecialize-generic-metadata` frontend flag (stdlib-only). Defer until emission rules stabilise or the parser handles the prespec-flag-enabled descriptor layout. Phase B5.")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "CanonicalSpecializedMetadatasListEntry",
             members: ["init", "metadata", "layout", "offset"],
-            reason: .needsFixtureExtension(detail: "no @_specialize(exported:) generic in SymbolTestsCore — Phase B5")
+            reason: .needsFixtureExtension(detail: "Swift 6.2 toolchain does not emit canonical-specialized-metadata records for `@_specialize(exported:)` on stdlib types under default build settings — the records require the `-prespecialize-generic-metadata` frontend flag (stdlib-only). Defer until emission rules stabilise or the parser handles the prespec-flag-enabled descriptor layout. Phase B5.")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ForeignClassMetadata",
