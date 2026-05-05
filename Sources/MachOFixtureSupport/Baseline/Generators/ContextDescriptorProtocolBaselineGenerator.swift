@@ -7,7 +7,7 @@ import MachOFoundation
 /// Emits `__Baseline__/ContextDescriptorProtocolBaseline.swift`.
 ///
 /// Per the protocol-extension attribution rule (see `BaselineGenerator.swift`),
-/// `parent`, `genericContext`, `moduleContextDesciptor`,
+/// `parent`, `genericContext`, `moduleContextDescriptor`,
 /// `isCImportedContextDescriptor`, and `subscript(dynamicMember:)` all live
 /// on `ContextDescriptorProtocol` and are exercised here, NOT on the
 /// concrete-descriptor Suites.
@@ -25,7 +25,7 @@ package enum ContextDescriptorProtocolBaselineGenerator {
         let descriptor = try BaselineFixturePicker.struct_StructTest(in: machO)
         let hasParent = (try descriptor.parent(in: machO)) != nil
         let hasGenericContext = try descriptor.genericContext(in: machO) != nil
-        let hasModuleContextDescriptor = try descriptor.moduleContextDesciptor(in: machO) != nil
+        let hasModuleContextDescriptor = try descriptor.moduleContextDescriptor(in: machO) != nil
         let isCImported = try descriptor.isCImportedContextDescriptor(in: machO)
         // The dynamic-member subscript routes to `layout.flags`; pick a stable
         // scalar (`kind.rawValue`) to assert against.
@@ -47,7 +47,7 @@ package enum ContextDescriptorProtocolBaselineGenerator {
         let registered = [
             "genericContext",
             "isCImportedContextDescriptor",
-            "moduleContextDesciptor",
+            "moduleContextDescriptor",
             "parent",
             "subscript(dynamicMember:)",
         ]

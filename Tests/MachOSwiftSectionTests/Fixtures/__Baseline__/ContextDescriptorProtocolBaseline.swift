@@ -8,7 +8,7 @@
 // cross-reader-consistent results at runtime.
 
 enum ContextDescriptorProtocolBaseline {
-    static let registeredTestMethodNames: Set<String> = ["genericContext", "isCImportedContextDescriptor", "moduleContextDesciptor", "parent", "subscript(dynamicMember:)"]
+    static let registeredTestMethodNames: Set<String> = ["genericContext", "isCImportedContextDescriptor", "moduleContextDescriptor", "parent", "subscript(dynamicMember:)"]
 
     struct Entry {
         let hasParent: Bool

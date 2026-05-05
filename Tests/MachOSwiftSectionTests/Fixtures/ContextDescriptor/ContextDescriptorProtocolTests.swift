@@ -8,7 +8,7 @@ import MachOFixtureSupport
 /// Fixture-based Suite for `ContextDescriptorProtocol`.
 ///
 /// Per the protocol-extension attribution rule (see `BaselineGenerator.swift`),
-/// `parent`, `genericContext`, `moduleContextDesciptor`,
+/// `parent`, `genericContext`, `moduleContextDescriptor`,
 /// `isCImportedContextDescriptor`, and `subscript(dynamicMember:)` are all
 /// owned by this Suite, NOT by the concrete-descriptor Suites.
 ///
@@ -54,18 +54,18 @@ final class ContextDescriptorProtocolTests: MachOSwiftSectionFixtureTests, Fixtu
         #expect(imageCtxPresence == ContextDescriptorProtocolBaseline.structTest.hasGenericContext)
     }
 
-    @Test func moduleContextDesciptor() async throws {
+    @Test func moduleContextDescriptor() async throws {
         let fileDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOFile)
         let imageDescriptor = try BaselineFixturePicker.struct_StructTest(in: machOImage)
 
         let presence = try acrossAllReaders(
-            file: { (try fileDescriptor.moduleContextDesciptor(in: machOFile)) != nil },
-            image: { (try imageDescriptor.moduleContextDesciptor(in: machOImage)) != nil }
+            file: { (try fileDescriptor.moduleContextDescriptor(in: machOFile)) != nil },
+            image: { (try imageDescriptor.moduleContextDescriptor(in: machOImage)) != nil }
         )
         #expect(presence == ContextDescriptorProtocolBaseline.structTest.hasModuleContextDescriptor)
 
         // ReadingContext-based overload also exercised.
-        let imageCtxPresence = (try imageDescriptor.moduleContextDesciptor(in: imageContext)) != nil
+        let imageCtxPresence = (try imageDescriptor.moduleContextDescriptor(in: imageContext)) != nil
         #expect(imageCtxPresence == ContextDescriptorProtocolBaseline.structTest.hasModuleContextDescriptor)
     }
 
