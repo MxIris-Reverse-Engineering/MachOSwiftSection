@@ -627,6 +627,207 @@ struct GenericSpecializationTests {
             #expect(description.contains("generic"))
         }
     }
+
+    // MARK: - Nested generic types (P0 reproduction)
+    //
+    // The bugs surfaced below all stem from the same root: Swift's binary
+    // stores `parameters` and `requirements` cumulatively at every level of a
+    // nested generic context (see `swift/lib/IRGen/GenMeta.cpp:7263` —
+    // `canSig->forEachParam` walks every visible GP including inherited ones,
+    // and `addGenericRequirements` emits the full canonical signature). The
+    // current `GenericContext` / `GenericSpecializer` plumbing handles
+    // *single-level* parent nesting correctly by accident — the math falls
+    // out the same when there is exactly one parent generic context — but
+    // breaks at depth ≥ 2.
+
+    /// Two-level nested generic. **Baseline** — single-level parent nesting
+    /// happens to produce the right `(depth, index)` mapping because
+    /// `parentParameters.last.count` and `parentParameters.flatMap.count`
+    /// coincide when there is only one parent generic context. This test
+    /// should keep passing on the current implementation.
+    struct NestedGenericTwoLevelOuter<A: Hashable> {
+        struct NestedGenericTwoLevelInner<B: Equatable> {
+            let a: A
+            let b: B
+        }
+    }
+
+    @Test func nestedTwoLevelBaseline() throws {
+        let descriptor = try structDescriptor(named: "NestedGenericTwoLevelInner")
+        let genericContext = try #require(try descriptor.genericContext(in: machO))
+
+        // Inner sees both A (inherited from Outer) and B (its own), stored
+        // cumulatively.
+        #expect(genericContext.header.numParams == 2)
+        #expect(genericContext.parameters.count == 2)
+        #expect(genericContext.requirements.count == 2)
+        #expect(genericContext.parentParameters.count == 1)
+        #expect(genericContext.parentParameters.first?.count == 1)
+        #expect(genericContext.currentParameters.count == 1)
+        #expect(genericContext.currentRequirements.count == 1)
+
+        let specializer = GenericSpecializer(
+            machO: machO,
+            conformanceProvider: EmptyConformanceProvider()
+        )
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        // Two parameters with demangler-canonical names "A" and "A1".
+        #expect(request.parameters.count == 2)
+        #expect(request.parameters.map(\.name) == ["A", "A1"])
+        #expect(request.parameters[0].protocolRequirements.count == 1) // A: Hashable
+        #expect(request.parameters[1].protocolRequirements.count == 1) // A1 (= B): Equatable
+    }
+
+    /// Three-level nested generic — one type parameter per level, each with
+    /// a different protocol constraint. Exercises **P0.1** (the
+    /// `currentRequirements` flatMap miscount in `GenericContext.swift:50`)
+    /// and **P0.2** (the `buildParameters` (depth, index) iteration over the
+    /// cumulative `allParameters` in `GenericSpecializer.swift:131`).
+    struct NestedGenericThreeLevelOuter<A: Hashable> {
+        struct NestedGenericThreeLevelMiddle<B: Equatable> {
+            struct NestedGenericThreeLevelInner<C: Comparable> {
+                let a: A
+                let b: B
+                let c: C
+            }
+        }
+    }
+
+    @Test func nestedThreeLevelCurrentRequirementsLosesInner() throws {
+        let descriptor = try structDescriptor(named: "NestedGenericThreeLevelInner")
+        let genericContext = try #require(try descriptor.genericContext(in: machO))
+
+        // Sanity — the binary stores parameters and requirements cumulatively.
+        #expect(genericContext.parameters.count == 3)     // [A, B, C]
+        #expect(genericContext.requirements.count == 3)   // [A:Hashable, B:Equatable, C:Comparable]
+        #expect(genericContext.parentParameters.count == 2)
+        #expect(genericContext.parentParameters.first?.count == 1) // Outer cumulative = [A]
+        #expect(genericContext.parentParameters.last?.count == 2)  // Middle cumulative = [A, B]
+        #expect(genericContext.currentParameters.count == 1)       // [C]
+
+        // P0.1 — `currentRequirements` should be `[C: Comparable]` (1 entry).
+        // The current impl drops `parentRequirements.flatMap{$0}.count = 1 + 2 = 3`
+        // entries from a 3-element cumulative array, leaving an empty list.
+        // Correct behaviour mirrors `currentParameters`: drop only
+        // `parentRequirements.last?.count` entries.
+        #expect(
+            genericContext.currentRequirements.count == 1,
+            "P0.1: currentRequirements should be [C: Comparable]; flatMap-over-cumulative-parents over-drops at depth ≥ 2."
+        )
+    }
+
+    @Test func nestedThreeLevelMakeRequestProducesWrongParameters() throws {
+        let descriptor = try structDescriptor(named: "NestedGenericThreeLevelInner")
+
+        let specializer = GenericSpecializer(
+            machO: machO,
+            conformanceProvider: EmptyConformanceProvider()
+        )
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        // P0.2 — `makeRequest` should expose exactly 3 type parameters whose
+        // canonical names match what the demangler produces for the binary's
+        // `qd_X` / `qd0_X` mangling:
+        //   "A"   (depth 0, idx 0) — Outer's A   (mangled `x`)
+        //   "A1"  (depth 1, idx 0) — Middle's B  (mangled `qd_0`)
+        //   "A2"  (depth 2, idx 0) — Inner's C   (mangled `qd0_0`)
+        //
+        // The current impl iterates `allParameters` directly. Because the
+        // middle entry `[A, B]` is *cumulative* rather than newly-introduced,
+        // the loop emits an extra `Parameter` and shifts Middle's B to a wrong
+        // (depth, index). Concretely, names come out as ["A", "A1", "B1", "A2"].
+        let names = request.parameters.map(\.name)
+        #expect(
+            request.parameters.count == 3,
+            "P0.2: expected 3 generic parameters, got \(request.parameters.count) named \(names)."
+        )
+        #expect(
+            names == ["A", "A1", "A2"],
+            "P0.2: expected canonical names [A, A1, A2], got \(names)."
+        )
+
+        var parametersByName: [String: SpecializationRequest.Parameter] = [:]
+        for parameter in request.parameters {
+            parametersByName[parameter.name] = parameter
+        }
+
+        // Each canonical parameter should carry exactly one direct protocol
+        // requirement. Under the bug, "A" sees A:Hashable twice (cumulative
+        // parent merge duplicates it), "A1" sees Middle's B (correctly), and
+        // "A2" sees nothing — Inner's C: Comparable is silently dropped by
+        // the buggy `currentRequirements` and never reaches `mergedRequirements`.
+        #expect(parametersByName["A"]?.protocolRequirements.count == 1)
+        #expect(parametersByName["A1"]?.protocolRequirements.count == 1)
+        #expect(parametersByName["A2"]?.protocolRequirements.count == 1)
+    }
+
+    /// Three-level nested generic with `~Copyable` on every type parameter.
+    /// Each layer's `InvertedProtocols` requirement records the suppressed
+    /// parameter via a *flat* `genericParamIndex` set by Swift's
+    /// `lib/IRGen/GenMeta.cpp:7488-7501` — `sig->getGenericParamOrdinal(genericParam)`
+    /// returns the parameter's position across **every** depth.
+    ///
+    /// Expected:
+    ///   "A"   → flat index 0 → invertibleProtocols == .copyable
+    ///   "A1"  → flat index 1 → invertibleProtocols == .copyable
+    ///   "A2"  → flat index 2 → invertibleProtocols == .copyable
+    ///
+    /// Observed (P0.3): `collectInvertibleProtocols` derives the flat index
+    /// by summing `allParameters.prefix(depth).count`. Cumulative parent
+    /// levels over-count; "A2" gets queried as flat 3, "B1" (the bogus extra
+    /// parameter introduced by P0.2) gets queried as flat 2, and the actual
+    /// Inner C silently falls back to `nil`.
+    struct NestedInvertedOuter<A: ~Copyable>: ~Copyable {
+        struct NestedInvertedMiddle<B: ~Copyable>: ~Copyable {
+            struct NestedInvertedInner<C: ~Copyable>: ~Copyable {
+                var a: A
+                var b: B
+                var c: C
+            }
+        }
+    }
+
+    @Test func nestedThreeLevelInvertedProtocolsPerLevel() throws {
+        let descriptor = try structDescriptor(named: "NestedInvertedInner")
+
+        let specializer = GenericSpecializer(
+            machO: machO,
+            conformanceProvider: EmptyConformanceProvider()
+        )
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        // P0.2 prerequisite — without it the parameter list is malformed
+        // before we can even probe invertibleProtocols. We still run the
+        // P0.3 assertions below via lookup-by-name so that whichever P0 is
+        // fixed first surfaces a clean diagnostic.
+        let names = request.parameters.map(\.name)
+        #expect(request.parameters.count == 3, "P0.2 prerequisite: got names \(names)")
+        #expect(names == ["A", "A1", "A2"], "P0.2 prerequisite: got names \(names)")
+
+        var parametersByName: [String: SpecializationRequest.Parameter] = [:]
+        for parameter in request.parameters {
+            parametersByName[parameter.name] = parameter
+        }
+
+        // P0.3 — every parameter is declared `~Copyable`.
+        #expect(
+            parametersByName["A"]?.invertibleProtocols == .copyable,
+            "Outer's A (flat index 0) is `~Copyable`."
+        )
+        #expect(
+            parametersByName["A1"]?.invertibleProtocols == .copyable,
+            "Middle's B (canonical A1, flat index 1) is `~Copyable`."
+        )
+        #expect(
+            parametersByName["A2"]?.invertibleProtocols == .copyable,
+            "P0.3: Inner's C (canonical A2, flat index 2) is `~Copyable`; collectInvertibleProtocols looks it up at flat index 3 because of the cumulative parent count."
+        )
+    }
 }
 
 extension GenericSpecializationTests.TestInvertedCopyableStruct: Copyable where A: Copyable {}
+
+extension GenericSpecializationTests.NestedInvertedOuter: Copyable where A: Copyable {}
+extension GenericSpecializationTests.NestedInvertedOuter.NestedInvertedMiddle: Copyable where A: Copyable, B: Copyable {}
+extension GenericSpecializationTests.NestedInvertedOuter.NestedInvertedMiddle.NestedInvertedInner: Copyable where A: Copyable, B: Copyable, C: Copyable {}

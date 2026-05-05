@@ -75,44 +75,66 @@ extension GenericSpecializer {
         return genericContext
     }
 
-    /// All requirements visible to the specializer: the cumulative
-    /// `allRequirements` chain plus any conditional requirements stored
-    /// under `hasConditionalInvertedProtocols`. The current scope keeps
-    /// every candidate Copyable / Escapable, so conditional requirements
-    /// always evaluate active and can be merged unconditionally.
+    /// All requirements visible to the specializer.
+    ///
+    /// `genericContext.requirements` is already cumulative — Swift's
+    /// `sig->getRequirementsWithInverses` covers every requirement in scope,
+    /// including those inherited from parent generic contexts (see
+    /// `swift/lib/IRGen/GenMeta.cpp:7342`). Re-flattening
+    /// `allRequirements` here would reintroduce the cumulative parent levels
+    /// and double-count inherited requirements at depth ≥ 2.
+    ///
+    /// Conditional requirements (stored under `hasConditionalInvertedProtocols`)
+    /// always evaluate active in the current scope because every candidate
+    /// is kept Copyable / Escapable, so we merge them unconditionally.
     private static func mergedRequirements(
         from genericContext: GenericContext
     ) -> [GenericRequirementDescriptor] {
-        genericContext.allRequirements.flatMap { $0 }
+        genericContext.requirements
             + genericContext.conditionalInvertibleProtocolsRequirements
     }
 
-    /// Pick out the `~Copyable` / `~Escapable` declaration for the
-    /// generic parameter at `(depth, index)`, unioning if multiple
+    /// Per-level "newly introduced" parameter counts.
+    ///
+    /// `parentParameters[i]` stores the *cumulative* count visible at depth
+    /// `i` (Swift emits the full canonical parameter list at every nested
+    /// scope). Differencing successive entries yields the count of
+    /// parameters added at each depth; `currentParameters` already contains
+    /// only the new entries at the innermost scope.
+    private static func perLevelNewParameterCounts(
+        of genericContext: GenericContext
+    ) -> [Int] {
+        var counts: [Int] = []
+        var previous = 0
+        for parentCumulative in genericContext.parentParameters {
+            counts.append(parentCumulative.count - previous)
+            previous = parentCumulative.count
+        }
+        counts.append(genericContext.currentParameters.count)
+        return counts
+    }
+
+    /// Pick out the `~Copyable` / `~Escapable` declaration for the generic
+    /// parameter at the given flat ordinal, unioning if multiple
     /// `invertedProtocols` requirements target the same parameter.
     /// Returns `nil` when no requirement targets this parameter.
     ///
-    /// Aggregation is union, matching Swift IRGen's `suppressed[index].insert(...)`:
-    /// each requirement adds suppressions for the parameter, and a parent
-    /// context's suppressions accumulate with the current context's.
+    /// `flatIndex` is the parameter's absolute position in the cumulative
+    /// `genericContext.parameters` array — exactly the value
+    /// `sig->getGenericParamOrdinal(genericParam)` writes into the binary
+    /// (see `swift/lib/IRGen/GenMeta.cpp:7499`).
+    ///
+    /// Aggregation is union, matching IRGen's `suppressed[index].insert(...)`.
     private static func collectInvertibleProtocols(
-        for index: Int,
-        depth: Int,
+        flatIndex: Int,
         in genericContext: GenericContext
     ) -> InvertibleProtocolSet? {
-        // The binary stores the parameter index as a flat 16-bit value
-        // across all depth levels: it equals the cumulative count of
-        // parameters in prior depths plus the current depth's index.
-        let priorDepthParameterCount = genericContext.allParameters
-            .prefix(depth)
-            .reduce(0) { $0 + $1.count }
-        let flatIndex = UInt16(priorDepthParameterCount + index)
-
+        let target = UInt16(flatIndex)
         var result: InvertibleProtocolSet?
         for descriptor in mergedRequirements(from: genericContext)
         where descriptor.layout.flags.kind == .invertedProtocols {
             guard case .invertedProtocols(let inverted) = descriptor.content else { continue }
-            guard inverted.genericParamIndex == flatIndex else { continue }
+            guard inverted.genericParamIndex == target else { continue }
 
             if let existing = result {
                 result = existing.union(inverted.protocols)
@@ -123,25 +145,38 @@ extension GenericSpecializer {
         return result
     }
 
-    /// Build parameter list from generic context
+    /// Build parameter list from generic context.
+    ///
+    /// Walks the cumulative `parameters` array level by level using the
+    /// per-depth "newly introduced" counts, so each parameter receives the
+    /// `(depth, indexInLevel)` pair that matches the demangler's canonical
+    /// names (`A`, `B`, `A1`, `B1`, `A2`, …). The flat ordinal of each
+    /// parameter — the value Swift writes into `InvertedProtocols.genericParamIndex`
+    /// — equals the offset into the cumulative array.
     private func buildParameters(from genericContext: GenericContext, for type: TypeContextDescriptorWrapper) throws -> [SpecializationRequest.Parameter] {
         var parameters: [SpecializationRequest.Parameter] = []
 
-        // Process parameters at each depth level
-        for (depth, levelParams) in genericContext.allParameters.enumerated() {
-            for (index, param) in levelParams.enumerated() {
+        let cumulativeParameters = genericContext.parameters
+        let perLevelNewCounts = Self.perLevelNewParameterCounts(of: genericContext)
+        let mergedRequirements = Self.mergedRequirements(from: genericContext)
+
+        var paramOffset = 0
+        for (depth, newCount) in perLevelNewCounts.enumerated() {
+            for indexInLevel in 0..<newCount {
+                let flatIndex = paramOffset + indexInLevel
+                let param = cumulativeParameters[flatIndex]
+
                 // Skip non-key parameters (type packs, values, etc.)
                 guard param.hasKeyArgument, param.kind == .type else { continue }
 
-                // Get parameter name based on depth and index (e.g., A, B, A1, B1, A2...)
-                let paramName = genericParameterName(depth: depth.cast(), index: index.cast())
+                // Get parameter name based on depth and per-level index
+                // (e.g., A, B, A1, B1, A2...).
+                let paramName = genericParameterName(depth: depth.cast(), index: indexInLevel.cast())
 
                 // Collect requirements for this parameter (ordered for PWT passing)
                 let requirements = try collectRequirements(
                     for: paramName,
-                    from: Self.mergedRequirements(from: genericContext),
-                    parameterIndex: index,
-                    depth: depth
+                    from: mergedRequirements
                 )
 
                 // Find candidate types that satisfy all protocol requirements
@@ -155,20 +190,20 @@ extension GenericSpecializer {
                 let candidates = findCandidates(satisfying: protocolRequirements)
 
                 let invertibleProtocols = Self.collectInvertibleProtocols(
-                    for: index,
-                    depth: depth,
+                    flatIndex: flatIndex,
                     in: genericContext
                 )
 
                 parameters.append(SpecializationRequest.Parameter(
                     name: paramName,
-                    index: index,
+                    index: indexInLevel,
                     depth: depth,
                     requirements: requirements,
                     candidates: candidates,
                     invertibleProtocols: invertibleProtocols
                 ))
             }
+            paramOffset += newCount
         }
 
         return parameters
@@ -177,9 +212,7 @@ extension GenericSpecializer {
     /// Collect requirements for a specific parameter (ordered for PWT passing)
     private func collectRequirements(
         for paramName: String,
-        from genericRequirements: [GenericRequirementDescriptor],
-        parameterIndex: Int,
-        depth: Int
+        from genericRequirements: [GenericRequirementDescriptor]
     ) throws -> [SpecializationRequest.Requirement] {
         var requirements: [SpecializationRequest.Requirement] = []
 
