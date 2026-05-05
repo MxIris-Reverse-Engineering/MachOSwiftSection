@@ -824,6 +824,264 @@ struct GenericSpecializationTests {
             "P0.3: Inner's C (canonical A2, flat index 2) is `~Copyable`; collectInvertibleProtocols looks it up at flat index 3 because of the cumulative parent count."
         )
     }
+
+    // MARK: - P3 reproduction: TypePack / Value generics must throw early
+    //
+    // Pre-fix `buildParameters` skipped non-`type` GenericParamKind entries
+    // silently (`guard param.hasKeyArgument, param.kind == .type else { continue }`).
+    // For a fixture with `each T`, that meant `request.parameters` came back
+    // empty and `request.keyArgumentCount` mismatched the actual binary
+    // header — `specialize` would then call the metadata accessor with too
+    // few metadata pointers, only failing deep inside the runtime.
+    // Post-fix `makeRequest` rejects TypePack/Value parameters at the entry
+    // with a typed `SpecializerError.unsupportedGenericParameter`.
+
+    struct TestTypePackStruct<each T> {
+        let value: (repeat each T)
+    }
+
+    @Test func typePackParameterThrowsEarly() throws {
+        let descriptor = try structDescriptor(named: "TestTypePackStruct")
+
+        let specializer = GenericSpecializer(
+            machO: machO,
+            conformanceProvider: EmptyConformanceProvider()
+        )
+
+        do {
+            _ = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+            Issue.record("P3: makeRequest must reject a fixture containing a TypePack parameter")
+        } catch let error as GenericSpecializer<MachOImage>.SpecializerError {
+            switch error {
+            case .unsupportedGenericParameter(let kind):
+                #expect(kind == .typePack)
+            default:
+                Issue.record("P3: expected unsupportedGenericParameter, got \(error)")
+            }
+        }
+    }
+
+    // MARK: - P6 reproduction: validate() catches obvious type mismatches
+    //
+    // Pre-fix `validate(selection:for:)` only checked missing/extra arguments.
+    // Anything the user could possibly get wrong about the *type* of a
+    // selection had to wait until `specialize()` failed inside
+    // `RuntimeFunctions.conformsToProtocol` with a generic
+    // `witnessTableNotFound`. Post-fix the new `runtimePreflight` companion
+    // surfaces protocol-conformance mismatches as
+    // `SpecializationValidation.Error.protocolRequirementNotSatisfied` and
+    // class-layout violations as `.layoutRequirementNotSatisfied`, before
+    // the accessor call.
+
+    @Test func runtimePreflightCatchesProtocolMismatch() async throws {
+        // TestSingleProtocolStruct<A: Hashable>. Picking a Function type for
+        // A (Functions don't conform to Hashable) must trip the preflight.
+        let descriptor = try structDescriptor(named: "TestSingleProtocolStruct")
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        let badSelection: SpecializationSelection = ["A": .metatype((() -> Void).self)]
+
+        let preflight = specializer.runtimePreflight(selection: badSelection, for: request)
+        #expect(!preflight.isValid)
+        let hasProtocolError = preflight.errors.contains { error in
+            if case .protocolRequirementNotSatisfied(_, let proto, _) = error {
+                return proto.contains("Hashable")
+            }
+            return false
+        }
+        #expect(hasProtocolError, "P6: preflight must report Hashable mismatch for () -> Void")
+
+        // And the user-facing `specialize` should now throw with the same
+        // diagnostic instead of letting it surface as `witnessTableNotFound`.
+        do {
+            _ = try specializer.specialize(request, with: badSelection)
+            Issue.record("P6: specialize must reject the bad selection")
+        } catch let error as GenericSpecializer<MachOImage>.SpecializerError {
+            if case .specializationFailed(let reason) = error {
+                #expect(reason.contains("Hashable"))
+            } else {
+                Issue.record("P6: expected specializationFailed, got \(error)")
+            }
+        }
+    }
+
+    @Test func runtimePreflightCatchesLayoutMismatch() async throws {
+        // TestClassConstraintStruct<A: AnyObject>. Picking a value type for A
+        // must trip the layout check.
+        let descriptor = try structDescriptor(named: "TestClassConstraintStruct")
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        let badSelection: SpecializationSelection = ["A": .metatype(Int.self)]
+
+        let preflight = specializer.runtimePreflight(selection: badSelection, for: request)
+        #expect(!preflight.isValid)
+        let hasLayoutError = preflight.errors.contains { error in
+            if case .layoutRequirementNotSatisfied = error {
+                return true
+            }
+            return false
+        }
+        #expect(hasLayoutError, "P6: preflight must report layout mismatch for a value type passed where AnyObject is required")
+    }
+
+    // MARK: - P7 reproduction: candidateOptions.excludeGenerics filters generics
+    //
+    // Without the option, `findCandidates` includes generic types (Array,
+    // Dictionary, etc.) whose own descriptor is generic. Selecting one as
+    // `Argument.candidate(...)` would then throw
+    // `candidateRequiresNestedSpecialization` deep inside `specialize`.
+    // The `excludeGenerics` option lets callers ask for "directly
+    // specializable" candidates only.
+
+    @Test func excludeGenericsFiltersGenericCandidates() async throws {
+        let descriptor = try structDescriptor(named: "TestSingleProtocolStruct")
+        let specializer = GenericSpecializer(indexer: indexer)
+
+        let defaultRequest = try specializer.makeRequest(
+            for: TypeContextDescriptorWrapper.struct(descriptor)
+        )
+        let defaultHasGenericCandidate = defaultRequest.parameters[0].candidates.contains { $0.isGeneric }
+        #expect(defaultHasGenericCandidate, "P7 baseline: default candidate list should include generic candidates")
+
+        let filteredRequest = try specializer.makeRequest(
+            for: TypeContextDescriptorWrapper.struct(descriptor),
+            candidateOptions: .excludeGenerics
+        )
+        let filteredHasGenericCandidate = filteredRequest.parameters[0].candidates.contains { $0.isGeneric }
+        #expect(!filteredHasGenericCandidate, "P7: excludeGenerics must drop every isGeneric candidate")
+        #expect(!filteredRequest.parameters[0].candidates.isEmpty,
+                "P7: there are still non-generic Hashable conformers (Int, String, …) — the filter must not empty the list")
+    }
+
+    // MARK: - P8 reproduction: AssociatedTypeRequirement aggregates by (param, path)
+    //
+    // Pre-fix every individual constraint emitted its own
+    // `AssociatedTypeRequirement` even when several constraints shared the
+    // same `(parameterName, path)` — `requirements: [Requirement]` was always
+    // a singleton array, despite the field being plural. Consumers had to
+    // re-group by hand. Post-fix the build pass aggregates by key and
+    // preserves canonical (binary) order inside each entry.
+
+    @Test func associatedTypeRequirementsAggregatedByPath() async throws {
+        // TestGenericStruct has three constraints on A.Element (Hashable,
+        // Decodable, Encodable). Pre-fix `associatedTypeRequirements` would
+        // hold three entries with `path == ["Element"]` each carrying one
+        // requirement. Post-fix it should hold a single entry whose
+        // `requirements` array carries all three.
+        let descriptor = try structDescriptor(named: "TestGenericStruct")
+        let specializer = GenericSpecializer(
+            machO: machO,
+            conformanceProvider: EmptyConformanceProvider()
+        )
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        let elementEntries = request.associatedTypeRequirements.filter {
+            $0.parameterName == "A" && $0.path == ["Element"]
+        }
+        #expect(
+            elementEntries.count == 1,
+            "P8: A.Element constraints must collapse into one AssociatedTypeRequirement, got \(elementEntries.count) entries"
+        )
+        let aggregate = try #require(elementEntries.first)
+        #expect(
+            aggregate.requirements.count == 3,
+            "P8: aggregated entry should carry all three protocols (Hashable / Decodable / Encodable), got \(aggregate.requirements.count)"
+        )
+        let names = aggregate.requirements.compactMap { req -> String? in
+            if case .protocol(let info) = req { return info.protocolName.name }
+            return nil
+        }
+        // Canonical order is alphabetical-by-protocol within the same LHS.
+        #expect(names == names.sorted(), "P8: aggregated requirements must preserve canonical (alphabetical-by-protocol) order")
+    }
+
+    // MARK: - P2: nested generic specialize() end-to-end coverage
+    //
+    // The aa07d74 fix added `makeRequest` assertions for ≥ 3-level nested
+    // generics, but never actually called `specialize` on one. This test
+    // closes that gap by driving the full pipeline (request → specialize →
+    // metadata accessor → field offsets) on the
+    // `NestedGenericThreeLevelInner` fixture.
+
+    @Test func nestedThreeLevelSpecializeEndToEnd() async throws {
+        let descriptor = try structDescriptor(named: "NestedGenericThreeLevelInner")
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        let result = try specializer.specialize(request, with: [
+            "A": .metatype(Int.self),       // outer's A: Hashable
+            "A1": .metatype(Double.self),   // middle's B: Equatable
+            "A2": .metatype(String.self),   // inner's C: Comparable
+        ])
+
+        #expect(result.resolvedArguments.count == 3)
+        #expect(result.resolvedArguments[0].parameterName == "A")
+        #expect(result.resolvedArguments[1].parameterName == "A1")
+        #expect(result.resolvedArguments[2].parameterName == "A2")
+        // Each direct GP requirement contributes exactly one PWT.
+        #expect(result.resolvedArguments.allSatisfy { $0.witnessTables.count == 1 })
+
+        let structMetadata = try #require(result.resolveMetadata().struct)
+        let fieldOffsets = try structMetadata.fieldOffsets()
+        // Layout: a(Int) at 0, b(Double) at 8, c(String) at 16. String
+        // occupies 16 bytes but the field offset is the start address.
+        #expect(fieldOffsets == [0, 8, 16])
+    }
+
+    // MARK: - P5 reproduction: SwiftDump cumulative-parameter dump
+    //
+    // `dumpGenericParameters(isDumpCurrentLevel: false)` was iterating
+    // `allParameters`, whose parent levels are stored cumulatively. At
+    // depth ≥ 2 that would re-emit each inherited parameter (e.g. for our
+    // three-level `NestedGenericThreeLevelInner`, the dump produced
+    // `<A, A, B1, A2>` — `A` re-appearing at depth 1, and Middle's `B`
+    // misnamed `B1` because the loop counted offsets by depth-cumulative
+    // position rather than per-level introduction). Post-fix the dumper
+    // walks per-level "newly introduced" slices, emitting exactly
+    // `<A, A1, A2>` to match the demangler's canonical naming.
+
+    @Test func nestedThreeLevelDumpAllLevelsHasNoDuplicates() async throws {
+        let descriptor = try structDescriptor(named: "NestedGenericThreeLevelInner")
+        let genericContext = try #require(try descriptor.genericContext(in: machO))
+
+        let dumped = try await genericContext.dumpGenericParameters(
+            in: machO,
+            isDumpCurrentLevel: false
+        ).string
+
+        // Expected demangler-canonical order: A, A1, A2.
+        let expectedNames = ["A", "A1", "A2"]
+        for name in expectedNames {
+            #expect(
+                dumped.contains(name),
+                "P5: dump must include `\(name)` (got `\(dumped)`)"
+            )
+        }
+
+        // The pre-fix output `<A, A, B1, A2>` contained `B1` (Middle's `B`
+        // miscounted), and the bare `A` token was present *twice*. Both
+        // are tell-tale signs of cumulative parent re-emission.
+        #expect(
+            !dumped.contains("B1"),
+            "P5: pre-fix cumulative iteration produced a phantom `B1` token (got `\(dumped)`)"
+        )
+
+        // Catch the duplicate-`A` regression: a properly de-cumulated dump
+        // emits `A` once. The dump output has the form `A, A1, A2` (or
+        // similar) — split on `,` and trim, then count tokens equal to
+        // bare `A`. The lookbehind regex form would be cleaner but Swift
+        // Regex doesn't support lookbehind yet.
+        let tokens = dumped
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        let bareACount = tokens.filter { $0 == "A" }.count
+        #expect(
+            bareACount == 1,
+            "P5: bare `A` must appear once; pre-fix cumulative iteration produced \(bareACount) occurrences in tokens \(tokens)"
+        )
+    }
 }
 
 extension GenericSpecializationTests.TestInvertedCopyableStruct: Copyable where A: Copyable {}

@@ -127,6 +127,31 @@ extension SpecializationRequest {
     }
 }
 
+// MARK: - CandidateOptions
+
+extension SpecializationRequest {
+    /// Knobs that adjust how candidate lists are produced for each parameter.
+    public struct CandidateOptions: OptionSet, Sendable {
+        public let rawValue: UInt8
+
+        public init(rawValue: UInt8) {
+            self.rawValue = rawValue
+        }
+
+        /// Skip candidates whose type descriptor is itself generic.
+        ///
+        /// Selecting a generic candidate via `Argument.candidate(...)` would
+        /// throw `candidateRequiresNestedSpecialization` at `specialize` time;
+        /// callers that want a "directly specializable" list can opt into
+        /// filtering them out at request-build time.
+        public static let excludeGenerics = CandidateOptions(rawValue: 1 << 0)
+
+        /// Default behaviour: include every candidate (mirrors the
+        /// pre-`CandidateOptions` API).
+        public static let `default`: CandidateOptions = []
+    }
+}
+
 // MARK: - Candidate
 
 extension SpecializationRequest {

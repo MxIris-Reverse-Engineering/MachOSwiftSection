@@ -47,14 +47,29 @@ extension GenericSpecializer {
 
     /// Create a specialization request for a generic type
     ///
-    /// - Parameter type: The generic type descriptor
+    /// - Parameters:
+    ///   - type: The generic type descriptor.
+    ///   - candidateOptions: Filter knobs for the per-parameter candidate
+    ///     lists (e.g. `.excludeGenerics` to drop candidates whose own
+    ///     descriptor is generic).
     /// - Returns: A request containing parameters, requirements, and candidate types
     /// - Throws: If the type is not generic or cannot be analyzed
-    public func makeRequest(for type: TypeContextDescriptorWrapper) throws -> SpecializationRequest {
+    public func makeRequest(
+        for type: TypeContextDescriptorWrapper,
+        candidateOptions: SpecializationRequest.CandidateOptions = .default
+    ) throws -> SpecializationRequest {
         let genericContext = try genericContext(for: type)
 
+        // Reject TypePack / Value generic parameters up front — we do not
+        // implement variadic generics or value generics yet, and silently
+        // skipping them in `buildParameters` would surface as a metadata-
+        // accessor argument-count mismatch deep inside `specialize()`.
+        if let unsupportedParameter = genericContext.parameters.first(where: { $0.kind == .typePack || $0.kind == .value }) {
+            throw SpecializerError.unsupportedGenericParameter(parameterKind: unsupportedParameter.kind)
+        }
+
         // Build parameters from generic context
-        let parameters = try buildParameters(from: genericContext, for: type)
+        let parameters = try buildParameters(from: genericContext, for: type, candidateOptions: candidateOptions)
 
         // Build associated type requirements
         let associatedTypeRequirements = try buildAssociatedTypeRequirements(from: genericContext, for: type)
@@ -80,13 +95,23 @@ extension GenericSpecializer {
     /// `genericContext.requirements` is already cumulative — Swift's
     /// `sig->getRequirementsWithInverses` covers every requirement in scope,
     /// including those inherited from parent generic contexts (see
-    /// `swift/lib/IRGen/GenMeta.cpp:7342`). Re-flattening
-    /// `allRequirements` here would reintroduce the cumulative parent levels
-    /// and double-count inherited requirements at depth ≥ 2.
+    /// `swift/lib/IRGen/GenMeta.cpp:7342`). Re-flattening `allRequirements`
+    /// here would reintroduce the cumulative parent levels and double-count
+    /// inherited requirements at depth ≥ 2.
     ///
-    /// Conditional requirements (stored under `hasConditionalInvertedProtocols`)
-    /// always evaluate active in the current scope because every candidate
-    /// is kept Copyable / Escapable, so we merge them unconditionally.
+    /// Conditional requirements live in their own section (see
+    /// `GenMeta.cpp:1432`) and describe the `where` clauses of
+    /// `extension X: Copyable / Escapable` style conformances. Swift's
+    /// frontend rejects `inverse_cannot_be_conditional_on_requirement`
+    /// (DiagnosticsSema.def:8200) for any non-invertible requirement in
+    /// such a clause, so the section in practice only ever contains
+    /// `.invertedProtocols` records — those are exactly what
+    /// `collectInvertibleProtocols` needs to read in order to surface
+    /// invertible suppressions on `Parameter.invertibleProtocols`. Every
+    /// other consumer (`collectRequirements`, `buildAssociatedTypeRequirements`,
+    /// `resolveAssociatedTypeWitnesses`) ignores `.invertedProtocols`
+    /// records by kind, so merging them in is free of side effects on
+    /// PWT counts.
     private static func mergedRequirements(
         from genericContext: GenericContext
     ) -> [GenericRequirementDescriptor] {
@@ -153,7 +178,11 @@ extension GenericSpecializer {
     /// names (`A`, `B`, `A1`, `B1`, `A2`, …). The flat ordinal of each
     /// parameter — the value Swift writes into `InvertedProtocols.genericParamIndex`
     /// — equals the offset into the cumulative array.
-    private func buildParameters(from genericContext: GenericContext, for type: TypeContextDescriptorWrapper) throws -> [SpecializationRequest.Parameter] {
+    private func buildParameters(
+        from genericContext: GenericContext,
+        for type: TypeContextDescriptorWrapper,
+        candidateOptions: SpecializationRequest.CandidateOptions
+    ) throws -> [SpecializationRequest.Parameter] {
         var parameters: [SpecializationRequest.Parameter] = []
 
         let cumulativeParameters = genericContext.parameters
@@ -187,7 +216,10 @@ extension GenericSpecializer {
                     return nil
                 }
 
-                let candidates = findCandidates(satisfying: protocolRequirements)
+                let candidates = findCandidates(
+                    satisfying: protocolRequirements,
+                    options: candidateOptions
+                )
 
                 let invertibleProtocols = Self.collectInvertibleProtocols(
                     flatIndex: flatIndex,
@@ -368,12 +400,20 @@ extension GenericSpecializer {
         }
     }
 
-    /// Build associated type requirements (ordered for PWT passing)
+    /// Build associated type requirements (ordered for PWT passing).
+    ///
+    /// Multiple constraints on the same `A.X.Y...` path are aggregated into
+    /// one `AssociatedTypeRequirement` whose `requirements` array preserves
+    /// canonical (binary) order. Aggregating by `(parameterName, path)`
+    /// matches the field's declared semantics — `requirements: [Requirement]`
+    /// is plural for a reason — and keeps consumers from having to re-group
+    /// duplicates themselves.
     private func buildAssociatedTypeRequirements(
         from genericContext: GenericContext,
         for type: TypeContextDescriptorWrapper
     ) throws -> [SpecializationRequest.AssociatedTypeRequirement] {
-        var associatedTypeRequirements: [SpecializationRequest.AssociatedTypeRequirement] = []
+        var entriesByKey: [AssociatedTypeRequirementKey: [SpecializationRequest.Requirement]] = [:]
+        var orderedKeys: [AssociatedTypeRequirementKey] = []
         let genericRequirements = Self.mergedRequirements(from: genericContext)
 
         for genericRequirement in genericRequirements {
@@ -386,46 +426,64 @@ extension GenericSpecializer {
                 continue
             }
 
-            // Build requirement for this associated type
-            if let requirement = try buildRequirement(from: genericRequirement) {
-                associatedTypeRequirements.append(SpecializationRequest.AssociatedTypeRequirement(
-                    parameterName: pathInfo.baseParamName,
-                    path: pathInfo.steps.map(\.name),
-                    requirements: [requirement]
-                ))
+            guard let requirement = try buildRequirement(from: genericRequirement) else {
+                continue
             }
+
+            let key = AssociatedTypeRequirementKey(
+                parameterName: pathInfo.baseParamName,
+                path: pathInfo.steps.map(\.name)
+            )
+            if entriesByKey[key] == nil {
+                orderedKeys.append(key)
+            }
+            entriesByKey[key, default: []].append(requirement)
         }
 
-        return associatedTypeRequirements
+        return orderedKeys.map { key in
+            SpecializationRequest.AssociatedTypeRequirement(
+                parameterName: key.parameterName,
+                path: key.path,
+                requirements: entriesByKey[key] ?? []
+            )
+        }
     }
 
-    /// Find candidate types that satisfy all protocol constraints
-    private func findCandidates(satisfying protocols: [ProtocolName]) -> [SpecializationRequest.Candidate] {
-        guard !protocols.isEmpty else {
-            // No constraints - return all indexed types
-            return conformanceProvider.allTypeNames.compactMap { typeName -> SpecializationRequest.Candidate? in
-                guard let typeDefinition = conformanceProvider.typeDefinition(for: typeName) else {
-                    return nil
-                }
-                let imagePath = conformanceProvider.imagePath(for: typeName) ?? ""
-                let isGeneric = typeDefinition.type.typeContextDescriptorWrapper.typeContextDescriptor.layout.flags.isGeneric
-                return SpecializationRequest.Candidate(
-                    typeName: typeName,
-                    source: .image(imagePath),
-                    isGeneric: isGeneric
-                )
-            }
+    /// Aggregation key for `buildAssociatedTypeRequirements` — a generic
+    /// type can't host a nested struct directly inside a method body, so
+    /// the key lives at extension scope.
+    private struct AssociatedTypeRequirementKey: Hashable {
+        let parameterName: String
+        let path: [String]
+    }
+
+    /// Find candidate types that satisfy all protocol constraints.
+    ///
+    /// Generic candidates are included by default but flagged via
+    /// `Candidate.isGeneric`; selecting one via `Argument.candidate` would
+    /// throw `candidateRequiresNestedSpecialization` from `specialize`. Pass
+    /// `candidateOptions: .excludeGenerics` to skip them up front when the
+    /// caller wants a "directly-specializable" list.
+    private func findCandidates(
+        satisfying protocols: [ProtocolName],
+        options: SpecializationRequest.CandidateOptions = .default
+    ) -> [SpecializationRequest.Candidate] {
+        let typeNames: [TypeName]
+        if protocols.isEmpty {
+            typeNames = conformanceProvider.allTypeNames
+        } else {
+            typeNames = conformanceProvider.types(conformingToAll: protocols)
         }
 
-        // Find types conforming to all protocols
-        let conformingTypes = conformanceProvider.types(conformingToAll: protocols)
-
-        return conformingTypes.compactMap { typeName -> SpecializationRequest.Candidate? in
+        return typeNames.compactMap { typeName -> SpecializationRequest.Candidate? in
             guard let typeDefinition = conformanceProvider.typeDefinition(for: typeName) else {
                 return nil
             }
-            let imagePath = conformanceProvider.imagePath(for: typeName) ?? ""
             let isGeneric = typeDefinition.type.typeContextDescriptorWrapper.typeContextDescriptor.layout.flags.isGeneric
+            if options.contains(.excludeGenerics), isGeneric {
+                return nil
+            }
+            let imagePath = conformanceProvider.imagePath(for: typeName) ?? ""
             return SpecializationRequest.Candidate(
                 typeName: typeName,
                 source: .image(imagePath),
@@ -440,31 +498,136 @@ extension GenericSpecializer {
 @_spi(Support)
 extension GenericSpecializer {
 
-    /// Validate a selection against a request
+    /// Validate a selection against a request — *static* checks only.
     ///
-    /// - Parameters:
-    ///   - selection: The user's type selections
-    ///   - request: The specialization request
-    /// - Returns: Validation result with any errors or warnings
+    /// Reports the cheap, runtime-free issues:
+    ///   - missing parameter arguments (error)
+    ///   - extra arguments not declared by the request (warning)
+    ///
+    /// Deliberately does *not* preempt `Argument.candidate` selections
+    /// flagged `isGeneric`: the existing `specialize` contract is to
+    /// throw a typed `SpecializerError.candidateRequiresNestedSpecialization`
+    /// at the candidate-resolution site, and downstream callers depend
+    /// on that error path. Use the request's `Candidate.isGeneric` flag
+    /// or the `excludeGenerics` candidate option if you want to filter
+    /// these earlier.
+    ///
+    /// For deeper protocol-conformance / layout checks against the
+    /// concrete metadata, call `runtimePreflight(selection:for:)` (only
+    /// available when `MachO == MachOImage`). `specialize` automatically
+    /// folds both validations together.
     public func validate(selection: SpecializationSelection, for request: SpecializationRequest) -> SpecializationValidation {
         let builder = SpecializationValidation.builder()
 
-        // Check all required parameters are provided
         for parameter in request.parameters {
             guard selection.hasArgument(for: parameter.name) else {
                 builder.addError(.missingArgument(parameterName: parameter.name))
                 continue
             }
-
-            // Validate each requirement for this parameter
-            // Note: We don't validate all requirements here since some require runtime resolution
-            // Full validation happens during specialize()
         }
 
-        // Check for extra arguments
         for paramName in selection.selectedParameterNames {
             if !request.parameters.contains(where: { $0.name == paramName }) {
                 builder.addWarning(.extraArgument(parameterName: paramName))
+            }
+        }
+
+        return builder.build()
+    }
+}
+
+// MARK: - Runtime Preflight
+
+@_spi(Support)
+extension GenericSpecializer where MachO == MachOImage {
+
+    /// Runtime-aware companion to `validate(selection:for:)`.
+    ///
+    /// Performs the checks that need an actual `Metadata`:
+    ///   - **Protocol requirements**: every direct-GP `protocol` requirement
+    ///     is exercised via `swift_conformsToProtocol`. A `nil` result becomes
+    ///     `protocolRequirementNotSatisfied` instead of letting it surface
+    ///     mid-`specialize` as `witnessTableNotFound`.
+    ///   - **Layout (`AnyObject`) requirements**: the resolved metadata kind
+    ///     must be class-like (`.class` / `.objcClassWrapper` / `.foreignClass`).
+    ///
+    /// Same-type / base-class / associated-type checks are intentionally
+    /// out of scope — they require either type-equality or chain walking
+    /// that we'd rather perform once inside `specialize`. Failures there
+    /// continue to bubble up via their typed errors.
+    ///
+    /// Argument kinds whose metadata cannot be obtained without running the
+    /// type's metadata accessor (`.candidate(...)` and `.specialized(...)`)
+    /// are skipped — they will be validated implicitly during the actual
+    /// `specialize` call.
+    public func runtimePreflight(
+        selection: SpecializationSelection,
+        for request: SpecializationRequest
+    ) -> SpecializationValidation {
+        let builder = SpecializationValidation.builder()
+
+        for parameter in request.parameters {
+            guard let argument = selection[parameter.name] else { continue }
+
+            let metadata: Metadata
+            switch argument {
+            case .metatype(let type):
+                guard let resolved = try? Metadata.createInProcess(type) else { continue }
+                metadata = resolved
+            case .metadata(let provided):
+                metadata = provided
+            case .candidate, .specialized:
+                // Both require running an accessor to resolve concrete
+                // metadata; skip preflight and let `specialize` validate
+                // them as part of its main path.
+                continue
+            }
+
+            for requirement in parameter.requirements {
+                switch requirement {
+                case .protocol(let info) where info.requiresWitnessTable:
+                    guard let indexer,
+                          let protocolDef = indexer.allAllProtocolDefinitions[info.protocolName] else {
+                        // Cannot validate without an indexer — leave it to
+                        // `specialize`, which errors with a typed message.
+                        continue
+                    }
+                    let descriptor: MachOSwiftSection.`Protocol`
+                    do {
+                        descriptor = try MachOSwiftSection.`Protocol`(
+                            descriptor: protocolDef.value.protocol.descriptor.asPointerWrapper(in: protocolDef.machO)
+                        )
+                    } catch {
+                        continue
+                    }
+                    let conforms = (try? RuntimeFunctions.conformsToProtocol(
+                        metadata: metadata,
+                        protocolDescriptor: descriptor.descriptor
+                    )) ?? nil
+                    if conforms == nil {
+                        builder.addError(.protocolRequirementNotSatisfied(
+                            parameterName: parameter.name,
+                            protocolName: info.protocolName.name,
+                            actualType: "\(metadata)"
+                        ))
+                    }
+                case .layout(let layoutKind):
+                    switch layoutKind {
+                    case .class:
+                        let kind = metadata.kind
+                        let isClassLike = (kind == .class || kind == .objcClassWrapper || kind == .foreignClass)
+                        if !isClassLike {
+                            builder.addError(.layoutRequirementNotSatisfied(
+                                parameterName: parameter.name,
+                                expectedLayout: layoutKind,
+                                actualType: "\(metadata)"
+                            ))
+                        }
+                    }
+                case .protocol, .sameType, .baseClass:
+                    // Other kinds: skip (no PWT, or out-of-scope — see header).
+                    continue
+                }
             }
         }
 
@@ -495,14 +658,33 @@ extension GenericSpecializer where MachO == MachOImage {
         metadataRequest: MetadataRequest = .completeAndBlocking
     ) throws -> SpecializationResult {
         let typeDescriptor = request.typeDescriptor.asPointerWrapper(in: machO)
-        // Validate selection first
-        let validation = validate(selection: selection, for: request)
-        guard validation.isValid else {
-            let errorMessages = validation.errors.map { $0.description }.joined(separator: "; ")
+        // Static validation first (cheap, no runtime resolution).
+        let staticValidation = validate(selection: selection, for: request)
+        guard staticValidation.isValid else {
+            let errorMessages = staticValidation.errors.map { $0.description }.joined(separator: "; ")
             throw SpecializerError.specializationFailed(reason: errorMessages)
         }
 
-        // Build metadata and witness table arrays in requirement order
+        // Runtime preflight — verifies protocol conformance and layout
+        // constraints before we ever call the accessor. Surfaces
+        // mismatches as `SpecializationValidation.Error` values matching
+        // the requirement kind, instead of letting them blow up inside
+        // `swift_getGenericMetadata` or `RuntimeFunctions.conformsToProtocol`.
+        let runtimeValidation = runtimePreflight(selection: selection, for: request)
+        guard runtimeValidation.isValid else {
+            let errorMessages = runtimeValidation.errors.map { $0.description }.joined(separator: "; ")
+            throw SpecializerError.specializationFailed(reason: errorMessages)
+        }
+
+        // Build metadata and witness table arrays in requirement order.
+        //
+        // The PWT ordering invariant (still verified by every existing
+        // fixture): Swift's `compareDependentTypesRec` orders all GP-rooted
+        // requirements before any nested-type-rooted requirement (see
+        // `swift/lib/AST/GenericSignature.cpp:846`). That means walking
+        // direct-GP requirements in parameter order, then walking associated
+        // requirements in canonical merged-requirement order, reconstructs
+        // exactly the binary's emission order without an explicit re-sort.
         var metadatas: [Metadata] = []
         var witnessTables: [ProtocolWitnessTable] = []
         var resolvedArguments: [SpecializationResult.ResolvedArgument] = []
@@ -927,6 +1109,7 @@ extension GenericSpecializer {
         case metadataCreationFailed(typeName: String, reason: String)
         case witnessTableNotFound(typeName: String, protocolName: String)
         case specializationFailed(reason: String)
+        case unsupportedGenericParameter(parameterKind: GenericParamKind)
 
         public var errorDescription: String? {
             switch self {
@@ -948,6 +1131,8 @@ extension GenericSpecializer {
                 return "Witness table not found for \(typeName) conforming to \(protocolName)"
             case .specializationFailed(let reason):
                 return "Specialization failed: \(reason)"
+            case .unsupportedGenericParameter(let parameterKind):
+                return "Unsupported generic parameter kind: \(parameterKind). TypePack (variadic generics) and Value generics are not implemented yet."
             }
         }
     }
