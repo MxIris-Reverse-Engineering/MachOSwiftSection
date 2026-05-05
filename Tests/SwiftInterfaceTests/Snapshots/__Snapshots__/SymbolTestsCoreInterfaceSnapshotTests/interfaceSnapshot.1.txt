@@ -1274,6 +1274,17 @@ enum NestedGenerics {
 
         init(elements: [A])
     }
+    struct NestedGenericThreeLevelConstraintTest<A> where A: Swift.Hashable {
+        struct MiddleConstrainedTest<A1> where A1: Swift.Equatable {
+            struct InnerMostConstrainedTest<A2> where A2: Swift.Comparable {
+                var outer: A
+                var middle: A1
+                var innerMost: A2
+
+                init(outer: A, middle: A1, innerMost: A2)
+            }
+        }
+    }
 }
 enum Noncopyable {
     struct NoncopyableTest: ~Swift.Copyable {

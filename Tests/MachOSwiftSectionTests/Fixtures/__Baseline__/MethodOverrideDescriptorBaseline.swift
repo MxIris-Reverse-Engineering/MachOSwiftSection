@@ -14,7 +14,7 @@ enum MethodOverrideDescriptorBaseline {
     }
 
     static let firstSubclassOverride = Entry(
-    offset: 0x3397c
+    offset: 0x33cfc
     )
 
     static let subclassOverrideCount = 9
