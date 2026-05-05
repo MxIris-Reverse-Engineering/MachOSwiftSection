@@ -1,0 +1,7 @@
+// MARK: - Types
+
+enum SymbolTestsCore.GenericValueFixtures {}
+struct SymbolTestsCore.GenericValueFixtures.FixedSizeArray<let a: Int, B> {
+    /* Allocator */
+    SymbolTestsCore.GenericValueFixtures.FixedSizeArray.init() -> SymbolTestsCore.GenericValueFixtures.FixedSizeArray<A, B>
+}

@@ -44,6 +44,7 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
         "functionTypesSnapshot",
         "genericFieldLayoutSnapshot",
         "genericRequirementVariantsSnapshot",
+        "genericValueParametersSnapshot",
         "genericsSnapshot",
         "globalDeclarationsSnapshot",
         "initializersSnapshot",
@@ -218,6 +219,11 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
 
     @Test func genericsSnapshot() async throws {
         let output = try await collectDump(for: machOFile, inNamespace: "Generics")
+        assertSnapshot(of: output, as: .lines)
+    }
+
+    @Test func genericValueParametersSnapshot() async throws {
+        let output = try await collectDump(for: machOFile, inNamespace: "GenericValueFixtures")
         assertSnapshot(of: output, as: .lines)
     }
 

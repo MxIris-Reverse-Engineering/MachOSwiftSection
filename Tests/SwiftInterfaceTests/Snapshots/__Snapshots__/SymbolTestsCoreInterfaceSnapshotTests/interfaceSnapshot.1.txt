@@ -1116,6 +1116,11 @@ enum Generics {
         func function<A1, B1>(a: A1, b: B1)
     }
 }
+enum GenericValueFixtures {
+    struct FixedSizeArray<let a: Int, B> {
+        init()
+    }
+}
 enum Initializers {
     struct CustomInitializerError {
         let reason: Swift.String
