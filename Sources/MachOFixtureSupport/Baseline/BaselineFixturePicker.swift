@@ -623,6 +623,27 @@ package enum BaselineFixturePicker {
         )
     }
 
+    /// Picks the SymbolTestsCore class
+    /// `ObjCResilientStubFixtures.ResilientObjCStubChild` — a non-generic
+    /// Swift class subclassing the cross-module
+    /// `SymbolTestsHelper.Object`, which forces the resilient metadata
+    /// strategy. Combined with ObjC interop being on, the Swift compiler
+    /// emits an `ObjCResilientClassStubInfo` trailing record on the
+    /// class descriptor (and a corresponding `<mangled>CMt` "full ObjC
+    /// resilient class stub" symbol). Phase B4 added the fixture to give
+    /// the `ObjCResilientClassStubInfo` Suite a stably-named,
+    /// deterministic carrier independent of any other fixture's
+    /// vTable/method shape.
+    package static func class_ResilientObjCStubChild(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                try descriptor.name(in: machO) == "ResilientObjCStubChild"
+            })
+        )
+    }
+
     /// Picks the `AssociatedTypeDescriptor` whose conforming type is
     /// `AssociatedTypeWitnessPatterns.ConcreteWitnessTest` and whose protocol
     /// is `AssociatedTypeWitnessPatterns.AssociatedPatternProtocol`. The

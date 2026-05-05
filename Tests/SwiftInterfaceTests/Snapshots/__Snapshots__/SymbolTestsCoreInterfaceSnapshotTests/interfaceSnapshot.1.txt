@@ -1304,6 +1304,15 @@ enum ObjCClassWrapperFixtures {
         deinit
     }
 }
+enum ObjCResilientStubFixtures {
+    class ResilientObjCStubChild: SymbolTestsHelper.Object {
+        var stubField: Swift.Int
+
+        override init()
+
+        deinit
+    }
+}
 enum OpaqueReturnTypes {
     struct OpaqueReturnTypeTest {
         struct AnyProtocolTest<A, B> where A: SymbolTestsCore.Protocols.ProtocolTest, B == B.Body, A.Body == SymbolTestsCore.Generics.GenericRequirementTest<B> {

@@ -321,11 +321,11 @@ enum CoverageAllowlistEntries {
         // `ObjCClassWrapperFixtures.ObjCBridge` (NSObject-derived) is
         // available via the `class_ObjCBridge` picker for Suites that
         // need an Mn descriptor for an NSObject-derived class.
-        CoverageAllowlistHelpers.sentinelGroup(
-            typeName: "ObjCResilientClassStubInfo",
-            members: ["init", "stub"],
-            reason: .needsFixtureExtension(detail: "no Swift class inheriting resilient ObjC class — Phase B4")
-        ),
+        // ObjCResilientClassStubInfo is covered as a real cross-reader test
+        // in Phase B4 against `ObjCResilientStubFixtures.ResilientObjCStubChild`
+        // (parent `SymbolTestsHelper.Object`, cross-module, forcing the
+        // resilient metadata strategy that triggers the stub trailing
+        // record). No sentinel entry remains.
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "RelativeObjCProtocolPrefix",
             members: ["init", "isObjC", "rawValue"],

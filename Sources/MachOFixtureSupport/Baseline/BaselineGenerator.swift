@@ -363,7 +363,7 @@ package enum BaselineGenerator {
         case "ObjCClassWrapperMetadata":
             try ObjCClassWrapperMetadataBaselineGenerator.generate(outputDirectory: outputDirectory)
         case "ObjCResilientClassStubInfo":
-            try ObjCResilientClassStubInfoBaselineGenerator.generate(outputDirectory: outputDirectory)
+            try ObjCResilientClassStubInfoBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         case "OverrideTableHeader":
             try OverrideTableHeaderBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         case "ResilientSuperclass":
