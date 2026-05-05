@@ -7,14 +7,21 @@ import MachOFixtureSupport
 
 /// Fixture-based Suite for `ObjCClassWrapperMetadata`.
 ///
-/// `ObjCClassWrapperMetadata` is the metadata kind Swift uses to refer
-/// to plain ObjC classes (e.g. `NSObject`-rooted types not authored in
-/// Swift). The metadata accessor for a Swift class doesn't return this
-/// kind directly; the wrapper is reachable through other paths
-/// (e.g. type-of-class lookups). For the SymbolTestsCore fixture we
-/// don't have a clean reproducible path that returns this metadata
-/// kind, so this Suite registers the public surface and asserts the
-/// kind enum is correctly catalogued in `MetadataWrapper`.
+/// `ObjCClassWrapperMetadata` (kind 0x305) is the metadata kind the
+/// Swift runtime allocates for plain ObjC classes — i.e. ObjC classes
+/// referenced from Swift without a Swift-side class context descriptor.
+/// `unsafeBitCast(NSObject.self, to: UnsafeRawPointer.self)` returns a
+/// pointer to such metadata.
+///
+/// **Reader asymmetry:** the metadata source originates from the
+/// in-process Swift runtime; `MachOFile`/`MachOImage` cannot reach it
+/// (the wrapper is allocated lazily by the runtime, not serialised in
+/// any Mach-O section).
+///
+/// Phase B3 introduced `ObjCClassWrappers.swift` to surface NSObject-
+/// derived types in the fixture; the metadata of NSObject itself
+/// (reached via `Foundation`'s in-process metadata) is the canonical
+/// `ObjCClassWrapperMetadata` carrier.
 @Suite
 final class ObjCClassWrapperMetadataTests: MachOSwiftSectionFixtureTests, FixtureSuite, @unchecked Sendable {
     static let testedTypeName = "ObjCClassWrapperMetadata"
@@ -22,12 +29,29 @@ final class ObjCClassWrapperMetadataTests: MachOSwiftSectionFixtureTests, Fixtur
         ObjCClassWrapperMetadataBaseline.registeredTestMethodNames
     }
 
-    @Test func registrationOnly() async throws {
-        // The Suite documents that a clean reproducible accessor flow
-        // returning ObjCClassWrapperMetadata is not available from the
-        // SymbolTestsCore fixture; the Coverage Invariant test (Task 16)
-        // tracks the public surface (`offset`, `layout`).
-        #expect(ObjCClassWrapperMetadataBaseline.registeredTestMethodNames.contains("offset"))
-        #expect(ObjCClassWrapperMetadataBaseline.registeredTestMethodNames.contains("layout"))
+    @Test func layout() async throws {
+        let kindRaw = try usingInProcessOnly { context in
+            let metadata = try ObjCClassWrapperMetadata.resolve(
+                at: InProcessMetadataPicker.foundationNSObjectWrapper,
+                in: context
+            )
+            return metadata.layout.kind
+        }
+        // The runtime-allocated ObjCClassWrapperMetadata for NSObject
+        // carries kind 0x305 (`MetadataKind.objcClassWrapper`).
+        #expect(kindRaw == ObjCClassWrapperMetadataBaseline.foundationNSObject.kindRawValue)
+    }
+
+    @Test func offset() async throws {
+        let resolvedOffset = try usingInProcessOnly { context in
+            try ObjCClassWrapperMetadata.resolve(
+                at: InProcessMetadataPicker.foundationNSObjectWrapper,
+                in: context
+            ).offset
+        }
+        // For InProcess resolution, `offset` is the bit-pattern of the
+        // runtime metadata pointer itself.
+        let expectedOffset = Int(bitPattern: InProcessMetadataPicker.foundationNSObjectWrapper)
+        #expect(resolvedOffset == expectedOffset)
     }
 }

@@ -1,0 +1,46 @@
+// MARK: - Types
+
+enum SymbolTestsCore.ObjCClassWrapperFixtures {}
+class SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge: NSObject {
+    var label: Swift.String
+
+    /* [Getter] */ SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.label.getter : Swift.String
+    /* [Setter] */ SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.label.setter : Swift.String
+    /* [Modify] */ SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.label.modify : Swift.String
+
+    /* Allocator */
+    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.__allocating_init() -> SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge
+
+    /* Deallocator */
+    merged SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.__deallocating_deinit
+    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.init() -> SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge
+
+    /* Variable */
+    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.label.getter : Swift.String
+    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.label.setter : Swift.String
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.label.getter : Swift.String
+    method descriptor for SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridge.label.setter : Swift.String
+}
+class SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto: NSObject {
+    /* [Method] */ func SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto.ping() -> ()
+
+    /* Allocator */
+    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto.__allocating_init() -> SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto
+
+    /* Deallocator */
+    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto.init() -> SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto
+
+    /* Function */
+    SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto.ping() -> ()
+
+    /* [Method] Function */
+    method descriptor for SymbolTestsCore.ObjCClassWrapperFixtures.ObjCBridgeWithProto.ping() -> ()
+}

@@ -103,6 +103,17 @@ package enum InProcessMetadataPicker {
         unsafeBitCast(InlineArray<3, Int>.self, to: UnsafeRawPointer.self)
     }()
     #endif
+
+    // MARK: - ObjC class wrapper
+
+    /// `NSObject.self` — an unmodified ObjC class. The Swift runtime
+    /// represents pure ObjC class metadata through an
+    /// `ObjCClassWrapperMetadata` (kind 0x305) whose `objcClass` field
+    /// points at the actual ObjC class metadata. This is the canonical
+    /// in-process source for `ObjCClassWrapperMetadataTests` (Phase B3).
+    package nonisolated(unsafe) static let foundationNSObjectWrapper: UnsafeRawPointer = {
+        unsafeBitCast(NSObject.self, to: UnsafeRawPointer.self)
+    }()
 }
 
 extension InProcessMetadataPicker {

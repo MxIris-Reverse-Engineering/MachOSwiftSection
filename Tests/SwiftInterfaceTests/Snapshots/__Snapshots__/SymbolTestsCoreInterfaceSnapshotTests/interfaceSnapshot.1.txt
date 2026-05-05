@@ -1288,6 +1288,22 @@ enum Noncopyable {
         let value: A
     }
 }
+enum ObjCClassWrapperFixtures {
+    class ObjCBridge: __C.NSObject {
+        var label: Swift.String
+
+        @objc init()
+
+        deinit
+    }
+    class ObjCBridgeWithProto: __C.NSObject {
+        @objc init()
+
+        @objc func ping()
+
+        deinit
+    }
+}
 enum OpaqueReturnTypes {
     struct OpaqueReturnTypeTest {
         struct AnyProtocolTest<A, B> where A: SymbolTestsCore.Protocols.ProtocolTest, B == B.Body, A.Body == SymbolTestsCore.Generics.GenericRequirementTest<B> {

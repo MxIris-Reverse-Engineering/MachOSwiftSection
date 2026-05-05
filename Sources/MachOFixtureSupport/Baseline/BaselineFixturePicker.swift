@@ -588,6 +588,41 @@ package enum BaselineFixturePicker {
         )
     }
 
+    /// Picks the SymbolTestsCore class
+    /// `ObjCClassWrapperFixtures.ObjCBridge` — an NSObject-derived Swift
+    /// class. The class's metadata accessor returns
+    /// `ClassMetadataObjCInterop`, and its superclass chain reaches
+    /// NSObject's `ObjCClassWrapperMetadata` (kind 0x305). Phase B3
+    /// introduced the fixture to give the ObjC-interop metadata Suites a
+    /// fixture-owned, deterministic carrier (rather than relying on a
+    /// plain Swift class that happens to use the ObjC-interop metadata
+    /// shape on Apple platforms).
+    package static func class_ObjCBridge(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                try descriptor.name(in: machO) == "ObjCBridge"
+            })
+        )
+    }
+
+    /// Picks the SymbolTestsCore class
+    /// `ObjCClassWrapperFixtures.ObjCBridgeWithProto` — an NSObject-derived
+    /// Swift class conforming to the `@objc protocol ObjCProto`. Phase B3
+    /// reserves the picker for completeness; `@objc protocol` does not
+    /// emit a Swift-side conformance descriptor, so the conformance is
+    /// not reachable through `swift.protocolConformances`.
+    package static func class_ObjCBridgeWithProto(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> ClassDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.class).first(where: { descriptor in
+                try descriptor.name(in: machO) == "ObjCBridgeWithProto"
+            })
+        )
+    }
+
     /// Picks the `AssociatedTypeDescriptor` whose conforming type is
     /// `AssociatedTypeWitnessPatterns.ConcreteWitnessTest` and whose protocol
     /// is `AssociatedTypeWitnessPatterns.AssociatedPatternProtocol`. The

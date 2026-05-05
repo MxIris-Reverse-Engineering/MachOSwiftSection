@@ -53,6 +53,7 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
         "nestedGenericsSnapshot",
         "neverExtensionsSnapshot",
         "noncopyableSnapshot",
+        "objCClassWrappersSnapshot",
         "opaqueReturnTypesSnapshot",
         "operatorsSnapshot",
         "optionSetAndRawRepresentableSnapshot",
@@ -259,6 +260,11 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
 
     @Test func noncopyableSnapshot() async throws {
         let output = try await collectDump(for: machOFile, inNamespace: "Noncopyable")
+        assertSnapshot(of: output, as: .lines)
+    }
+
+    @Test func objCClassWrappersSnapshot() async throws {
+        let output = try await collectDump(for: machOFile, inNamespace: "ObjCClassWrapperFixtures")
         assertSnapshot(of: output, as: .lines)
     }
 

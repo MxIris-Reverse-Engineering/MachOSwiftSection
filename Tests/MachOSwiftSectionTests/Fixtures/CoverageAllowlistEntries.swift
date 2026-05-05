@@ -137,21 +137,22 @@ enum CoverageAllowlistEntries {
             members: ["init", "kind", "superclass", "flags", "instanceAddressPoint", "instanceSize", "instanceAlignMask", "classSize", "classAddressPoint", "description", "iVarDestroyer"],
             reason: .runtimeOnly(detail: "live class metadata; covered via InProcess in Phase C")
         ),
-        CoverageAllowlistHelpers.sentinelGroup(
-            typeName: "ClassMetadataObjCInterop",
-            members: ["init", "isaPointer", "superclass", "cacheData0", "cacheData1", "data", "flags", "instanceAddressPoint", "instanceSize", "instanceAlignMask", "classSize", "classAddressPoint", "description", "iVarDestroyer"],
-            reason: .runtimeOnly(detail: "live ObjC-interop class metadata; covered via InProcess in Phase C")
-        ),
+        // ClassMetadataObjCInterop is covered as a real cross-reader test
+        // in `ClassMetadataObjCInteropTests` (uses MachOImage's metadata
+        // accessor for `Classes.ClassTest`); Phase B3 removed the sentinel
+        // entry. The synthetic protocol-extension members
+        // (`isaPointer`/`cacheData0`/etc.) are scanner-attributed to the
+        // marker protocol `AnyClassMetadataObjCInteropProtocol`, which
+        // remains sentinel below.
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "AnyClassMetadata",
             members: ["init", "kind", "isaPointer", "superclass"],
             reason: .runtimeOnly(detail: "any-class metadata; covered via InProcess in Phase C")
         ),
-        CoverageAllowlistHelpers.sentinelGroup(
-            typeName: "AnyClassMetadataObjCInterop",
-            members: ["init", "isaPointer", "superclass", "cacheData0", "cacheData1", "data"],
-            reason: .runtimeOnly(detail: "any-class metadata with ObjC interop; covered via InProcess in Phase C")
-        ),
+        // AnyClassMetadataObjCInterop is covered as a real cross-reader
+        // test in `AnyClassMetadataObjCInteropTests` (chases the
+        // superclass chain on `Classes.ClassTest`'s ObjC-interop
+        // metadata); Phase B3 removed the sentinel entry.
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "AnyClassMetadataProtocol",
             members: ["isaPointer", "superclass"],
@@ -313,11 +314,13 @@ enum CoverageAllowlistEntries {
         // Phase B2 against `ResilientClassFixtures.ResilientChild` (parent
         // `SymbolTestsHelper.ResilientBase`, cross-module). No sentinel
         // entry remains.
-        CoverageAllowlistHelpers.sentinelGroup(
-            typeName: "ObjCClassWrapperMetadata",
-            members: ["init", "kind", "objcClass"],
-            reason: .needsFixtureExtension(detail: "no NSObject-derived class in SymbolTestsCore — Phase B3")
-        ),
+        // ObjCClassWrapperMetadata is covered as a real InProcess test in
+        // Phase B3 against `Foundation.NSObject.self` (the canonical
+        // carrier — the Swift runtime allocates kind 0x305 wrapper
+        // metadata for plain ObjC classes). The SymbolTestsCore fixture's
+        // `ObjCClassWrapperFixtures.ObjCBridge` (NSObject-derived) is
+        // available via the `class_ObjCBridge` picker for Suites that
+        // need an Mn descriptor for an NSObject-derived class.
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ObjCResilientClassStubInfo",
             members: ["init", "stub"],
@@ -326,7 +329,7 @@ enum CoverageAllowlistEntries {
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "RelativeObjCProtocolPrefix",
             members: ["init", "isObjC", "rawValue"],
-            reason: .needsFixtureExtension(detail: "no ObjC-prefix protocol references in SymbolTestsCore — Phase B3")
+            reason: .needsFixtureExtension(detail: "RelativeObjCProtocolPrefix is only reached at runtime through Swift's mangled-name symbolic-reference resolver (`MetadataReader` opcode `.objectiveCProtocol` = 0x0e), not from descriptor traversal. Phase B3 added `ObjCClassWrapperFixtures` (including `ObjCBridgeWithProto` conforming to `@objc protocol ObjCProto`) but `@objc protocol`s do not emit Swift-side conformance descriptors, so the relative-prefix variant remains unreachable from fixture section walks. Suite stays registration-only.")
         ),
         CoverageAllowlistHelpers.sentinelGroup(
             typeName: "ObjCProtocolPrefix",
