@@ -114,15 +114,31 @@ Tests read Mach-O files from Xcode frameworks and dyld shared cache for real-wor
 
 ## Fixture-Based Test Coverage (MachOSwiftSection)
 
-`MachOSwiftSection/Models/` is exhaustively covered by `Tests/MachOSwiftSectionTests/Fixtures/`. Suites mirror the source directory and assert (a) cross-reader equality across MachOFile/MachOImage/InProcess + their ReadingContext counterparts, and (b) per-method ABI literal expected values from `__Baseline__/*Baseline.swift`.
+`MachOSwiftSection/Models/` is exhaustively covered by `Tests/MachOSwiftSectionTests/Fixtures/`. Suites mirror the source directory and assert one of:
+
+- **Cross-reader equality** across MachOFile/MachOImage/InProcess + their ReadingContext counterparts (via `acrossAllReaders` / `acrossAllContexts` helpers), plus per-method ABI literal values from `__Baseline__/*Baseline.swift` — this is the standard depth.
+- **InProcess single-reader equality** plus per-method ABI literal values (via `usingInProcessOnly` helper). Used for runtime-allocated metadata types (MetatypeMetadata, TupleTypeMetadata, etc.) that have no Mach-O section presence.
+- **Sentinel allowlist** with typed `SentinelReason` (in `CoverageAllowlistEntries.swift`). Used for:
+  - `pureDataUtility`: pure raw-value enums / flag bitfields with no behavior to test (tests would just be tautologies)
+  - `runtimeOnly`: types impossible to construct stably from tests (e.g., `swift_allocBox`-allocated `GenericBoxHeapMetadata`)
+  - `needsFixtureExtension`: residual entries deferred by toolchain limits (e.g., `MethodDefaultOverrideTable` requires the not-yet-shipped CoroutineAccessors ABI; canonical-specialized-metadata records need the `-prespecialize-generic-metadata` frontend flag)
+
+`MachOSwiftSectionCoverageInvariantTests` enforces four invariants:
+1. Every public method in `Sources/MachOSwiftSection/Models/` has a registered test (or allowlist entry)
+2. Every registered test name maps to an actual public method
+3. Sentinel-tagged keys' Suites must actually have sentinel behavior (no `acrossAllReaders` / `inProcessContext` references)
+4. Sentinel-behavior Suites must be tagged in the allowlist (no silent sentinels)
+
+`SuiteBehaviorScanner` (in `MachOFixtureSupport`) classifies each `@Test func` body by substring presence of `acrossAllReaders` / `acrossAllContexts` / `machOFile` / `machOImage` / `fileContext` / `imageContext` (cross-reader real test) or `usingInProcessOnly` / `inProcessContext` (InProcess-only real test). Helper-call indirection within the same Suite class is recognized via class-scope inheritance.
 
 To add a new public method:
 
 1. Add the method.
 2. Run `swift test --filter MachOSwiftSectionCoverageInvariantTests` to see which Suite needs updating.
-3. Add a `@Test` to that Suite + append the member name to `registeredTestMethodNames`.
-4. Run `swift package --allow-writing-to-package-directory regen-baselines --suite <Name>` to regenerate the baseline.
-5. Re-run the affected Suite.
+3. Add a `@Test` to that Suite, using `acrossAllReaders` for fixture-bound types or `usingInProcessOnly` for runtime-only metadata.
+4. Append the member name to `registeredTestMethodNames`.
+5. Run `swift package --allow-writing-to-package-directory regen-baselines --suite <Name>` to regenerate the baseline.
+6. Re-run the affected Suite.
 
 To regenerate all baselines after fixture rebuild or toolchain upgrade:
 
