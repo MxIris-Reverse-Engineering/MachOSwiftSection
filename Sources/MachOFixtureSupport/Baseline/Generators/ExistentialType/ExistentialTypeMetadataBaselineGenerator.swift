@@ -77,7 +77,7 @@ package enum ExistentialTypeMetadataBaselineGenerator {
             )
 
             static let stdlibAnyObjectExistential = Entry(
-                kindRawValue: \(raw: BaselineEmitter.hex(anyMetadata.kind.rawValue)),
+                kindRawValue: \(raw: BaselineEmitter.hex(anyObjectMetadata.kind.rawValue)),
                 flagsRawValue: \(raw: BaselineEmitter.hex(anyObjectMetadata.layout.flags.rawValue)),
                 numberOfProtocols: \(raw: BaselineEmitter.hex(anyObjectMetadata.layout.numberOfProtocols)),
                 isClassBounded: \(literal: anyObjectIsClassBounded),
