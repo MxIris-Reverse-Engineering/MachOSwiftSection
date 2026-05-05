@@ -711,4 +711,24 @@ package enum BaselineFixturePicker {
     // relationship can be walked back) would let those Suites use a
     // live carrier.
 
+    /// Picks the SymbolTestsCore struct
+    /// `GenericValueFixtures.FixedSizeArray<let N: Int, T>` — a generic
+    /// type that declares one integer-value parameter (`N`) and one
+    /// type parameter (`T`). The Swift compiler emits an extra
+    /// `GenericValueHeader` followed by one `GenericValueDescriptor`
+    /// (with `GenericValueType.int`) on the struct's generic context
+    /// (the `GenericContextDescriptorFlags.hasValues` bit is set).
+    /// Phase B7 added the fixture so that the
+    /// `GenericValueDescriptor` and `GenericValueHeader` Suites have
+    /// live carriers for cross-reader equality assertions.
+    package static func struct_FixedSizeArray(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO) == "FixedSizeArray"
+            })
+        )
+    }
+
 }

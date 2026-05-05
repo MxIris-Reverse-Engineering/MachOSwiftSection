@@ -1,18 +1,30 @@
 import Foundation
 import SwiftSyntax
 import SwiftSyntaxBuilder
+import MachOFoundation
+@testable import MachOSwiftSection
 
 /// Emits `__Baseline__/GenericValueHeaderBaseline.swift`.
 ///
 /// `GenericValueHeader` is the trailing-object header announcing the
 /// integer-value-parameter array on a generic context whose
-/// `GenericContextDescriptorFlags.hasValues` bit is set. The
-/// `SymbolTestsCore` fixture does NOT declare any integer-value generic
-/// type, so a live header cannot be sourced. The baseline records only
-/// the registered member names; the Suite documents the missing runtime
-/// coverage.
+/// `GenericContextDescriptorFlags.hasValues` bit is set. It records
+/// `numValues` (UInt32).
+///
+/// Phase B7 introduced `GenericValueParameters.swift` so that
+/// `GenericValueFixtures.FixedSizeArray<let N: Int, T>` surfaces a
+/// single `GenericValueHeader` on its generic context.
 package enum GenericValueHeaderBaselineGenerator {
-    package static func generate(outputDirectory: URL) throws {
+    package static func generate(
+        in machO: some MachOSwiftSectionRepresentableWithCache,
+        outputDirectory: URL
+    ) throws {
+        let descriptor = try BaselineFixturePicker.struct_FixedSizeArray(in: machO)
+        let context = try required(try descriptor.typeGenericContext(in: machO))
+        let header = try required(context.valueHeader)
+
+        let entryExpr = emitEntryExpr(for: header)
+
         // Public members declared directly in GenericValueHeader.swift.
         // `init(layout:offset:)` is filtered as memberwise-synthesized.
         let registered = [
@@ -20,26 +32,42 @@ package enum GenericValueHeaderBaselineGenerator {
             "offset",
         ]
 
-        let header = """
+        let headerComment = """
         // AUTO-GENERATED — DO NOT EDIT.
         // Regenerate via: Scripts/regen-baselines.sh
         // Source fixture: SymbolTestsCore.framework
-        //
-        // The SymbolTestsCore fixture does not declare any integer-value
-        // generic type, so a live GenericValueHeader cannot be sourced.
-        // The Suite documents the missing runtime coverage.
         """
 
         let file: SourceFileSyntax = """
-        \(raw: header)
+        \(raw: headerComment)
 
         enum GenericValueHeaderBaseline {
             static let registeredTestMethodNames: Set<String> = \(literal: registered)
+
+            struct Entry {
+                let offset: Int
+                let layoutNumValues: UInt32
+            }
+
+            static let fixedSizeArrayHeader = \(raw: entryExpr)
         }
         """
 
         let formatted = file.formatted().description + "\n"
         let outputURL = outputDirectory.appendingPathComponent("GenericValueHeaderBaseline.swift")
         try formatted.write(to: outputURL, atomically: true, encoding: .utf8)
+    }
+
+    private static func emitEntryExpr(for header: GenericValueHeader) -> String {
+        let offset = header.offset
+        let numValues = header.layout.numValues
+
+        let expr: ExprSyntax = """
+        Entry(
+            offset: \(raw: BaselineEmitter.hex(offset)),
+            layoutNumValues: \(literal: numValues)
+        )
+        """
+        return expr.description
     }
 }

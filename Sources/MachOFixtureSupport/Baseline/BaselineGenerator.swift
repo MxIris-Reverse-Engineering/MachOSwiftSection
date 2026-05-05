@@ -476,9 +476,9 @@ package enum BaselineGenerator {
         case "GenericRequirementFlags":
             try GenericRequirementFlagsBaselineGenerator.generate(outputDirectory: outputDirectory)
         case "GenericValueDescriptor":
-            try GenericValueDescriptorBaselineGenerator.generate(outputDirectory: outputDirectory)
+            try GenericValueDescriptorBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         case "GenericValueHeader":
-            try GenericValueHeaderBaselineGenerator.generate(outputDirectory: outputDirectory)
+            try GenericValueHeaderBaselineGenerator.generate(in: machOFile, outputDirectory: outputDirectory)
         case "GenericWitnessTable":
             try GenericWitnessTableBaselineGenerator.generate(outputDirectory: outputDirectory)
         case "TypeGenericContextDescriptorHeader":

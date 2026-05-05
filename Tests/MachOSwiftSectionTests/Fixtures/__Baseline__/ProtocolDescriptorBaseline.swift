@@ -14,7 +14,7 @@ enum ProtocolDescriptorBaseline {
     }
 
     static let protocolTest = Entry(
-    offset: 0x365d4,
+    offset: 0x36698,
     layoutNumRequirementsInSignature: 1,
     layoutNumRequirements: 4,
     layoutFlagsRawValue: 0x30043,

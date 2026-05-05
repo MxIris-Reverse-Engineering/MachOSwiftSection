@@ -26,7 +26,7 @@ enum ClassDescriptorBaseline {
     }
 
     static let classTest = Entry(
-    offset: 0x33860,
+    offset: 0x338d0,
     layoutNumFields: 0,
     layoutFieldOffsetVectorOffset: 10,
     layoutNumImmediateMembers: 9,
@@ -46,7 +46,7 @@ enum ClassDescriptorBaseline {
     )
 
     static let subclassTest = Entry(
-    offset: 0x338dc,
+    offset: 0x3394c,
     layoutNumFields: 0,
     layoutFieldOffsetVectorOffset: 19,
     layoutNumImmediateMembers: 0,

@@ -401,16 +401,6 @@ enum CoverageAllowlistEntries {
             members: ["numUnderlyingTypeArugments"],
             reason: .needsFixtureExtension(detail: "opaque-type descriptor not reachable; protocol extension exercised on synthetic descriptor")
         ),
-        CoverageAllowlistHelpers.sentinelGroup(
-            typeName: "GenericValueDescriptor",
-            members: ["init", "type", "valueType"],
-            reason: .needsFixtureExtension(detail: "no <let N: Int> value-generic type in SymbolTestsCore — Phase B7")
-        ),
-        CoverageAllowlistHelpers.sentinelGroup(
-            typeName: "GenericValueHeader",
-            members: ["init", "numValues"],
-            reason: .needsFixtureExtension(detail: "no <let N: Int> value-generic type in SymbolTestsCore — Phase B7")
-        ),
     ].flatMap { $0 }
 
     // MARK: - pureDataUtility
