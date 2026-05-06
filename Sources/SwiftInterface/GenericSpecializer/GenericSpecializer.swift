@@ -321,6 +321,18 @@ extension GenericSpecializer {
     /// Walk a demangled `LHS` node and split it into the root generic parameter
     /// name plus the ordered chain of associated-type accesses. Returns `nil`
     /// when the structure does not match an `A` or `A.X.Y...` reference.
+    ///
+    /// The protocol child of each `DependentAssociatedTypeRef` may be one of
+    /// three Demangler-emitted shapes (see
+    /// `swift/lib/Demangling/Demangler.cpp:2832-2845` `popAssocTypeName`):
+    ///   - `.type` (resolver wrapped a context tree — the common case);
+    ///   - `.protocolSymbolicReference` (resolver returned `nil` for a Swift
+    ///     protocol — image not loaded, recursion limit, etc.);
+    ///   - `.objectiveCProtocolSymbolicReference` (same but for an Obj-C
+    ///     protocol).
+    /// We accept all three. Downstream resolution (`resolveAssociatedTypeStep`)
+    /// may still fail when looking the protocol up in the indexer, but the
+    /// parsing layer should not silently drop a structurally valid LHS.
     static func extractAssociatedPath(of paramNode: Node) -> AssociatedPathInfo? {
         var current: Node = paramNode
         if current.kind == .type, let inner = current.firstChild {
@@ -342,7 +354,14 @@ extension GenericSpecializer {
                 return nil
             }
             let protocolNode = assocRef.children[1]
-            guard protocolNode.kind == .type else { return nil }
+            switch protocolNode.kind {
+            case .type,
+                 .protocolSymbolicReference,
+                 .objectiveCProtocolSymbolicReference:
+                break
+            default:
+                return nil
+            }
             stepsOuterToInner.append(.init(name: stepName, protocolNode: protocolNode))
 
             guard baseTypeWrapper.kind == .type, let baseInner = baseTypeWrapper.firstChild else {
@@ -545,8 +564,19 @@ extension GenericSpecializer {
             }
         }
 
+        let associatedTypePaths = Set(request.associatedTypeRequirements.map(\.fullPath))
+
         for paramName in selection.selectedParameterNames {
-            if !request.parameters.contains(where: { $0.name == paramName }) {
+            if request.parameters.contains(where: { $0.name == paramName }) {
+                continue
+            }
+            // Distinguish "user typed an associated-type access path" from
+            // "user typed a wrong/typo'd key": the former is a structurally
+            // recognizable mistake (associated types are derived during
+            // specialization) and deserves a more actionable warning.
+            if associatedTypePaths.contains(paramName) {
+                builder.addWarning(.associatedTypePathInSelection(path: paramName))
+            } else {
                 builder.addWarning(.extraArgument(parameterName: paramName))
             }
         }
@@ -575,10 +605,20 @@ extension GenericSpecializer where MachO == MachOImage {
     /// that we'd rather perform once inside `specialize`. Failures there
     /// continue to bubble up via their typed errors.
     ///
-    /// Argument kinds whose metadata cannot be obtained without running the
-    /// type's metadata accessor (`.candidate(...)` and `.specialized(...)`)
-    /// are skipped — they will be validated implicitly during the actual
-    /// `specialize` call.
+    /// Argument-kind handling:
+    ///   - `.metatype` / `.metadata` / `.specialized` are validated. The
+    ///     `.specialized` case already carries a resolved metadata pointer
+    ///     in the `SpecializationResult`, so it's just as cheap as the
+    ///     direct cases.
+    ///   - `.candidate` is skipped (its concrete metadata requires running
+    ///     the candidate's own metadata accessor; `specialize` validates it
+    ///     implicitly via the lookup path).
+    ///
+    /// When the indexer doesn't have a definition for a protocol referenced
+    /// by a requirement, the corresponding conformance check cannot be run.
+    /// In that case the function emits a `.protocolNotInIndexer` warning
+    /// (instead of silently skipping) so callers know validation is
+    /// incomplete and which sub-indexer is missing.
     public func runtimePreflight(
         selection: SpecializationSelection,
         for request: SpecializationRequest
@@ -595,20 +635,39 @@ extension GenericSpecializer where MachO == MachOImage {
                 metadata = resolved
             case .metadata(let provided):
                 metadata = provided
-            case .candidate, .specialized:
-                // Both require running an accessor to resolve concrete
-                // metadata; skip preflight and let `specialize` validate
-                // them as part of its main path.
+            case .specialized(let result):
+                // `SpecializationResult` already carries a resolved metadata
+                // pointer — no accessor call needed; preflight should
+                // exercise the same checks it does for `.metatype`.
+                guard let resolved = try? result.metadata() else { continue }
+                metadata = resolved
+            case .candidate:
+                // The candidate's metadata still requires an accessor call;
+                // leave the actual conformance/layout enforcement to
+                // `specialize`'s candidate-resolution path.
                 continue
             }
 
             for requirement in parameter.requirements {
                 switch requirement {
                 case .protocol(let info) where info.requiresWitnessTable:
-                    guard let indexer,
-                          let protocolDef = indexer.allAllProtocolDefinitions[info.protocolName] else {
-                        // Cannot validate without an indexer — leave it to
-                        // `specialize`, which errors with a typed message.
+                    guard let indexer else {
+                        // No indexer at all — we can never check conformance.
+                        // Surface once per missing-protocol/requirement pair
+                        // so the caller knows validation was a no-op.
+                        builder.addWarning(.protocolNotInIndexer(
+                            parameterName: parameter.name,
+                            protocolName: info.protocolName.name
+                        ))
+                        continue
+                    }
+                    guard let protocolDef = indexer.allAllProtocolDefinitions[info.protocolName] else {
+                        // Indexer present but the protocol's defining image
+                        // isn't included as a sub-indexer.
+                        builder.addWarning(.protocolNotInIndexer(
+                            parameterName: parameter.name,
+                            protocolName: info.protocolName.name
+                        ))
                         continue
                     }
                     let descriptor: MachOSwiftSection.`Protocol`
@@ -747,6 +806,20 @@ extension GenericSpecializer where MachO == MachOImage {
             substituting: metadataByParamName
         )
         witnessTables.append(contentsOf: associatedTypeWitnesses)
+
+        // Defensive invariant — the accessor expects exactly
+        // `numKeyArguments` slots (metadatas first, then PWTs in canonical
+        // order). If `buildParameters` / `collectRequirements` /
+        // `buildAssociatedTypeRequirements` ever miscount, we'd send the
+        // wrong number of args and the runtime would fail opaquely.
+        // Reject up front with a typed error so the regression is
+        // immediately attributable.
+        let totalArguments = metadatas.count + witnessTables.count
+        guard totalArguments == request.keyArgumentCount else {
+            throw SpecializerError.specializationFailed(
+                reason: "internal: key argument count mismatch — request expects \(request.keyArgumentCount) (header.numKeyArguments), built \(totalArguments) (\(metadatas.count) metadatas + \(witnessTables.count) witness tables)"
+            )
+        }
 
         // Get metadata accessor function
         let accessorFunction = try typeDescriptor.typeContextDescriptor.metadataAccessorFunction()

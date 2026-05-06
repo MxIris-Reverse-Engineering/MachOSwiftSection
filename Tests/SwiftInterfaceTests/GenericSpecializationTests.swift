@@ -1613,6 +1613,333 @@ struct GenericSpecializationTests {
         // Set equality — both bits must be present and nothing else.
         #expect(invertible == InvertibleProtocolSet([.copyable, .escapable]))
     }
+
+    // MARK: - ABI invariant: same-named associated type from two unrelated protocols
+    //
+    // Locks the Swift compiler's GenericSignature minimization behaviour:
+    // when two unrelated protocols both declare `associatedtype Element` and
+    // a generic parameter conforms to BOTH, `A.Element` references in the
+    // emitted requirements canonicalize to a SINGLE declaring protocol
+    // (chosen by RequirementMachine's reduction order — empirically the
+    // lexicographically earlier protocol). The binary never emits two
+    // distinct LHS forms (`A.[P:Element]` vs `A.[Q:Element]`).
+    //
+    // This invariant lets `AssociatedTypeRequirementKey = (parameterName,
+    // [stepName])` aggregate by name without losing protocol identity:
+    // there is only ever one protocol tag per (parameter, name) in the
+    // canonical signature, so two requirements landing on the same path
+    // genuinely describe constraints on the same dependent member type.
+    //
+    // If a future Swift toolchain regresses this — emitting both
+    // `A.[PWithElement:Element]` and `A.[QWithElement:Element]` separately
+    // — the assertion below trips and the aggregation key in
+    // `buildAssociatedTypeRequirements` needs to start including the
+    // step's protocolNode.
+
+    protocol PWithElement {
+        associatedtype Element: Hashable
+        func produceElement() -> Element
+    }
+
+    protocol QWithElement {
+        associatedtype Element: Comparable
+        func consumeElement(_: Element)
+    }
+
+    struct DualElementStruct<A: PWithElement & QWithElement> where A.Element: Codable {
+        let value: A
+    }
+
+    @Test func dualProtocolSameNamedAssociatedTypeIsCanonicalized() throws {
+        let descriptor = try structDescriptor(named: "DualElementStruct")
+        let genericContext = try #require(try descriptor.genericContext(in: machO))
+
+        // Walk every requirement's LHS, collecting the declaring protocol
+        // identity for any `A.Element`-rooted dependent member type.
+        var protocolIdentities: Set<String> = []
+        var elementRequirementCount = 0
+        for req in genericContext.requirements {
+            let mangled = try req.paramMangledName(in: machO)
+            let node = try MetadataReader.demangleType(for: mangled, in: machO)
+            guard let path = GenericSpecializer<MachOImage>.extractAssociatedPath(of: node),
+                  !path.steps.isEmpty,
+                  path.baseParamName == "A",
+                  path.steps.first?.name == "Element" else {
+                continue
+            }
+            elementRequirementCount += 1
+            protocolIdentities.insert(
+                path.steps[0].protocolNode.print(using: .interfaceTypeBuilderOnly)
+            )
+        }
+
+        // Sanity: with `where A.Element: Codable`, the binary emits two
+        // requirements (Decodable + Encodable, the two real PWT-bearing
+        // protocols Codable expands to). If this number changes, the
+        // fixture's invariant has shifted in a way the test author should
+        // re-verify.
+        #expect(elementRequirementCount == 2)
+
+        // The actual claim: every `A.Element` requirement references the
+        // SAME declaring protocol after canonicalization.
+        #expect(
+            protocolIdentities.count == 1,
+            "GenericSignature minimization should pick one canonical protocol for A.Element; saw \(protocolIdentities)"
+        )
+    }
+
+    // MARK: - Bug reproduction: #5 runtimePreflight skips .specialized
+    //
+    // The pre-fix `runtimePreflight` had `.specialized` in its skip-list,
+    // claiming it required running an accessor to obtain the metadata. But
+    // a `SpecializationResult` already holds a resolved metadata pointer —
+    // there's no accessor to run. The skip silently let through specialized
+    // arguments whose result type didn't satisfy the target's protocol
+    // requirements. Failure surfaced inside `specialize` as the much vaguer
+    // `witnessTableNotFound`.
+
+    @Test func runtimePreflightCatchesProtocolMismatchOnSpecializedArgument() async throws {
+        let unconstrainedDescriptor = try structDescriptor(named: "TestUnconstrainedStruct")
+        let specializer = GenericSpecializer(indexer: indexer)
+        let unconstrainedRequest = try specializer.makeRequest(
+            for: TypeContextDescriptorWrapper.struct(unconstrainedDescriptor)
+        )
+
+        // `TestUnconstrainedStruct<Int>` does NOT conform to Hashable —
+        // the struct itself has no Hashable conformance, regardless of A.
+        let unconstrainedResult = try specializer.specialize(
+            unconstrainedRequest,
+            with: ["A": .metatype(Int.self)]
+        )
+
+        // Now feed it where Hashable is required.
+        let singleDescriptor = try structDescriptor(named: "TestSingleProtocolStruct")
+        let singleRequest = try specializer.makeRequest(
+            for: TypeContextDescriptorWrapper.struct(singleDescriptor)
+        )
+
+        let badSelection: SpecializationSelection = ["A": .specialized(unconstrainedResult)]
+
+        let preflight = specializer.runtimePreflight(selection: badSelection, for: singleRequest)
+        #expect(!preflight.isValid, "preflight must catch Hashable mismatch on .specialized argument")
+
+        let hasProtocolError = preflight.errors.contains { error in
+            if case .protocolRequirementNotSatisfied(_, let proto, _) = error {
+                return proto.contains("Hashable")
+            }
+            return false
+        }
+        #expect(hasProtocolError, "expected protocolRequirementNotSatisfied for Hashable")
+
+        // And `specialize` should reject with the same diagnostic, not the
+        // vaguer `witnessTableNotFound` it surfaced before the fix.
+        do {
+            _ = try specializer.specialize(singleRequest, with: badSelection)
+            Issue.record("specialize must reject the bad .specialized argument")
+        } catch let error as GenericSpecializer<MachOImage>.SpecializerError {
+            if case .specializationFailed(let reason) = error {
+                #expect(reason.contains("Hashable"))
+            } else {
+                Issue.record("expected specializationFailed, got \(error)")
+            }
+        }
+    }
+
+    // MARK: - Bug reproduction: #1 specialize doesn't self-check keyArgumentCount
+    //
+    // The accessor takes `numKeyArguments` slots: `parameters.count`
+    // metadatas + `protocol-PWTs + assoc-PWTs`. If our parameter discovery
+    // or PWT collection ever miscounts (regression in `buildParameters` /
+    // `collectRequirements` / `buildAssociatedTypeRequirements`), we'd send
+    // the wrong number of args to the accessor and fail opaquely deep in
+    // the runtime. Adding a count assertion converts that silent failure
+    // into a typed `specializationFailed` with a clear message.
+
+    @Test func specializeRejectsMismatchedKeyArgumentCount() async throws {
+        let descriptor = try structDescriptor(named: "TestSingleProtocolStruct")
+        let specializer = GenericSpecializer(indexer: indexer)
+        let realRequest = try specializer.makeRequest(
+            for: TypeContextDescriptorWrapper.struct(descriptor)
+        )
+
+        // Tampered request: claims a different keyArgumentCount than
+        // parameters/requirements actually total.
+        let tamperedRequest = SpecializationRequest(
+            typeDescriptor: realRequest.typeDescriptor,
+            parameters: realRequest.parameters,
+            associatedTypeRequirements: realRequest.associatedTypeRequirements,
+            keyArgumentCount: realRequest.keyArgumentCount + 5
+        )
+
+        do {
+            _ = try specializer.specialize(tamperedRequest, with: ["A": .metatype(Int.self)])
+            Issue.record("specialize must reject mismatched keyArgumentCount before invoking the accessor")
+        } catch let error as GenericSpecializer<MachOImage>.SpecializerError {
+            if case .specializationFailed(let reason) = error {
+                #expect(
+                    reason.lowercased().contains("key argument") || reason.lowercased().contains("count"),
+                    "error message should mention key argument count, got: \(reason)"
+                )
+            } else {
+                Issue.record("expected specializationFailed, got \(error)")
+            }
+        }
+    }
+
+    // MARK: - Bug reproduction: #4 runtimePreflight silently passes when
+    // indexer is missing a required protocol
+    //
+    // When the protocol referenced by a parameter requirement isn't in the
+    // indexer, `runtimePreflight` skips the conformance check entirely —
+    // it can't construct the protocol descriptor to call
+    // `swift_conformsToProtocol`. The fix surfaces this as a typed warning
+    // so the user knows to add another sub-indexer instead of getting a
+    // misleading `witnessTableNotFound` from `specialize`.
+
+    @Test func runtimePreflightSurfacesIndexerMissingProtocolWarning() async throws {
+        // Build an indexer that has the test image but NOT libswiftCore —
+        // so `Hashable` (defined in libswiftCore) won't be found.
+        let bareIndexer = SwiftInterfaceIndexer(in: machO)
+        try await bareIndexer.prepare()
+
+        // Sanity: `TestSingleProtocolStruct<A: Hashable>` is in `machO`,
+        // so makeRequest still works (descriptors are read directly from
+        // the binary, not from the indexer).
+        let descriptor = try structDescriptor(named: "TestSingleProtocolStruct")
+        let specializer = GenericSpecializer(indexer: bareIndexer)
+        let request = try specializer.makeRequest(
+            for: TypeContextDescriptorWrapper.struct(descriptor)
+        )
+        #expect(request.parameters.count == 1)
+        #expect(request.parameters[0].protocolRequirements.count == 1)
+
+        // Pass a fully valid Hashable conformer. The bug: with libswiftCore
+        // missing from the indexer, preflight has no way to look up the
+        // protocol descriptor, so it skips the conformance check. That's
+        // fine on its own — but the user has no signal that validation is
+        // incomplete.
+        let preflight = specializer.runtimePreflight(
+            selection: ["A": .metatype(Int.self)],
+            for: request
+        )
+
+        // Expect a warning informing the user that a protocol couldn't be
+        // checked because it's not in the indexer.
+        let hasMissingProtocolWarning = preflight.warnings.contains { warning in
+            if case .protocolNotInIndexer(_, let proto) = warning {
+                return proto.contains("Hashable")
+            }
+            return false
+        }
+        #expect(
+            hasMissingProtocolWarning,
+            "preflight must warn when a parameter's protocol requirement is missing from the indexer; got warnings=\(preflight.warnings), errors=\(preflight.errors)"
+        )
+    }
+
+    // MARK: - Bug reproduction: #15 validate doesn't distinguish
+    // associated-type path from a typo
+    //
+    // `validate` flags any selection key not in `request.parameters` as
+    // `.extraArgument`. A user who mistakenly tries to set an
+    // associated-type path (`"A.Element"`) gets the same generic warning
+    // as someone who typo'd `"Z"`. The path is structured (it appears in
+    // `associatedTypeRequirements[*].fullPath`) so a more specific warning
+    // is possible.
+
+    @Test func validateGivesSpecificWarningForAssociatedTypePath() async throws {
+        let descriptor = try structDescriptor(named: "TestNestedAssociatedStruct")
+        let specializer = GenericSpecializer(
+            machO: machO,
+            conformanceProvider: EmptyConformanceProvider()
+        )
+        let request = try specializer.makeRequest(
+            for: TypeContextDescriptorWrapper.struct(descriptor)
+        )
+
+        // Sanity: this fixture has A.Element as a real associated-type path.
+        #expect(request.associatedTypeRequirements.contains { $0.fullPath == "A.Element" })
+
+        let selection: SpecializationSelection = [
+            "A": .metatype([[Int]].self),
+            "A.Element": .metatype(Int.self),
+        ]
+        let validation = specializer.validate(selection: selection, for: request)
+        #expect(validation.isValid, "associated-type path is a warning, not an error")
+
+        let hasSpecific = validation.warnings.contains { warning in
+            if case .associatedTypePathInSelection(let path) = warning {
+                return path == "A.Element"
+            }
+            return false
+        }
+        #expect(
+            hasSpecific,
+            "validate must distinguish an associated-type path (derived; not user-supplied) from a generic extra argument; got \(validation.warnings)"
+        )
+    }
+
+    // MARK: - Bug reproduction: #3 extractAssociatedPath returns nil for
+    // a bare ProtocolSymbolicReference
+    //
+    // The Swift demangler in `popAssocTypeName`
+    // (`swift/lib/Demangling/Demangler.cpp:2832-2845`) accepts three
+    // protocol-shaped nodes for the second child of
+    // `DependentAssociatedTypeRef`:
+    //   - `.type` (when the symbolic-ref resolver succeeded and returned
+    //     a wrapped tree)
+    //   - `.protocolSymbolicReference` (resolver returned nil)
+    //   - `.objectiveCProtocolSymbolicReference` (resolver returned nil)
+    //
+    // The current `extractAssociatedPath` only accepts `.type`. The other
+    // two — which arise when MetadataReader's resolver fails — fall
+    // through to a `nil` return, which then becomes a silent
+    // `continue` in `buildAssociatedTypeRequirements` or a typed
+    // `unknownParamNodeStructure` error in `resolveAssociatedTypeWitnesses`.
+    //
+    // This test pins the current behavior; the fix should at least give
+    // both call sites a consistent (typed) error rather than silent skip
+    // vs. throw.
+
+    @Test func extractAssociatedPathHandlesBareProtocolSymbolicReference() throws {
+        // Build the LHS for a hypothetical `A.Element: …` requirement
+        // whose protocol child failed to resolve symbolically. The tree
+        // mirrors what the demangler emits when the resolver returns nil:
+        //   .type
+        //     .dependentMemberType
+        //       .type → .dependentGenericParamType (depth=0, index=0)
+        //       .dependentAssociatedTypeRef
+        //         .identifier "Element"
+        //         .protocolSymbolicReference 42      ← bare, NOT in .type
+        let bareSymbolicRef = Node.create(kind: .protocolSymbolicReference, index: 42)
+        let nameNode = Node.create(kind: .identifier, text: "Element")
+        let assocRef = Node.create(kind: .dependentAssociatedTypeRef, children: [
+            nameNode,
+            bareSymbolicRef,
+        ])
+        let baseDepth = Node.create(kind: .index, index: 0)
+        let baseIndex = Node.create(kind: .index, index: 0)
+        let baseGP = Node.create(kind: .dependentGenericParamType, children: [baseDepth, baseIndex])
+        let dependent = Node.create(kind: .dependentMemberType, children: [
+            Node.create(kind: .type, children: [baseGP]),
+            assocRef,
+        ])
+        let outer = Node.create(kind: .type, children: [dependent])
+
+        let path = GenericSpecializer<MachOImage>.extractAssociatedPath(of: outer)
+
+        // Goal of the fix: even when the protocol child is a bare
+        // symbolic ref, the path structure is still recoverable
+        // (baseParamName + step name). Downstream resolution may still
+        // fail at the protocol-descriptor lookup, but the parsing layer
+        // shouldn't punt to nil.
+        let recovered = try #require(
+            path,
+            "extractAssociatedPath must recover the parameter/name pair even when the protocol child is a bare ProtocolSymbolicReference; demangler legitimately emits this when its resolver returns nil"
+        )
+        #expect(recovered.baseParamName == "A")
+        #expect(recovered.steps.map(\.name) == ["Element"])
+    }
 }
 
 extension GenericSpecializationTests.TestInvertedCopyableStruct: Copyable where A: Copyable {}

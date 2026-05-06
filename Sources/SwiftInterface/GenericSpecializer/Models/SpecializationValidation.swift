@@ -76,10 +76,25 @@ extension SpecializationValidation {
         /// Extra argument provided that is not needed
         case extraArgument(parameterName: String)
 
+        /// User supplied a key matching an associated-type path
+        /// (e.g. "A.Element"). Associated types are derived during
+        /// specialization and cannot be set directly; the entry is ignored.
+        case associatedTypePathInSelection(path: String)
+
+        /// A parameter requirement references a protocol that the indexer
+        /// doesn't have a definition for, so runtime preflight cannot
+        /// validate conformance. Add the protocol's defining image as a
+        /// sub-indexer to enable the check.
+        case protocolNotInIndexer(parameterName: String, protocolName: String)
+
         public var description: String {
             switch self {
             case .extraArgument(let param):
                 return "Extra argument '\(param)' is not needed for this specialization"
+            case .associatedTypePathInSelection(let path):
+                return "Selection key '\(path)' refers to an associated-type path; associated types are derived from the substituted parameter and cannot be set directly"
+            case .protocolNotInIndexer(let param, let proto):
+                return "Cannot validate conformance of parameter '\(param)' to '\(proto)': protocol descriptor not found in indexer (add the defining image as a sub-indexer to enable the check)"
             }
         }
     }
