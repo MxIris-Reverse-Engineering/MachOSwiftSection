@@ -454,6 +454,10 @@ extension Target {
             .target(.SwiftInspection),
             .target(.SwiftDump),
             .target(.Utilities),
+        ],
+        exclude: [
+            "GenericSpecializer/IMPLEMENTATION_PLAN.md",
+            "GenericSpecializer/REVIEW_FIXUPS.md",
         ]
     )
 

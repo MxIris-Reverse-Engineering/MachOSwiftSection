@@ -1,6 +1,5 @@
 import Foundation
 import MachOSwiftSection
-import OrderedCollections
 
 /// Result of generic type specialization
 public struct SpecializationResult: @unchecked Sendable {
@@ -66,31 +65,6 @@ extension SpecializationResult {
     /// Get resolved argument for a parameter
     public func argument(for parameterName: String) -> ResolvedArgument? {
         resolvedArguments.first { $0.parameterName == parameterName }
-    }
-
-    /// Get field offsets from the specialized metadata (struct only)
-    /// - Returns: Array of field offsets in bytes
-    public func fieldOffsets() throws -> [UInt32] {
-        let wrapper = try resolveMetadata()
-        switch wrapper {
-        case .struct(let structMetadata):
-            return try structMetadata.fieldOffsets()
-        default:
-            return []
-        }
-    }
-
-    /// Get field offsets from the specialized metadata with MachO context
-    /// - Parameter machO: The MachO image
-    /// - Returns: Array of field offsets in bytes
-    public func fieldOffsets<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> [UInt32] {
-        let wrapper = try resolveMetadata()
-        switch wrapper {
-        case .struct(let structMetadata):
-            return try structMetadata.fieldOffsets(in: machO)
-        default:
-            return []
-        }
     }
 
     /// Get the value witness table for layout information

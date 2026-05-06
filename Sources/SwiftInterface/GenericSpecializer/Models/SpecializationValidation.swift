@@ -46,50 +46,12 @@ extension SpecializationValidation {
             actualType: String
         )
 
-        /// Selected type does not satisfy a same-type requirement
-        case sameTypeRequirementNotSatisfied(
-            parameterName: String,
-            expectedType: String,
-            actualType: String
-        )
-
-        /// Selected type does not satisfy a base class requirement
-        case baseClassRequirementNotSatisfied(
-            parameterName: String,
-            expectedBaseClass: String,
-            actualType: String
-        )
-
         /// Selected type does not satisfy a layout requirement
         case layoutRequirementNotSatisfied(
             parameterName: String,
             expectedLayout: SpecializationRequest.LayoutKind,
             actualType: String
         )
-
-        /// Could not resolve candidate type to metadata
-        case candidateResolutionFailed(
-            parameterName: String,
-            candidateTypeName: String,
-            reason: String
-        )
-
-        /// Associated type could not be resolved
-        case associatedTypeResolutionFailed(
-            parameterName: String,
-            associatedTypePath: [String],
-            reason: String
-        )
-
-        /// The selected type is generic and requires further specialization
-        case requiresFurtherSpecialization(
-            parameterName: String,
-            typeName: String,
-            genericParameters: [String]
-        )
-
-        /// Unknown or unexpected error
-        case unknown(String)
 
         public var description: String {
             switch self {
@@ -99,26 +61,8 @@ extension SpecializationValidation {
             case .protocolRequirementNotSatisfied(let param, let proto, let actual):
                 return "Type '\(actual)' for parameter '\(param)' does not conform to protocol '\(proto)'"
 
-            case .sameTypeRequirementNotSatisfied(let param, let expected, let actual):
-                return "Type '\(actual)' for parameter '\(param)' must be same as '\(expected)'"
-
-            case .baseClassRequirementNotSatisfied(let param, let base, let actual):
-                return "Type '\(actual)' for parameter '\(param)' must inherit from '\(base)'"
-
             case .layoutRequirementNotSatisfied(let param, let layout, let actual):
                 return "Type '\(actual)' for parameter '\(param)' does not satisfy layout requirement '\(layout)'"
-
-            case .candidateResolutionFailed(let param, let candidate, let reason):
-                return "Cannot resolve candidate '\(candidate)' for parameter '\(param)': \(reason)"
-
-            case .associatedTypeResolutionFailed(let param, let path, let reason):
-                return "Cannot resolve associated type '\(param).\(path.joined(separator: "."))': \(reason)"
-
-            case .requiresFurtherSpecialization(let param, let type, let genericParams):
-                return "Type '\(type)' for parameter '\(param)' is generic and requires specialization of: \(genericParams.joined(separator: ", "))"
-
-            case .unknown(let message):
-                return "Validation error: \(message)"
             }
         }
     }
@@ -129,29 +73,11 @@ extension SpecializationValidation {
 extension SpecializationValidation {
     /// Validation warning
     public enum Warning: Sendable, CustomStringConvertible {
-        /// The selected type may cause performance issues
-        case potentialPerformanceIssue(
-            parameterName: String,
-            reason: String
-        )
-
-        /// The selected type is deprecated
-        case deprecatedType(
-            parameterName: String,
-            typeName: String
-        )
-
         /// Extra argument provided that is not needed
         case extraArgument(parameterName: String)
 
         public var description: String {
             switch self {
-            case .potentialPerformanceIssue(let param, let reason):
-                return "Parameter '\(param)' may cause performance issues: \(reason)"
-
-            case .deprecatedType(let param, let type):
-                return "Type '\(type)' for parameter '\(param)' is deprecated"
-
             case .extraArgument(let param):
                 return "Extra argument '\(param)' is not needed for this specialization"
             }

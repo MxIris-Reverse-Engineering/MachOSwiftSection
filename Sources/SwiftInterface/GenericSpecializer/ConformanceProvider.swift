@@ -55,10 +55,20 @@ extension ConformanceProvider {
 
 // MARK: - IndexerConformanceProvider
 
-/// ConformanceProvider implementation backed by SwiftInterfaceIndexer
+/// ConformanceProvider implementation backed by SwiftInterfaceIndexer.
 ///
-/// Note: This type is marked as @_spi(Support) because it depends on SwiftInterfaceIndexer
-/// which is also SPI. Use the factory method on GenericSpecializer to create instances.
+/// **Preparation contract.** The wrapped `SwiftInterfaceIndexer` must have
+/// completed `prepare()` before this provider is queried — `findCandidates`
+/// reads `allConformingTypesByProtocolName` / `allAllTypeDefinitions`, which
+/// the indexer populates lazily during preparation. The class is marked
+/// `@unchecked Sendable` to keep the API ergonomic when stored on a long-
+/// lived `GenericSpecializer`, but it does *not* protect against concurrent
+/// reads while preparation is still mutating the indexer's storage; callers
+/// must order `await indexer.prepare()` before passing the indexer here.
+///
+/// Note: This type is marked as `@_spi(Support)` because it depends on
+/// `SwiftInterfaceIndexer`, which is also SPI. Use the factory initializer
+/// on `GenericSpecializer` to create instances.
 @_spi(Support)
 public final class IndexerConformanceProvider<MachO: MachOSwiftSectionRepresentableWithCache>: @unchecked Sendable {
     private let indexer: SwiftInterfaceIndexer<MachO>

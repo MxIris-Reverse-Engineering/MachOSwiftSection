@@ -7,12 +7,22 @@ import OrderedCollections
 
 // MARK: - GenericSpecializer
 
-/// Specializer for generic Swift types
+/// Specializer for generic Swift types.
 ///
 /// Provides an interactive API for specializing generic types:
-/// 1. Call `makeRequest(for:)` to get parameters and candidate types
-/// 2. User selects concrete types for each parameter
-/// 3. Call `specialize(_:with:)` to execute specialization
+/// 1. Call `makeRequest(for:)` to get parameters and candidate types.
+/// 2. User selects concrete types for each parameter.
+/// 3. Call `specialize(_:with:)` to execute specialization.
+///
+/// **MachO mode requirement.** `specialize(_:with:)`,
+/// `runtimePreflight(selection:for:)`, and `resolveAssociatedTypeWitnesses`
+/// are only available when `MachO == MachOImage` — they invoke runtime
+/// metadata accessors (`swift_getGenericMetadata`,
+/// `swift_conformsToProtocol`, `swift_getAssociatedTypeWitness`) which
+/// require the type's image to be currently loaded into the running
+/// process. `makeRequest(for:)` and `validate(selection:for:)` work for
+/// any `MachO` — non-image specializers can still inspect parameters,
+/// requirements, and candidate lists; they just cannot resolve metadata.
 @_spi(Support)
 public final class GenericSpecializer<MachO: MachOSwiftSectionRepresentableWithCache>: @unchecked Sendable {
 
@@ -100,18 +110,27 @@ extension GenericSpecializer {
     /// inherited requirements at depth ≥ 2.
     ///
     /// Conditional requirements live in their own section (see
-    /// `GenMeta.cpp:1432`) and describe the `where` clauses of
-    /// `extension X: Copyable / Escapable` style conformances. Swift's
-    /// frontend rejects `inverse_cannot_be_conditional_on_requirement`
-    /// (DiagnosticsSema.def:8200) for any non-invertible requirement in
-    /// such a clause, so the section in practice only ever contains
-    /// `.invertedProtocols` records — those are exactly what
-    /// `collectInvertibleProtocols` needs to read in order to surface
-    /// invertible suppressions on `Parameter.invertibleProtocols`. Every
-    /// other consumer (`collectRequirements`, `buildAssociatedTypeRequirements`,
-    /// `resolveAssociatedTypeWitnesses`) ignores `.invertedProtocols`
-    /// records by kind, so merging them in is free of side effects on
-    /// PWT counts.
+    /// `addConditionalInvertedProtocols` at `GenMeta.cpp:1381`) and describe
+    /// the `where` clauses of `extension X: Copyable / Escapable` style
+    /// conformances. The section is written via
+    /// `addGenericRequirements(genericSig, conformance->getConditionalRequirements(), inverses)`,
+    /// so it can carry both:
+    ///   - `.protocol` records — but `inverse_cannot_be_conditional_on_requirement`
+    ///     (`DiagnosticsSema.def:8200`, enforced at `TypeCheckInvertible.cpp:198`)
+    ///     restricts these to direct-GP `: thisInvertibleProtocol`, i.e. only
+    ///     marker invertibles (`Copyable` / `Escapable` / `BitwiseCopyable`)
+    ///     with `hasKeyArgument == false`.
+    ///   - `.invertedProtocols` records — for any inverses in the conditional
+    ///     context.
+    /// `collectInvertibleProtocols` is the only consumer that cares about the
+    /// `.invertedProtocols` half. The other consumers
+    /// (`collectRequirements`, `buildAssociatedTypeRequirements`,
+    /// `resolveAssociatedTypeWitnesses`) ignore `.invertedProtocols` by kind
+    /// and additionally drop marker `.protocol` records via the
+    /// `hasKeyArgument` filter (`collectRequirements` line 266–269 / the
+    /// `flags.contains(.hasKeyArgument)` guard in
+    /// `resolveAssociatedTypeWitnesses`), so merging conditional records here
+    /// is free of side effects on PWT counts.
     private static func mergedRequirements(
         from genericContext: GenericContext
     ) -> [GenericRequirementDescriptor] {
@@ -727,9 +746,7 @@ extension GenericSpecializer where MachO == MachOImage {
             for: typeDescriptor,
             substituting: metadataByParamName
         )
-        for (_, pwts) in associatedTypeWitnesses {
-            witnessTables.append(contentsOf: pwts)
-        }
+        witnessTables.append(contentsOf: associatedTypeWitnesses)
 
         // Get metadata accessor function
         let accessorFunction = try typeDescriptor.typeContextDescriptor.metadataAccessorFunction()
@@ -861,24 +878,33 @@ extension GenericSpecializer where MachO == MachOImage {
 @_spi(Support)
 extension GenericSpecializer where MachO == MachOImage {
 
-    /// Resolve associated type witness tables for a generic type's requirements
+    /// Resolve associated type witness tables for a generic type's requirements.
     ///
-    /// Processes the generic requirements to find associated type constraints (e.g., A.Element: Hashable)
-    /// and resolves the corresponding witness tables using runtime functions.
+    /// Processes the generic requirements to find associated type constraints
+    /// (e.g. `A.Element: Hashable`) and resolves the corresponding witness
+    /// tables using runtime functions.
+    ///
+    /// The returned array is in canonical (binary) requirement order — the
+    /// same order Swift's `compareDependentTypes`
+    /// (`swift/lib/AST/GenericSignature.cpp:846`) emits the witness-table
+    /// slots into the metadata accessor's argument list. Callers are
+    /// expected to splice this array into their PWT list **after** the
+    /// direct-GP PWTs.
     ///
     /// - Parameters:
     ///   - type: The generic type descriptor
     ///   - genericArguments: Mapping from parameter name to resolved metadata
-    /// - Returns: Ordered dictionary mapping associated type metadata to their witness tables
+    /// - Returns: Witness tables, in canonical binary order, for every
+    ///   associated-type requirement reachable from this descriptor.
     func resolveAssociatedTypeWitnesses(
         for type: TypeContextDescriptorWrapper,
         substituting genericArguments: [String: Metadata]
-    ) throws -> OrderedDictionary<Metadata, [ProtocolWitnessTable]> {
+    ) throws -> [ProtocolWitnessTable] {
         guard let indexer else {
             throw AssociatedTypeResolutionError.missingIndexer
         }
 
-        var results: OrderedDictionary<Metadata, [ProtocolWitnessTable]> = [:]
+        var results: [ProtocolWitnessTable] = []
 
         guard let genericContextInProcess = try type.genericContext() else {
             throw AssociatedTypeResolutionError.missingGenericContext(typeDescriptor: type)
@@ -940,7 +966,16 @@ extension GenericSpecializer where MachO == MachOImage {
                 )
             }
 
-            results[currentMetadata, default: []].append(associatedTypePWT)
+            // Append in iteration (= binary) order. A previous version
+            // grouped PWTs into an `OrderedDictionary<Metadata, [PWT]>`
+            // keyed by leaf metadata; updates kept the original key
+            // position, so when two distinct chains landed on the same
+            // leaf and a third chain in between landed on a different
+            // leaf, flattening the dictionary's values misordered the
+            // PWT slots relative to `compareDependentTypes`. See
+            // `associatedWitnessOrderingPreservesBinaryOrder` /
+            // `specializeMatchesManualBinaryOrder` for the reproduction.
+            results.append(associatedTypePWT)
         }
 
         return results
@@ -1098,9 +1133,6 @@ extension GenericSpecializer {
     /// Errors that can occur during specialization
     public enum SpecializerError: Error, LocalizedError {
         case notGenericType(type: TypeContextDescriptorWrapper)
-        case missingGenericContext
-        case invalidParameterIndex(index: Int, max: Int)
-        case requirementParsingFailed(reason: String)
         case candidateResolutionFailed(candidate: SpecializationRequest.Candidate, reason: String)
         case candidateRequiresNestedSpecialization(
             candidate: SpecializationRequest.Candidate,
@@ -1115,12 +1147,6 @@ extension GenericSpecializer {
             switch self {
             case .notGenericType(let type):
                 return "Type is not generic: \(type)"
-            case .missingGenericContext:
-                return "Missing generic context"
-            case .invalidParameterIndex(let index, let max):
-                return "Invalid parameter index \(index), maximum is \(max)"
-            case .requirementParsingFailed(let reason):
-                return "Failed to parse requirement: \(reason)"
             case .candidateResolutionFailed(let candidate, let reason):
                 return "Failed to resolve candidate \(candidate.typeName.name): \(reason)"
             case .candidateRequiresNestedSpecialization(let candidate, let parameterCount):
