@@ -456,7 +456,6 @@ extension Target {
             .target(.Utilities),
         ],
         exclude: [
-            "GenericSpecializer/IMPLEMENTATION_PLAN.md",
             "GenericSpecializer/REVIEW_FIXUPS.md",
         ]
     )
