@@ -140,7 +140,7 @@ struct GenericSpecializationTests {
                 #require(try RuntimeFunctions.conformsToProtocol(metatype: AMetatype, protocolType: AProtocol)),
                 #require(try RuntimeFunctions.conformsToProtocol(metatype: BMetatype, protocolType: BProtocol)),
                 #require(try RuntimeFunctions.conformsToProtocol(metatype: CMetatype, protocolType: CProtocol)),
-            ] + associatedTypeWitnesses.values.flatMap { $0 }
+            ] + associatedTypeWitnesses
         )
         try #expect(#require(metadata.value.resolve().struct).fieldOffsets() == [0, 8, 16])
     }
@@ -1082,6 +1082,537 @@ struct GenericSpecializationTests {
             "P5: bare `A` must appear once; pre-fix cumulative iteration produced \(bareACount) occurrences in tokens \(tokens)"
         )
     }
+
+    // MARK: - Associated-type PWT order with same-leaf interleaving
+    //
+    // Regression coverage for the previously-buggy
+    // `GenericSpecializer.resolveAssociatedTypeWitnesses`. An earlier
+    // implementation returned `OrderedDictionary<Metadata, [PWT]>` keyed
+    // by the *leaf* metadata of each requirement chain, and `specialize`
+    // flattened it via `dict.values.flatMap { $0 }`. Per `OrderedDictionary`
+    // semantics, updating an existing key keeps it in its original
+    // position — so when two distinct chains resolved to the *same* leaf
+    // metadata but a third chain *in between* resolved to a different
+    // one, the flattened PWT list broke the binary's
+    // `compareDependentTypes` order
+    // (`swift/lib/AST/GenericSignature.cpp:846`: all GP-rooted
+    // requirements rank before nested-type-rooted ones, and within each
+    // block by parameter (depth, index)).
+    //
+    // For the fixture below specialized with A=[Int], B=String, C=[Int]:
+    //   A.Element = Int       (M_Int)
+    //   B.Element = Character (M_Char)
+    //   C.Element = Int       (M_Int — same as A.Element)
+    //
+    // Binary canonical order is parameter-declaration order:
+    //   [Int_Hashable, Char_Hashable, Int_Hashable]
+    //
+    // Pre-fix flatten produced the buggy
+    //   [Int_Hashable, Int_Hashable, Char_Hashable]
+    // — the slot the runtime reserved for B.Element's Hashable PWT got
+    // Int's Hashable PWT instead, mis-routing any associated-type
+    // Hashable lookup performed on the specialized type. `fieldOffsets()`
+    // was invariant under the re-ordering (PWT slot widths are uniform),
+    // so no other test caught it. Post-fix the function returns a flat
+    // `[ProtocolWitnessTable]` collected in `mergedRequirements`
+    // iteration order — which is itself the binary's canonical order.
+
+    struct TestTriAssociatedSameLeafStruct<A: Sequence, B: Sequence, C: Sequence>
+        where A.Element: Hashable, B.Element: Hashable, C.Element: Hashable
+    {
+        let a: A
+        let b: B
+        let c: C
+    }
+
+    @Test func associatedWitnessOrderingPreservesBinaryOrder() async throws {
+        // `resolveAssociatedTypeWitnesses` calls `genericContext()` (the
+        // in-process overload), so the descriptor must be an in-process
+        // pointer wrapper — same setup as `main()`.
+        let descriptor = try #require(
+            try machO.swift.typeContextDescriptors.first {
+                try $0.struct?.name(in: machO).contains("TestTriAssociatedSameLeafStruct") == true
+            }?.struct?.asPointerWrapper(in: machO),
+            "expected TestTriAssociatedSameLeafStruct descriptor"
+        )
+
+        let specializer = GenericSpecializer(indexer: indexer)
+
+        // Bind A and C to the same array type so their A.Element /
+        // C.Element chains both resolve to Int's metadata; B is bound to
+        // String so its B.Element chain resolves to Character — distinct
+        // from Int. This is the exact configuration that exposes the
+        // pre-fix leaf-grouping bug.
+        let aMetadata = try Metadata.createInProcess([Int].self)
+        let bMetadata = try Metadata.createInProcess(String.self)
+        let cMetadata = try Metadata.createInProcess([Int].self)
+
+        let resolvedWitnesses = try specializer.resolveAssociatedTypeWitnesses(
+            for: TypeContextDescriptorWrapper.struct(descriptor),
+            substituting: [
+                "A": aMetadata,
+                "B": bMetadata,
+                "C": cMetadata,
+            ]
+        )
+
+        let intHashablePWT = try #require(
+            try RuntimeFunctions.conformsToProtocol(
+                metatype: Int.self,
+                protocolType: (any Hashable).self
+            ),
+            "Int must conform to Hashable in the test process"
+        )
+        let charHashablePWT = try #require(
+            try RuntimeFunctions.conformsToProtocol(
+                metatype: Character.self,
+                protocolType: (any Hashable).self
+            ),
+            "Character must conform to Hashable in the test process"
+        )
+
+        // Binary requirement order — A.Element, B.Element, C.Element —
+        // per `compareDependentTypes`. All three share depth 0 and rank
+        // by parameter index, so the canonical order is exactly
+        // declaration order.
+        let expectedBinaryOrder: [ProtocolWitnessTable] = [
+            intHashablePWT,   // A.Element = Int
+            charHashablePWT,  // B.Element = Character
+            intHashablePWT,   // C.Element = Int
+        ]
+        #expect(
+            resolvedWitnesses == expectedBinaryOrder,
+            "resolveAssociatedTypeWitnesses must emit PWTs in canonical (binary) requirement order. Pre-fix leaf-keyed `OrderedDictionary` flatten produced [Int_Hashable, Int_Hashable, Char_Hashable] for this fixture, mis-feeding slot 2 (binary reserves it for B.Element: Hashable) with Int's PWT."
+        )
+    }
+
+    @Test func specializeMatchesManualBinaryOrder() async throws {
+        // End-to-end companion to `associatedWitnessOrderingPreservesBinaryOrder`:
+        // build the metadata via the API and via a hand-rolled call to
+        // the metadata accessor with witness tables in canonical
+        // (binary) order, and verify the runtime returns the same
+        // metadata pointer for both. Swift's generic-metadata cache keys
+        // on the entire `(generic args, witness tables)` tuple — feeding
+        // the accessor witness tables in a non-canonical order routes
+        // the call to a different cache slot (or, worse, populates a
+        // freshly allocated metadata whose internal associated-type
+        // witness routing is wrong).
+        //
+        // Note: `makeRequest` resolves the descriptor via the *file-context*
+        // `genericContext(in: machO)` overload, while
+        // `metadataAccessorFunction()` (no-arg) reads in-process — so we
+        // need a file-form descriptor for `makeRequest` and an
+        // in-process pointer wrapper for the manual accessor call.
+        let descriptor = try structDescriptor(named: "TestTriAssociatedSameLeafStruct")
+        let inProcessDescriptor = descriptor.asPointerWrapper(in: machO)
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        let aArrayInt = [Int].self
+        let bString = String.self
+        let cArrayInt = [Int].self
+
+        let aMetadata = try Metadata.createInProcess(aArrayInt)
+        let bMetadata = try Metadata.createInProcess(bString)
+        let cMetadata = try Metadata.createInProcess(cArrayInt)
+
+        let aSequencePWT = try #require(
+            try RuntimeFunctions.conformsToProtocol(metatype: aArrayInt, protocolType: (any Sequence).self),
+            "[Int] must conform to Sequence"
+        )
+        let bSequencePWT = try #require(
+            try RuntimeFunctions.conformsToProtocol(metatype: bString, protocolType: (any Sequence).self),
+            "String must conform to Sequence"
+        )
+        let cSequencePWT = try #require(
+            try RuntimeFunctions.conformsToProtocol(metatype: cArrayInt, protocolType: (any Sequence).self),
+            "[Int] must conform to Sequence"
+        )
+        let intHashablePWT = try #require(
+            try RuntimeFunctions.conformsToProtocol(metatype: Int.self, protocolType: (any Hashable).self),
+            "Int must conform to Hashable"
+        )
+        let charHashablePWT = try #require(
+            try RuntimeFunctions.conformsToProtocol(metatype: Character.self, protocolType: (any Hashable).self),
+            "Character must conform to Hashable"
+        )
+
+        // Manual call: witness tables in canonical (binary) order.
+        // Direct-GP block: A:Sequence, B:Sequence, C:Sequence.
+        // Associated block: A.Element:Hashable, B.Element:Hashable,
+        // C.Element:Hashable.
+        let accessor = try #require(
+            try inProcessDescriptor.metadataAccessorFunction(),
+            "TestTriAssociatedSameLeafStruct must have a metadata accessor function"
+        )
+        let manualResponse = try accessor(
+            request: .completeAndBlocking,
+            metadatas: [aMetadata, bMetadata, cMetadata],
+            witnessTables: [
+                aSequencePWT,
+                bSequencePWT,
+                cSequencePWT,
+                intHashablePWT,   // A.Element
+                charHashablePWT,  // B.Element
+                intHashablePWT,   // C.Element
+            ]
+        )
+        let manualMetadata = try manualResponse.value.resolve().metadata
+
+        // API call.
+        let apiResult = try specializer.specialize(request, with: [
+            "A": .metatype(aArrayInt),
+            "B": .metatype(bString),
+            "C": .metatype(cArrayInt),
+        ])
+        let apiMetadata = try apiResult.metadata()
+
+        // The runtime's generic-metadata cache returns the same
+        // metadata pointer iff the `(args, PWTs)` tuple matches.
+        // Pre-fix `specialize` flattens its leaf-keyed dict to
+        //   [aSequence, bSequence, cSequence, Int_H, Int_H, Char_H]
+        // instead of the canonical
+        //   [aSequence, bSequence, cSequence, Int_H, Char_H, Int_H]
+        // — different cache key, divergent metadata pointer.
+        #expect(
+            manualMetadata == apiMetadata,
+            "specialize() must produce the same metadata pointer the runtime returns when invoked manually with witness tables in canonical (binary) order; divergence indicates an incorrect PWT order in the API path."
+        )
+    }
+
+    // MARK: - makeRequest rejects non-generic types (M10)
+    //
+    // `genericContext(for:)` throws `notGenericType` when the resolved
+    // descriptor has no generic context. Any caller that hands a plain
+    // (non-generic) struct/enum/class to `makeRequest` should hit this
+    // typed error instead of the silent fallthrough that earlier
+    // versions of the specializer offered.
+
+    struct TestNonGenericStruct {
+        let value: Int
+    }
+
+    @Test func makeRequestRejectsNonGenericType() throws {
+        let descriptor = try structDescriptor(named: "TestNonGenericStruct")
+        let specializer = GenericSpecializer(
+            machO: machO,
+            conformanceProvider: EmptyConformanceProvider()
+        )
+
+        do {
+            _ = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+            Issue.record("expected notGenericType to be thrown for a fixture without generic context")
+        } catch let error as GenericSpecializer<MachOImage>.SpecializerError {
+            switch error {
+            case .notGenericType:
+                return
+            default:
+                Issue.record("expected notGenericType, got \(error)")
+            }
+        }
+    }
+
+    // MARK: - validate() reports extra-argument warnings (M8)
+    //
+    // `validate(selection:for:)` is the cheap static-only pass and must
+    // not silently accept arguments for parameters the request does not
+    // declare. Missing arguments surface as errors; arguments for
+    // unknown parameters surface as `.extraArgument` warnings (the
+    // selection is still considered valid — `isValid == true` — because
+    // the extra entry is forwarded to no-one and cannot break the
+    // accessor call).
+
+    @Test func validateEmitsExtraArgumentWarning() throws {
+        let descriptor = try structDescriptor(named: "TestSingleProtocolStruct")
+        let specializer = GenericSpecializer(
+            machO: machO,
+            conformanceProvider: EmptyConformanceProvider()
+        )
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        // `TestSingleProtocolStruct<A: Hashable>` declares a single GP "A".
+        // Adding "Z" to the selection should surface as a warning, not an
+        // error, and leave `isValid` unchanged.
+        let selection: SpecializationSelection = [
+            "A": .metatype(Int.self),
+            "Z": .metatype(String.self),
+        ]
+        let validation = specializer.validate(selection: selection, for: request)
+
+        #expect(validation.isValid, "extra arguments are warnings, not errors")
+        #expect(validation.errors.isEmpty)
+        let hasExtra = validation.warnings.contains { warning in
+            if case .extraArgument(let name) = warning { return name == "Z" }
+            return false
+        }
+        #expect(hasExtra, "validate must emit .extraArgument warning for a parameter not declared by the request")
+    }
+
+    // MARK: - Argument case coverage (M2a / M2b / M2c)
+    //
+    // The four `Argument` cases (`.metatype`, `.metadata`, `.candidate`,
+    // `.specialized`) all flow through `resolveMetadata(for:parameterName:)`.
+    // Existing tests exercise `.metatype` exhaustively; the three tests
+    // below pin the other three paths, including the recursive
+    // `.specialized` call that lets a previously-built
+    // `SpecializationResult` feed back as a generic argument.
+
+    @Test func argumentMetadataPathProducesSameMetadata() async throws {
+        let descriptor = try structDescriptor(named: "TestSingleProtocolStruct")
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        // Pre-resolved Metadata fed via `.metadata(...)` must produce a
+        // metadata pointer indistinguishable from the same selection
+        // expressed with `.metatype(...)` — both go through
+        // `Metadata.createInProcess(_:)` for the metatype case, so the
+        // comparison is identity at the pointer level.
+        let intMetadata = try Metadata.createInProcess(Int.self)
+        let viaMetadata = try specializer.specialize(request, with: ["A": .metadata(intMetadata)])
+        let viaMetatype = try specializer.specialize(request, with: ["A": .metatype(Int.self)])
+
+        let metadataA = try viaMetadata.metadata()
+        let metadataB = try viaMetatype.metadata()
+        #expect(metadataA == metadataB, "Argument.metadata path must reach the same generic-metadata cache slot as Argument.metatype")
+
+        // And the resolved argument plumbing should record the supplied
+        // metadata verbatim — the runtime PWT still has to be looked up,
+        // so `hasWitnessTables` reflects the (single, Hashable) protocol.
+        #expect(viaMetadata.resolvedArguments[0].metadata == intMetadata)
+        #expect(viaMetadata.resolvedArguments[0].hasWitnessTables)
+    }
+
+    @Test func argumentCandidatePathSpecializesNonGenericCandidate() async throws {
+        let descriptor = try structDescriptor(named: "TestSingleProtocolStruct")
+        let specializer = GenericSpecializer(indexer: indexer)
+
+        // Use `.excludeGenerics` so the parameter's candidate list only
+        // surfaces directly-specializable types — picking the first such
+        // candidate (whatever the indexer produces, alphabetically first
+        // among non-generic Hashable conformers) keeps the test
+        // independent of stdlib iteration order.
+        let request = try specializer.makeRequest(
+            for: TypeContextDescriptorWrapper.struct(descriptor),
+            candidateOptions: .excludeGenerics
+        )
+        let nonGenericCandidate = try #require(
+            request.parameters[0].candidates.first { !$0.isGeneric },
+            "expected at least one non-generic Hashable candidate after .excludeGenerics"
+        )
+
+        let result = try specializer.specialize(request, with: ["A": .candidate(nonGenericCandidate)])
+        #expect(result.resolvedArguments.count == 1)
+        // The resolved argument's metadata should match what
+        // Metadata.createInProcess produces for the same concrete type
+        // (the type lookup goes through the same metadata accessor).
+        // We can't easily reconstruct the candidate's `Any.Type` here,
+        // so just verify the PWT plumbing succeeded.
+        #expect(result.resolvedArguments[0].hasWitnessTables)
+        let structMetadata = try #require(result.resolveMetadata().struct)
+        // Single-field struct of any concrete Hashable type: layout is
+        // determined by the concrete type's value witness table; we
+        // assert offsets are non-empty (== 1 field present).
+        #expect(try structMetadata.fieldOffsets().count == 1)
+    }
+
+    // MARK: - Three-level nested ~Copyable specialize end-to-end (M3)
+    //
+    // `nestedThreeLevelInvertedProtocolsPerLevel` covers `makeRequest`
+    // for the same fixture, asserting that every per-level
+    // `invertibleProtocols` set comes out as `.copyable`. This test
+    // closes the gap by running the full pipeline (request → specialize
+    // → metadata accessor → field offsets) and verifying the conditional
+    // `extension … : Copyable where A: Copyable, B: Copyable, C: Copyable`
+    // chain is wired up correctly: binding every parameter to a
+    // Copyable type lets the metadata accessor produce a non-nil
+    // metadata pointer with the same field layout as the non-inverted
+    // three-level fixture.
+
+    @Test func nestedThreeLevelInvertedSpecializeEndToEnd() async throws {
+        let descriptor = try structDescriptor(named: "NestedInvertedInner")
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        let result = try specializer.specialize(request, with: [
+            "A": .metatype(Int.self),       // outer's A: ~Copyable, bound to Copyable Int
+            "A1": .metatype(Double.self),   // middle's B: ~Copyable, bound to Copyable Double
+            "A2": .metatype(String.self),   // inner's C: ~Copyable, bound to Copyable String
+        ])
+
+        #expect(result.resolvedArguments.count == 3)
+        #expect(result.resolvedArguments.map(\.parameterName) == ["A", "A1", "A2"])
+        // None of the three GPs has a witness-table-bearing protocol
+        // requirement (they only declare `~Copyable`, which is a
+        // capability suppression rather than a constraint).
+        #expect(result.resolvedArguments.allSatisfy { !$0.hasWitnessTables })
+
+        // Layout matches the non-inverted three-level fixture:
+        // a(Int) at 0, b(Double) at 8, c(String) at 16.
+        let structMetadata = try #require(result.resolveMetadata().struct)
+        #expect(try structMetadata.fieldOffsets() == [0, 8, 16])
+    }
+
+    @Test func argumentSpecializedPathFeedsNestedSpecialization() async throws {
+        let descriptor = try structDescriptor(named: "TestUnconstrainedStruct")
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.struct(descriptor))
+
+        // Step 1: build TestUnconstrainedStruct<Int>.
+        let inner = try specializer.specialize(request, with: ["A": .metatype(Int.self)])
+        let innerMetadata = try inner.metadata()
+
+        // Step 2: feed `inner` back in as the outer's GP. Equivalent to
+        // TestUnconstrainedStruct<TestUnconstrainedStruct<Int>>.
+        let outer = try specializer.specialize(request, with: ["A": .specialized(inner)])
+        let outerMetadata = try outer.metadata()
+
+        // The two metadatas must differ — they parameterize the same
+        // type with different concrete arguments.
+        #expect(innerMetadata != outerMetadata, "outer and inner specializations resolve to distinct generic metadata slots")
+
+        // The resolved argument records the inner's metadata verbatim.
+        #expect(outer.resolvedArguments[0].metadata == innerMetadata)
+
+        // Layout check: outer holds a single field of type
+        // TestUnconstrainedStruct<Int>, which is itself a single Int
+        // (8 bytes), so the outer field is at offset 0 and occupies one
+        // pointer-sized slot.
+        let structMetadata = try #require(outer.resolveMetadata().struct)
+        #expect(try structMetadata.fieldOffsets() == [0])
+    }
+
+    // MARK: - ~Escapable & dual ~Copyable / ~Escapable (M5)
+    //
+    // `invertedProtocolsExposed` covers the `~Copyable`-only single-
+    // parameter case. The two tests below extend coverage to the other
+    // two corners of the `InvertibleProtocolSet` matrix:
+    //   - `~Escapable`-only — the Escapable bit must surface alone.
+    //   - `~Copyable & ~Escapable` — both bits must surface together
+    //     (set equality, not containment, to catch a regression where
+    //     extra bits leak in).
+    //
+    // Both fixtures use empty `enum`s rather than empty `struct`s.
+    // `~Escapable` types reject any synthesized initializer (the
+    // implicit `init` returns `Self`, and `Self: ~Escapable` cannot be
+    // returned without an explicit `@_lifetime` annotation), so an
+    // empty struct also fails to compile. Empty enums are uninhabited
+    // and have no synthesized init, so they pass the frontend check
+    // while still emitting a generic-context descriptor that carries
+    // the invertible-protocol flag set we want to inspect.
+
+    enum TestInvertedEscapableEnum<A: ~Escapable>: ~Escapable {}
+
+    @Test func invertedEscapableExposed() async throws {
+        let descriptor = try #require(
+            try machO.swift.typeContextDescriptors.first {
+                try $0.enum?.name(in: machO).contains("TestInvertedEscapableEnum") == true
+            }?.enum,
+            "expected enum descriptor TestInvertedEscapableEnum"
+        )
+        let specializer = GenericSpecializer(
+            machO: machO,
+            conformanceProvider: EmptyConformanceProvider()
+        )
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.enum(descriptor))
+
+        #expect(request.parameters.count == 1)
+        let invertible = try #require(request.parameters[0].invertibleProtocols)
+        #expect(invertible == .escapable, "single ~Escapable should produce exactly the Escapable bit")
+    }
+
+    enum TestInvertedDualEnum<A: ~Copyable & ~Escapable>: ~Copyable & ~Escapable {}
+
+    // MARK: - Enum and class generic types (M1)
+    //
+    // Existing coverage was struct-only. Both `makeRequest` and
+    // `specialize` route through `TypeContextDescriptorWrapper`'s
+    // `enum` / `class` cases the same way as `struct`; these two tests
+    // pin that the rest of the pipeline (parameter discovery, PWT
+    // resolution, metadata accessor invocation) handles enum and class
+    // descriptors without struct-specific assumptions.
+
+    enum TestGenericEnum<A: Hashable> {
+        case some(A)
+        case none
+    }
+
+    @Test func enumGenericMakeRequestAndSpecialize() async throws {
+        let descriptor = try #require(
+            try machO.swift.typeContextDescriptors.first {
+                try $0.enum?.name(in: machO).contains("TestGenericEnum") == true
+            }?.enum,
+            "expected enum descriptor TestGenericEnum"
+        )
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.enum(descriptor))
+
+        #expect(request.parameters.count == 1)
+        #expect(request.parameters[0].name == "A")
+        #expect(request.parameters[0].hasProtocolRequirements,
+                "A: Hashable must surface as a protocol requirement")
+        #expect(request.parameters[0].protocolRequirements.count == 1)
+
+        let result = try specializer.specialize(request, with: ["A": .metatype(Int.self)])
+        #expect(result.resolvedArguments.count == 1)
+        #expect(result.resolvedArguments[0].hasWitnessTables)
+
+        // The resolved metadata must be an enum metadata kind, not a
+        // struct/class one — this is the assertion that proves the
+        // wrapper.enum case routed through the pipeline correctly.
+        let wrapper = try result.resolveMetadata()
+        _ = try #require(wrapper.enum,
+                         "expected MetadataWrapper.enum, got \(wrapper)")
+    }
+
+    final class TestGenericClass<A: Hashable> {
+        let a: A
+        init(a: A) { self.a = a }
+    }
+
+    @Test func classGenericMakeRequestAndSpecialize() async throws {
+        let descriptor = try #require(
+            try machO.swift.typeContextDescriptors.first {
+                try $0.class?.name(in: machO).contains("TestGenericClass") == true
+            }?.class,
+            "expected class descriptor TestGenericClass"
+        )
+        let specializer = GenericSpecializer(indexer: indexer)
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.class(descriptor))
+
+        #expect(request.parameters.count == 1)
+        #expect(request.parameters[0].name == "A")
+        #expect(request.parameters[0].hasProtocolRequirements,
+                "A: Hashable must surface as a protocol requirement")
+        #expect(request.parameters[0].protocolRequirements.count == 1)
+
+        let result = try specializer.specialize(request, with: ["A": .metatype(Int.self)])
+        #expect(result.resolvedArguments.count == 1)
+        #expect(result.resolvedArguments[0].hasWitnessTables)
+
+        // The resolved metadata must be a class metadata kind.
+        let wrapper = try result.resolveMetadata()
+        _ = try #require(wrapper.class,
+                         "expected MetadataWrapper.class, got \(wrapper)")
+    }
+
+    @Test func invertedDualCopyableAndEscapable() async throws {
+        let descriptor = try #require(
+            try machO.swift.typeContextDescriptors.first {
+                try $0.enum?.name(in: machO).contains("TestInvertedDualEnum") == true
+            }?.enum,
+            "expected enum descriptor TestInvertedDualEnum"
+        )
+        let specializer = GenericSpecializer(
+            machO: machO,
+            conformanceProvider: EmptyConformanceProvider()
+        )
+        let request = try specializer.makeRequest(for: TypeContextDescriptorWrapper.enum(descriptor))
+
+        #expect(request.parameters.count == 1)
+        let invertible = try #require(request.parameters[0].invertibleProtocols)
+        // Set equality — both bits must be present and nothing else.
+        #expect(invertible == InvertibleProtocolSet([.copyable, .escapable]))
+    }
 }
 
 extension GenericSpecializationTests.TestInvertedCopyableStruct: Copyable where A: Copyable {}
@@ -1089,3 +1620,16 @@ extension GenericSpecializationTests.TestInvertedCopyableStruct: Copyable where 
 extension GenericSpecializationTests.NestedInvertedOuter: Copyable where A: Copyable {}
 extension GenericSpecializationTests.NestedInvertedOuter.NestedInvertedMiddle: Copyable where A: Copyable, B: Copyable {}
 extension GenericSpecializationTests.NestedInvertedOuter.NestedInvertedMiddle.NestedInvertedInner: Copyable where A: Copyable, B: Copyable, C: Copyable {}
+
+extension GenericSpecializationTests.TestInvertedEscapableEnum: Escapable where A: Escapable {}
+
+// Note: `TestInvertedDualEnum` deliberately ships *without* conditional
+// `Copyable` / `Escapable` extensions. The fixture's purpose is to
+// expose the *regular* invertible-protocol record on its single GP
+// (the binary's `<A: ~Copyable & ~Escapable>` declaration), which is
+// what `Parameter.invertibleProtocols` reads. Adding the conditional
+// extensions back in produces malformed descriptors under the current
+// toolchain — the iteration over `typeContextDescriptors` throws when
+// it tries to read one of them. If/when that toolchain bug is fixed,
+// the conditional extensions can be reinstated to also exercise the
+// merged-requirement path through `conditionalInvertibleProtocolsRequirements`.
