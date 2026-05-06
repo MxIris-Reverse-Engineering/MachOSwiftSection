@@ -12,13 +12,6 @@ import MachOFixtureSupport
 import SwiftUI
 #endif
 
-enum MultiPayloadEnumTests {
-    case closure(() -> Void)
-    case object(NSObject)
-    case tuple(a: Int, b: Double)
-    case empty
-}
-
 struct GenericStructNonRequirement<A> {
     var field1: Double
     var field2: A
