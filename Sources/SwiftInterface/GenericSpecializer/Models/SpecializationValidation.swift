@@ -53,6 +53,24 @@ extension SpecializationValidation {
             actualType: String
         )
 
+        /// Could not resolve metadata for the parameter — preflight
+        /// could not run conformance/layout checks. `specialize` runs
+        /// the same metadata resolution path, so the failure is
+        /// guaranteed to surface there as well; reporting it here lets
+        /// the caller see the diagnostic before the accessor call.
+        case metadataResolutionFailed(parameterName: String, reason: String)
+
+        /// Could not construct the protocol descriptor that a
+        /// requirement references — preflight could not run the
+        /// conformance check. Distinct from `protocolNotInIndexer`
+        /// (which is a warning): here the indexer *did* find the entry,
+        /// but materializing it as a `MachOSwiftSection.Protocol` failed.
+        case protocolDescriptorResolutionFailed(
+            parameterName: String,
+            protocolName: String,
+            reason: String
+        )
+
         public var description: String {
             switch self {
             case .missingArgument(let name):
@@ -63,6 +81,12 @@ extension SpecializationValidation {
 
             case .layoutRequirementNotSatisfied(let param, let layout, let actual):
                 return "Type '\(actual)' for parameter '\(param)' does not satisfy layout requirement '\(layout)'"
+
+            case .metadataResolutionFailed(let param, let reason):
+                return "Could not resolve metadata for parameter '\(param)': \(reason)"
+
+            case .protocolDescriptorResolutionFailed(let param, let proto, let reason):
+                return "Could not construct protocol descriptor for '\(proto)' (parameter '\(param)'): \(reason)"
             }
         }
     }
@@ -87,6 +111,18 @@ extension SpecializationValidation {
         /// sub-indexer to enable the check.
         case protocolNotInIndexer(parameterName: String, protocolName: String)
 
+        /// `RuntimeFunctions.conformsToProtocol` itself threw — preflight
+        /// could not determine whether the parameter conforms. Distinct
+        /// from `protocolRequirementNotSatisfied` (an error), which fires
+        /// when the call ran successfully and returned `nil`. A throw
+        /// here usually indicates a transient runtime issue or a
+        /// malformed protocol descriptor pointer.
+        case conformanceCheckFailed(
+            parameterName: String,
+            protocolName: String,
+            reason: String
+        )
+
         public var description: String {
             switch self {
             case .extraArgument(let param):
@@ -95,6 +131,8 @@ extension SpecializationValidation {
                 return "Selection key '\(path)' refers to an associated-type path; associated types are derived from the substituted parameter and cannot be set directly"
             case .protocolNotInIndexer(let param, let proto):
                 return "Cannot validate conformance of parameter '\(param)' to '\(proto)': protocol descriptor not found in indexer (add the defining image as a sub-indexer to enable the check)"
+            case .conformanceCheckFailed(let param, let proto, let reason):
+                return "Conformance check for parameter '\(param)' against protocol '\(proto)' failed to run: \(reason)"
             }
         }
     }

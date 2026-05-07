@@ -490,6 +490,28 @@ extension GenericSpecializer {
     /// Aggregation key for `buildAssociatedTypeRequirements` — a generic
     /// type can't host a nested struct directly inside a method body, so
     /// the key lives at extension scope.
+    ///
+    /// **Why no protocol identity in the key.** It would be tempting to
+    /// also include each step's `protocolNode` in the key — guarding
+    /// against the case where two unrelated protocols both declare the
+    /// same-named associated type (`P.Element` vs `Q.Element`) and a
+    /// generic parameter conforms to both. That case is **structurally
+    /// impossible in a well-formed binary**: the Swift compiler's
+    /// RequirementMachine runs a deterministic minimization pass
+    /// (`swift/lib/AST/RequirementMachine/MinimalConformances.cpp` +
+    /// `HomotopyReduction.cpp`, invoked from `getMinimalGenericSignature`)
+    /// before any descriptor is emitted, and that pass collapses every
+    /// `A.[P:Element]` / `A.[Q:Element]` reference to a single canonical
+    /// rooted form. The choice is fixed by `compareDependentTypesRec`
+    /// (`swift/lib/AST/GenericSignature.cpp:846`) — empirically the
+    /// lexicographically earlier protocol — and is part of type
+    /// checking, not an opt-in optimization.
+    ///
+    /// `dualProtocolSameNamedAssociatedTypeIsCanonicalized` in the
+    /// test suite exists as a belt-and-suspenders pin on this upstream
+    /// invariant. So long as that test stands, dropping `protocolNode`
+    /// from the aggregation key is safe — a future code reader noticing
+    /// the omission can stop here rather than re-investigating.
     private struct AssociatedTypeRequirementKey: Hashable {
         let parameterName: String
         let path: [String]
@@ -631,16 +653,36 @@ extension GenericSpecializer where MachO == MachOImage {
             let metadata: Metadata
             switch argument {
             case .metatype(let type):
-                guard let resolved = try? Metadata.createInProcess(type) else { continue }
-                metadata = resolved
+                // `specialize` runs the same `Metadata.createInProcess`
+                // call, so a failure here will also break the accessor
+                // call. Surface it now as a typed error rather than a
+                // silent skip — the caller's selection is unusable.
+                do {
+                    metadata = try Metadata.createInProcess(type)
+                } catch {
+                    builder.addError(.metadataResolutionFailed(
+                        parameterName: parameter.name,
+                        reason: "\(error)"
+                    ))
+                    continue
+                }
             case .metadata(let provided):
                 metadata = provided
             case .specialized(let result):
                 // `SpecializationResult` already carries a resolved metadata
                 // pointer — no accessor call needed; preflight should
-                // exercise the same checks it does for `.metatype`.
-                guard let resolved = try? result.metadata() else { continue }
-                metadata = resolved
+                // exercise the same checks it does for `.metatype`. A
+                // failure here means the supplied result is corrupt and
+                // `specialize` will fail the same way; report as an error.
+                do {
+                    metadata = try result.metadata()
+                } catch {
+                    builder.addError(.metadataResolutionFailed(
+                        parameterName: parameter.name,
+                        reason: "\(error)"
+                    ))
+                    continue
+                }
             case .candidate:
                 // The candidate's metadata still requires an accessor call;
                 // leave the actual conformance/layout enforcement to
@@ -676,12 +718,36 @@ extension GenericSpecializer where MachO == MachOImage {
                             descriptor: protocolDef.value.protocol.descriptor.asPointerWrapper(in: protocolDef.machO)
                         )
                     } catch {
+                        // Indexer found the entry but materializing the
+                        // protocol descriptor failed — preflight cannot
+                        // run the conformance check for this requirement.
+                        // Distinct from `protocolNotInIndexer`: the
+                        // protocol *is* known but unusable.
+                        builder.addError(.protocolDescriptorResolutionFailed(
+                            parameterName: parameter.name,
+                            protocolName: info.protocolName.name,
+                            reason: "\(error)"
+                        ))
                         continue
                     }
-                    let conforms = (try? RuntimeFunctions.conformsToProtocol(
-                        metadata: metadata,
-                        protocolDescriptor: descriptor.descriptor
-                    )) ?? nil
+                    // Distinguish "couldn't run the check" (throw) from
+                    // "ran the check, type doesn't conform" (nil). The
+                    // former is a warning (validation incomplete); the
+                    // latter is the existing hard error.
+                    let conforms: ProtocolWitnessTable?
+                    do {
+                        conforms = try RuntimeFunctions.conformsToProtocol(
+                            metadata: metadata,
+                            protocolDescriptor: descriptor.descriptor
+                        )
+                    } catch {
+                        builder.addWarning(.conformanceCheckFailed(
+                            parameterName: parameter.name,
+                            protocolName: info.protocolName.name,
+                            reason: "\(error)"
+                        ))
+                        continue
+                    }
                     if conforms == nil {
                         builder.addError(.protocolRequirementNotSatisfied(
                             parameterName: parameter.name,
@@ -1204,7 +1270,7 @@ extension GenericSpecializer where MachO == MachOImage {
 @_spi(Support)
 extension GenericSpecializer {
     /// Errors that can occur during specialization
-    public enum SpecializerError: Error, LocalizedError {
+    public enum SpecializerError: LocalizedError {
         case notGenericType(type: TypeContextDescriptorWrapper)
         case candidateResolutionFailed(candidate: SpecializationRequest.Candidate, reason: String)
         case candidateRequiresNestedSpecialization(
