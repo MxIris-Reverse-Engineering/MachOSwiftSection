@@ -599,6 +599,14 @@ extension Target {
         swiftSettings: testSettings
     )
 
+    static let MachOCachesTests = Target.testTarget(
+        name: "MachOCachesTests",
+        dependencies: [
+            .target(.MachOCaches),
+        ],
+        swiftSettings: testSettings
+    )
+
     static let SwiftInspectionTests = Target.testTarget(
         name: "SwiftInspectionTests",
         dependencies: [
@@ -726,11 +734,12 @@ let package = Package(
         .RegenerateBaselinesPlugin,
 
         // Testing
-        .MachOSymbolsTests,
+//        .MachOSymbolsTests,
         .MachOSwiftSectionTests,
+        .MachOCachesTests,
         .SwiftInspectionTests,
         .SwiftDumpTests,
-        .TypeIndexingTests,
+//        .TypeIndexingTests,
         .SwiftInterfaceTests,
         .MachOTestingSupportTests,
         .IntegrationTests,

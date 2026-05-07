@@ -20,8 +20,27 @@ open class SharedCache<Storage>: @unchecked Sendable {
         memoryPressureMonitor.startMonitoring()
     }
 
+    /// Per-key state: a finished build (`completed`) or an in-flight build
+    /// that other callers can join via the promise (`inFlight`). The
+    /// in-flight marker lets concurrent callers for the same key share one
+    /// build instead of serializing against the cache lock for the build's
+    /// entire duration.
+    private enum Entry {
+        case completed(Storage)
+        case inFlight(SharedCacheBuildPromise<Storage>)
+    }
+
     @Mutex
-    private var storageByIdentifier: [AnyHashable: Storage] = [:]
+    private var storageByIdentifier: [AnyHashable: Entry] = [:]
+
+    /// Routing decision the cache lock makes on behalf of `storage(...)`:
+    /// either return a cached value, await someone else's in-flight build,
+    /// or run the build ourselves under the freshly-installed promise.
+    private enum Outcome {
+        case completed(Storage)
+        case wait(SharedCacheBuildPromise<Storage>)
+        case build(SharedCacheBuildPromise<Storage>)
+    }
 
     open func buildStorage(for machO: some MachORepresentableWithCache) -> Storage? {
         return nil
@@ -35,33 +54,24 @@ open class SharedCache<Storage>: @unchecked Sendable {
 
     /// Atomic get-or-build with a caller-provided build closure.
     ///
-    /// Unlike `storage(in:)` which uses the overridden `buildStorage(for:)`, this variant
-    /// lets the caller inject a custom build closure that can capture per-call context
-    /// (progress continuations, options, etc). The per-call context flows through closure
-    /// capture, never through shared instance state, so concurrent calls cannot interfere.
+    /// Unlike `storage(in:)` which uses the overridden `buildStorage(for:)`,
+    /// this variant lets the caller inject a custom build closure that can
+    /// capture per-call context (progress continuations, options, etc.). The
+    /// per-call context flows through closure capture, never through shared
+    /// instance state, so concurrent calls cannot interfere.
     ///
-    /// The entire check-build-insert runs inside a single `withLockUnchecked` critical
-    /// section, guaranteeing atomicity independent of the `_modify` accessor that
-    /// `@Mutex` may or may not generate for the underlying property.
-    ///
-    /// - Note: Known limitation — the `build` closure executes while the global
-    ///   cache lock is held, so a long-running build (for example
-    ///   `SymbolIndexStore.prepareWithProgress`) blocks concurrent cache access for
-    ///   other Mach-O identifiers for the full duration of the build. Acceptable
-    ///   today because concurrent cache construction is rare in practice. See
-    ///   `KNOWN_ISSUES.md` for the tracking entry and the sketch of a per-key
-    ///   promise-based fix.
+    /// The cache lock is held only long enough to look up the key and either
+    /// hand back a finished value, attach to an in-flight build, or install
+    /// our own in-flight marker. The build closure itself executes
+    /// **outside** the lock, so two callers building entries for different
+    /// Mach-O identifiers run in parallel; two callers building entries for
+    /// the same identifier de-duplicate via the in-flight promise.
     public func storage<MachO: MachORepresentableWithCache>(
         in machO: MachO,
         buildUsing build: (MachO) -> Storage?
     ) -> Storage? {
-        return _storageByIdentifier.withLockUnchecked { dict -> Storage? in
-            let key: AnyHashable = machO.identifier
-            if let existing = dict[key] { return existing }
-            guard let new = build(machO) else { return nil }
-            dict[key] = new
-            return new
-        }
+        let key: AnyHashable = machO.identifier
+        return resolve(key: key) { build(machO) }
     }
 
     private var currentIdentifer: ObjectIdentifier {
@@ -73,12 +83,62 @@ open class SharedCache<Storage>: @unchecked Sendable {
     }
 
     open func storage() -> Storage? {
-        return _storageByIdentifier.withLockUnchecked { dict -> Storage? in
-            let key: AnyHashable = currentIdentifer
-            if let existing = dict[key] { return existing }
-            guard let new = buildStorage() else { return nil }
-            dict[key] = new
-            return new
+        let key: AnyHashable = currentIdentifer
+        return resolve(key: key) { buildStorage() }
+    }
+
+    /// Shared core for both `storage(in:buildUsing:)` and `storage()`. Holds
+    /// the cache lock only across the dictionary lookup / marker install and
+    /// across the post-build dictionary update — the actual `build` call
+    /// runs unsynchronized so that concurrent builds for distinct keys don't
+    /// serialize.
+    ///
+    /// `package`-visible so the in-package test target can exercise the
+    /// concurrency contract directly without manufacturing a fake
+    /// `MachORepresentableWithCache` conformer.
+    package func resolve(key: AnyHashable, build: () -> Storage?) -> Storage? {
+        let outcome: Outcome = _storageByIdentifier.withLockUnchecked { dict in
+            if let entry = dict[key] {
+                switch entry {
+                case .completed(let storage):
+                    return .completed(storage)
+                case .inFlight(let promise):
+                    return .wait(promise)
+                }
+            }
+            let promise = SharedCacheBuildPromise<Storage>()
+            dict[key] = .inFlight(promise)
+            return .build(promise)
+        }
+
+        switch outcome {
+        case .completed(let storage):
+            return storage
+        case .wait(let promise):
+            return promise.wait()
+        case .build(let promise):
+            let result = build()
+            _storageByIdentifier.withLockUnchecked { dict in
+                // Only publish back if our promise is still the in-flight
+                // marker. `removeAll()` on memory pressure could have
+                // cleared the dict mid-build, and a fresh caller may have
+                // installed a different promise; in either case the dict is
+                // not ours to write — but our promise still has waiters
+                // attached, so we always call `fulfill(_:)` below.
+                if case .inFlight(let installed) = dict[key], installed === promise {
+                    if let storage = result {
+                        dict[key] = .completed(storage)
+                    } else {
+                        // Mirror the original behaviour: a build that returns
+                        // `nil` is not cached, so subsequent callers get a
+                        // fresh attempt instead of being permanently stuck on
+                        // the failure.
+                        dict[key] = nil
+                    }
+                }
+            }
+            promise.fulfill(result)
+            return result
         }
     }
 }
