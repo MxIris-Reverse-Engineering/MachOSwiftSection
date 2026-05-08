@@ -43,3 +43,21 @@ struct SymbolTestsCore.NestedGenerics.NestedTypealiasGenericTest<A> {
     SymbolTestsCore.NestedGenerics.NestedTypealiasGenericTest.elements.setter : [A]
     SymbolTestsCore.NestedGenerics.NestedTypealiasGenericTest.elements.getter : [A]
 }
+struct SymbolTestsCore.NestedGenerics.NestedGenericThreeLevelConstraintTest<A> where A: Swift.Hashable {}
+struct SymbolTestsCore.NestedGenerics.NestedGenericThreeLevelConstraintTest.MiddleConstrainedTest<A1> where A1: Swift.Equatable {}
+struct SymbolTestsCore.NestedGenerics.NestedGenericThreeLevelConstraintTest.MiddleConstrainedTest.InnerMostConstrainedTest<A2> where A2: Swift.Comparable {
+    var outer: A
+    var middle: A1
+    var innerMost: A2
+
+    /* Allocator */
+    SymbolTestsCore.NestedGenerics.NestedGenericThreeLevelConstraintTest.MiddleConstrainedTest.InnerMostConstrainedTest.init(outer: A, middle: A1, innerMost: A2) -> SymbolTestsCore.NestedGenerics.NestedGenericThreeLevelConstraintTest<A>.MiddleConstrainedTest<A1>.InnerMostConstrainedTest<A2>
+
+    /* Variable */
+    SymbolTestsCore.NestedGenerics.NestedGenericThreeLevelConstraintTest.MiddleConstrainedTest.InnerMostConstrainedTest.middle.getter : A1
+    SymbolTestsCore.NestedGenerics.NestedGenericThreeLevelConstraintTest.MiddleConstrainedTest.InnerMostConstrainedTest.middle.setter : A1
+    SymbolTestsCore.NestedGenerics.NestedGenericThreeLevelConstraintTest.MiddleConstrainedTest.InnerMostConstrainedTest.innerMost.getter : A2
+    SymbolTestsCore.NestedGenerics.NestedGenericThreeLevelConstraintTest.MiddleConstrainedTest.InnerMostConstrainedTest.innerMost.setter : A2
+    SymbolTestsCore.NestedGenerics.NestedGenericThreeLevelConstraintTest.MiddleConstrainedTest.InnerMostConstrainedTest.outer.getter : A
+    SymbolTestsCore.NestedGenerics.NestedGenericThreeLevelConstraintTest.MiddleConstrainedTest.InnerMostConstrainedTest.outer.setter : A
+}

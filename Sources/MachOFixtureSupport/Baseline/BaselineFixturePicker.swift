@@ -712,6 +712,25 @@ package enum BaselineFixturePicker {
     // live carrier.
 
     /// Picks the SymbolTestsCore struct
+    /// `NestedGenerics.NestedGenericThreeLevelConstraintTest.MiddleConstrainedTest.InnerMostConstrainedTest<InnerMost: Comparable>`
+    /// — the deepest layer of a three-level nested generic context where each
+    /// outer scope adds its own protocol constraint. This is the canonical
+    /// counter-example for the cumulative-parent-vs-newly-introduced
+    /// distinction in `TargetGenericContext`: at depth ≥ 2,
+    /// `parentParameters.flatMap.count` and `parentParameters.last?.count`
+    /// diverge, exposing the bug where `currentRequirements` would otherwise
+    /// over-drop entries inherited from cumulative parent levels.
+    package static func struct_NestedThreeLevelInnerMostConstrainedTest(
+        in machO: some MachOSwiftSectionRepresentableWithCache
+    ) throws -> StructDescriptor {
+        try required(
+            try machO.swift.typeContextDescriptors.compactMap(\.struct).first(where: { descriptor in
+                try descriptor.name(in: machO) == "InnerMostConstrainedTest"
+            })
+        )
+    }
+
+    /// Picks the SymbolTestsCore struct
     /// `GenericValueFixtures.FixedSizeArray<let N: Int, T>` — a generic
     /// type that declares one integer-value parameter (`N`) and one
     /// type parameter (`T`). The Swift compiler emits an extra

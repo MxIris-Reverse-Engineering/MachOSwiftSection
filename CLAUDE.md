@@ -8,8 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Build the project
 swift build
 
-# Run all tests
-swift test
+# Run all tests (skip IntegrationTests — see note below)
+swift test --skip IntegrationTests
 
 # Run specific test suites
 swift test --filter DemanglingTests
@@ -26,6 +26,8 @@ swift run swift-section interface /path/to/binary
 ```
 
 Requires Swift 6.2+ / Xcode 26.0+.
+
+**Test suite convention:** `Tests/IntegrationTests/` is for the maintainer's manual inspection only — it prints results with no assertions or preconditions. Agents must not run it (use `--skip IntegrationTests` when running the full suite). All other `*Tests` targets have proper assertions and required preconditions, and are safe to run.
 
 ## Architecture Overview
 

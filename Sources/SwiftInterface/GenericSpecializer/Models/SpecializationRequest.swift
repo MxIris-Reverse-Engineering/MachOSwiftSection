@@ -49,18 +49,29 @@ extension SpecializationRequest {
         /// Candidate types that satisfy all requirements
         public var candidates: [Candidate]
 
+        /// Invertible protocols (~Copyable / ~Escapable) that the parameter
+        /// suppresses. The set encodes which protocols are inverted, matching
+        /// the binary's encoding and the existing `hasCopyable` /
+        /// `hasEscapable` convention — e.g. `<A: ~Copyable>` produces a set
+        /// containing `.copyable`. `nil` means the parameter has no
+        /// `invertedProtocols` requirement and retains every invertible
+        /// protocol by default (the typical Swift case).
+        public let invertibleProtocols: InvertibleProtocolSet?
+
         public init(
             name: String,
             index: Int,
             depth: Int,
             requirements: [Requirement],
-            candidates: [Candidate] = []
+            candidates: [Candidate] = [],
+            invertibleProtocols: InvertibleProtocolSet? = nil
         ) {
             self.name = name
             self.index = index
             self.depth = depth
             self.requirements = requirements
             self.candidates = candidates
+            self.invertibleProtocols = invertibleProtocols
         }
 
         /// Protocol requirements that require witness tables (in order)
@@ -116,6 +127,31 @@ extension SpecializationRequest {
     }
 }
 
+// MARK: - CandidateOptions
+
+extension SpecializationRequest {
+    /// Knobs that adjust how candidate lists are produced for each parameter.
+    public struct CandidateOptions: OptionSet, Sendable {
+        public let rawValue: UInt8
+
+        public init(rawValue: UInt8) {
+            self.rawValue = rawValue
+        }
+
+        /// Skip candidates whose type descriptor is itself generic.
+        ///
+        /// Selecting a generic candidate via `Argument.candidate(...)` would
+        /// throw `candidateRequiresNestedSpecialization` at `specialize` time;
+        /// callers that want a "directly specializable" list can opt into
+        /// filtering them out at request-build time.
+        public static let excludeGenerics = CandidateOptions(rawValue: 1 << 0)
+
+        /// Default behaviour: include every candidate (mirrors the
+        /// pre-`CandidateOptions` API).
+        public static let `default`: CandidateOptions = []
+    }
+}
+
 // MARK: - Candidate
 
 extension SpecializationRequest {
@@ -127,12 +163,19 @@ extension SpecializationRequest {
         /// Source of this candidate
         public let source: Source
 
+        /// True when the candidate's type descriptor is itself generic.
+        /// Selecting such a candidate via `Argument.candidate(...)` will
+        /// throw `candidateRequiresNestedSpecialization` from `specialize`.
+        public let isGeneric: Bool
+
         public init(
             typeName: TypeName,
             source: Source,
+            isGeneric: Bool = false
         ) {
             self.typeName = typeName
             self.source = source
+            self.isGeneric = isGeneric
         }
 
         /// Source of candidate type

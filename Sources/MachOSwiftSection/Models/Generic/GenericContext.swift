@@ -46,8 +46,21 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
         return .init(parameters.dropFirst(inheritedCount))
     }
 
+    /// Requirements newly introduced at this scope (excludes those inherited
+    /// from parent generic contexts).
+    ///
+    /// `requirements` is cumulative across the entire parent chain — the
+    /// Swift compiler emits `sig->getRequirementsWithInverses` for the full
+    /// canonical signature in scope (see `swift/lib/IRGen/GenMeta.cpp:7342`).
+    /// Each entry of `parentRequirements` is similarly cumulative for its
+    /// level, so the immediate parent's count (`parentRequirements.last?.count`)
+    /// is exactly the number of inherited requirements to drop. Using
+    /// `parentRequirements.flatMap { $0 }.count` instead would double-count
+    /// inherited entries at depth ≥ 2 and silently drop the requirements
+    /// introduced at this level. This mirrors the formula used by
+    /// `currentParameters`.
     public var currentRequirements: [GenericRequirementDescriptor] {
-        .init(requirements.dropFirst(parentRequirements.flatMap { $0 }.count))
+        .init(requirements.dropFirst(parentRequirements.last?.count ?? 0))
     }
 
     public var currentTypePacks: [GenericPackShapeDescriptor] {

@@ -46,20 +46,6 @@ extension SpecializationValidation {
             actualType: String
         )
 
-        /// Selected type does not satisfy a same-type requirement
-        case sameTypeRequirementNotSatisfied(
-            parameterName: String,
-            expectedType: String,
-            actualType: String
-        )
-
-        /// Selected type does not satisfy a base class requirement
-        case baseClassRequirementNotSatisfied(
-            parameterName: String,
-            expectedBaseClass: String,
-            actualType: String
-        )
-
         /// Selected type does not satisfy a layout requirement
         case layoutRequirementNotSatisfied(
             parameterName: String,
@@ -67,29 +53,23 @@ extension SpecializationValidation {
             actualType: String
         )
 
-        /// Could not resolve candidate type to metadata
-        case candidateResolutionFailed(
+        /// Could not resolve metadata for the parameter — preflight
+        /// could not run conformance/layout checks. `specialize` runs
+        /// the same metadata resolution path, so the failure is
+        /// guaranteed to surface there as well; reporting it here lets
+        /// the caller see the diagnostic before the accessor call.
+        case metadataResolutionFailed(parameterName: String, reason: String)
+
+        /// Could not construct the protocol descriptor that a
+        /// requirement references — preflight could not run the
+        /// conformance check. Distinct from `protocolNotInIndexer`
+        /// (which is a warning): here the indexer *did* find the entry,
+        /// but materializing it as a `MachOSwiftSection.Protocol` failed.
+        case protocolDescriptorResolutionFailed(
             parameterName: String,
-            candidateTypeName: String,
+            protocolName: String,
             reason: String
         )
-
-        /// Associated type could not be resolved
-        case associatedTypeResolutionFailed(
-            parameterName: String,
-            associatedTypePath: [String],
-            reason: String
-        )
-
-        /// The selected type is generic and requires further specialization
-        case requiresFurtherSpecialization(
-            parameterName: String,
-            typeName: String,
-            genericParameters: [String]
-        )
-
-        /// Unknown or unexpected error
-        case unknown(String)
 
         public var description: String {
             switch self {
@@ -99,26 +79,14 @@ extension SpecializationValidation {
             case .protocolRequirementNotSatisfied(let param, let proto, let actual):
                 return "Type '\(actual)' for parameter '\(param)' does not conform to protocol '\(proto)'"
 
-            case .sameTypeRequirementNotSatisfied(let param, let expected, let actual):
-                return "Type '\(actual)' for parameter '\(param)' must be same as '\(expected)'"
-
-            case .baseClassRequirementNotSatisfied(let param, let base, let actual):
-                return "Type '\(actual)' for parameter '\(param)' must inherit from '\(base)'"
-
             case .layoutRequirementNotSatisfied(let param, let layout, let actual):
                 return "Type '\(actual)' for parameter '\(param)' does not satisfy layout requirement '\(layout)'"
 
-            case .candidateResolutionFailed(let param, let candidate, let reason):
-                return "Cannot resolve candidate '\(candidate)' for parameter '\(param)': \(reason)"
+            case .metadataResolutionFailed(let param, let reason):
+                return "Could not resolve metadata for parameter '\(param)': \(reason)"
 
-            case .associatedTypeResolutionFailed(let param, let path, let reason):
-                return "Cannot resolve associated type '\(param).\(path.joined(separator: "."))': \(reason)"
-
-            case .requiresFurtherSpecialization(let param, let type, let genericParams):
-                return "Type '\(type)' for parameter '\(param)' is generic and requires specialization of: \(genericParams.joined(separator: ", "))"
-
-            case .unknown(let message):
-                return "Validation error: \(message)"
+            case .protocolDescriptorResolutionFailed(let param, let proto, let reason):
+                return "Could not construct protocol descriptor for '\(proto)' (parameter '\(param)'): \(reason)"
             }
         }
     }
@@ -129,31 +97,42 @@ extension SpecializationValidation {
 extension SpecializationValidation {
     /// Validation warning
     public enum Warning: Sendable, CustomStringConvertible {
-        /// The selected type may cause performance issues
-        case potentialPerformanceIssue(
-            parameterName: String,
-            reason: String
-        )
-
-        /// The selected type is deprecated
-        case deprecatedType(
-            parameterName: String,
-            typeName: String
-        )
-
         /// Extra argument provided that is not needed
         case extraArgument(parameterName: String)
 
+        /// User supplied a key matching an associated-type path
+        /// (e.g. "A.Element"). Associated types are derived during
+        /// specialization and cannot be set directly; the entry is ignored.
+        case associatedTypePathInSelection(path: String)
+
+        /// A parameter requirement references a protocol that the indexer
+        /// doesn't have a definition for, so runtime preflight cannot
+        /// validate conformance. Add the protocol's defining image as a
+        /// sub-indexer to enable the check.
+        case protocolNotInIndexer(parameterName: String, protocolName: String)
+
+        /// `RuntimeFunctions.conformsToProtocol` itself threw — preflight
+        /// could not determine whether the parameter conforms. Distinct
+        /// from `protocolRequirementNotSatisfied` (an error), which fires
+        /// when the call ran successfully and returned `nil`. A throw
+        /// here usually indicates a transient runtime issue or a
+        /// malformed protocol descriptor pointer.
+        case conformanceCheckFailed(
+            parameterName: String,
+            protocolName: String,
+            reason: String
+        )
+
         public var description: String {
             switch self {
-            case .potentialPerformanceIssue(let param, let reason):
-                return "Parameter '\(param)' may cause performance issues: \(reason)"
-
-            case .deprecatedType(let param, let type):
-                return "Type '\(type)' for parameter '\(param)' is deprecated"
-
             case .extraArgument(let param):
                 return "Extra argument '\(param)' is not needed for this specialization"
+            case .associatedTypePathInSelection(let path):
+                return "Selection key '\(path)' refers to an associated-type path; associated types are derived from the substituted parameter and cannot be set directly"
+            case .protocolNotInIndexer(let param, let proto):
+                return "Cannot validate conformance of parameter '\(param)' to '\(proto)': protocol descriptor not found in indexer (add the defining image as a sub-indexer to enable the check)"
+            case .conformanceCheckFailed(let param, let proto, let reason):
+                return "Conformance check for parameter '\(param)' against protocol '\(proto)' failed to run: \(reason)"
             }
         }
     }

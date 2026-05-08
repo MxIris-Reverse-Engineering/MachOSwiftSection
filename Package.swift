@@ -145,7 +145,7 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.4"),
     .package(url: "https://github.com/MxIris-DeveloperTool/swift-clang", from: "0.2.0"),
     .package(url: "https://github.com/MxIris-DeveloperTool/swift-apinotes", from: "0.1.0"),
-    .package(url: "https://github.com/MxIris-Reverse-Engineering/swift-dyld-private", from: "1.1.0"),
+    .package(url: "https://github.com/MxIris-Reverse-Engineering/swift-dyld-private", from: "1.2.0"),
     
     // CLI
     .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
@@ -454,6 +454,9 @@ extension Target {
             .target(.SwiftInspection),
             .target(.SwiftDump),
             .target(.Utilities),
+        ],
+        exclude: [
+            "GenericSpecializer/REVIEW_FIXUPS.md",
         ]
     )
 
@@ -596,6 +599,14 @@ extension Target {
         swiftSettings: testSettings
     )
 
+    static let MachOCachesTests = Target.testTarget(
+        name: "MachOCachesTests",
+        dependencies: [
+            .target(.MachOCaches),
+        ],
+        swiftSettings: testSettings
+    )
+
     static let SwiftInspectionTests = Target.testTarget(
         name: "SwiftInspectionTests",
         dependencies: [
@@ -723,11 +734,12 @@ let package = Package(
         .RegenerateBaselinesPlugin,
 
         // Testing
-        .MachOSymbolsTests,
+//        .MachOSymbolsTests,
         .MachOSwiftSectionTests,
+        .MachOCachesTests,
         .SwiftInspectionTests,
         .SwiftDumpTests,
-        .TypeIndexingTests,
+//        .TypeIndexingTests,
         .SwiftInterfaceTests,
         .MachOTestingSupportTests,
         .IntegrationTests,

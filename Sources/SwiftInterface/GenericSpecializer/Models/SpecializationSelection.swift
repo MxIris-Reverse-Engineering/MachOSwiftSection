@@ -10,16 +10,6 @@ public struct SpecializationSelection: Sendable {
         self.arguments = arguments
     }
 
-    /// Convenience initializer with variadic arguments
-    public init(_ arguments: (String, Argument)...) {
-        self.arguments = Dictionary(uniqueKeysWithValues: arguments)
-    }
-
-    /// Convenience initializer with dictionary literal
-    public init(_ arguments: [String: Argument]) {
-        self.arguments = arguments
-    }
-
     /// Get argument for a parameter name
     public subscript(parameterName: String) -> Argument? {
         arguments[parameterName]

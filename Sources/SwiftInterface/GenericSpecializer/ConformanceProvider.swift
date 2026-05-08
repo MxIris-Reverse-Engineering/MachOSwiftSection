@@ -55,10 +55,20 @@ extension ConformanceProvider {
 
 // MARK: - IndexerConformanceProvider
 
-/// ConformanceProvider implementation backed by SwiftInterfaceIndexer
+/// ConformanceProvider implementation backed by SwiftInterfaceIndexer.
 ///
-/// Note: This type is marked as @_spi(Support) because it depends on SwiftInterfaceIndexer
-/// which is also SPI. Use the factory method on GenericSpecializer to create instances.
+/// **Preparation contract.** The wrapped `SwiftInterfaceIndexer` must have
+/// completed `prepare()` before this provider is queried — `findCandidates`
+/// reads `allConformingTypesByProtocolName` / `allAllTypeDefinitions`, which
+/// the indexer populates lazily during preparation. The class is marked
+/// `@unchecked Sendable` to keep the API ergonomic when stored on a long-
+/// lived `GenericSpecializer`, but it does *not* protect against concurrent
+/// reads while preparation is still mutating the indexer's storage; callers
+/// must order `await indexer.prepare()` before passing the indexer here.
+///
+/// Note: This type is marked as `@_spi(Support)` because it depends on
+/// `SwiftInterfaceIndexer`, which is also SPI. Use the factory initializer
+/// on `GenericSpecializer` to create instances.
 @_spi(Support)
 public final class IndexerConformanceProvider<MachO: MachOSwiftSectionRepresentableWithCache>: @unchecked Sendable {
     private let indexer: SwiftInterfaceIndexer<MachO>
@@ -179,74 +189,4 @@ public struct EmptyConformanceProvider: ConformanceProvider {
     public var allTypeNames: [TypeName] { [] }
     public func typeDefinition(for typeName: TypeName) -> TypeDefinition? { nil }
     public func imagePath(for typeName: TypeName) -> String? { nil }
-}
-
-// MARK: - StandardLibraryConformanceProvider
-
-/// Provider for common standard library type conformances
-/// This provides a fallback for well-known types when indexer data is not available
-public struct StandardLibraryConformanceProvider: ConformanceProvider {
-    /// Known conformances: type name -> set of protocol names
-    private let knownConformances: [String: Set<String>]
-
-    public init() {
-        // Common standard library conformances
-        // These are simplified names without module prefix for matching
-        self.knownConformances = [
-            "Int": ["Equatable", "Hashable", "Comparable", "Codable", "Sendable", "BitwiseCopyable"],
-            "Int8": ["Equatable", "Hashable", "Comparable", "Codable", "Sendable", "BitwiseCopyable"],
-            "Int16": ["Equatable", "Hashable", "Comparable", "Codable", "Sendable", "BitwiseCopyable"],
-            "Int32": ["Equatable", "Hashable", "Comparable", "Codable", "Sendable", "BitwiseCopyable"],
-            "Int64": ["Equatable", "Hashable", "Comparable", "Codable", "Sendable", "BitwiseCopyable"],
-            "UInt": ["Equatable", "Hashable", "Comparable", "Codable", "Sendable", "BitwiseCopyable"],
-            "UInt8": ["Equatable", "Hashable", "Comparable", "Codable", "Sendable", "BitwiseCopyable"],
-            "UInt16": ["Equatable", "Hashable", "Comparable", "Codable", "Sendable", "BitwiseCopyable"],
-            "UInt32": ["Equatable", "Hashable", "Comparable", "Codable", "Sendable", "BitwiseCopyable"],
-            "UInt64": ["Equatable", "Hashable", "Comparable", "Codable", "Sendable", "BitwiseCopyable"],
-            "Float": ["Equatable", "Hashable", "Comparable", "Codable", "Sendable", "BitwiseCopyable"],
-            "Double": ["Equatable", "Hashable", "Comparable", "Codable", "Sendable", "BitwiseCopyable"],
-            "Bool": ["Equatable", "Hashable", "Codable", "Sendable", "BitwiseCopyable"],
-            "String": ["Equatable", "Hashable", "Comparable", "Codable", "Sendable", "Collection", "BidirectionalCollection"],
-            "Character": ["Equatable", "Hashable", "Comparable", "Sendable"],
-            "Array": ["Equatable", "Hashable", "Collection", "MutableCollection", "RandomAccessCollection", "Codable", "Sendable"],
-            "Set": ["Equatable", "Hashable", "Collection", "Codable", "Sendable"],
-            "Dictionary": ["Equatable", "Collection", "Codable", "Sendable"],
-            "Optional": ["Equatable", "Hashable", "Sendable"],
-            "Data": ["Equatable", "Hashable", "Collection", "MutableCollection", "RandomAccessCollection", "Codable", "Sendable"],
-            "Date": ["Equatable", "Hashable", "Comparable", "Codable", "Sendable"],
-            "URL": ["Equatable", "Hashable", "Codable", "Sendable"],
-            "UUID": ["Equatable", "Hashable", "Codable", "Sendable"],
-        ]
-    }
-
-    public func types(conformingTo protocolName: ProtocolName) -> [TypeName] {
-        // Standard library provider doesn't return type names
-        // It only validates conformances for known types
-        []
-    }
-
-    public func doesType(_ typeName: TypeName, conformTo protocolName: ProtocolName) -> Bool {
-        let simpleName = simplifyTypeName(typeName.name)
-        let simpleProto = simplifyTypeName(protocolName.name)
-        return knownConformances[simpleName]?.contains(simpleProto) ?? false
-    }
-
-    public func conformances(of typeName: TypeName) -> [ProtocolName] {
-        // Would need to create ProtocolName instances which requires Node
-        // For now, return empty - this provider is mainly for validation
-        []
-    }
-
-    public var allTypeNames: [TypeName] { [] }
-
-    public func typeDefinition(for typeName: TypeName) -> TypeDefinition? { nil }
-    public func imagePath(for typeName: TypeName) -> String? { nil }
-
-    private func simplifyTypeName(_ name: String) -> String {
-        // Remove module prefix (e.g., "Swift.Int" -> "Int")
-        if let dotIndex = name.lastIndex(of: ".") {
-            return String(name[name.index(after: dotIndex)...])
-        }
-        return name
-    }
 }
