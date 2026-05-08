@@ -142,6 +142,21 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
 
         await printCatchedThrowing {
             try await BlockList {
+                // Specialized variants live on each `TypeDefinition` rather
+                // than on the indexer (the indexer is intentionally agnostic
+                // of user-driven specialization). Walk every type definition
+                // in the module and surface any specialized children it has
+                // accumulated through `specialize(with:in:)`.
+                for typeDefinition in indexer.allTypeDefinitions.values {
+                    for specialized in typeDefinition.specializedTypeDefinitions {
+                        try await printer.printTypeDefinition(specialized)
+                    }
+                }
+            }
+        }
+
+        await printCatchedThrowing {
+            try await BlockList {
                 for protocolDefinition in indexer.rootProtocolDefinitions.values {
                     try await printer.printProtocolDefinition(protocolDefinition)
                 }
