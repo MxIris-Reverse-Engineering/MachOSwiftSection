@@ -15,7 +15,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
     package let dumped: Dumped
 
-    package let metadata: Metadata?
+    package let metadataContext: DumperMetadataContext<Metadata>?
 
     package let configuration: DumperConfiguration
 
@@ -25,12 +25,12 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
     private var symbolIndexStore
 
     package init(_ dumped: Dumped, using configuration: DumperConfiguration, in machO: MachO) {
-        self.init(dumped, metadata: nil, using: configuration, in: machO)
+        self.init(dumped, metadataContext: nil, using: configuration, in: machO)
     }
 
-    package init(_ dumped: Dumped, metadata: Metadata?, using configuration: DumperConfiguration, in machO: MachO) {
+    package init(_ dumped: Dumped, metadataContext: DumperMetadataContext<Metadata>?, using configuration: DumperConfiguration, in machO: MachO) {
         self.dumped = dumped
-        self.metadata = metadata
+        self.metadataContext = metadataContext
         self.configuration = configuration
         self.machO = machO
     }
@@ -55,7 +55,12 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
             try await name
             let superclass = try await superclass
-            if let genericContext = dumped.genericContext {
+            // For a specialized class dumper, `name` already prints the
+            // bound generic form so the `<A: Hashable, ...>` clause would
+            // duplicate the type-argument display. Emit the superclass
+            // segment directly in that case.
+            let isBound = boundDumpedMetatype() != nil
+            if !isBound, let genericContext = dumped.genericContext {
                 try await genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO) {
                     superclass
                 }
@@ -125,14 +130,8 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
     private var fieldOffsets: [Int]? {
         guard configuration.printFieldOffset else { return nil }
-        guard let metadataAccessor = try? dumped.descriptor.metadataAccessorFunction(in: machO), !dumped.flags.isGeneric else { return nil }
-        guard let metadataWrapper = try? metadataAccessor(request: .init()).value.resolve(in: machO) else { return nil }
-        switch metadataWrapper {
-        case .class(let metadata):
-            return try? metadata.fieldOffsets(for: dumped.descriptor, in: machO).map { $0.cast() }
-        default:
-            return nil
-        }
+        guard let metadataContext else { return nil }
+        return try? metadataContext.metadata.fieldOffsets(for: dumped.descriptor, in: metadataContext.readingContext).map { $0.cast() }
     }
 
     package var fields: SemanticString {
@@ -147,9 +146,8 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                     let endOffset: Int?
                     if let nextFieldOffset = fieldOffsets[safe: offset.index + 1] {
                         endOffset = nextFieldOffset
-                    } else if !dumped.flags.isGeneric,
-                              let machOImage = machO.asMachOImage,
-                              let metatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machOImage),
+                    } else if let machOImage = machO.asMachOImage,
+                              let metatype = resolveFieldMetatype(for: mangledTypeName, in: machOImage),
                               let metadata = try? Metadata.createInProcess(metatype),
                               let typeLayout = try? metadata.asMetadataWrapper().valueWitnessTable().typeLayout {
                         endOffset = startOffset + Int(typeLayout.size)
@@ -163,13 +161,16 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
                     }
                 }
 
-                if configuration.printTypeLayout, !dumped.flags.isGeneric, let machO = machO.asMachOImage, let metatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machO), let metadata = try? Metadata.createInProcess(metatype) {
-                    try await metadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
+                if configuration.printTypeLayout,
+                   let machOImage = machO.asMachOImage,
+                   let resolvedMetatype = resolveFieldMetatype(for: mangledTypeName, in: machOImage),
+                   let resolvedMetadata = try? Metadata.createInProcess(resolvedMetatype) {
+                    try await resolvedMetadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
                 }
 
                 Indent(level: configuration.indentation)
 
-                let demangledTypeNode = try MetadataReader.demangleType(for: mangledTypeName, in: machO)
+                let demangledTypeNode = try fieldDemangledTypeNode(for: mangledTypeName)
 
                 let fieldName = try fieldRecord.fieldName(in: machO)
 
@@ -392,7 +393,11 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
 
     package var name: SemanticString {
         get async throws {
-            try await _name(using: demangleResolver)
+            if let boundNode = boundDumpedTypeNode() {
+                try await resolveBoundDumpedTypeName(boundNode)
+            } else {
+                try await _name(using: demangleResolver)
+            }
         }
     }
 

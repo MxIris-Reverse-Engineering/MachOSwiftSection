@@ -5,40 +5,39 @@ extension TypeContextWrapper {
     package func dumper(using configuration: DumperConfiguration, metadata: MetadataWrapper? = nil, in machO: some MachOSwiftSectionRepresentableWithCache) -> any TypedDumper {
         switch self {
         case .enum(let type):
-            let resolvedMetadata: EnumMetadata?
-            if let metadata {
-                // Both `enum` and `optional` wrappers carry an `EnumMetadata`
-                // payload — the runtime distinguishes them by kind only, but
-                // the descriptor-level dumper needs the underlying struct
-                // either way.
-                resolvedMetadata = metadata.enum ?? metadata.optional
+            let metadataContext: DumperMetadataContext<EnumMetadata>?
+            // Both `enum` and `optional` wrappers carry an `EnumMetadata`
+            // payload — the runtime distinguishes them by kind only, but
+            // the descriptor-level dumper needs the underlying struct
+            // either way.
+            if let resolvedMetadata = metadata?.enum ?? metadata?.optional {
+                metadataContext = .init(metadata: resolvedMetadata, readingContext: type.descriptor.isGeneric ? InProcessContext.shared : MachOContext(machO))
             } else if type.descriptor.isGeneric {
-                resolvedMetadata = nil
+                metadataContext = nil
             } else {
-                resolvedMetadata = try? type.descriptor.metadataAccessorFunction(in: machO)?(request: .init()).value.resolve(in: machO).enum
+                metadataContext = try? type.descriptor.metadataAccessorFunction(in: machO)?(request: .init()).value.resolve(in: machO).enum.map { .init(metadata: $0, readingContext: MachOContext(machO)) }
             }
-
-            return EnumDumper(type, metadata: resolvedMetadata, using: configuration, in: machO)
+            return EnumDumper(type, metadataContext: metadataContext, using: configuration, in: machO)
         case .struct(let type):
-            let resolvedMetadata: StructMetadata?
-            if let metadata {
-                resolvedMetadata = metadata.struct
+            let metadataContext: DumperMetadataContext<StructMetadata>?
+            if let metadata = metadata?.struct {
+                metadataContext = .init(metadata: metadata, readingContext: type.descriptor.isGeneric ? InProcessContext.shared : MachOContext(machO))
             } else if type.descriptor.isGeneric {
-                resolvedMetadata = nil
+                metadataContext = nil
             } else {
-                resolvedMetadata = try? type.descriptor.metadataAccessorFunction(in: machO)?(request: .init()).value.resolve(in: machO).struct
+                metadataContext = try? type.descriptor.metadataAccessorFunction(in: machO)?(request: .init()).value.resolve(in: machO).struct.map { .init(metadata: $0, readingContext: MachOContext(machO)) }
             }
-            return StructDumper(type, metadata: resolvedMetadata, using: configuration, in: machO)
+            return StructDumper(type, metadataContext: metadataContext, using: configuration, in: machO)
         case .class(let type):
-            let resolvedMetadata: ClassMetadataObjCInterop?
-            if let metadata {
-                resolvedMetadata = metadata.class
+            let metadataContext: DumperMetadataContext<ClassMetadataObjCInterop>?
+            if let metadata = metadata?.class {
+                metadataContext = .init(metadata: metadata, readingContext: type.descriptor.isGeneric ? InProcessContext.shared : MachOContext(machO))
             } else if type.descriptor.isGeneric {
-                resolvedMetadata = nil
+                metadataContext = nil
             } else {
-                resolvedMetadata = try? type.descriptor.metadataAccessorFunction(in: machO)?(request: .init()).value.resolve(in: machO).class
+                metadataContext = try? type.descriptor.metadataAccessorFunction(in: machO)?(request: .init()).value.resolve(in: machO).class.map { .init(metadata: $0, readingContext: MachOContext(machO)) }
             }
-            return ClassDumper(type, metadata: resolvedMetadata, using: configuration, in: machO)
+            return ClassDumper(type, metadataContext: metadataContext, using: configuration, in: machO)
         }
     }
 }
