@@ -15,61 +15,6 @@ import OrderedCollections
 
 @Suite(.serialized)
 struct GenericSpecializationTests {
-    /// One-shot cache of the `SwiftInterfaceIndexer` shape used across all
-    /// nested suites. swift-testing instantiates a fresh suite struct per
-    /// `@Test`; the actor lets each instance share a single prepared indexer
-    /// instead of paying preparation cost N × suite-count times.
-    fileprivate actor SharedIndexerCache {
-        static let shared = SharedIndexerCache()
-
-        private var indexerCache: SwiftInterfaceIndexer<MachOImage>?
-
-        enum CacheError: Error, LocalizedError {
-            case missingImage(name: String)
-
-            var errorDescription: String? {
-                switch self {
-                case .missingImage(let name):
-                    return "expected MachOImage(name: \"\(name)\") to be loadable for the test fixture"
-                }
-            }
-        }
-
-        /// Indexer over the current process plus Foundation and libswiftCore.
-        func indexer() async throws -> SwiftInterfaceIndexer<MachOImage> {
-            if let indexerCache { return indexerCache }
-            let indexer = SwiftInterfaceIndexer(in: MachOImage.current())
-            try indexer.addSubIndexer(SwiftInterfaceIndexer(in: Self.requireImage(name: "Foundation")))
-            try indexer.addSubIndexer(SwiftInterfaceIndexer(in: Self.requireImage(name: "libswiftCore")))
-            try await indexer.prepare()
-            indexerCache = indexer
-            return indexer
-        }
-
-        private static func requireImage(name: String) throws -> MachOImage {
-            guard let image = MachOImage(name: name) else {
-                throw CacheError.missingImage(name: name)
-            }
-            return image
-        }
-    }
-
-    /// Single shared `MachOImage.current()` reference for the nested suites.
-    /// `.current()` already returns the same identity each call, but caching
-    /// it once spares the repeated function-call overhead and makes the
-    /// access path symmetric with `SharedIndexerCache.shared`.
-    fileprivate static let sharedMachO: MachOImage = .current()
-
-    /// Shared environment for the nested suites. Conforming suites get a
-    /// `machO` (sync, backed by `sharedMachO`) and an `indexer` (async,
-    /// backed by `SharedIndexerCache.shared.indexer()`) for free via the
-    /// default implementations below — no per-suite stored properties or
-    /// `init` are needed.
-    protocol Environment {
-        var machO: MachOImage { get }
-        var indexer: SwiftInterfaceIndexer<MachOImage> { get async throws }
-    }
-
     // MARK: - Fixture types
     //
     // All generic-shape fixtures live on the outer suite so that the
@@ -231,7 +176,7 @@ struct GenericSpecializationTests {
     // suite below.
 
     @Suite("Make Request")
-    struct MakeRequest: Environment {
+    struct MakeRequest: GenericSpecializationTestingEnvironment {
         @Test func basicShape() async throws {
             let descriptor = try structDescriptor(named: "TestGenericStruct")
 
@@ -507,7 +452,7 @@ struct GenericSpecializationTests {
     // case routing).
 
     @Suite("Specialize")
-    struct Specialize: Environment {
+    struct Specialize: GenericSpecializationTestingEnvironment {
         @Test func manualAccessorMatchesSpecializerWitnessOrder() async throws {
             let descriptor = try inProcessStructDescriptor(named: "TestGenericStruct")
 
@@ -1006,7 +951,7 @@ struct GenericSpecializationTests {
     // depth ≥ 2 plus the SwiftDump dumper and the inverted-protocol overlay.
 
     @Suite("Nested Generics")
-    struct NestedGenerics: Environment {
+    struct NestedGenerics: GenericSpecializationTestingEnvironment {
         @Test func twoLevelBaseline() throws {
             let descriptor = try structDescriptor(named: "NestedGenericTwoLevelInner")
             let genericContext = try #require(try descriptor.genericContext(in: machO))
@@ -1268,7 +1213,7 @@ struct GenericSpecializationTests {
     // so this group stays focused on argument-shape errors / warnings.
 
     @Suite("Validation")
-    struct Validation: Environment {
+    struct Validation: GenericSpecializationTestingEnvironment {
         @Test func reportsMissingArguments() throws {
             let descriptor = try structDescriptor(named: "TestGenericStruct")
 
@@ -1421,7 +1366,7 @@ struct GenericSpecializationTests {
     // `witnessTableNotFound`.
 
     @Suite("Runtime Preflight")
-    struct RuntimePreflight: Environment {
+    struct RuntimePreflight: GenericSpecializationTestingEnvironment {
         @Test func catchesProtocolMismatch() async throws {
             // TestSingleProtocolStruct<A: Hashable>. Picking a Function type for
             // A (Functions don't conform to Hashable) must trip the preflight.
@@ -1594,7 +1539,7 @@ struct GenericSpecializationTests {
     // mis-feeds individual PWT slots.
 
     @Suite("Invariants")
-    struct Invariants: Environment {
+    struct Invariants: GenericSpecializationTestingEnvironment {
         // Associated-type PWT order with same-leaf interleaving.
         //
         // Regression coverage for the previously-buggy
@@ -1786,7 +1731,7 @@ struct GenericSpecializationTests {
     // missing infrastructure, key-argument count mismatches, etc.
 
     @Suite("Error Paths")
-    struct ErrorPaths: Environment {
+    struct ErrorPaths: GenericSpecializationTestingEnvironment {
         // Bug reproduction #1: specialize doesn't self-check
         // keyArgumentCount.
         //
@@ -1939,7 +1884,7 @@ struct GenericSpecializationTests {
     // public API surface independent of any single specialization run.
 
     @Suite("Models")
-    struct Models: Environment {
+    struct Models: GenericSpecializationTestingEnvironment {
         @Test func selectionBuilderBasic() throws {
             let selection = SpecializationSelection.builder()
                 .set("A", to: [Int].self)
@@ -2217,83 +2162,6 @@ struct GenericSpecializationTests {
             #expect(composite.doesType(sampleType, conformTo: sampleProto),
                     "doesType returns true if any provider says yes")
         }
-    }
-}
-
-// MARK: - Default helpers for nested suites
-
-extension GenericSpecializationTests.Environment {
-    /// Sync access to the cached `MachOImage.current()` — every nested
-    /// suite shares the same instance.
-    var machO: MachOImage {
-        GenericSpecializationTests.sharedMachO
-    }
-
-    /// Async access to the prepared indexer. The actor cache builds it once
-    /// per process and hands every test the same reference, so the awaiter
-    /// pays the preparation cost zero times after the first hit.
-    var indexer: SwiftInterfaceIndexer<MachOImage> {
-        get async throws {
-            try await GenericSpecializationTests.SharedIndexerCache.shared.indexer()
-        }
-    }
-
-    /// Resolves the first struct context descriptor whose name contains
-    /// `nameContains`. The fixtures live as nested types on the outer suite,
-    /// so a substring match against the mangled name is sufficient and
-    /// avoids pinning each test to the full module-qualified form.
-    func structDescriptor(named nameContains: String) throws -> StructDescriptor {
-        try #require(
-            try machO.swift.typeContextDescriptors.first {
-                try $0.struct?.name(in: machO).contains(nameContains) == true
-            }?.struct,
-            "expected a struct context descriptor whose name contains \"\(nameContains)\""
-        )
-    }
-
-    /// Resolves a struct descriptor and binds it to the in-process reader via
-    /// `asPointerWrapper(in:)`. Required for callers that invoke the
-    /// no-argument overloads of descriptor methods (e.g. `genericContext()`),
-    /// which read through the descriptor's embedded reader rather than an
-    /// explicit `MachOImage` argument.
-    func inProcessStructDescriptor(named nameContains: String) throws -> StructDescriptor {
-        try structDescriptor(named: nameContains).asPointerWrapper(in: machO)
-    }
-
-    /// Resolves the first enum context descriptor whose name contains
-    /// `nameContains`. Mirrors `structDescriptor(named:)` for enum fixtures.
-    func enumDescriptor(named nameContains: String) throws -> EnumDescriptor {
-        try #require(
-            try machO.swift.typeContextDescriptors.first {
-                try $0.enum?.name(in: machO).contains(nameContains) == true
-            }?.enum,
-            "expected an enum context descriptor whose name contains \"\(nameContains)\""
-        )
-    }
-
-    /// Resolves the first class context descriptor whose name contains
-    /// `nameContains`. Mirrors `structDescriptor(named:)` for class fixtures.
-    func classDescriptor(named nameContains: String) throws -> ClassDescriptor {
-        try #require(
-            try machO.swift.typeContextDescriptors.first {
-                try $0.class?.name(in: machO).contains(nameContains) == true
-            }?.class,
-            "expected a class context descriptor whose name contains \"\(nameContains)\""
-        )
-    }
-
-    /// Resolves the descriptor along with its generic context. Used by
-    /// tests that inspect the generic header (e.g. `numKeyArguments`) in
-    /// addition to driving `GenericSpecializer`.
-    func genericStructFixture(
-        named nameContains: String
-    ) throws -> (descriptor: StructDescriptor, genericContext: GenericContext) {
-        let descriptor = try structDescriptor(named: nameContains)
-        let genericContext = try #require(
-            try descriptor.genericContext(in: machO),
-            "expected genericContext on \(nameContains)"
-        )
-        return (descriptor, genericContext)
     }
 }
 

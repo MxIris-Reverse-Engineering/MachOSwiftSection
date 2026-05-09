@@ -567,6 +567,8 @@ extension Target {
             .target(.MachOReading),
             .target(.MachOResolving),
             .target(.MachOFixtureSupport),
+            .target(.MachOSwiftSection),
+            .target(.SwiftInterface),
         ],
         swiftSettings: testSettings
     )
