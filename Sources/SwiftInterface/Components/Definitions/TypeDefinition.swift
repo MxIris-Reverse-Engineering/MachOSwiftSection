@@ -20,7 +20,11 @@ public final class TypeDefinition: Definition {
 
     public let type: TypeContextWrapper
 
-    public let typeName: TypeName
+    /// `internal(set)` rather than `let` so `specialize(with:in:)` can publish
+    /// a substituted `TypeName` (with generic placeholders replaced by the
+    /// chosen concrete arguments) onto the new `TypeDefinition` without
+    /// going through a separate sidecar map.
+    public internal(set) var typeName: TypeName
 
     public internal(set) weak var parent: TypeDefinition?
 
@@ -100,7 +104,7 @@ public final class TypeDefinition: Definition {
     /// runtime-resolved metadata. Lives on the model rather than on the
     /// indexer so the indexer remains agnostic of user-driven
     /// specialization state.
-    public internal(set) var specializedTypeDefinitions: [TypeDefinition] = []
+    public private(set) var specializedTypeDefinitions: [TypeDefinition] = []
 
     public var hasMembers: Bool {
         !fields.isEmpty || !variables.isEmpty || !functions.isEmpty ||
@@ -138,22 +142,83 @@ public final class TypeDefinition: Definition {
     ///   validation needs the receiver's descriptor in its in-process
     ///   form, and that is what `asPointerWrapper(in:)` produces.
     @discardableResult
-    public func specialize<MachO: MachOSwiftSectionRepresentableWithCache>(
+    public func specialize(
         with specializationResult: SpecializationResult,
-        in machO: MachO,
-        image machOImage: MachOImage
+        typeArgumentNodes: [Node]? = nil,
+        in machO: MachOImage,
     ) async throws -> TypeDefinition {
         let metadata = try specializationResult.resolveMetadata()
 
-        try validateSpecialization(metadata: metadata, in: machOImage)
+        try validateSpecialization(metadata: metadata, in: machO)
 
         let specialized = try await TypeDefinition(type: type, in: machO)
         specialized.metadata = metadata
+        if let typeArgumentNodes, !typeArgumentNodes.isEmpty {
+            // Replace the unbound generic typeName (e.g. `Type → Structure(Box)`)
+            // with the bound form (e.g. `Type → BoundGenericStructure(Type → Structure(Box), TypeList(Type → Structure(Int)))`).
+            // This makes the specialized definition print as `Box<Int>` rather
+            // than the placeholder `Box<A>`, and makes its mangled name unique
+            // per specialization (via `mangleAsString(typeName.node)`).
+            specialized.typeName = Self.boundGenericTypeName(
+                unboundTypeName: specialized.typeName,
+                typeArgumentNodes: typeArgumentNodes
+            )
+        }
         specializedTypeDefinitions.append(specialized)
         return specialized
     }
 
-    private func validateSpecialization(metadata: MetadataWrapper, in machOImage: MachOImage) throws {
+    /// Build a bound-generic `TypeName` by wrapping the supplied unbound
+    /// (`Type → Structure(...)` / `Class(...)` / `Enum(...)`) form with a
+    /// `BoundGeneric{Class,Structure,Enum}` node carrying the concrete type
+    /// argument list.
+    ///
+    /// Mirrors the shape Swift's demangler produces at
+    /// `swift-demangling/.../Demangler.swift:1184` —
+    /// `Node.create(kind: kind, children: [Node.create(kind: .type, child: n), args])` —
+    /// so the result round-trips cleanly through `mangleAsString` /
+    /// `Remangler.mangleBoundGenericStructure`. Both the unbound type and
+    /// every TypeList entry are normalized to a `Type`-wrapped form because
+    /// callers occasionally hand us bare `Structure(...)` nodes (the wrap is a
+    /// no-op when the input is already `.type`).
+    ///
+    /// Default access (`internal`) so unit tests in `SwiftInterfaceTests` can
+    /// exercise the substitution shape without spinning up a full MachO
+    /// fixture.
+    static func boundGenericTypeName(
+        unboundTypeName: TypeName,
+        typeArgumentNodes: [Node]
+    ) -> TypeName {
+        let unboundTypeNode: Node
+        if unboundTypeName.node.kind == .type {
+            unboundTypeNode = unboundTypeName.node
+        } else {
+            unboundTypeNode = Node.create(kind: .type, children: [unboundTypeName.node])
+        }
+
+        let normalizedArgumentNodes: [Node] = typeArgumentNodes.map { argumentNode in
+            if argumentNode.kind == .type {
+                return argumentNode
+            } else {
+                return Node.create(kind: .type, children: [argumentNode])
+            }
+        }
+
+        let boundKind: Node.Kind
+        switch unboundTypeName.kind {
+        case .struct: boundKind = .boundGenericStructure
+        case .class: boundKind = .boundGenericClass
+        case .enum: boundKind = .boundGenericEnum
+        }
+
+        let typeList = Node.create(kind: .typeList, children: normalizedArgumentNodes)
+        let boundNode = Node.create(kind: boundKind, children: [unboundTypeNode, typeList])
+        let wrappedNode = Node.create(kind: .type, children: [boundNode])
+
+        return TypeName(node: wrappedNode, kind: unboundTypeName.kind)
+    }
+
+    private func validateSpecialization(metadata: MetadataWrapper, in machO: MachOImage) throws {
         // 1. Receiver must be generic. A non-generic descriptor has a
         //    fixed metadata; specializing it is meaningless and would
         //    indicate the caller wired the wrong type.
@@ -184,7 +249,7 @@ public final class TypeDefinition: Definition {
         //    so that the offsets being compared are both process-memory
         //    addresses. A mismatch means the result was specialized for
         //    a structurally similar but distinct type.
-        let inProcessType = type.typeContextDescriptorWrapper.asPointerWrapper(in: machOImage)
+        let inProcessType = type.typeContextDescriptorWrapper.asPointerWrapper(in: machO)
         let expectedDescriptorOffset = inProcessType.typeContextDescriptor.offset
         let actualDescriptorOffset = try descriptorOffset(of: metadata)
         guard expectedDescriptorOffset == actualDescriptorOffset else {

@@ -455,9 +455,6 @@ extension Target {
             .target(.SwiftDump),
             .target(.Utilities),
         ],
-        exclude: [
-            "GenericSpecializer/REVIEW_FIXUPS.md",
-        ]
     )
 
     static let TypeIndexing = Target.target(
