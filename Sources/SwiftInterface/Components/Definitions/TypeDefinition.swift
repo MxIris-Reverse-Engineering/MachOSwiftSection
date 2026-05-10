@@ -20,11 +20,20 @@ public final class TypeDefinition: Definition {
 
     public let type: TypeContextWrapper
 
-    /// `internal(set)` rather than `let` so `specialize(with:in:)` can publish
-    /// a substituted `TypeName` (with generic placeholders replaced by the
-    /// chosen concrete arguments) onto the new `TypeDefinition` without
-    /// going through a separate sidecar map.
-    public internal(set) var typeName: TypeName
+    /// Injected at construction time. Ordinary indexing-derived definitions
+    /// receive the unbound form computed from `type.typeName(in:)`;
+    /// `specialize(with:in:)` derives a bound form via
+    /// `boundGenericTypeName(...)` (`Box<A>` → `Box<Int>`) and feeds it to
+    /// the designated init, so the property is always immutable post-init.
+    public let typeName: TypeName
+
+    /// `true` when this definition was produced via `specialize(with:in:)` —
+    /// i.e. it carries a runtime-resolved `metadata` and a bound-generic
+    /// `typeName`. `false` for the canonical, unspecialized definitions
+    /// produced from a MachO image's section data. Always known at
+    /// construction time, so callers can branch on the type kind without
+    /// inspecting the optional `metadata` field.
+    public let isSpecialized: Bool
 
     public internal(set) weak var parent: TypeDefinition?
 
@@ -104,17 +113,27 @@ public final class TypeDefinition: Definition {
     /// runtime-resolved metadata. Lives on the model rather than on the
     /// indexer so the indexer remains agnostic of user-driven
     /// specialization state.
-    public private(set) var specializedTypeDefinitions: [TypeDefinition] = []
+    public private(set) var specializedChildren: [TypeDefinition] = []
 
     public var hasMembers: Bool {
         !fields.isEmpty || !variables.isEmpty || !functions.isEmpty ||
             !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty || hasDeallocator
     }
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(type: TypeContextWrapper, in machO: MachO) async throws {
+    /// Designated initializer. Internal so the canonical "derive typeName
+    /// from `type.typeName(in:)`" path used by indexing cannot be bypassed
+    /// from outside the package; `specialize(with:in:)` is the only
+    /// in-package caller that injects a different `typeName`/`isSpecialized`
+    /// pair.
+    internal init(type: TypeContextWrapper, typeName: TypeName, isSpecialized: Bool) {
         self.type = type
-        let typeName = try type.typeName(in: machO)
         self.typeName = typeName
+        self.isSpecialized = isSpecialized
+    }
+
+    public convenience init<MachO: MachOSwiftSectionRepresentableWithCache>(type: TypeContextWrapper, in machO: MachO) async throws {
+        let typeName = try type.typeName(in: machO)
+        self.init(type: type, typeName: typeName, isSpecialized: false)
     }
 
     /// Append a new specialized `TypeDefinition` derived from this
@@ -151,20 +170,27 @@ public final class TypeDefinition: Definition {
 
         try validateSpecialization(metadata: metadata, in: machO)
 
-        let specialized = try await TypeDefinition(type: type, in: machO)
-        specialized.metadata = metadata
+        // Compute the final typeName up-front so it can flow through the
+        // designated init: either the unbound form (`Box<A>`) when no type
+        // arguments are supplied, or the bound form (`Box<Int>`) produced by
+        // `boundGenericTypeName(...)`. The latter makes the specialized
+        // definition print as `Box<Int>` rather than the placeholder
+        // `Box<A>`, and gives it a unique mangled name per specialization
+        // (via `mangleAsString(typeName.node)`).
+        let unboundTypeName = try type.typeName(in: machO)
+        let finalTypeName: TypeName
         if let typeArgumentNodes, !typeArgumentNodes.isEmpty {
-            // Replace the unbound generic typeName (e.g. `Type → Structure(Box)`)
-            // with the bound form (e.g. `Type → BoundGenericStructure(Type → Structure(Box), TypeList(Type → Structure(Int)))`).
-            // This makes the specialized definition print as `Box<Int>` rather
-            // than the placeholder `Box<A>`, and makes its mangled name unique
-            // per specialization (via `mangleAsString(typeName.node)`).
-            specialized.typeName = Self.boundGenericTypeName(
-                unboundTypeName: specialized.typeName,
+            finalTypeName = Self.boundGenericTypeName(
+                unboundTypeName: unboundTypeName,
                 typeArgumentNodes: typeArgumentNodes
             )
+        } else {
+            finalTypeName = unboundTypeName
         }
-        specializedTypeDefinitions.append(specialized)
+
+        let specialized = TypeDefinition(type: type, typeName: finalTypeName, isSpecialized: true)
+        specialized.metadata = metadata
+        specializedChildren.append(specialized)
         return specialized
     }
 

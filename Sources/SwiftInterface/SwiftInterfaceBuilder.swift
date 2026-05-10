@@ -148,7 +148,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
                 // in the module and surface any specialized children it has
                 // accumulated through `specialize(with:in:)`.
                 for typeDefinition in indexer.allTypeDefinitions.values {
-                    for specialized in typeDefinition.specializedTypeDefinitions {
+                    for specialized in typeDefinition.specializedChildren {
                         try await printer.printTypeDefinition(specialized)
                     }
                 }
