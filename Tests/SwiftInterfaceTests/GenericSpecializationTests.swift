@@ -149,6 +149,55 @@ struct GenericSpecializationTests {
         init(a: A) { self.a = a }
     }
 
+    // Fixtures used by the baseClass-requirement preflight tests. The
+    // class shapes mirror a tiny three-level inheritance chain so a single
+    // suite can pin (a) a successful direct match, (b) a successful
+    // multi-step superclass walk, and (c) a failed walk on an unrelated
+    // class, all without dragging external frameworks into the test image.
+    class TestRequirementBaseClass {
+        var baseField: Int = 0
+        init() {}
+    }
+
+    class TestRequirementSubClass: TestRequirementBaseClass {}
+
+    final class TestRequirementGrandChildClass: TestRequirementSubClass {}
+
+    final class TestRequirementUnrelatedClass {}
+
+    /// `<A: TestRequirementBaseClass>` — single-parameter struct used to
+    /// drive the baseClass requirement through both `runtimePreflight`
+    /// (subclass / non-subclass / non-class checks) and `specialize`
+    /// (the metadata accessor is happy with any class because baseClass
+    /// has `hasKeyArgument == false`).
+    struct TestBaseClassRequirementStruct<A: TestRequirementBaseClass> {
+        let a: A
+    }
+
+    /// Helper protocol carrying an associated type used as the RHS of the
+    /// sameType-requirement fixture below. Lives in this test file because
+    /// it is a Swift-6-language-mode workaround: every shape of sameType
+    /// that the language *will* accept (`A == B`, `A == Int`,
+    /// `B == A` even when nested) is rejected as redundant or
+    /// non-generic, so the fixture is forced into the only remaining
+    /// shape — `A == B.Element` — which keeps both sides in the same
+    /// generic context without making either side trivially equivalent.
+    protocol TestSameTypeAssocCarrier {
+        associatedtype Element
+    }
+
+    /// `<A, B: TestSameTypeAssocCarrier> where A == B.Element` — fixture
+    /// used by the sameType preflight tests. The LHS is a direct generic
+    /// parameter, so `collectRequirements` attaches the resulting
+    /// `.sameType` record to `A`'s requirement list (the side that the
+    /// preflight check inspects). The RHS is an associated-type access
+    /// path which exercises the dedicated downgrade-to-warning branch in
+    /// `runtimeSameTypeCheck`.
+    struct TestSameTypeViaAssocStruct<A, B: TestSameTypeAssocCarrier> where A == B.Element {
+        let a: A
+        let b: B
+    }
+
     /// Two unrelated protocols both declaring `associatedtype Element`.
     /// The companion `DualElementStruct` fixture pins the Swift compiler's
     /// GenericSignature minimization invariant — see the matching test
@@ -1525,6 +1574,321 @@ struct GenericSpecializationTests {
                     Issue.record("expected specializationFailed, got \(error)")
                 }
             }
+        }
+
+        // MARK: baseClass requirement coverage
+        //
+        // Pre-fix `runtimePreflight` skipped every `.baseClass` record
+        // (the joint `case .protocol, .sameType, .baseClass: continue`
+        // arm), so a struct selection or an unrelated-class selection on
+        // `<T: TestRequirementBaseClass>` fell through to the metadata
+        // accessor — the runtime then rejected the type with a generic
+        // failure deep inside `swift_getGenericMetadata`. The tests below
+        // pin the new typed behaviour: typed errors for the bad cases,
+        // silent success for the good ones, plus a sanity check that the
+        // requirement itself is exposed by `makeRequest`.
+
+        @Test func baseClassRequirementSurfacesInRequest() async throws {
+            let descriptor = try structDescriptor(named: "TestBaseClassRequirementStruct")
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+
+            #expect(request.parameters.count == 1)
+            let parameter = request.parameters[0]
+            let baseClassRequirement = parameter.requirements.first { requirement in
+                if case .baseClass = requirement { return true }
+                return false
+            }
+            try #require(
+                baseClassRequirement != nil,
+                "makeRequest must surface .baseClass(...) for `<A: TestRequirementBaseClass>`"
+            )
+
+            // baseClass is not a key argument — the metadata accessor only
+            // takes one slot (A's metadata) regardless of the class chain.
+            #expect(request.keyArgumentCount == 1)
+        }
+
+        @Test func baseClassPreflightAcceptsDirectSubclass() async throws {
+            let descriptor = try structDescriptor(named: "TestBaseClassRequirementStruct")
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+
+            let selection: SpecializationSelection = [
+                "A": .metatype(GenericSpecializationTests.TestRequirementSubClass.self)
+            ]
+            let preflight = specializer.runtimePreflight(selection: selection, for: request)
+            #expect(preflight.isValid, "direct subclass must pass baseClass preflight, got \(preflight.errors)")
+            #expect(preflight.errors.isEmpty)
+
+            // End-to-end specialize must also succeed for the same selection —
+            // baseClass adds no key argument, so the accessor call still
+            // takes a single metadata.
+            let result = try specializer.specialize(request, with: selection)
+            _ = try #require(result.resolveMetadata().struct)
+        }
+
+        @Test func baseClassPreflightAcceptsBaseClassItself() async throws {
+            let descriptor = try structDescriptor(named: "TestBaseClassRequirementStruct")
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+
+            // The base class trivially satisfies its own requirement —
+            // covers the pointer-equality short circuit before the
+            // superclass walk starts.
+            let selection: SpecializationSelection = [
+                "A": .metatype(GenericSpecializationTests.TestRequirementBaseClass.self)
+            ]
+            let preflight = specializer.runtimePreflight(selection: selection, for: request)
+            #expect(preflight.isValid, "base class must satisfy `T: BaseClass` trivially, got \(preflight.errors)")
+        }
+
+        @Test func baseClassPreflightAcceptsTransitiveSubclass() async throws {
+            let descriptor = try structDescriptor(named: "TestBaseClassRequirementStruct")
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+
+            // Grandchild forces preflight to walk more than one superclass
+            // hop before pointer-matching the expected base.
+            let selection: SpecializationSelection = [
+                "A": .metatype(GenericSpecializationTests.TestRequirementGrandChildClass.self)
+            ]
+            let preflight = specializer.runtimePreflight(selection: selection, for: request)
+            #expect(
+                preflight.isValid,
+                "transitive subclass must pass baseClass preflight (multi-step superclass chain walk), got \(preflight.errors)"
+            )
+        }
+
+        @Test func baseClassPreflightRejectsUnrelatedClass() async throws {
+            let descriptor = try structDescriptor(named: "TestBaseClassRequirementStruct")
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+
+            let selection: SpecializationSelection = [
+                "A": .metatype(GenericSpecializationTests.TestRequirementUnrelatedClass.self)
+            ]
+            let preflight = specializer.runtimePreflight(selection: selection, for: request)
+            #expect(!preflight.isValid, "unrelated class must fail baseClass preflight")
+            let hasBaseClassError = preflight.errors.contains { error in
+                if case .baseClassRequirementNotSatisfied(let param, let baseClass, _) = error {
+                    return param == "A" && baseClass.contains("TestRequirementBaseClass")
+                }
+                return false
+            }
+            #expect(
+                hasBaseClassError,
+                "preflight must report .baseClassRequirementNotSatisfied for an unrelated class, got \(preflight.errors)"
+            )
+        }
+
+        @Test func baseClassRequirementNarrowsCandidates() async throws {
+            let descriptor = try structDescriptor(named: "TestBaseClassRequirementStruct")
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+
+            let parameter = try #require(request.parameters.first)
+
+            // Sanity: the baseClass requirement is on the parameter and
+            // its extracted TypeName resolves through the conformance
+            // provider to a non-empty subclass list. This isolates a
+            // failure to "subclass map didn't recognise the constraint
+            // RHS" before checking the user-facing candidate filtering.
+            let baseClassTypeName = try #require(
+                GenericSpecializer<MachOImage>.baseClassConstraintTypeName(
+                    in: parameter.requirements
+                ),
+                "expected baseClassConstraintTypeName to project the .baseClass requirement to a class TypeName"
+            )
+            let subclasses = specializer.conformanceProvider.subclasses(of: baseClassTypeName)
+            #expect(
+                !subclasses.isEmpty,
+                "subclasses(of: \(baseClassTypeName.name)) returned empty — narrowing falls back to 'do not narrow'"
+            )
+
+            let candidateNames = Set(parameter.candidates.map { $0.typeName.currentName })
+
+            // Must include the base class itself plus the two known
+            // subclasses (the BFS over the parent → child map walks
+            // multiple levels).
+            #expect(
+                candidateNames.contains("TestRequirementBaseClass"),
+                "baseClass-narrowed candidate list must include the base class itself, got \(candidateNames)"
+            )
+            #expect(
+                candidateNames.contains("TestRequirementSubClass"),
+                "baseClass-narrowed candidate list must include direct subclass, got \(candidateNames)"
+            )
+            #expect(
+                candidateNames.contains("TestRequirementGrandChildClass"),
+                "baseClass-narrowed candidate list must include transitive subclass, got \(candidateNames)"
+            )
+
+            // Must NOT include unrelated classes / value types — the whole
+            // point of narrowing.
+            #expect(
+                !candidateNames.contains("TestRequirementUnrelatedClass"),
+                "baseClass-narrowed candidate list must exclude unrelated classes, got \(candidateNames)"
+            )
+            #expect(
+                !candidateNames.contains("Int"),
+                "baseClass-narrowed candidate list must exclude value types, got \(candidateNames)"
+            )
+        }
+
+        @Test func baseClassPreflightRejectsValueType() async throws {
+            let descriptor = try structDescriptor(named: "TestBaseClassRequirementStruct")
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+
+            // Int is a struct — selectedKind is not class-like, so the
+            // check fails before the superclass walk even starts.
+            let selection: SpecializationSelection = ["A": .metatype(Int.self)]
+            let preflight = specializer.runtimePreflight(selection: selection, for: request)
+            #expect(!preflight.isValid, "value type must fail baseClass preflight")
+            let hasBaseClassError = preflight.errors.contains { error in
+                if case .baseClassRequirementNotSatisfied(let param, _, _) = error {
+                    return param == "A"
+                }
+                return false
+            }
+            #expect(
+                hasBaseClassError,
+                "preflight must report .baseClassRequirementNotSatisfied for a non-class type, got \(preflight.errors)"
+            )
+        }
+
+        // MARK: sameType requirement coverage
+        //
+        // Swift 6 rejects every shape of `where LHS == RHS` that would let
+        // us pin both `directGenericParamName` (GP-vs-GP) and the
+        // concrete-type branch in source: `A == B` is "makes equivalent",
+        // `A == Int` is "makes 'A' non-generic", and even nested `B == A`
+        // is "makes equivalent" because the inner generic context sees A
+        // as cumulative. The single shape that survives the language
+        // diagnostic is `A == B.Element`, which is what the fixture above
+        // uses. preflight on that shape exercises the
+        // associated-type-path branch — the typed downgrade to a
+        // `.sameTypeRequirementResolutionSkipped` warning. The other two
+        // branches (GP-vs-GP, GP-vs-concrete) live behind the diagnostic
+        // wall; they are reachable from binaries built in Swift-5 mode
+        // (e.g. SymbolTestsCore's `SameTypeRequirementTest`) but cannot
+        // be constructed inline in this test file's Swift-6 source.
+
+        @Test func sameTypeRequirementSurfacesInRequest() async throws {
+            let descriptor = try structDescriptor(named: "TestSameTypeViaAssocStruct")
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+
+            // The .sameType record attaches to LHS A's requirement list
+            // because `collectRequirements` only keeps requirements whose
+            // LHS is a direct GP — A is, B.Element is not.
+            let parameterA = try #require(
+                request.parameters.first { $0.name == "A" },
+                "expected parameter A in TestSameTypeViaAssocStruct"
+            )
+            let hasSameType = parameterA.requirements.contains { requirement in
+                if case .sameType = requirement { return true }
+                return false
+            }
+            #expect(
+                hasSameType,
+                "makeRequest must surface .sameType(...) for `where A == B.Element` on parameter A, got requirements: \(parameterA.requirements)"
+            )
+        }
+
+        // The unified constraint check resolves both LHS and RHS through
+        // `swift_getTypeByMangledNameInContext` (the same routine Swift's
+        // own `_checkGenericRequirements` uses,
+        // `swift/stdlib/public/runtime/ProtocolConformance.cpp:1846`), so
+        // a `where A == B.Element` requirement is verified by substitution
+        // — not deferred to a downgrade warning. The two tests below pin
+        // the consistent and inconsistent shapes of that verification.
+
+        @Test func sameTypeAssociatedPathPreflightAcceptsConsistentSelection() async throws {
+            let descriptor = try structDescriptor(named: "TestSameTypeViaAssocStruct")
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+
+            // A == B.Element with B.Element == Int and A == Int → consistent.
+            struct CarrierWithIntElement: TestSameTypeAssocCarrier {
+                typealias Element = Int
+            }
+            let selection: SpecializationSelection = [
+                "A": .metatype(Int.self),
+                "B": .metatype(CarrierWithIntElement.self),
+            ]
+            let preflight = specializer.runtimePreflight(selection: selection, for: request)
+
+            let hasMismatchError = preflight.errors.contains { error in
+                if case .sameTypeRequirementNotSatisfied = error { return true }
+                return false
+            }
+            #expect(
+                !hasMismatchError,
+                "consistent `A == B.Element` selection must pass preflight, got errors: \(preflight.errors)"
+            )
+
+            // The unified path must successfully resolve B.Element via
+            // runtime substitution rather than downgrade to a warning —
+            // i.e. it actually verified the equality, didn't skip it.
+            let hasResolutionSkipped = preflight.warnings.contains { warning in
+                if case .sameTypeRequirementResolutionSkipped = warning { return true }
+                return false
+            }
+            #expect(
+                !hasResolutionSkipped,
+                "preflight must resolve `B.Element` via runtime substitution, not downgrade to a warning"
+            )
+        }
+
+        @Test func sameTypeAssociatedPathPreflightRejectsInconsistentSelection() async throws {
+            let descriptor = try structDescriptor(named: "TestSameTypeViaAssocStruct")
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+
+            // A == B.Element required, but A=String / B.Element=Int — the
+            // unified pass must catch this even though the LHS is a direct
+            // GP and RHS is an associated-type access path (the case
+            // pre-refactor preflight downgraded to a warning).
+            struct CarrierWithIntElement: TestSameTypeAssocCarrier {
+                typealias Element = Int
+            }
+            let selection: SpecializationSelection = [
+                "A": .metatype(String.self),
+                "B": .metatype(CarrierWithIntElement.self),
+            ]
+            let preflight = specializer.runtimePreflight(selection: selection, for: request)
+
+            #expect(!preflight.isValid, "inconsistent `A == B.Element` selection must fail preflight")
+            let hasMismatchError = preflight.errors.contains { error in
+                if case .sameTypeRequirementNotSatisfied = error { return true }
+                return false
+            }
+            #expect(
+                hasMismatchError,
+                "preflight must report .sameTypeRequirementNotSatisfied for A=String / B.Element=Int, got errors: \(preflight.errors)"
+            )
         }
     }
 
