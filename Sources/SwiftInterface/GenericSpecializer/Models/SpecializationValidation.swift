@@ -53,6 +53,27 @@ extension SpecializationValidation {
             actualType: String
         )
 
+        /// Selected type does not inherit from the required base class.
+        /// Either the type is not a class at all (e.g. a struct supplied
+        /// for `<T: SomeClass>`), or it is a class whose superclass chain
+        /// never reaches the expected base class.
+        case baseClassRequirementNotSatisfied(
+            parameterName: String,
+            expectedBaseClass: String,
+            actualType: String
+        )
+
+        /// Selected type does not match a same-type requirement
+        /// (`A == ConcreteType` or `A == B`). For the GP-vs-GP shape the
+        /// `expectedType` field carries the *other* parameter's selected
+        /// type so the message reads symmetrically; the `parameterName`
+        /// in that case is the LHS of the requirement.
+        case sameTypeRequirementNotSatisfied(
+            parameterName: String,
+            expectedType: String,
+            actualType: String
+        )
+
         /// Could not resolve metadata for the parameter — preflight
         /// could not run conformance/layout checks. `specialize` runs
         /// the same metadata resolution path, so the failure is
@@ -81,6 +102,12 @@ extension SpecializationValidation {
 
             case .layoutRequirementNotSatisfied(let param, let layout, let actual):
                 return "Type '\(actual)' for parameter '\(param)' does not satisfy layout requirement '\(layout)'"
+
+            case .baseClassRequirementNotSatisfied(let param, let baseClass, let actual):
+                return "Type '\(actual)' for parameter '\(param)' does not inherit from required base class '\(baseClass)'"
+
+            case .sameTypeRequirementNotSatisfied(let param, let expected, let actual):
+                return "Type '\(actual)' for parameter '\(param)' does not equal required same-type '\(expected)'"
 
             case .metadataResolutionFailed(let param, let reason):
                 return "Could not resolve metadata for parameter '\(param)': \(reason)"
@@ -123,6 +150,27 @@ extension SpecializationValidation {
             reason: String
         )
 
+        /// Could not resolve the RHS of a `baseClass` requirement to a
+        /// runtime metadata pointer. Preflight cannot enforce the
+        /// constraint when the RHS mangled name fails to resolve via
+        /// `swift_getTypeByMangledNameInContext`; surfaced as a warning so
+        /// the caller knows validation skipped this requirement.
+        /// `specialize` will still drive the metadata accessor; if the
+        /// mismatch is real, the runtime will reject it there.
+        case baseClassRequirementResolutionFailed(
+            parameterName: String,
+            reason: String
+        )
+
+        /// Could not resolve the RHS of a `sameType` requirement to a
+        /// runtime metadata pointer (or, for the GP-vs-GP shape, the
+        /// other parameter's selection). Preflight skips the check;
+        /// `specialize` continues unchanged.
+        case sameTypeRequirementResolutionSkipped(
+            parameterName: String,
+            reason: String
+        )
+
         public var description: String {
             switch self {
             case .extraArgument(let param):
@@ -133,6 +181,10 @@ extension SpecializationValidation {
                 return "Cannot validate conformance of parameter '\(param)' to '\(proto)': protocol descriptor not found in indexer (add the defining image as a sub-indexer to enable the check)"
             case .conformanceCheckFailed(let param, let proto, let reason):
                 return "Conformance check for parameter '\(param)' against protocol '\(proto)' failed to run: \(reason)"
+            case .baseClassRequirementResolutionFailed(let param, let reason):
+                return "Could not resolve required base class for parameter '\(param)'; preflight skipped the inheritance check: \(reason)"
+            case .sameTypeRequirementResolutionSkipped(let param, let reason):
+                return "Could not resolve same-type requirement for parameter '\(param)'; preflight skipped the equality check: \(reason)"
             }
         }
     }

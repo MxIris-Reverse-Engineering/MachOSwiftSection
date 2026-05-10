@@ -235,8 +235,19 @@ extension GenericSpecializer {
                     return nil
                 }
 
+                // Pull the baseClass requirement (at most one per GP — Swift
+                // does not allow more than one inheritance constraint) and
+                // turn its demangled RHS into a `TypeName` so the provider
+                // can return base-class + subclass list. sameType is
+                // intentionally *not* converted into a candidate filter:
+                // its candidate set is genuinely user-determined and can
+                // span any type, the validate / preflight pass enforces
+                // consistency.
+                let baseClassConstraint = Self.baseClassConstraintTypeName(in: requirements)
+
                 let candidates = findCandidates(
                     satisfying: protocolRequirements,
+                    boundedBy: baseClassConstraint,
                     options: candidateOptions
                 )
 
@@ -404,11 +415,13 @@ extension GenericSpecializer {
 
         case .sameType:
             let mangledTypeName = try genericRequirement.type(in: machO)
-            return .sameType(demangledTypeNode: try MetadataReader.demangleType(for: mangledTypeName, in: machO))
+            let demangledTypeNode = try MetadataReader.demangleType(for: mangledTypeName, in: machO)
+            return .sameType(demangledTypeNode: demangledTypeNode, mangledName: mangledTypeName)
 
         case .baseClass:
             let mangledTypeName = try genericRequirement.type(in: machO)
-            return .baseClass(demangledTypeNode: try MetadataReader.demangleType(for: mangledTypeName, in: machO))
+            let demangledTypeNode = try MetadataReader.demangleType(for: mangledTypeName, in: machO)
+            return .baseClass(demangledTypeNode: demangledTypeNode, mangledName: mangledTypeName)
 
         case .layout:
             let resolvedContent = try genericRequirement.resolvedContent(in: machO)
@@ -517,22 +530,49 @@ extension GenericSpecializer {
         let path: [String]
     }
 
-    /// Find candidate types that satisfy all protocol constraints.
+    /// Find candidate types that satisfy all protocol constraints,
+    /// optionally narrowed to a base-class subtree.
     ///
     /// Generic candidates are included by default but flagged via
     /// `Candidate.isGeneric`; selecting one via `Argument.candidate` would
     /// throw `candidateRequiresNestedSpecialization` from `specialize`. Pass
     /// `candidateOptions: .excludeGenerics` to skip them up front when the
     /// caller wants a "directly-specializable" list.
+    ///
+    /// `boundedBy` carries the demangled RHS of a `<T: BaseClass>`
+    /// requirement. When supplied **and** the conformance provider can
+    /// answer `subclasses(of:)` (e.g. `IndexerConformanceProvider`), the
+    /// candidate list is intersected with `BaseClass + every subclass`,
+    /// stripping out unrelated types up front. If the provider returns an
+    /// empty subclass list we treat that as "unknown" (rather than "no
+    /// matches") and fall back to the protocol-only set, so providers
+    /// without class-hierarchy data degrade gracefully instead of
+    /// disappearing the candidates entirely.
     private func findCandidates(
         satisfying protocols: [ProtocolName],
+        boundedBy baseClass: TypeName? = nil,
         options: SpecializationRequest.CandidateOptions = .default
     ) -> [SpecializationRequest.Candidate] {
-        let typeNames: [TypeName]
+        let protocolFiltered: [TypeName]
         if protocols.isEmpty {
-            typeNames = conformanceProvider.allTypeNames
+            protocolFiltered = conformanceProvider.allTypeNames
         } else {
-            typeNames = conformanceProvider.types(conformingToAll: protocols)
+            protocolFiltered = conformanceProvider.types(conformingToAll: protocols)
+        }
+
+        let typeNames: [TypeName]
+        if let baseClass {
+            let subclassList = conformanceProvider.subclasses(of: baseClass)
+            if subclassList.isEmpty {
+                // Provider has no class-hierarchy info — keep the
+                // pre-baseClass behaviour (do not narrow).
+                typeNames = protocolFiltered
+            } else {
+                let allowed = Set(subclassList)
+                typeNames = protocolFiltered.filter { allowed.contains($0) }
+            }
+        } else {
+            typeNames = protocolFiltered
         }
 
         return typeNames.compactMap { typeName -> SpecializationRequest.Candidate? in
@@ -550,6 +590,31 @@ extension GenericSpecializer {
                 isGeneric: isGeneric
             )
         }
+    }
+
+    /// Returns the demangled RHS of the (at most one) `.baseClass`
+    /// requirement on a parameter, packaged as a `TypeName` ready for
+    /// `ConformanceProvider.subclasses(of:)`. Returns nil when the
+    /// parameter has no baseClass constraint.
+    ///
+    /// `kind` is hardcoded to `.class` rather than derived from
+    /// `Node.typeKind`. The latter scans the entire subtree and matches
+    /// the *first* of `.enum`/`.structure`/`.class` it finds, which means
+    /// a class nested inside a struct (`Outer.InnerClass`) is mis-tagged
+    /// as `.struct`. baseClass requirements only ever resolve to a class
+    /// at the binary level (Swift rejects `<T: SomeStruct>` in Sema), so
+    /// we can safely commit to the correct kind without inspecting the
+    /// node — and dodging `Node.typeKind` makes nested class hierarchies
+    /// (like the test fixtures) work.
+    static func baseClassConstraintTypeName(
+        in requirements: [SpecializationRequest.Requirement]
+    ) -> TypeName? {
+        for requirement in requirements {
+            guard case .baseClass(let demangledNode, _) = requirement else { continue }
+            let typeNode = demangledNode.first(of: .type) ?? demangledNode
+            return TypeName(node: typeNode, kind: .class)
+        }
+        return nil
     }
 }
 
@@ -647,10 +712,15 @@ extension GenericSpecializer where MachO == MachOImage {
     ) -> SpecializationValidation {
         let builder = SpecializationValidation.builder()
 
+        // Pre-pass: resolve every non-candidate parameter's metadata in one
+        // place so the main pass can index by parameter name. The shared
+        // map is what enables the GP-vs-GP shape of `sameType` validation —
+        // when a `where A == B` requirement targets parameter `A`, the
+        // check needs to compare `A`'s selected metadata against `B`'s.
+        var metadataByName: [String: Metadata] = [:]
         for parameter in request.parameters {
             guard let argument = selection[parameter.name] else { continue }
 
-            let metadata: Metadata
             switch argument {
             case .metatype(let type):
                 // `specialize` runs the same `Metadata.createInProcess`
@@ -658,16 +728,15 @@ extension GenericSpecializer where MachO == MachOImage {
                 // call. Surface it now as a typed error rather than a
                 // silent skip — the caller's selection is unusable.
                 do {
-                    metadata = try Metadata.createInProcess(type)
+                    metadataByName[parameter.name] = try Metadata.createInProcess(type)
                 } catch {
                     builder.addError(.metadataResolutionFailed(
                         parameterName: parameter.name,
                         reason: "\(error)"
                     ))
-                    continue
                 }
             case .metadata(let provided):
-                metadata = provided
+                metadataByName[parameter.name] = provided
             case .specialized(let result):
                 // `SpecializationResult` already carries a resolved metadata
                 // pointer — no accessor call needed; preflight should
@@ -675,20 +744,25 @@ extension GenericSpecializer where MachO == MachOImage {
                 // failure here means the supplied result is corrupt and
                 // `specialize` will fail the same way; report as an error.
                 do {
-                    metadata = try result.metadata()
+                    metadataByName[parameter.name] = try result.metadata()
                 } catch {
                     builder.addError(.metadataResolutionFailed(
                         parameterName: parameter.name,
                         reason: "\(error)"
                     ))
-                    continue
                 }
             case .candidate:
                 // The candidate's metadata still requires an accessor call;
                 // leave the actual conformance/layout enforcement to
-                // `specialize`'s candidate-resolution path.
+                // `specialize`'s candidate-resolution path. Intentionally
+                // not entered into the map so cross-parameter checks
+                // (e.g. sameType) treat it as "unresolved".
                 continue
             }
+        }
+
+        for parameter in request.parameters {
+            guard let metadata = metadataByName[parameter.name] else { continue }
 
             for requirement in parameter.requirements {
                 switch requirement {
@@ -768,15 +842,315 @@ extension GenericSpecializer where MachO == MachOImage {
                             ))
                         }
                     }
-                case .protocol, .sameType, .baseClass:
-                    // Other kinds: skip (no PWT, or out-of-scope — see header).
+                case .baseClass, .sameType, .protocol:
+                    // sameType / baseClass are validated below in the
+                    // unified pass that delegates to runtime substitution
+                    // (handles GP-LHS, dependent-member-LHS, and any RHS
+                    // shape uniformly). ObjC-only `.protocol` requirements
+                    // (no PWT slot) need no check.
                     continue
                 }
             }
         }
 
+        // Unified sameType / baseClass pass.
+        //
+        // Reads requirements directly from the binary's generic context
+        // (so it covers dependent-member LHS forms like `A.Element == B`
+        // which `SpecializationRequest` only surfaces via
+        // `associatedTypeRequirements`, never on the parameter list) and
+        // resolves both sides through `swift_getTypeByMangledNameInContext`.
+        // This mirrors what Swift's own `_checkGenericRequirements` does
+        // (`swift/stdlib/public/runtime/ProtocolConformance.cpp:1846`).
+        runUnifiedConstraintCheck(
+            selection: selection,
+            request: request,
+            into: builder
+        )
+
         return builder.build()
     }
+
+    /// Walk every binary-level `sameType` / `baseClass` requirement and
+    /// validate it via runtime substitution.
+    ///
+    /// Skipped entirely when the selection contains any `.candidate` —
+    /// preflight does not run candidate metadata accessors (that path is
+    /// reserved for `specialize`). Buffer construction errors degrade
+    /// silently because the same failures already surfaced in the
+    /// per-parameter pre-pass above.
+    private func runUnifiedConstraintCheck(
+        selection: SpecializationSelection,
+        request: SpecializationRequest,
+        into builder: SpecializationValidation.Builder
+    ) {
+        // Candidate selections require running the candidate's metadata
+        // accessor; preflight intentionally avoids that side-effect, so
+        // skip the whole pass.
+        let hasCandidate = selection.arguments.values.contains { argument in
+            if case .candidate = argument { return true }
+            return false
+        }
+        if hasCandidate { return }
+
+        // Build the metadata + PWT arrays in canonical order. Failures
+        // here typically map to errors already reported by the per-param
+        // pre-pass (missing arg, metadata creation failure, …); silently
+        // bail out so we don't double-report.
+        let buffer: (metadatas: [Metadata], witnessTables: [ProtocolWitnessTable], resolvedArguments: [SpecializationResult.ResolvedArgument])
+        do {
+            buffer = try buildKeyArgumentsBuffer(for: request, with: selection)
+        } catch {
+            return
+        }
+
+        // Pack metadatas + PWTs into a flat raw pointer buffer in the
+        // exact order `swift_getGenericMetadata` (and therefore
+        // `swift_getTypeByMangledNameInContext`'s substitution) expects.
+        var rawArguments: [UnsafeRawPointer] = []
+        rawArguments.reserveCapacity(buffer.metadatas.count + buffer.witnessTables.count)
+        do {
+            for metadata in buffer.metadatas {
+                rawArguments.append(try metadata.asPointer)
+            }
+            for witnessTable in buffer.witnessTables {
+                rawArguments.append(try witnessTable.asPointer)
+            }
+        } catch {
+            return
+        }
+
+        let typeDescriptor = request.typeDescriptor.asPointerWrapper(in: machO)
+        let descriptorPointer: UnsafeRawPointer
+        do {
+            descriptorPointer = try typeDescriptor.typeContextDescriptor.asPointer
+        } catch {
+            return
+        }
+
+        guard let genericContext = (try? request.typeDescriptor.genericContext(in: machO)) ?? nil else {
+            return
+        }
+
+        let mergedRequirements = Self.mergedRequirements(from: genericContext)
+
+        rawArguments.withUnsafeBufferPointer { argumentsBuffer in
+            guard let argumentsBase = argumentsBuffer.baseAddress else { return }
+            let argumentsPointer = UnsafeRawPointer(argumentsBase)
+
+            for requirement in mergedRequirements {
+                let kind = requirement.layout.flags.kind
+                guard kind == .sameType || kind == .baseClass else { continue }
+
+                evaluateConstraintRequirement(
+                    kind: kind,
+                    descriptor: requirement,
+                    typeDescriptorPointer: descriptorPointer,
+                    argumentsPointer: argumentsPointer,
+                    into: builder
+                )
+            }
+        }
+    }
+
+    /// Resolve LHS / RHS of a single sameType / baseClass requirement via
+    /// runtime substitution and compare metadata pointers. The display
+    /// names used in diagnostics come from the demangled node (so
+    /// `A.Element.Index` reads as written, not as a raw mangled string).
+    private func evaluateConstraintRequirement(
+        kind: GenericRequirementKind,
+        descriptor: GenericRequirementDescriptor,
+        typeDescriptorPointer: UnsafeRawPointer,
+        argumentsPointer: UnsafeRawPointer,
+        into builder: SpecializationValidation.Builder
+    ) {
+        let lhsMangled: MangledName
+        let rhsMangled: MangledName
+        do {
+            lhsMangled = try descriptor.paramMangledName(in: machO)
+            rhsMangled = try descriptor.type(in: machO)
+        } catch {
+            return
+        }
+
+        let lhsDisplay = constraintDisplayName(for: lhsMangled)
+        let rhsDisplay = constraintDisplayName(for: rhsMangled)
+
+        let lhsResolution = resolveConstraintSide(
+            mangledName: lhsMangled,
+            descriptorPointer: typeDescriptorPointer,
+            argumentsPointer: argumentsPointer
+        )
+        switch lhsResolution {
+        case .resolved(let lhsType):
+            let rhsResolution = resolveConstraintSide(
+                mangledName: rhsMangled,
+                descriptorPointer: typeDescriptorPointer,
+                argumentsPointer: argumentsPointer
+            )
+            switch rhsResolution {
+            case .resolved(let rhsType):
+                compareConstraintSides(
+                    kind: kind,
+                    lhsType: lhsType,
+                    rhsType: rhsType,
+                    lhsDisplay: lhsDisplay,
+                    rhsDisplay: rhsDisplay,
+                    into: builder
+                )
+            case .unresolved(let reason):
+                emitResolutionWarning(
+                    kind: kind, parameterName: lhsDisplay,
+                    reason: "could not resolve RHS '\(rhsDisplay)': \(reason)",
+                    into: builder
+                )
+            }
+        case .unresolved(let reason):
+            emitResolutionWarning(
+                kind: kind, parameterName: lhsDisplay,
+                reason: "could not resolve LHS: \(reason)",
+                into: builder
+            )
+        }
+    }
+
+    /// Outcome of trying to resolve a requirement side via runtime
+    /// substitution. `unresolved` carries a human-readable reason for the
+    /// warning the caller will emit.
+    private enum ConstraintResolution {
+        case resolved(Any.Type)
+        case unresolved(reason: String)
+    }
+
+    private func resolveConstraintSide(
+        mangledName: MangledName,
+        descriptorPointer: UnsafeRawPointer,
+        argumentsPointer: UnsafeRawPointer
+    ) -> ConstraintResolution {
+        do {
+            guard let resolvedType = try RuntimeFunctions.getTypeByMangledNameInContext(
+                mangledName,
+                genericContext: descriptorPointer,
+                genericArguments: argumentsPointer,
+                in: machO
+            ) else {
+                return .unresolved(reason: "swift_getTypeByMangledNameInContext returned nil")
+            }
+            return .resolved(resolvedType)
+        } catch {
+            return .unresolved(reason: "\(error)")
+        }
+    }
+
+    /// Generates the readable display string for a side of a constraint —
+    /// preferred for diagnostics over raw mangled bytes. Falls back to a
+    /// placeholder when demangling fails (rare; should never block the
+    /// rest of the validation pipeline).
+    private func constraintDisplayName(for mangledName: MangledName) -> String {
+        if let node = try? MetadataReader.demangleType(for: mangledName, in: machO) {
+            return node.print(using: .interfaceTypeBuilderOnly)
+        }
+        return "<unprintable>"
+    }
+
+    private func compareConstraintSides(
+        kind: GenericRequirementKind,
+        lhsType: Any.Type,
+        rhsType: Any.Type,
+        lhsDisplay: String,
+        rhsDisplay: String,
+        into builder: SpecializationValidation.Builder
+    ) {
+        let lhsTypePointer = unsafeBitCast(lhsType, to: UnsafeRawPointer.self)
+        let rhsTypePointer = unsafeBitCast(rhsType, to: UnsafeRawPointer.self)
+
+        switch kind {
+        case .sameType:
+            if lhsTypePointer != rhsTypePointer {
+                builder.addError(.sameTypeRequirementNotSatisfied(
+                    parameterName: lhsDisplay,
+                    expectedType: "\(rhsType)",
+                    actualType: "\(lhsType)"
+                ))
+            }
+        case .baseClass:
+            if !isClassDescendantOrSelf(
+                selectedPointer: lhsTypePointer,
+                expectedPointer: rhsTypePointer,
+                lhsType: lhsType
+            ) {
+                builder.addError(.baseClassRequirementNotSatisfied(
+                    parameterName: lhsDisplay,
+                    expectedBaseClass: "\(rhsType)",
+                    actualType: "\(lhsType)"
+                ))
+            }
+        default:
+            break
+        }
+    }
+
+    private func emitResolutionWarning(
+        kind: GenericRequirementKind,
+        parameterName: String,
+        reason: String,
+        into builder: SpecializationValidation.Builder
+    ) {
+        switch kind {
+        case .sameType:
+            builder.addWarning(.sameTypeRequirementResolutionSkipped(
+                parameterName: parameterName,
+                reason: reason
+            ))
+        case .baseClass:
+            builder.addWarning(.baseClassRequirementResolutionFailed(
+                parameterName: parameterName,
+                reason: reason
+            ))
+        default:
+            break
+        }
+    }
+
+    /// Subclass-or-self test mirroring Swift runtime's `isSubclass`
+    /// (`swift/stdlib/public/runtime/ProtocolConformance.cpp:1702`):
+    /// pointer-equality short-circuit, then walk the superclass chain via
+    /// the universal `AnyClassMetadataObjCInterop.superclass()` accessor
+    /// (works for pure Swift classes, ObjC class wrappers, and foreign
+    /// classes alike).
+    private func isClassDescendantOrSelf(
+        selectedPointer: UnsafeRawPointer,
+        expectedPointer: UnsafeRawPointer,
+        lhsType: Any.Type
+    ) -> Bool {
+        if selectedPointer == expectedPointer { return true }
+
+        // The constraint demands a class — value-type metadata can never
+        // satisfy it. Detect via metadata kind to avoid a misleading
+        // "superclass walk threw" error.
+        let lhsMetadata: Metadata
+        do {
+            lhsMetadata = try Metadata.createInProcess(lhsType)
+        } catch {
+            return false
+        }
+        let kind = lhsMetadata.kind
+        let isClassLike = (kind == .class || kind == .objcClassWrapper || kind == .foreignClass)
+        guard isClassLike else { return false }
+
+        do {
+            var current = try AnyClassMetadataObjCInterop.resolve(from: selectedPointer)
+            while let parent = try current.superclass() {
+                let parentPointer = try parent.asPointer
+                if parentPointer == expectedPointer { return true }
+                current = parent
+            }
+        } catch {
+            return false
+        }
+        return false
+    }
+
 }
 
 // MARK: - Specialization Execution
@@ -809,26 +1183,70 @@ extension GenericSpecializer where MachO == MachOImage {
             throw SpecializerError.specializationFailed(reason: errorMessages)
         }
 
-        // Runtime preflight — verifies protocol conformance and layout
-        // constraints before we ever call the accessor. Surfaces
-        // mismatches as `SpecializationValidation.Error` values matching
-        // the requirement kind, instead of letting them blow up inside
-        // `swift_getGenericMetadata` or `RuntimeFunctions.conformsToProtocol`.
+        // Runtime preflight — verifies protocol conformance, layout, and
+        // sameType / baseClass constraints before we ever call the
+        // accessor. Surfaces mismatches as `SpecializationValidation.Error`
+        // values matching the requirement kind, instead of letting them
+        // blow up inside `swift_getGenericMetadata` (which doesn't actually
+        // verify sameType / baseClass — see
+        // `swift/stdlib/public/runtime/Metadata.cpp:810`).
         let runtimeValidation = runtimePreflight(selection: selection, for: request)
         guard runtimeValidation.isValid else {
             let errorMessages = runtimeValidation.errors.map { $0.description }.joined(separator: "; ")
             throw SpecializerError.specializationFailed(reason: errorMessages)
         }
 
-        // Build metadata and witness table arrays in requirement order.
-        //
-        // The PWT ordering invariant (still verified by every existing
-        // fixture): Swift's `compareDependentTypesRec` orders all GP-rooted
-        // requirements before any nested-type-rooted requirement (see
-        // `swift/lib/AST/GenericSignature.cpp:846`). That means walking
-        // direct-GP requirements in parameter order, then walking associated
-        // requirements in canonical merged-requirement order, reconstructs
-        // exactly the binary's emission order without an explicit re-sort.
+        // Build metadata + PWT arrays in canonical (binary) order.
+        let buffer = try buildKeyArgumentsBuffer(for: request, with: selection)
+
+        // Get metadata accessor function
+        let accessorFunction = try typeDescriptor.typeContextDescriptor.metadataAccessorFunction()
+        guard let accessorFunction else {
+            throw SpecializerError.metadataCreationFailed(
+                typeName: "unknown",
+                reason: "Cannot get metadata accessor function"
+            )
+        }
+
+        // Call accessor with metadatas and witness tables
+        let response = try accessorFunction(
+            request: metadataRequest,
+            metadatas: buffer.metadatas,
+            witnessTables: buffer.witnessTables,
+        )
+
+        return SpecializationResult(
+            metadataPointer: response.value,
+            resolvedArguments: buffer.resolvedArguments
+        )
+    }
+
+    /// Build the metadata + PWT arrays in canonical (binary) order — the
+    /// shape that both `swift_getGenericMetadata` (used by the metadata
+    /// accessor) and `swift_getTypeByMangledNameInContext` (used by the
+    /// runtime's own `_checkGenericRequirements`, see
+    /// `swift/stdlib/public/runtime/ProtocolConformance.cpp:1846`) expect.
+    ///
+    /// Layout: every direct-GP metadata first, every direct-GP PWT in
+    /// `Parameter.requirements` order next, every associated-type PWT in
+    /// `compareDependentTypes` order last.
+    ///
+    /// The PWT ordering invariant (verified by every existing fixture):
+    /// Swift's `compareDependentTypesRec` orders all GP-rooted requirements
+    /// before any nested-type-rooted requirement (see
+    /// `swift/lib/AST/GenericSignature.cpp:846`). Walking direct-GP
+    /// requirements in parameter order, then walking associated
+    /// requirements in canonical merged-requirement order, reconstructs
+    /// exactly the binary's emission order without an explicit re-sort.
+    func buildKeyArgumentsBuffer(
+        for request: SpecializationRequest,
+        with selection: SpecializationSelection
+    ) throws -> (
+        metadatas: [Metadata],
+        witnessTables: [ProtocolWitnessTable],
+        resolvedArguments: [SpecializationResult.ResolvedArgument]
+    ) {
+        let typeDescriptor = request.typeDescriptor.asPointerWrapper(in: machO)
         var metadatas: [Metadata] = []
         var witnessTables: [ProtocolWitnessTable] = []
         var resolvedArguments: [SpecializationResult.ResolvedArgument] = []
@@ -838,11 +1256,9 @@ extension GenericSpecializer where MachO == MachOImage {
                 throw SpecializerError.specializationFailed(reason: "Missing argument for \(parameter.name)")
             }
 
-            // Resolve metadata for this argument
             let metadata = try resolveMetadata(for: argument, parameterName: parameter.name)
             metadatas.append(metadata)
 
-            // Collect witness tables for protocol requirements (in order)
             var paramWitnessTables: [ProtocolWitnessTable] = []
             for requirement in parameter.requirements {
                 if case .protocol(let info) = requirement, info.requiresWitnessTable {
@@ -863,7 +1279,6 @@ extension GenericSpecializer where MachO == MachOImage {
             ))
         }
 
-        // Resolve associated type witness tables (in requirement order, appended after parameter PWTs)
         let metadataByParamName = Dictionary(
             uniqueKeysWithValues: zip(request.parameters.map(\.name), metadatas)
         )
@@ -874,12 +1289,11 @@ extension GenericSpecializer where MachO == MachOImage {
         witnessTables.append(contentsOf: associatedTypeWitnesses)
 
         // Defensive invariant — the accessor expects exactly
-        // `numKeyArguments` slots (metadatas first, then PWTs in canonical
-        // order). If `buildParameters` / `collectRequirements` /
-        // `buildAssociatedTypeRequirements` ever miscount, we'd send the
-        // wrong number of args and the runtime would fail opaquely.
-        // Reject up front with a typed error so the regression is
-        // immediately attributable.
+        // `numKeyArguments` slots. If `buildParameters` /
+        // `collectRequirements` / `buildAssociatedTypeRequirements` ever
+        // miscount, we'd send the wrong number of args and the runtime
+        // would fail opaquely. Reject up front with a typed error so the
+        // regression is immediately attributable.
         let totalArguments = metadatas.count + witnessTables.count
         guard totalArguments == request.keyArgumentCount else {
             throw SpecializerError.specializationFailed(
@@ -887,26 +1301,7 @@ extension GenericSpecializer where MachO == MachOImage {
             )
         }
 
-        // Get metadata accessor function
-        let accessorFunction = try typeDescriptor.typeContextDescriptor.metadataAccessorFunction()
-        guard let accessorFunction else {
-            throw SpecializerError.metadataCreationFailed(
-                typeName: "unknown",
-                reason: "Cannot get metadata accessor function"
-            )
-        }
-
-        // Call accessor with metadatas and witness tables
-        let response = try accessorFunction(
-            request: metadataRequest,
-            metadatas: metadatas,
-            witnessTables: witnessTables,
-        )
-
-        return SpecializationResult(
-            metadataPointer: response.value,
-            resolvedArguments: resolvedArguments
-        )
+        return (metadatas, witnessTables, resolvedArguments)
     }
 
     /// Resolve metadata from a selection argument

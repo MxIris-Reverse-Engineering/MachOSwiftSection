@@ -1,6 +1,8 @@
 import Foundation
 import MachOSwiftSection
 import OrderedCollections
+import Demangling
+@_spi(Internals) import SwiftInspection
 
 // MARK: - ConformanceProvider Protocol
 
@@ -31,6 +33,19 @@ public protocol ConformanceProvider: Sendable {
 
     /// Get image path for a type
     func imagePath(for typeName: TypeName) -> String?
+
+    /// Returns `baseClassName` together with every direct or transitive
+    /// subclass of it that the provider knows about. The base class itself
+    /// is always the first element when the provider recognises it (the
+    /// `T: T` case trivially satisfies `T: BaseClass`); an empty result
+    /// means the provider has no information about this type, not that it
+    /// has no subclasses.
+    ///
+    /// Used by `findCandidates` to narrow `<A: BaseClass>` candidate
+    /// lists. Default implementation returns `[]`, so providers that have
+    /// no class-hierarchy knowledge degrade to "show every candidate"
+    /// without breaking the contract.
+    func subclasses(of baseClassName: TypeName) -> [TypeName]
 }
 
 // MARK: - Default Implementations
@@ -50,6 +65,15 @@ extension ConformanceProvider {
     /// Check if a type conforms to all specified protocols
     public func doesType(_ typeName: TypeName, conformToAll protocols: [ProtocolName]) -> Bool {
         protocols.allSatisfy { doesType(typeName, conformTo: $0) }
+    }
+
+    /// Default conservative implementation — providers that do not index
+    /// class hierarchy information return an empty list, signalling
+    /// "unknown" rather than "no subclasses". `findCandidates` interprets
+    /// the empty result as "do not narrow", keeping the existing
+    /// "show every candidate" behaviour for non-indexer providers.
+    public func subclasses(of baseClassName: TypeName) -> [TypeName] {
+        []
     }
 }
 
@@ -72,6 +96,22 @@ extension ConformanceProvider {
 @_spi(Support)
 public final class IndexerConformanceProvider<MachO: MachOSwiftSectionRepresentableWithCache>: @unchecked Sendable {
     private let indexer: SwiftInterfaceIndexer<MachO>
+
+    /// Lazy cache: superclass canonical-name string → array of direct
+    /// subclass `TypeName`s. Keyed by `TypeName.name` rather than the
+    /// `TypeName` itself because demangling the same class through two
+    /// different mangled-name sources (parameter constraint RHS vs. a
+    /// child class's `superclassType` link) can produce nominally
+    /// equivalent `Node` trees that hash differently — e.g. when one
+    /// side resolves a symbolic reference and the other doesn't, or
+    /// when caches keep distinct `Node` instances. The print string
+    /// (`TypeName.name`, "Module.Type") is stable across both paths.
+    private final class SubclassCache: @unchecked Sendable {
+        var directChildrenByParentName: [String: [TypeName]]?
+        let lock = NSLock()
+    }
+
+    private let subclassCache = SubclassCache()
 
     public init(indexer: SwiftInterfaceIndexer<MachO>) {
         self.indexer = indexer
@@ -102,6 +142,80 @@ extension IndexerConformanceProvider: ConformanceProvider {
 
     public func imagePath(for typeName: TypeName) -> String? {
         indexer.allAllTypeDefinitions[typeName]?.machO.imagePath
+    }
+
+    public func subclasses(of baseClassName: TypeName) -> [TypeName] {
+        // baseClass requirement is irrelevant for non-class subjects —
+        // return empty so callers can fall back to "do not narrow".
+        guard baseClassName.kind == .class else { return [] }
+
+        let directChildren = directChildrenMap()
+
+        // BFS over the parent → direct-subclasses graph, keyed by
+        // canonical name string. Result list still uses `TypeName`s
+        // (preserving the public API) — the string indirection is
+        // internal to the cache.
+        var result: [TypeName] = [baseClassName]
+        var seenNames: Set<String> = [baseClassName.name]
+        var queueNames: [String] = [baseClassName.name]
+        while !queueNames.isEmpty {
+            let current = queueNames.removeFirst()
+            for child in directChildren[current] ?? [] {
+                if seenNames.insert(child.name).inserted {
+                    result.append(child)
+                    queueNames.append(child.name)
+                }
+            }
+        }
+        return result
+    }
+
+    /// Build (or fetch from cache) the parent-name → direct-subclasses
+    /// map by walking every indexed `.class` definition's
+    /// `superclassType` link. Lock-protected so concurrent first-callers
+    /// don't both pay the O(n) build cost.
+    private func directChildrenMap() -> [String: [TypeName]] {
+        subclassCache.lock.lock()
+        defer { subclassCache.lock.unlock() }
+        if let cached = subclassCache.directChildrenByParentName { return cached }
+
+        var map: [String: [TypeName]] = [:]
+        for (childTypeName, entry) in indexer.allAllTypeDefinitions {
+            guard childTypeName.kind == .class else { continue }
+            guard case .class(let classWrapper) = entry.value.type else { continue }
+
+            let superMangled: MangledName?
+            do {
+                superMangled = try classWrapper.descriptor.superclassTypeMangledName(in: entry.machO)
+            } catch {
+                continue
+            }
+            guard let superMangled else { continue }
+
+            // `MetadataReader.demangleType` may wrap the result in a
+            // `.type` node or return a deeper tree depending on the
+            // mangled shape. `.first(of: .type)` mirrors how
+            // `SwiftInterfaceIndexer` itself extracts the type node when
+            // it indexes extensions/protocol conformances.
+            //
+            // Kind is hardcoded `.class` rather than derived from
+            // `Node.typeKind` for the same reason as
+            // `baseClassConstraintTypeName`: that helper mis-tags a
+            // class nested inside a struct as `.struct`. A
+            // `superclassType` link is class-by-construction (the
+            // `superclassTypeMangledName` ABI slot only exists on
+            // class descriptors), so we can commit to `.class`
+            // unconditionally.
+            guard let demangledRoot = try? MetadataReader.demangleType(for: superMangled, in: entry.machO),
+                  let superNode = demangledRoot.first(of: .type) else {
+                continue
+            }
+            let superTypeName = TypeName(node: superNode, kind: .class)
+            map[superTypeName.name, default: []].append(childTypeName)
+        }
+
+        subclassCache.directChildrenByParentName = map
+        return map
     }
 }
 
@@ -174,6 +288,22 @@ public struct CompositeConformanceProvider: ConformanceProvider {
             }
         }
         return nil
+    }
+
+    public func subclasses(of baseClassName: TypeName) -> [TypeName] {
+        // Merge subclass lists from every provider; dedupe across them
+        // (a class may legitimately surface in multiple sub-indexers when
+        // images overlap or conformances are restated).
+        var seen = Set<TypeName>()
+        var result: [TypeName] = []
+        for provider in providers {
+            for subclass in provider.subclasses(of: baseClassName) {
+                if seen.insert(subclass).inserted {
+                    result.append(subclass)
+                }
+            }
+        }
+        return result
     }
 }
 
