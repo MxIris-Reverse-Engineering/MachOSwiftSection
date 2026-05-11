@@ -2527,6 +2527,443 @@ struct GenericSpecializationTests {
                     "doesType returns true if any provider says yes")
         }
     }
+
+    // MARK: - Bound Generic
+    //
+    // End-to-end coverage of `Argument.boundGeneric` from
+    // `Roadmaps/2026-05-11-bound-generic-candidates.md`. The new case lets
+    // the specializer accept `Array<Int>` / `Dictionary<String, Array<Int>>`
+    // shapes without the caller building an intermediate
+    // `SpecializationResult` themselves, while integrating with every
+    // existing validation pass: static `validate`, runtime preflight, the
+    // unified sameType / baseClass constraint check, and the
+    // `buildKeyArgumentsBuffer` PWT-ordering invariant.
+
+    @Suite("Bound Generic")
+    struct BoundGeneric: GenericSpecializationTestingEnvironment {
+        /// Resolve the request + the Swift.Array candidate (flagged
+        /// `isGeneric`) used by every boundGeneric test that hosts a
+        /// single-parameter Hashable-constrained struct. Centralised so
+        /// each test reads the request once and then drives the
+        /// boundGeneric pipeline without re-deriving the candidate.
+        private func arrayHashableHost(
+            specializer: GenericSpecializer<MachOImage>
+        ) throws -> (SpecializationRequest, SpecializationRequest.Candidate) {
+            let descriptor = try structDescriptor(named: "TestSingleProtocolStruct")
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+            let arrayCandidate = try #require(
+                request.parameters[0].candidates.first {
+                    $0.typeName.currentName == "Array" && $0.isGeneric
+                },
+                "expected Swift.Array candidate flagged isGeneric in TestSingleProtocolStruct's candidate list"
+            )
+            return (request, arrayCandidate)
+        }
+
+        // Test 1: outer<T> = Array<Int> via .boundGeneric must equal the
+        // canonical [Int].self metatype path. The runtime caches generic
+        // metadata by descriptor + arguments, so two paths landing on the
+        // same canonical type must produce identical metadata pointers.
+        @Test func arrayIntMatchesMetatypePath() async throws {
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let (request, arrayCandidate) = try arrayHashableHost(specializer: specializer)
+
+            let boundResult = try specializer.specialize(request, with: [
+                "A": .boundGeneric(baseCandidate: arrayCandidate, innerArguments: [
+                    "A": .metatype(Int.self),
+                ]),
+            ])
+            let metatypeResult = try specializer.specialize(request, with: [
+                "A": .metatype([Int].self),
+            ])
+
+            #expect(
+                try boundResult.metadata() == metatypeResult.metadata(),
+                ".boundGeneric(Array, [Int]) must resolve to the same outer metadata pointer as .metatype([Int].self)"
+            )
+
+            let resolvedA = try #require(boundResult.argument(for: "A"))
+            let innerResult = try #require(
+                resolvedA.innerResult,
+                "ResolvedArgument.innerResult must be populated for .boundGeneric selections"
+            )
+            let innerMetadata = try innerResult.metadata()
+            let directArrayInt = try Metadata.createInProcess([Int].self)
+            #expect(
+                innerMetadata == directArrayInt,
+                "inner .boundGeneric must land on the canonical Array<Int> metadata slot"
+            )
+        }
+
+        // Test 2: two-level nested .boundGeneric for
+        // Dictionary<String, Array<Int>>. The metatype comparison pins
+        // that the recursion bottoms out on the same runtime cache slot
+        // as the directly-typed argument, and `innerResult` exposes the
+        // full binding tree to consumers.
+        @Test func nestedDictionaryStringArrayInt() async throws {
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let descriptor = try structDescriptor(named: "TestSingleProtocolStruct")
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+            let dictionaryCandidate = try #require(
+                request.parameters[0].candidates.first {
+                    $0.typeName.currentName == "Dictionary" && $0.isGeneric
+                },
+                "expected Swift.Dictionary candidate flagged isGeneric"
+            )
+            let arrayCandidate = try #require(
+                request.parameters[0].candidates.first {
+                    $0.typeName.currentName == "Array" && $0.isGeneric
+                },
+                "expected Swift.Array candidate flagged isGeneric"
+            )
+
+            let boundResult = try specializer.specialize(request, with: [
+                "A": .boundGeneric(baseCandidate: dictionaryCandidate, innerArguments: [
+                    "A": .metatype(String.self),
+                    "B": .boundGeneric(baseCandidate: arrayCandidate, innerArguments: [
+                        "A": .metatype(Int.self),
+                    ]),
+                ]),
+            ])
+            let metatypeResult = try specializer.specialize(request, with: [
+                "A": .metatype([String: [Int]].self),
+            ])
+            #expect(
+                try boundResult.metadata() == metatypeResult.metadata(),
+                "two-level nested .boundGeneric must equal the metatype path"
+            )
+
+            // Walk the binding tree: outer.A → Dictionary; Dictionary.B
+            // → Array<Int>; Array<Int>.A → Int (no inner, .metatype).
+            let outerA = try #require(boundResult.argument(for: "A"))
+            let dictionaryResult = try #require(outerA.innerResult)
+            let dictionaryB = try #require(dictionaryResult.argument(for: "B"))
+            let arrayResult = try #require(dictionaryB.innerResult)
+            let arrayMetadata = try arrayResult.metadata()
+            let directArrayInt = try Metadata.createInProcess([Int].self)
+            #expect(arrayMetadata == directArrayInt)
+            #expect(
+                arrayResult.argument(for: "A")?.innerResult == nil,
+                ".metatype leaves should not carry an innerResult"
+            )
+        }
+
+        // Test 3: PWT slot count invariant. `buildKeyArgumentsBuffer`
+        // asserts `metadatas.count + witnessTables.count == request
+        // .keyArgumentCount`; a regression that leaks inner PWTs into
+        // the outer buffer would trip either the invariant or the
+        // metadata accessor call.
+        @Test func keyArgumentCountInvariant() async throws {
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let (request, arrayCandidate) = try arrayHashableHost(specializer: specializer)
+
+            // TestSingleProtocolStruct<A: Hashable>: 1 metadata slot +
+            // 1 PWT (Hashable). Inner Array<Int>'s own PWTs are consumed
+            // by the inner accessor and must not bleed into the outer.
+            #expect(request.keyArgumentCount == 2)
+
+            let result = try specializer.specialize(request, with: [
+                "A": .boundGeneric(baseCandidate: arrayCandidate, innerArguments: [
+                    "A": .metatype(Int.self),
+                ]),
+            ])
+            let resolvedA = try #require(result.argument(for: "A"))
+            #expect(
+                resolvedA.witnessTables.count == 1,
+                "outer A: Hashable contributes exactly one outer PWT; inner Array<Int>'s PWTs must not surface here"
+            )
+        }
+
+        // Test 4: outer preflight catches a mismatched conformance even
+        // when the parameter was supplied via `.boundGeneric` — the
+        // resolved metadata (Array<TestNonGenericStruct>) doesn't
+        // satisfy A: Hashable and the typed
+        // `.protocolRequirementNotSatisfied` error must surface
+        // (instead of a stringified inner error).
+        @Test func preflightCatchesMismatchedConformance() async throws {
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let (request, arrayCandidate) = try arrayHashableHost(specializer: specializer)
+
+            let selection: SpecializationSelection = [
+                "A": .boundGeneric(baseCandidate: arrayCandidate, innerArguments: [
+                    "A": .metatype(TestNonGenericStruct.self),
+                ]),
+            ]
+            let preflight = specializer.runtimePreflight(selection: selection, for: request)
+
+            #expect(
+                !preflight.isValid,
+                "Array<TestNonGenericStruct> must fail outer A: Hashable preflight"
+            )
+            let hasProtocolError = preflight.errors.contains { error in
+                if case .protocolRequirementNotSatisfied(_, let proto, _) = error {
+                    // protocolName carries the module prefix
+                    // ("Swift.Hashable") because preflight reads
+                    // `info.protocolName.name` — accept either form.
+                    return proto.hasSuffix("Hashable")
+                }
+                return false
+            }
+            #expect(
+                hasProtocolError,
+                "preflight must surface typed .protocolRequirementNotSatisfied('Hashable'); got errors: \(preflight.errors)"
+            )
+        }
+
+        // Test 5: runUnifiedConstraintCheck participates when the
+        // selection contains `.boundGeneric` instead of `.candidate` —
+        // the bail-out only triggers for naked `.candidate`. The
+        // resolved metadata flows through the arguments buffer so
+        // `swift_getTypeByMangledNameInContext` sees a fully-formed
+        // type for sameType / baseClass substitution.
+        @Test func participatesInSameTypeCheck() async throws {
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let descriptor = try structDescriptor(named: "TestSameTypeViaAssocStruct")
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+            let arrayCandidate = try #require(
+                request.parameters[0].candidates.first {
+                    $0.typeName.currentName == "Array" && $0.isGeneric
+                },
+                "expected Swift.Array candidate flagged isGeneric on A's candidate list"
+            )
+
+            // Element witness pins B.Element = Array<Int>; pairs with
+            // A's `.boundGeneric` resolution.
+            struct CarrierWithArrayIntElement: TestSameTypeAssocCarrier {
+                typealias Element = Array<Int>
+            }
+
+            // Consistent: A = Array<Int>, B.Element = Array<Int>.
+            let consistent: SpecializationSelection = [
+                "A": .boundGeneric(baseCandidate: arrayCandidate, innerArguments: [
+                    "A": .metatype(Int.self),
+                ]),
+                "B": .metatype(CarrierWithArrayIntElement.self),
+            ]
+            let preflightConsistent = specializer.runtimePreflight(selection: consistent, for: request)
+            #expect(
+                preflightConsistent.isValid,
+                "A=Array<Int>, B.Element=Array<Int> must pass sameType; got errors: \(preflightConsistent.errors)"
+            )
+            let consistentResolutionSkipped = preflightConsistent.warnings.contains { warning in
+                if case .sameTypeRequirementResolutionSkipped = warning { return true }
+                return false
+            }
+            #expect(
+                !consistentResolutionSkipped,
+                "constraint check must run on .boundGeneric, not bail out as it does for .candidate"
+            )
+
+            // Inconsistent: A = Array<String>, B.Element = Array<Int>.
+            let inconsistent: SpecializationSelection = [
+                "A": .boundGeneric(baseCandidate: arrayCandidate, innerArguments: [
+                    "A": .metatype(String.self),
+                ]),
+                "B": .metatype(CarrierWithArrayIntElement.self),
+            ]
+            let preflightInconsistent = specializer.runtimePreflight(selection: inconsistent, for: request)
+            #expect(!preflightInconsistent.isValid)
+            let hasSameTypeError = preflightInconsistent.errors.contains { error in
+                if case .sameTypeRequirementNotSatisfied = error { return true }
+                return false
+            }
+            #expect(
+                hasSameTypeError,
+                "A=Array<String>, B.Element=Array<Int> must fail sameType; got errors: \(preflightInconsistent.errors)"
+            )
+        }
+
+        // Test 6: inner failures preserve their typed identity. The
+        // `boundGenericInnerFailed` case wraps the inner cause without
+        // collapsing it to a string, so callers can pattern-match on
+        // the original error. The outer-driven path (preflight catches
+        // first) still surfaces a recognizable inner cause in the
+        // joined reason string.
+        @Test func innerFailureSurfacesTyped() async throws {
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let (request, _) = try arrayHashableHost(specializer: specializer)
+
+            // Pull a non-generic candidate (Int) — supplying it to
+            // `.boundGeneric` makes the inner `makeRequest` throw
+            // `notGenericType`, which preflight routes through
+            // `metadataResolutionFailed` and `specialize` surfaces as
+            // `specializationFailed` whose reason still mentions the
+            // typed cause.
+            let intCandidate = try #require(
+                request.parameters[0].candidates.first {
+                    $0.typeName.currentName == "Int" && !$0.isGeneric
+                },
+                "expected Swift.Int non-generic candidate"
+            )
+
+            do {
+                _ = try specializer.specialize(request, with: [
+                    "A": .boundGeneric(baseCandidate: intCandidate, innerArguments: [:]),
+                ])
+                Issue.record("expected specialize to throw for non-generic baseCandidate")
+            } catch let GenericSpecializer<MachOImage>.SpecializerError.specializationFailed(reason) {
+                #expect(
+                    reason.lowercased().contains("not generic") ||
+                        reason.contains("could not build inner request"),
+                    "specializationFailed reason must mention the inner cause; got: \(reason)"
+                )
+            } catch {
+                Issue.record("expected specializationFailed; got \(error)")
+            }
+
+            // Error-shape pin: the new SpecializerError case carries
+            // the underlying error untouched so downstream code can
+            // pattern-match against the typed cause.
+            let directInnerCause = GenericSpecializer<MachOImage>.SpecializerError.notGenericType(
+                type: TypeContextDescriptorWrapper.struct(
+                    try structDescriptor(named: "TestNonGenericStruct")
+                )
+            )
+            let wrapped = GenericSpecializer<MachOImage>.SpecializerError.boundGenericInnerFailed(
+                parameterName: "Outer",
+                underlying: directInnerCause
+            )
+            guard case .boundGenericInnerFailed(let parameterName, let underlying) = wrapped else {
+                Issue.record("expected boundGenericInnerFailed case")
+                return
+            }
+            #expect(parameterName == "Outer")
+            let recoveredInner = try #require(
+                underlying as? GenericSpecializer<MachOImage>.SpecializerError
+            )
+            if case .notGenericType = recoveredInner {
+                // OK
+            } else {
+                Issue.record("underlying error lost its typed identity: \(recoveredInner)")
+            }
+            #expect(wrapped.errorDescription?.contains("Outer") == true)
+        }
+
+        // Test 7: ResolvedArgument.innerResult population for every
+        // argument shape — `.metatype` / `.metadata` / `.candidate` →
+        // nil; `.boundGeneric` / `.specialized` → populated with a
+        // result whose metadata equals the directly-built leaf.
+        @Test func resolvedArgumentInnerResultPopulation() async throws {
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let (request, arrayCandidate) = try arrayHashableHost(specializer: specializer)
+
+            // .metatype → nil
+            let metatypeResult = try specializer.specialize(request, with: [
+                "A": .metatype(Int.self),
+            ])
+            #expect(
+                metatypeResult.argument(for: "A")?.innerResult == nil,
+                "innerResult must be nil for .metatype selections"
+            )
+
+            // .candidate → also nil. Even though the candidate's
+            // resolution involves a metadata accessor call, the
+            // contract is that `innerResult` is only populated for
+            // the wrapped-result entry points (`.specialized` /
+            // `.boundGeneric`). Non-generic candidates have no inner
+            // request, so the tree terminates here.
+            let intCandidate = try #require(
+                request.parameters[0].candidates.first {
+                    $0.typeName.currentName == "Int" && !$0.isGeneric
+                }
+            )
+            let candidateResult = try specializer.specialize(request, with: [
+                "A": .candidate(intCandidate),
+            ])
+            #expect(
+                candidateResult.argument(for: "A")?.innerResult == nil,
+                "innerResult must be nil for non-generic .candidate selections"
+            )
+
+            // .boundGeneric → populated
+            let boundResult = try specializer.specialize(request, with: [
+                "A": .boundGeneric(baseCandidate: arrayCandidate, innerArguments: [
+                    "A": .metatype(Int.self),
+                ]),
+            ])
+            let argBound = try #require(boundResult.argument(for: "A"))
+            let boundInner = try #require(argBound.innerResult)
+            #expect(
+                try boundInner.metadata() == Metadata.createInProcess([Int].self),
+                "innerResult for .boundGeneric must capture the recursively-resolved Array<Int> metadata"
+            )
+
+            // .specialized → also populated. Uses an unconstrained
+            // host fixture so the inner result (also unconstrained)
+            // doesn't have to satisfy A: Hashable; the inner-tree
+            // pinning is independent of the outer's constraints.
+            let unconstrainedDescriptor = try structDescriptor(named: "TestUnconstrainedStruct")
+            let unconstrainedRequest = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(unconstrainedDescriptor)
+            )
+            let innerSpecialized = try specializer.specialize(
+                unconstrainedRequest, with: ["A": .metatype(Int.self)]
+            )
+            let specializedResult = try specializer.specialize(
+                unconstrainedRequest, with: ["A": .specialized(innerSpecialized)]
+            )
+            let argSpecialized = try #require(specializedResult.argument(for: "A"))
+            let recoveredInner = try #require(argSpecialized.innerResult)
+            #expect(
+                try recoveredInner.metadata() == innerSpecialized.metadata(),
+                "innerResult for .specialized must reference the supplied result"
+            )
+        }
+
+        // Test 8: `maxBindingDepth` boundary guard. The soft guard at
+        // `internalSpecialize`, `internalValidate`, and
+        // `collectBoundGenericValidation` should refuse a binding chain
+        // whose depth meets or exceeds the configured ceiling, surfaced
+        // as a typed `specializationFailed` with a recognizable reason.
+        // Driving this with the default `16` ceiling is awkward; we
+        // tighten the knob to `1` and feed a two-level
+        // `Dictionary<String, Array<Int>>` tree so the boundary fires
+        // at the inner `.boundGeneric(Array, ...)` recursion.
+        @Test func maxBindingDepthGuardTrips() async throws {
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            specializer.maxBindingDepth = 1
+
+            let descriptor = try structDescriptor(named: "TestSingleProtocolStruct")
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+            let dictionaryCandidate = try #require(
+                request.parameters[0].candidates.first {
+                    $0.typeName.currentName == "Dictionary" && $0.isGeneric
+                }
+            )
+            let arrayCandidate = try #require(
+                request.parameters[0].candidates.first {
+                    $0.typeName.currentName == "Array" && $0.isGeneric
+                }
+            )
+
+            do {
+                _ = try specializer.specialize(request, with: [
+                    "A": .boundGeneric(baseCandidate: dictionaryCandidate, innerArguments: [
+                        "A": .metatype(String.self),
+                        "B": .boundGeneric(baseCandidate: arrayCandidate, innerArguments: [
+                            "A": .metatype(Int.self),
+                        ]),
+                    ]),
+                ])
+                Issue.record("expected specialize to throw when binding depth exceeds maxBindingDepth")
+            } catch let GenericSpecializer<MachOImage>.SpecializerError.specializationFailed(reason) {
+                #expect(
+                    reason.contains("binding depth exceeded"),
+                    "specializationFailed reason must mention the depth guard; got: \(reason)"
+                )
+            } catch {
+                Issue.record("expected specializationFailed; got \(error)")
+            }
+        }
+    }
 }
 
 // MARK: - Conditional Copyable / Escapable extensions
