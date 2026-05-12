@@ -1333,12 +1333,114 @@ extension GenericSpecializer where MachO == MachOImage {
         with selection: SpecializationSelection,
         metadataRequest: MetadataRequest = .completeAndBlocking
     ) throws -> SpecializationResult {
-        try internalSpecialize(
+        // Collapse `.boundGeneric` arguments into `.specialized` from the
+        // leaves up before delegating to `internalSpecialize`. Without this
+        // pass, every nested binding gets specialized twice per level —
+        // once inside `internalRuntimePreflight`
+        // (via `collectBoundGenericValidation`, which needs the inner
+        // metadata for cross-parameter constraint checks) and once in the
+        // main path (`buildKeyArgumentsBuffer` →
+        // `recursivelySpecializeBoundGeneric`). Both branches recurse into
+        // their inner specializers, so nesting depth N degrades to
+        // O(2^N) inner specializations. Pre-resolution caches each level's
+        // result in `.specialized`, restoring linear-in-depth behavior.
+        let resolvedSelection = try preResolveBoundGenerics(selection: selection, depth: 0)
+        return try internalSpecialize(
             request,
-            with: selection,
+            with: resolvedSelection,
             metadataRequest: metadataRequest,
             depth: 0
         )
+    }
+
+    /// Walk the selection depth-first and replace every `.boundGeneric`
+    /// argument with a `.specialized` argument carrying its already-
+    /// resolved `SpecializationResult`. Inner selections are processed
+    /// first so each level's `internalSpecialize` call sees only
+    /// `.specialized` arguments — `internalValidate`,
+    /// `internalRuntimePreflight`, and `buildKeyArgumentsBuffer` then have
+    /// no nested binding chain to recurse into, and the inner accessor
+    /// runs exactly once per level.
+    private func preResolveBoundGenerics(
+        selection: SpecializationSelection,
+        depth: Int
+    ) throws -> SpecializationSelection {
+        var hasBoundGeneric = false
+        for argument in selection.arguments.values {
+            if case .boundGeneric = argument {
+                hasBoundGeneric = true
+                break
+            }
+        }
+        guard hasBoundGeneric else { return selection }
+
+        var resolvedArguments = selection.arguments
+        for (parameterName, argument) in selection.arguments {
+            guard case .boundGeneric(let baseCandidate, let innerArguments) = argument else {
+                continue
+            }
+            if depth >= maxBindingDepth {
+                throw SpecializerError.specializationFailed(
+                    reason: "binding depth exceeded (maxBindingDepth = \(maxBindingDepth)) at parameter '\(parameterName)'"
+                )
+            }
+            let result = try resolveBoundGenericNode(
+                baseCandidate: baseCandidate,
+                innerArguments: innerArguments,
+                parameterName: parameterName,
+                depth: depth
+            )
+            resolvedArguments[parameterName] = .specialized(result)
+        }
+        return SpecializationSelection(arguments: resolvedArguments)
+    }
+
+    /// Specialize one `.boundGeneric` node into a `SpecializationResult`.
+    /// Recurses through `preResolveBoundGenerics` on the inner selection
+    /// before invoking the inner `internalSpecialize`, so the inner call
+    /// itself never re-specializes nested levels.
+    ///
+    /// Failures are lifted into `SpecializerError.specializationFailed`
+    /// with a reason that mirrors the diagnostic
+    /// `internalRuntimePreflight` would have produced — keeping callers
+    /// that pattern-match on `.specializationFailed` working unchanged.
+    private func resolveBoundGenericNode(
+        baseCandidate: SpecializationRequest.Candidate,
+        innerArguments: [String: SpecializationSelection.Argument],
+        parameterName: String,
+        depth: Int
+    ) throws -> SpecializationResult {
+        do {
+            let inner = try makeInnerContext(for: baseCandidate)
+            let innerRequest = try inner.specializer.makeRequest(for: inner.descriptor)
+            let innerSelection = SpecializationSelection(arguments: innerArguments)
+            let preResolvedInnerSelection = try inner.specializer.preResolveBoundGenerics(
+                selection: innerSelection,
+                depth: depth + 1
+            )
+            return try inner.specializer.internalSpecialize(
+                innerRequest,
+                with: preResolvedInnerSelection,
+                metadataRequest: .completeAndBlocking,
+                depth: depth + 1
+            )
+        } catch let SpecializerError.specializationFailed(innerReason) {
+            // Inner already aggregated through `internalSpecialize`'s own
+            // validation pipeline — propagate the message under the outer
+            // parameter path so the joined reason still reads end-to-end.
+            throw SpecializerError.specializationFailed(
+                reason: "Could not resolve metadata for parameter '\(parameterName)': \(innerReason)"
+            )
+        } catch {
+            // `makeInnerContext` / `makeRequest` failures (e.g. selecting a
+            // non-generic candidate for `.boundGeneric`) used to surface
+            // via preflight's `metadataResolutionFailed` aggregation.
+            // Reproduce that wording so existing diagnostics stay stable.
+            let underlyingMessage = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+            throw SpecializerError.specializationFailed(
+                reason: "Could not resolve metadata for parameter '\(parameterName)': could not build inner request: \(underlyingMessage)"
+            )
+        }
     }
 
     /// Depth-aware specialize used to thread `Argument.boundGeneric`
