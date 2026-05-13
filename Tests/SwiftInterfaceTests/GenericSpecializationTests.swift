@@ -489,6 +489,45 @@ struct GenericSpecializationTests {
                 "GenericSignature minimization should pick one canonical protocol for A.Element; saw \(protocolIdentities)"
             )
         }
+
+        /// Reproduces the field-report bug where picking `Swift.Result`
+        /// as a candidate in RuntimeViewer's specialization sheet failed
+        /// with `Demangling.DemanglingError.matchFailed(wanted: "(read test
+        /// function to succeed)", at: 0)` while sibling stdlib generics
+        /// (`Array`, `Optional`, `Dictionary`) worked. The bug is upstream
+        /// of any wire / IPC layer — driving `makeRequest` directly on
+        /// `Swift.Result`'s descriptor is enough to hit it, so this test
+        /// has no RuntimeViewer dependency.
+        ///
+        /// The lookup walks `allAllTypeDefinitions` (the cross-image
+        /// aggregate) because `Result` lives in libswiftCore, not the
+        /// current test image. The matched entry's `machO` is fed back
+        /// into a fresh specializer so we parse `Result`'s descriptor in
+        /// its own image — mirroring how `RuntimeSwiftSection`
+        /// `specializationRequest(forCandidateID:in:)` is supposed to
+        /// behave.
+        @Test func swiftResultMakeRequestSucceeds() async throws {
+            let aggregate = try await indexer.allAllTypeDefinitions
+            let entry = try #require(
+                aggregate.first(where: { typeName, value in
+                    typeName.name == "Swift.Result"
+                        && value.machO.imagePath.contains("libswiftCore")
+                })?.value,
+                "expected Swift.Result to be indexed via libswiftCore sub-indexer"
+            )
+            let specializer = GenericSpecializer<MachOImage>(
+                machO: entry.machO,
+                conformanceProvider: IndexerConformanceProvider(indexer: try await indexer),
+                indexer: try await indexer
+            )
+            let request = try specializer.makeRequest(
+                for: entry.value.type.typeContextDescriptorWrapper
+            )
+            #expect(request.parameters.count == 2, "Result<Success, Failure: Error> has two type parameters")
+            let parameterNames = request.parameters.map(\.name)
+            #expect(parameterNames == ["A", "B"], "expected canonical (A, B) generic parameter names; got \(parameterNames)")
+        }
+
     }
 
     // MARK: - Specialize
