@@ -4,6 +4,8 @@ import Semantic
 
 struct TypeNodePrinter: InterfaceNodePrintable {
     typealias Context = InterfaceNodePrinterContext
+    
+    typealias Target = SemanticString
 
     var target: SemanticString = ""
 
@@ -12,6 +14,10 @@ struct TypeNodePrinter: InterfaceNodePrintable {
     private(set) var isProtocol: Bool
 
     var dependentMemberTypeDepth: Int = 0
+
+    var printDepth: Int = 0
+
+    var printCache: [ObjectIdentifier: Target] = [:]
 
     private(set) weak var delegate: (any NodePrintableDelegate)?
 

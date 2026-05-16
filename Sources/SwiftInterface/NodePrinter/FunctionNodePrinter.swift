@@ -5,8 +5,10 @@ import Semantic
 
 struct FunctionNodePrinter: InterfaceNodePrintable {
     typealias Context = InterfaceNodePrinterContext
+    
+    typealias Target = SemanticString
 
-    var target: SemanticString = ""
+    var target: Target = ""
 
     private var isStatic: Bool = false
 
@@ -17,6 +19,10 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
     private(set) var isProtocol: Bool = false
 
     var dependentMemberTypeDepth: Int = 0
+
+    var printDepth: Int = 0
+
+    var printCache: [ObjectIdentifier: Target] = [:]
 
     private(set) var targetNode: Node?
 
