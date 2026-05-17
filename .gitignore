@@ -20,3 +20,4 @@ PrecompiledLibraries/swift-syntax/.swiftpm/xcode/package.xcworkspace/contents.xc
 .derived-data-log-*
 .package.env
 Tests/Projects/SymbolTests/DerivedData
+.omc

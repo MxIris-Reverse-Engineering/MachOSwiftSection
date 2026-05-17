@@ -53,14 +53,23 @@ extension SpecializationResult {
         /// Protocol witness tables for protocol constraints
         public let witnessTables: [ProtocolWitnessTable]
 
+        /// Recursively-resolved inner result when the argument originated
+        /// from `Argument.boundGeneric` or `Argument.specialized`. `nil` for
+        /// `metatype` / `metadata` / non-generic `candidate`. Enables callers
+        /// (renderers, snapshot builders) to walk the binding tree without
+        /// re-deriving it from the original `SpecializationSelection`.
+        public let innerResult: SpecializationResult?
+
         public init(
             parameterName: String,
             metadata: Metadata,
-            witnessTables: [ProtocolWitnessTable] = []
+            witnessTables: [ProtocolWitnessTable] = [],
+            innerResult: SpecializationResult? = nil
         ) {
             self.parameterName = parameterName
             self.metadata = metadata
             self.witnessTables = witnessTables
+            self.innerResult = innerResult
         }
 
         /// Whether this argument has any witness tables

@@ -246,12 +246,34 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
             currentOffset.offset(of: InvertibleProtocolSet.self)
             self.conditionalInvertibleProtocolSet = conditionalInvertibleProtocolSet
 
-            let conditionalInvertibleProtocolsRequirementsCount: InvertibleProtocolsRequirementCount = try reader.readElement(offset: currentOffset)
-            currentOffset.offset(of: InvertibleProtocolsRequirementCount.self)
-            self.conditionalInvertibleProtocolsRequirementsCount = conditionalInvertibleProtocolsRequirementsCount
+            // ABI: `numTrailingObjects(ConditionalInvertibleProtocolsRequirementCount)`
+            // is `popcount(ConditionalInvertibleProtocolSet.rawBits)` — one
+            // UInt16 per inverted protocol bit, *not* a single UInt16. The
+            // entries are cumulative running totals, so the last one is the
+            // total number of conditional requirements that follow (matches
+            // upstream `TargetTrailingGenericContextObjects`,
+            // `swift/include/swift/ABI/GenericContext.h:758-776`). Reading
+            // only the first UInt16 was the long-standing bug that misaligned
+            // every subsequent conditional `GenericRequirementDescriptor`
+            // entry whenever a type (e.g. `Swift.Result`) had more than one
+            // conditional-inverted protocol — the descriptors that followed
+            // were parsed off-by-2-bytes, producing garbage `paramMangledName`
+            // pointers that crashed the demangler at offset 0.
+            let numberOfCountEntries = conditionalInvertibleProtocolSet.rawValue.nonzeroBitCount
+            var cumulativeCount: UInt16 = 0
+            for _ in 0..<numberOfCountEntries {
+                let countEntry: InvertibleProtocolsRequirementCount = try reader.readElement(offset: currentOffset)
+                currentOffset.offset(of: InvertibleProtocolsRequirementCount.self)
+                cumulativeCount = countEntry.rawValue
+            }
+            self.conditionalInvertibleProtocolsRequirementsCount = .init(rawValue: cumulativeCount)
 
-            let conditionalInvertibleProtocolsRequirements: [GenericRequirementDescriptor] = try reader.readWrapperElements(offset: currentOffset, numberOfElements: Int(conditionalInvertibleProtocolsRequirementsCount.rawValue))
-            currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: Int(conditionalInvertibleProtocolsRequirementsCount.rawValue))
+            // The trailing `GenericRequirementDescriptor` array has 4-byte
+            // alignment; `popcount` UInt16 counts may leave the cursor on a
+            // 2-byte boundary, so re-align before reading.
+            currentOffset.align(to: 4)
+            let conditionalInvertibleProtocolsRequirements: [GenericRequirementDescriptor] = try reader.readWrapperElements(offset: currentOffset, numberOfElements: Int(cumulativeCount))
+            currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: Int(cumulativeCount))
             self.conditionalInvertibleProtocolsRequirements = conditionalInvertibleProtocolsRequirements
         } else {
             conditionalInvertibleProtocolSet = nil
@@ -351,14 +373,24 @@ public struct TargetGenericContext<Header: GenericContextDescriptorHeaderProtoco
             currentOffset.offset(of: InvertibleProtocolSet.self)
             self.conditionalInvertibleProtocolSet = conditionalInvertibleProtocolSet
 
-            let countAddress = try context.addressFromOffset(currentOffset)
-            let conditionalInvertibleProtocolsRequirementsCount: InvertibleProtocolsRequirementCount = try context.readElement(at: countAddress)
-            currentOffset.offset(of: InvertibleProtocolsRequirementCount.self)
-            self.conditionalInvertibleProtocolsRequirementsCount = conditionalInvertibleProtocolsRequirementsCount
+            // See the matching comment in the `Readable` init: counts are a
+            // `popcount(set)`-length cumulative UInt16 array, not a single
+            // UInt16, and the trailing `GenericRequirementDescriptor` array
+            // must be 4-byte aligned.
+            let numberOfCountEntries = conditionalInvertibleProtocolSet.rawValue.nonzeroBitCount
+            var cumulativeCount: UInt16 = 0
+            for _ in 0..<numberOfCountEntries {
+                let countAddress = try context.addressFromOffset(currentOffset)
+                let countEntry: InvertibleProtocolsRequirementCount = try context.readElement(at: countAddress)
+                currentOffset.offset(of: InvertibleProtocolsRequirementCount.self)
+                cumulativeCount = countEntry.rawValue
+            }
+            self.conditionalInvertibleProtocolsRequirementsCount = .init(rawValue: cumulativeCount)
 
+            currentOffset.align(to: 4)
             let reqsAddress = try context.addressFromOffset(currentOffset)
-            let conditionalInvertibleProtocolsRequirements: [GenericRequirementDescriptor] = try context.readWrapperElements(at: reqsAddress, numberOfElements: .init(conditionalInvertibleProtocolsRequirementsCount.rawValue))
-            currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: Int(conditionalInvertibleProtocolsRequirementsCount.rawValue))
+            let conditionalInvertibleProtocolsRequirements: [GenericRequirementDescriptor] = try context.readWrapperElements(at: reqsAddress, numberOfElements: .init(cumulativeCount))
+            currentOffset.offset(of: GenericRequirementDescriptor.self, numbersOfElements: Int(cumulativeCount))
             self.conditionalInvertibleProtocolsRequirements = conditionalInvertibleProtocolsRequirements
         } else {
             conditionalInvertibleProtocolSet = nil

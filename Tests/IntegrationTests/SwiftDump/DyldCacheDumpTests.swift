@@ -10,9 +10,9 @@ import MachOFixtureSupport
 @Suite(.serialized)
 final class DyldCacheDumpTests: DyldCacheTests, DumpableTests, @unchecked Sendable {
     
-    override class var cachePath: DyldSharedCachePath { .current }
+    override class var cachePath: DyldSharedCachePath { .issueCase }
     
-    override class var cacheImageName: MachOImageName { .SwiftUI }
+    override class var cacheImageName: MachOImageName { .SnippetUI }
     
     private let dumperConfiguration = DumperConfiguration(demangleResolver: .using(options: .test), printEnumLayout: true)
 }

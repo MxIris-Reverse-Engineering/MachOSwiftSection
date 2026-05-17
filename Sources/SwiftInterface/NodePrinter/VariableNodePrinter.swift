@@ -4,8 +4,10 @@ import Semantic
 
 struct VariableNodePrinter: InterfaceNodePrintable {
     typealias Context = InterfaceNodePrinterContext
+    
+    typealias Target = SemanticString
 
-    var target: SemanticString = ""
+    var target: Target = ""
 
     private var isStatic: Bool = false
 
@@ -24,6 +26,10 @@ struct VariableNodePrinter: InterfaceNodePrintable {
     private(set) var isProtocol: Bool = false
 
     var dependentMemberTypeDepth: Int = 0
+
+    var printDepth: Int = 0
+
+    var printCache: [ObjectIdentifier: Target] = [:]
 
     init(isStored: Bool, isOverride: Bool, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
         self.isStored = isStored

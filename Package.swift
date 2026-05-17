@@ -227,7 +227,7 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-demangling",
-            from: "0.3.0"
+            from: "0.4.0"
         )
     )
     
@@ -455,9 +455,6 @@ extension Target {
             .target(.SwiftDump),
             .target(.Utilities),
         ],
-        exclude: [
-            "GenericSpecializer/REVIEW_FIXUPS.md",
-        ]
     )
 
     static let TypeIndexing = Target.target(
@@ -567,6 +564,8 @@ extension Target {
             .target(.MachOReading),
             .target(.MachOResolving),
             .target(.MachOFixtureSupport),
+            .target(.MachOSwiftSection),
+            .target(.SwiftInterface),
         ],
         swiftSettings: testSettings
     )

@@ -3,4 +3,5 @@ package enum DyldSharedCachePath: String {
     case macOS_15_5 = "/Volumes/RE/Dyld-Shared-Cache/macOS/15.5/dyld_shared_cache_arm64e"
     case iOS_18_5 = "/Volumes/Generic/iOS Systems/22F76__iPhone17,5/dyld_shared_cache_arm64e"
     case iOS_26_1 = "/Volumes/Generic/iOS Systems/23B85__iPhone17,5/dyld_shared_cache_arm64e"
+    case issueCase = "/Users/JH/Downloads/19E241__iPhone11,2_4_6_iPhone12,3_5/dyld_shared_cache_arm64e"
 }

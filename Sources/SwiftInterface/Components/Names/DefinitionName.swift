@@ -7,7 +7,11 @@ public protocol DefinitionName {
 
 extension DefinitionName {
     public var name: String {
-        node.print(using: .interfaceTypeBuilderOnly)
+        name(using: .interfaceTypeBuilderOnly)
+    }
+    
+    public func name(using options: DemangleOptions) -> String {
+        node.print(using: options)
     }
 
     public var currentName: String {

@@ -16,7 +16,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
 
     package let dumped: Enum
 
-    package let metadata: Metadata?
+    package let metadataContext: DumperMetadataContext<Metadata>?
 
     package let configuration: DumperConfiguration
 
@@ -26,12 +26,12 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
     private var symbolIndexStore
 
     package init(_ dumped: Dumped, using configuration: DumperConfiguration, in machO: MachO) {
-        self.init(dumped, metadata: nil, using: configuration, in: machO)
+        self.init(dumped, metadataContext: nil, using: configuration, in: machO)
     }
 
-    package init(_ dumped: Dumped, metadata: Metadata?, using configuration: DumperConfiguration, in machO: MachO) {
+    package init(_ dumped: Dumped, metadataContext: DumperMetadataContext<Metadata>?, using configuration: DumperConfiguration, in machO: MachO) {
         self.dumped = dumped
-        self.metadata = metadata
+        self.metadataContext = metadataContext
         self.configuration = configuration
         self.machO = machO
     }
@@ -48,7 +48,11 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
 
             try await name
 
-            if let genericContext = dumped.genericContext {
+            // Skip the generic-signature clause when `name` already
+            // rendered the bound generic form (see StructDumper for the
+            // matching reasoning).
+            let isBound = boundDumpedMetatype() != nil
+            if !isBound, let genericContext = dumped.genericContext {
                 try await genericContext.dumpGenericSignature(resolver: demangleResolver, in: machO) {
                     if let invertibleProtocolSet = dumped.invertibleProtocolSet, invertibleProtocolSet.hasInvertedProtocols {
                         invertibleProtocolSet.dumpInvertedProtocolsInheritance
@@ -120,11 +124,13 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
 
                 var isTypeLayoutPrinted = false
 
-                if !mangledTypeName.isEmpty {
-                    if configuration.printTypeLayout, !dumped.flags.isGeneric, let machO = machO.asMachOImage, let metatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, in: machO), let metadata = try? Metadata.createInProcess(metatype) {
-                        try await metadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
-                        isTypeLayoutPrinted = true
-                    }
+                if !mangledTypeName.isEmpty,
+                   configuration.printTypeLayout,
+                   let machOImage = machO.asMachOImage,
+                   let resolvedMetatype = resolveFieldMetatype(for: mangledTypeName, in: machOImage),
+                   let resolvedMetadata = try? Metadata.createInProcess(resolvedMetatype) {
+                    try await resolvedMetadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
+                    isTypeLayoutPrinted = true
                 }
 
                 if let `case` = enumLayout?.cases[safe: offset.index] {
@@ -152,7 +158,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
                 try MemberDeclaration("\(fieldRecord.fieldName(in: machO))")
 
                 if !mangledTypeName.isEmpty {
-                    let node = try MetadataReader.demangleType(for: mangledTypeName, in: machO)
+                    let node = try fieldDemangledTypeNode(for: mangledTypeName)
                     let demangledName = try await demangleResolver.resolve(for: node)
                     if node.firstChild?.isKind(of: .tuple) ?? false {
                         demangledName
@@ -214,7 +220,11 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
 
     package var name: SemanticString {
         get async throws {
-            try await _name(using: demangleResolver)
+            if let boundNode = boundDumpedTypeNode() {
+                try await resolveBoundDumpedTypeName(boundNode)
+            } else {
+                try await _name(using: demangleResolver)
+            }
         }
     }
 

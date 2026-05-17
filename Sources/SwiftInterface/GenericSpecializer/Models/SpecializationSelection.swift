@@ -42,6 +42,20 @@ extension SpecializationSelection {
 
         /// Already specialized generic type (for recursive specialization)
         case specialized(SpecializationResult)
+
+        /// Bind a generic candidate (e.g. `Array`, `Dictionary`) to a nested
+        /// selection. The specializer recursively builds an inner
+        /// `SpecializationRequest` from `baseCandidate`'s descriptor and
+        /// substitutes `innerArguments`; the resulting metadata feeds the
+        /// outer key-arguments buffer in place of a concrete leaf type.
+        ///
+        /// `baseCandidate.isGeneric` must be `true`. Selecting a non-generic
+        /// candidate via this case produces a typed
+        /// `SpecializerError.specializationFailed` at specialization time.
+        case boundGeneric(
+            baseCandidate: SpecializationRequest.Candidate,
+            innerArguments: [String: Argument]
+        )
     }
 }
 
@@ -79,6 +93,23 @@ extension SpecializationSelection {
         @discardableResult
         public func set(_ parameterName: String, to specialized: SpecializationResult) -> Builder {
             arguments[parameterName] = .specialized(specialized)
+            return self
+        }
+
+        /// Bind a generic candidate to a nested selection. Equivalent to
+        /// constructing `Argument.boundGeneric(baseCandidate:innerArguments:)`
+        /// inline; the specializer expands `innerArguments` into a recursive
+        /// `SpecializationRequest` substitution on the candidate's descriptor.
+        @discardableResult
+        public func set(
+            _ parameterName: String,
+            to candidate: SpecializationRequest.Candidate,
+            boundTo innerArguments: [String: Argument]
+        ) -> Builder {
+            arguments[parameterName] = .boundGeneric(
+                baseCandidate: candidate,
+                innerArguments: innerArguments
+            )
             return self
         }
 

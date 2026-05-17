@@ -15,61 +15,6 @@ import OrderedCollections
 
 @Suite(.serialized)
 struct GenericSpecializationTests {
-    /// One-shot cache of the `SwiftInterfaceIndexer` shape used across all
-    /// nested suites. swift-testing instantiates a fresh suite struct per
-    /// `@Test`; the actor lets each instance share a single prepared indexer
-    /// instead of paying preparation cost N × suite-count times.
-    fileprivate actor SharedIndexerCache {
-        static let shared = SharedIndexerCache()
-
-        private var indexerCache: SwiftInterfaceIndexer<MachOImage>?
-
-        enum CacheError: Error, LocalizedError {
-            case missingImage(name: String)
-
-            var errorDescription: String? {
-                switch self {
-                case .missingImage(let name):
-                    return "expected MachOImage(name: \"\(name)\") to be loadable for the test fixture"
-                }
-            }
-        }
-
-        /// Indexer over the current process plus Foundation and libswiftCore.
-        func indexer() async throws -> SwiftInterfaceIndexer<MachOImage> {
-            if let indexerCache { return indexerCache }
-            let indexer = SwiftInterfaceIndexer(in: MachOImage.current())
-            try indexer.addSubIndexer(SwiftInterfaceIndexer(in: Self.requireImage(name: "Foundation")))
-            try indexer.addSubIndexer(SwiftInterfaceIndexer(in: Self.requireImage(name: "libswiftCore")))
-            try await indexer.prepare()
-            indexerCache = indexer
-            return indexer
-        }
-
-        private static func requireImage(name: String) throws -> MachOImage {
-            guard let image = MachOImage(name: name) else {
-                throw CacheError.missingImage(name: name)
-            }
-            return image
-        }
-    }
-
-    /// Single shared `MachOImage.current()` reference for the nested suites.
-    /// `.current()` already returns the same identity each call, but caching
-    /// it once spares the repeated function-call overhead and makes the
-    /// access path symmetric with `SharedIndexerCache.shared`.
-    fileprivate static let sharedMachO: MachOImage = .current()
-
-    /// Shared environment for the nested suites. Conforming suites get a
-    /// `machO` (sync, backed by `sharedMachO`) and an `indexer` (async,
-    /// backed by `SharedIndexerCache.shared.indexer()`) for free via the
-    /// default implementations below — no per-suite stored properties or
-    /// `init` are needed.
-    protocol Environment {
-        var machO: MachOImage { get }
-        var indexer: SwiftInterfaceIndexer<MachOImage> { get async throws }
-    }
-
     // MARK: - Fixture types
     //
     // All generic-shape fixtures live on the outer suite so that the
@@ -204,6 +149,55 @@ struct GenericSpecializationTests {
         init(a: A) { self.a = a }
     }
 
+    // Fixtures used by the baseClass-requirement preflight tests. The
+    // class shapes mirror a tiny three-level inheritance chain so a single
+    // suite can pin (a) a successful direct match, (b) a successful
+    // multi-step superclass walk, and (c) a failed walk on an unrelated
+    // class, all without dragging external frameworks into the test image.
+    class TestRequirementBaseClass {
+        var baseField: Int = 0
+        init() {}
+    }
+
+    class TestRequirementSubClass: TestRequirementBaseClass {}
+
+    final class TestRequirementGrandChildClass: TestRequirementSubClass {}
+
+    final class TestRequirementUnrelatedClass {}
+
+    /// `<A: TestRequirementBaseClass>` — single-parameter struct used to
+    /// drive the baseClass requirement through both `runtimePreflight`
+    /// (subclass / non-subclass / non-class checks) and `specialize`
+    /// (the metadata accessor is happy with any class because baseClass
+    /// has `hasKeyArgument == false`).
+    struct TestBaseClassRequirementStruct<A: TestRequirementBaseClass> {
+        let a: A
+    }
+
+    /// Helper protocol carrying an associated type used as the RHS of the
+    /// sameType-requirement fixture below. Lives in this test file because
+    /// it is a Swift-6-language-mode workaround: every shape of sameType
+    /// that the language *will* accept (`A == B`, `A == Int`,
+    /// `B == A` even when nested) is rejected as redundant or
+    /// non-generic, so the fixture is forced into the only remaining
+    /// shape — `A == B.Element` — which keeps both sides in the same
+    /// generic context without making either side trivially equivalent.
+    protocol TestSameTypeAssocCarrier {
+        associatedtype Element
+    }
+
+    /// `<A, B: TestSameTypeAssocCarrier> where A == B.Element` — fixture
+    /// used by the sameType preflight tests. The LHS is a direct generic
+    /// parameter, so `collectRequirements` attaches the resulting
+    /// `.sameType` record to `A`'s requirement list (the side that the
+    /// preflight check inspects). The RHS is an associated-type access
+    /// path which exercises the dedicated downgrade-to-warning branch in
+    /// `runtimeSameTypeCheck`.
+    struct TestSameTypeViaAssocStruct<A, B: TestSameTypeAssocCarrier> where A == B.Element {
+        let a: A
+        let b: B
+    }
+
     /// Two unrelated protocols both declaring `associatedtype Element`.
     /// The companion `DualElementStruct` fixture pins the Swift compiler's
     /// GenericSignature minimization invariant — see the matching test
@@ -231,7 +225,7 @@ struct GenericSpecializationTests {
     // suite below.
 
     @Suite("Make Request")
-    struct MakeRequest: Environment {
+    struct MakeRequest: GenericSpecializationTestingEnvironment {
         @Test func basicShape() async throws {
             let descriptor = try structDescriptor(named: "TestGenericStruct")
 
@@ -495,6 +489,45 @@ struct GenericSpecializationTests {
                 "GenericSignature minimization should pick one canonical protocol for A.Element; saw \(protocolIdentities)"
             )
         }
+
+        /// Reproduces the field-report bug where picking `Swift.Result`
+        /// as a candidate in RuntimeViewer's specialization sheet failed
+        /// with `Demangling.DemanglingError.matchFailed(wanted: "(read test
+        /// function to succeed)", at: 0)` while sibling stdlib generics
+        /// (`Array`, `Optional`, `Dictionary`) worked. The bug is upstream
+        /// of any wire / IPC layer — driving `makeRequest` directly on
+        /// `Swift.Result`'s descriptor is enough to hit it, so this test
+        /// has no RuntimeViewer dependency.
+        ///
+        /// The lookup walks `allAllTypeDefinitions` (the cross-image
+        /// aggregate) because `Result` lives in libswiftCore, not the
+        /// current test image. The matched entry's `machO` is fed back
+        /// into a fresh specializer so we parse `Result`'s descriptor in
+        /// its own image — mirroring how `RuntimeSwiftSection`
+        /// `specializationRequest(forCandidateID:in:)` is supposed to
+        /// behave.
+        @Test func swiftResultMakeRequestSucceeds() async throws {
+            let aggregate = try await indexer.allAllTypeDefinitions
+            let entry = try #require(
+                aggregate.first(where: { typeName, value in
+                    typeName.name == "Swift.Result"
+                        && value.machO.imagePath.contains("libswiftCore")
+                })?.value,
+                "expected Swift.Result to be indexed via libswiftCore sub-indexer"
+            )
+            let specializer = GenericSpecializer<MachOImage>(
+                machO: entry.machO,
+                conformanceProvider: IndexerConformanceProvider(indexer: try await indexer),
+                indexer: try await indexer
+            )
+            let request = try specializer.makeRequest(
+                for: entry.value.type.typeContextDescriptorWrapper
+            )
+            #expect(request.parameters.count == 2, "Result<Success, Failure: Error> has two type parameters")
+            let parameterNames = request.parameters.map(\.name)
+            #expect(parameterNames == ["A", "B"], "expected canonical (A, B) generic parameter names; got \(parameterNames)")
+        }
+
     }
 
     // MARK: - Specialize
@@ -507,7 +540,7 @@ struct GenericSpecializationTests {
     // case routing).
 
     @Suite("Specialize")
-    struct Specialize: Environment {
+    struct Specialize: GenericSpecializationTestingEnvironment {
         @Test func manualAccessorMatchesSpecializerWitnessOrder() async throws {
             let descriptor = try inProcessStructDescriptor(named: "TestGenericStruct")
 
@@ -1006,7 +1039,7 @@ struct GenericSpecializationTests {
     // depth ≥ 2 plus the SwiftDump dumper and the inverted-protocol overlay.
 
     @Suite("Nested Generics")
-    struct NestedGenerics: Environment {
+    struct NestedGenerics: GenericSpecializationTestingEnvironment {
         @Test func twoLevelBaseline() throws {
             let descriptor = try structDescriptor(named: "NestedGenericTwoLevelInner")
             let genericContext = try #require(try descriptor.genericContext(in: machO))
@@ -1268,7 +1301,7 @@ struct GenericSpecializationTests {
     // so this group stays focused on argument-shape errors / warnings.
 
     @Suite("Validation")
-    struct Validation: Environment {
+    struct Validation: GenericSpecializationTestingEnvironment {
         @Test func reportsMissingArguments() throws {
             let descriptor = try structDescriptor(named: "TestGenericStruct")
 
@@ -1421,7 +1454,7 @@ struct GenericSpecializationTests {
     // `witnessTableNotFound`.
 
     @Suite("Runtime Preflight")
-    struct RuntimePreflight: Environment {
+    struct RuntimePreflight: GenericSpecializationTestingEnvironment {
         @Test func catchesProtocolMismatch() async throws {
             // TestSingleProtocolStruct<A: Hashable>. Picking a Function type for
             // A (Functions don't conform to Hashable) must trip the preflight.
@@ -1581,6 +1614,321 @@ struct GenericSpecializationTests {
                 }
             }
         }
+
+        // MARK: baseClass requirement coverage
+        //
+        // Pre-fix `runtimePreflight` skipped every `.baseClass` record
+        // (the joint `case .protocol, .sameType, .baseClass: continue`
+        // arm), so a struct selection or an unrelated-class selection on
+        // `<T: TestRequirementBaseClass>` fell through to the metadata
+        // accessor — the runtime then rejected the type with a generic
+        // failure deep inside `swift_getGenericMetadata`. The tests below
+        // pin the new typed behaviour: typed errors for the bad cases,
+        // silent success for the good ones, plus a sanity check that the
+        // requirement itself is exposed by `makeRequest`.
+
+        @Test func baseClassRequirementSurfacesInRequest() async throws {
+            let descriptor = try structDescriptor(named: "TestBaseClassRequirementStruct")
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+
+            #expect(request.parameters.count == 1)
+            let parameter = request.parameters[0]
+            let baseClassRequirement = parameter.requirements.first { requirement in
+                if case .baseClass = requirement { return true }
+                return false
+            }
+            try #require(
+                baseClassRequirement != nil,
+                "makeRequest must surface .baseClass(...) for `<A: TestRequirementBaseClass>`"
+            )
+
+            // baseClass is not a key argument — the metadata accessor only
+            // takes one slot (A's metadata) regardless of the class chain.
+            #expect(request.keyArgumentCount == 1)
+        }
+
+        @Test func baseClassPreflightAcceptsDirectSubclass() async throws {
+            let descriptor = try structDescriptor(named: "TestBaseClassRequirementStruct")
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+
+            let selection: SpecializationSelection = [
+                "A": .metatype(GenericSpecializationTests.TestRequirementSubClass.self)
+            ]
+            let preflight = specializer.runtimePreflight(selection: selection, for: request)
+            #expect(preflight.isValid, "direct subclass must pass baseClass preflight, got \(preflight.errors)")
+            #expect(preflight.errors.isEmpty)
+
+            // End-to-end specialize must also succeed for the same selection —
+            // baseClass adds no key argument, so the accessor call still
+            // takes a single metadata.
+            let result = try specializer.specialize(request, with: selection)
+            _ = try #require(result.resolveMetadata().struct)
+        }
+
+        @Test func baseClassPreflightAcceptsBaseClassItself() async throws {
+            let descriptor = try structDescriptor(named: "TestBaseClassRequirementStruct")
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+
+            // The base class trivially satisfies its own requirement —
+            // covers the pointer-equality short circuit before the
+            // superclass walk starts.
+            let selection: SpecializationSelection = [
+                "A": .metatype(GenericSpecializationTests.TestRequirementBaseClass.self)
+            ]
+            let preflight = specializer.runtimePreflight(selection: selection, for: request)
+            #expect(preflight.isValid, "base class must satisfy `T: BaseClass` trivially, got \(preflight.errors)")
+        }
+
+        @Test func baseClassPreflightAcceptsTransitiveSubclass() async throws {
+            let descriptor = try structDescriptor(named: "TestBaseClassRequirementStruct")
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+
+            // Grandchild forces preflight to walk more than one superclass
+            // hop before pointer-matching the expected base.
+            let selection: SpecializationSelection = [
+                "A": .metatype(GenericSpecializationTests.TestRequirementGrandChildClass.self)
+            ]
+            let preflight = specializer.runtimePreflight(selection: selection, for: request)
+            #expect(
+                preflight.isValid,
+                "transitive subclass must pass baseClass preflight (multi-step superclass chain walk), got \(preflight.errors)"
+            )
+        }
+
+        @Test func baseClassPreflightRejectsUnrelatedClass() async throws {
+            let descriptor = try structDescriptor(named: "TestBaseClassRequirementStruct")
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+
+            let selection: SpecializationSelection = [
+                "A": .metatype(GenericSpecializationTests.TestRequirementUnrelatedClass.self)
+            ]
+            let preflight = specializer.runtimePreflight(selection: selection, for: request)
+            #expect(!preflight.isValid, "unrelated class must fail baseClass preflight")
+            let hasBaseClassError = preflight.errors.contains { error in
+                if case .baseClassRequirementNotSatisfied(let param, let baseClass, _) = error {
+                    return param == "A" && baseClass.contains("TestRequirementBaseClass")
+                }
+                return false
+            }
+            #expect(
+                hasBaseClassError,
+                "preflight must report .baseClassRequirementNotSatisfied for an unrelated class, got \(preflight.errors)"
+            )
+        }
+
+        @Test func baseClassRequirementNarrowsCandidates() async throws {
+            let descriptor = try structDescriptor(named: "TestBaseClassRequirementStruct")
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+
+            let parameter = try #require(request.parameters.first)
+
+            // Sanity: the baseClass requirement is on the parameter and
+            // its extracted TypeName resolves through the conformance
+            // provider to a non-empty subclass list. This isolates a
+            // failure to "subclass map didn't recognise the constraint
+            // RHS" before checking the user-facing candidate filtering.
+            let baseClassTypeName = try #require(
+                GenericSpecializer<MachOImage>.baseClassConstraintTypeName(
+                    in: parameter.requirements
+                ),
+                "expected baseClassConstraintTypeName to project the .baseClass requirement to a class TypeName"
+            )
+            let subclasses = specializer.conformanceProvider.subclasses(of: baseClassTypeName)
+            #expect(
+                !subclasses.isEmpty,
+                "subclasses(of: \(baseClassTypeName.name)) returned empty — narrowing falls back to 'do not narrow'"
+            )
+
+            let candidateNames = Set(parameter.candidates.map { $0.typeName.currentName })
+
+            // Must include the base class itself plus the two known
+            // subclasses (the BFS over the parent → child map walks
+            // multiple levels).
+            #expect(
+                candidateNames.contains("TestRequirementBaseClass"),
+                "baseClass-narrowed candidate list must include the base class itself, got \(candidateNames)"
+            )
+            #expect(
+                candidateNames.contains("TestRequirementSubClass"),
+                "baseClass-narrowed candidate list must include direct subclass, got \(candidateNames)"
+            )
+            #expect(
+                candidateNames.contains("TestRequirementGrandChildClass"),
+                "baseClass-narrowed candidate list must include transitive subclass, got \(candidateNames)"
+            )
+
+            // Must NOT include unrelated classes / value types — the whole
+            // point of narrowing.
+            #expect(
+                !candidateNames.contains("TestRequirementUnrelatedClass"),
+                "baseClass-narrowed candidate list must exclude unrelated classes, got \(candidateNames)"
+            )
+            #expect(
+                !candidateNames.contains("Int"),
+                "baseClass-narrowed candidate list must exclude value types, got \(candidateNames)"
+            )
+        }
+
+        @Test func baseClassPreflightRejectsValueType() async throws {
+            let descriptor = try structDescriptor(named: "TestBaseClassRequirementStruct")
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+
+            // Int is a struct — selectedKind is not class-like, so the
+            // check fails before the superclass walk even starts.
+            let selection: SpecializationSelection = ["A": .metatype(Int.self)]
+            let preflight = specializer.runtimePreflight(selection: selection, for: request)
+            #expect(!preflight.isValid, "value type must fail baseClass preflight")
+            let hasBaseClassError = preflight.errors.contains { error in
+                if case .baseClassRequirementNotSatisfied(let param, _, _) = error {
+                    return param == "A"
+                }
+                return false
+            }
+            #expect(
+                hasBaseClassError,
+                "preflight must report .baseClassRequirementNotSatisfied for a non-class type, got \(preflight.errors)"
+            )
+        }
+
+        // MARK: sameType requirement coverage
+        //
+        // Swift 6 rejects every shape of `where LHS == RHS` that would let
+        // us pin both `directGenericParamName` (GP-vs-GP) and the
+        // concrete-type branch in source: `A == B` is "makes equivalent",
+        // `A == Int` is "makes 'A' non-generic", and even nested `B == A`
+        // is "makes equivalent" because the inner generic context sees A
+        // as cumulative. The single shape that survives the language
+        // diagnostic is `A == B.Element`, which is what the fixture above
+        // uses. preflight on that shape exercises the
+        // associated-type-path branch — the typed downgrade to a
+        // `.sameTypeRequirementResolutionSkipped` warning. The other two
+        // branches (GP-vs-GP, GP-vs-concrete) live behind the diagnostic
+        // wall; they are reachable from binaries built in Swift-5 mode
+        // (e.g. SymbolTestsCore's `SameTypeRequirementTest`) but cannot
+        // be constructed inline in this test file's Swift-6 source.
+
+        @Test func sameTypeRequirementSurfacesInRequest() async throws {
+            let descriptor = try structDescriptor(named: "TestSameTypeViaAssocStruct")
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+
+            // The .sameType record attaches to LHS A's requirement list
+            // because `collectRequirements` only keeps requirements whose
+            // LHS is a direct GP — A is, B.Element is not.
+            let parameterA = try #require(
+                request.parameters.first { $0.name == "A" },
+                "expected parameter A in TestSameTypeViaAssocStruct"
+            )
+            let hasSameType = parameterA.requirements.contains { requirement in
+                if case .sameType = requirement { return true }
+                return false
+            }
+            #expect(
+                hasSameType,
+                "makeRequest must surface .sameType(...) for `where A == B.Element` on parameter A, got requirements: \(parameterA.requirements)"
+            )
+        }
+
+        // The unified constraint check resolves both LHS and RHS through
+        // `swift_getTypeByMangledNameInContext` (the same routine Swift's
+        // own `_checkGenericRequirements` uses,
+        // `swift/stdlib/public/runtime/ProtocolConformance.cpp:1846`), so
+        // a `where A == B.Element` requirement is verified by substitution
+        // — not deferred to a downgrade warning. The two tests below pin
+        // the consistent and inconsistent shapes of that verification.
+
+        @Test func sameTypeAssociatedPathPreflightAcceptsConsistentSelection() async throws {
+            let descriptor = try structDescriptor(named: "TestSameTypeViaAssocStruct")
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+
+            // A == B.Element with B.Element == Int and A == Int → consistent.
+            struct CarrierWithIntElement: TestSameTypeAssocCarrier {
+                typealias Element = Int
+            }
+            let selection: SpecializationSelection = [
+                "A": .metatype(Int.self),
+                "B": .metatype(CarrierWithIntElement.self),
+            ]
+            let preflight = specializer.runtimePreflight(selection: selection, for: request)
+
+            let hasMismatchError = preflight.errors.contains { error in
+                if case .sameTypeRequirementNotSatisfied = error { return true }
+                return false
+            }
+            #expect(
+                !hasMismatchError,
+                "consistent `A == B.Element` selection must pass preflight, got errors: \(preflight.errors)"
+            )
+
+            // The unified path must successfully resolve B.Element via
+            // runtime substitution rather than downgrade to a warning —
+            // i.e. it actually verified the equality, didn't skip it.
+            let hasResolutionSkipped = preflight.warnings.contains { warning in
+                if case .sameTypeRequirementResolutionSkipped = warning { return true }
+                return false
+            }
+            #expect(
+                !hasResolutionSkipped,
+                "preflight must resolve `B.Element` via runtime substitution, not downgrade to a warning"
+            )
+        }
+
+        @Test func sameTypeAssociatedPathPreflightRejectsInconsistentSelection() async throws {
+            let descriptor = try structDescriptor(named: "TestSameTypeViaAssocStruct")
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+
+            // A == B.Element required, but A=String / B.Element=Int — the
+            // unified pass must catch this even though the LHS is a direct
+            // GP and RHS is an associated-type access path (the case
+            // pre-refactor preflight downgraded to a warning).
+            struct CarrierWithIntElement: TestSameTypeAssocCarrier {
+                typealias Element = Int
+            }
+            let selection: SpecializationSelection = [
+                "A": .metatype(String.self),
+                "B": .metatype(CarrierWithIntElement.self),
+            ]
+            let preflight = specializer.runtimePreflight(selection: selection, for: request)
+
+            #expect(!preflight.isValid, "inconsistent `A == B.Element` selection must fail preflight")
+            let hasMismatchError = preflight.errors.contains { error in
+                if case .sameTypeRequirementNotSatisfied = error { return true }
+                return false
+            }
+            #expect(
+                hasMismatchError,
+                "preflight must report .sameTypeRequirementNotSatisfied for A=String / B.Element=Int, got errors: \(preflight.errors)"
+            )
+        }
     }
 
     // MARK: - Invariants
@@ -1594,7 +1942,7 @@ struct GenericSpecializationTests {
     // mis-feeds individual PWT slots.
 
     @Suite("Invariants")
-    struct Invariants: Environment {
+    struct Invariants: GenericSpecializationTestingEnvironment {
         // Associated-type PWT order with same-leaf interleaving.
         //
         // Regression coverage for the previously-buggy
@@ -1786,7 +2134,7 @@ struct GenericSpecializationTests {
     // missing infrastructure, key-argument count mismatches, etc.
 
     @Suite("Error Paths")
-    struct ErrorPaths: Environment {
+    struct ErrorPaths: GenericSpecializationTestingEnvironment {
         // Bug reproduction #1: specialize doesn't self-check
         // keyArgumentCount.
         //
@@ -1939,7 +2287,7 @@ struct GenericSpecializationTests {
     // public API surface independent of any single specialization run.
 
     @Suite("Models")
-    struct Models: Environment {
+    struct Models: GenericSpecializationTestingEnvironment {
         @Test func selectionBuilderBasic() throws {
             let selection = SpecializationSelection.builder()
                 .set("A", to: [Int].self)
@@ -2218,82 +2566,442 @@ struct GenericSpecializationTests {
                     "doesType returns true if any provider says yes")
         }
     }
-}
 
-// MARK: - Default helpers for nested suites
+    // MARK: - Bound Generic
+    //
+    // End-to-end coverage of `Argument.boundGeneric` from
+    // `Roadmaps/2026-05-11-bound-generic-candidates.md`. The new case lets
+    // the specializer accept `Array<Int>` / `Dictionary<String, Array<Int>>`
+    // shapes without the caller building an intermediate
+    // `SpecializationResult` themselves, while integrating with every
+    // existing validation pass: static `validate`, runtime preflight, the
+    // unified sameType / baseClass constraint check, and the
+    // `buildKeyArgumentsBuffer` PWT-ordering invariant.
 
-extension GenericSpecializationTests.Environment {
-    /// Sync access to the cached `MachOImage.current()` — every nested
-    /// suite shares the same instance.
-    var machO: MachOImage {
-        GenericSpecializationTests.sharedMachO
-    }
-
-    /// Async access to the prepared indexer. The actor cache builds it once
-    /// per process and hands every test the same reference, so the awaiter
-    /// pays the preparation cost zero times after the first hit.
-    var indexer: SwiftInterfaceIndexer<MachOImage> {
-        get async throws {
-            try await GenericSpecializationTests.SharedIndexerCache.shared.indexer()
+    @Suite("Bound Generic")
+    struct BoundGeneric: GenericSpecializationTestingEnvironment {
+        /// Resolve the request + the Swift.Array candidate (flagged
+        /// `isGeneric`) used by every boundGeneric test that hosts a
+        /// single-parameter Hashable-constrained struct. Centralised so
+        /// each test reads the request once and then drives the
+        /// boundGeneric pipeline without re-deriving the candidate.
+        private func arrayHashableHost(
+            specializer: GenericSpecializer<MachOImage>
+        ) throws -> (SpecializationRequest, SpecializationRequest.Candidate) {
+            let descriptor = try structDescriptor(named: "TestSingleProtocolStruct")
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+            let arrayCandidate = try #require(
+                request.parameters[0].candidates.first {
+                    $0.typeName.currentName == "Array" && $0.isGeneric
+                },
+                "expected Swift.Array candidate flagged isGeneric in TestSingleProtocolStruct's candidate list"
+            )
+            return (request, arrayCandidate)
         }
-    }
 
-    /// Resolves the first struct context descriptor whose name contains
-    /// `nameContains`. The fixtures live as nested types on the outer suite,
-    /// so a substring match against the mangled name is sufficient and
-    /// avoids pinning each test to the full module-qualified form.
-    func structDescriptor(named nameContains: String) throws -> StructDescriptor {
-        try #require(
-            try machO.swift.typeContextDescriptors.first {
-                try $0.struct?.name(in: machO).contains(nameContains) == true
-            }?.struct,
-            "expected a struct context descriptor whose name contains \"\(nameContains)\""
-        )
-    }
+        // Test 1: outer<T> = Array<Int> via .boundGeneric must equal the
+        // canonical [Int].self metatype path. The runtime caches generic
+        // metadata by descriptor + arguments, so two paths landing on the
+        // same canonical type must produce identical metadata pointers.
+        @Test func arrayIntMatchesMetatypePath() async throws {
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let (request, arrayCandidate) = try arrayHashableHost(specializer: specializer)
 
-    /// Resolves a struct descriptor and binds it to the in-process reader via
-    /// `asPointerWrapper(in:)`. Required for callers that invoke the
-    /// no-argument overloads of descriptor methods (e.g. `genericContext()`),
-    /// which read through the descriptor's embedded reader rather than an
-    /// explicit `MachOImage` argument.
-    func inProcessStructDescriptor(named nameContains: String) throws -> StructDescriptor {
-        try structDescriptor(named: nameContains).asPointerWrapper(in: machO)
-    }
+            let boundResult = try specializer.specialize(request, with: [
+                "A": .boundGeneric(baseCandidate: arrayCandidate, innerArguments: [
+                    "A": .metatype(Int.self),
+                ]),
+            ])
+            let metatypeResult = try specializer.specialize(request, with: [
+                "A": .metatype([Int].self),
+            ])
 
-    /// Resolves the first enum context descriptor whose name contains
-    /// `nameContains`. Mirrors `structDescriptor(named:)` for enum fixtures.
-    func enumDescriptor(named nameContains: String) throws -> EnumDescriptor {
-        try #require(
-            try machO.swift.typeContextDescriptors.first {
-                try $0.enum?.name(in: machO).contains(nameContains) == true
-            }?.enum,
-            "expected an enum context descriptor whose name contains \"\(nameContains)\""
-        )
-    }
+            #expect(
+                try boundResult.metadata() == metatypeResult.metadata(),
+                ".boundGeneric(Array, [Int]) must resolve to the same outer metadata pointer as .metatype([Int].self)"
+            )
 
-    /// Resolves the first class context descriptor whose name contains
-    /// `nameContains`. Mirrors `structDescriptor(named:)` for class fixtures.
-    func classDescriptor(named nameContains: String) throws -> ClassDescriptor {
-        try #require(
-            try machO.swift.typeContextDescriptors.first {
-                try $0.class?.name(in: machO).contains(nameContains) == true
-            }?.class,
-            "expected a class context descriptor whose name contains \"\(nameContains)\""
-        )
-    }
+            let resolvedA = try #require(boundResult.argument(for: "A"))
+            let innerResult = try #require(
+                resolvedA.innerResult,
+                "ResolvedArgument.innerResult must be populated for .boundGeneric selections"
+            )
+            let innerMetadata = try innerResult.metadata()
+            let directArrayInt = try Metadata.createInProcess([Int].self)
+            #expect(
+                innerMetadata == directArrayInt,
+                "inner .boundGeneric must land on the canonical Array<Int> metadata slot"
+            )
+        }
 
-    /// Resolves the descriptor along with its generic context. Used by
-    /// tests that inspect the generic header (e.g. `numKeyArguments`) in
-    /// addition to driving `GenericSpecializer`.
-    func genericStructFixture(
-        named nameContains: String
-    ) throws -> (descriptor: StructDescriptor, genericContext: GenericContext) {
-        let descriptor = try structDescriptor(named: nameContains)
-        let genericContext = try #require(
-            try descriptor.genericContext(in: machO),
-            "expected genericContext on \(nameContains)"
-        )
-        return (descriptor, genericContext)
+        // Test 2: two-level nested .boundGeneric for
+        // Dictionary<String, Array<Int>>. The metatype comparison pins
+        // that the recursion bottoms out on the same runtime cache slot
+        // as the directly-typed argument, and `innerResult` exposes the
+        // full binding tree to consumers.
+        @Test func nestedDictionaryStringArrayInt() async throws {
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let descriptor = try structDescriptor(named: "TestSingleProtocolStruct")
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+            let dictionaryCandidate = try #require(
+                request.parameters[0].candidates.first {
+                    $0.typeName.currentName == "Dictionary" && $0.isGeneric
+                },
+                "expected Swift.Dictionary candidate flagged isGeneric"
+            )
+            let arrayCandidate = try #require(
+                request.parameters[0].candidates.first {
+                    $0.typeName.currentName == "Array" && $0.isGeneric
+                },
+                "expected Swift.Array candidate flagged isGeneric"
+            )
+
+            let boundResult = try specializer.specialize(request, with: [
+                "A": .boundGeneric(baseCandidate: dictionaryCandidate, innerArguments: [
+                    "A": .metatype(String.self),
+                    "B": .boundGeneric(baseCandidate: arrayCandidate, innerArguments: [
+                        "A": .metatype(Int.self),
+                    ]),
+                ]),
+            ])
+            let metatypeResult = try specializer.specialize(request, with: [
+                "A": .metatype([String: [Int]].self),
+            ])
+            #expect(
+                try boundResult.metadata() == metatypeResult.metadata(),
+                "two-level nested .boundGeneric must equal the metatype path"
+            )
+
+            // Walk the binding tree: outer.A → Dictionary; Dictionary.B
+            // → Array<Int>; Array<Int>.A → Int (no inner, .metatype).
+            let outerA = try #require(boundResult.argument(for: "A"))
+            let dictionaryResult = try #require(outerA.innerResult)
+            let dictionaryB = try #require(dictionaryResult.argument(for: "B"))
+            let arrayResult = try #require(dictionaryB.innerResult)
+            let arrayMetadata = try arrayResult.metadata()
+            let directArrayInt = try Metadata.createInProcess([Int].self)
+            #expect(arrayMetadata == directArrayInt)
+            #expect(
+                arrayResult.argument(for: "A")?.innerResult == nil,
+                ".metatype leaves should not carry an innerResult"
+            )
+        }
+
+        // Test 3: PWT slot count invariant. `buildKeyArgumentsBuffer`
+        // asserts `metadatas.count + witnessTables.count == request
+        // .keyArgumentCount`; a regression that leaks inner PWTs into
+        // the outer buffer would trip either the invariant or the
+        // metadata accessor call.
+        @Test func keyArgumentCountInvariant() async throws {
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let (request, arrayCandidate) = try arrayHashableHost(specializer: specializer)
+
+            // TestSingleProtocolStruct<A: Hashable>: 1 metadata slot +
+            // 1 PWT (Hashable). Inner Array<Int>'s own PWTs are consumed
+            // by the inner accessor and must not bleed into the outer.
+            #expect(request.keyArgumentCount == 2)
+
+            let result = try specializer.specialize(request, with: [
+                "A": .boundGeneric(baseCandidate: arrayCandidate, innerArguments: [
+                    "A": .metatype(Int.self),
+                ]),
+            ])
+            let resolvedA = try #require(result.argument(for: "A"))
+            #expect(
+                resolvedA.witnessTables.count == 1,
+                "outer A: Hashable contributes exactly one outer PWT; inner Array<Int>'s PWTs must not surface here"
+            )
+        }
+
+        // Test 4: outer preflight catches a mismatched conformance even
+        // when the parameter was supplied via `.boundGeneric` — the
+        // resolved metadata (Array<TestNonGenericStruct>) doesn't
+        // satisfy A: Hashable and the typed
+        // `.protocolRequirementNotSatisfied` error must surface
+        // (instead of a stringified inner error).
+        @Test func preflightCatchesMismatchedConformance() async throws {
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let (request, arrayCandidate) = try arrayHashableHost(specializer: specializer)
+
+            let selection: SpecializationSelection = [
+                "A": .boundGeneric(baseCandidate: arrayCandidate, innerArguments: [
+                    "A": .metatype(TestNonGenericStruct.self),
+                ]),
+            ]
+            let preflight = specializer.runtimePreflight(selection: selection, for: request)
+
+            #expect(
+                !preflight.isValid,
+                "Array<TestNonGenericStruct> must fail outer A: Hashable preflight"
+            )
+            let hasProtocolError = preflight.errors.contains { error in
+                if case .protocolRequirementNotSatisfied(_, let proto, _) = error {
+                    // protocolName carries the module prefix
+                    // ("Swift.Hashable") because preflight reads
+                    // `info.protocolName.name` — accept either form.
+                    return proto.hasSuffix("Hashable")
+                }
+                return false
+            }
+            #expect(
+                hasProtocolError,
+                "preflight must surface typed .protocolRequirementNotSatisfied('Hashable'); got errors: \(preflight.errors)"
+            )
+        }
+
+        // Test 5: runUnifiedConstraintCheck participates when the
+        // selection contains `.boundGeneric` instead of `.candidate` —
+        // the bail-out only triggers for naked `.candidate`. The
+        // resolved metadata flows through the arguments buffer so
+        // `swift_getTypeByMangledNameInContext` sees a fully-formed
+        // type for sameType / baseClass substitution.
+        @Test func participatesInSameTypeCheck() async throws {
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let descriptor = try structDescriptor(named: "TestSameTypeViaAssocStruct")
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+            let arrayCandidate = try #require(
+                request.parameters[0].candidates.first {
+                    $0.typeName.currentName == "Array" && $0.isGeneric
+                },
+                "expected Swift.Array candidate flagged isGeneric on A's candidate list"
+            )
+
+            // Element witness pins B.Element = Array<Int>; pairs with
+            // A's `.boundGeneric` resolution.
+            struct CarrierWithArrayIntElement: TestSameTypeAssocCarrier {
+                typealias Element = Array<Int>
+            }
+
+            // Consistent: A = Array<Int>, B.Element = Array<Int>.
+            let consistent: SpecializationSelection = [
+                "A": .boundGeneric(baseCandidate: arrayCandidate, innerArguments: [
+                    "A": .metatype(Int.self),
+                ]),
+                "B": .metatype(CarrierWithArrayIntElement.self),
+            ]
+            let preflightConsistent = specializer.runtimePreflight(selection: consistent, for: request)
+            #expect(
+                preflightConsistent.isValid,
+                "A=Array<Int>, B.Element=Array<Int> must pass sameType; got errors: \(preflightConsistent.errors)"
+            )
+            let consistentResolutionSkipped = preflightConsistent.warnings.contains { warning in
+                if case .sameTypeRequirementResolutionSkipped = warning { return true }
+                return false
+            }
+            #expect(
+                !consistentResolutionSkipped,
+                "constraint check must run on .boundGeneric, not bail out as it does for .candidate"
+            )
+
+            // Inconsistent: A = Array<String>, B.Element = Array<Int>.
+            let inconsistent: SpecializationSelection = [
+                "A": .boundGeneric(baseCandidate: arrayCandidate, innerArguments: [
+                    "A": .metatype(String.self),
+                ]),
+                "B": .metatype(CarrierWithArrayIntElement.self),
+            ]
+            let preflightInconsistent = specializer.runtimePreflight(selection: inconsistent, for: request)
+            #expect(!preflightInconsistent.isValid)
+            let hasSameTypeError = preflightInconsistent.errors.contains { error in
+                if case .sameTypeRequirementNotSatisfied = error { return true }
+                return false
+            }
+            #expect(
+                hasSameTypeError,
+                "A=Array<String>, B.Element=Array<Int> must fail sameType; got errors: \(preflightInconsistent.errors)"
+            )
+        }
+
+        // Test 6: inner failures preserve their typed identity. The
+        // `boundGenericInnerFailed` case wraps the inner cause without
+        // collapsing it to a string, so callers can pattern-match on
+        // the original error. The outer-driven path (preflight catches
+        // first) still surfaces a recognizable inner cause in the
+        // joined reason string.
+        @Test func innerFailureSurfacesTyped() async throws {
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let (request, _) = try arrayHashableHost(specializer: specializer)
+
+            // Pull a non-generic candidate (Int) — supplying it to
+            // `.boundGeneric` makes the inner `makeRequest` throw
+            // `notGenericType`, which preflight routes through
+            // `metadataResolutionFailed` and `specialize` surfaces as
+            // `specializationFailed` whose reason still mentions the
+            // typed cause.
+            let intCandidate = try #require(
+                request.parameters[0].candidates.first {
+                    $0.typeName.currentName == "Int" && !$0.isGeneric
+                },
+                "expected Swift.Int non-generic candidate"
+            )
+
+            do {
+                _ = try specializer.specialize(request, with: [
+                    "A": .boundGeneric(baseCandidate: intCandidate, innerArguments: [:]),
+                ])
+                Issue.record("expected specialize to throw for non-generic baseCandidate")
+            } catch let GenericSpecializer<MachOImage>.SpecializerError.specializationFailed(reason) {
+                #expect(
+                    reason.lowercased().contains("not generic") ||
+                        reason.contains("could not build inner request"),
+                    "specializationFailed reason must mention the inner cause; got: \(reason)"
+                )
+            } catch {
+                Issue.record("expected specializationFailed; got \(error)")
+            }
+
+            // Error-shape pin: the new SpecializerError case carries
+            // the underlying error untouched so downstream code can
+            // pattern-match against the typed cause.
+            let directInnerCause = GenericSpecializer<MachOImage>.SpecializerError.notGenericType(
+                type: TypeContextDescriptorWrapper.struct(
+                    try structDescriptor(named: "TestNonGenericStruct")
+                )
+            )
+            let wrapped = GenericSpecializer<MachOImage>.SpecializerError.boundGenericInnerFailed(
+                parameterName: "Outer",
+                underlying: directInnerCause
+            )
+            guard case .boundGenericInnerFailed(let parameterName, let underlying) = wrapped else {
+                Issue.record("expected boundGenericInnerFailed case")
+                return
+            }
+            #expect(parameterName == "Outer")
+            let recoveredInner = try #require(
+                underlying as? GenericSpecializer<MachOImage>.SpecializerError
+            )
+            if case .notGenericType = recoveredInner {
+                // OK
+            } else {
+                Issue.record("underlying error lost its typed identity: \(recoveredInner)")
+            }
+            #expect(wrapped.errorDescription?.contains("Outer") == true)
+        }
+
+        // Test 7: ResolvedArgument.innerResult population for every
+        // argument shape — `.metatype` / `.metadata` / `.candidate` →
+        // nil; `.boundGeneric` / `.specialized` → populated with a
+        // result whose metadata equals the directly-built leaf.
+        @Test func resolvedArgumentInnerResultPopulation() async throws {
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            let (request, arrayCandidate) = try arrayHashableHost(specializer: specializer)
+
+            // .metatype → nil
+            let metatypeResult = try specializer.specialize(request, with: [
+                "A": .metatype(Int.self),
+            ])
+            #expect(
+                metatypeResult.argument(for: "A")?.innerResult == nil,
+                "innerResult must be nil for .metatype selections"
+            )
+
+            // .candidate → also nil. Even though the candidate's
+            // resolution involves a metadata accessor call, the
+            // contract is that `innerResult` is only populated for
+            // the wrapped-result entry points (`.specialized` /
+            // `.boundGeneric`). Non-generic candidates have no inner
+            // request, so the tree terminates here.
+            let intCandidate = try #require(
+                request.parameters[0].candidates.first {
+                    $0.typeName.currentName == "Int" && !$0.isGeneric
+                }
+            )
+            let candidateResult = try specializer.specialize(request, with: [
+                "A": .candidate(intCandidate),
+            ])
+            #expect(
+                candidateResult.argument(for: "A")?.innerResult == nil,
+                "innerResult must be nil for non-generic .candidate selections"
+            )
+
+            // .boundGeneric → populated
+            let boundResult = try specializer.specialize(request, with: [
+                "A": .boundGeneric(baseCandidate: arrayCandidate, innerArguments: [
+                    "A": .metatype(Int.self),
+                ]),
+            ])
+            let argBound = try #require(boundResult.argument(for: "A"))
+            let boundInner = try #require(argBound.innerResult)
+            #expect(
+                try boundInner.metadata() == Metadata.createInProcess([Int].self),
+                "innerResult for .boundGeneric must capture the recursively-resolved Array<Int> metadata"
+            )
+
+            // .specialized → also populated. Uses an unconstrained
+            // host fixture so the inner result (also unconstrained)
+            // doesn't have to satisfy A: Hashable; the inner-tree
+            // pinning is independent of the outer's constraints.
+            let unconstrainedDescriptor = try structDescriptor(named: "TestUnconstrainedStruct")
+            let unconstrainedRequest = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(unconstrainedDescriptor)
+            )
+            let innerSpecialized = try specializer.specialize(
+                unconstrainedRequest, with: ["A": .metatype(Int.self)]
+            )
+            let specializedResult = try specializer.specialize(
+                unconstrainedRequest, with: ["A": .specialized(innerSpecialized)]
+            )
+            let argSpecialized = try #require(specializedResult.argument(for: "A"))
+            let recoveredInner = try #require(argSpecialized.innerResult)
+            #expect(
+                try recoveredInner.metadata() == innerSpecialized.metadata(),
+                "innerResult for .specialized must reference the supplied result"
+            )
+        }
+
+        // Test 8: `maxBindingDepth` boundary guard. The soft guard at
+        // `internalSpecialize`, `internalValidate`, and
+        // `collectBoundGenericValidation` should refuse a binding chain
+        // whose depth meets or exceeds the configured ceiling, surfaced
+        // as a typed `specializationFailed` with a recognizable reason.
+        // Driving this with the default `16` ceiling is awkward; we
+        // tighten the knob to `1` and feed a two-level
+        // `Dictionary<String, Array<Int>>` tree so the boundary fires
+        // at the inner `.boundGeneric(Array, ...)` recursion.
+        @Test func maxBindingDepthGuardTrips() async throws {
+            let specializer = GenericSpecializer(indexer: try await indexer)
+            specializer.maxBindingDepth = 1
+
+            let descriptor = try structDescriptor(named: "TestSingleProtocolStruct")
+            let request = try specializer.makeRequest(
+                for: TypeContextDescriptorWrapper.struct(descriptor)
+            )
+            let dictionaryCandidate = try #require(
+                request.parameters[0].candidates.first {
+                    $0.typeName.currentName == "Dictionary" && $0.isGeneric
+                }
+            )
+            let arrayCandidate = try #require(
+                request.parameters[0].candidates.first {
+                    $0.typeName.currentName == "Array" && $0.isGeneric
+                }
+            )
+
+            do {
+                _ = try specializer.specialize(request, with: [
+                    "A": .boundGeneric(baseCandidate: dictionaryCandidate, innerArguments: [
+                        "A": .metatype(String.self),
+                        "B": .boundGeneric(baseCandidate: arrayCandidate, innerArguments: [
+                            "A": .metatype(Int.self),
+                        ]),
+                    ]),
+                ])
+                Issue.record("expected specialize to throw when binding depth exceeds maxBindingDepth")
+            } catch let GenericSpecializer<MachOImage>.SpecializerError.specializationFailed(reason) {
+                #expect(
+                    reason.contains("binding depth exceeded"),
+                    "specializationFailed reason must mention the depth guard; got: \(reason)"
+                )
+            } catch {
+                Issue.record("expected specializationFailed; got \(error)")
+            }
+        }
     }
 }
 

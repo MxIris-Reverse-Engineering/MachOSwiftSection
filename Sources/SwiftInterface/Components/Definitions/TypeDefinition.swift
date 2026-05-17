@@ -1,5 +1,6 @@
 import Foundation
 import MachOSwiftSection
+import MachOKit
 import MemberwiseInit
 import OrderedCollections
 import SwiftDump
@@ -19,7 +20,20 @@ public final class TypeDefinition: Definition {
 
     public let type: TypeContextWrapper
 
+    /// Injected at construction time. Ordinary indexing-derived definitions
+    /// receive the unbound form computed from `type.typeName(in:)`;
+    /// `specialize(with:in:)` derives a bound form via
+    /// `boundGenericTypeName(...)` (`Box<A>` → `Box<Int>`) and feeds it to
+    /// the designated init, so the property is always immutable post-init.
     public let typeName: TypeName
+
+    /// `true` when this definition was produced via `specialize(with:in:)` —
+    /// i.e. it carries a runtime-resolved `metadata` and a bound-generic
+    /// `typeName`. `false` for the canonical, unspecialized definitions
+    /// produced from a MachO image's section data. Always known at
+    /// construction time, so callers can branch on the type kind without
+    /// inspecting the optional `metadata` field.
+    public let isSpecialized: Bool
 
     public internal(set) weak var parent: TypeDefinition?
 
@@ -83,15 +97,234 @@ public final class TypeDefinition: Definition {
 
     public private(set) var isIndexed: Bool = false
 
+    /// Specialized metadata bound to this definition.
+    ///
+    /// `nil` for the canonical, unspecialized definition produced from a
+    /// MachO image's section data. Non-nil only when the definition was
+    /// produced via `specialize(with:in:)` — in that case the dumper
+    /// receives this metadata directly and uses it for field offsets,
+    /// type/enum layout, and value witness queries instead of trying to
+    /// call the descriptor's metadata accessor.
+    public internal(set) var metadata: MetadataWrapper? = nil
+
+    /// Specialized children produced from this generic definition via
+    /// `specialize(with:in:)`. Each entry is a sibling-shaped
+    /// `TypeDefinition` that wraps the same `type` but carries a
+    /// runtime-resolved metadata. Lives on the model rather than on the
+    /// indexer so the indexer remains agnostic of user-driven
+    /// specialization state.
+    public private(set) var specializedChildren: [TypeDefinition] = []
+
     public var hasMembers: Bool {
         !fields.isEmpty || !variables.isEmpty || !functions.isEmpty ||
             !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty || hasDeallocator
     }
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(type: TypeContextWrapper, in machO: MachO) async throws {
+    /// Designated initializer. Internal so the canonical "derive typeName
+    /// from `type.typeName(in:)`" path used by indexing cannot be bypassed
+    /// from outside the package; `specialize(with:in:)` is the only
+    /// in-package caller that injects a different `typeName`/`isSpecialized`
+    /// pair.
+    internal init(type: TypeContextWrapper, typeName: TypeName, isSpecialized: Bool) {
         self.type = type
-        let typeName = try type.typeName(in: machO)
         self.typeName = typeName
+        self.isSpecialized = isSpecialized
+    }
+
+    public convenience init<MachO: MachOSwiftSectionRepresentableWithCache>(type: TypeContextWrapper, in machO: MachO) async throws {
+        let typeName = try type.typeName(in: machO)
+        self.init(type: type, typeName: typeName, isSpecialized: false)
+    }
+
+    /// Append a new specialized `TypeDefinition` derived from this
+    /// definition's `type` and the metadata carried by
+    /// `specializationResult`.
+    ///
+    /// Validation, all of which throws `SpecializationError` on failure:
+    /// 1. The receiver's descriptor must be generic — specializing a
+    ///    non-generic type does not make sense.
+    /// 2. The `MetadataWrapper`'s case must be compatible with the
+    ///    receiver's `type` case (struct↔struct, class↔class,
+    ///    enum↔enum/optional). A mismatch typically means a
+    ///    `SpecializationResult` produced for a different generic type
+    ///    was handed in.
+    /// 3. The metadata's resolved descriptor must be the same descriptor
+    ///    as the receiver's `type`. This is the strongest guarantee that
+    ///    the result was produced by specializing exactly this type.
+    ///
+    /// The two `machO` parameters serve different roles:
+    /// - `machO` is used to construct the inner `TypeDefinition` and
+    ///   re-derive its type name. It can be any reader (file or image).
+    /// - `machOImage` is required because the result's metadata pointer
+    ///   resolves through process memory only (the runtime's metadata
+    ///   cache lives outside any MachO image); descriptor identity
+    ///   validation needs the receiver's descriptor in its in-process
+    ///   form, and that is what `asPointerWrapper(in:)` produces.
+    @discardableResult
+    public func specialize(
+        with specializationResult: SpecializationResult,
+        typeArgumentNodes: [Node]? = nil,
+        in machO: MachOImage,
+    ) async throws -> TypeDefinition {
+        let metadata = try specializationResult.resolveMetadata()
+
+        try validateSpecialization(metadata: metadata, in: machO)
+
+        // Compute the final typeName up-front so it can flow through the
+        // designated init: either the unbound form (`Box<A>`) when no type
+        // arguments are supplied, or the bound form (`Box<Int>`) produced by
+        // `boundGenericTypeName(...)`. The latter makes the specialized
+        // definition print as `Box<Int>` rather than the placeholder
+        // `Box<A>`, and gives it a unique mangled name per specialization
+        // (via `mangleAsString(typeName.node)`).
+        let unboundTypeName = try type.typeName(in: machO)
+        let finalTypeName: TypeName
+        if let typeArgumentNodes, !typeArgumentNodes.isEmpty {
+            finalTypeName = Self.boundGenericTypeName(
+                unboundTypeName: unboundTypeName,
+                typeArgumentNodes: typeArgumentNodes
+            )
+        } else {
+            finalTypeName = unboundTypeName
+        }
+
+        let specialized = TypeDefinition(type: type, typeName: finalTypeName, isSpecialized: true)
+        specialized.metadata = metadata
+        specializedChildren.append(specialized)
+        return specialized
+    }
+
+    /// Build a bound-generic `TypeName` by wrapping the supplied unbound
+    /// (`Type → Structure(...)` / `Class(...)` / `Enum(...)`) form with a
+    /// `BoundGeneric{Class,Structure,Enum}` node carrying the concrete type
+    /// argument list.
+    ///
+    /// Mirrors the shape Swift's demangler produces at
+    /// `swift-demangling/.../Demangler.swift:1184` —
+    /// `Node.create(kind: kind, children: [Node.create(kind: .type, child: n), args])` —
+    /// so the result round-trips cleanly through `mangleAsString` /
+    /// `Remangler.mangleBoundGenericStructure`. Both the unbound type and
+    /// every TypeList entry are normalized to a `Type`-wrapped form because
+    /// callers occasionally hand us bare `Structure(...)` nodes (the wrap is a
+    /// no-op when the input is already `.type`).
+    ///
+    /// Default access (`internal`) so unit tests in `SwiftInterfaceTests` can
+    /// exercise the substitution shape without spinning up a full MachO
+    /// fixture.
+    static func boundGenericTypeName(
+        unboundTypeName: TypeName,
+        typeArgumentNodes: [Node]
+    ) -> TypeName {
+        let unboundTypeNode: Node
+        if unboundTypeName.node.kind == .type {
+            unboundTypeNode = unboundTypeName.node
+        } else {
+            unboundTypeNode = Node.create(kind: .type, children: [unboundTypeName.node])
+        }
+
+        let normalizedArgumentNodes: [Node] = typeArgumentNodes.map { argumentNode in
+            if argumentNode.kind == .type {
+                return argumentNode
+            } else {
+                return Node.create(kind: .type, children: [argumentNode])
+            }
+        }
+
+        let boundKind: Node.Kind
+        switch unboundTypeName.kind {
+        case .struct: boundKind = .boundGenericStructure
+        case .class: boundKind = .boundGenericClass
+        case .enum: boundKind = .boundGenericEnum
+        }
+
+        let typeList = Node.create(kind: .typeList, children: normalizedArgumentNodes)
+        let boundNode = Node.create(kind: boundKind, children: [unboundTypeNode, typeList])
+        let wrappedNode = Node.create(kind: .type, children: [boundNode])
+
+        return TypeName(node: wrappedNode, kind: unboundTypeName.kind)
+    }
+
+    private func validateSpecialization(metadata: MetadataWrapper, in machO: MachOImage) throws {
+        // 1. Receiver must be generic. A non-generic descriptor has a
+        //    fixed metadata; specializing it is meaningless and would
+        //    indicate the caller wired the wrong type.
+        guard type.typeContextDescriptorWrapper.typeContextDescriptor.layout.flags.isGeneric else {
+            throw SpecializationError.notGenericType(typeName: typeName.name)
+        }
+
+        // 2. The metadata case must align with the type case. Allow both
+        //    `enum` and `optional` payloads for `.enum` types — Swift
+        //    distinguishes these by metadata kind only, and either can be
+        //    the legitimate output of specializing an enum.
+        let isCompatibleKind: Bool
+        switch type {
+        case .struct: isCompatibleKind = metadata.isStruct
+        case .enum: isCompatibleKind = metadata.isEnum || metadata.isOptional
+        case .class: isCompatibleKind = metadata.isClass
+        }
+        guard isCompatibleKind else {
+            throw SpecializationError.metadataKindMismatch(
+                typeName: typeName.name,
+                expected: type,
+                actual: metadata
+            )
+        }
+
+        // 3. Compare descriptor identity. The receiver's descriptor is
+        //    re-resolved into its in-process form via `asPointerWrapper`
+        //    so that the offsets being compared are both process-memory
+        //    addresses. A mismatch means the result was specialized for
+        //    a structurally similar but distinct type.
+        let inProcessType = type.typeContextDescriptorWrapper.asPointerWrapper(in: machO)
+        let expectedDescriptorOffset = inProcessType.typeContextDescriptor.offset
+        let actualDescriptorOffset = try descriptorOffset(of: metadata)
+        guard expectedDescriptorOffset == actualDescriptorOffset else {
+            throw SpecializationError.descriptorMismatch(
+                typeName: typeName.name,
+                expectedOffset: expectedDescriptorOffset,
+                actualOffset: actualDescriptorOffset
+            )
+        }
+    }
+
+    private func descriptorOffset(of metadata: MetadataWrapper) throws -> Int {
+        switch metadata {
+        case .struct(let structMetadata):
+            return try structMetadata.descriptor().contextDescriptor.offset
+        case .class(let classMetadata):
+            return try required(classMetadata.descriptor()).offset
+        case .enum(let enumMetadata), .optional(let enumMetadata), .errorObject(let enumMetadata):
+            return try enumMetadata.descriptor().contextDescriptor.offset
+        default:
+            // Other metadata kinds don't carry a nominal-type descriptor in
+            // the form we compare against here. Treating this as a hard
+            // failure (rather than skipping the check silently) makes it
+            // obvious if a new wrapper case is added without updating this
+            // switch.
+            throw SpecializationError.unsupportedMetadataKind(metadata: metadata)
+        }
+    }
+
+    /// Errors raised by `specialize(with:in:image:)` when the supplied
+    /// `SpecializationResult` cannot be reconciled with the receiver.
+    public enum SpecializationError: LocalizedError {
+        case notGenericType(typeName: String)
+        case metadataKindMismatch(typeName: String, expected: TypeContextWrapper, actual: MetadataWrapper)
+        case descriptorMismatch(typeName: String, expectedOffset: Int, actualOffset: Int)
+        case unsupportedMetadataKind(metadata: MetadataWrapper)
+
+        public var errorDescription: String? {
+            switch self {
+            case .notGenericType(let typeName):
+                return "Cannot specialize non-generic type '\(typeName)'"
+            case .metadataKindMismatch(let typeName, let expected, let actual):
+                return "Specialization metadata for '\(typeName)' has incompatible kind: expected \(expected), got \(actual)"
+            case .descriptorMismatch(let typeName, let expectedOffset, let actualOffset):
+                return "Specialization metadata for '\(typeName)' references a different descriptor (expected offset 0x\(String(expectedOffset, radix: 16)), got 0x\(String(actualOffset, radix: 16)))"
+            case .unsupportedMetadataKind(let metadata):
+                return "Specialization metadata kind is not supported for descriptor identity validation: \(metadata)"
+            }
+        }
     }
 
     package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {

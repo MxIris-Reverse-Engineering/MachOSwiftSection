@@ -17,8 +17,34 @@ protocol NodePrintable {
 
     var dependentMemberTypeDepth: Int { get set }
 
+    /// Mirrors the ``Swift::Demangle::NodePrinter`` recursion guard at
+    /// ``swift/lib/Demangling/NodePrinter.cpp:1416``. Each entry into
+    /// ``printName(_:asPrefixContext:context:)`` increments the counter and
+    /// the wrapper bails with ``<<too complex>>`` once it would exceed
+    /// ``maxPrintDepth``. Without this, demangle results that share substitution
+    /// nodes (a DAG) blow up into ``19^k``-shaped traversals during printing.
+    var printDepth: Int { get set }
+
+    /// Memoization for shared substitution nodes. The demangler returns the
+    /// same ``Node`` instance for every back-reference (e.g. ``A23_``), so a
+    /// single ``Type<...>`` mangling can produce a DAG that, naively walked
+    /// child-by-child, expands into hundreds of thousands of node visits. By
+    /// caching the rendered ``SemanticString`` slice keyed by
+    /// ``ObjectIdentifier(node)``, every shared node prints once and reuses
+    /// the cached fragment thereafter — bringing print cost back to the size
+    /// of the unique node set instead of the exponential expansion. The
+    /// cache is per ``NodePrintable`` instance, so it lives only for the
+    /// duration of one ``printRoot`` invocation.
+    var printCache: [ObjectIdentifier: Target] { get set }
+
     @discardableResult
     mutating func printName(_ name: Node, asPrefixContext: Bool, context: Context?) async -> Node?
+}
+
+extension NodePrintable {
+    /// Single-path recursion budget, matching ``Swift::Demangle::NodePrinter::MaxDepth``
+    /// in ``swift/include/swift/Demangling/Demangle.h``.
+    static var maxPrintDepth: Int { 768 }
 }
 
 extension NodePrintable {

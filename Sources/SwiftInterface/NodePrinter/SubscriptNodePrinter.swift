@@ -4,6 +4,8 @@ import Semantic
 
 struct SubscriptNodePrinter: InterfaceNodePrintable {
     typealias Context = InterfaceNodePrinterContext
+    
+    typealias Target = SemanticString
 
     var target: SemanticString = ""
 
@@ -20,6 +22,10 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
     private(set) var isProtocol: Bool = false
 
     var dependentMemberTypeDepth: Int = 0
+
+    var printDepth: Int = 0
+
+    var printCache: [ObjectIdentifier: Target] = [:]
 
     private(set) var targetNode: Node?
 

@@ -81,6 +81,7 @@ public final class SwiftInterfacePrinter<MachO: MachOSwiftSectionRepresentableWi
                 enumLayoutTransformer: configuration.enumLayoutTransformer,
                 enumLayoutCaseTransformer: configuration.enumLayoutCaseTransformer
             ),
+            metadata: typeDefinition.metadata,
             in: machO
         )
 

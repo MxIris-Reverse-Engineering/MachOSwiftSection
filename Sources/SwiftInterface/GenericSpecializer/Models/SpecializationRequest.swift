@@ -97,11 +97,22 @@ extension SpecializationRequest {
         /// Protocol conformance requirement (A: SomeProtocol) - requires PWT
         case `protocol`(ProtocolRequirementInfo)
 
-        /// Same type requirement (A == B) - validation only
-        case sameType(demangledTypeNode: Node)
+        /// Same type requirement (A == B) - validation only.
+        ///
+        /// Carries both the demangled `Node` (what the API surfaces to UI /
+        /// users) and the underlying `MangledName` so `runtimePreflight`
+        /// can hand the RHS to `swift_getTypeByMangledNameInContext` when
+        /// the RHS is a concrete type. The `Node` half is enough for
+        /// printing and for spotting "RHS is another generic parameter"
+        /// shapes; the `MangledName` half is what the runtime accepts.
+        case sameType(demangledTypeNode: Node, mangledName: MangledName)
 
-        /// Base class requirement (A: SomeClass) - validation only
-        case baseClass(demangledTypeNode: Node)
+        /// Base class requirement (A: SomeClass) - validation only.
+        ///
+        /// Carries the same `(Node, MangledName)` pair as `sameType` for
+        /// the same reason: the preflight superclass-chain walk needs the
+        /// raw mangled name to resolve the expected base class metadata.
+        case baseClass(demangledTypeNode: Node, mangledName: MangledName)
 
         /// Layout requirement (A: AnyObject) - validation only
         case layout(LayoutKind)
