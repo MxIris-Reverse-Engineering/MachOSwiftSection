@@ -184,13 +184,13 @@ extension IndexerConformanceProvider: ConformanceProvider {
             guard childTypeName.kind == .class else { continue }
             guard case .class(let classWrapper) = entry.value.type else { continue }
 
-            let superMangled: MangledName?
+            var superNode: Node?
             do {
-                superMangled = try classWrapper.descriptor.superclassTypeMangledName(in: entry.machO)
+                superNode = try classWrapper.superclassNode(in: entry.machO)
             } catch {
                 continue
             }
-            guard let superMangled else { continue }
+            guard let superNode else { continue }
 
             // `MetadataReader.demangleType` may wrap the result in a
             // `.type` node or return a deeper tree depending on the
@@ -206,8 +206,7 @@ extension IndexerConformanceProvider: ConformanceProvider {
             // `superclassTypeMangledName` ABI slot only exists on
             // class descriptors), so we can commit to `.class`
             // unconditionally.
-            guard let demangledRoot = try? MetadataReader.demangleType(for: superMangled, in: entry.machO),
-                  let superNode = demangledRoot.first(of: .type) else {
+            guard let superNode = superNode.first(of: .type) else {
                 continue
             }
             let superTypeName = TypeName(node: superNode, kind: .class)

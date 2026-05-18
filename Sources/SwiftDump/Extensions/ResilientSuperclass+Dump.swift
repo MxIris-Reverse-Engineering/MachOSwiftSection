@@ -2,6 +2,7 @@ import MachOKit
 import MachOSwiftSection
 import Semantic
 import Demangling
+@_spi(Internals) import SwiftInspection
 
 extension ResilientSuperclass {
     package func dumpSuperclass<MachO: MachOSwiftSectionRepresentableWithCache>(resolver: DemangleResolver, for kind: TypeReferenceKind, in machO: MachO) async throws -> SemanticString? {
@@ -26,5 +27,17 @@ extension ResilientSuperclass {
     package func superclassResolvedTypeReference<MachO: MachOSwiftSectionRepresentableWithCache>(for kind: TypeReferenceKind, in machO: MachO) throws -> ResolvedTypeReference {
         let typeReference = TypeReference.forKind(kind, at: layout.superclass.relativeOffset)
         return try typeReference.resolve(at: offset(of: \.superclass), in: machO)
+    }
+}
+
+extension Class {
+    package func superclassNode(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node? {
+        if let superclassTypeMangledName = try descriptor.superclassTypeMangledName(in: machO) {
+            return try MetadataReader.demangleType(for: superclassTypeMangledName, in: machO)
+        } else if let resilientSuperclassReferenceKind = descriptor.resilientSuperclassReferenceKind, let resilientSuperclass {
+            return try resilientSuperclass.dumpSuperclassNode(for: resilientSuperclassReferenceKind, in: machO)
+        } else {
+            return nil
+        }
     }
 }
