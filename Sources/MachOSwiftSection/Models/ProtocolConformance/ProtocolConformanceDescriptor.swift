@@ -63,8 +63,7 @@ extension ProtocolConformanceDescriptor {
     }
 
     public func resolvedTypeReference<Context: ReadingContext>(in context: Context) throws -> ResolvedTypeReference {
-        let offset = offset(of: \.typeReference)
-        return try typeReference.resolve(at: offset, in: context)
+        return try typeReference.resolve(at: offset(of: \.typeReference), in: context)
     }
 
     public func witnessTablePattern<Context: ReadingContext>(in context: Context) throws -> ProtocolWitnessTable? {
