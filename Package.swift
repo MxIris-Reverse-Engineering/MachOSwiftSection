@@ -64,9 +64,11 @@ extension Target.Dependency {
     }
 }
 
+let usingLocalDependencies = envEnable("USING_LOCAL_DEPENDENCIES")
+
 extension Package.Dependency {
     enum LocalSearchPath {
-        case package(path: String, isRelative: Bool, isEnabled: Bool)
+        case package(path: String, isRelative: Bool, isEnabled: Bool = usingLocalDependencies, traits: Set<PackageDescription.Package.Dependency.Trait> = [.defaults])
     }
 
     static func package(local localSearchPaths: LocalSearchPath..., remote: Package.Dependency) -> Package.Dependency {
@@ -80,7 +82,7 @@ extension Package.Dependency {
         }
         for local in localSearchPaths {
             switch local {
-            case .package(let path, let isRelative, let isEnabled):
+            case .package(let path, let isRelative, let isEnabled, let traits):
                 guard isEnabled else { continue }
                 let url = if isRelative {
                     URL(fileURLWithPath: path, relativeTo: URL(fileURLWithPath: currentFilePath))
@@ -89,7 +91,7 @@ extension Package.Dependency {
                 }
 
                 if FileManager.default.fileExists(atPath: url.path) {
-                    return .package(path: url.path)
+                    return .package(path: url.path, traits: traits)
                 }
             }
         }
@@ -106,14 +108,6 @@ let useSPMPrebuildVersion = envEnable("MACHO_SWIFT_SECTION_USE_SPM_PREBUILD_VERS
 let useCustomMachOKit = envEnable("USE_CUSTOM_MACHOKIT", default: true)
 
 let useCustomObjCSection = envEnable("USE_CUSTOM_OBJC_SECTION", default: true)
-
-let useLocalMachOKit = envEnable("USE_LOCAL_MACHOKIT", default: false)
-
-let useLocalObjCSection = envEnable("USE_LOCAL_OBJC_SECTION", default: false)
-
-let useLocalDemangling = envEnable("USE_LOCAL_DEMANGLING", default: true)
-
-let useLocalSemantic = envEnable("USE_LOCAL_SEMANTIC", default: true)
 
 let useSwiftTUI = envEnable("MACHO_SWIFT_SECTION_USE_SWIFTTUI", default: false)
 
@@ -149,7 +143,6 @@ var dependencies: [Package.Dependency] = [
     
     // CLI
     .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
-//    .package(url: "https://github.com/migueldeicaza/TermKit", branch: "main"),
     
     // Testing
     .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.18.9"),
@@ -181,8 +174,7 @@ extension Package.Dependency {
     static let MachOKitMain = Package.Dependency.package(
         local: .package(
             path: "../MachOKit",
-            isRelative: true,
-            isEnabled: useLocalMachOKit
+            isRelative: true
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKit.git",
@@ -208,8 +200,7 @@ extension Package.Dependency {
     static let MachOObjCSectionMain = Package.Dependency.package(
         local: .package(
             path: "../MachOObjCSection",
-            isRelative: true,
-            isEnabled: useLocalObjCSection
+            isRelative: true
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOObjCSection.git",
@@ -222,20 +213,18 @@ extension Package.Dependency {
     static let Demangling = Package.Dependency.package(
         local: .package(
             path: "../swift-demangling",
-            isRelative: true,
-            isEnabled: useLocalDemangling
+            isRelative: true
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-demangling",
             from: "0.4.0"
         )
     )
-    
+
     static let Semantic = Package.Dependency.package(
         local: .package(
             path: "../swift-semantic-string",
-            isRelative: true,
-            isEnabled: useLocalSemantic
+            isRelative: true
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-semantic-string",
