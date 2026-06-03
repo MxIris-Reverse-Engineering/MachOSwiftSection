@@ -100,6 +100,6 @@ extension InProcessContext {
     }
 }
 
-extension ReadingContext<InProcess, UnsafeRawPointer> {
-    public static var inProcess: InProcessContext { .shared }
+extension ReadingContext where Self == InProcessContext {
+    public static var inProcess: Self { .shared }
 }

@@ -124,3 +124,15 @@ extension MachOContext {
         return nil
     }
 }
+
+extension ReadingContext where Self == MachOContext<MachOFile> {
+    public static func machOFile(_ machO: MachOFile) -> Self {
+        .init(machO)
+    }
+}
+
+extension ReadingContext where Self == MachOContext<MachOImage> {
+    public static func machOImage(_ machO: MachOImage) -> Self {
+        .init(machO)
+    }
+}
