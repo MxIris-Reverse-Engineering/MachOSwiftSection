@@ -157,7 +157,7 @@ enum SwiftInterfaceBuilderTestSuite {
 
     class XcodeMachOFileTests: MachOTestingSupport.XcodeMachOFileTests, SwiftInterfaceBuilderTests {
         override class var fileName: XcodeMachOFileName {
-            .sharedFrameworks(.SourceEditor)
+            .sharedFrameworks(.DVTProductsUI)
         }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)

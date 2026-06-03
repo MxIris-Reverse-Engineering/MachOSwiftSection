@@ -398,7 +398,7 @@ package enum XcodeMachOFileName: CaseIterable {
     case plugins(Plugins)
 
     package var contentsDirectory: String {
-        "/Applications/Xcode.app/Contents/"
+        "/Applications/Xcode-26.4.0.app/Contents/"
     }
 
     package var rawValue: String {
