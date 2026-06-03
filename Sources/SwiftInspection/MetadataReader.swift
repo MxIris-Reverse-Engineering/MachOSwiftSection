@@ -233,10 +233,27 @@ extension MetadataReader {
                 switch kind {
                 case .context:
                     switch directness {
+                    // ABI convention for `opaqueTypeDescriptorSymbolicReference` Node.index:
+                    //   * MachOContext<MachOImage> path: ALWAYS the descriptor's *absolute*
+                    //     in-process pointer bit pattern (`machO.ptr + opaqueTypeDescriptor.offset`).
+                    //     This unifies in-image and cross-image refs at the Node level so the
+                    //     downstream rewriter can drive the entire opaque-type chain through
+                    //     `InProcessContext`, matching the Swift runtime's own scheme of
+                    //     `(ContextDescriptor *)demangleNode->getIndex()` (see
+                    //     swift/stdlib/public/runtime/MetadataLookup.cpp). Cross-image refs
+                    //     (e.g. an indirect cell whose pointer lands in another loaded image)
+                    //     work transparently because the InProcess pipeline only ever
+                    //     dereferences pointers — there is no per-image "file offset" scale.
+                    //   * MachOFile / other contexts: keep the legacy file-offset semantic.
                     case .direct:
                         if let contextWrapper = try RelativeDirectPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset).resolve(at: baseAddress, in: context) {
                             if let opaqueTypeDescriptor = contextWrapper.opaqueTypeDescriptor {
-                                result = .create(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueTypeDescriptor.offset.cast())
+                                if let machOImageContext = context as? MachOContext<MachOImage> {
+                                    let absoluteAddress = machOImageContext.machO.ptr.bitPattern.int + opaqueTypeDescriptor.offset
+                                    result = .create(kind: .opaqueTypeDescriptorSymbolicReference, index: UInt64(absoluteAddress))
+                                } else {
+                                    result = .create(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueTypeDescriptor.offset.cast())
+                                }
                             } else {
                                 result = try buildContextMangling(context: .element(contextWrapper), in: context)
                             }
@@ -245,7 +262,12 @@ extension MetadataReader {
                         let relativePointer = RelativeIndirectSymbolOrElementPointer<ContextDescriptorWrapper?>(relativeOffset: relativeOffset)
                         if let resolvableElement = try relativePointer.resolve(at: baseAddress, in: context).asOptional {
                             if case .element(let element) = resolvableElement, let opaqueTypeDescriptor = element.opaqueTypeDescriptor {
-                                result = .create(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueTypeDescriptor.offset.cast())
+                                if let machOImageContext = context as? MachOContext<MachOImage> {
+                                    let absoluteAddress = machOImageContext.machO.ptr.bitPattern.int + opaqueTypeDescriptor.offset
+                                    result = .create(kind: .opaqueTypeDescriptorSymbolicReference, index: UInt64(absoluteAddress))
+                                } else {
+                                    result = .create(kind: .opaqueTypeDescriptorSymbolicReference, index: opaqueTypeDescriptor.offset.cast())
+                                }
                             } else {
                                 result = try buildContextMangling(context: resolvableElement, in: context)
                             }
