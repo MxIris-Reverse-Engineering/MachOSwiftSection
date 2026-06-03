@@ -87,6 +87,63 @@ open class SharedCache<Storage>: @unchecked Sendable {
         return resolve(key: key) { buildStorage() }
     }
 
+    /// Returns `true` when a finished build is already cached for `machO`'s
+    /// identifier. In-flight builds count as **not** cached: a caller that
+    /// observes `false` here, then runs ``storage(in:)``, may end up sharing
+    /// an existing in-flight build with another caller — but from the
+    /// "self-triggered" perspective (see ``SwiftInterfaceIndexer``) that is
+    /// still cooperative ownership, not sole ownership, so reporting `true`
+    /// for in-flight would mislead the bookkeeping.
+    public func contains<MachO: MachORepresentableWithCache>(in machO: MachO) -> Bool {
+        return contains(key: machO.identifier)
+    }
+
+    /// Type-keyed variant matching ``storage()``.
+    public func contains() -> Bool {
+        return contains(key: currentIdentifer)
+    }
+
+    private func contains(key: AnyHashable) -> Bool {
+        _storageByIdentifier.withLockUnchecked { dict in
+            if case .completed = dict[key] {
+                return true
+            }
+            return false
+        }
+    }
+
+    /// Drops the cached entry for `machO`'s identifier so the next
+    /// ``storage(in:)`` call rebuilds from scratch. In-flight builds are left
+    /// alone: their waiters still need the promise to settle, and the next
+    /// completed result simply won't be re-installed because the in-flight
+    /// marker has already been removed by the time we check on the build
+    /// path. Safe to call even when no entry exists.
+    public func remove<MachO: MachORepresentableWithCache>(for machO: MachO) {
+        remove(key: machO.identifier)
+    }
+
+    /// Type-keyed variant matching ``storage()``.
+    public func remove() {
+        remove(key: currentIdentifer)
+    }
+
+    private func remove(key: AnyHashable) {
+        _storageByIdentifier.withLockUnchecked { dict in
+            if case .completed = dict[key] {
+                dict.removeValue(forKey: key)
+            }
+        }
+    }
+
+    /// Drops every cached entry. Equivalent to the memory-pressure path but
+    /// available to callers that want explicit control (e.g. tests, or a
+    /// long-lived process flushing between unrelated batches).
+    public func removeAll() {
+        _storageByIdentifier.withLockUnchecked { dict in
+            dict.removeAll(keepingCapacity: false)
+        }
+    }
+
     /// Shared core for both `storage(in:buildUsing:)` and `storage()`. Holds
     /// the cache lock only across the dictionary lookup / marker install and
     /// across the post-build dictionary update — the actual `build` call
