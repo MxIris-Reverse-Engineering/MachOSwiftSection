@@ -124,21 +124,38 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
     public private(set) var subIndexers: [SwiftInterfaceIndexer<MachO>] = []
 
     @usableFromInline
-    let currentStorage = Storage()
+    let currentStorage: Storage = .init()
 
     @Mutex
     @usableFromInline
-    var allStorageCache: AllStorageCache = AllStorageCache()
+    var allStorageCache: AllStorageCache = .init()
 
     let eventDispatcher: SwiftInterfaceEvents.Dispatcher = .init()
 
     @Mutex
     private var isPrepared: Bool = false
 
+    /// `true` when this indexer's ``prepare()`` was the call that populated
+    /// the process-wide ``SymbolIndexStore`` entry for ``machO``. Used so
+    /// ``deinit`` can drop the entry on the way out and avoid leaking a
+    /// per-binary symbol index for the rest of the process lifetime.
+    /// Stays `false` when some other caller had already built the entry —
+    /// in that case the entry is shared state we don't own.
+    @Mutex
+    private var didTriggerSymbolIndexStoreCache: Bool = false
+
     public init(configuration: SwiftInterfaceIndexConfiguration = .init(), eventHandlers: [SwiftInterfaceEvents.Handler] = [], in machO: MachO) {
         self.machO = machO
         self.configuration = configuration
         eventDispatcher.addHandlers(eventHandlers)
+    }
+
+    deinit {
+        if didTriggerSymbolIndexStoreCache {
+            @Dependency(\.symbolIndexStore)
+            var symbolIndexStore
+            symbolIndexStore.remove(for: machO)
+        }
     }
 
     public func updateConfiguration(_ newConfiguration: SwiftInterfaceIndexConfiguration) async throws {
@@ -208,6 +225,19 @@ public final class SwiftInterfaceIndexer<MachO: MachOSwiftSectionRepresentableWi
 
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
+
+        // Sample membership **before** kicking off the build. If nobody else
+        // had populated the entry by the time we check, the upcoming
+        // `prepareWithProgress` call is the one that will install it — even
+        // if a concurrent caller races us into the actual build, we still
+        // accept ownership of the cleanup so a stray entry never outlives
+        // the indexer that asked for it. False positives here (we claim
+        // ownership of an entry someone else then rebuilds) are fine: the
+        // worst case is a redundant rebuild in another indexer after we
+        // tear down, which is exactly the pre-cache status quo.
+        if !symbolIndexStore.contains(in: machO) {
+            didTriggerSymbolIndexStoreCache = true
+        }
 
         eventDispatcher.dispatch(.extractionStarted(section: .symbolIndex))
         var symbolIndexTotalCount = 0
