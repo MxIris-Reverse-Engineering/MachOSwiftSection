@@ -99,3 +99,7 @@ extension InProcessContext {
         address
     }
 }
+
+extension ReadingContext<InProcess, UnsafeRawPointer> {
+    public static var inProcess: InProcessContext { .shared }
+}
