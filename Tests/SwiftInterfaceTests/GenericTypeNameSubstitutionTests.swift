@@ -217,13 +217,11 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
     /// raw descriptor here was crashing inside `MetadataReader.demangleContext`
     /// because the file-form descriptors from `machO.swift.typeContextDescriptors`
     /// require additional in-process context the test wasn't supplying.
-    private func resolveTypeDefinition(named substring: String, excluding excludedSubstring: String? = nil) async throws -> TypeDefinition {
+    private func resolveTypeDefinition(named substring: String) async throws -> TypeDefinition {
         let resolvedIndexer = try await indexer
         return try #require(
             resolvedIndexer.allTypeDefinitions.first(where: { entry in
-                let includesName = entry.key.name.contains(substring)
-                let isNotExcluded = excludedSubstring.map { !entry.key.name.contains($0) } ?? true
-                return includesName && isNotExcluded
+                entry.key.name.contains(substring)
             })?.value,
             "expected indexer to have a TypeDefinition whose typeName contains \"\(substring)\""
         )
@@ -422,4 +420,5 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
         #expect(!specialized.typeChildren.contains { $0 === valueChild },
                 "specialized outer must contain detached child specializations, not the canonical generic child")
     }
+
 }
