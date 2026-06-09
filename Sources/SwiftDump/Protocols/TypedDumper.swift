@@ -387,9 +387,27 @@ extension TypedDumper {
         } else {
             topMetatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName)
         }
-        if let topMetatype,
-           let topStructMetadata = structMetadata(forMetatype: topMetatype) {
-            walkNestedExpandedFieldOffsets(of: topStructMetadata, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors)
+        if let topMetatype {
+            walkNestedExpandedFieldOffsets(of: topMetatype, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors)
+        }
+    }
+
+    /// Dispatches recursive expansion by metadata kind. Structs expose their
+    /// stored fields directly; Optional and other enum wrappers expose payload
+    /// case records that can themselves carry specialized struct payloads.
+    @SemanticStringBuilder
+    private func walkNestedExpandedFieldOffsets(of metatype: Any.Type, baseOffset: Int, baseIndentation: Int, ancestors: [Bool], depth: Int = 0) -> SemanticString {
+        if depth < 16,
+           let wrapper = try? Metadata.createInProcess(metatype).asMetadataWrapper() {
+            switch wrapper {
+            case .struct(let metadata):
+                walkNestedStructFieldOffsets(of: metadata, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, depth: depth)
+            case .enum(let metadata),
+                 .optional(let metadata):
+                walkNestedEnumPayloadFieldOffsets(of: metadata, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, depth: depth)
+            default:
+                SemanticString()
+            }
         }
     }
 
@@ -399,7 +417,7 @@ extension TypedDumper {
     /// (the one that treats `mangledTypeName.startOffset` as an absolute
     /// in-process pointer).
     @SemanticStringBuilder
-    private func walkNestedExpandedFieldOffsets(of metadata: StructMetadata, baseOffset: Int, baseIndentation: Int, ancestors: [Bool]) -> SemanticString {
+    private func walkNestedStructFieldOffsets(of metadata: StructMetadata, baseOffset: Int, baseIndentation: Int, ancestors: [Bool], depth: Int) -> SemanticString {
         if let descriptor = try? metadata.structDescriptor(),
            let nestedFieldOffsets = try? metadata.fieldOffsets(for: descriptor),
            let nestedFieldRecords = try? descriptor.fieldDescriptor().records() {
@@ -414,32 +432,57 @@ extension TypedDumper {
 
                     if let nestedMangledTypeName,
                        let resolvedMetatype = resolveNestedMetatype(for: nestedMangledTypeName, parentMetadata: metadata),
-                       let nestedStructMetadata = structMetadata(forMetatype: resolvedMetatype) {
-                        walkNestedExpandedFieldOffsets(of: nestedStructMetadata, baseOffset: absoluteOffset, baseIndentation: baseIndentation, ancestors: ancestors + [isLastField])
+                       hasExpandableMetadata(forMetatype: resolvedMetatype) {
+                        walkNestedExpandedFieldOffsets(of: resolvedMetatype, baseOffset: absoluteOffset, baseIndentation: baseIndentation, ancestors: ancestors + [isLastField], depth: depth + 1)
                     }
                 }
             }
         }
     }
 
-    /// Returns a `StructMetadata` only when the in-process metadata for
-    /// `metatype` actually has struct kind. Filtering on
-    /// `MetadataWrapper.struct` is critical because callers later reach
-    /// `metadata.structDescriptor()` whose internal `descriptor().struct!`
-    /// force-unwraps — handing it a misinterpreted class / enum / builtin
-    /// metadata would crash. Returning `nil` here cleanly skips the
-    /// recursion for non-struct field types.
-    private func structMetadata(forMetatype metatype: Any.Type) -> StructMetadata? {
-        guard let wrapper = try? Metadata.createInProcess(metatype).asMetadataWrapper() else {
-            return nil
+    /// Recursive walk over payload cases for Optional and enum wrappers.
+    /// Payloads all begin at the enum payload area, offset 0 relative to the
+    /// enum value, so the child offset starts at `baseOffset`.
+    @SemanticStringBuilder
+    private func walkNestedEnumPayloadFieldOffsets(of metadata: EnumMetadata, baseOffset: Int, baseIndentation: Int, ancestors: [Bool], depth: Int) -> SemanticString {
+        if let descriptor = try? metadata.enumDescriptor(),
+           descriptor.hasPayloadCases,
+           let records = try? descriptor.fieldDescriptor().records() {
+            let payloadRecords = Array(records.prefix(descriptor.numberOfPayloadCases))
+            for (payloadIndex, payloadRecord) in payloadRecords.enumerated() {
+                if let mangledTypeName = try? payloadRecord.mangledTypeName(),
+                   !mangledTypeName.isEmpty,
+                   let resolvedMetatype = resolveNestedMetatype(for: mangledTypeName, parentMetadata: metadata),
+                   hasExpandableMetadata(forMetatype: resolvedMetatype) {
+                    let fieldName = (try? payloadRecord.fieldName()) ?? "payload"
+                    let typeName = nestedTypeName(for: mangledTypeName, parentMetadata: metadata)
+                    let isLastPayload = payloadIndex == payloadRecords.count - 1
+                    configuration.expandedFieldOffsetComment(fieldName: fieldName, typeName: typeName, offset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, isLast: isLastPayload)
+                    walkNestedExpandedFieldOffsets(of: resolvedMetatype, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors + [isLastPayload], depth: depth + 1)
+                }
+            }
         }
-        return wrapper.struct
+    }
+
+    /// Returns true only for metadata kinds the recursive walker knows how
+    /// to inspect safely. This preserves the old class/builtin guard while
+    /// allowing enum payload containers such as `Optional<T>`.
+    private func hasExpandableMetadata(forMetatype metatype: Any.Type) -> Bool {
+        guard let wrapper = try? Metadata.createInProcess(metatype).asMetadataWrapper() else {
+            return false
+        }
+        switch wrapper {
+        case .struct, .enum, .optional:
+            return true
+        default:
+            return false
+        }
     }
 
     /// Resolves a nested field's mangled name to its concrete `Any.Type`,
     /// substituting generic parameters via the parent struct's specialized
     /// metadata. Falls back to the bare resolver for fully-resolved names.
-    private func resolveNestedMetatype(for mangledTypeName: MangledName, parentMetadata: StructMetadata) -> Any.Type? {
+    private func resolveNestedMetatype<M: ValueMetadataProtocol>(for mangledTypeName: MangledName, parentMetadata: M) -> Any.Type? {
         if let substituted = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, specializedFrom: parentMetadata) {
             return substituted
         }
@@ -451,7 +494,7 @@ extension TypedDumper {
     /// print the bound type via `_mangledTypeName` round-trip; otherwise
     /// we fall through to the unbound demangling, which keeps the legacy
     /// behavior for non-generic / unresolvable names.
-    private func nestedTypeName(for mangledTypeName: MangledName?, parentMetadata: StructMetadata) -> String {
+    private func nestedTypeName<M: ValueMetadataProtocol>(for mangledTypeName: MangledName?, parentMetadata: M) -> String {
         guard let mangledTypeName else { return "" }
         if #available(macOS 11, iOS 14, tvOS 14, watchOS 7, *),
            let resolvedMetatype = resolveNestedMetatype(for: mangledTypeName, parentMetadata: parentMetadata),

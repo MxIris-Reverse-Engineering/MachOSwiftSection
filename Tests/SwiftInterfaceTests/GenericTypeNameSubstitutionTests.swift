@@ -217,11 +217,13 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
     /// raw descriptor here was crashing inside `MetadataReader.demangleContext`
     /// because the file-form descriptors from `machO.swift.typeContextDescriptors`
     /// require additional in-process context the test wasn't supplying.
-    private func resolveTypeDefinition(named substring: String) async throws -> TypeDefinition {
+    private func resolveTypeDefinition(named substring: String, excluding excludedSubstring: String? = nil) async throws -> TypeDefinition {
         let resolvedIndexer = try await indexer
         return try #require(
             resolvedIndexer.allTypeDefinitions.first(where: { entry in
-                entry.key.name.contains(substring)
+                let includesName = entry.key.name.contains(substring)
+                let isNotExcluded = excludedSubstring.map { !entry.key.name.contains($0) } ?? true
+                return includesName && isNotExcluded
             })?.value,
             "expected indexer to have a TypeDefinition whose typeName contains \"\(substring)\""
         )
@@ -348,5 +350,76 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
         #expect(mangledInt != mangledString)
         #expect(!mangledInt.isEmpty)
         #expect(!mangledString.isEmpty)
+    }
+
+    @Test("outer specialization derives nested child specializations without moving existing child specializations")
+    func outerSpecializationDerivesNestedChildSpecializationsWithoutMovingExistingChildSpecializations() async throws {
+        _ = GenericSpecializationTests.NestedGenericInheritedOnlyOuter<Int>.self
+        _ = GenericSpecializationTests.NestedGenericInheritedOnlyOuter<String>.self
+
+        let resolvedIndexer = try await indexer
+        let baseDefinition = try #require(
+            resolvedIndexer.allTypeDefinitions.first(where: { entry in
+                entry.value.typeName.currentName == "NestedGenericInheritedOnlyOuter"
+            })?.value,
+            "expected indexer to have the root outer fixture definition"
+        )
+        let valueChild = try #require(
+            baseDefinition.typeChildren.first { $0.typeName.name.contains("Value") },
+            "expected outer generic fixture to have its nested Value type before specialization"
+        )
+        let specializer = GenericSpecializer(indexer: try await indexer)
+
+        let valueRequest = try specializer.makeRequest(for: valueChild.type.typeContextDescriptorWrapper)
+        let valueStringResult = try specializer.specialize(valueRequest, with: ["A": .metatype(String.self)])
+        let stringNode = makeSwiftStdLibTypeNode(name: "String")
+        let manuallySpecializedValue = try await valueChild.specialize(
+            with: valueStringResult,
+            typeArgumentNodes: [stringNode],
+            in: machO
+        )
+        #expect(valueChild.specializedChildren.contains { $0 === manuallySpecializedValue })
+
+        let outerRequest = try specializer.makeRequest(for: baseDefinition.type.typeContextDescriptorWrapper)
+        let outerSelection = SpecializationSelection(arguments: ["A": .metatype(Int.self)])
+        let outerResult = try specializer.specialize(outerRequest, with: outerSelection)
+        let intNode = makeSwiftStdLibTypeNode(name: "Int")
+
+        let specialized = try await baseDefinition.specialize(
+            with: outerResult,
+            typeArgumentNodes: [intNode],
+            derivingNestedSpecializationsWith: specializer,
+            selection: outerSelection,
+            typeArgumentNodesByParameter: ["A": intNode],
+            in: machO
+        )
+
+        #expect(valueChild.specializedChildren.count == 1)
+        #expect(valueChild.specializedChildren.contains { $0 === manuallySpecializedValue },
+                "outer specialization must not move or duplicate existing manual nested specializations")
+
+        let specializedChildNames = specialized.typeChildren.map(\.typeName.name)
+        let specializedFailureReason = try #require(
+            specialized.typeChildren.first {
+                $0.isSpecialized
+                    && $0.typeName.name.contains("FailureReason")
+            },
+            "expected specialized outer to derive FailureReason; got \(specializedChildNames)"
+        )
+        let specializedValue = try #require(
+            specialized.typeChildren.first {
+                $0.isSpecialized
+                    && $0.typeName.name.contains("Value")
+            },
+            "expected specialized outer to derive Value; got \(specializedChildNames)"
+        )
+        #expect(specializedFailureReason.parent === specialized)
+        #expect(specializedValue.parent === specialized)
+        #expect(specializedFailureReason.metadata != nil)
+        #expect(specializedValue.metadata != nil)
+        #expect(!specializedChildNames.contains { $0.contains("NeedsOwnParameter") },
+                "nested child requiring its own B parameter should be ignored when only the outer A binding is available")
+        #expect(!specialized.typeChildren.contains { $0 === valueChild },
+                "specialized outer must contain detached child specializations, not the canonical generic child")
     }
 }
