@@ -384,6 +384,51 @@ struct SpecializedDumperFieldTypeTests {
                 "Int leaked into .declaration components: \(declarationJoined)")
     }
 
+    @Test("expanded field offsets emit Optional payload header even when the payload is a non-expandable class")
+    func expandedFieldOffsetsEmitOptionalHeaderForClassPayloadButDoNotRecurse() async throws {
+        // Symmetry with the struct walker: a struct field always gets its
+        // `expandedFieldOffsetComment` line emitted, and recursion is
+        // conditional on the field's metadata kind. The enum walker now
+        // follows the same rule — `some (T)` for an `Optional<T>` payload
+        // is emitted whenever the payload's metatype resolves, and the
+        // dispatch inside `walkNestedExpandedFieldOffsets(of: Any.Type, ...)`
+        // is what suppresses the next-level recursion for class /
+        // builtin / function kinds.
+        //
+        // Pre-fix, the enum walker gated header emission behind
+        // `hasExpandableMetadata(...)`, so `Optional<SomeClass>` simply
+        // disappeared from the dump — no `some (...)` line at all. This
+        // test pins that the header now shows up while the class body is
+        // *not* spuriously recursed into.
+        _ = Fixtures.OptionalGenericFieldStruct<Fixtures.GenericContainerClass<Int>>.self
+
+        let descriptor = try structDescriptor(named: "OptionalGenericFieldStruct")
+        let structValue = try Struct(descriptor: descriptor, in: machO)
+        let specializedMetadata = try StructMetadata.createInProcess(
+            Fixtures.OptionalGenericFieldStruct<Fixtures.GenericContainerClass<Int>>.self
+        )
+        let metadataContext = DumperMetadataContext(metadata: specializedMetadata, readingContext: InProcessContext.shared)
+
+        var expandedConfig = configuration
+        expandedConfig.printFieldOffset = true
+        expandedConfig.printExpandedFieldOffsets = true
+
+        let dumper = StructDumper(structValue, metadataContext: metadataContext, using: expandedConfig, in: machO)
+        let body = try await dumper.body.string
+
+        #expect(body.contains("some ("),
+                "expected Optional payload case header to be emitted even when the payload is a class; got: \(body)")
+        #expect(body.contains("GenericContainerClass<Swift.Int>") || body.contains("GenericContainerClass<Int>"),
+                "expected the payload header's typeName to render the bound class type; got: \(body)")
+        // `GenericContainerClass.value` must NOT appear as an expanded
+        // line — the dispatch's `default` branch is what stops recursion
+        // into the class. If it ever leaks, we'd see "value (Swift.Int):"
+        // or "value (Int):" the same way the struct-payload test asserts
+        // its presence.
+        #expect(!body.contains("value (Swift.Int):") && !body.contains("value (Int):"),
+                "class payload must not be recursed into; got: \(body)")
+    }
+
     @Test("expanded field offsets do not crash when a nested field is a class")
     func expandedFieldOffsetsHandlesClassFieldWithoutCrash() async throws {
         // Regression: pre-fix, the recursion happily called

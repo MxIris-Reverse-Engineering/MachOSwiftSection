@@ -354,11 +354,16 @@ extension TypedDumper {
     //   4. `Metadata.createInProcess(metatype).asMetadataWrapper().struct`
     //      acted as a kind check: it returned nil for non-struct metatypes
     //      (class / enum / builtin / function …) so recursion never
-    //      entered them. The new walker accomplishes the same thing
-    //      through `structMetadata(forMetatype:)`. An earlier draft of
-    //      this refactor *lost* that guard by replacing the chain with a
-    //      bare `StructMetadata.createInProcess(metatype)` — the latter
-    //      reads 16 bytes of the metadata blindly, so a class metatype
+    //      entered them. The new walker performs the same kind check
+    //      inside `walkNestedExpandedFieldOffsets(of: Any.Type, ...)` —
+    //      its switch dispatches `.struct` / `.enum` / `.optional` into
+    //      dedicated walkers and falls through to a `default` no-op for
+    //      every other kind, so class / builtin / function metatypes
+    //      never reach an unsafe `StructMetadata.createInProcess`-style
+    //      cast. An earlier draft of this refactor *lost* that guard by
+    //      replacing the chain with a bare
+    //      `StructMetadata.createInProcess(metatype)` — the latter reads
+    //      16 bytes of the metadata blindly, so a class metatype
     //      produced a misaligned `StructMetadata` whose
     //      `structDescriptor()` then trapped on its internal
     //      `descriptor().struct!` force-unwrap. `try?` does not catch a
@@ -431,8 +436,7 @@ extension TypedDumper {
                     configuration.expandedFieldOffsetComment(fieldName: fieldName, typeName: typeName, offset: absoluteOffset, baseIndentation: baseIndentation, ancestors: ancestors, isLast: isLastField)
 
                     if let nestedMangledTypeName,
-                       let resolvedMetatype = resolveNestedMetatype(for: nestedMangledTypeName, parentMetadata: metadata),
-                       hasExpandableMetadata(forMetatype: resolvedMetatype) {
+                       let resolvedMetatype = resolveNestedMetatype(for: nestedMangledTypeName, parentMetadata: metadata) {
                         walkNestedExpandedFieldOffsets(of: resolvedMetatype, baseOffset: absoluteOffset, baseIndentation: baseIndentation, ancestors: ancestors + [isLastField], depth: depth + 1)
                     }
                 }
@@ -452,8 +456,7 @@ extension TypedDumper {
             for (payloadIndex, payloadRecord) in payloadRecords.enumerated() {
                 if let mangledTypeName = try? payloadRecord.mangledTypeName(),
                    !mangledTypeName.isEmpty,
-                   let resolvedMetatype = resolveNestedMetatype(for: mangledTypeName, parentMetadata: metadata),
-                   hasExpandableMetadata(forMetatype: resolvedMetatype) {
+                   let resolvedMetatype = resolveNestedMetatype(for: mangledTypeName, parentMetadata: metadata) {
                     let fieldName = (try? payloadRecord.fieldName()) ?? "payload"
                     let typeName = nestedTypeName(for: mangledTypeName, parentMetadata: metadata)
                     let isLastPayload = payloadIndex == payloadRecords.count - 1
@@ -461,21 +464,6 @@ extension TypedDumper {
                     walkNestedExpandedFieldOffsets(of: resolvedMetatype, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors + [isLastPayload], depth: depth + 1)
                 }
             }
-        }
-    }
-
-    /// Returns true only for metadata kinds the recursive walker knows how
-    /// to inspect safely. This preserves the old class/builtin guard while
-    /// allowing enum payload containers such as `Optional<T>`.
-    private func hasExpandableMetadata(forMetatype metatype: Any.Type) -> Bool {
-        guard let wrapper = try? Metadata.createInProcess(metatype).asMetadataWrapper() else {
-            return false
-        }
-        switch wrapper {
-        case .struct, .enum, .optional:
-            return true
-        default:
-            return false
         }
     }
 
