@@ -190,7 +190,7 @@ public final class TypeDefinition: Definition {
             typeArgumentNodes: typeArgumentNodes,
             in: machO
         )
-        specialized.typeChildren = try await deriveNestedSpecializedTypeChildren(
+        specialized.typeChildren = await deriveNestedSpecializedTypeChildren(
             using: specializer,
             selection: selection,
             typeArgumentNodesByParameter: typeArgumentNodesByParameter,
@@ -244,7 +244,7 @@ public final class TypeDefinition: Definition {
         inheritedTypeArgumentNodes: [Node],
         in machO: MachOImage,
         depth: Int
-    ) async throws -> [TypeDefinition] {
+    ) async -> [TypeDefinition] {
         guard depth < 16 else { return [] }
 
         var derivedChildren: [TypeDefinition] = []
@@ -253,50 +253,60 @@ public final class TypeDefinition: Definition {
                 continue
             }
 
-            let request = try specializer.makeRequest(for: child.type.typeContextDescriptorWrapper)
-            var childArguments: [String: SpecializationSelection.Argument] = [:]
-            var childArgumentNodes: [Node] = []
-            var childNodesByParameter: [String: Node] = [:]
-            var hasCompleteBinding = true
+            // Best-effort: a single nested child whose specialization
+            // fails (missing PWT, descriptor identity mismatch, malformed
+            // metadata accessor argument shape, …) must not abort the
+            // whole outer derivation. The outer specialized definition is
+            // still returned with whatever siblings *did* succeed, so a
+            // partial sidebar tree beats a missing one.
+            do {
+                let request = try specializer.makeRequest(for: child.type.typeContextDescriptorWrapper)
+                var childArguments: [String: SpecializationSelection.Argument] = [:]
+                var childArgumentNodes: [Node] = []
+                var childNodesByParameter: [String: Node] = [:]
+                var hasCompleteBinding = true
 
-            for parameter in request.parameters {
-                guard let argument = selection.arguments[parameter.name],
-                      let node = typeArgumentNodesByParameter[parameter.name]
-                else {
-                    hasCompleteBinding = false
-                    break
+                for parameter in request.parameters {
+                    guard let argument = selection.arguments[parameter.name],
+                          let node = typeArgumentNodesByParameter[parameter.name]
+                    else {
+                        hasCompleteBinding = false
+                        break
+                    }
+                    childArguments[parameter.name] = argument
+                    childArgumentNodes.append(node)
+                    childNodesByParameter[parameter.name] = node
                 }
-                childArguments[parameter.name] = argument
-                childArgumentNodes.append(node)
-                childNodesByParameter[parameter.name] = node
-            }
 
-            guard hasCompleteBinding else {
+                guard hasCompleteBinding else {
+                    continue
+                }
+
+                let childSelection = SpecializationSelection(arguments: childArguments)
+                let childResult = try specializer.specialize(request, with: childSelection)
+                let effectiveChildArgumentNodes = childArgumentNodes.isEmpty
+                    ? inheritedTypeArgumentNodes
+                    : childArgumentNodes
+                let childSpecialized = try child.makeSpecializedDefinition(
+                    with: childResult,
+                    typeArgumentNodes: effectiveChildArgumentNodes,
+                    in: machO
+                )
+                childSpecialized.typeChildren = await child.deriveNestedSpecializedTypeChildren(
+                    using: specializer,
+                    selection: childSelection,
+                    typeArgumentNodesByParameter: childNodesByParameter,
+                    inheritedTypeArgumentNodes: effectiveChildArgumentNodes,
+                    in: machO,
+                    depth: depth + 1
+                )
+                for grandchild in childSpecialized.typeChildren {
+                    grandchild.parent = childSpecialized
+                }
+                derivedChildren.append(childSpecialized)
+            } catch {
                 continue
             }
-
-            let childSelection = SpecializationSelection(arguments: childArguments)
-            let childResult = try specializer.specialize(request, with: childSelection)
-            let effectiveChildArgumentNodes = childArgumentNodes.isEmpty
-                ? inheritedTypeArgumentNodes
-                : childArgumentNodes
-            let childSpecialized = try child.makeSpecializedDefinition(
-                with: childResult,
-                typeArgumentNodes: effectiveChildArgumentNodes,
-                in: machO
-            )
-            childSpecialized.typeChildren = try await child.deriveNestedSpecializedTypeChildren(
-                using: specializer,
-                selection: childSelection,
-                typeArgumentNodesByParameter: childNodesByParameter,
-                inheritedTypeArgumentNodes: effectiveChildArgumentNodes,
-                in: machO,
-                depth: depth + 1
-            )
-            for grandchild in childSpecialized.typeChildren {
-                grandchild.parent = childSpecialized
-            }
-            derivedChildren.append(childSpecialized)
         }
         return derivedChildren
     }

@@ -93,6 +93,15 @@ struct GenericSpecializationTests {
             let a: A
             let b: B
         }
+
+        /// Nested type that adds an `AnyObject` layout requirement on top
+        /// of the outer's `Hashable` constraint. With `A = Int` (a value
+        /// type) the inner specialization preflight rejects the binding,
+        /// which is exactly the failure shape the `deriveNestedSpecializedTypeChildren`
+        /// catch is meant to absorb.
+        struct LayoutConstrainedInner where A: AnyObject {
+            let value: A
+        }
     }
 
     /// Three-level nested generic — one type parameter per level, each with

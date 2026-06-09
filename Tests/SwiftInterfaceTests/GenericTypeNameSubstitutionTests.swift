@@ -421,4 +421,80 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
                 "specialized outer must contain detached child specializations, not the canonical generic child")
     }
 
+    @Test("outer specialization skips children whose own specialization throws and keeps deriving the rest")
+    func outerSpecializationSkipsFailingChildAndKeepsDerivingSiblings() async throws {
+        // `NestedGenericInheritedOnlyOuter.LayoutConstrainedInner` carries
+        // `where A: AnyObject`. With `A = Int` (value type) the inner
+        // specialization preflight rejects the binding and throws — the
+        // exact failure shape the best-effort `catch { continue }` in
+        // `deriveNestedSpecializedTypeChildren` is meant to absorb.
+        //
+        // Pre-fix, that throw bubbled up through the whole derivation,
+        // so calling `specialize(...)` on the outer would abort and the
+        // caller would lose the rest of the (perfectly valid) siblings.
+        // Post-fix, the outer specialization still returns; failing
+        // sibling silently drops out, the rest of the tree is preserved.
+        _ = GenericSpecializationTests.NestedGenericInheritedOnlyOuter<Int>.self
+
+        let resolvedIndexer = try await indexer
+        let baseDefinition = try #require(
+            resolvedIndexer.allTypeDefinitions.first(where: { entry in
+                entry.value.typeName.currentName == "NestedGenericInheritedOnlyOuter"
+            })?.value,
+            "expected indexer to surface the root outer fixture definition"
+        )
+        // Sanity #1: indexer must actually surface
+        // `LayoutConstrainedInner` as a canonical child of the outer
+        // fixture. Without this, the catch-coverage assertion below
+        // would be vacuously true (an unindexed child can never appear
+        // in derivedChildren, regardless of whether the catch fires).
+        let canonicalChildNames = baseDefinition.typeChildren.map(\.typeName.name)
+        #expect(canonicalChildNames.contains { $0.contains("LayoutConstrainedInner") },
+                "indexer must surface LayoutConstrainedInner as a child of the outer fixture for this test to exercise the catch; got \(canonicalChildNames)")
+
+        let specializer = GenericSpecializer(indexer: try await indexer)
+
+        // Sanity #2: specializing LayoutConstrainedInner directly with
+        // `A = Int` must throw — otherwise the outer derivation has
+        // nothing to catch and the test would still pass for the wrong
+        // reason (silent skip via `hasCompleteBinding`, not via the
+        // catch).
+        let layoutConstrainedChild = try #require(
+            baseDefinition.typeChildren.first { $0.typeName.name.contains("LayoutConstrainedInner") },
+            "expected LayoutConstrainedInner among outer's typeChildren"
+        )
+        let layoutRequest = try specializer.makeRequest(for: layoutConstrainedChild.type.typeContextDescriptorWrapper)
+        #expect(throws: (any Error).self,
+                "LayoutConstrainedInner must reject A = Int so the outer catch actually fires") {
+            _ = try specializer.specialize(layoutRequest, with: ["A": .metatype(Int.self)])
+        }
+
+        let outerRequest = try specializer.makeRequest(for: baseDefinition.type.typeContextDescriptorWrapper)
+        let outerSelection = SpecializationSelection(arguments: ["A": .metatype(Int.self)])
+        let outerResult = try specializer.specialize(outerRequest, with: outerSelection)
+        let intNode = makeSwiftStdLibTypeNode(name: "Int")
+
+        // Must not throw — the LayoutConstrainedInner failure has to be
+        // absorbed inside `deriveNestedSpecializedTypeChildren`.
+        let specialized = try await baseDefinition.specialize(
+            with: outerResult,
+            typeArgumentNodes: [intNode],
+            derivingNestedSpecializationsWith: specializer,
+            selection: outerSelection,
+            typeArgumentNodesByParameter: ["A": intNode],
+            in: machO
+        )
+
+        let specializedChildNames = specialized.typeChildren.map(\.typeName.name)
+        // Valid siblings still derive.
+        #expect(specialized.typeChildren.contains {
+            $0.isSpecialized && $0.typeName.name.contains("FailureReason")
+        }, "expected FailureReason<Int> to derive despite a failing sibling; got \(specializedChildNames)")
+        #expect(specialized.typeChildren.contains {
+            $0.isSpecialized && $0.typeName.name.contains("Value")
+        }, "expected Value<Int> to derive despite a failing sibling; got \(specializedChildNames)")
+        // Failing sibling is dropped — not appended in any partial form.
+        #expect(!specializedChildNames.contains { $0.contains("LayoutConstrainedInner") },
+                "LayoutConstrainedInner specialization throws under A = Int and must be silently skipped; got \(specializedChildNames)")
+    }
 }
