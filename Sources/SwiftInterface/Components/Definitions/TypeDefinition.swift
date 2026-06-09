@@ -166,6 +166,50 @@ public final class TypeDefinition: Definition {
         typeArgumentNodes: [Node]? = nil,
         in machO: MachOImage,
     ) async throws -> TypeDefinition {
+        let specialized = try makeSpecializedDefinition(
+            with: specializationResult,
+            typeArgumentNodes: typeArgumentNodes,
+            in: machO
+        )
+        specializedChildren.append(specialized)
+        return specialized
+    }
+
+    @_spi(Support)
+    @discardableResult
+    public func specialize(
+        with specializationResult: SpecializationResult,
+        typeArgumentNodes: [Node]? = nil,
+        derivingNestedSpecializationsWith specializer: GenericSpecializer<MachOImage>,
+        selection: SpecializationSelection,
+        typeArgumentNodesByParameter: [String: Node],
+        in machO: MachOImage
+    ) async throws -> TypeDefinition {
+        let specialized = try makeSpecializedDefinition(
+            with: specializationResult,
+            typeArgumentNodes: typeArgumentNodes,
+            in: machO
+        )
+        specialized.typeChildren = try await deriveNestedSpecializedTypeChildren(
+            using: specializer,
+            selection: selection,
+            typeArgumentNodesByParameter: typeArgumentNodesByParameter,
+            inheritedTypeArgumentNodes: typeArgumentNodes ?? [],
+            in: machO,
+            depth: 0
+        )
+        for child in specialized.typeChildren {
+            child.parent = specialized
+        }
+        specializedChildren.append(specialized)
+        return specialized
+    }
+
+    private func makeSpecializedDefinition(
+        with specializationResult: SpecializationResult,
+        typeArgumentNodes: [Node]?,
+        in machO: MachOImage
+    ) throws -> TypeDefinition {
         let metadata = try specializationResult.resolveMetadata()
 
         try validateSpecialization(metadata: metadata, in: machO)
@@ -190,8 +234,71 @@ public final class TypeDefinition: Definition {
 
         let specialized = TypeDefinition(type: type, typeName: finalTypeName, isSpecialized: true)
         specialized.metadata = metadata
-        specializedChildren.append(specialized)
         return specialized
+    }
+
+    private func deriveNestedSpecializedTypeChildren(
+        using specializer: GenericSpecializer<MachOImage>,
+        selection: SpecializationSelection,
+        typeArgumentNodesByParameter: [String: Node],
+        inheritedTypeArgumentNodes: [Node],
+        in machO: MachOImage,
+        depth: Int
+    ) async throws -> [TypeDefinition] {
+        guard depth < 16 else { return [] }
+
+        var derivedChildren: [TypeDefinition] = []
+        for child in typeChildren {
+            guard child.type.typeContextDescriptorWrapper.typeContextDescriptor.layout.flags.isGeneric else {
+                continue
+            }
+
+            let request = try specializer.makeRequest(for: child.type.typeContextDescriptorWrapper)
+            var childArguments: [String: SpecializationSelection.Argument] = [:]
+            var childArgumentNodes: [Node] = []
+            var childNodesByParameter: [String: Node] = [:]
+            var hasCompleteBinding = true
+
+            for parameter in request.parameters {
+                guard let argument = selection.arguments[parameter.name],
+                      let node = typeArgumentNodesByParameter[parameter.name]
+                else {
+                    hasCompleteBinding = false
+                    break
+                }
+                childArguments[parameter.name] = argument
+                childArgumentNodes.append(node)
+                childNodesByParameter[parameter.name] = node
+            }
+
+            guard hasCompleteBinding else {
+                continue
+            }
+
+            let childSelection = SpecializationSelection(arguments: childArguments)
+            let childResult = try specializer.specialize(request, with: childSelection)
+            let effectiveChildArgumentNodes = childArgumentNodes.isEmpty
+                ? inheritedTypeArgumentNodes
+                : childArgumentNodes
+            let childSpecialized = try child.makeSpecializedDefinition(
+                with: childResult,
+                typeArgumentNodes: effectiveChildArgumentNodes,
+                in: machO
+            )
+            childSpecialized.typeChildren = try await child.deriveNestedSpecializedTypeChildren(
+                using: specializer,
+                selection: childSelection,
+                typeArgumentNodesByParameter: childNodesByParameter,
+                inheritedTypeArgumentNodes: effectiveChildArgumentNodes,
+                in: machO,
+                depth: depth + 1
+            )
+            for grandchild in childSpecialized.typeChildren {
+                grandchild.parent = childSpecialized
+            }
+            derivedChildren.append(childSpecialized)
+        }
+        return derivedChildren
     }
 
     /// Build a bound-generic `TypeName` by wrapping the supplied unbound

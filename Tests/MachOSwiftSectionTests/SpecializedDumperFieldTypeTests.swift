@@ -311,6 +311,30 @@ struct SpecializedDumperFieldTypeTests {
                 "expected nested expanded line to substitute A → Double; got: \(body)")
     }
 
+    @Test("expanded field offsets recurse through Optional payload metadata")
+    func expandedFieldOffsetsRecurseThroughOptionalPayloadMetadata() async throws {
+        _ = Fixtures.OptionalGenericFieldStruct<Fixtures.SingleParameterBox<Int>>.self
+
+        let descriptor = try structDescriptor(named: "OptionalGenericFieldStruct")
+        let structValue = try Struct(descriptor: descriptor, in: machO)
+        let specializedMetadata = try StructMetadata.createInProcess(
+            Fixtures.OptionalGenericFieldStruct<Fixtures.SingleParameterBox<Int>>.self
+        )
+        let metadataContext = DumperMetadataContext(metadata: specializedMetadata, readingContext: InProcessContext.shared)
+
+        var expandedConfig = configuration
+        expandedConfig.printFieldOffset = true
+        expandedConfig.printExpandedFieldOffsets = true
+
+        let dumper = StructDumper(structValue, metadataContext: metadataContext, using: expandedConfig, in: machO)
+        let body = try await dumper.body.string
+
+        #expect(body.contains("some ("),
+                "expected Optional payload case to be emitted before payload recursion; got: \(body)")
+        #expect(body.contains("value (Swift.Int):") || body.contains("value (Int):"),
+                "expected Optional payload recursion to expand SingleParameterBox<Int>.value; got: \(body)")
+    }
+
     // MARK: - Bound declaration semantic styling
 
     @Test("specialized name keeps inner type arguments at .name (not .declaration)")

@@ -80,6 +80,21 @@ struct GenericSpecializationTests {
         }
     }
 
+    struct NestedGenericInheritedOnlyOuter<A: Hashable> {
+        struct FailureReason {
+            let value: A
+        }
+
+        struct Value {
+            let value: A
+        }
+
+        struct NeedsOwnParameter<B: Equatable> {
+            let a: A
+            let b: B
+        }
+    }
+
     /// Three-level nested generic — one type parameter per level, each with
     /// a different protocol constraint. Exercises **P0.1** (the
     /// `currentRequirements` flatMap miscount in `GenericContext.swift:50`)
