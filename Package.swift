@@ -615,6 +615,8 @@ extension Target {
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
             .product(.MachOObjCSection),
+            .product(.Semantic),
+            .product(.Demangling),
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
         ],
         swiftSettings: testSettings

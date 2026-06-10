@@ -243,61 +243,160 @@ extension TypedDumper {
         return try? demangleAsNode(resolvedMangledString, isType: true)
     }
 
-    /// Render the bound generic dumped name so that only the *outer* unbound
-    /// type carries declaration styling. Type arguments inside `<...>` keep
-    /// regular `.name` styling, matching how every other type reference
-    /// (e.g. field types) is rendered.
+    /// Render the bound generic dumped name so that the type's qualified
+    /// "spine" (everything that is part of the declaration's own name)
+    /// carries declaration styling, while type arguments inside `<...>`
+    /// keep regular `.name` styling — matching how every other type
+    /// reference (field types, parameter types, …) is rendered in the
+    /// dump.
     ///
     /// Why bother: `replacingTypeNameOrOtherToTypeDeclaration()` is a
     /// blanket walk — applied to a whole bound generic node it converts
     /// every nested `.type(_, .name)` into `.type(_, .declaration)`,
-    /// including modules, separators, and the inner type names themselves.
-    /// For `SwiftUI.HStack<SwiftUI.ColorPickerStyleConfiguration.Label>`
-    /// that means the inner `Label` (and its module path) end up tagged as
-    /// declarations, which is wrong: only the outer `HStack` is the
-    /// declaration. Splitting the rendering keeps the inner argument tree
-    /// semantically identical to a regular type reference printed
-    /// elsewhere in the dump output.
+    /// including modules, separators, and the inner type names
+    /// themselves. For `SwiftUI.HStack<SwiftUI.ColorPickerStyleConfiguration.Label>`
+    /// that means the inner `Label` (and its module path) end up tagged
+    /// as declarations, which is wrong: only the outer `HStack` is the
+    /// declaration. The recursive walk below keeps every typeList
+    /// argument subtree on the normal reference path while only the
+    /// spine identifiers pick up declaration styling.
     ///
-    /// Expected `boundNode` shape (produced by
-    /// `demangleAsNode(_mangledTypeName(specializedMetatype), isType: true)`):
-    /// ```
-    /// Type
-    /// └── BoundGenericStructure | BoundGenericClass | BoundGenericEnum
-    ///     ├── Type            ← unbound name
-    ///     └── TypeList
-    ///         └── Type, …    ← type arguments
-    /// ```
+    /// Three Node shapes are handled (each may recurse into the others):
+    ///
+    ///   1. Top-level bound generic — `Foo<X>`:
+    ///      ```
+    ///      Type
+    ///      └── BoundGenericStructure | BoundGenericClass | BoundGenericEnum
+    ///          ├── Type           ← unbound head, may be nested
+    ///          └── TypeList
+    ///              └── Type, …    ← type-argument subtrees
+    ///      ```
+    ///   2. Nested non-generic type whose parent chain has bound generics —
+    ///      `Foo<X>.Bar` (the symptom that motivated the recursive walk:
+    ///      a specialized `EventListenerPhase<PanEvent>.Value` was losing
+    ///      the inner `SwiftUI.PanEvent` reference styling):
+    ///      ```
+    ///      Type
+    ///      └── Structure | Class | Enum
+    ///          ├── Type
+    ///          │   └── BoundGenericStructure(Foo, TypeList(X))
+    ///          └── Identifier("Bar")
+    ///      ```
+    ///   3. Anything else (Module-wrapped contexts, builtins, type
+    ///      aliases) — falls through to
+    ///      `replacingTypeNameOrOtherToTypeDeclaration()`, which is
+    ///      correct because nothing inside has typeList args worth
+    ///      preserving as references at this position.
+    ///
+    /// Recursive descent through (1)+(2) handles arbitrary nesting like
+    /// `Outer<X>.Mid<Y>.Inner.Leaf<Z>` — every spine identifier renders
+    /// as a declaration, every `X`/`Y`/`Z` renders as a reference.
     @SemanticStringBuilder
     package func resolveBoundDumpedTypeName(_ boundNode: Node) async throws -> SemanticString {
-        let resolver = configuration.demangleResolver
-        if let boundGenericNode = boundNode.firstChild,
-           boundGenericNode.kind == .boundGenericStructure
-            || boundGenericNode.kind == .boundGenericClass
-            || boundGenericNode.kind == .boundGenericEnum,
-           boundGenericNode.children.count >= 2 {
-            let unboundType = boundGenericNode.children[0]
-            let typeList = boundGenericNode.children[1]
-            // Outer unbound name → declaration styling, mirroring the
-            // unbound `_name` code path.
-            try await resolver.resolve(for: unboundType).replacingTypeNameOrOtherToTypeDeclaration()
-            Standard("<")
-            for (argumentIndex, argumentType) in typeList.children.enumerated() {
-                if argumentIndex > 0 {
-                    Standard(", ")
-                }
-                // Inner argument → regular `.name` styling, same as field
-                // type references rendered via the demangle resolver.
-                try await resolver.resolve(for: argumentType)
-            }
-            Standard(">")
+        try await BoundDumpedTypeNameRenderer.render(boundNode, using: configuration.demangleResolver)
+    }
+}
+
+/// Static home of the recursive walk powering `resolveBoundDumpedTypeName`.
+///
+/// Lifted off `TypedDumper` because the algorithm only depends on a
+/// `DemangleResolver` — no dumper-specific state — so the test suite
+/// can exercise it directly with synthetic Node trees without standing
+/// up a real `Metadata`/`Dumped`/`MachO` triple. A case-less enum (vs.
+/// a free function) keeps the namespacing tight: callers must say
+/// `BoundDumpedTypeNameRenderer.render(...)`, which is the same shape
+/// every other dumper helper here uses.
+///
+/// Doc & shape contract live on `TypedDumper.resolveBoundDumpedTypeName(_:)`
+/// above; keep this implementation behaviorally identical to its prose
+/// description.
+package enum BoundDumpedTypeNameRenderer {
+    @SemanticStringBuilder
+    package static func render(
+        _ boundNode: Node,
+        using resolver: DemangleResolver
+    ) async throws -> SemanticString {
+        // Unwrap the outer `.type` wrapper so the switch can match the
+        // actual nominal kind underneath. Bare nodes (no `.type` wrap)
+        // are passed through unchanged for recursive calls that already
+        // descended past their wrapper.
+        let inner: Node
+        if boundNode.kind == .type, let firstChild = boundNode.firstChild {
+            inner = firstChild
         } else {
-            // Unexpected shape (sugar already collapsed at the top, etc.).
-            // Fall back to whole-tree replacement so the head still picks
-            // up declaration styling; the inner pieces lose their
-            // granularity but it's a graceful degradation rather than a
-            // hard failure.
+            inner = boundNode
+        }
+
+        // Result-builder context: no `guard … return` early-exits — they
+        // disable the builder for the rest of the function. Branch with
+        // if/else (which the builder lowers via `buildEither`) instead.
+        switch inner.kind {
+        case .boundGenericStructure, .boundGenericClass, .boundGenericEnum:
+            if inner.children.count >= 2 {
+                let unboundType = inner.children[0]
+                let typeList = inner.children[1]
+                // Recurse on the unbound head: it may itself be a
+                // nested Structure whose parent contains another
+                // BoundGeneric whose typeList args also need to stay
+                // references (e.g. `Phase<X>.Value<Y>`).
+                try await render(unboundType, using: resolver)
+                Standard("<")
+                for (argumentIndex, argumentType) in typeList.children.enumerated() {
+                    if argumentIndex > 0 {
+                        Standard(", ")
+                    }
+                    // Argument subtree → plain reference styling, same
+                    // as a field type reference rendered elsewhere in
+                    // the dump.
+                    try await resolver.resolve(for: argumentType)
+                }
+                Standard(">")
+            } else {
+                // Malformed bound-generic: fall back to blanket
+                // replacement so the head still picks up declaration
+                // styling.
+                try await resolver.resolve(for: boundNode).replacingTypeNameOrOtherToTypeDeclaration()
+            }
+
+        case .structure, .class, .enum:
+            // The bug fix: when the outer node is a non-generic nested
+            // Structure/Class/Enum whose parent chain contains a
+            // BoundGeneric (e.g. `Phase<PanEvent>.Value`), recurse into
+            // the parent so its typeList args stay as references, then
+            // emit the trailing identifier as a declaration.
+            if inner.children.count >= 2, let identifierText = inner.children[1].text {
+                let parent = inner.children[0]
+                try await render(parent, using: resolver)
+                Standard(".")
+                TypeDeclaration(kind: nominalTypeKind(of: inner.kind), identifierText)
+            } else {
+                // Missing identifier text (privateDeclName-only nodes,
+                // etc.) — fall back to blanket replacement so the head
+                // still picks up declaration styling; inner pieces lose
+                // granularity but it's a graceful degradation.
+                try await resolver.resolve(for: boundNode).replacingTypeNameOrOtherToTypeDeclaration()
+            }
+
+        default:
+            // Module wrappers, builtins, type aliases not covered
+            // above. No typeList args inside → blanket replacement is
+            // safe and matches the existing `_name` declaration
+            // styling exactly.
             try await resolver.resolve(for: boundNode).replacingTypeNameOrOtherToTypeDeclaration()
+        }
+    }
+
+    /// Map a demangler nominal `Node.Kind` to its corresponding semantic
+    /// `TypeKind`. Defaults to `.other` for kinds outside the
+    /// structure/class/enum trio that `render` actually dispatches to —
+    /// the default is reachable only via a programming error (caller
+    /// passed a non-nominal `Node.Kind`).
+    private static func nominalTypeKind(of kind: Node.Kind) -> SemanticType.TypeKind {
+        switch kind {
+        case .structure: return .struct
+        case .class: return .class
+        case .enum: return .enum
+        default: return .other
         }
     }
 }
