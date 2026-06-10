@@ -1,9 +1,27 @@
+import Foundation
+import FoundationToolbox
 import Semantic
 import MachOSwiftSection
 import MachOKit
 import Demangling
 @_spi(Internals) import SwiftInspection
 
+/// Maximum recursion depth that `walkNestedExpandedFieldOffsets` (and its
+/// per-kind helpers) will descend before bailing out. Real Swift type
+/// nesting rarely exceeds 3-4 layers in practice, so 16 is a deliberately
+/// generous bound that catches runaway recursion (pathological
+/// self-referencing types, mutually-recursive containers) without ever
+/// clipping legitimate nesting. Hitting it is a diagnostic event, not a
+/// normal outcome: the `@Loggable`-generated `logger` on `TypedDumper`
+/// (subsystem `com.machoswiftsection.swift-dump`, category
+/// `TypedDumper.nestedFieldOffsetExpansion`) carries the `#log` warning
+/// emitted when the guard trips.
+///
+/// `package`-visible so the regression test that pins this invariant can
+/// read it without `@testable`.
+package let nestedFieldOffsetExpansionDepthLimit = 16
+
+@Loggable(.package, subsystem: "com.machoswiftsection.swift-dump", category: "TypedDumper.nestedFieldOffsetExpansion")
 package protocol TypedDumper: NamedDumper where Dumped: TopLevelType, Dumped.Descriptor: TypeContextDescriptorProtocol {
     associatedtype Metadata: MetadataProtocol
 
@@ -402,8 +420,9 @@ extension TypedDumper {
     /// case records that can themselves carry specialized struct payloads.
     @SemanticStringBuilder
     private func walkNestedExpandedFieldOffsets(of metatype: Any.Type, baseOffset: Int, baseIndentation: Int, ancestors: [Bool], depth: Int = 0) -> SemanticString {
-        if depth < 16,
-           let wrapper = try? Metadata.createInProcess(metatype).asMetadataWrapper() {
+        if depth >= nestedFieldOffsetExpansionDepthLimit {
+            emitNestedFieldOffsetDepthLimitWarning(for: metatype)
+        } else if let wrapper = try? Metadata.createInProcess(metatype).asMetadataWrapper() {
             switch wrapper {
             case .struct(let metadata):
                 walkNestedStructFieldOffsets(of: metadata, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, depth: depth)
@@ -414,6 +433,16 @@ extension TypedDumper {
                 SemanticString()
             }
         }
+    }
+
+    /// Plain (non-builder) helper so the result-builder body of
+    /// `walkNestedExpandedFieldOffsets` stays valid — the `#log` macro
+    /// expands to a `Void`-typed closure invocation, which the builder
+    /// accepts via `buildPartialBlock(first: Void)`, but keeping the
+    /// diagnostics out of the builder body avoids surprising callers
+    /// reading the walker.
+    private func emitNestedFieldOffsetDepthLimitWarning(for metatype: Any.Type) {
+        #log(.info, "walkNestedExpandedFieldOffsets reached nested field-offset depth limit \(nestedFieldOffsetExpansionDepthLimit, privacy: .public) — truncating expansion of \(metatype, privacy: .public)")
     }
 
     /// Recursive walk over a nested struct's fields. Every mangled name

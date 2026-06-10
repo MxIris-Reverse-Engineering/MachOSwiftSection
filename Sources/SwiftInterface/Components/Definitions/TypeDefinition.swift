@@ -1,4 +1,5 @@
 import Foundation
+import FoundationToolbox
 import MachOSwiftSection
 import MachOKit
 import MemberwiseInit
@@ -11,6 +12,7 @@ import Dependencies
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
 
+@Loggable(.private, subsystem: "com.machoswiftsection.swift-interface", category: "TypeDefinition.nestedSpecialization")
 public final class TypeDefinition: Definition {
     public enum ParentContext {
         case `extension`(ExtensionContext)
@@ -37,6 +39,26 @@ public final class TypeDefinition: Definition {
 
     public internal(set) weak var parent: TypeDefinition?
 
+    /// Nested type definitions whose containing context is `self`.
+    ///
+    /// Semantics depend on `isSpecialized`:
+    /// - **Generic / canonical definition** (`isSpecialized == false`):
+    ///   populated by `SwiftInterfaceIndexer` from the MachO image's
+    ///   nesting topology, holds the unbound nested types.
+    /// - **Specialized definition** (`isSpecialized == true`): replaced
+    ///   wholesale by `deriveNestedSpecializedTypeChildren` to hold the
+    ///   *derived* specialized nested children (siblings produced from the
+    ///   generic child's descriptor + the outer binding). Nested children
+    ///   that the deriver cannot bind (introduce their own generic
+    ///   parameters, throw on inner `specialize`, hit the depth limit, …)
+    ///   are silently dropped — the field is best-effort by design.
+    ///
+    /// Generic and specialized definitions hold **different** `TypeDefinition`
+    /// instances here; a derived nested child is never the same object as
+    /// the canonical generic child living in the generic parent's
+    /// `typeChildren`. The `parent` back-pointer of each entry reflects
+    /// this: derived nested children point at their derived (specialized)
+    /// parent, never at the generic parent.
     public internal(set) var typeChildren: [TypeDefinition] = []
 
     public internal(set) var protocolChildren: [ProtocolDefinition] = []
@@ -107,13 +129,66 @@ public final class TypeDefinition: Definition {
     /// call the descriptor's metadata accessor.
     public internal(set) var metadata: MetadataWrapper? = nil
 
-    /// Specialized children produced from this generic definition via
-    /// `specialize(with:in:)`. Each entry is a sibling-shaped
+    /// Specialized children produced by **directly** calling
+    /// `specialize(with:in:)` (or the `derivingNestedSpecializationsWith`
+    /// overload) on this generic definition. Each entry is a sibling-shaped
     /// `TypeDefinition` that wraps the same `type` but carries a
     /// runtime-resolved metadata. Lives on the model rather than on the
     /// indexer so the indexer remains agnostic of user-driven
     /// specialization state.
+    ///
+    /// **Asymmetry to watch for** — `specialize(...derivingNestedSpecializationsWith:...)`
+    /// auto-derives nested specialized children for the receiver's
+    /// `typeChildren` and attaches them to `specialized.typeChildren`, but
+    /// **does not** append them to the *generic nested child's*
+    /// `specializedChildren`. The reasoning:
+    ///
+    /// 1. `specializedChildren` is the canonical inventory of
+    ///    *user-initiated* specializations of a given generic definition.
+    ///    Outer-driven derivation is a side effect of a user request on the
+    ///    outer type; folding those into the nested type's
+    ///    `specializedChildren` would mix two intent levels and break the
+    ///    "manual specializations live exactly where the user put them"
+    ///    contract that `GenericTypeNameSubstitutionTests
+    ///    .outerSpecializationDerivesNestedChildSpecializationsWithoutMovingExistingChildSpecializations`
+    ///    pins.
+    /// 2. The same derived `Value<Int>` is reachable from the outer entry
+    ///    via `outerDef.specializedChildren.flatMap(\.typeChildren)`, so no
+    ///    information is lost — only the entry point differs.
+    ///
+    /// Callers that need "every `TypeDefinition` instance specialized to
+    /// the same generic type" must walk both:
+    ///
+    /// ```swift
+    /// let manual    = nestedDef.specializedChildren
+    /// let viaOuter  = outerDef.specializedChildren.flatMap { outerInstance in
+    ///     outerInstance.typeChildren.filter { $0.type === nestedDef.type }
+    /// }
+    /// ```
+    ///
+    /// **No deduplication** — calling `specialize(...)` twice on the same
+    /// generic definition with identical selections produces two distinct
+    /// `TypeDefinition` entries here (and, for the deriving overload, two
+    /// independent subtrees in `outerSpecialized.typeChildren`). Equality
+    /// of `metadata` does not imply identity of the wrapping
+    /// `TypeDefinition`.
     public private(set) var specializedChildren: [TypeDefinition] = []
+
+    /// Maximum recursion depth that `deriveNestedSpecializedTypeChildren`
+    /// will descend before bailing out. Swift's source-level nesting rarely
+    /// exceeds 3-4 layers in practice, so 16 is a deliberately generous
+    /// bound that catches runaway recursion (pathological self-referencing
+    /// descriptors, mutually-recursive nested types) without ever clipping
+    /// legitimate nesting. Hitting it is a diagnostic event, not a normal
+    /// outcome: the `@Loggable`-generated `logger` (subsystem
+    /// `com.machoswiftsection.swift-interface`, category
+    /// `TypeDefinition.nestedSpecialization`) carries the `#log` warning
+    /// emitted when the guard trips.
+    ///
+    /// SPI-exposed so the regression test that pins this invariant can
+    /// read it without `@testable`.
+    @_spi(Support)
+    public static let nestedSpecializationDepthLimit = 16
 
     public var hasMembers: Bool {
         !fields.isEmpty || !variables.isEmpty || !functions.isEmpty ||
@@ -160,6 +235,14 @@ public final class TypeDefinition: Definition {
     ///   cache lives outside any MachO image); descriptor identity
     ///   validation needs the receiver's descriptor in its in-process
     ///   form, and that is what `asPointerWrapper(in:)` produces.
+    ///
+    /// This overload specializes **only the receiver**. The returned
+    /// definition's `typeChildren` is left empty — callers that want the
+    /// nested types specialized too must either call this overload again
+    /// per nested child, or use
+    /// `specialize(with:typeArgumentNodes:derivingNestedSpecializationsWith:selection:typeArgumentNodesByParameter:in:)`,
+    /// which auto-derives nested specialized children from the same outer
+    /// binding.
     @discardableResult
     public func specialize(
         with specializationResult: SpecializationResult,
@@ -175,6 +258,36 @@ public final class TypeDefinition: Definition {
         return specialized
     }
 
+    /// Specialize the receiver **and** derive specialized nested children
+    /// for every member of `typeChildren` that can be bound from
+    /// `selection`. Returns the outer specialized definition; derived
+    /// nested children are attached to its `typeChildren`.
+    ///
+    /// Effect on each property:
+    /// - `self.specializedChildren` — appends the outer specialized
+    ///   instance (same as the basic `specialize(with:in:)` overload).
+    /// - `outerSpecialized.typeChildren` — assigned (not appended) to the
+    ///   list of derived nested specialized children. Each derived child's
+    ///   `parent` is set to `outerSpecialized`.
+    /// - **No change** to any generic nested child's `specializedChildren`.
+    ///   Derived nested children are reachable only via
+    ///   `outerSpecialized.typeChildren` — folding them into the canonical
+    ///   nested generic def's `specializedChildren` would break the
+    ///   "manual specializations live exactly where the user put them"
+    ///   contract. See the `specializedChildren` doc for the cross-cutting
+    ///   discussion and the recommended dual-walk for callers that need
+    ///   the full inventory.
+    ///
+    /// Derivation is **best-effort**: a single nested child whose own
+    /// `specialize` throws (missing PWT, descriptor mismatch, layout
+    /// constraint rejection, …) is silently dropped from the derived
+    /// subtree; the rest still arrive. Nested children that introduce
+    /// their own generic parameters not covered by `selection` are also
+    /// skipped (the outer binding alone can't construct their key
+    /// arguments). The recursion is bounded by
+    /// `nestedSpecializationDepthLimit`; hitting it logs an `os_log`
+    /// warning under the `com.machoswiftsection.swift-interface` subsystem
+    /// and truncates the subtree.
     @_spi(Support)
     @discardableResult
     public func specialize(
@@ -245,7 +358,10 @@ public final class TypeDefinition: Definition {
         in machO: MachOImage,
         depth: Int
     ) async -> [TypeDefinition] {
-        guard depth < 16 else { return [] }
+        guard depth < Self.nestedSpecializationDepthLimit else {
+            #log(.info, "deriveNestedSpecializedTypeChildren reached nested specialization depth limit \(Self.nestedSpecializationDepthLimit, privacy: .public) — truncating subtree at \(self.typeName.name, privacy: .public)")
+            return []
+        }
 
         var derivedChildren: [TypeDefinition] = []
         for child in typeChildren {
