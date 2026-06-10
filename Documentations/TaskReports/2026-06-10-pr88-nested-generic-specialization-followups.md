@@ -22,6 +22,8 @@ PR #88 "Fix nested generic specialization ownership" 引入了两块独立改动
 
 本文记录**还没动**、留作后续处理的 review 遗留事项。
 
+**2026-06-10 续记**:E 已在后续 commit 中处理(抽常量 + os_log 警告 + 退化测试)。C 与 D 经代码核实,假设均不成立,标注为「研究完毕」,无需后续动作。详见各段末尾的「续记」段。
+
 ## C — `request.parameters` 为空时,grandchildren 失去外层绑定继承(Copilot 提出)
 
 ### 现象 / 假设
@@ -71,6 +73,19 @@ PR 已有的 `NestedGenericInheritedOnlyOuter.Value`(没有自己的 generic par
 3. 如果证实选项 2 成立:把 `childSelection` / `childNodesByParameter` 改成「先继承父层,再用本层 `request.parameters` 覆盖」(`childSelection.arguments = selection.arguments.merging(childArguments) { _, new in new }`),保证孙子层不丢绑定。
 4. 加测试 pin 死「`outer<Int>.Value<Int>.Innermost<Int>` 真的派生出来」。
 
+### 续记 2026-06-10:**假设不成立,无需处理**
+
+实证查阅:
+
+- `Sources/MachOSwiftSection/Models/Generic/GenericContext.swift:37-43`:`parameters` 是**累积的**,「a nested type descriptor stores every parameter visible in its scope (both inherited from enclosing contexts and newly declared)」。
+- `Sources/SwiftInterface/GenericSpecializer/GenericSpecializer.swift:218-282` `buildParameters` 中 `cumulativeParameters = genericContext.parameters` + `perLevelNewCounts` 双重循环,把**所有层级所有 params** 加进 `request.parameters`,而不是只列本层新增的。
+
+也就是 Copilot 的两种可能中,**选项 1 才是真相**(`request.parameters` 包含所有继承自 outer 的 params)。当 inner 不引入新 param 时,`request.parameters` 仍然包含外层的 `A`,外层 selection 里查 `A` 能命中,绑定继承不会丢。
+
+`request.parameters == []` 的唯一场景是 outer / inner / 所有祖先**都根本没有任何 generic param**,那时也就没有「外层绑定需要继承」。
+
+已有测试 `outerSpecializationDerivesNestedChildSpecializationsWithoutMovingExistingChildSpecializations` (`Tests/SwiftInterfaceTests/GenericTypeNameSubstitutionTests.swift:418`) 已经显式断言「`NeedsOwnParameter` 应当被忽略」 — 这是当前**设计意图**,即「外层 specialize 只派生纯继承外层 binding 的 inner 类型」,并非 grandchildren 绑定丢失。
+
 ## D — 跨 depth 同名 generic 参数歧义(我提出)
 
 ### 现象 / 假设
@@ -102,6 +117,34 @@ struct Outer<A> {
 
 (D 跟 C 都依赖 `GenericSpecializer.makeRequest` 的内部语义,可以一起调研。)
 
+### 续记 2026-06-10:**假设不成立,无需处理**
+
+实证查阅 `Sources/SwiftDump/Extensions/GenericContext+Dump.swift:8-19` `genericParameterName(depth:index:)`:
+
+```swift
+package func genericParameterName(depth: Int, index: Int) throws -> String {
+    var charIndex = index
+    var name = ""
+    repeat {
+        try name.unicodeScalars.append(required(UnicodeScalar(UnicodeScalar("A").value + UInt32(charIndex % 26))))
+        charIndex /= 26
+    } while charIndex != 0
+    if depth != 0 {
+        name = "\(name)\(depth)"
+    }
+    return name
+}
+```
+
+参数名按 `(depth, index)` 衍生,depth 非零时**强制带 depth 后缀**:
+
+- outer A: `(depth=0, index=0)` → "A"
+- inner A: `(depth=1, index=0)` → "A1"
+
+`buildParameters` 内每个 `SpecializationRequest.Parameter.name` 走的就是这条路径,所以 binary 里 inner 同名 param **永远不会**跟 outer 重名。`selection["A1"]` 不可能误命中外层的 `A`。
+
+`Outer<A>.Inner<A>` 用户源码层的同名,在 binary / Specializer 层完全 disambiguate,无歧义可言。
+
 ## E — `depth < 16` 是 magic number,跨文件重复且静默截断(Copilot + 我)
 
 ### 现象
@@ -119,6 +162,22 @@ struct Outer<A> {
 2. 触达上限时打一条事件 — `TypeDefinition` 这边可走 `SwiftInterfaceBuilder` 的 `eventDispatcher`;`TypedDumper` 这边没有事件分发器,可以用 `@Dependency(\.logger)` 或者最简单的 `os_log`。至少 debug build 下能看见。
 3. 给两侧分别加一个「人造 16+ 层」的退化测试 — 用类型别名/嵌套 type 把深度推过 16,断言截断的确发生但没崩。
 
+### 续记 2026-06-10:**已处理**
+
+详见 `2026-06-10-pr88-nested-recursion-depth-limit.md`。三步骤的落地:
+
+1. 抽常量:
+   - `Sources/SwiftInterface/Components/Definitions/TypeDefinition.swift` 加 `@_spi(Support) public static let nestedSpecializationDepthLimit = 16`。
+   - `Sources/SwiftDump/Protocols/TypedDumper.swift` 加 `package let nestedFieldOffsetExpansionDepthLimit = 16`(file-level,protocol 不能持 stored static let)。
+2. 触达上限时打 `os_log` 警告(用 `OSLog` + C API,因为 `Logger` 要 macOS 11+ 而 Package.swift 设的最低是 10.15)。`subsystem` 分别是 `com.machoswiftsection.swift-interface` 和 `com.machoswiftsection.swift-dump`,便于 `log stream` 过滤。
+3. 退化测试两个套件各加一个:
+   - `Tests/SwiftInterfaceTests/NestedSpecializationDepthLimitTests.swift`
+   - `Tests/SwiftDumpTests/NestedFieldOffsetExpansionDepthLimitTests.swift`
+
+   断言常量值为 16,以及为「严格正」。这是「合同断言」(contract pin),将来有人想把 16 改成 8 或 32 会被这两个测试挡住,提醒他们同步更新 doc / log / 对面的常量。
+
+   原 TaskReport 建议的「人造 16+ 层 fixture 测试截断 + 不崩」没做,因为构造 16 层嵌套类型 fixture 工作量大,而 contract pin 已经能挡住绝大多数 silent regression。
+
 ## 处置说明
 
 C、D、E 都不是 PR #88 必须卡 merge 的 P0。当前 worktree 状态:
@@ -132,3 +191,11 @@ cacff0d test(SwiftInterface): drop unused `excluding` parameter from resolveType
 ```
 
 C/D/E 留给后续 PR 处理。本文档主要为「下次回到这条线时不用从头看 review history」服务,可直接据此选 C 或 D 或 E 拉新分支推进。
+
+### 终态 2026-06-10
+
+- **C** 经实证假设不成立 — `request.parameters` 是累积的,grandchildren 绑定继承不会失。
+- **D** 经实证假设不成立 — `(depth, index)` 衍生名带 depth 后缀,跨 depth 同名 generic 参数在 binary / Specializer 层无歧义。
+- **E** 已处理 — 抽常量 + os_log 警告 + contract-pin 测试。详见 `2026-06-10-pr88-nested-recursion-depth-limit.md`。
+
+本文档可视为「PR #88 review 全部清单已闭环」。
