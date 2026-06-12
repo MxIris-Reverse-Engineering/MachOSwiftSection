@@ -5,6 +5,7 @@ import Semantic
 import Utilities
 import MemberwiseInit
 import Demangling
+import FoundationToolbox
 
 public enum DemangleResolver: Sendable {
     case options(DemangleOptions)
@@ -18,16 +19,19 @@ public enum DemangleResolver: Sendable {
         .builder(builder)
     }
 
+    public var options: DemangleOptions? {
+        switch self {
+        case .options(let demangleOptions):
+            return demangleOptions
+        case .builder:
+            return nil
+        }
+    }
+    
     public func resolve(for node: Node) async throws -> SemanticString {
         switch self {
         case .options(let options):
-            #if DEBUG
-            return await MainActor.run {
-                return node.printSemantic(using: options)
-            }
-            #else
             return node.printSemantic(using: options)
-            #endif
         case .builder(let builder):
             return try await builder(node)
         }
