@@ -644,7 +644,7 @@ public final class TypeDefinition: Definition {
 
             for (index, descriptor) in cls.methodDescriptors.enumerated() {
                 guard let symbols = try descriptor.implementationSymbols(in: machO) else { continue }
-                guard let overrideSymbol = try classDemangledSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
+                guard let overrideSymbol = ClassDumper.demangledSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode
                 visitedNodes.append(node)
                 methodDescriptorLookup[node] = .method(descriptor)
@@ -656,7 +656,7 @@ public final class TypeDefinition: Definition {
 
             for descriptor in cls.methodOverrideDescriptors {
                 guard let symbols = try descriptor.implementationSymbols(in: machO) else { continue }
-                guard let overrideSymbol = try classDemangledSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
+                guard let overrideSymbol = ClassDumper.demangledSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode
                 visitedNodes.append(node)
                 methodDescriptorLookup[node] = .methodOverride(descriptor)
@@ -667,7 +667,7 @@ public final class TypeDefinition: Definition {
             }
             for descriptor in cls.methodDefaultOverrideDescriptors {
                 guard let symbols = try descriptor.implementationSymbols(in: machO) else { continue }
-                guard let overrideSymbol = try classDemangledSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
+                guard let overrideSymbol = ClassDumper.demangledSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode
                 visitedNodes.append(node)
                 methodDescriptorLookup[node] = .methodDefaultOverride(descriptor)

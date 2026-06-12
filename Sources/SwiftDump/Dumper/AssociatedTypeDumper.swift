@@ -5,6 +5,7 @@ import Semantic
 import Utilities
 @_spi(Internals) import SwiftInspection
 import Demangling
+import OrderedCollections
 
 package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCache>: ConformedDumper {
     package let dumped: AssociatedType
@@ -160,7 +161,6 @@ package struct AssociatedTypeDumper<MachO: MachOSwiftSectionRepresentableWithCac
     }
 }
 
-import OrderedCollections
 
 extension Node {
     private final class OpaqueTypeGenericParameterRewriter<MachO: MachOSwiftSectionRepresentableWithCache>: Node.Rewriter {
