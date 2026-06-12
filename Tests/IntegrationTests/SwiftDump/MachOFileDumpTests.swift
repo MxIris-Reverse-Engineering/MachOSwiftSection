@@ -10,7 +10,7 @@ import MachOFixtureSupport
 
 @Suite(.serialized)
 final class MachOFileDumpTests: MachOFileTests, DumpableTests, @unchecked Sendable {
-    override class var fileName: MachOFileName { .iOS_26_2_Simulator_Gestures }
+    override class var fileName: MachOFileName { .iOS_18_5_Simulator_SwiftUICore }
 }
 
 extension MachOFileDumpTests {

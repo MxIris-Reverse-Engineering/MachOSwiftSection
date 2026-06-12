@@ -3,5 +3,5 @@ import MachOSwiftSection
 import SwiftDump
 
 extension DemangleOptions {
-    package static let test: DemangleOptions = .interface
+    package static let test: DemangleOptions = .default
 }
