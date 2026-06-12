@@ -123,7 +123,7 @@ var dependencies: [Package.Dependency] = [
     .Demangling,
     .Semantic,
     
-    .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.1.0" ..< "602.0.0"),
+    .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.1.0" ..< "604.0.0"),
     .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.4"),
     .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
     .package(url: "https://github.com/apple/swift-collections", from: "1.2.0"),
@@ -133,12 +133,12 @@ var dependencies: [Package.Dependency] = [
     .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", from: "0.4.0"),
     
     .package(url: "https://github.com/gohanlon/swift-memberwise-init-macro", from: "0.6.0"),
-    .package(url: "https://github.com/Mx-Iris/SourceKitD", from: "0.1.0"),
-    .package(url: "https://github.com/christophhagen/BinaryCodable", from: "3.1.0"),
+//    .package(url: "https://github.com/Mx-Iris/SourceKitD", from: "0.1.0"),
+//    .package(url: "https://github.com/christophhagen/BinaryCodable", from: "3.1.0"),
     
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.4"),
-    .package(url: "https://github.com/MxIris-DeveloperTool/swift-clang", from: "0.2.0"),
-    .package(url: "https://github.com/MxIris-DeveloperTool/swift-apinotes", from: "0.1.0"),
+//    .package(url: "https://github.com/MxIris-DeveloperTool/swift-clang", from: "0.2.0"),
+//    .package(url: "https://github.com/MxIris-DeveloperTool/swift-apinotes", from: "0.1.0"),
     .package(url: "https://github.com/MxIris-Reverse-Engineering/swift-dyld-private", from: "1.2.0"),
     
     // CLI
@@ -448,21 +448,21 @@ extension Target {
         ],
     )
 
-    static let TypeIndexing = Target.target(
-        name: "TypeIndexing",
-        dependencies: [
-            .target(.SwiftInterface),
-            .target(.Utilities),
-            .product(.SwiftSyntax),
-            .product(.SwiftParser),
-            .product(.SwiftSyntaxBuilder),
-            .product(.MachOObjCSection),
-            .product(name: "Clang", package: "swift-clang"),
-            .product(name: "SourceKitD", package: "SourceKitD", condition: .when(platforms: [.macOS])),
-            .product(name: "BinaryCodable", package: "BinaryCodable"),
-            .product(name: "APINotes", package: "swift-apinotes", condition: .when(platforms: [.macOS])),
-        ]
-    )
+//    static let TypeIndexing = Target.target(
+//        name: "TypeIndexing",
+//        dependencies: [
+//            .target(.SwiftInterface),
+//            .target(.Utilities),
+//            .product(.SwiftSyntax),
+//            .product(.SwiftParser),
+//            .product(.SwiftSyntaxBuilder),
+//            .product(.MachOObjCSection),
+//            .product(name: "Clang", package: "swift-clang"),
+//            .product(name: "SourceKitD", package: "SourceKitD", condition: .when(platforms: [.macOS])),
+//            .product(name: "BinaryCodable", package: "BinaryCodable"),
+//            .product(name: "APINotes", package: "swift-apinotes", condition: .when(platforms: [.macOS])),
+//        ]
+//    )
 
     static let swift_section = Target.executableTarget(
         name: "swift-section",
@@ -622,15 +622,15 @@ extension Target {
         swiftSettings: testSettings
     )
 
-    static let TypeIndexingTests = Target.testTarget(
-        name: "TypeIndexingTests",
-        dependencies: [
-            .target(.TypeIndexing),
-            .target(.MachOTestingSupport),
-            .target(.MachOFixtureSupport),
-        ],
-        swiftSettings: testSettings
-    )
+//    static let TypeIndexingTests = Target.testTarget(
+//        name: "TypeIndexingTests",
+//        dependencies: [
+//            .target(.TypeIndexing),
+//            .target(.MachOTestingSupport),
+//            .target(.MachOFixtureSupport),
+//        ],
+//        swiftSettings: testSettings
+//    )
 
     static let SwiftInterfaceTests = Target.testTarget(
         name: "SwiftInterfaceTests",
@@ -671,7 +671,7 @@ extension Target {
             .target(.SwiftInspection),
             .target(.SwiftDump),
             .target(.SwiftInterface),
-            .target(.TypeIndexing),
+//            .target(.TypeIndexing),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
             .product(.MachOKit),
@@ -692,7 +692,7 @@ let package = Package(
         .library(.SwiftInspection),
         .library(.SwiftDump),
         .library(.SwiftInterface),
-        .library(.TypeIndexing),
+//        .library(.TypeIndexing),
         .executable(.swift_section),
     ],
     dependencies: dependencies,
@@ -712,7 +712,7 @@ let package = Package(
         .SwiftInspection,
         .SwiftDump,
         .SwiftInterface,
-        .TypeIndexing,
+//        .TypeIndexing,
         .MachOMacros,
         .MachOFixtureSupport,
         .MachOTestingSupport,
