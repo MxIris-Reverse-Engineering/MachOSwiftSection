@@ -544,11 +544,10 @@ extension TypedDumper {
         #log(.info, "walkNestedExpandedFieldOffsets reached nested field-offset depth limit \(nestedFieldOffsetExpansionDepthLimit, privacy: .public) — truncating expansion of \(metatype, privacy: .public)")
     }
 
-    /// Recursive walk over a nested struct's fields. Every mangled name
-    /// read here came from in-process descriptor memory, so substitution
-    /// uses the no-`MachOImage` overload of `getTypeByMangledNameInContext`
-    /// (the one that treats `mangledTypeName.startOffset` as an absolute
-    /// in-process pointer).
+    /// Recursive walk over a nested struct's fields. Mangled names read here
+    /// come from in-process descriptor memory; generic parameter references are
+    /// bound to the parent's concrete arguments statically (no runtime generic
+    /// context — see the static substitution helpers below).
     @SemanticStringBuilder
     private func walkNestedStructFieldOffsets(of metadata: StructMetadata, baseOffset: Int, baseIndentation: Int, ancestors: [Bool], depth: Int) -> SemanticString {
         if let descriptor = try? metadata.structDescriptor(),
@@ -595,29 +594,189 @@ extension TypedDumper {
         }
     }
 
-    /// Resolves a nested field's mangled name to its concrete `Any.Type`,
-    /// substituting generic parameters via the parent struct's specialized
-    /// metadata. Falls back to the bare resolver for fully-resolved names.
-    private func resolveNestedMetatype<M: ValueMetadataProtocol>(for mangledTypeName: MangledName, parentMetadata: M) -> Any.Type? {
-        if let substituted = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName, specializedFrom: parentMetadata) {
-            return substituted
+    /// Resolves a nested field's mangled name to its concrete `Any.Type` for
+    /// continued offset-tree recursion.
+    ///
+    /// Two safe strategies, in order — neither ever calls the live runtime's
+    /// generic-substituting `specializedFrom:` overload (which walks the
+    /// descriptor's generic environment and PAC-faults inside injected
+    /// processes; see the substitution helpers below):
+    ///   1. Static binding: if the field's type IS one of the parent's generic
+    ///      parameters (e.g. `value: A`), read the already-instantiated
+    ///      concrete argument metadata straight out of the parent's specialized
+    ///      metadata — a fully-formed, runtime-built metadata pointer we only
+    ///      read, never re-authenticate. This lets generic fields keep
+    ///      expanding into their bound concrete type.
+    ///   2. Bare resolve: otherwise resolve the full mangled name with no
+    ///      generic context. Non-generic fields resolve; a compound type that
+    ///      still mentions an unbound parameter (e.g. `Bar<A>`) returns nil and
+    ///      simply stops expanding — offsets stay correct either way because
+    ///      they come from `metadata.fieldOffsets`, not from this call.
+    private func resolveNestedMetatype<ParentMetadata: ValueMetadataProtocol>(for mangledTypeName: MangledName, parentMetadata: ParentMetadata) -> Any.Type? {
+        // 1. Static binding for a field that IS one of the parent's generic
+        //    parameters (e.g. `value: A`).
+        if let boundType = staticallyBoundMetatype(for: mangledTypeName, parentMetadata: parentMetadata) {
+            return boundType
         }
+        // 2. The context-free runtime resolver `fatalError`s (uncatchable —
+        //    `try?` cannot intercept it) inside `createDependentMemberType`
+        //    when the mangled name references a generic parameter or an
+        //    associated type but we pass no generic context to bind it. So
+        //    only hand the runtime a name we've confirmed is fully concrete;
+        //    anything that still mentions a dependent type stops expanding
+        //    rather than risk an abort. Offsets are unaffected (they come from
+        //    `metadata.fieldOffsets`).
+        guard let node = try? MetadataReader.demangleTypeUncached(for: mangledTypeName),
+              !nodeContainsDependentReference(node)
+        else { return nil }
         return try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName)
     }
 
-    /// Renders the human-readable type name used in the
-    /// `expandedFieldOffsetComment` line. When substitution succeeds we
-    /// print the bound type via `_mangledTypeName` round-trip; otherwise
-    /// we fall through to the unbound demangling, which keeps the legacy
-    /// behavior for non-generic / unresolvable names.
-    private func nestedTypeName<M: ValueMetadataProtocol>(for mangledTypeName: MangledName?, parentMetadata: M) -> String {
+    /// Renders the human-readable type name for the `expandedFieldOffsetComment`
+    /// line, with the parent's generic parameters statically substituted by
+    /// their bound concrete types (so `value: A` prints as `value: Int`).
+    private func nestedTypeName<ParentMetadata: ValueMetadataProtocol>(for mangledTypeName: MangledName?, parentMetadata: ParentMetadata) -> String {
         guard let mangledTypeName else { return "" }
-        if #available(macOS 11, iOS 14, tvOS 14, watchOS 7, *),
-           let resolvedMetatype = resolveNestedMetatype(for: mangledTypeName, parentMetadata: parentMetadata),
-           let mangledString = _mangledTypeName(resolvedMetatype),
-           let node = try? demangleAsNode(mangledString, isType: true) {
-            return node.printSemantic(using: .default).string
+        if let substitutedNode = substitutedNestedTypeNode(for: mangledTypeName, parentMetadata: parentMetadata) {
+            return substitutedNode.printSemantic(using: .default).string
         }
-        return (try? MetadataReader.demangleType(for: mangledTypeName).printSemantic(using: .default).string) ?? ""
+        return (try? MetadataReader.demangleTypeUncached(for: mangledTypeName).printSemantic(using: .default).string) ?? ""
+    }
+
+    // MARK: - Static generic-argument substitution
+    //
+    // The expanded-field-offset walker substitutes a nested type's generic
+    // parameter placeholders with the concrete types bound in the parent's
+    // specialized in-process metadata WITHOUT calling
+    // `swift_getTypeByMangledNameInContext(specializedFrom:)`. That runtime
+    // entry computes the (depth,index)→argument mapping by walking the
+    // descriptor's parent chain and authenticating signed pointers, which
+    // PAC-faults on bound generics drawn from third-party frameworks across the
+    // ObjC boundary (e.g. `SwiftUI.ObservedObject<NSObjectSubclass>`) inside an
+    // injected process — an uncatchable hardware trap. Instead we reproduce the
+    // mapping statically: the flat index is pure arithmetic (`flatIndex = index`
+    // at depth 0, see `_depthIndexToFlatIndex` in the Swift runtime's
+    // MetadataLookup.cpp), and the argument array sits immediately after the
+    // metadata header — both readable without ever handing a synthesized
+    // generic context back to the runtime.
+    //
+    // Only depth-0 parameter references are bound (the case that covers every
+    // single-level generic container — Optional, Array, Set, Dictionary,
+    // ObservedObject, …). Deeper references (nested generic type definitions
+    // like `Outer<A>.Inner<B>`) are left unbound rather than risk a wrong
+    // substitution.
+
+    /// Demangles `mangledTypeName` and rewrites every depth-0 generic parameter
+    /// placeholder into the concrete type bound by `parentMetadata`. Returns the
+    /// rewritten node, or nil only when the name cannot be demangled at all.
+    private func substitutedNestedTypeNode<ParentMetadata: ValueMetadataProtocol>(for mangledTypeName: MangledName, parentMetadata: ParentMetadata) -> Node? {
+        guard let node = try? MetadataReader.demangleTypeUncached(for: mangledTypeName) else { return nil }
+        guard let keyArgumentFlags = topLevelGenericKeyArgumentFlags(of: parentMetadata) else {
+            return node
+        }
+        let keyArgumentCount = keyArgumentFlags.lazy.filter { $0 }.count
+        return substitutingGenericParameters(in: node, parentMetadata: parentMetadata, keyArgumentFlags: keyArgumentFlags, keyArgumentCount: keyArgumentCount)
+    }
+
+    /// If `mangledTypeName` demangles to exactly one of the parent's depth-0
+    /// generic parameters, returns the concrete argument metadata bound for it;
+    /// otherwise nil. Lets recursion descend through bound generic fields
+    /// without invoking the runtime substituter.
+    private func staticallyBoundMetatype<ParentMetadata: ValueMetadataProtocol>(for mangledTypeName: MangledName, parentMetadata: ParentMetadata) -> Any.Type? {
+        guard let node = try? MetadataReader.demangleTypeUncached(for: mangledTypeName) else { return nil }
+        let typeNode = innerTypeNode(of: node)
+        guard typeNode.kind == .dependentGenericParamType,
+              let (depthValue, indexValue) = genericParameterDepthAndIndex(of: typeNode),
+              depthValue == 0,
+              let keyArgumentFlags = topLevelGenericKeyArgumentFlags(of: parentMetadata),
+              let flatIndex = depthZeroFlatIndex(forIndex: indexValue, keyArgumentFlags: keyArgumentFlags)
+        else { return nil }
+        let keyArgumentCount = keyArgumentFlags.lazy.filter { $0 }.count
+        return boundGenericArgumentType(at: flatIndex, keyArgumentCount: keyArgumentCount, of: parentMetadata)
+    }
+
+    /// Recursively rewrites depth-0 `dependentGenericParamType` nodes into the
+    /// concrete bound argument's type node, leaving everything else intact.
+    private func substitutingGenericParameters<ParentMetadata: ValueMetadataProtocol>(in node: Node, parentMetadata: ParentMetadata, keyArgumentFlags: [Bool], keyArgumentCount: Int) -> Node {
+        if #available(macOS 11, iOS 14, tvOS 14, watchOS 7, *),
+           node.kind == .dependentGenericParamType,
+           let (depthValue, indexValue) = genericParameterDepthAndIndex(of: node),
+           depthValue == 0,
+           let flatIndex = depthZeroFlatIndex(forIndex: indexValue, keyArgumentFlags: keyArgumentFlags),
+           let argumentType = boundGenericArgumentType(at: flatIndex, keyArgumentCount: keyArgumentCount, of: parentMetadata),
+           let argumentMangledString = _mangledTypeName(argumentType),
+           let argumentNode = try? demangleAsNode(argumentMangledString, isType: true) {
+            return innerTypeNode(of: argumentNode)
+        }
+        let substitutedChildren = node.children.map {
+            substitutingGenericParameters(in: $0, parentMetadata: parentMetadata, keyArgumentFlags: keyArgumentFlags, keyArgumentCount: keyArgumentCount)
+        }
+        return Node.create(kind: node.kind, contents: node.contents, children: Array(substitutedChildren))
+    }
+
+    /// Reads the concrete generic argument metadata at `flatIndex` straight out
+    /// of a specialized in-process value metadata's inline argument array
+    /// (immediately after the metadata header). Returns nil if out of range or
+    /// the metadata is not in-process.
+    private func boundGenericArgumentType<ParentMetadata: ValueMetadataProtocol>(at flatIndex: Int, keyArgumentCount: Int, of parentMetadata: ParentMetadata) -> Any.Type? {
+        guard flatIndex >= 0, flatIndex < keyArgumentCount else { return nil }
+        guard let metadataPointer = try? parentMetadata.asPointer else { return nil }
+        let genericArgumentsBase = metadataPointer.advanced(by: MemoryLayout<ParentMetadata.Layout>.size)
+        let argumentBitPattern = genericArgumentsBase.load(fromByteOffset: flatIndex * MemoryLayout<UInt>.size, as: UInt.self)
+        guard argumentBitPattern != 0, let argumentPointer = UnsafeRawPointer(bitPattern: argumentBitPattern) else { return nil }
+        return unsafeBitCast(argumentPointer, to: Any.Type.self)
+    }
+
+    /// The parent value type's depth-0 generic parameters' `hasKeyArgument`
+    /// flags (in declaration order). nil when the parent is non-generic or its
+    /// generic context can't be read.
+    private func topLevelGenericKeyArgumentFlags<ParentMetadata: ValueMetadataProtocol>(of parentMetadata: ParentMetadata) -> [Bool]? {
+        guard let descriptor = try? parentMetadata.descriptor(),
+              let genericContext = try? descriptor.genericContext(),
+              let topLevelParameters = genericContext.allParameters.first
+        else { return nil }
+        return topLevelParameters.map(\.hasKeyArgument)
+    }
+
+    /// Maps a depth-0 (declaration-order) parameter index to its flat
+    /// key-argument index, skipping any non-key parameters before it. nil if the
+    /// index is out of range or the parameter itself carries no key argument.
+    private func depthZeroFlatIndex(forIndex index: Int, keyArgumentFlags: [Bool]) -> Int? {
+        guard index >= 0, index < keyArgumentFlags.count, keyArgumentFlags[index] else { return nil }
+        return keyArgumentFlags[0..<index].lazy.filter { $0 }.count
+    }
+
+    /// Extracts (depth, index) from a `dependentGenericParamType` node, whose
+    /// two `.index` children carry the depth and index respectively.
+    private func genericParameterDepthAndIndex(of node: Node) -> (depth: Int, index: Int)? {
+        let children = Array(node.children)
+        guard children.count == 2,
+              let depthValue = children[0].index,
+              let indexValue = children[1].index
+        else { return nil }
+        return (Int(depthValue), Int(indexValue))
+    }
+
+    /// Unwraps a `.type` wrapper node to its inner type node, leaving other
+    /// nodes unchanged. Splices a demangled concrete type into the position
+    /// previously held by a parameter placeholder.
+    private func innerTypeNode(of node: Node) -> Node {
+        if node.kind == .type, let firstChild = node.firstChild {
+            return firstChild
+        }
+        return node
+    }
+
+    /// True if the node tree references any unbound generic parameter or
+    /// associated type. These are exactly the cases that make the context-free
+    /// runtime resolver `fatalError` (uncatchable) instead of returning nil, so
+    /// callers must avoid handing such names to `swift_getTypeByMangledName`.
+    private func nodeContainsDependentReference(_ node: Node) -> Bool {
+        switch node.kind {
+        case .dependentGenericParamType, .dependentMemberType, .dependentAssociatedTypeRef:
+            return true
+        default:
+            return node.children.contains { nodeContainsDependentReference($0) }
+        }
     }
 }

@@ -75,6 +75,20 @@ extension MetadataReader {
         return try demangle(for: mangledName, kind: .type, in: InProcessContext.shared)
     }
 
+    /// Demangles a type WITHOUT touching the shared node cache.
+    ///
+    /// The cached `demangleType(for:)` goes through `MetadataReaderCache`'s
+    /// `storage()` (a lazily-built, lock-guarded `SharedCache`). When a caller
+    /// invokes it *while the same thread is still inside that cache's build
+    /// closure* — e.g. a deeply recursive dumper that demangles a field type,
+    /// resolves it, then demangles a nested field type during the same
+    /// in-flight build — the re-entrant `storage()` lookup traps. Callers on
+    /// such recursive paths use this uncached entry to stay re-entrancy-safe;
+    /// they trade the node cache for correctness.
+    public static func demangleTypeUncached(for mangledName: MangledName) throws -> Node {
+        return try _demangleType(for: mangledName)
+    }
+
     public static func demangleType(for symbol: Symbol) throws -> Node? {
         if isCacheEnabled {
             return try MetadataReaderCache.shared.buildContextManglingForSymbol(symbol)
