@@ -81,16 +81,15 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
                 let mangledTypeName = try fieldRecord.mangledTypeName(in: machO)
 
                 if let fieldOffsets, let startOffset = fieldOffsets[safe: offset.index] {
-                    let endOffset: Int?
-                    if let nextFieldOffset = fieldOffsets[safe: offset.index + 1] {
-                        endOffset = nextFieldOffset
+                    let endOffset: Int? = if let nextFieldOffset = fieldOffsets[safe: offset.index + 1] {
+                        nextFieldOffset
                     } else if let machOImage = machO.asMachOImage,
                               let metatype = resolveFieldMetatype(for: mangledTypeName, in: machOImage),
                               let metadata = try? Metadata.createInProcess(metatype),
                               let typeLayout = try? metadata.asMetadataWrapper().valueWitnessTable().typeLayout {
-                        endOffset = startOffset + Int(typeLayout.size)
+                        startOffset + Int(typeLayout.size)
                     } else {
-                        endOffset = nil
+                        nil
                     }
                     configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
 
@@ -209,10 +208,6 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
     }
 }
 
-extension TypedDumper {
-    
-}
+extension TypedDumper {}
 
-extension FieldRecordFlags {
-    
-}
+extension FieldRecordFlags {}
