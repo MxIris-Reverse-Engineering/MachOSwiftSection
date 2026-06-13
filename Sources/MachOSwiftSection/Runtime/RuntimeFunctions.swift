@@ -39,10 +39,10 @@ public enum RuntimeFunctions {
     /// `metadata` must have been constructed in-process (e.g. via
     /// `createInProcess`) so that `asPointer` and `layout.descriptor.address`
     /// refer to live memory.
-    public static func getTypeByMangledNameInContext<M: ValueMetadataProtocol>(_ mangledTypeName: MangledName, specializedFrom metadata: M, in machOImage: MachOImage) throws -> Any.Type? {
+    public static func getTypeByMangledNameInContext<Metadata: ValueMetadataProtocol>(_ mangledTypeName: MangledName, specializedFrom metadata: Metadata, in machOImage: MachOImage) throws -> Any.Type? {
         let metadataPointer = try metadata.asPointer
         let descriptorPointer = try UnsafeRawPointer(bitPattern: UInt(metadata.layout.descriptor.address))
-        let genericArgumentsPointer = metadataPointer.advanced(by: MemoryLayout<M.Layout>.size)
+        let genericArgumentsPointer = metadataPointer.advanced(by: MemoryLayout<Metadata.Layout>.size)
         return try getTypeByMangledNameInContext(mangledTypeName, genericContext: descriptorPointer, genericArguments: genericArgumentsPointer, in: machOImage)
     }
 
@@ -52,10 +52,10 @@ public enum RuntimeFunctions {
     /// memory (e.g. via the no-arg `mangledTypeName()` reads of nested
     /// field records). `mangledTypeName.startOffset` is interpreted as an
     /// absolute in-process pointer rather than a Mach-O file offset.
-    public static func getTypeByMangledNameInContext<M: ValueMetadataProtocol>(_ mangledTypeName: MangledName, specializedFrom metadata: M) throws -> Any.Type? {
+    public static func getTypeByMangledNameInContext<Metadata: ValueMetadataProtocol>(_ mangledTypeName: MangledName, specializedFrom metadata: Metadata) throws -> Any.Type? {
         let metadataPointer = try metadata.asPointer
         let descriptorPointer = try UnsafeRawPointer(bitPattern: UInt(metadata.layout.descriptor.address))
-        let genericArgumentsPointer = metadataPointer.advanced(by: MemoryLayout<M.Layout>.size)
+        let genericArgumentsPointer = metadataPointer.advanced(by: MemoryLayout<Metadata.Layout>.size)
         return try getTypeByMangledNameInContext(mangledTypeName, genericContext: descriptorPointer, genericArguments: genericArgumentsPointer)
     }
 
