@@ -491,6 +491,18 @@ extension Target {
         ]
     )
 
+    /// Diffs the Swift ABI of two indexed modules. Keys every declaration on
+    /// its remangled `Node` and computes a recursive set difference; a pure
+    /// peer over the model (no Mach-O), so it only needs `SwiftDeclaration`
+    /// and `Demangling`.
+    static let SwiftDiffing = Target.target(
+        name: "SwiftDiffing",
+        dependencies: [
+            .product(.Demangling),
+            .target(.SwiftDeclaration),
+        ]
+    )
+
     /// Renders the `SwiftDeclaration` model as Swift source:
     /// `SwiftDeclarationPrinter`, the node printers/printables, and the
     /// print configuration. Consumes `SwiftAttributeInference` for the
@@ -789,6 +801,15 @@ extension Target {
         swiftSettings: testSettings
     )
 
+    static let SwiftDiffingTests = Target.testTarget(
+        name: "SwiftDiffingTests",
+        dependencies: [
+            .target(.SwiftDeclaration),
+            .target(.SwiftDiffing),
+        ],
+        swiftSettings: testSettings
+    )
+
     static let SwiftIndexingTests = Target.testTarget(
         name: "SwiftIndexingTests",
         dependencies: [
@@ -868,6 +889,7 @@ let package = Package(
         .library(.SwiftDump),
         .library(.SwiftDeclaration),
         .library(.SwiftAttributeInference),
+        .library(.SwiftDiffing),
         .library(.SwiftIndexing),
         .library(.SwiftPrinting),
         .library(.SwiftSpecialization),
@@ -893,6 +915,7 @@ let package = Package(
         .SwiftDump,
         .SwiftDeclaration,
         .SwiftAttributeInference,
+        .SwiftDiffing,
         .SwiftIndexing,
         .SwiftPrinting,
         .SwiftSpecialization,
@@ -919,6 +942,7 @@ let package = Package(
 //        .TypeIndexingTests,
         .SwiftPrintingTests,
         .SwiftAttributeInferenceTests,
+        .SwiftDiffingTests,
         .SwiftIndexingTests,
         .SwiftSpecializationTests,
         .SwiftInterfaceTests,
