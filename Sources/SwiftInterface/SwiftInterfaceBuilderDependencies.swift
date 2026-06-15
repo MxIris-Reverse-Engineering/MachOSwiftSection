@@ -1,3 +1,6 @@
+import SwiftDeclaration
+import SwiftIndexing
+import SwiftPrinting
 @preconcurrency import MachOKit
 import MachOSwiftSection
 

@@ -1,3 +1,6 @@
+import SwiftDeclaration
+import SwiftIndexing
+import SwiftPrinting
 import Demangling
 
 public protocol SwiftInterfaceBuilderExtraDataProvider: TypeNameResolvable {

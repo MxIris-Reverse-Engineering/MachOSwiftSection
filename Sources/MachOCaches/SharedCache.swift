@@ -91,7 +91,7 @@ open class SharedCache<Storage>: @unchecked Sendable {
     /// identifier. In-flight builds count as **not** cached: a caller that
     /// observes `false` here, then runs ``storage(in:)``, may end up sharing
     /// an existing in-flight build with another caller — but from the
-    /// "self-triggered" perspective (see ``SwiftInterfaceIndexer``) that is
+    /// "self-triggered" perspective (see ``SwiftDeclarationIndexer``) that is
     /// still cooperative ownership, not sole ownership, so reporting `true`
     /// for in-flight would mislead the bookkeeping.
     public func contains<MachO: MachORepresentableWithCache>(in machO: MachO) -> Bool {

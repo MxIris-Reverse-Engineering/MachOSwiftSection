@@ -1,3 +1,6 @@
+@_spi(Support) @testable import SwiftDeclaration
+@_spi(Support) @testable import SwiftIndexing
+@_spi(Support) @testable import SwiftPrinting
 import Foundation
 import Testing
 import MachOKit

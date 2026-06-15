@@ -1,0 +1,1023 @@
+import SwiftDeclaration
+import Foundation
+import MachOSwiftSection
+import MemberwiseInit
+import OrderedCollections
+import SwiftDump
+import Demangling
+import SwiftStdlibToolbox
+import MachOKit
+import Dependencies
+import Utilities
+@_spi(Internals) import MachOSymbols
+@_spi(Internals) import MachOCaches
+@_spi(Internals) import SwiftInspection
+
+public struct MachOIndexedValue<MachO: MachOSwiftSectionRepresentableWithCache, Value> {
+    public let machO: MachO
+    public let value: Value
+
+    @inlinable
+    public init(machO: MachO, value: Value) {
+        self.machO = machO
+        self.value = value
+    }
+}
+
+extension MachOIndexedValue: Equatable where Value: Equatable {
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.value == rhs.value
+    }
+}
+
+extension MachOIndexedValue: Hashable where Value: Hashable {
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(value)
+    }
+}
+
+extension MachOIndexedValue: Sendable where Value: Sendable {}
+
+@_spi(Support)
+public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentableWithCache>: Sendable {
+    @usableFromInline
+    final class Storage: Sendable {
+        @usableFromInline @Mutex
+        var types: [TypeContextWrapper] = []
+
+        @usableFromInline @Mutex
+        var protocols: [MachOSwiftSection.`Protocol`] = []
+
+        @usableFromInline @Mutex
+        var protocolConformances: [ProtocolConformance] = []
+
+        @usableFromInline @Mutex
+        var associatedTypes: [AssociatedType] = []
+
+        @usableFromInline @Mutex
+        var protocolConformancesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, ProtocolConformance>> = [:]
+
+        @usableFromInline @Mutex
+        var associatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, AssociatedType>> = [:]
+
+        @usableFromInline @Mutex
+        var conformingTypesByProtocolName: OrderedDictionary<ProtocolName, OrderedSet<TypeName>> = [:]
+
+        @usableFromInline @Mutex
+        var rootTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
+
+        @usableFromInline @Mutex
+        var allTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
+
+        @usableFromInline @Mutex
+        var rootProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> = [:]
+
+        @usableFromInline @Mutex
+        var allProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> = [:]
+
+        @usableFromInline @Mutex
+        var typeExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
+
+        @usableFromInline @Mutex
+        var protocolExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
+
+        @usableFromInline @Mutex
+        var typeAliasExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
+
+        @usableFromInline @Mutex
+        var conformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
+
+        @usableFromInline @Mutex
+        var globalVariableDefinitions: [VariableDefinition] = []
+
+        @usableFromInline @Mutex
+        var globalFunctionDefinitions: [FunctionDefinition] = []
+    }
+
+    @usableFromInline
+    struct AllStorageCache: @unchecked Sendable {
+        var allTypes: [MachOIndexedValue<MachO, TypeContextWrapper>]?
+        var allProtocols: [MachOIndexedValue<MachO, MachOSwiftSection.`Protocol`>]?
+        var allProtocolConformances: [MachOIndexedValue<MachO, ProtocolConformance>]?
+        var allAssociatedTypes: [MachOIndexedValue<MachO, AssociatedType>]?
+        var allProtocolConformancesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolConformance>>>?
+        var allAssociatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, AssociatedType>>>?
+        var allConformingTypesByProtocolName: OrderedDictionary<ProtocolName, OrderedSet<MachOIndexedValue<MachO, TypeName>>>?
+        var allRootTypeDefinitions: OrderedDictionary<TypeName, MachOIndexedValue<MachO, TypeDefinition>>?
+        var allAllTypeDefinitions: OrderedDictionary<TypeName, MachOIndexedValue<MachO, TypeDefinition>>?
+        var allRootProtocolDefinitions: OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolDefinition>>?
+        var allAllProtocolDefinitions: OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolDefinition>>?
+        var allTypeExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]>?
+        var allProtocolExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]>?
+        var allTypeAliasExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]>?
+        var allConformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]>?
+        var allGlobalVariableDefinitions: [MachOIndexedValue<MachO, VariableDefinition>]?
+        var allGlobalFunctionDefinitions: [MachOIndexedValue<MachO, FunctionDefinition>]?
+    }
+
+    public let machO: MachO
+
+    @Mutex
+    public private(set) var configuration: SwiftDeclarationIndexConfiguration = .init()
+
+    @Mutex
+    public private(set) var subIndexers: [SwiftDeclarationIndexer<MachO>] = []
+
+    @usableFromInline
+    let currentStorage: Storage = .init()
+
+    @Mutex
+    @usableFromInline
+    var allStorageCache: AllStorageCache = .init()
+
+    let eventDispatcher: SwiftIndexEvents.Dispatcher = .init()
+
+    @Mutex
+    private var isPrepared: Bool = false
+
+    /// `true` when this indexer's ``prepare()`` was the call that populated
+    /// the process-wide ``SymbolIndexStore`` entry for ``machO``. Used so
+    /// ``deinit`` can drop the entry on the way out and avoid leaking a
+    /// per-binary symbol index for the rest of the process lifetime.
+    /// Stays `false` when some other caller had already built the entry —
+    /// in that case the entry is shared state we don't own.
+    @Mutex
+    private var didTriggerSymbolIndexStoreCache: Bool = false
+
+    public init(configuration: SwiftDeclarationIndexConfiguration = .init(), eventHandlers: [SwiftIndexEvents.Handler] = [], in machO: MachO) {
+        self.machO = machO
+        self.configuration = configuration
+        eventDispatcher.addHandlers(eventHandlers)
+    }
+
+    deinit {
+        if didTriggerSymbolIndexStoreCache {
+            @Dependency(\.symbolIndexStore)
+            var symbolIndexStore
+            symbolIndexStore.remove(for: machO)
+        }
+    }
+
+    public func updateConfiguration(_ newConfiguration: SwiftDeclarationIndexConfiguration) async throws {
+        let oldConfiguration = configuration
+
+        configuration = newConfiguration
+
+        if oldConfiguration.showCImportedTypes != newConfiguration.showCImportedTypes {
+            try await prepare()
+        }
+    }
+
+    public func addSubIndexer(_ subIndexer: SwiftDeclarationIndexer<MachO>) {
+        subIndexers.append(subIndexer)
+        allStorageCache = AllStorageCache()
+    }
+
+    public func removeSubIndexer(at index: Int) {
+        subIndexers.remove(at: index)
+        allStorageCache = AllStorageCache()
+    }
+
+    public func prepare() async throws {
+        if isPrepared { return }
+        
+        eventDispatcher.dispatch(.phaseTransition(phase: .preparation, state: .started))
+
+        for subIndexer in subIndexers {
+            try await subIndexer.prepare()
+        }
+
+        do {
+            eventDispatcher.dispatch(.extractionStarted(section: .swiftTypes))
+            currentStorage.types = try machO.swift.types
+            eventDispatcher.dispatch(.extractionCompleted(result: SwiftIndexEvents.ExtractionResult(section: .swiftTypes, count: currentStorage.types.count)))
+        } catch {
+            eventDispatcher.dispatch(.extractionFailed(section: .swiftTypes, error: error))
+            currentStorage.types = []
+        }
+
+        do {
+            eventDispatcher.dispatch(.extractionStarted(section: .swiftProtocols))
+            currentStorage.protocols = try machO.swift.protocols
+            eventDispatcher.dispatch(.extractionCompleted(result: SwiftIndexEvents.ExtractionResult(section: .swiftProtocols, count: currentStorage.protocols.count)))
+        } catch {
+            eventDispatcher.dispatch(.extractionFailed(section: .swiftProtocols, error: error))
+            currentStorage.protocols = []
+        }
+
+        do {
+            eventDispatcher.dispatch(.extractionStarted(section: .protocolConformances))
+            currentStorage.protocolConformances = try machO.swift.protocolConformances
+            eventDispatcher.dispatch(.extractionCompleted(result: SwiftIndexEvents.ExtractionResult(section: .protocolConformances, count: currentStorage.protocolConformances.count)))
+        } catch {
+            eventDispatcher.dispatch(.extractionFailed(section: .protocolConformances, error: error))
+            currentStorage.protocolConformances = []
+        }
+
+        do {
+            eventDispatcher.dispatch(.extractionStarted(section: .associatedTypes))
+            currentStorage.associatedTypes = try machO.swift.associatedTypes
+            eventDispatcher.dispatch(.extractionCompleted(result: SwiftIndexEvents.ExtractionResult(section: .associatedTypes, count: currentStorage.associatedTypes.count)))
+        } catch {
+            eventDispatcher.dispatch(.extractionFailed(section: .associatedTypes, error: error))
+            currentStorage.associatedTypes = []
+        }
+
+        @Dependency(\.symbolIndexStore)
+        var symbolIndexStore
+
+        // Sample membership **before** kicking off the build. If nobody else
+        // had populated the entry by the time we check, the upcoming
+        // `prepareWithProgress` call is the one that will install it — even
+        // if a concurrent caller races us into the actual build, we still
+        // accept ownership of the cleanup so a stray entry never outlives
+        // the indexer that asked for it. False positives here (we claim
+        // ownership of an entry someone else then rebuilds) are fine: the
+        // worst case is a redundant rebuild in another indexer after we
+        // tear down, which is exactly the pre-cache status quo.
+        if !symbolIndexStore.contains(in: machO) {
+            didTriggerSymbolIndexStoreCache = true
+        }
+
+        eventDispatcher.dispatch(.extractionStarted(section: .symbolIndex))
+        var symbolIndexTotalCount = 0
+        for await progress in symbolIndexStore.prepareWithProgress(in: machO) {
+            symbolIndexTotalCount = progress.totalCount
+            eventDispatcher.dispatch(.symbolIndexProgress(currentCount: progress.currentCount, totalCount: progress.totalCount))
+        }
+        eventDispatcher.dispatch(.extractionCompleted(result: SwiftIndexEvents.ExtractionResult(section: .symbolIndex, count: symbolIndexTotalCount)))
+
+        do {
+            try await index()
+        } catch {
+            eventDispatcher.dispatch(.phaseTransition(phase: .indexing, state: .failed(error)))
+            throw error
+        }
+
+        eventDispatcher.dispatch(.phaseTransition(phase: .preparation, state: .completed))
+
+        allStorageCache = AllStorageCache()
+        isPrepared = true
+    }
+
+    private func index() async throws {
+        eventDispatcher.dispatch(.phaseTransition(phase: .indexing, state: .started))
+
+        do {
+            eventDispatcher.dispatch(.phaseOperationStarted(phase: .indexing, operation: .typeIndexing))
+            try await indexTypes()
+            eventDispatcher.dispatch(.phaseOperationCompleted(phase: .indexing, operation: .typeIndexing))
+        } catch {
+            eventDispatcher.dispatch(.phaseOperationFailed(phase: .indexing, operation: .typeIndexing, error: error))
+            throw error
+        }
+
+        do {
+            eventDispatcher.dispatch(.phaseOperationStarted(phase: .indexing, operation: .protocolIndexing))
+            try await indexProtocols()
+            eventDispatcher.dispatch(.phaseOperationCompleted(phase: .indexing, operation: .protocolIndexing))
+        } catch {
+            eventDispatcher.dispatch(.phaseOperationFailed(phase: .indexing, operation: .protocolIndexing, error: error))
+            throw error
+        }
+
+        do {
+            eventDispatcher.dispatch(.phaseOperationStarted(phase: .indexing, operation: .conformanceIndexing))
+            try await indexConformances()
+            eventDispatcher.dispatch(.phaseOperationCompleted(phase: .indexing, operation: .conformanceIndexing))
+        } catch {
+            eventDispatcher.dispatch(.phaseOperationFailed(phase: .indexing, operation: .conformanceIndexing, error: error))
+            throw error
+        }
+
+        do {
+            eventDispatcher.dispatch(.phaseOperationStarted(phase: .indexing, operation: .extensionIndexing))
+            try await indexExtensions()
+            eventDispatcher.dispatch(.phaseOperationCompleted(phase: .indexing, operation: .extensionIndexing))
+        } catch {
+            eventDispatcher.dispatch(.phaseOperationFailed(phase: .indexing, operation: .extensionIndexing, error: error))
+            throw error
+        }
+
+        try await indexGlobals()
+
+        eventDispatcher.dispatch(.phaseTransition(phase: .indexing, state: .completed))
+    }
+
+    private func indexTypes() async throws {
+        eventDispatcher.dispatch(.typeIndexingStarted(totalTypes: currentStorage.types.count))
+        var currentModuleTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
+        var cImportedCount = 0
+        var successfulCount = 0
+        var failedCount = 0
+
+        for type in currentStorage.types {
+            if let isCImportedContext = try? type.contextDescriptorWrapper.contextDescriptor.isCImportedContextDescriptor(in: machO), !configuration.showCImportedTypes, isCImportedContext {
+                cImportedCount += 1
+                eventDispatcher.dispatch(.typeProcessingSkippedCImported)
+                continue
+            }
+
+            do {
+                let declaration = try await TypeDefinition(type: type, in: machO)
+                currentModuleTypeDefinitions[declaration.typeName] = declaration
+                successfulCount += 1
+                eventDispatcher.dispatch(.typeProcessed(context: SwiftIndexEvents.TypeContext(typeName: declaration.typeName.name, kind: declaration.typeName.kind)))
+            } catch {
+                failedCount += 1
+                let failedTypeName = try? type.typeName(in: machO)
+                eventDispatcher.dispatch(.typeProcessingFailed(typeName: failedTypeName?.name, error: error))
+            }
+        }
+
+        var nestedTypeCount = 0
+        var extensionTypeCount = 0
+
+        for type in currentStorage.types {
+            guard let typeName = try? type.typeName(in: machO), let childDefinition = currentModuleTypeDefinitions[typeName] else {
+                continue
+            }
+
+            var resolvedParentName: String?
+            var parentContext = try ContextWrapper.type(type).parent(in: machO)
+
+            parentLoop: while let currentContextOrSymbol = parentContext {
+                switch currentContextOrSymbol {
+                case .symbol(let symbol):
+                    childDefinition.parentContext = .symbol(symbol)
+                    break parentLoop
+                case .element(let currentContext):
+                    if case .type(let typeContext) = currentContext, let parentTypeName = try? typeContext.typeName(in: machO) {
+                        if let parentDefinition = currentModuleTypeDefinitions[parentTypeName] {
+                            childDefinition.parent = parentDefinition
+                            parentDefinition.typeChildren.append(childDefinition)
+                            resolvedParentName = parentTypeName.name
+                        } else {
+                            childDefinition.parentContext = .type(typeContext)
+                            resolvedParentName = parentTypeName.name
+                        }
+                        nestedTypeCount += 1
+                        break parentLoop
+                    } else if case .extension(let extensionContext) = currentContext {
+                        childDefinition.parentContext = .extension(extensionContext)
+                        extensionTypeCount += 1
+                        break parentLoop
+                    }
+                    parentContext = try currentContext.parent(in: machO)
+                }
+            }
+
+            eventDispatcher.dispatch(.typeNestingResolved(context: SwiftIndexEvents.TypeNestingContext(childTypeName: typeName.name, parentTypeName: resolvedParentName)))
+        }
+
+        var rootTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> = [:]
+
+        for (typeName, typeDefinition) in currentModuleTypeDefinitions {
+            if typeDefinition.parent == nil, typeDefinition.parentContext == nil {
+                rootTypeDefinitions[typeName] = typeDefinition
+            } else if let parentContext = typeDefinition.parentContext {
+                switch parentContext {
+                case .extension(let extensionContext):
+                    guard let extendedContextMangledName = extensionContext.extendedContextMangledName else { continue }
+                    guard let extensionTypeNode = try MetadataReader.demangleType(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
+                    guard let extensionTypeKind = extensionTypeNode.typeKind else { continue }
+
+                    let extensionTypeName = TypeName(node: extensionTypeNode, kind: extensionTypeKind)
+
+                    var genericSignature: Node?
+
+                    if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO), !currentRequirements.isEmpty {
+                        genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO)
+                    }
+
+                    let extensionDefinition = try ExtensionDefinition(extensionName: extensionTypeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, in: machO)
+                    extensionDefinition.types = [typeDefinition]
+                    currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
+                case .type(let parentType):
+                    let parentTypeName = try parentType.typeName(in: machO)
+                    let extensionDefinition = try ExtensionDefinition(extensionName: parentTypeName.extensionName, genericSignature: nil, protocolConformance: nil, in: machO)
+                    extensionDefinition.types = [typeDefinition]
+                    currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
+                case .symbol(let symbol):
+                    guard let type = try MetadataReader.demangleType(for: symbol, in: machO)?.first(of: .type), let kind = type.typeKind else { continue }
+                    let parentTypeName = TypeName(node: type, kind: kind)
+                    let extensionDefinition = try ExtensionDefinition(extensionName: parentTypeName.extensionName, genericSignature: nil, protocolConformance: nil, in: machO)
+                    extensionDefinition.types = [typeDefinition]
+                    currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
+                }
+            }
+        }
+
+        currentStorage.rootTypeDefinitions = rootTypeDefinitions
+        currentStorage.allTypeDefinitions = currentModuleTypeDefinitions
+
+        eventDispatcher.dispatch(.typeIndexingCompleted(result: SwiftIndexEvents.TypeIndexingResult(totalProcessed: currentStorage.types.count, successful: successfulCount, failed: failedCount, cImportedSkipped: cImportedCount, nestedTypes: nestedTypeCount, extensionTypes: extensionTypeCount)))
+    }
+
+    private func indexProtocols() async throws {
+        eventDispatcher.dispatch(.protocolIndexingStarted(totalProtocols: currentStorage.protocols.count))
+        var rootProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> = [:]
+        var allProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> = [:]
+        var successfulCount = 0
+        var failedCount = 0
+
+        for proto in currentStorage.protocols {
+            var protocolName: ProtocolName?
+            do {
+                let protocolDefinition = try ProtocolDefinition(protocol: proto, in: machO)
+                protocolName = try proto.protocolName(in: machO)
+                if let protocolName {
+                    var parentContext = try ContextWrapper.protocol(proto).parent(in: machO)?.resolved
+                    var isRoot = true
+                    while let currentContext = parentContext {
+                        if case .type(let typeContext) = currentContext, let parentTypeName = try? typeContext.typeName(in: machO) {
+                            if let parentDefinition = currentStorage.allTypeDefinitions[parentTypeName] {
+                                protocolDefinition.parent = parentDefinition
+                                parentDefinition.protocolChildren.append(protocolDefinition)
+                                isRoot = false
+                            }
+                            break
+                        } else if case .extension(let extensionContext) = currentContext {
+                            protocolDefinition.extensionContext = extensionContext
+                            isRoot = false
+                            break
+                        }
+                        parentContext = try currentContext.parent(in: machO)?.resolved
+                    }
+                    allProtocolDefinitions[protocolName] = protocolDefinition
+                    if isRoot {
+                        rootProtocolDefinitions[protocolName] = protocolDefinition
+                    } else if let extensionContext = protocolDefinition.extensionContext, let extendedContextMangledName = extensionContext.extendedContextMangledName {
+                        guard let typeNode = try MetadataReader.demangleType(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
+                        guard let typeKind = typeNode.typeKind else { continue }
+                        let typeName = TypeName(node: typeNode, kind: typeKind)
+                        var genericSignature: Node?
+                        if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO), !currentRequirements.isEmpty {
+                            genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO)
+                        }
+                        let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, in: machO)
+                        extensionDefinition.protocols = [protocolDefinition]
+                        currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
+                    }
+
+                    successfulCount += 1
+
+                    eventDispatcher.dispatch(.protocolProcessed(context: SwiftIndexEvents.ProtocolContext(protocolName: protocolName.name, requirementCount: protocolDefinition.protocol.requirements.count)))
+                } else {
+                    failedCount += 1
+                }
+            } catch {
+                eventDispatcher.dispatch(.protocolProcessingFailed(protocolName: protocolName?.name ?? "unknown", error: error))
+                failedCount += 1
+            }
+        }
+
+        currentStorage.rootProtocolDefinitions = rootProtocolDefinitions
+        currentStorage.allProtocolDefinitions = allProtocolDefinitions
+        eventDispatcher.dispatch(.protocolIndexingCompleted(result: SwiftIndexEvents.ProtocolIndexingResult(totalProcessed: currentStorage.protocols.count, successful: successfulCount, failed: failedCount)))
+    }
+
+    private func indexConformances() async throws {
+        eventDispatcher.dispatch(.conformanceIndexingStarted(input: SwiftIndexEvents.ConformanceIndexingInput(totalConformances: currentStorage.protocolConformances.count, totalAssociatedTypes: currentStorage.associatedTypes.count)))
+        var protocolConformancesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, ProtocolConformance>> = [:]
+        var failedConformances = 0
+
+        for conformance in currentStorage.protocolConformances {
+            var typeName: TypeName?
+            var protocolName: ProtocolName?
+            do {
+                typeName = try conformance.typeName(in: machO)
+                protocolName = try conformance.protocolName(in: machO)
+                if let typeName, let protocolName {
+                    protocolConformancesByTypeName[typeName, default: [:]][protocolName] = conformance
+                    currentStorage.conformingTypesByProtocolName[protocolName, default: []].append(typeName)
+                    eventDispatcher.dispatch(.conformanceFound(context: SwiftIndexEvents.ConformanceContext(typeName: typeName.name, protocolName: protocolName.name)))
+                } else {
+                    eventDispatcher.dispatch(.nameExtractionWarning(for: .protocolConformance))
+                    failedConformances += 1
+                }
+            } catch {
+                let context = SwiftIndexEvents.ConformanceContext(typeName: typeName?.name ?? "unknown", protocolName: protocolName?.name ?? "unknown")
+                eventDispatcher.dispatch(.conformanceProcessingFailed(context: context, error: error))
+                failedConformances += 1
+            }
+        }
+
+        currentStorage.protocolConformancesByTypeName = protocolConformancesByTypeName
+
+        var associatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, AssociatedType>> = [:]
+        var failedAssociatedTypes = 0
+
+        for associatedType in currentStorage.associatedTypes {
+            var typeName: TypeName?
+            var protocolName: ProtocolName?
+            do {
+                typeName = try associatedType.typeName(in: machO)
+                protocolName = try associatedType.protocolName(in: machO)
+
+                if let typeName, let protocolName {
+                    associatedTypesByTypeName[typeName, default: [:]][protocolName] = associatedType
+                    eventDispatcher.dispatch(.associatedTypeFound(context: SwiftIndexEvents.ConformanceContext(typeName: typeName.name, protocolName: protocolName.name)))
+                } else {
+                    eventDispatcher.dispatch(.nameExtractionWarning(for: .associatedType))
+                    failedAssociatedTypes += 1
+                }
+            } catch {
+                let context = SwiftIndexEvents.ConformanceContext(typeName: typeName?.name ?? "unknown", protocolName: protocolName?.name ?? "unknown")
+                eventDispatcher.dispatch(.associatedTypeProcessingFailed(context: context, error: error))
+                failedAssociatedTypes += 1
+            }
+        }
+        currentStorage.associatedTypesByTypeName = associatedTypesByTypeName
+        var associatedTypesByTypeNameCopy = associatedTypesByTypeName
+
+        var conformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
+        var extensionCount = 0
+        var failedExtensions = 0
+
+        for (typeName, protocolConformances) in protocolConformancesByTypeName {
+            for (protocolName, protocolConformance) in protocolConformances {
+                do {
+                    let associatedType = associatedTypesByTypeNameCopy[typeName]?[protocolName]
+                    if associatedType != nil {
+                        associatedTypesByTypeNameCopy[typeName]?.removeValue(forKey: protocolName)
+                        if associatedTypesByTypeNameCopy[typeName]?.isEmpty == true {
+                            associatedTypesByTypeNameCopy.removeValue(forKey: typeName)
+                        }
+                    }
+
+                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO), protocolConformance: protocolConformance, associatedTypes: associatedType.map { [$0] } ?? [], in: machO)
+                    extensionDefinition.isRetroactive = protocolConformance.flags.isRetroactive
+                    conformanceExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
+                    extensionCount += 1
+                    eventDispatcher.dispatch(.conformanceExtensionCreated(context: SwiftIndexEvents.ConformanceContext(typeName: typeName.name, protocolName: protocolName.name)))
+                } catch {
+                    let context = SwiftIndexEvents.ConformanceContext(typeName: typeName.name, protocolName: protocolName.name)
+                    eventDispatcher.dispatch(.conformanceExtensionCreationFailed(context: context, error: error))
+                    failedExtensions += 1
+                }
+            }
+        }
+        for (remainingTypeName, remainingAssociatedTypeByProtocolName) in associatedTypesByTypeNameCopy {
+            for (_, remainingAssociatedType) in remainingAssociatedTypeByProtocolName {
+                let extensionDefinition = try ExtensionDefinition(extensionName: remainingTypeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedTypes: [remainingAssociatedType], in: machO)
+                conformanceExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
+            }
+        }
+
+        // P1-9: Merge typealias-only conformance extensions that share the same extended
+        // type. The binary emits one AssociatedType descriptor per protocol requirement,
+        // so a type conforming to multiple related protocols (e.g. Sequence + Collection
+        // + BidirectionalCollection) ends up with several bare `extension X { typealias
+        // ... }` blocks whose entries overlap. A typealias-only extension has no
+        // `protocolConformance`, no `genericSignature`, no nested types or protocols — we
+        // can safely union their `associatedTypes` into one representative block. Order is
+        // preserved by folding successors into the first occurrence.
+        var mergedConformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
+        for (extensionName, extensions) in conformanceExtensionDefinitions {
+            var primaryTypealiasOnly: ExtensionDefinition? = nil
+            var preservedExtensions: [ExtensionDefinition] = []
+            for extensionDefinition in extensions {
+                let isTypealiasOnly = extensionDefinition.protocolConformance == nil
+                    && extensionDefinition.genericSignature == nil
+                    && extensionDefinition.types.isEmpty
+                    && extensionDefinition.protocols.isEmpty
+                if isTypealiasOnly {
+                    if let existing = primaryTypealiasOnly {
+                        existing.associatedTypes.append(contentsOf: extensionDefinition.associatedTypes)
+                    } else {
+                        primaryTypealiasOnly = extensionDefinition
+                        preservedExtensions.append(extensionDefinition)
+                    }
+                } else {
+                    preservedExtensions.append(extensionDefinition)
+                }
+            }
+            mergedConformanceExtensionDefinitions[extensionName] = preservedExtensions
+        }
+
+        currentStorage.conformanceExtensionDefinitions = mergedConformanceExtensionDefinitions
+
+        // Populate conforming protocol names on each TypeDefinition for attribute inference
+        for (typeName, conformances) in protocolConformancesByTypeName {
+            if let typeDefinition = currentStorage.allTypeDefinitions[typeName] {
+                typeDefinition.conformingProtocolNames = Set(conformances.keys.map(\.name))
+            }
+        }
+
+        eventDispatcher.dispatch(.conformanceIndexingCompleted(result: SwiftIndexEvents.ConformanceIndexingResult(conformedTypes: protocolConformancesByTypeName.count, associatedTypeCount: associatedTypesByTypeName.count, extensionCount: extensionCount, failedConformances: failedConformances, failedAssociatedTypes: failedAssociatedTypes, failedExtensions: failedExtensions)))
+    }
+
+    private func indexExtensions() async throws {
+        eventDispatcher.dispatch(.extensionIndexingStarted)
+
+        @Dependency(\.symbolIndexStore)
+        var symbolIndexStore
+
+        let memberSymbolsByName = await symbolIndexStore.memberSymbols(
+            of: .allocator(inExtension: true),
+            .variable(inExtension: true, isStatic: false, isStorage: false),
+            .variable(inExtension: true, isStatic: true, isStorage: false),
+            .variable(inExtension: true, isStatic: true, isStorage: true),
+            .function(inExtension: true, isStatic: false),
+            .function(inExtension: true, isStatic: true),
+            .subscript(inExtension: true, isStatic: false),
+            .subscript(inExtension: true, isStatic: true),
+            excluding: [],
+            in: machO
+        )
+
+        var typeExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
+        var protocolExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
+        var typeAliasExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> = [:]
+        var typeExtensionCount = 0
+        var protocolExtensionCount = 0
+        var typeAliasExtensionCount = 0
+        var failedExtensions = 0
+
+        for (node, memberSymbols) in memberSymbolsByName {
+            let name = await node.print(using: .interfaceTypeBuilderOnly)
+            guard let typeInfo = symbolIndexStore.typeInfo(for: name, in: machO) else {
+                eventDispatcher.dispatch(.extensionTargetNotFound(targetName: name))
+                continue
+            }
+
+            func extensionDefinition(of kind: ExtensionKind, for memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>, genericSignature: Node?) throws -> ExtensionDefinition {
+                let extensionDefinition = try ExtensionDefinition(extensionName: .init(node: node, kind: kind), genericSignature: genericSignature, protocolConformance: nil, in: machO)
+                var memberCount = 0
+
+                for (kind, memberSymbols) in memberSymbolsByKind {
+                    switch kind {
+                    case .allocator(inExtension: true):
+                        let allocators = DefinitionBuilder.allocators(for: memberSymbols.mapToDemangledSymbolWithOffset())
+                        extensionDefinition.allocators.append(contentsOf: allocators)
+                        memberCount += allocators.count
+                    case .variable(inExtension: true, isStatic: false, isStorage: false):
+                        let variables = DefinitionBuilder.variables(for: memberSymbols.mapToDemangledSymbolWithOffset(), fieldNames: [], isGlobalOrStatic: false)
+                        extensionDefinition.variables.append(contentsOf: variables)
+                        memberCount += variables.count
+                    case .function(inExtension: true, isStatic: false):
+                        let functions = DefinitionBuilder.functions(for: memberSymbols.mapToDemangledSymbolWithOffset(), isGlobalOrStatic: false)
+                        extensionDefinition.functions.append(contentsOf: functions)
+                        memberCount += functions.count
+                    case .variable(inExtension: true, isStatic: true, _):
+                        let staticVariables = DefinitionBuilder.variables(for: memberSymbols.mapToDemangledSymbolWithOffset(), fieldNames: [], isGlobalOrStatic: true)
+                        extensionDefinition.staticVariables.append(contentsOf: staticVariables)
+                        memberCount += staticVariables.count
+                    case .function(inExtension: true, isStatic: true):
+                        let staticFunctions = DefinitionBuilder.functions(for: memberSymbols.mapToDemangledSymbolWithOffset(), isGlobalOrStatic: true)
+                        extensionDefinition.staticFunctions.append(contentsOf: staticFunctions)
+                        memberCount += staticFunctions.count
+                    case .subscript(inExtension: true, isStatic: false):
+                        let subscripts = DefinitionBuilder.subscripts(for: memberSymbols.mapToDemangledSymbolWithOffset(), isStatic: false)
+                        extensionDefinition.subscripts.append(contentsOf: subscripts)
+                        memberCount += subscripts.count
+                    case .subscript(inExtension: true, isStatic: true):
+                        let staticSubscripts = DefinitionBuilder.subscripts(for: memberSymbols.mapToDemangledSymbolWithOffset(), isStatic: true)
+                        extensionDefinition.staticSubscripts.append(contentsOf: staticSubscripts)
+                        memberCount += staticSubscripts.count
+                    default:
+                        break
+                    }
+                }
+
+                extensionDefinition.orderedMembers = OrderedMember.offsetOrdered(OrderedMember.allMembers(from: extensionDefinition))
+
+                eventDispatcher.dispatch(.extensionCreated(context: SwiftIndexEvents.ExtensionContext(targetName: name, memberCount: memberCount)))
+                return extensionDefinition
+            }
+
+            var memberSymbolsByGenericSignature: OrderedDictionary<Node, OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>> = [:]
+            var memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]> = [:]
+
+            for (kind, memberSymbols) in memberSymbols {
+                for memberSymbol in memberSymbols {
+                    if let genericSignature = memberSymbol.demangledNode.first(of: .dependentGenericSignature), case .variable = kind {
+                        memberSymbolsByGenericSignature[genericSignature, default: [:]][kind, default: []].append(memberSymbol)
+                    } else {
+                        memberSymbolsByKind[kind, default: []].append(memberSymbol)
+                    }
+                }
+            }
+
+            do {
+                if let typeKind = typeInfo.kind.typeKind {
+                    let extensionName = ExtensionName(node: node, kind: .type(typeKind))
+
+                    for (node, memberSymbolsByKind) in memberSymbolsByGenericSignature {
+                        try typeExtensionDefinitions[extensionName, default: []].append(extensionDefinition(of: .type(typeKind), for: memberSymbolsByKind, genericSignature: node))
+                        typeExtensionCount += 1
+                    }
+                    if !memberSymbolsByKind.isEmpty {
+                        try typeExtensionDefinitions[extensionName, default: []].append(extensionDefinition(of: .type(typeKind), for: memberSymbolsByKind, genericSignature: nil))
+                        typeExtensionCount += 1
+                    }
+
+                } else if typeInfo.kind == .protocol {
+                    let extensionName = ExtensionName(node: node, kind: .protocol)
+
+                    for (node, memberSymbolsByKind) in memberSymbolsByGenericSignature {
+                        try protocolExtensionDefinitions[extensionName, default: []].append(extensionDefinition(of: .protocol, for: memberSymbolsByKind, genericSignature: node))
+                        protocolExtensionCount += 1
+                    }
+                    if !memberSymbolsByKind.isEmpty {
+                        try protocolExtensionDefinitions[extensionName, default: []].append(extensionDefinition(of: .protocol, for: memberSymbolsByKind, genericSignature: nil))
+                        protocolExtensionCount += 1
+                    }
+                } else {
+                    let extensionName = ExtensionName(node: node, kind: .typeAlias)
+
+                    for (node, memberSymbolsByKind) in memberSymbolsByGenericSignature {
+                        try typeAliasExtensionDefinitions[extensionName, default: []].append(extensionDefinition(of: .typeAlias, for: memberSymbolsByKind, genericSignature: node))
+                        typeAliasExtensionCount += 1
+                    }
+                    if !memberSymbolsByKind.isEmpty {
+                        try typeAliasExtensionDefinitions[extensionName, default: []].append(extensionDefinition(of: .typeAlias, for: memberSymbolsByKind, genericSignature: nil))
+                        typeAliasExtensionCount += 1
+                    }
+                }
+            } catch {
+                eventDispatcher.dispatch(.extensionCreationFailed(targetName: name, error: error))
+                failedExtensions += 1
+            }
+        }
+
+        for (extensionName, typeExtensionDefinition) in typeExtensionDefinitions {
+            currentStorage.typeExtensionDefinitions[extensionName, default: []].append(contentsOf: typeExtensionDefinition)
+        }
+
+        for (extensionName, protocolExtensionDefinition) in protocolExtensionDefinitions {
+            currentStorage.protocolExtensionDefinitions[extensionName, default: []].append(contentsOf: protocolExtensionDefinition)
+        }
+
+        currentStorage.typeAliasExtensionDefinitions = typeAliasExtensionDefinitions
+
+        eventDispatcher.dispatch(.extensionIndexingCompleted(result: SwiftIndexEvents.ExtensionIndexingResult(typeExtensions: typeExtensionCount, protocolExtensions: protocolExtensionCount, typeAliasExtensions: typeAliasExtensionCount, failed: failedExtensions)))
+    }
+
+    private func indexGlobals() async throws {
+        @Dependency(\.symbolIndexStore)
+        var symbolIndexStore
+
+        currentStorage.globalVariableDefinitions = DefinitionBuilder.variables(for: symbolIndexStore.globalSymbols(of: .variable(isStorage: false), .variable(isStorage: true), in: machO).mapToDemangledSymbolWithOffset(), fieldNames: [], isGlobalOrStatic: true)
+        currentStorage.globalFunctionDefinitions = DefinitionBuilder.functions(for: symbolIndexStore.globalSymbols(of: .function, in: machO).mapToDemangledSymbolWithOffset(), isGlobalOrStatic: true)
+    }
+}
+
+// MARK: - Current Storage Property Mappings
+
+extension SwiftDeclarationIndexer {
+    @inlinable
+    public var types: [TypeContextWrapper] { currentStorage.types }
+
+    @inlinable
+    public var protocols: [MachOSwiftSection.`Protocol`] { currentStorage.protocols }
+
+    @inlinable
+    public var protocolConformances: [ProtocolConformance] { currentStorage.protocolConformances }
+
+    @inlinable
+    public var associatedTypes: [AssociatedType] { currentStorage.associatedTypes }
+
+    @inlinable
+    public var protocolConformancesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, ProtocolConformance>> { currentStorage.protocolConformancesByTypeName }
+
+    @inlinable
+    public var associatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, AssociatedType>> { currentStorage.associatedTypesByTypeName }
+
+    @inlinable
+    public var conformingTypesByProtocolName: OrderedDictionary<ProtocolName, OrderedSet<TypeName>> { currentStorage.conformingTypesByProtocolName }
+
+    @inlinable
+    public var rootTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> { currentStorage.rootTypeDefinitions }
+
+    @inlinable
+    public var allTypeDefinitions: OrderedDictionary<TypeName, TypeDefinition> { currentStorage.allTypeDefinitions }
+
+    @inlinable
+    public var rootProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> { currentStorage.rootProtocolDefinitions }
+
+    @inlinable
+    public var allProtocolDefinitions: OrderedDictionary<ProtocolName, ProtocolDefinition> { currentStorage.allProtocolDefinitions }
+
+    @inlinable
+    public var typeExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> { currentStorage.typeExtensionDefinitions }
+
+    @inlinable
+    public var protocolExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> { currentStorage.protocolExtensionDefinitions }
+
+    @inlinable
+    public var typeAliasExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> { currentStorage.typeAliasExtensionDefinitions }
+
+    @inlinable
+    public var conformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [ExtensionDefinition]> { currentStorage.conformanceExtensionDefinitions }
+
+    @inlinable
+    public var globalVariableDefinitions: [VariableDefinition] { currentStorage.globalVariableDefinitions }
+
+    @inlinable
+    public var globalFunctionDefinitions: [FunctionDefinition] { currentStorage.globalFunctionDefinitions }
+}
+
+// MARK: - All Storage Property Mappings (Current + SubIndexers)
+
+// The merged "all*" aggregates fan out across the entire sub-indexer tree, which
+// makes them expensive to recompute. They were the dominant O(n²) hotspot in
+// callers that read these properties inside per-type loops. We memoize them on
+// the indexer; the cache is invalidated whenever `prepare()`, `addSubIndexer`,
+// or `removeSubIndexer` runs. After `prepare()` the indexer is treated as
+// effectively read-only — modifying a sub-indexer in place after a parent has
+// populated its cache will not propagate, so reorganize hierarchies before the
+// first read.
+extension SwiftDeclarationIndexer {
+    public var allTypes: [MachOIndexedValue<MachO, TypeContextWrapper>] {
+        if let cached = allStorageCache.allTypes { return cached }
+        let result = currentStorage.types.map { MachOIndexedValue(machO: machO, value: $0) } + subIndexers.flatMap { $0.allTypes }
+        allStorageCache.allTypes = result
+        return result
+    }
+
+    public var allProtocols: [MachOIndexedValue<MachO, MachOSwiftSection.`Protocol`>] {
+        if let cached = allStorageCache.allProtocols { return cached }
+        let result = currentStorage.protocols.map { MachOIndexedValue(machO: machO, value: $0) } + subIndexers.flatMap { $0.allProtocols }
+        allStorageCache.allProtocols = result
+        return result
+    }
+
+    public var allProtocolConformances: [MachOIndexedValue<MachO, ProtocolConformance>] {
+        if let cached = allStorageCache.allProtocolConformances { return cached }
+        let result = currentStorage.protocolConformances.map { MachOIndexedValue(machO: machO, value: $0) } + subIndexers.flatMap { $0.allProtocolConformances }
+        allStorageCache.allProtocolConformances = result
+        return result
+    }
+
+    public var allAssociatedTypes: [MachOIndexedValue<MachO, AssociatedType>] {
+        if let cached = allStorageCache.allAssociatedTypes { return cached }
+        let result = currentStorage.associatedTypes.map { MachOIndexedValue(machO: machO, value: $0) } + subIndexers.flatMap { $0.allAssociatedTypes }
+        allStorageCache.allAssociatedTypes = result
+        return result
+    }
+
+    public var allProtocolConformancesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolConformance>>> {
+        if let cached = allStorageCache.allProtocolConformancesByTypeName { return cached }
+        var result: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolConformance>>> = currentStorage.protocolConformancesByTypeName.mapValues { $0.mapValues { .init(machO: machO, value: $0) } }
+        for subIndexer in subIndexers {
+            for (typeName, conformances) in subIndexer.allProtocolConformancesByTypeName {
+                result[typeName, default: [:]].merge(conformances) { current, _ in current }
+            }
+        }
+        allStorageCache.allProtocolConformancesByTypeName = result
+        return result
+    }
+
+    public var allAssociatedTypesByTypeName: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, AssociatedType>>> {
+        if let cached = allStorageCache.allAssociatedTypesByTypeName { return cached }
+        var result: OrderedDictionary<TypeName, OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, AssociatedType>>> = currentStorage.associatedTypesByTypeName.mapValues { $0.mapValues { .init(machO: machO, value: $0) } }
+        for subIndexer in subIndexers {
+            for (typeName, associatedTypes) in subIndexer.allAssociatedTypesByTypeName {
+                result[typeName, default: [:]].merge(associatedTypes) { current, _ in current }
+            }
+        }
+        allStorageCache.allAssociatedTypesByTypeName = result
+        return result
+    }
+
+    public var allConformingTypesByProtocolName: OrderedDictionary<ProtocolName, OrderedSet<MachOIndexedValue<MachO, TypeName>>> {
+        if let cached = allStorageCache.allConformingTypesByProtocolName { return cached }
+        var result: OrderedDictionary<ProtocolName, OrderedSet<MachOIndexedValue<MachO, TypeName>>> = [:]
+        for (protocolName, typeNames) in currentStorage.conformingTypesByProtocolName {
+            result[protocolName] = OrderedSet(typeNames.map { .init(machO: machO, value: $0) })
+        }
+        for subIndexer in subIndexers {
+            for (protocolName, typeNames) in subIndexer.allConformingTypesByProtocolName {
+                result[protocolName, default: []].formUnion(typeNames)
+            }
+        }
+        allStorageCache.allConformingTypesByProtocolName = result
+        return result
+    }
+
+    public var allRootTypeDefinitions: OrderedDictionary<TypeName, MachOIndexedValue<MachO, TypeDefinition>> {
+        if let cached = allStorageCache.allRootTypeDefinitions { return cached }
+        var result = currentStorage.rootTypeDefinitions.mapValues { MachOIndexedValue(machO: machO, value: $0) }
+        for subIndexer in subIndexers {
+            result.merge(subIndexer.allRootTypeDefinitions) { current, _ in current }
+        }
+        allStorageCache.allRootTypeDefinitions = result
+        return result
+    }
+
+    public var allAllTypeDefinitions: OrderedDictionary<TypeName, MachOIndexedValue<MachO, TypeDefinition>> {
+        if let cached = allStorageCache.allAllTypeDefinitions { return cached }
+        var result = currentStorage.allTypeDefinitions.mapValues { MachOIndexedValue(machO: machO, value: $0) }
+        for subIndexer in subIndexers {
+            result.merge(subIndexer.allAllTypeDefinitions) { current, _ in current }
+        }
+        allStorageCache.allAllTypeDefinitions = result
+        return result
+    }
+
+    public var allRootProtocolDefinitions: OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolDefinition>> {
+        if let cached = allStorageCache.allRootProtocolDefinitions { return cached }
+        var result = currentStorage.rootProtocolDefinitions.mapValues { MachOIndexedValue(machO: machO, value: $0) }
+        for subIndexer in subIndexers {
+            result.merge(subIndexer.allRootProtocolDefinitions) { current, _ in current }
+        }
+        allStorageCache.allRootProtocolDefinitions = result
+        return result
+    }
+
+    public var allAllProtocolDefinitions: OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolDefinition>> {
+        if let cached = allStorageCache.allAllProtocolDefinitions { return cached }
+        var result = currentStorage.allProtocolDefinitions.mapValues { MachOIndexedValue(machO: machO, value: $0) }
+        for subIndexer in subIndexers {
+            result.merge(subIndexer.allAllProtocolDefinitions) { prevValue, nextValue in prevValue }
+        }
+        allStorageCache.allAllProtocolDefinitions = result
+        return result
+    }
+
+    public var allTypeExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> {
+        if let cached = allStorageCache.allTypeExtensionDefinitions { return cached }
+        var result: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> = currentStorage.typeExtensionDefinitions.mapValues { $0.map { .init(machO: machO, value: $0) } }
+        for subIndexer in subIndexers {
+            for (extensionName, definitions) in subIndexer.allTypeExtensionDefinitions {
+                result[extensionName, default: []].append(contentsOf: definitions)
+            }
+        }
+        allStorageCache.allTypeExtensionDefinitions = result
+        return result
+    }
+
+    public var allProtocolExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> {
+        if let cached = allStorageCache.allProtocolExtensionDefinitions { return cached }
+        var result: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> = currentStorage.protocolExtensionDefinitions.mapValues { $0.map { .init(machO: machO, value: $0) } }
+        for subIndexer in subIndexers {
+            for (extensionName, definitions) in subIndexer.allProtocolExtensionDefinitions {
+                result[extensionName, default: []].append(contentsOf: definitions)
+            }
+        }
+        allStorageCache.allProtocolExtensionDefinitions = result
+        return result
+    }
+
+    public var allTypeAliasExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> {
+        if let cached = allStorageCache.allTypeAliasExtensionDefinitions { return cached }
+        var result: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> = currentStorage.typeAliasExtensionDefinitions.mapValues { $0.map { .init(machO: machO, value: $0) } }
+        for subIndexer in subIndexers {
+            for (extensionName, definitions) in subIndexer.allTypeAliasExtensionDefinitions {
+                result[extensionName, default: []].append(contentsOf: definitions)
+            }
+        }
+        allStorageCache.allTypeAliasExtensionDefinitions = result
+        return result
+    }
+
+    public var allConformanceExtensionDefinitions: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> {
+        if let cached = allStorageCache.allConformanceExtensionDefinitions { return cached }
+        var result: OrderedDictionary<ExtensionName, [MachOIndexedValue<MachO, ExtensionDefinition>]> = currentStorage.conformanceExtensionDefinitions.mapValues { $0.map { .init(machO: machO, value: $0) } }
+        for subIndexer in subIndexers {
+            for (extensionName, definitions) in subIndexer.allConformanceExtensionDefinitions {
+                result[extensionName, default: []].append(contentsOf: definitions)
+            }
+        }
+        allStorageCache.allConformanceExtensionDefinitions = result
+        return result
+    }
+
+    public var allGlobalVariableDefinitions: [MachOIndexedValue<MachO, VariableDefinition>] {
+        if let cached = allStorageCache.allGlobalVariableDefinitions { return cached }
+        let result = currentStorage.globalVariableDefinitions.map { MachOIndexedValue(machO: machO, value: $0) } + subIndexers.flatMap { $0.allGlobalVariableDefinitions }
+        allStorageCache.allGlobalVariableDefinitions = result
+        return result
+    }
+
+    public var allGlobalFunctionDefinitions: [MachOIndexedValue<MachO, FunctionDefinition>] {
+        if let cached = allStorageCache.allGlobalFunctionDefinitions { return cached }
+        let result = currentStorage.globalFunctionDefinitions.map { MachOIndexedValue(machO: machO, value: $0) } + subIndexers.flatMap { $0.allGlobalFunctionDefinitions }
+        allStorageCache.allGlobalFunctionDefinitions = result
+        return result
+    }
+}
+
+// MARK: - Statistics
+
+extension SwiftDeclarationIndexer {
+    @inlinable
+    public var numberOfTypes: Int { currentStorage.types.count }
+
+    @inlinable
+    public var numberOfEnums: Int { currentStorage.types.filter { $0.isEnum }.count }
+
+    @inlinable
+    public var numberOfStructs: Int { currentStorage.types.filter { $0.isStruct }.count }
+
+    @inlinable
+    public var numberOfClasses: Int { currentStorage.types.filter { $0.isClass }.count }
+
+    @inlinable
+    public var numberOfProtocols: Int { currentStorage.protocols.count }
+
+    @inlinable
+    public var numberOfProtocolConformances: Int { currentStorage.protocolConformances.count }
+}

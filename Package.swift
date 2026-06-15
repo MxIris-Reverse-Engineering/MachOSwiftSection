@@ -433,6 +433,110 @@ extension Target {
         ]
     )
 
+    /// Shared declaration model: `TypeDefinition`, `ProtocolDefinition`,
+    /// `ExtensionDefinition`, names, kinds, and `DefinitionBuilder`. Consumed by
+    /// both `SwiftIndexing` (which populates it) and `SwiftPrinting` (which
+    /// renders it), keeping those two peers that never depend on each other.
+    static let SwiftDeclaration = Target.target(
+        name: "SwiftDeclaration",
+        dependencies: [
+            .product(.MachOKit),
+            .product(.MachOObjCSection),
+            .product(.Semantic),
+            .product(.Demangling),
+            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+            .target(.MachOSwiftSection),
+            .target(.SwiftInspection),
+            .target(.SwiftDump),
+            .target(.Utilities),
+        ]
+    )
+
+    /// Builds the `SwiftDeclaration` model from a Mach-O image:
+    /// `SwiftDeclarationIndexer`, its events/configuration, and the
+    /// `GenericSpecializer` analysis built on top of the index.
+    static let SwiftIndexing = Target.target(
+        name: "SwiftIndexing",
+        dependencies: [
+            .product(.MachOKit),
+            .product(.MachOObjCSection),
+            .product(.Semantic),
+            .product(.Demangling),
+            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+            .target(.MachOSwiftSection),
+            .target(.SwiftInspection),
+            .target(.SwiftDump),
+            .target(.Utilities),
+            .target(.SwiftDeclaration),
+        ]
+    )
+
+    /// Infers source-level Swift attributes (`@propertyWrapper`,
+    /// `@resultBuilder`, `@dynamicMemberLookup`, `@objc`, …) from the
+    /// `SwiftDeclaration` model. A low-level peer over the model so the
+    /// inference can be reused independently of printing.
+    static let SwiftAttributeInference = Target.target(
+        name: "SwiftAttributeInference",
+        dependencies: [
+            .product(.MachOKit),
+            .product(.MachOObjCSection),
+            .product(.Semantic),
+            .product(.Demangling),
+            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+            .target(.MachOSwiftSection),
+            .target(.SwiftInspection),
+            .target(.SwiftDump),
+            .target(.Utilities),
+            .target(.SwiftDeclaration),
+        ]
+    )
+
+    /// Renders the `SwiftDeclaration` model as Swift source:
+    /// `SwiftDeclarationPrinter`, the node printers/printables, and the
+    /// print configuration. Consumes `SwiftAttributeInference` for the
+    /// attribute annotations.
+    static let SwiftPrinting = Target.target(
+        name: "SwiftPrinting",
+        dependencies: [
+            .product(.MachOKit),
+            .product(.MachOObjCSection),
+            .product(.Semantic),
+            .product(.Demangling),
+            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+            .target(.MachOSwiftSection),
+            .target(.SwiftInspection),
+            .target(.SwiftDump),
+            .target(.Utilities),
+            .target(.SwiftDeclaration),
+            .target(.SwiftAttributeInference),
+        ]
+    )
+
+    /// Runtime generic-specialization engine (`GenericSpecializer`,
+    /// `ConformanceProvider`). Sits above `SwiftIndexing` because it queries a
+    /// populated index to resolve candidates and conformances; kept out of
+    /// `SwiftIndexing` so the index can be built and consumed without pulling
+    /// in the runtime specialization machinery.
+    static let SwiftSpecialization = Target.target(
+        name: "SwiftSpecialization",
+        dependencies: [
+            .product(.MachOKit),
+            .product(.MachOObjCSection),
+            .product(.Semantic),
+            .product(.Demangling),
+            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
+            .product(name: "AssociatedObject", package: "AssociatedObject"),
+            .target(.MachOSwiftSection),
+            .target(.SwiftInspection),
+            .target(.SwiftDump),
+            .target(.Utilities),
+            .target(.SwiftDeclaration),
+            .target(.SwiftIndexing),
+        ]
+    )
+
+    /// Orchestrator: `SwiftInterfaceBuilder` ties indexing and printing
+    /// together into a full interface dump.
     static let SwiftInterface = Target.target(
         name: "SwiftInterface",
         dependencies: [
@@ -445,6 +549,10 @@ extension Target {
             .target(.SwiftInspection),
             .target(.SwiftDump),
             .target(.Utilities),
+            .target(.SwiftDeclaration),
+            .target(.SwiftIndexing),
+            .target(.SwiftPrinting),
+            .target(.SwiftSpecialization),
         ],
     )
 
@@ -468,6 +576,9 @@ extension Target {
         name: "swift-section",
         dependencies: [
             .target(.SwiftDump),
+            .target(.SwiftDeclaration),
+            .target(.SwiftIndexing),
+            .target(.SwiftPrinting),
             .target(.SwiftInterface),
             .product(name: "Rainbow", package: "Rainbow"),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
@@ -533,6 +644,9 @@ extension Target {
             .target(.MachOResolving),
             .target(.MachOSwiftSectionC),
             .target(.SwiftDump),
+            .target(.SwiftDeclaration),
+            .target(.SwiftIndexing),
+            .target(.SwiftPrinting),
             .target(.SwiftInterface),
             .target(.MachOTestingSupportC),
             .product(.Demangling),
@@ -556,6 +670,10 @@ extension Target {
             .target(.MachOResolving),
             .target(.MachOFixtureSupport),
             .target(.MachOSwiftSection),
+            .target(.SwiftDeclaration),
+            .target(.SwiftIndexing),
+            .target(.SwiftPrinting),
+            .target(.SwiftSpecialization),
             .target(.SwiftInterface),
         ],
         swiftSettings: testSettings
@@ -635,10 +753,64 @@ extension Target {
     static let SwiftInterfaceTests = Target.testTarget(
         name: "SwiftInterfaceTests",
         dependencies: [
+            .target(.SwiftDeclaration),
+            .target(.SwiftIndexing),
+            .target(.SwiftPrinting),
+            .target(.SwiftSpecialization),
             .target(.SwiftInterface),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+        ],
+        swiftSettings: testSettings
+    )
+
+    static let SwiftPrintingTests = Target.testTarget(
+        name: "SwiftPrintingTests",
+        dependencies: [
+            .target(.SwiftDeclaration),
+            .target(.SwiftIndexing),
+            .target(.SwiftPrinting),
+            .target(.MachOTestingSupport),
+            .target(.MachOFixtureSupport),
+        ],
+        swiftSettings: testSettings
+    )
+
+    static let SwiftAttributeInferenceTests = Target.testTarget(
+        name: "SwiftAttributeInferenceTests",
+        dependencies: [
+            .target(.SwiftDeclaration),
+            .target(.SwiftIndexing),
+            .target(.SwiftAttributeInference),
+            .target(.MachOTestingSupport),
+            .target(.MachOFixtureSupport),
+        ],
+        swiftSettings: testSettings
+    )
+
+    static let SwiftIndexingTests = Target.testTarget(
+        name: "SwiftIndexingTests",
+        dependencies: [
+            .target(.SwiftDeclaration),
+            .target(.SwiftIndexing),
+            .target(.SwiftPrinting),
+            .target(.SwiftAttributeInference),
+            .target(.MachOTestingSupport),
+            .target(.MachOFixtureSupport),
+        ],
+        swiftSettings: testSettings
+    )
+
+    static let SwiftSpecializationTests = Target.testTarget(
+        name: "SwiftSpecializationTests",
+        dependencies: [
+            .target(.SwiftDeclaration),
+            .target(.SwiftIndexing),
+            .target(.SwiftPrinting),
+            .target(.SwiftSpecialization),
+            .target(.MachOTestingSupport),
+            .target(.MachOFixtureSupport),
         ],
         swiftSettings: testSettings
     )
@@ -670,6 +842,9 @@ extension Target {
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.SwiftDump),
+            .target(.SwiftDeclaration),
+            .target(.SwiftIndexing),
+            .target(.SwiftPrinting),
             .target(.SwiftInterface),
 //            .target(.TypeIndexing),
             .target(.MachOTestingSupport),
@@ -691,6 +866,11 @@ let package = Package(
         .library(.MachOSwiftSection),
         .library(.SwiftInspection),
         .library(.SwiftDump),
+        .library(.SwiftDeclaration),
+        .library(.SwiftAttributeInference),
+        .library(.SwiftIndexing),
+        .library(.SwiftPrinting),
+        .library(.SwiftSpecialization),
         .library(.SwiftInterface),
 //        .library(.TypeIndexing),
         .executable(.swift_section),
@@ -711,6 +891,11 @@ let package = Package(
         .MachOSwiftSection,
         .SwiftInspection,
         .SwiftDump,
+        .SwiftDeclaration,
+        .SwiftAttributeInference,
+        .SwiftIndexing,
+        .SwiftPrinting,
+        .SwiftSpecialization,
         .SwiftInterface,
 //        .TypeIndexing,
         .MachOMacros,
@@ -732,6 +917,10 @@ let package = Package(
         .SwiftInspectionTests,
         .SwiftDumpTests,
 //        .TypeIndexingTests,
+        .SwiftPrintingTests,
+        .SwiftAttributeInferenceTests,
+        .SwiftIndexingTests,
+        .SwiftSpecializationTests,
         .SwiftInterfaceTests,
         .MachOTestingSupportTests,
         .IntegrationTests,

@@ -1,3 +1,6 @@
+@_spi(Support) @testable import SwiftDeclaration
+@_spi(Support) @testable import SwiftIndexing
+@_spi(Support) @testable import SwiftPrinting
 import Foundation
 import Testing
 import MachOKit
@@ -14,7 +17,7 @@ import MachOFixtureSupport
 final class STCoreE2ETests: MachOFileTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .SymbolTestsCore }
 
-    private func buildOutput(memberSortOrder: SwiftInterfaceMemberSortOrder = .byOffset) async throws -> String {
+    private func buildOutput(memberSortOrder: SwiftDeclarationMemberSortOrder = .byOffset) async throws -> String {
         let configuration = SwiftInterfaceBuilderConfiguration(
             indexConfiguration: .init(showCImportedTypes: false),
             printConfiguration: .init(

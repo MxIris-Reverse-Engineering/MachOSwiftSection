@@ -1,3 +1,6 @@
+import SwiftDeclaration
+import SwiftIndexing
+import SwiftPrinting
 public enum DependencyPath: CustomStringConvertible {
     /// A path to a specific Mach-O binary file
     case machO(String)

@@ -1,3 +1,7 @@
+import SwiftDeclaration
+@_spi(Support) import SwiftIndexing
+@_spi(Support) import SwiftPrinting
+@_spi(Support) import SwiftSpecialization
 import MachOSwiftSection
 import MemberwiseInit
 import OrderedCollections
@@ -19,10 +23,10 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     public let machO: MachO
 
     @_spi(Support)
-    public let indexer: SwiftInterfaceIndexer<MachO>
+    public let indexer: SwiftDeclarationIndexer<MachO>
 
     @_spi(Support)
-    public let printer: SwiftInterfacePrinter<MachO>
+    public let printer: SwiftDeclarationPrinter<MachO>
 
     @Mutex
     public var configuration: SwiftInterfaceBuilderConfiguration = .init()
@@ -33,7 +37,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     @Mutex
     public private(set) var extraDataProviders: [SwiftInterfaceBuilderExtraDataProvider] = []
 
-    private let eventDispatcher: SwiftInterfaceEvents.Dispatcher
+    private let eventDispatcher: SwiftIndexEvents.Dispatcher
 
     private var allExtensionDefinitions: [ExtensionDefinition] {
         (indexer.typeExtensionDefinitions.values.flatMap { $0 } + indexer.protocolExtensionDefinitions.values.flatMap { $0 } + indexer.typeAliasExtensionDefinitions.values.flatMap { $0 } + indexer.conformanceExtensionDefinitions.values.flatMap { $0 })
@@ -46,7 +50,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     ///   - eventDispatcher: An event dispatcher for handling logging and progress events. A new one is created by default.
     ///   - machO: The Mach-O binary to analyze and generate interfaces from.
     /// - Throws: An error if the binary cannot be read or if required Swift sections are missing.
-    public init(configuration: SwiftInterfaceBuilderConfiguration = .init(), eventHandlers: [SwiftInterfaceEvents.Handler] = [], in machO: MachO) throws {
+    public init(configuration: SwiftInterfaceBuilderConfiguration = .init(), eventHandlers: [SwiftIndexEvents.Handler] = [], in machO: MachO) throws {
         self.eventDispatcher = .init()
         self.machO = machO
         self.indexer = .init(configuration: configuration.indexConfiguration, eventHandlers: eventHandlers, in: machO)
@@ -56,7 +60,7 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
     }
 
     @_spi(Support)
-    public init(indexer: SwiftInterfaceIndexer<MachO>, printer: SwiftInterfacePrinter<MachO>, eventHandlers: [SwiftInterfaceEvents.Handler] = [], in machO: MachO) {
+    public init(indexer: SwiftDeclarationIndexer<MachO>, printer: SwiftDeclarationPrinter<MachO>, eventHandlers: [SwiftIndexEvents.Handler] = [], in machO: MachO) {
         self.eventDispatcher = .init()
         self.machO = machO
         self.indexer = indexer
@@ -191,19 +195,19 @@ public final class SwiftInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWi
         let filterModules: Set<String> = [cModule, objcModule, stdlibName]
         let allSymbols = symbolIndexStore.allSymbols(in: machO)
 
-        eventDispatcher.dispatch(.symbolScanStarted(context: SwiftInterfaceEvents.SymbolScanContext(totalSymbols: allSymbols.count, filterModules: Array(filterModules.sorted()))))
+        eventDispatcher.dispatch(.symbolScanStarted(context: SwiftIndexEvents.SymbolScanContext(totalSymbols: allSymbols.count, filterModules: Array(filterModules.sorted()))))
 
         for symbol in allSymbols {
             for moduleNode in symbol.demangledNode.all(of: .module) {
                 if let module = moduleNode.text, !filterModules.contains(module) {
                     if usedModules.append(module).inserted {
-                        eventDispatcher.dispatch(.moduleFound(context: SwiftInterfaceEvents.ModuleContext(moduleName: module)))
+                        eventDispatcher.dispatch(.moduleFound(context: SwiftIndexEvents.ModuleContext(moduleName: module)))
                     }
                 }
             }
         }
 
         importedModules = usedModules
-        eventDispatcher.dispatch(.moduleCollectionCompleted(result: SwiftInterfaceEvents.ModuleCollectionResult(moduleCount: usedModules.count, modules: Array(usedModules.sorted()))))
+        eventDispatcher.dispatch(.moduleCollectionCompleted(result: SwiftIndexEvents.ModuleCollectionResult(moduleCount: usedModules.count, modules: Array(usedModules.sorted()))))
     }
 }
