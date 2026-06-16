@@ -3,7 +3,7 @@ import Semantic
 import Demangling
 
 @MemberwiseInit(.public)
-public struct ExtensionName: DefinitionName, Hashable, Sendable {
+public struct ExtensionName: DefinitionName, Hashable, Sendable, Codable {
     public let node: Node
 
     public let kind: ExtensionKind

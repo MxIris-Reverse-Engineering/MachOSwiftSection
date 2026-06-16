@@ -1,4 +1,4 @@
-public enum FunctionKind: Sendable {
+public enum FunctionKind: Sendable, Codable {
     case function
     case allocator
     case constructor

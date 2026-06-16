@@ -1,6 +1,6 @@
 import Semantic
 
-public enum SwiftAttribute: Int, Comparable, Sendable, CaseIterable {
+public enum SwiftAttribute: Int, Comparable, Sendable, CaseIterable, Codable {
     // Type-level (inferred from members)
     case propertyWrapper
     case resultBuilder

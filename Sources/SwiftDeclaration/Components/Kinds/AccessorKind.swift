@@ -1,4 +1,4 @@
-public enum AccessorKind: Sendable {
+public enum AccessorKind: Sendable, Codable {
     case getter
     case setter
     case modifyAccessor

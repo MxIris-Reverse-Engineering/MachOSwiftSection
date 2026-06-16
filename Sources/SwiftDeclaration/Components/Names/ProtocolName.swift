@@ -3,7 +3,7 @@ import Semantic
 import Demangling
 
 @MemberwiseInit(.public)
-public struct ProtocolName: DefinitionName, Hashable, Sendable {
+public struct ProtocolName: DefinitionName, Hashable, Sendable, Codable {
     public let node: Node
 
     @SemanticStringBuilder
