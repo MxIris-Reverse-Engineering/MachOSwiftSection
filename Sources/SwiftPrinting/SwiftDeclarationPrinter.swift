@@ -177,45 +177,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOSwiftSectionRepresentable
         }
 
         try await DeclarationBlock(level: level) {
-            Keyword(.extension)
-            Space()
-            extensionDefinition.extensionName.print()
-
-            if let protocolConformance = extensionDefinition.protocolConformance,
-               let protocolName = try? await protocolConformance.dumpProtocolName(using: .demangleOptions(.interfaceTypeBuilderOnly), in: machO) {
-                Standard(":")
-                Space()
-                if extensionDefinition.isRetroactive {
-                    Keyword(.atRetroactive)
-                    Space()
-                }
-                if let globalActorReference = protocolConformance.globalActorReference,
-                   let globalActorTypeName = try? globalActorReference.typeName(in: machO),
-                   let globalActorNode = try? MetadataReader.demangleType(for: globalActorTypeName, in: machO) {
-                    Standard("@")
-                    try await printThrowingType(globalActorNode, isProtocol: false, level: level)
-                    Space()
-                }
-                protocolName
-            }
-
-            if let genericSignature = extensionDefinition.genericSignature {
-                let nodes = genericSignature.all(of: .requirementKinds)
-                for (index, node) in nodes.enumerated() {
-                    if index == 0 {
-                        Space()
-                        Keyword(.where)
-                        Space()
-                    }
-
-                    try await printThrowingType(node, isProtocol: extensionDefinition.extensionName.isProtocol, level: level)
-
-                    if index < nodes.count - 1 {
-                        Standard(",")
-                        Space()
-                    }
-                }
-            }
+            try await printExtensionHeader(extensionDefinition, level: level)
         } body: {
             for typeDefinition in extensionDefinition.types {
                 try await NestedDeclaration {
@@ -241,6 +203,53 @@ public final class SwiftDeclarationPrinter<MachO: MachOSwiftSectionRepresentable
         }
 
         eventDispatcher.dispatch(.definitionPrintCompleted(context: printingContext))
+    }
+
+    /// Renders an extension's header line (`extension Foo : Bar where …`) with no
+    /// opening brace or body. Extracted from `printExtensionDefinition` so the
+    /// diff renderer can emit it under its own `+`/`-` marker; the definition
+    /// printer calls it too, so there is a single source of truth.
+    @SemanticStringBuilder
+    public func printExtensionHeader(_ extensionDefinition: ExtensionDefinition, level: Int) async throws -> SemanticString {
+        Keyword(.extension)
+        Space()
+        extensionDefinition.extensionName.print()
+
+        if let protocolConformance = extensionDefinition.protocolConformance,
+           let protocolName = try? await protocolConformance.dumpProtocolName(using: .demangleOptions(.interfaceTypeBuilderOnly), in: machO) {
+            Standard(":")
+            Space()
+            if extensionDefinition.isRetroactive {
+                Keyword(.atRetroactive)
+                Space()
+            }
+            if let globalActorReference = protocolConformance.globalActorReference,
+               let globalActorTypeName = try? globalActorReference.typeName(in: machO),
+               let globalActorNode = try? MetadataReader.demangleType(for: globalActorTypeName, in: machO) {
+                Standard("@")
+                try await printThrowingType(globalActorNode, isProtocol: false, level: level)
+                Space()
+            }
+            protocolName
+        }
+
+        if let genericSignature = extensionDefinition.genericSignature {
+            let nodes = genericSignature.all(of: .requirementKinds)
+            for (index, node) in nodes.enumerated() {
+                if index == 0 {
+                    Space()
+                    Keyword(.where)
+                    Space()
+                }
+
+                try await printThrowingType(node, isProtocol: extensionDefinition.extensionName.isProtocol, level: level)
+
+                if index < nodes.count - 1 {
+                    Standard(",")
+                    Space()
+                }
+            }
+        }
     }
 
     @SemanticStringBuilder
