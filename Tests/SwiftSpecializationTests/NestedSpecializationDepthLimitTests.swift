@@ -4,7 +4,6 @@
 @_spi(Support) @testable import SwiftPrinting
 import Foundation
 import Testing
-@_spi(Support) import SwiftInterface
 
 /// Pins the `nestedSpecializationDepthLimit` invariant.
 ///

@@ -37,14 +37,17 @@ This is a Swift library for parsing Mach-O files to extract Swift metadata (type
 
 ```
 swift-section (CLI)
-    └── SwiftDump, SwiftInterface
-            └── SwiftInspection
-                    └── MachOSwiftSection
-                            └── MachOFoundation
-                                    └── MachOSymbols, MachOPointers
-                                            └── MachOReading, MachOResolving
-                                                    └── MachOExtensions, MachOCaches
-                                                            └── MachOKit (external)
+    └── SwiftInterface (orchestrator)
+            └── SwiftIndexing, SwiftPrinting, SwiftSpecialization, SwiftAttributeInference
+                    └── SwiftDeclaration (shared declaration model)
+                            └── SwiftDump
+                                    └── SwiftInspection
+                                            └── MachOSwiftSection
+                                                    └── MachOFoundation
+                                                            └── MachOSymbols, MachOPointers
+                                                                    └── MachOReading, MachOResolving
+                                                                            └── MachOExtensions, MachOCaches
+                                                                                    └── MachOKit (external)
 ```
 
 ### Core Modules
@@ -65,11 +68,33 @@ swift-section (CLI)
 - `Struct`, `Enum`, `Class`, `Protocol`, `ProtocolConformance`, `AssociatedType`
 - `DemangleResolver` - Resolves mangled names using the Demangler
 
-**SwiftInterface** - Generates Swift interface files
+The interface generation is split into layered peer modules over a shared `SwiftDeclaration` base model (`SwiftInterface` orchestrates them):
+
+**SwiftDeclaration** - Shared declaration model (base layer for the Swift* modules)
+- `TypeDefinition`, `ProtocolDefinition`, `ExtensionDefinition`, `FunctionDefinition`, names, kinds, `DefinitionBuilder`
+- `SwiftIndexEvents` - event namespace (Payload/Dispatcher/Handler) emitted by both indexer and printer
+
+**SwiftIndexing** - Builds the `SwiftDeclaration` model from a Mach-O image
+- `SwiftDeclarationIndexer` - Indexes types, extensions, conformances
+- `SwiftIndexEventReporter`, `OSLogEventHandler`, `ConsoleEventHandler` - event handlers
+- `SwiftDeclarationIndexConfiguration`
+
+**SwiftAttributeInference** - Infers source-level attributes (`@propertyWrapper`, `@resultBuilder`, `@dynamicMemberLookup`, `@objc`, …)
+- `TypeAttributeInferrer`, `MemberAttributeInferrer`
+
+**SwiftPrinting** - Renders the `SwiftDeclaration` model as Swift source (depends on `SwiftAttributeInference`)
+- `SwiftDeclarationPrinter`, `TypeNodePrinter`, `FunctionNodePrinter`
+- `SwiftDeclarationPrintConfiguration`, `SwiftDeclarationMemberSortOrder`
+
+**SwiftSpecialization** - Runtime generic specialization (see implementation plan below)
+- `GenericSpecializer`, `ConformanceProvider`
+- `TypeDefinition` specialization behavior (`specialize(...)`, `specializedChildren`)
+
+**SwiftInterface** - Thin orchestrator tying indexing + printing into a full interface dump
 - `SwiftInterfaceBuilder` - Main builder, call `prepare()` then `printRoot()`
-- `SwiftInterfaceIndexer` - Indexes types, extensions, conformances
-- `TypeNodePrinter`, `FunctionNodePrinter` - Print demangled nodes as Swift code
-- `GenericSpecializer` - Specializes generic types with user-provided type arguments (see implementation plan below)
+- `.swiftinterface` file types (`SwiftInterfaceFile`, `SwiftInterfaceParser`, …)
+
+Printing and indexing are peers — neither depends on the other.
 
 **SwiftInspection** - Runtime metadata analysis
 - `EnumLayoutCalculator` - Calculates enum memory layouts (multi-payload enum support)
@@ -158,10 +183,9 @@ baselines.".
 
 ## Work In Progress
 
-### GenericSpecializer (feature/generic-specializer branch)
+### GenericSpecializer (SwiftSpecialization module)
 
-Interactive API for specializing generic Swift types at runtime. Implementation plan located at:
-`Sources/SwiftInterface/GenericSpecializer/IMPLEMENTATION_PLAN.md`
+Interactive API for specializing generic Swift types at runtime, living in the `SwiftSpecialization` module.
 
 **Status:** Core implementation complete with tests.
 
@@ -171,17 +195,17 @@ Interactive API for specializing generic Swift types at runtime. Implementation 
 - PWT passed in requirement order (critical for correct specialization)
 - Generic parameter names derived from depth/index (A, B, A1, B1...) since names not preserved in binary
 - Two-step API: `makeRequest()` returns parameters/candidates, `specialize()` executes with user selections
-- Uses `ConformanceProvider` protocol to query type conformances from Indexer
+- Uses `ConformanceProvider` protocol to query type conformances from the `SwiftDeclarationIndexer`
+- `specialize(...)` / `specializedChildren` are grafted onto the base `TypeDefinition` (in `SwiftDeclaration`) via a cross-module extension; `specializedChildren` is held as an `@AssociatedObject` since an extension cannot add stored properties
 
 **File Structure:**
 ```
-Sources/SwiftInterface/GenericSpecializer/
-├── IMPLEMENTATION_PLAN.md          # Implementation plan
-├── GenericSpecializer.swift        # Main class
-├── ConformanceProvider.swift       # Protocol and implementations
-└── Models/
-    ├── SpecializationRequest.swift   # Request with parameters, requirements, candidates
-    ├── SpecializationSelection.swift # User selection with builder pattern
-    ├── SpecializationResult.swift    # Result with metadata, fieldOffsets, valueWitnessTable
-    └── SpecializationValidation.swift # Validation errors/warnings
+Sources/SwiftSpecialization/
+├── GenericSpecializer.swift            # Main class
+├── ConformanceProvider.swift           # Protocol and implementations
+├── TypeDefinition+Specialization.swift # specialize(...) / specializedChildren on the model
+├── SpecializationRequest.swift         # Request with parameters, requirements, candidates
+├── SpecializationSelection.swift       # User selection with builder pattern
+├── SpecializationResult.swift          # Result with metadata, fieldOffsets, valueWitnessTable
+└── SpecializationValidation.swift      # Validation errors/warnings
 ```
