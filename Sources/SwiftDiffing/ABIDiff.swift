@@ -1,6 +1,6 @@
 /// The three-valued lattice every diff entity lives in, shared by all levels
 /// (containers, members) so the vocabulary stays consistent.
-public enum ChangeStatus: Sendable {
+public enum ChangeStatus: Sendable, Codable, Equatable {
     /// Present only on the new side.
     case added
     /// Present only on the old side.
@@ -23,7 +23,7 @@ extension ChangeStatus {
 
 /// The kind of a diffed member, used for reporting and to keep members of
 /// different kinds in distinct identity namespaces.
-public enum MemberKind: Sendable {
+public enum MemberKind: Sendable, Codable, Equatable {
     case function
     case allocator
     case constructor
@@ -39,7 +39,7 @@ public enum MemberKind: Sendable {
 
 /// Which container a `ContainerChange` describes — keeps types, protocols and
 /// the four extension buckets distinguishable in a single change type.
-public enum ContainerKind: Sendable {
+public enum ContainerKind: Sendable, Codable, Equatable {
     case type
     case `protocol`
     case typeExtension
@@ -57,7 +57,7 @@ public enum ContainerKind: Sendable {
 ///   a property gains a setter). Members keyed by their full mangled signature
 ///   never report `.modified` — a signature change is a different symbol, so it
 ///   surfaces as `.removed` + `.added`.
-public struct MemberChange: Sendable {
+public struct MemberChange: Sendable, Codable, Equatable {
     public let key: ABIKey
     public let kind: MemberKind
     public let status: ChangeStatus
@@ -92,7 +92,7 @@ public struct MemberChange: Sendable {
 /// `@retroactive`, a type's struct↔class kind) is folded into the container's
 /// `ABIKey` identity, so such a change surfaces as `.removed` + `.added` rather
 /// than a separate metadata field.
-public struct ContainerChange: Sendable {
+public struct ContainerChange: Sendable, Codable, Equatable {
     public let key: ABIKey
     /// The container's qualified demangled name, for reporting.
     public let name: String
@@ -118,10 +118,11 @@ public struct ContainerChange: Sendable {
 /// The structured result of diffing two `ABIModule`s.
 ///
 /// Buckets mirror `SwiftDeclarationIndexer`'s definition classification so no
-/// granularity is lost. A pure value type (no Mach-O, no model references), so
-/// it is `Codable`-ready in P2 and can be persisted as an ABI baseline. All
-/// arrays are sorted deterministically (by key then status).
-public struct ABIDiff: Sendable {
+/// granularity is lost. A pure value type (no Mach-O, no model references) — it
+/// is `Codable` and `Equatable`, so a diff can be persisted as an ABI baseline
+/// and two diffs compared directly. All arrays are sorted deterministically (by
+/// key then status), so encoding the same diff twice is byte-stable.
+public struct ABIDiff: Sendable, Codable, Equatable {
     public let types: [ContainerChange]
     public let protocols: [ContainerChange]
     public let typeExtensions: [ContainerChange]

@@ -1,6 +1,7 @@
 @_spi(Support) @testable import SwiftDeclaration
 @testable import SwiftDiffing
 import Testing
+import Foundation
 import Demangling
 @_spi(Internals) import MachOSymbols
 
@@ -321,5 +322,187 @@ struct ABIDifferClassificationTests {
             MemberRecord.accessorKindToken(.none),
         ]
         #expect(Set(tokens).count == tokens.count)
+    }
+}
+
+// MARK: - Codable persistence of the diff result
+
+@Suite("ABIDiff Codable")
+struct ABIDiffCodableTests {
+    @Test("a populated ABIDiff survives a JSON encode/decode round-trip")
+    func roundTrip() throws {
+        let diff = ABIDiff(
+            types: [
+                ContainerChange(
+                    key: .mangled("$s1M3FooV"),
+                    name: "M.Foo",
+                    containerKind: .type,
+                    status: .modified,
+                    memberChanges: [
+                        MemberChange(key: .printed("field:count"), kind: .field, status: .added, oldSignature: nil, newSignature: "count: Int"),
+                    ]
+                ),
+            ],
+            conformanceExtensions: [
+                ContainerChange(key: .printed("extbucket:struct|0:$s1M3FooV"), name: "M.Foo", containerKind: .conformanceExtension, status: .added, memberChanges: []),
+            ],
+            globalFunctions: [
+                MemberChange(key: .mangled("$s1M3baryyF"), kind: .function, status: .removed, oldSignature: "bar()", newSignature: nil),
+            ]
+        )
+        let data = try JSONEncoder().encode(diff)
+        let decoded = try JSONDecoder().decode(ABIDiff.self, from: data)
+        #expect(decoded == diff)
+    }
+
+    @Test("an empty ABIDiff round-trips and stays empty")
+    func emptyRoundTrip() throws {
+        let data = try JSONEncoder().encode(ABIDiff())
+        let decoded = try JSONDecoder().decode(ABIDiff.self, from: data)
+        #expect(decoded.isEmpty)
+    }
+}
+
+// MARK: - Snapshot diff (container-level, finally testable without Mach-O)
+
+@Suite("ABISnapshot diff & persistence")
+struct ABISnapshotTests {
+    private func member(_ identity: String, payload: String? = nil, kind: MemberKind = .function) -> MemberRecord {
+        MemberRecord(identityKey: .mangled(identity), payloadKey: .mangled(payload ?? identity), kind: kind, signature: identity)
+    }
+
+    private func container(_ key: String, kind: ContainerKind = .type, members: [MemberRecord] = []) -> ContainerSnapshot {
+        ContainerSnapshot(key: .mangled(key), name: key, kind: kind, members: members)
+    }
+
+    @Test("a container only on the new side diffs as .added")
+    func addedContainer() {
+        let old = ABISnapshot(types: [container("A")])
+        let new = ABISnapshot(types: [container("A"), container("B")])
+        let diff = ABIDiffer().diff(old: old, new: new)
+        #expect(diff.types.count == 1)
+        #expect(diff.types.first?.status == .added)
+        #expect(diff.types.first?.key == .mangled("B"))
+    }
+
+    @Test("a container only on the old side diffs as .removed")
+    func removedContainer() {
+        let old = ABISnapshot(protocols: [container("P", kind: .protocol), container("Q", kind: .protocol)])
+        let new = ABISnapshot(protocols: [container("P", kind: .protocol)])
+        let diff = ABIDiffer().diff(old: old, new: new)
+        #expect(diff.protocols.count == 1)
+        #expect(diff.protocols.first?.status == .removed)
+    }
+
+    @Test("a member change inside a surviving container diffs as .modified")
+    func modifiedContainer() {
+        let old = ABISnapshot(types: [container("A", members: [member("a.foo")])])
+        let new = ABISnapshot(types: [container("A", members: [member("a.foo"), member("a.bar")])])
+        let diff = ABIDiffer().diff(old: old, new: new)
+        #expect(diff.types.count == 1)
+        #expect(diff.types.first?.status == .modified)
+        #expect(diff.types.first?.memberChanges.count == 1)
+        #expect(diff.types.first?.memberChanges.first?.status == .added)
+    }
+
+    @Test("a container with no member change is absent from the diff")
+    func unchangedContainer() {
+        let snapshot = ABISnapshot(types: [container("A", members: [member("a.foo")])])
+        #expect(ABIDiffer().diff(old: snapshot, new: snapshot).isEmpty)
+    }
+
+    @Test("a populated ABISnapshot survives a JSON encode/decode round-trip")
+    func snapshotRoundTrip() throws {
+        let snapshot = ABISnapshot(
+            types: [container("A", members: [member("a.foo", kind: .function)])],
+            conformanceExtensions: [container("extbucket:struct|0:$s1A", kind: .conformanceExtension)],
+            globalFunctions: [member("g.bar")]
+        )
+        let data = try JSONEncoder().encode(snapshot)
+        let decoded = try JSONDecoder().decode(ABISnapshot.self, from: data)
+        #expect(decoded == snapshot)
+    }
+}
+
+// MARK: - Textual report
+
+@Suite("ABIDiffReporter")
+struct ABIDiffReporterTests {
+    @Test("an empty diff reports no changes")
+    func empty() {
+        #expect(ABIDiffReporter().report(ABIDiff()) == "No ABI changes.")
+    }
+
+    @Test("renders added / removed / modified with +/-/~ sigils and member detail")
+    func sigils() {
+        let diff = ABIDiff(
+            types: [
+                ContainerChange(key: .mangled("A"), name: "M.Added", containerKind: .type, status: .added, memberChanges: []),
+                ContainerChange(key: .mangled("B"), name: "M.Gone", containerKind: .type, status: .removed, memberChanges: []),
+                ContainerChange(key: .mangled("C"), name: "M.Changed", containerKind: .type, status: .modified, memberChanges: [
+                    MemberChange(key: .printed("field:count"), kind: .field, status: .added, oldSignature: nil, newSignature: "count: Int"),
+                    MemberChange(key: .mangled("old"), kind: .function, status: .removed, oldSignature: "bar()", newSignature: nil),
+                ]),
+            ],
+            globalFunctions: [
+                MemberChange(key: .mangled("g"), kind: .function, status: .modified, oldSignature: "f() -> Int", newSignature: "f() -> String"),
+            ]
+        )
+        let report = ABIDiffReporter().report(diff)
+        #expect(report.contains("+ M.Added"))
+        #expect(report.contains("- M.Gone"))
+        #expect(report.contains("~ M.Changed"))
+        #expect(report.contains("+ count: Int"))
+        #expect(report.contains("- bar()"))
+        #expect(report.contains("f() -> Int → f() -> String"))
+        #expect(report.contains("Global functions:"))
+    }
+}
+
+// MARK: - Compatibility classification
+
+@Suite("Compatibility")
+struct CompatibilityTests {
+    @Test("an added container is additive; a removed one is breaking")
+    func containerAddRemove() {
+        let added = ContainerChange(key: .mangled("A"), name: "A", containerKind: .type, status: .added, memberChanges: [])
+        let removed = ContainerChange(key: .mangled("B"), name: "B", containerKind: .type, status: .removed, memberChanges: [])
+        #expect(added.compatibility == .additive)
+        #expect(removed.compatibility == .breaking)
+    }
+
+    @Test("a modified container is additive iff all its member changes are additive")
+    func modifiedContainerClassification() {
+        let onlyAdded = ContainerChange(key: .mangled("A"), name: "A", containerKind: .type, status: .modified, memberChanges: [
+            MemberChange(key: .mangled("m"), kind: .function, status: .added, oldSignature: nil, newSignature: "m()"),
+        ])
+        let hasRemoval = ContainerChange(key: .mangled("B"), name: "B", containerKind: .type, status: .modified, memberChanges: [
+            MemberChange(key: .mangled("m"), kind: .function, status: .added, oldSignature: nil, newSignature: "m()"),
+            MemberChange(key: .mangled("g"), kind: .function, status: .removed, oldSignature: "g()", newSignature: nil),
+        ])
+        #expect(onlyAdded.compatibility == .additive)
+        #expect(hasRemoval.compatibility == .breaking)
+    }
+
+    @Test("a diff with only additions is backward-compatible; a removal breaks it")
+    func diffLevelClassification() {
+        let additive = ABIDiff(types: [
+            ContainerChange(key: .mangled("A"), name: "A", containerKind: .type, status: .added, memberChanges: []),
+        ])
+        #expect(additive.isBackwardCompatible)
+        #expect(!additive.hasBreakingChange)
+
+        let breaking = ABIDiff(globalFunctions: [
+            MemberChange(key: .mangled("g"), kind: .function, status: .removed, oldSignature: "g()", newSignature: nil),
+        ])
+        #expect(breaking.hasBreakingChange)
+        #expect(!breaking.isBackwardCompatible)
+        #expect(breaking.breakingGlobalChanges.count == 1)
+    }
+
+    @Test("an empty diff is trivially backward-compatible")
+    func emptyIsCompatible() {
+        #expect(ABIDiff().isBackwardCompatible)
+        #expect(!ABIDiff().hasBreakingChange)
     }
 }

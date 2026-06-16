@@ -551,6 +551,7 @@ extension Target {
             .target(.SwiftIndexing),
             .target(.SwiftPrinting),
             .target(.SwiftSpecialization),
+            .target(.SwiftDiffing),
         ],
     )
 
@@ -577,6 +578,7 @@ extension Target {
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
             .target(.SwiftPrinting),
+            .target(.SwiftDiffing),
             .target(.SwiftInterface),
             .product(name: "Rainbow", package: "Rainbow"),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),

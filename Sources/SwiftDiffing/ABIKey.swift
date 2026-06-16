@@ -17,7 +17,7 @@ import Demangling
 /// canonical comparison token for a declaration", of which the remangled symbol
 /// is the preferred form. (TODO(P2): consider splitting identity vs payload key
 /// types if the overload becomes confusing.)
-public enum ABIKey: Hashable, Sendable {
+public enum ABIKey: Hashable, Sendable, Codable {
     /// The remangled symbol string — the preferred, signature-complete form.
     case mangled(String)
 
@@ -65,9 +65,9 @@ public enum ABIKey: Hashable, Sendable {
     }
 
     /// The injective fallback rendering: root kind + a print that retains
-    /// bound-generic arguments (`.interfaceBuilderOnly` is
-    /// `.interfaceTypeBuilderOnly` without `.removeBoundGeneric`).
+    /// bound-generic arguments (`.default` is
+    /// `.default` without `.removeBoundGeneric`).
     private static func fallbackString(for node: Node) -> String {
-        "\(node.kind):\(node.print(using: .interfaceBuilderOnly))"
+        "\(node.kind):\(node.print(using: .default))"
     }
 }

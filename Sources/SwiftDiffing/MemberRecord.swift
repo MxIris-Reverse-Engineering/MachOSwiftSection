@@ -13,7 +13,7 @@ import SwiftDeclaration
 ///   a variable/subscript that is the accessor set (so `let` → `var` reports
 ///   `.modified`), for a field it is the type, for an enum case it is the tag
 ///   (so reordering / mid-inserting a case reports `.modified`).
-public struct MemberRecord: Sendable {
+public struct MemberRecord: Sendable, Codable, Equatable {
     public let identityKey: ABIKey
     public let payloadKey: ABIKey
     public let kind: MemberKind
@@ -47,7 +47,7 @@ extension MemberRecord {
             identityKey: key,
             payloadKey: key,
             kind: kind,
-            signature: function.node.print(using: .interfaceTypeBuilderOnly)
+            signature: function.node.print(using: .default)
         )
     }
 
@@ -62,7 +62,7 @@ extension MemberRecord {
             identityKey: identity,
             payloadKey: composedPayload(identity, accessorTag(variable.accessors)),
             kind: .variable,
-            signature: variable.node.print(using: .interfaceTypeBuilderOnly)
+            signature: variable.node.print(using: .default)
         )
     }
 
@@ -73,7 +73,7 @@ extension MemberRecord {
             identityKey: identity,
             payloadKey: composedPayload(identity, accessorTag(subscriptDefinition.accessors)),
             kind: .subscript,
-            signature: subscriptDefinition.node.print(using: .interfaceTypeBuilderOnly)
+            signature: subscriptDefinition.node.print(using: .default)
         )
     }
 
@@ -89,7 +89,7 @@ extension MemberRecord {
     /// TODO(P2): resilience-aware frozen-struct field-order sensitivity; fold
     /// `flags` (weak / lazy / indirect) into `payloadKey`.
     public static func make(_ field: FieldDefinition) -> MemberRecord {
-        let typeText = field.typeNode.print(using: .interfaceTypeBuilderOnly)
+        let typeText = field.typeNode.print(using: .default)
         return MemberRecord(
             identityKey: .printed("field:" + field.name),
             payloadKey: ABIKey.makeUnwrappingType(for: field.typeNode),
@@ -104,7 +104,7 @@ extension MemberRecord {
     /// cases report `.modified`; appending a case leaves existing tags intact
     /// and only the new case reports `.added`.
     public static func makeCase(_ field: FieldDefinition, tag: Int) -> MemberRecord {
-        let payloadText = field.typeNode.print(using: .interfaceTypeBuilderOnly)
+        let payloadText = field.typeNode.print(using: .default)
         return MemberRecord(
             identityKey: .printed("case:" + field.name),
             payloadKey: .printed("tag:\(tag)|" + payloadText),

@@ -15,69 +15,118 @@ public struct ABIDiffer: Sendable {
 
     // MARK: - Top level
 
+    /// Diff two live modules. Equivalent to freezing both into snapshots and
+    /// diffing those — the two entry points share one algorithm, so a live diff
+    /// and a baseline diff can never disagree.
     public func diff(old: ABIModule, new: ABIModule) -> ABIDiff {
+        diff(old: snapshot(of: old), new: snapshot(of: new))
+    }
+
+    /// Diff two frozen snapshots. Pure value-data computation — no model, no
+    /// Mach-O — so it is fully unit-testable and runs against persisted
+    /// baselines.
+    public func diff(old: ABISnapshot, new: ABISnapshot) -> ABIDiff {
         ABIDiff(
-            types: diffContainers(
-                old: Array(old.allTypeDefinitions.values),
-                new: Array(new.allTypeDefinitions.values),
-                containerKind: .type,
-                identity: { ABIKey.makeUnwrappingType(for: $0.typeName.node) },
-                name: { $0.typeName.name },
-                members: { self.memberRecords(of: $0) }
-            ),
-            protocols: diffContainers(
-                old: Array(old.allProtocolDefinitions.values),
-                new: Array(new.allProtocolDefinitions.values),
-                containerKind: .protocol,
-                identity: { ABIKey.makeUnwrappingType(for: $0.protocolName.node) },
-                name: { $0.protocolName.name },
-                members: { self.memberRecords(of: $0) }
-            ),
-            typeExtensions: diffExtensions(old.typeExtensionDefinitions, new.typeExtensionDefinitions, .typeExtension),
-            protocolExtensions: diffExtensions(old.protocolExtensionDefinitions, new.protocolExtensionDefinitions, .protocolExtension),
-            typeAliasExtensions: diffExtensions(old.typeAliasExtensionDefinitions, new.typeAliasExtensionDefinitions, .typeAliasExtension),
-            conformanceExtensions: diffExtensions(old.conformanceExtensionDefinitions, new.conformanceExtensionDefinitions, .conformanceExtension),
-            globalVariables: diffMembers(
-                old: old.globalVariableDefinitions.map(MemberRecord.make),
-                new: new.globalVariableDefinitions.map(MemberRecord.make)
-            ),
-            globalFunctions: diffMembers(
-                old: old.globalFunctionDefinitions.map(MemberRecord.make),
-                new: new.globalFunctionDefinitions.map(MemberRecord.make)
-            )
+            types: diffContainerSnapshots(old.types, new.types),
+            protocols: diffContainerSnapshots(old.protocols, new.protocols),
+            typeExtensions: diffContainerSnapshots(old.typeExtensions, new.typeExtensions),
+            protocolExtensions: diffContainerSnapshots(old.protocolExtensions, new.protocolExtensions),
+            typeAliasExtensions: diffContainerSnapshots(old.typeAliasExtensions, new.typeAliasExtensions),
+            conformanceExtensions: diffContainerSnapshots(old.conformanceExtensions, new.conformanceExtensions),
+            globalVariables: diffMembers(old: old.globalVariables, new: new.globalVariables),
+            globalFunctions: diffMembers(old: old.globalFunctions, new: new.globalFunctions)
         )
     }
 
-    // MARK: - Container level
+    // MARK: - Freeze (ABIModule -> ABISnapshot)
 
-    /// The single container matcher every axis specializes: match `old`/`new`
-    /// by `identity`, emit `.added`/`.removed` for the asymmetric sides, and
-    /// for matched pairs diff their members — reporting `.modified` only when a
-    /// member actually changed.
-    private func diffContainers<Container>(
-        old: [Container],
-        new: [Container],
+    /// Freeze a live, Mach-O-coupled module into a persistable snapshot by
+    /// projecting every declaration into its diff records. All of the model
+    /// knowledge lives here; the diff above is then pure data over the result.
+    public func snapshot(of module: ABIModule) -> ABISnapshot {
+        ABISnapshot(
+            types: containerSnapshots(
+                Array(module.allTypeDefinitions.values),
+                containerKind: .type,
+                key: { ABIKey.makeUnwrappingType(for: $0.typeName.node) },
+                name: { $0.typeName.name(using: .default) },
+                members: { self.memberRecords(of: $0) }
+            ),
+            protocols: containerSnapshots(
+                Array(module.allProtocolDefinitions.values),
+                containerKind: .protocol,
+                key: { ABIKey.makeUnwrappingType(for: $0.protocolName.node) },
+                name: { $0.protocolName.name(using: .default) },
+                members: { self.memberRecords(of: $0) }
+            ),
+            typeExtensions: extensionBucketSnapshots(module.typeExtensionDefinitions, .typeExtension),
+            protocolExtensions: extensionBucketSnapshots(module.protocolExtensionDefinitions, .protocolExtension),
+            typeAliasExtensions: extensionBucketSnapshots(module.typeAliasExtensionDefinitions, .typeAliasExtension),
+            conformanceExtensions: extensionBucketSnapshots(module.conformanceExtensionDefinitions, .conformanceExtension),
+            globalVariables: module.globalVariableDefinitions.map(MemberRecord.make),
+            globalFunctions: module.globalFunctionDefinitions.map(MemberRecord.make)
+        )
+    }
+
+    private func containerSnapshots<Container>(
+        _ containers: [Container],
         containerKind: ContainerKind,
-        identity: (Container) -> ABIKey,
+        key: (Container) -> ABIKey,
         name: (Container) -> String,
         members: (Container) -> [MemberRecord]
-    ) -> [ContainerChange] {
-        let matched = threeWayMatch(old: old, new: new, identity: identity)
+    ) -> [ContainerSnapshot] {
+        containers.map { ContainerSnapshot(key: key($0), name: name($0), kind: containerKind, members: members($0)) }
+    }
+
+    /// One indexer extension bucket maps an `ExtensionName` (target + kind) to
+    /// *many* `ExtensionDefinition`s — the indexer splits a type's
+    /// conformances, conditional blocks, and synthetic nested-type blocks into
+    /// separate definitions filed under one name. We freeze one
+    /// `ContainerSnapshot` per `ExtensionName`, **merging the member records
+    /// across every definition in the bucket**: the extension boundary itself
+    /// is not exported, only the members (and the witness members of
+    /// conformances) are. Merging makes adding/removing a whole conformance
+    /// visible and avoids the silent-drop collisions that per-definition keying
+    /// suffered when two definitions on one target shared an identity.
+    ///
+    /// TODO(P2): per-conformance / per-`where`-block attribution — needs the
+    /// indexer to plumb the resolved protocol name onto each definition.
+    private func extensionBucketSnapshots(
+        _ buckets: OrderedDictionary<ExtensionName, [ExtensionDefinition]>,
+        _ containerKind: ContainerKind
+    ) -> [ContainerSnapshot] {
+        buckets.map { name, definitions in
+            ContainerSnapshot(
+                key: extensionBucketKey(name),
+                name: name.name(using: .default),
+                kind: containerKind,
+                members: definitions.flatMap { self.memberRecords(of: $0) }
+            )
+        }
+    }
+
+    // MARK: - Snapshot diff (ABISnapshot -> ABIDiff)
+
+    /// Match container snapshots by key, then diff each matched pair's members.
+    /// One helper serves every axis — types, protocols, and all four extension
+    /// buckets — since they are all `[ContainerSnapshot]` once frozen.
+    private func diffContainerSnapshots(_ old: [ContainerSnapshot], _ new: [ContainerSnapshot]) -> [ContainerChange] {
+        let matched = threeWayMatch(old: old, new: new) { $0.key }
 
         var changes: [ContainerChange] = []
         changes.append(contentsOf: matched.removed.map {
-            ContainerChange(key: identity($0), name: name($0), containerKind: containerKind, status: .removed, memberChanges: [])
+            ContainerChange(key: $0.key, name: $0.name, containerKind: $0.kind, status: .removed, memberChanges: [])
         })
         changes.append(contentsOf: matched.added.map {
-            ContainerChange(key: identity($0), name: name($0), containerKind: containerKind, status: .added, memberChanges: [])
+            ContainerChange(key: $0.key, name: $0.name, containerKind: $0.kind, status: .added, memberChanges: [])
         })
         for (oldContainer, newContainer) in matched.common {
-            let memberChanges = diffMembers(old: members(oldContainer), new: members(newContainer))
+            let memberChanges = diffMembers(old: oldContainer.members, new: newContainer.members)
             if !memberChanges.isEmpty {
                 changes.append(ContainerChange(
-                    key: identity(newContainer),
-                    name: name(newContainer),
-                    containerKind: containerKind,
+                    key: newContainer.key,
+                    name: newContainer.name,
+                    containerKind: newContainer.kind,
                     status: .modified,
                     memberChanges: memberChanges
                 ))
@@ -86,52 +135,19 @@ public struct ABIDiffer: Sendable {
         return sorted(changes, key: \.key, status: \.status)
     }
 
-    /// Diff one indexer extension bucket. The bucket maps an `ExtensionName`
-    /// (target + kind) to *many* `ExtensionDefinition`s — the indexer splits a
-    /// type's conformances, conditional blocks, and synthetic nested-type
-    /// blocks into separate definitions all filed under the same name.
-    ///
-    /// We diff per `ExtensionName` and **merge the member records across every
-    /// `ExtensionDefinition` in the bucket**, because the extension boundary
-    /// itself is not exported — only the members (and the witness members of
-    /// conformances) are. Merging is what makes adding/removing a whole
-    /// conformance visible (its witness members join/leave the merged set), and
-    /// it avoids the silent-drop collisions that per-definition keying suffered
-    /// when two definitions on one target shared an identity (multiple
-    /// conformances key the same; a member block and a synthetic nested-type
-    /// block key the same).
-    ///
-    /// TODO(P2): per-conformance / per-`where`-block attribution (which
-    /// conformance or constraint block a member belongs to) — needs the indexer
-    /// to plumb the resolved protocol name onto each `ExtensionDefinition`.
-    private func diffExtensions(
-        _ old: OrderedDictionary<ExtensionName, [ExtensionDefinition]>,
-        _ new: OrderedDictionary<ExtensionName, [ExtensionDefinition]>,
-        _ containerKind: ContainerKind
-    ) -> [ContainerChange] {
-        func buckets(_ dictionary: OrderedDictionary<ExtensionName, [ExtensionDefinition]>) -> [ExtensionBucket] {
-            dictionary.map { ExtensionBucket(name: $0.key, definitions: $0.value) }
-        }
-        return diffContainers(
-            old: buckets(old),
-            new: buckets(new),
-            containerKind: containerKind,
-            identity: { self.extensionBucketKey($0.name) },
-            name: { $0.name.name },
-            members: { bucket in bucket.definitions.flatMap { self.memberRecords(of: $0) } }
-        )
-    }
-
-    private struct ExtensionBucket {
-        let name: ExtensionName
-        let definitions: [ExtensionDefinition]
-    }
-
     /// Identity for an extension bucket: the target node plus an explicit kind
     /// token, so `extension`s on a struct vs a class of the same name (or the
     /// four extension kinds) stay distinct.
     private func extensionBucketKey(_ name: ExtensionName) -> ABIKey {
-        .printed("extbucket:\(Self.extensionKindToken(name.kind))|\(ABIKey.makeUnwrappingType(for: name.node).sortKey)")
+        Self.extensionBucketKey(for: name)
+    }
+
+    /// The same bucket identity, exposed so the diffable-interface renderer can
+    /// match extension buckets across the two binaries with the exact key the
+    /// differ uses (one source of truth — no drift between the verdict and the
+    /// annotated interface).
+    public static func extensionBucketKey(for name: ExtensionName) -> ABIKey {
+        .printed("extbucket:\(extensionKindToken(name.kind))|\(ABIKey.makeUnwrappingType(for: name.node).sortKey)")
     }
 
     /// Stable token per extension kind — an explicit switch rather than
