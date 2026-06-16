@@ -8,6 +8,7 @@ struct SwiftSectionCommand: AsyncParsableCommand {
         subcommands: [
             DumpCommand.self,
             InterfaceCommand.self,
+            DiffCommand.self,
         ],
         defaultSubcommand: DumpCommand.self
     )
