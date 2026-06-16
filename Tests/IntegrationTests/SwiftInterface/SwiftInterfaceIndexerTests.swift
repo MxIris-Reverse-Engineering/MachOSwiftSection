@@ -1,3 +1,6 @@
+@_spi(Support) @testable import SwiftDeclaration
+@_spi(Support) @testable import SwiftIndexing
+@_spi(Support) @testable import SwiftPrinting
 import Foundation
 import Testing
 import MachOKit
@@ -9,13 +12,13 @@ import Dependencies
 @testable import MachOTestingSupport
 import MachOFixtureSupport
 
-final class SwiftInterfaceIndexerTests: MachOImageTests, @unchecked Sendable {
+final class SwiftDeclarationIndexerTests: MachOImageTests, @unchecked Sendable {
     override class var imageName: MachOImageName { .SwiftUICore }
     
     @Test func conformingTypesByProtocolName() async throws {
         let machO = machOImage
 
-        let indexer = SwiftInterfaceIndexer<MachOImage>(in: machO)
+        let indexer = SwiftDeclarationIndexer<MachOImage>(in: machO)
 
         try await indexer.prepare()
 

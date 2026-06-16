@@ -1,3 +1,6 @@
+@_spi(Support) import SwiftSpecialization
+@_spi(Support) import SwiftDeclaration
+@_spi(Support) import SwiftIndexing
 import Foundation
 import Testing
 import MachOKit
@@ -14,7 +17,7 @@ import MachOSwiftSection
 /// callers a stable property to read.
 private let _sharedMachO: MachOImage = .current()
 
-/// One-shot cache of a fully-prepared `SwiftInterfaceIndexer` over the
+/// One-shot cache of a fully-prepared `SwiftDeclarationIndexer` over the
 /// current image plus Foundation and libswiftCore.
 ///
 /// swift-testing instantiates a fresh suite struct per `@Test`; the actor
@@ -23,7 +26,7 @@ private let _sharedMachO: MachOImage = .current()
 private actor SharedSpecializationIndexerCache {
     static let shared = SharedSpecializationIndexerCache()
 
-    private var indexerCache: SwiftInterfaceIndexer<MachOImage>?
+    private var indexerCache: SwiftDeclarationIndexer<MachOImage>?
 
     enum CacheError: Error, LocalizedError {
         case missingImage(name: String)
@@ -36,11 +39,11 @@ private actor SharedSpecializationIndexerCache {
         }
     }
 
-    func indexer() async throws -> SwiftInterfaceIndexer<MachOImage> {
+    func indexer() async throws -> SwiftDeclarationIndexer<MachOImage> {
         if let indexerCache { return indexerCache }
-        let indexer = SwiftInterfaceIndexer(in: MachOImage.current())
-        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: Self.requireImage(name: "Foundation")))
-        try indexer.addSubIndexer(SwiftInterfaceIndexer(in: Self.requireImage(name: "libswiftCore")))
+        let indexer = SwiftDeclarationIndexer(in: MachOImage.current())
+        try indexer.addSubIndexer(SwiftDeclarationIndexer(in: Self.requireImage(name: "Foundation")))
+        try indexer.addSubIndexer(SwiftDeclarationIndexer(in: Self.requireImage(name: "libswiftCore")))
         try await indexer.prepare()
         indexerCache = indexer
         return indexer
@@ -66,7 +69,7 @@ private actor SharedSpecializationIndexerCache {
 /// another test file's nested namespace.
 package protocol GenericSpecializationTestingEnvironment {
     var machO: MachOImage { get }
-    var indexer: SwiftInterfaceIndexer<MachOImage> { get async throws }
+    var indexer: SwiftDeclarationIndexer<MachOImage> { get async throws }
 }
 
 // MARK: - Default implementations
@@ -81,7 +84,7 @@ extension GenericSpecializationTestingEnvironment {
     /// Async access to the prepared indexer. The actor cache builds it once
     /// per process and hands every test the same reference, so the awaiter
     /// pays the preparation cost zero times after the first hit.
-    package var indexer: SwiftInterfaceIndexer<MachOImage> {
+    package var indexer: SwiftDeclarationIndexer<MachOImage> {
         get async throws {
             try await SharedSpecializationIndexerCache.shared.indexer()
         }

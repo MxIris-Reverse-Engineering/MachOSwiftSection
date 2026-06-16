@@ -1,3 +1,6 @@
+import SwiftDeclaration
+import SwiftIndexing
+import SwiftPrinting
 import Foundation
 import MachOKit
 import MachOFoundation

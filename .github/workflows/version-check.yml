@@ -30,9 +30,16 @@ jobs:
         run: |
           set -euo pipefail
           value="${{ steps.version.outputs.version }}"
+          # Pre-release versions carry a SemVer pre-release suffix after '-'
+          # (e.g. 0.12.0-beta.4, 0.13.0-rc.1) and are not required to ship a
+          # changelog. Only stable releases must have a matching changelog.
+          if [[ "$value" == *-* ]]; then
+            echo "Pre-release version $value — changelog not required, skipping."
+            exit 0
+          fi
           changelog="Changelogs/$value.md"
           if [ ! -f "$changelog" ]; then
-            echo "::error file=Sources/swift-section/Version.swift::Missing $changelog — every BundledVersion.value must have a matching changelog. Either create $changelog or adjust Version.swift."
+            echo "::error file=Sources/swift-section/Version.swift::Missing $changelog — every stable BundledVersion.value must have a matching changelog. Either create $changelog or adjust Version.swift."
             exit 1
           fi
           echo "Found $changelog"
