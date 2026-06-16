@@ -100,14 +100,13 @@ extension TypeDefinition {
     ///    as the receiver's `type`. This is the strongest guarantee that
     ///    the result was produced by specializing exactly this type.
     ///
-    /// The two `machO` parameters serve different roles:
-    /// - `machO` is used to construct the inner `TypeDefinition` and
-    ///   re-derive its type name. It can be any reader (file or image).
-    /// - `machOImage` is required because the result's metadata pointer
-    ///   resolves through process memory only (the runtime's metadata
-    ///   cache lives outside any MachO image); descriptor identity
-    ///   validation needs the receiver's descriptor in its in-process
-    ///   form, and that is what `asPointerWrapper(in:)` produces.
+    /// `machO` must be a `MachOImage`: it both constructs the inner
+    /// `TypeDefinition` (re-deriving its type name) and supplies the
+    /// in-process descriptor used for identity validation. The result's
+    /// metadata pointer resolves through process memory only (the runtime's
+    /// metadata cache lives outside any MachO image), so descriptor identity
+    /// validation needs the receiver's descriptor in its in-process form, and
+    /// that is what `asPointerWrapper(in:)` produces.
     ///
     /// This overload specializes **only the receiver**. The returned
     /// definition's `typeChildren` is left empty — callers that want the
@@ -166,7 +165,7 @@ extension TypeDefinition {
     public func specialize(
         with specializationResult: SpecializationResult,
         typeArgumentNodes: [Node]? = nil,
-        derivingNestedSpecializationsWith specializer: some NestedSpecializing,
+        derivingNestedSpecializationsWith specializer: GenericSpecializer<MachOImage>,
         selection: SpecializationSelection,
         typeArgumentNodesByParameter: [String: Node],
         in machO: MachOImage
@@ -224,7 +223,7 @@ extension TypeDefinition {
     }
 
     private func deriveNestedSpecializedTypeChildren(
-        using specializer: some NestedSpecializing,
+        using specializer: GenericSpecializer<MachOImage>,
         selection: SpecializationSelection,
         typeArgumentNodesByParameter: [String: Node],
         inheritedTypeArgumentNodes: [Node],
@@ -249,7 +248,7 @@ extension TypeDefinition {
             // still returned with whatever siblings *did* succeed, so a
             // partial sidebar tree beats a missing one.
             do {
-                let request = try specializer.makeRequest(for: child.type.typeContextDescriptorWrapper, candidateOptions: .default)
+                let request = try specializer.makeRequest(for: child.type.typeContextDescriptorWrapper)
                 var childArguments: [String: SpecializationSelection.Argument] = [:]
                 var childArgumentNodes: [Node] = []
                 var childNodesByParameter: [String: Node] = [:]
@@ -272,7 +271,7 @@ extension TypeDefinition {
                 }
 
                 let childSelection = SpecializationSelection(arguments: childArguments)
-                let childResult = try specializer.specialize(request, with: childSelection, metadataRequest: .completeAndBlocking)
+                let childResult = try specializer.specialize(request, with: childSelection)
                 let effectiveChildArgumentNodes = childArgumentNodes.isEmpty
                     ? inheritedTypeArgumentNodes
                     : childArgumentNodes
@@ -411,8 +410,8 @@ extension TypeDefinition {
         }
     }
 
-    /// Errors raised by `specialize(with:in:image:)` when the supplied
-    /// `SpecializationResult` cannot be reconciled with the receiver.
+    /// Errors raised by `specialize(with:typeArgumentNodes:in:)` when the
+    /// supplied `SpecializationResult` cannot be reconciled with the receiver.
     public enum SpecializationError: LocalizedError {
         case notGenericType(typeName: String)
         case metadataKindMismatch(typeName: String, expected: TypeContextWrapper, actual: MetadataWrapper)
