@@ -1,5 +1,5 @@
 @_spi(Support) @testable import SwiftDeclaration
-import SwiftDiffing
+@testable import SwiftDiffing
 import Testing
 import Demangling
 @_spi(Internals) import MachOSymbols
@@ -213,5 +213,113 @@ struct ABIDifferProjectionTests {
         // that cross-instance stability is what makes the diff work across two
         // independently-indexed binaries.
         #expect(ABIKey.make(for: functionNode("stable")) == ABIKey.make(for: functionNode("stable")))
+    }
+}
+
+// MARK: - Full-classification projections (protocols / generalized members)
+
+/// A minimal `Definition` so the generalized `sharedMemberRecords(of:)` can be
+/// exercised without a Mach-O-backed `TypeDefinition`/`ProtocolDefinition`.
+private final class StubDefinition: Definition {
+    var isIndexed = true
+    var orderedMembers: [OrderedMember] = []
+    var allocators: [FunctionDefinition] = []
+    var constructors: [FunctionDefinition] = []
+    var variables: [VariableDefinition] = []
+    var functions: [FunctionDefinition] = []
+    var subscripts: [SubscriptDefinition] = []
+    var staticVariables: [VariableDefinition] = []
+    var staticFunctions: [FunctionDefinition] = []
+    var staticSubscripts: [SubscriptDefinition] = []
+}
+
+@Suite("Classification: associated types & generalized member projection")
+struct ABIDifferClassificationTests {
+    private func functionNode(_ name: String) -> Node {
+        Node.create(kind: .function, children: [
+            Node.create(kind: .structure),
+            Node.create(kind: .identifier, text: name),
+            Node.create(kind: .type),
+        ])
+    }
+
+    private func function(_ name: String) -> FunctionDefinition {
+        let node = functionNode(name)
+        return FunctionDefinition(
+            node: node,
+            name: name,
+            kind: .function,
+            symbol: DemangledSymbol(symbol: Symbol(offset: 0, name: "$s_\(name)"), demangledNode: node),
+            isGlobalOrStatic: false,
+            methodDescriptor: nil,
+            offset: nil,
+            vtableOffset: nil
+        )
+    }
+
+    private func variable(_ name: String) -> VariableDefinition {
+        VariableDefinition(node: functionNode(name), name: name, accessors: [], isGlobalOrStatic: false)
+    }
+
+    @Test("associated type: same name is unchanged, a rename is add+remove")
+    func associatedTypeDiff() {
+        let same = ABIDiffer().diffMembers(
+            old: [MemberRecord.makeAssociatedType("Element")],
+            new: [MemberRecord.makeAssociatedType("Element")]
+        )
+        #expect(same.isEmpty)
+
+        let renamed = ABIDiffer().diffMembers(
+            old: [MemberRecord.makeAssociatedType("Element")],
+            new: [MemberRecord.makeAssociatedType("Item")]
+        )
+        #expect(renamed.filter { $0.status == .added }.count == 1)
+        #expect(renamed.filter { $0.status == .removed }.count == 1)
+        #expect(renamed.allSatisfy { $0.kind == .associatedType })
+    }
+
+    @Test("sharedMemberRecords projects every Definition collection it is given")
+    func sharedMemberProjection() {
+        let stub = StubDefinition()
+        stub.variables = [variable("value")]
+        stub.functions = [function("foo")]
+        stub.staticFunctions = [function("bar")]
+        let records = ABIDiffer().sharedMemberRecords(of: stub)
+        #expect(records.count == 3)
+        #expect(records.contains { $0.kind == .variable })
+        #expect(records.filter { $0.kind == .function }.count == 2)
+    }
+
+    @Test("members of different kinds with the same spelling do not collide")
+    func mixedKindNamespacing() {
+        let field = MemberRecord(identityKey: .printed("field:x"), payloadKey: .printed("field:x"), kind: .field, signature: "x")
+        let changes = ABIDiffer().diffMembers(old: [], new: [field, MemberRecord.makeAssociatedType("x")])
+        #expect(changes.count == 2)
+        #expect(changes.contains { $0.kind == .field })
+        #expect(changes.contains { $0.kind == .associatedType })
+    }
+
+    @Test("extension kind tokens are injective (explicit, not reflection)")
+    func extensionKindTokensAreInjective() {
+        let tokens = [
+            ABIDiffer.extensionKindToken(.type(.struct)),
+            ABIDiffer.extensionKindToken(.type(.class)),
+            ABIDiffer.extensionKindToken(.type(.enum)),
+            ABIDiffer.extensionKindToken(.protocol),
+            ABIDiffer.extensionKindToken(.typeAlias),
+        ]
+        #expect(Set(tokens).count == tokens.count)
+    }
+
+    @Test("accessor kind tokens are injective (explicit, not reflection)")
+    func accessorKindTokensAreInjective() {
+        let tokens = [
+            MemberRecord.accessorKindToken(.getter),
+            MemberRecord.accessorKindToken(.setter),
+            MemberRecord.accessorKindToken(.modifyAccessor),
+            MemberRecord.accessorKindToken(.readAccessor),
+            MemberRecord.accessorKindToken(.none),
+        ]
+        #expect(Set(tokens).count == tokens.count)
     }
 }

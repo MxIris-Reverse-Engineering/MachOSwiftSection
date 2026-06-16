@@ -499,6 +499,7 @@ extension Target {
         name: "SwiftDiffing",
         dependencies: [
             .product(.Demangling),
+            .product(name: "OrderedCollections", package: "swift-collections"),
             .target(.SwiftDeclaration),
         ]
     )

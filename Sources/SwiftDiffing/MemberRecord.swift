@@ -120,9 +120,35 @@ extension MemberRecord {
         MemberRecord(identityKey: .printed("deinit"), payloadKey: .printed("deinit"), kind: .deinit, signature: "deinit")
     }
 
+    /// A protocol's associated-type requirement (`ProtocolDefinition
+    /// .associatedTypes` is `[String]`). Adding / removing one changes the
+    /// protocol's witness-table shape, so it is an ABI signal. Keyed by name in
+    /// its own namespace, so a rename is add+remove.
+    public static func makeAssociatedType(_ name: String) -> MemberRecord {
+        MemberRecord(
+            identityKey: .printed("associatedType:" + name),
+            payloadKey: .printed("associatedType:" + name),
+            kind: .associatedType,
+            signature: "associatedtype " + name
+        )
+    }
+
     /// A stable, order-independent fingerprint of a member's accessor kinds.
     private static func accessorTag(_ accessors: [Accessor]) -> String {
-        accessors.map { String(describing: $0.kind) }.sorted().joined(separator: ",")
+        accessors.map { accessorKindToken($0.kind) }.sorted().joined(separator: ",")
+    }
+
+    /// Stable token per accessor kind — an explicit switch rather than
+    /// `String(describing:)` reflection, so the payload key stays injective by
+    /// code rather than by the compiler's enum description format.
+    static func accessorKindToken(_ kind: AccessorKind) -> String {
+        switch kind {
+        case .getter: return "get"
+        case .setter: return "set"
+        case .modifyAccessor: return "modify"
+        case .readAccessor: return "read"
+        case .none: return "none"
+        }
     }
 
     /// Combine an identity key with an extra attribute string into a payload
