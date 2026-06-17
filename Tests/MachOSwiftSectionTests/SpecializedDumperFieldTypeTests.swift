@@ -4,6 +4,7 @@ import MachOKit
 @testable import MachOSwiftSection
 @testable import MachOTestingSupport
 @testable import SwiftDump
+import SwiftDeclarationRendering
 import MachOFixtureSupport
 import Semantic
 
