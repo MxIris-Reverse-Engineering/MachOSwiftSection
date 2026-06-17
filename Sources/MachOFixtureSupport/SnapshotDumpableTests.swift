@@ -3,6 +3,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
+import SwiftDeclarationRendering
 import Demangling
 // Needs SPI access to MetadataReader.demangleType for associated-type owning-protocol lookup.
 @_spi(Internals) import SwiftInspection

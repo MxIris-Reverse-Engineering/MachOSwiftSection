@@ -1,4 +1,5 @@
 import Semantic
+import SwiftDeclarationRendering
 
 public enum SwiftAttribute: Int, Comparable, Sendable, CaseIterable, Codable {
     // Type-level (inferred from members)

@@ -5,6 +5,7 @@ import MachOSwiftSection
 import MachOKit
 import Demangling
 @_spi(Internals) import SwiftInspection
+import SwiftDeclarationRendering
 
 /// Maximum recursion depth that `walkNestedExpandedFieldOffsets` (and its
 /// per-kind helpers) will descend before bailing out. Real Swift type

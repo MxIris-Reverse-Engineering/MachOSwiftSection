@@ -8,6 +8,7 @@ import Demangling
 import Dependencies
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
+import SwiftDeclarationRendering
 
 package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
     package typealias Dumped = Enum

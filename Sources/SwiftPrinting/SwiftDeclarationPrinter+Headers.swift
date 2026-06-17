@@ -1,0 +1,265 @@
+import SwiftDeclaration
+import MachOSwiftSection
+import MachOKit
+import Semantic
+import Demangling
+import OrderedCollections
+import Dependencies
+import SwiftDeclarationRendering
+@_spi(Internals) import MachOSymbols
+@_spi(Internals) import SwiftInspection
+
+/// Model-driven declaration-header rendering for the interface path.
+///
+/// These mirror the header portion of `SwiftDump`'s `*Dumper.declaration`
+/// getters but render the clean, **unbound** interface form straight from the
+/// descriptor plus the shared `SwiftDeclarationRendering` helpers, so the
+/// interface printer no longer instantiates a `SwiftDump` dumper. The dump path
+/// keeps its own (address/offset-annotated, optionally generic-bound) header
+/// rendering in `SwiftDump`; the two paths intentionally diverge.
+@_spi(Support)
+extension SwiftDeclarationPrinter {
+    /// Renders a type's declaration header (`struct Foo<A> : Bar where …`),
+    /// mirroring the matching `StructDumper`/`ClassDumper`/`EnumDumper`
+    /// `declaration` getter in its unbound form.
+    @SemanticStringBuilder
+    func renderTypeDeclarationHeader(for type: TypeContextWrapper, displayParentName: Bool, level: Int) async throws -> SemanticString {
+        let resolver = typeDemangleResolver
+        switch type {
+        case .struct(let dumped):
+            Keyword(.struct)
+            Space()
+            try await renderUnboundTypeName(.struct, descriptorWrapper: .type(.struct(dumped.descriptor)), name: dumped.descriptor.name(in: machO), displayParentName: displayParentName, resolver: resolver)
+            try await renderGenericSignatureWithInvertibles(genericContext: dumped.genericContext, invertibleProtocolSet: dumped.invertibleProtocolSet, resolver: resolver)
+        case .enum(let dumped):
+            Keyword(.enum)
+            Space()
+            try await renderUnboundTypeName(.enum, descriptorWrapper: .type(.enum(dumped.descriptor)), name: dumped.descriptor.name(in: machO), displayParentName: displayParentName, resolver: resolver)
+            try await renderGenericSignatureWithInvertibles(genericContext: dumped.genericContext, invertibleProtocolSet: dumped.invertibleProtocolSet, resolver: resolver)
+        case .class(let dumped):
+            if dumped.descriptor.isActor {
+                if isDistributedActor(dumped) {
+                    Keyword(.distributed)
+                    Space()
+                }
+                Keyword(.actor)
+            } else {
+                Keyword(.class)
+            }
+            Space()
+            try await renderUnboundTypeName(.class, descriptorWrapper: .type(.class(dumped.descriptor)), name: dumped.descriptor.name(in: machO), displayParentName: displayParentName, resolver: resolver)
+            let superclass = try await renderClassSuperclass(dumped, resolver: resolver)
+            if let genericContext = dumped.genericContext {
+                try await genericContext.dumpGenericSignature(resolver: resolver, in: machO) {
+                    superclass
+                }
+            } else {
+                superclass
+            }
+        }
+    }
+
+    @SemanticStringBuilder
+    private func renderGenericSignatureWithInvertibles(genericContext: TypeGenericContext?, invertibleProtocolSet: InvertibleProtocolSet?, resolver: DemangleResolver) async throws -> SemanticString {
+        if let genericContext {
+            try await genericContext.dumpGenericSignature(resolver: resolver, in: machO) {
+                if let invertibleProtocolSet, invertibleProtocolSet.hasInvertedProtocols {
+                    invertibleProtocolSet.dumpInvertedProtocolsInheritance
+                }
+            }
+        } else if let invertibleProtocolSet, invertibleProtocolSet.hasInvertedProtocols {
+            invertibleProtocolSet.dumpInvertedProtocolsInheritance
+        }
+    }
+
+    @SemanticStringBuilder
+    private func renderUnboundTypeName(_ kind: SemanticType.TypeKind, descriptorWrapper: ContextDescriptorWrapper, name: String, displayParentName: Bool, resolver: DemangleResolver) async throws -> SemanticString {
+        if displayParentName {
+            try await resolver.resolve(for: MetadataReader.demangleContext(for: descriptorWrapper, in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+        } else {
+            TypeDeclaration(kind: kind, name)
+        }
+    }
+
+    @SemanticStringBuilder
+    private func renderClassSuperclass(_ dumped: Class, resolver: DemangleResolver) async throws -> SemanticString {
+        let hasInvertedProtocols = dumped.invertibleProtocolSet?.hasInvertedProtocols ?? false
+        if let superclassMangledName = try dumped.descriptor.superclassTypeMangledName(in: machO) {
+            Standard(":")
+            Space()
+            try await resolver.resolve(for: MetadataReader.demangleType(for: superclassMangledName, in: machO))
+            if hasInvertedProtocols {
+                Standard(",")
+                Space()
+                dumped.invertibleProtocolSet!.dumpInvertedProtocolNames
+            }
+        } else if let resilientSuperclass = dumped.resilientSuperclass, let kind = dumped.descriptor.resilientSuperclassReferenceKind, let superclass = try await resilientSuperclass.dumpSuperclass(resolver: resolver, for: kind, in: machO) {
+            Standard(":")
+            Space()
+            superclass
+            if hasInvertedProtocols {
+                Standard(",")
+                Space()
+                dumped.invertibleProtocolSet!.dumpInvertedProtocolNames
+            }
+        } else if hasInvertedProtocols {
+            dumped.invertibleProtocolSet!.dumpInvertedProtocolsInheritance
+        }
+    }
+
+    /// True when an `actor` class has at least one `distributedThunk` symbol
+    /// whose class context matches it — mirroring `ClassDumper.isDistributedActor`.
+    private func isDistributedActor(_ dumped: Class) -> Bool {
+        guard dumped.descriptor.isActor else { return false }
+        @Dependency(\.symbolIndexStore) var symbolIndexStore
+
+        guard let currentTypeNode = try? MetadataReader.demangleContext(for: .type(.class(dumped.descriptor)), in: machO) else { return false }
+        let currentTypeName = currentTypeNode.print(using: .interfaceTypeBuilderOnly)
+
+        for thunkSymbol in symbolIndexStore.symbols(of: .distributedThunk, in: machO) {
+            let rootNode = thunkSymbol.demangledNode
+            guard let functionNode = rootNode.children.first(where: { $0.kind != .distributedThunk }) else { continue }
+            guard let contextNode = functionNode.children.first else { continue }
+            let thunkTypeName = Node.create(kind: .type, child: contextNode).print(using: .interfaceTypeBuilderOnly)
+            if thunkTypeName == currentTypeName {
+                return true
+            }
+        }
+        return false
+    }
+
+    // MARK: - Protocol header
+
+    /// Renders a protocol's declaration header (`protocol Foo : Bar where …`),
+    /// mirroring `ProtocolDumper.declaration`.
+    @SemanticStringBuilder
+    func renderProtocolDeclarationHeader(for dumped: MachOSwiftSection.`Protocol`, displayParentName: Bool) async throws -> SemanticString {
+        let resolver = typeDemangleResolver
+        Keyword(.protocol)
+        Space()
+        if displayParentName {
+            try await resolver.resolve(for: MetadataReader.demangleContext(for: .protocol(dumped.descriptor), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
+        } else {
+            try TypeDeclaration(kind: .protocol, dumped.descriptor.name(in: machO))
+        }
+
+        if dumped.numberOfRequirementsInSignature > 0 {
+            var requirementInSignatures = dumped.requirementInSignatures
+            for (offset, requirement) in requirementInSignatures.extract(where: \.isProtocolInherited).offsetEnumerated() {
+                if offset.isStart {
+                    Standard(":")
+                } else {
+                    Standard(",")
+                }
+                Space()
+                try await requirement.descriptor.dumpContent(resolver: resolver, in: machO)
+            }
+            if !requirementInSignatures.isEmpty {
+                Space()
+                Keyword(.where)
+                Space()
+
+                for (offset, requirement) in requirementInSignatures.offsetEnumerated() {
+                    try await requirement.descriptor.dumpProtocolRequirement(resolver: resolver, in: machO)
+                    if !offset.isEnd {
+                        Standard(",")
+                        Space()
+                    }
+                }
+            }
+        }
+    }
+
+    /// Renders a protocol's `associatedtype` requirement lines, mirroring
+    /// `ProtocolDumper.associatedTypes`.
+    @SemanticStringBuilder
+    func renderProtocolAssociatedTypes(for dumped: MachOSwiftSection.`Protocol`, level: Int) async throws -> SemanticString {
+        let associatedTypes = try dumped.descriptor.associatedTypes(in: machO)
+        if !associatedTypes.isEmpty {
+            for (offset, associatedType) in associatedTypes.offsetEnumerated() {
+                BreakLine()
+                Indent(level: level)
+                Keyword(.associatedtype)
+                Space()
+                TypeDeclaration(kind: .other, associatedType)
+                if offset.isEnd {
+                    BreakLine()
+                }
+            }
+        }
+    }
+
+    // MARK: - Extension merged associated-type typealiases
+
+    /// Emits a deduplicated `typealias` block collected from sibling
+    /// conformances, mirroring `AssociatedTypeDumper.mergedRecords`.
+    @SemanticStringBuilder
+    func renderMergedAssociatedTypeRecords(of associatedTypes: [AssociatedType], level: Int) async throws -> SemanticString {
+        let resolver = typeDemangleResolver
+        let orderedRecords = collectUniqueAssociatedTypeRecords(of: associatedTypes)
+        for (offset, record) in orderedRecords.offsetEnumerated() {
+            BreakLine()
+            Indent(level: level)
+            Keyword(.typealias)
+            Space()
+            TypeDeclaration(kind: .other, record.name)
+            Space()
+            Standard("=")
+            Space()
+            try await resolver.resolve(for: MetadataReader.demangleType(for: record.mangledTypeName, in: machO).resolveOpaqueType(in: machO))
+            if offset.isEnd {
+                BreakLine()
+            }
+        }
+    }
+
+    private struct AssociatedTypeRecordDedupKey: Hashable {
+        let name: String
+        let mangledTypeName: MangledName
+    }
+
+    private func collectUniqueAssociatedTypeRecords(of associatedTypes: [AssociatedType]) -> [(name: String, mangledTypeName: MangledName)] {
+        var seenKeys: Set<AssociatedTypeRecordDedupKey> = []
+        var orderedRecords: [(name: String, mangledTypeName: MangledName)] = []
+        for associatedType in associatedTypes {
+            for record in associatedType.records {
+                let recordName: String
+                let mangledTypeName: MangledName
+                do {
+                    recordName = try record.name(in: machO)
+                    mangledTypeName = try record.substitutedTypeName(in: machO)
+                } catch {
+                    continue
+                }
+                if seenKeys.insert(AssociatedTypeRecordDedupKey(name: recordName, mangledTypeName: mangledTypeName)).inserted {
+                    orderedRecords.append((recordName, mangledTypeName))
+                }
+            }
+        }
+        return orderedRecords
+    }
+
+    // MARK: - Model-driven stored fields / enum cases
+
+    /// Renders a type's stored fields (struct/class) or cases (enum) straight from
+    /// the indexed `SwiftDeclaration` model, replacing the `*Dumper.fields` blob.
+    /// Mirrors the dumpers' `BreakLine` + `Indent` per-record framing; the clean
+    /// interface form omits the offset / type-layout / enum-layout comments (a
+    /// dump-only concern).
+    @SemanticStringBuilder
+    func renderModelFields(_ typeDefinition: TypeDefinition, level: Int) async -> SemanticString {
+        let isEnum = typeDefinition.typeName.kind == .enum
+        for (offset, field) in typeDefinition.fields.offsetEnumerated() {
+            BreakLine()
+            Indent(level: level)
+            if isEnum {
+                await printEnumCase(field, level: level)
+            } else {
+                await printField(field, level: level)
+            }
+            if offset.isEnd {
+                BreakLine()
+            }
+        }
+    }
+}

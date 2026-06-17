@@ -6,6 +6,7 @@ import Utilities
 import Dependencies
 import OrderedCollections
 @_spi(Internals) import MachOSymbols
+import SwiftDeclarationRendering
 
 package struct ExtensionDumped: Sendable {}
 

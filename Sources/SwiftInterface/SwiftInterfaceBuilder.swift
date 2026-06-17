@@ -5,7 +5,7 @@ import SwiftDeclaration
 import MachOSwiftSection
 import MemberwiseInit
 import OrderedCollections
-import SwiftDump
+import SwiftDeclarationRendering
 import Demangling
 import Semantic
 import SwiftStdlibToolbox

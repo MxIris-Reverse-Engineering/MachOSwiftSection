@@ -3,7 +3,7 @@ import SwiftAttributeInference
 import MachOSwiftSection
 import MemberwiseInit
 import OrderedCollections
-import SwiftDump
+import SwiftDeclarationRendering
 import Demangling
 import Semantic
 import SwiftStdlibToolbox
@@ -66,27 +66,6 @@ public final class SwiftDeclarationPrinter<MachO: MachOSwiftSectionRepresentable
         let typeAttributeInferrer = TypeAttributeInferrer()
         typeDefinition.attributes = typeAttributeInferrer.infer(for: typeDefinition)
 
-        let dumper = typeDefinition.type.dumper(
-            using: .init(
-                demangleResolver: typeDemangleResolver,
-                indentation: level,
-                displayParentName: displayParentName,
-                printFieldOffset: configuration.printFieldOffset,
-                printTypeLayout: configuration.printTypeLayout,
-                printEnumLayout: configuration.printEnumLayout,
-                printMemberAddress: configuration.printMemberAddress,
-                printExpandedFieldOffsets: configuration.printExpandedFieldOffsets,
-                memberAddressTransformer: configuration.memberAddressTransformer,
-                fieldOffsetTransformer: configuration.fieldOffsetTransformer,
-                expandedFieldOffsetTransformer: configuration.expandedFieldOffsetTransformer,
-                typeLayoutTransformer: configuration.typeLayoutTransformer,
-                enumLayoutTransformer: configuration.enumLayoutTransformer,
-                enumLayoutCaseTransformer: configuration.enumLayoutCaseTransformer
-            ),
-            metadata: typeDefinition.metadata,
-            in: machO
-        )
-
         // Emit type-level attributes, each on its own line before the declaration
         for attribute in typeDefinition.attributes {
             Indent(level: level - 1)
@@ -95,7 +74,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOSwiftSectionRepresentable
         }
 
         try await DeclarationBlock(level: level) {
-            try await dumper.declaration
+            try await renderTypeDeclarationHeader(for: typeDefinition.type, displayParentName: displayParentName, level: level)
         } body: {
             for child in typeDefinition.typeChildren {
                 try await NestedDeclaration {
@@ -109,7 +88,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOSwiftSectionRepresentable
                 }
             }
 
-            try await dumper.fields
+            await renderModelFields(typeDefinition, level: level)
 
             try await printDefinition(typeDefinition, level: level)
         }
@@ -126,23 +105,10 @@ public final class SwiftDeclarationPrinter<MachO: MachOSwiftSectionRepresentable
             try await protocolDefinition.index(in: machO)
         }
 
-        let dumper = ProtocolDumper(
-            protocolDefinition.protocol,
-            using: .init(
-                demangleResolver: typeDemangleResolver,
-                indentation: level,
-                displayParentName: displayParentName,
-                printFieldOffset: configuration.printFieldOffset,
-                printMemberAddress: configuration.printMemberAddress,
-                memberAddressTransformer: configuration.memberAddressTransformer
-            ),
-            in: machO
-        )
-
         try await DeclarationBlock(level: level) {
-            try await dumper.declaration
+            try await renderProtocolDeclarationHeader(for: protocolDefinition.protocol, displayParentName: displayParentName)
         } body: {
-            try await dumper.associatedTypes
+            try await renderProtocolAssociatedTypes(for: protocolDefinition.protocol, level: level)
 
             try await printDefinition(protocolDefinition, level: level)
 
@@ -192,11 +158,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOSwiftSectionRepresentable
             }
 
             if !extensionDefinition.associatedTypes.isEmpty {
-                try await AssociatedTypeDumper.mergedRecords(
-                    of: extensionDefinition.associatedTypes,
-                    using: .init(demangleResolver: typeDemangleResolver),
-                    in: machO
-                )
+                try await renderMergedAssociatedTypeRecords(of: extensionDefinition.associatedTypes, level: 1)
             }
 
             try await printDefinition(extensionDefinition, level: 1)
@@ -216,7 +178,7 @@ public final class SwiftDeclarationPrinter<MachO: MachOSwiftSectionRepresentable
         extensionDefinition.extensionName.print()
 
         if let protocolConformance = extensionDefinition.protocolConformance,
-           let protocolName = try? await protocolConformance.dumpProtocolName(using: .demangleOptions(.interfaceTypeBuilderOnly), in: machO) {
+           let protocolName = try? protocolConformance.protocolNode(in: machO)?.printSemantic(using: .interfaceTypeBuilderOnly) {
             Standard(":")
             Space()
             if extensionDefinition.isRetroactive {

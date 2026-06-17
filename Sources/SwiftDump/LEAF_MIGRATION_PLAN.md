@@ -1,13 +1,52 @@
 # SwiftDump → Leaf Module — Migration Plan
 
-> Status: PLAN (not implemented). Goal: make **SwiftDump a terminal/leaf module**
-> that nothing depends on — it serves only `swift-section`'s `DumpCommand`. Every
-> reusable method/extension currently in SwiftDump that another module needs is
-> extracted *downward* into a new low-level module. This is a **layer inversion**:
-> SwiftDump sits LOW today (just above `SwiftInspection`) and is depended on by the
-> whole Swift layer; we lift it to the TOP and push its reusable engine down.
+> Status: ✅ IMPLEMENTED. SwiftDump is now a **terminal/leaf module** — the only
+> remaining `import SwiftDump` in `Sources/` are `swift-section` (`DumpCommand`,
+> `DemangleOptionGroup`) and `MachOFixtureSupport` (test support). The whole
+> package builds and `swift test --skip IntegrationTests` is green (0 failures).
+> No baseline regeneration was needed: the migration is orchestration-only
+> (who-calls-whom), so dump output is byte-identical (`SwiftDumpTests` passes as-is).
 >
 > Build/test require `USING_LOCAL_DEPENDENCIES=1`.
+>
+> ## What actually shipped (vs. the plan below)
+>
+> - **New module `SwiftDeclarationRendering`** (low-level, deps = SwiftDump's old
+>   deps) absorbs: the pure extensions (`Keyword+Swift`, `Node+`, `SemanticString+`,
+>   `String+`) + `DemangleResolver`; the render config (`DeclarationRenderConfiguration`
+>   + `typealias DumperConfiguration`) and its comment builders; the header helpers
+>   (`GenericContext+Dump` incl. invertible-protocol dumping, `ResilientSuperclass+Dump`,
+>   `ContextDescriptorWrapper+Dump`, `MetadataWrapper+Dump`, `OpaqueType+`,
+>   `ResolvedTypeReference+`, `ProtocolConformance+`); `ParentClassVTableCache`;
+>   `Node.resolveOpaqueType`; `GenericRequirement.isProtocolInherited` + `extract(where:)`.
+> - **`ClassDumper.demangledSymbol(for:typeNode:)`** became `demangledOverrideSymbol`,
+>   placed in **SwiftDeclaration** (its only caller, `TypeDefinition.index`) — it is an
+>   index-time symbol matcher, so the model layer is its natural home (not the renderer).
+> - **Phase 4 (field-metadata engine extraction) was SKIPPED**: the engine's only
+>   external consumer was `SwiftDeclarationPrinter`'s `dumper.fields`. Phase 6 renders
+>   fields from the model instead, so the engine (offset / expanded-offset / type-layout
+>   / enum-layout / spare-bit walkers) **stays in SwiftDump** with the dumpers that use it.
+> - **Phase 6 used a localized rewrite, not shared free functions**: `SwiftPrinting`
+>   renders type/protocol **headers** and stored-field/case bodies itself
+>   (`SwiftDeclarationPrinter+Headers.swift`) from the descriptor + the shared helpers,
+>   in the clean **unbound** interface form. The `SwiftDump` dumpers were left untouched
+>   (zero risk to the dump path), so a little header/associated-type logic is duplicated
+>   between the two paths — intentional, since the dump and interface paths legitimately
+>   diverge (per the motivation below). Consequence: a user-driven *specialized* type
+>   printed via the interface path renders with an **unbound** header (`Box<A>`, not
+>   `Box<Int>`); fields still substitute. Not exercised by tests; bound-name rendering
+>   stays available on the dump path.
+> - **Bound-name machinery** (`boundDumped*`, `BoundDumpedTypeNameRenderer`,
+>   `DumperMetadataContext`) and the `Dumper`/`TypedDumper`/`NamedDumper` protocols +
+>   concrete dumpers all **stay in SwiftDump** (kept per the "keep Dumpers" decision).
+>
+> Validated suites (all green): SwiftPrintingTests(18), SwiftInterfaceTests(24),
+> SwiftIndexingTests(30), SwiftAttributeInferenceTests(27), SwiftSpecializationTests(97),
+> SwiftDiffingTests(33), SwiftDumpTests(65), MachOSwiftSectionTests(0 fail) + full
+> `--skip IntegrationTests` run (0 fail).
+>
+> ---
+> Original plan (kept for reference; some steps shifted as noted above):
 
 ## Confirmed decisions
 

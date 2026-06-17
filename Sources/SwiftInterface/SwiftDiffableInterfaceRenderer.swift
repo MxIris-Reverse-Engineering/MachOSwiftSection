@@ -2,7 +2,7 @@ import SwiftDeclaration
 @_spi(Support) import SwiftIndexing
 @_spi(Support) import SwiftPrinting
 import SwiftDiffing
-import SwiftDump
+import SwiftDeclarationRendering
 import MachOSwiftSection
 import Semantic
 import Demangling

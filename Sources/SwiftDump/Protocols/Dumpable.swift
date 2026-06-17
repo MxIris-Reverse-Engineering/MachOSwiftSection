@@ -2,6 +2,7 @@ import Demangling
 import MachOKit
 import Semantic
 import MachOSwiftSection
+import SwiftDeclarationRendering
 
 public typealias DemangleOptions = Demangling.DemangleOptions
 

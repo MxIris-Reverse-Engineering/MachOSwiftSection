@@ -413,6 +413,25 @@ extension Target {
         ],
     )
 
+    /// Low-level Swift declaration rendering engine extracted from `SwiftDump`:
+    /// pure `Keyword`/`Node`/`SemanticString`/`String` extensions, the
+    /// `DemangleResolver`, the render configuration, the header-rendering
+    /// helpers, and the field-metadata comment engine. Shared by both the
+    /// raw-descriptor dump path (`SwiftDump`) and the model-driven interface
+    /// path (`SwiftPrinting`), so neither has to depend on the other.
+    static let SwiftDeclarationRendering = Target.target(
+        name: "SwiftDeclarationRendering",
+        dependencies: [
+            .product(.MachOKit),
+            .product(.MachOObjCSection),
+            .product(.Semantic),
+            .product(.Demangling),
+            .target(.MachOSwiftSection),
+            .target(.Utilities),
+            .target(.SwiftInspection),
+        ],
+    )
+
     static let SwiftDump = Target.target(
         name: "SwiftDump",
         dependencies: [
@@ -423,6 +442,7 @@ extension Target {
             .target(.MachOSwiftSection),
             .target(.Utilities),
             .target(.SwiftInspection),
+            .target(.SwiftDeclarationRendering),
         ],
     )
 
@@ -439,7 +459,7 @@ extension Target {
             .product(.Demangling),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.SwiftDump),
+            .target(.SwiftDeclarationRendering),
             .target(.Utilities),
         ],
     )
@@ -456,7 +476,6 @@ extension Target {
             .product(.Demangling),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.SwiftDump),
             .target(.Utilities),
             .target(.SwiftDeclaration),
         ],
@@ -475,7 +494,6 @@ extension Target {
             .product(.Demangling),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.SwiftDump),
             .target(.Utilities),
             .target(.SwiftDeclaration),
         ],
@@ -506,7 +524,7 @@ extension Target {
             .product(.Demangling),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.SwiftDump),
+            .target(.SwiftDeclarationRendering),
             .target(.Utilities),
             .target(.SwiftDeclaration),
             .target(.SwiftAttributeInference),
@@ -527,7 +545,6 @@ extension Target {
             .product(.Demangling),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.SwiftDump),
             .target(.Utilities),
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
@@ -545,7 +562,7 @@ extension Target {
             .product(.Demangling),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.SwiftDump),
+            .target(.SwiftDeclarationRendering),
             .target(.Utilities),
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
@@ -874,6 +891,7 @@ let package = Package(
     products: [
         .library(.MachOSwiftSection),
         .library(.SwiftInspection),
+        .library(.SwiftDeclarationRendering),
         .library(.SwiftDump),
         .library(.SwiftDeclaration),
         .library(.SwiftAttributeInference),
@@ -900,6 +918,7 @@ let package = Package(
         .MachOSwiftSectionC,
         .MachOSwiftSection,
         .SwiftInspection,
+        .SwiftDeclarationRendering,
         .SwiftDump,
         .SwiftDeclaration,
         .SwiftAttributeInference,

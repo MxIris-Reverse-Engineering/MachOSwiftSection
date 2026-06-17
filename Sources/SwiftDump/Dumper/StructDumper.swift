@@ -7,6 +7,7 @@ import Dependencies
 import Demangling
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
+import SwiftDeclarationRendering
 
 package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
     package typealias Dumped = Struct

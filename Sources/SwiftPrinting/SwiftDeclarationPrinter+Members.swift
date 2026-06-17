@@ -1,6 +1,6 @@
 import SwiftDeclaration
 import SwiftAttributeInference
-import SwiftDump
+import SwiftDeclarationRendering
 import MachOSwiftSection
 import Semantic
 import Demangling
@@ -153,12 +153,6 @@ extension SwiftDeclarationPrinter {
         let typeAttributeInferrer = TypeAttributeInferrer()
         typeDefinition.attributes = typeAttributeInferrer.infer(for: typeDefinition)
 
-        let dumper = typeDefinition.type.dumper(
-            using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: displayParentName),
-            metadata: typeDefinition.metadata,
-            in: machO
-        )
-
         // Attributes each on their own line; the diff renderer adds indentation
         // when it marks the lines, so none is emitted here.
         for attribute in typeDefinition.attributes {
@@ -166,7 +160,7 @@ extension SwiftDeclarationPrinter {
             BreakLine()
         }
 
-        try await dumper.declaration
+        try await renderTypeDeclarationHeader(for: typeDefinition.type, displayParentName: displayParentName, level: level)
     }
 
     @SemanticStringBuilder
@@ -175,12 +169,6 @@ extension SwiftDeclarationPrinter {
             try await protocolDefinition.index(in: machO)
         }
 
-        let dumper = ProtocolDumper(
-            protocolDefinition.protocol,
-            using: .init(demangleResolver: typeDemangleResolver, indentation: level, displayParentName: displayParentName),
-            in: machO
-        )
-
-        try await dumper.declaration
+        try await renderProtocolDeclarationHeader(for: protocolDefinition.protocol, displayParentName: displayParentName)
     }
 }

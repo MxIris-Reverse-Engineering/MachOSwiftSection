@@ -4,6 +4,7 @@ import MachOSwiftSection
 import Semantic
 import Demangling
 import Utilities
+import SwiftDeclarationRendering
 import OrderedCollections
 
 extension ProtocolConformance: ConformedDumpable {

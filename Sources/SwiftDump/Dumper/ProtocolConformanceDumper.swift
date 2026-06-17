@@ -6,6 +6,7 @@ import Demangling
 import Utilities
 import OrderedCollections
 @_spi(Internals) import SwiftInspection
+import SwiftDeclarationRendering
 
 package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWithCache>: ConformedDumper {
     package let dumped: ProtocolConformance
@@ -189,104 +190,3 @@ package struct ProtocolConformanceDumper<MachO: MachOSwiftSectionRepresentableWi
     }
 }
 
-extension ResolvedTypeReference {
-    package func node<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Node? {
-        switch self {
-        case .directTypeDescriptor(let descriptor):
-            return try descriptor.map { try MetadataReader.demangleContext(for: $0, in: machO) }
-        case .indirectTypeDescriptor(let descriptor):
-            switch descriptor {
-            case .symbol(let symbol):
-                return try MetadataReader.demangleType(for: symbol, in: machO)
-            case .element(let element):
-                return try MetadataReader.demangleContext(for: element, in: machO)
-            case nil:
-                return nil
-            }
-        case .directObjCClassName(let objcClassName):
-            guard let objcClassName, !objcClassName.isEmpty else { return nil }
-            return Node.create(kind: .type, children: [
-                Node.create(kind: .class, children: [
-                    .create(kind: .module, text: objcModule),
-                    .create(kind: .identifier, text: objcClassName),
-                ])
-            ])
-        case .indirectObjCClass(let objcClass):
-            switch objcClass {
-            case .symbol(let symbol):
-                return try MetadataReader.demangleType(for: symbol, in: machO)
-            case .element(let element):
-                guard let classDescriptor = try element.descriptor.resolve(in: machO) else { return nil }
-                return try MetadataReader.demangleContext(for: .type(.class(classDescriptor)), in: machO)
-            case nil:
-                return nil
-            }
-        }
-    }
-    
-    package func node() throws -> Node? {
-        switch self {
-        case .directTypeDescriptor(let descriptor):
-            return try descriptor.map { try MetadataReader.demangleContext(for: $0) }
-        case .indirectTypeDescriptor(let descriptor):
-            switch descriptor {
-            case .symbol(let symbol):
-                return try MetadataReader.demangleType(for: symbol)
-            case .element(let element):
-                return try MetadataReader.demangleContext(for: element)
-            case nil:
-                return nil
-            }
-        case .directObjCClassName(let objcClassName):
-            guard let objcClassName, !objcClassName.isEmpty else { return nil }
-            return Node.create(kind: .type, children: [
-                Node.create(kind: .class, children: [
-                    .create(kind: .module, text: objcModule),
-                    .create(kind: .identifier, text: objcClassName),
-                ])
-            ])
-        case .indirectObjCClass(let objcClass):
-            switch objcClass {
-            case .symbol(let symbol):
-                return try MetadataReader.demangleType(for: symbol)
-            case .element(let element):
-                guard let classDescriptor = try element.descriptor.resolve() else { return nil }
-                return try MetadataReader.demangleContext(for: .type(.class(classDescriptor)))
-            case nil:
-                return nil
-            }
-        }
-    }
-}
-
-extension ProtocolConformance {
-    package func typeNode<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Node? {
-        return try typeReference.node(in: machO)
-    }
-    
-    package func typeNode() throws -> Node? {
-        return try typeReference.node()
-    }
-
-    package func protocolNode<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> Node? {
-        switch `protocol` {
-        case .symbol(let symbol):
-            return try MetadataReader.demangleType(for: symbol, in: machO)
-        case .element(let element):
-            return try MetadataReader.demangleContext(for: .protocol(element), in: machO)
-        case .none:
-            return nil
-        }
-    }
-    
-    package func protocolNode() throws -> Node? {
-        switch `protocol` {
-        case .symbol(let symbol):
-            return try MetadataReader.demangleType(for: symbol)
-        case .element(let element):
-            return try MetadataReader.demangleContext(for: .protocol(element))
-        case .none:
-            return nil
-        }
-    }
-}

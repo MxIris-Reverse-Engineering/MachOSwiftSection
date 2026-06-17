@@ -3,6 +3,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
+import SwiftDeclarationRendering
 import Dependencies
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection

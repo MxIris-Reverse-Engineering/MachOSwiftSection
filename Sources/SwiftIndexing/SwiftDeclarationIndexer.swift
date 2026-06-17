@@ -3,7 +3,6 @@ import Foundation
 import MachOSwiftSection
 import MemberwiseInit
 import OrderedCollections
-import SwiftDump
 import Demangling
 import SwiftStdlibToolbox
 import MachOKit

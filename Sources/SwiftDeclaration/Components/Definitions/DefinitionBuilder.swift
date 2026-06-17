@@ -1,7 +1,6 @@
 import Demangling
 import MachOSymbols
 import MachOSwiftSection
-import SwiftDump
 
 package enum DefinitionBuilder {
     package static func variables(

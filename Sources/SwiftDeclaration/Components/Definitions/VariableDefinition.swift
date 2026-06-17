@@ -2,7 +2,6 @@ import MemberwiseInit
 import Demangling
 import MachOSymbols
 import MachOSwiftSection
-import SwiftDump
 
 @MemberwiseInit(.public)
 public struct VariableDefinition: Sendable, AccessorRepresentable {
