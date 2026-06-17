@@ -67,44 +67,27 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
         }
     }
 
-    private var fieldOffsets: [Int]? {
-        guard configuration.printFieldOffset else { return nil }
-        guard let metadataContext else { return nil }
-        return try? metadataContext.metadata.fieldOffsets(for: dumped.descriptor, in: metadataContext.readingContext).map { $0.cast() }
-    }
-
     package var fields: SemanticString {
         get async throws {
-            let fieldOffsets = fieldOffsets
+            // Per-field metadata comments (offset / type layout / expanded
+            // offsets) are rendered by the shared `FieldLayoutRenderer` in
+            // `SwiftDeclarationRendering` — the single source also used by
+            // `SwiftPrinting`. `autoResolveAccessorMetadata: false` preserves the
+            // bare-dumper contract: a `nil` `metadataContext` emits no offsets.
+            let fieldLayoutRenderer = FieldLayoutRenderer(
+                type: .struct(dumped),
+                metadata: try? metadataContext?.metadata.asMetadataWrapper(in: machO),
+                machO: machO,
+                configuration: configuration,
+                autoResolveAccessorMetadata: false
+            )
+            let fieldOffsets = fieldLayoutRenderer.fieldOffsets
             for (offset, fieldRecord) in try dumped.descriptor.fieldDescriptor(in: machO).records(in: machO).offsetEnumerated() {
                 BreakLine()
 
                 let mangledTypeName = try fieldRecord.mangledTypeName(in: machO)
 
-                if let fieldOffsets, let startOffset = fieldOffsets[safe: offset.index] {
-                    let endOffset: Int? = if let nextFieldOffset = fieldOffsets[safe: offset.index + 1] {
-                        nextFieldOffset
-                    } else if let machOImage = machO.asMachOImage,
-                              let metatype = resolveFieldMetatype(for: mangledTypeName, in: machOImage),
-                              let metadata = try? Metadata.createInProcess(metatype),
-                              let typeLayout = try? metadata.asMetadataWrapper().valueWitnessTable().typeLayout {
-                        startOffset + Int(typeLayout.size)
-                    } else {
-                        nil
-                    }
-                    configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
-
-                    if configuration.printExpandedFieldOffsets, let machOImage = machO.asMachOImage {
-                        expandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset, baseIndentation: configuration.indentation, ancestors: [], in: machOImage)
-                    }
-                }
-
-                if configuration.printTypeLayout,
-                   let machOImage = machO.asMachOImage,
-                   let resolvedMetatype = resolveFieldMetatype(for: mangledTypeName, in: machOImage),
-                   let resolvedMetadata = try? Metadata.createInProcess(resolvedMetatype) {
-                    try await resolvedMetadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
-                }
+                await fieldLayoutRenderer.storedFieldComments(forFieldAtIndex: offset.index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
 
                 Indent(level: configuration.indentation)
 

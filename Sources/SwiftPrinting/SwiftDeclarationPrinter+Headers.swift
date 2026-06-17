@@ -243,14 +243,61 @@ extension SwiftDeclarationPrinter {
 
     /// Renders a type's stored fields (struct/class) or cases (enum) straight from
     /// the indexed `SwiftDeclaration` model, replacing the `*Dumper.fields` blob.
-    /// Mirrors the dumpers' `BreakLine` + `Indent` per-record framing; the clean
-    /// interface form omits the offset / type-layout / enum-layout comments (a
-    /// dump-only concern).
+    /// Mirrors the dumpers' `BreakLine` + `Indent` per-record framing.
+    ///
+    /// Per-field metadata comments (`// Field offset:`, `// Type Layout:`, the
+    /// expanded nested-offset tree) are emitted through the shared
+    /// `FieldLayoutRenderer` in `SwiftDeclarationRendering` — the same source the
+    /// `SwiftDump` dumpers use — gated on the configuration flags. With the flags
+    /// off (the clean interface form) nothing extra is emitted; with them on
+    /// (e.g. RuntimeViewer / dump-parity callers) the comments match the
+    /// former dumper-delegated output.
     @SemanticStringBuilder
     func renderModelFields(_ typeDefinition: TypeDefinition, level: Int) async -> SemanticString {
         let isEnum = typeDefinition.typeName.kind == .enum
+
+        // Shared metadata-comment renderer (single source of truth with
+        // `SwiftDump`'s dumpers). `indentation: level` keeps the comments aligned
+        // with the field declarations at this nesting depth, matching the former
+        // dumper-delegated output.
+        let renderConfiguration = DeclarationRenderConfiguration(
+            demangleResolver: typeDemangleResolver,
+            indentation: level,
+            printFieldOffset: configuration.printFieldOffset,
+            printTypeLayout: configuration.printTypeLayout,
+            printEnumLayout: configuration.printEnumLayout,
+            printExpandedFieldOffsets: configuration.printExpandedFieldOffsets,
+            fieldOffsetTransformer: configuration.fieldOffsetTransformer,
+            expandedFieldOffsetTransformer: configuration.expandedFieldOffsetTransformer,
+            typeLayoutTransformer: configuration.typeLayoutTransformer,
+            enumLayoutTransformer: configuration.enumLayoutTransformer,
+            enumLayoutCaseTransformer: configuration.enumLayoutCaseTransformer
+        )
+        let fieldLayoutRenderer = FieldLayoutRenderer(type: typeDefinition.type, metadata: typeDefinition.metadata, machO: machO, configuration: renderConfiguration)
+        let fieldRecords = (try? typeDefinition.type.contextDescriptorWrapper.typeContextDescriptor?.fieldDescriptor(in: machO).records(in: machO)) ?? []
+        let fieldOffsets = isEnum ? nil : fieldLayoutRenderer.fieldOffsets
+
+        let enumLayout = isEnum ? await fieldLayoutRenderer.enumLayout : nil
+
+        // Type-level enum prologue (Enum Layout strategy + spare-bit summary),
+        // emitted once before the cases — mirrors `EnumDumper.fields`.
+        if isEnum {
+            await fieldLayoutRenderer.enumPrefixComments(enumLayout: enumLayout)
+        }
+
         for (offset, field) in typeDefinition.fields.offsetEnumerated() {
             BreakLine()
+            // Per-record metadata comments (single source of truth with the
+            // `SwiftDump` dumpers): struct/class fields get the offset +
+            // type-layout block; enum cases get the type-layout + enum-layout
+            // block.
+            if let record = fieldRecords[safe: offset.index], let mangledTypeName = try? record.mangledTypeName(in: machO) {
+                if isEnum {
+                    await fieldLayoutRenderer.enumCaseComments(forCaseAtIndex: offset.index, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
+                } else {
+                    await fieldLayoutRenderer.storedFieldComments(forFieldAtIndex: offset.index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
+                }
+            }
             Indent(level: level)
             if isEnum {
                 await printEnumCase(field, level: level)
