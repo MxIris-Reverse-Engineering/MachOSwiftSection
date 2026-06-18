@@ -305,15 +305,42 @@ package struct FieldLayoutRenderer<MachO: MachOSwiftSectionRepresentableWithCach
 
     // MARK: - Static generic-argument substitution (PAC-fault-avoiding)
 
+    /// Upper bound on a variadic pack's element count when statically reading it
+    /// from metadata. A well-formed pack is tiny; a larger value almost
+    /// certainly means a misread word, so we bail to the unbound placeholder
+    /// rather than drive an unbounded element loop.
+    private var packElementCountLimit: Int { 256 }
+
+    /// Depth-0 generic-argument layout facts for `parentMetadata`'s nominal
+    /// type, sufficient to locate any key-argument slot in its inline
+    /// generic-argument vector.
+    ///
+    /// Per the Swift ABI (`swift/include/swift/ABI/GenericContext.h`) and the
+    /// runtime reader `SubstGenericParametersFromMetadata::getMetadata`, the
+    /// vector is `[<numShapeClasses pack-length words>][<one word per
+    /// hasKeyArgument parameter, in declaration order — metadata pointer,
+    /// metadata-pack pointer, or value, all kinds interleaved>][<witness
+    /// tables>]`. So a depth-0 parameter at `index` lives at
+    /// `numShapeClasses + (count of hasKeyArgument parameters before index)`,
+    /// regardless of kind; a `.typePack` parameter's pack-pointer slot and its
+    /// length slot are named directly by its `GenericPackShapeDescriptor`.
+    private struct TopLevelGenericLayout {
+        let parameters: [GenericParamDescriptor]
+        let keyArgumentFlags: [Bool]
+        let numShapeClasses: Int
+        /// Total size of the key-argument area (shape classes + per-parameter
+        /// key arguments + witness tables), used as the slot bounds check.
+        let totalKeyArguments: Int
+        /// Metadata-kind pack-shape descriptors only (witness-table packs are
+        /// excluded and, by ABI, ordered after metadata packs); the k-th entry
+        /// describes the k-th `.typePack` key-argument parameter.
+        let metadataPackShapeDescriptors: [GenericPackShapeDescriptor]
+    }
+
     private func substitutedNestedTypeNode<ParentMetadata: ValueMetadataProtocol>(for mangledTypeName: MangledName, parentMetadata: ParentMetadata) -> Node? {
         guard let node = try? MetadataReader.demangleTypeUncached(for: mangledTypeName) else { return nil }
-        guard let topLevelParameters = topLevelGenericParameters(of: parentMetadata) else {
-            return node
-        }
-        let keyArgumentFlags = topLevelParameters.map(\.hasKeyArgument)
-        let parameterKinds = topLevelParameters.map(\.kind)
-        let keyArgumentCount = keyArgumentFlags.lazy.filter { $0 }.count
-        return substitutingGenericParameters(in: node, parentMetadata: parentMetadata, keyArgumentFlags: keyArgumentFlags, parameterKinds: parameterKinds, keyArgumentCount: keyArgumentCount)
+        guard let layout = topLevelGenericLayout(of: parentMetadata) else { return node }
+        return substitutingGenericParameters(in: node, parentMetadata: parentMetadata, layout: layout)
     }
 
     private func staticallyBoundMetatype<ParentMetadata: ValueMetadataProtocol>(for mangledTypeName: MangledName, parentMetadata: ParentMetadata) -> Any.Type? {
@@ -322,71 +349,169 @@ package struct FieldLayoutRenderer<MachO: MachOSwiftSectionRepresentableWithCach
         guard typeNode.kind == .dependentGenericParamType,
               let (depthValue, indexValue) = genericParameterDepthAndIndex(of: typeNode),
               depthValue == 0,
-              let topLevelParameters = topLevelGenericParameters(of: parentMetadata),
-              indexValue < topLevelParameters.count,
-              // Only a *type* parameter's key-argument slot holds a metadata
-              // pointer. A `.value` (SE-0452 value generic) slot holds the raw
-              // integer value and a `.typePack` slot a tagged metadata-pack
-              // pointer — bit-casting either to `Any.Type` traps the runtime.
-              topLevelParameters[indexValue].kind == .type
+              let layout = topLevelGenericLayout(of: parentMetadata),
+              indexValue < layout.parameters.count,
+              // A bare field type that *is* a generic parameter can only be
+              // recursed into when it resolves to a nominal type — i.e. a
+              // `.type` parameter. `.value` / `.typePack` parameters have no
+              // statically-walkable nested field layout (and their key-argument
+              // slots are not metadata pointers), so they never recurse here.
+              layout.parameters[indexValue].kind == .type,
+              let flatIndex = depthZeroFlatIndex(forIndex: indexValue, keyArgumentFlags: layout.keyArgumentFlags)
         else { return nil }
-        let keyArgumentFlags = topLevelParameters.map(\.hasKeyArgument)
-        guard let flatIndex = depthZeroFlatIndex(forIndex: indexValue, keyArgumentFlags: keyArgumentFlags) else { return nil }
-        let keyArgumentCount = keyArgumentFlags.lazy.filter { $0 }.count
-        return boundGenericArgumentType(at: flatIndex, keyArgumentCount: keyArgumentCount, of: parentMetadata)
+        return boundGenericArgumentType(atSlot: layout.numShapeClasses + flatIndex, totalKeyArguments: layout.totalKeyArguments, of: parentMetadata)
     }
 
-    private func substitutingGenericParameters<ParentMetadata: ValueMetadataProtocol>(in node: Node, parentMetadata: ParentMetadata, keyArgumentFlags: [Bool], parameterKinds: [GenericParamKind], keyArgumentCount: Int) -> Node {
+    /// Recursively substitutes every depth-0 generic-parameter reference in a
+    /// nested field's demangled type node against `parentMetadata`'s specialized
+    /// in-process generic arguments, so the rendered type name shows concrete
+    /// arguments instead of unbound `A`/`B` placeholders. Each key-argument
+    /// parameter kind reads the right slot of the metadata's inline
+    /// generic-argument vector (see `TopLevelGenericLayout`):
+    /// - `.type`     → resolve the metadata pointer to its mangled name and
+    ///   splice in the demangled node (the original PAC-fault-avoiding path).
+    /// - `.value`    → read the raw integer and splice in an `integer` /
+    ///   `negativeInteger` literal (SE-0452, e.g. `InlineArray<3, UInt8>`).
+    /// - `.typePack` → read the metadata pack and splice in a `pack` node of the
+    ///   element type names (variadic generics).
+    ///
+    /// Any read failing its bounds / alignment / kind guards falls through to
+    /// the unbound placeholder rather than risking a bad dereference.
+    ///
+    /// The replacement node takes the place of the matched bare
+    /// `dependentGenericParamType`, whose enclosing `.type` wrapper is preserved
+    /// by the recursion — so `.value` yields the canonical `type(integer)` shape
+    /// and `.type` the canonical `type(<nominal>)`, exactly as the demangler
+    /// would. The result is print-only (`nestedTypeName` →
+    /// `printSemantic(using: .default)`); it is never remangled, so a bare
+    /// `pack` child (printed as `Pack{…}`) needs no further wrapping.
+    private func substitutingGenericParameters<ParentMetadata: ValueMetadataProtocol>(in node: Node, parentMetadata: ParentMetadata, layout: TopLevelGenericLayout) -> Node {
         if #available(macOS 11, iOS 14, tvOS 14, watchOS 7, *),
            node.kind == .dependentGenericParamType,
            let (depthValue, indexValue) = genericParameterDepthAndIndex(of: node),
            depthValue == 0,
-           indexValue < parameterKinds.count,
-           // Substitute only *type* parameters: a `.value` (SE-0452 value
-           // generic) key argument is the raw integer value and a `.typePack`
-           // one a tagged pack pointer — neither is an `Any.Type`, and bit-
-           // casting it would crash `_mangledTypeName` in the runtime (e.g. the
-           // value `1` dereferenced as metadata → `EXC_BAD_ACCESS` at `0x1`).
-           // Leaving the placeholder node keeps the unbound parameter name.
-           parameterKinds[indexValue] == .type,
-           let flatIndex = depthZeroFlatIndex(forIndex: indexValue, keyArgumentFlags: keyArgumentFlags),
-           let argumentType = boundGenericArgumentType(at: flatIndex, keyArgumentCount: keyArgumentCount, of: parentMetadata),
-           let argumentMangledString = _mangledTypeName(argumentType),
-           let argumentNode = try? demangleAsNode(argumentMangledString, isType: true) {
-            return innerTypeNode(of: argumentNode)
+           indexValue < layout.parameters.count,
+           layout.parameters[indexValue].hasKeyArgument,
+           let flatIndex = depthZeroFlatIndex(forIndex: indexValue, keyArgumentFlags: layout.keyArgumentFlags) {
+            let slot = layout.numShapeClasses + flatIndex
+            switch layout.parameters[indexValue].kind {
+            case .type:
+                if let argumentType = boundGenericArgumentType(atSlot: slot, totalKeyArguments: layout.totalKeyArguments, of: parentMetadata),
+                   let argumentMangledString = _mangledTypeName(argumentType),
+                   let argumentNode = try? demangleAsNode(argumentMangledString, isType: true) {
+                    return innerTypeNode(of: argumentNode)
+                }
+            case .value:
+                if let valueNode = substitutedValueNode(atSlot: slot, totalKeyArguments: layout.totalKeyArguments, of: parentMetadata) {
+                    return valueNode
+                }
+            case .typePack:
+                if let packNode = substitutedPackNode(forParameterAtIndex: indexValue, layout: layout, of: parentMetadata) {
+                    return packNode
+                }
+            case .max:
+                break
+            }
         }
         let substitutedChildren = node.children.map {
-            substitutingGenericParameters(in: $0, parentMetadata: parentMetadata, keyArgumentFlags: keyArgumentFlags, parameterKinds: parameterKinds, keyArgumentCount: keyArgumentCount)
+            substitutingGenericParameters(in: $0, parentMetadata: parentMetadata, layout: layout)
         }
         return Node.create(kind: node.kind, contents: node.contents, children: Array(substitutedChildren))
     }
 
-    private func boundGenericArgumentType<ParentMetadata: ValueMetadataProtocol>(at flatIndex: Int, keyArgumentCount: Int, of parentMetadata: ParentMetadata) -> Any.Type? {
-        guard flatIndex >= 0, flatIndex < keyArgumentCount else { return nil }
-        guard let metadataPointer = try? parentMetadata.asPointer else { return nil }
-        let genericArgumentsBase = metadataPointer.advanced(by: MemoryLayout<ParentMetadata.Layout>.size)
-        let argumentBitPattern = genericArgumentsBase.load(fromByteOffset: flatIndex * MemoryLayout<UInt>.size, as: UInt.self)
-        // Callers gate on `GenericParamKind.type`, so this slot must hold a
-        // pointer-aligned metadata pointer. Reject a null or misaligned word as
-        // a defensive backstop: a stray non-pointer value that ever reached
+    /// Resolves a `.type` key-argument slot to its concrete `Any.Type`.
+    private func boundGenericArgumentType<ParentMetadata: ValueMetadataProtocol>(atSlot slot: Int, totalKeyArguments: Int, of parentMetadata: ParentMetadata) -> Any.Type? {
+        guard let word = genericArgumentWord(atSlot: slot, totalKeyArguments: totalKeyArguments, of: parentMetadata) else { return nil }
+        // The slot must hold a pointer-aligned metadata pointer. Reject a null
+        // or misaligned word defensively: a stray non-pointer value reaching
         // here would otherwise be bit-cast to a bogus `Any.Type` and trap the
         // runtime inside `_mangledTypeName`.
-        guard argumentBitPattern != 0,
-              argumentBitPattern % UInt(MemoryLayout<UnsafeRawPointer>.alignment) == 0,
-              let argumentPointer = UnsafeRawPointer(bitPattern: argumentBitPattern) else { return nil }
+        guard word != 0,
+              word % UInt(MemoryLayout<UnsafeRawPointer>.alignment) == 0,
+              let argumentPointer = UnsafeRawPointer(bitPattern: word) else { return nil }
         return unsafeBitCast(argumentPointer, to: Any.Type.self)
     }
 
-    /// The depth-0 (top-level) generic parameter descriptors of `parentMetadata`'s
-    /// nominal type, carrying both `hasKeyArgument` (for the generic-argument
-    /// vector flat-index accounting) and `kind` (so substitution can skip
-    /// non-`.type` parameters whose key-argument slots are not metadata pointers).
-    private func topLevelGenericParameters<ParentMetadata: ValueMetadataProtocol>(of parentMetadata: ParentMetadata) -> [GenericParamDescriptor]? {
+    /// Builds an `integer` / `negativeInteger` literal node for a `.value`
+    /// (SE-0452) key-argument slot, which stores the raw `Int` value inline.
+    private func substitutedValueNode<ParentMetadata: ValueMetadataProtocol>(atSlot slot: Int, totalKeyArguments: Int, of parentMetadata: ParentMetadata) -> Node? {
+        guard let word = genericArgumentWord(atSlot: slot, totalKeyArguments: totalKeyArguments, of: parentMetadata) else { return nil }
+        let value = Int(bitPattern: word)
+        if value >= 0 {
+            return Node.create(kind: .integer, contents: .index(UInt64(value)))
+        } else {
+            return Node.create(kind: .negativeInteger, contents: .index(UInt64(value.magnitude)))
+        }
+    }
+
+    /// Builds a `pack` node of element type names for a `.typePack` key-argument
+    /// slot, which stores a `MetadataPackPointer` (its low bit is the on-heap
+    /// lifetime flag). The pack length lives in the leading shape-class slot
+    /// named by the parameter's metadata pack-shape descriptor.
+    private func substitutedPackNode<ParentMetadata: ValueMetadataProtocol>(forParameterAtIndex parameterIndex: Int, layout: TopLevelGenericLayout, of parentMetadata: ParentMetadata) -> Node? {
+        guard #available(macOS 11, iOS 14, tvOS 14, watchOS 7, *) else { return nil }
+        guard parameterIndex < layout.parameters.count else { return nil }
+        // The k-th metadata pack-shape descriptor describes the k-th `.typePack`
+        // key-argument parameter.
+        var packOrdinal = 0
+        for earlierIndex in 0..<parameterIndex {
+            let earlierParameter = layout.parameters[earlierIndex]
+            if earlierParameter.hasKeyArgument, earlierParameter.kind == .typePack {
+                packOrdinal += 1
+            }
+        }
+        guard packOrdinal < layout.metadataPackShapeDescriptors.count else { return nil }
+        let packShapeDescriptor = layout.metadataPackShapeDescriptors[packOrdinal]
+        let packSlot = Int(packShapeDescriptor.layout.index)
+        let shapeClassSlot = Int(packShapeDescriptor.layout.shapeClass)
+
+        // Pack length: stored in the leading shape-class slot.
+        guard let countWord = genericArgumentWord(atSlot: shapeClassSlot, totalKeyArguments: layout.totalKeyArguments, of: parentMetadata) else { return nil }
+        let elementCount = Int(bitPattern: countWord)
+        guard elementCount >= 0, elementCount <= packElementCountLimit else { return nil }
+        if elementCount == 0 { return Node.create(kind: .pack, children: []) }
+
+        // Pack pointer: low bit is the on-heap lifetime flag — strip it.
+        guard let packWord = genericArgumentWord(atSlot: packSlot, totalKeyArguments: layout.totalKeyArguments, of: parentMetadata) else { return nil }
+        let elementsBitPattern = packWord & ~UInt(1)
+        guard elementsBitPattern != 0,
+              elementsBitPattern % UInt(MemoryLayout<UnsafeRawPointer>.alignment) == 0,
+              let elementsBase = UnsafeRawPointer(bitPattern: elementsBitPattern) else { return nil }
+
+        var elementNodes: [Node] = []
+        for elementIndex in 0..<elementCount {
+            let elementWord = elementsBase.load(fromByteOffset: elementIndex * MemoryLayout<UInt>.size, as: UInt.self)
+            guard elementWord != 0,
+                  elementWord % UInt(MemoryLayout<UnsafeRawPointer>.alignment) == 0,
+                  let elementPointer = UnsafeRawPointer(bitPattern: elementWord) else { return nil }
+            let elementType = unsafeBitCast(elementPointer, to: Any.Type.self)
+            guard let elementMangledString = _mangledTypeName(elementType),
+                  let elementNode = try? demangleAsNode(elementMangledString, isType: true) else { return nil }
+            elementNodes.append(elementNode)
+        }
+        return Node.create(kind: .pack, children: elementNodes)
+    }
+
+    /// Reads the raw word at an absolute slot of `parentMetadata`'s inline
+    /// generic-argument vector, bounds-checked against the key-argument area.
+    private func genericArgumentWord<ParentMetadata: ValueMetadataProtocol>(atSlot slot: Int, totalKeyArguments: Int, of parentMetadata: ParentMetadata) -> UInt? {
+        guard slot >= 0, slot < totalKeyArguments, let metadataPointer = try? parentMetadata.asPointer else { return nil }
+        let genericArgumentsBase = metadataPointer.advanced(by: MemoryLayout<ParentMetadata.Layout>.size)
+        return genericArgumentsBase.load(fromByteOffset: slot * MemoryLayout<UInt>.size, as: UInt.self)
+    }
+
+    private func topLevelGenericLayout<ParentMetadata: ValueMetadataProtocol>(of parentMetadata: ParentMetadata) -> TopLevelGenericLayout? {
         guard let descriptor = try? parentMetadata.descriptor(),
               let genericContext = try? descriptor.genericContext(),
               let topLevelParameters = genericContext.allParameters.first
         else { return nil }
-        return topLevelParameters
+        return TopLevelGenericLayout(
+            parameters: topLevelParameters,
+            keyArgumentFlags: topLevelParameters.map(\.hasKeyArgument),
+            numShapeClasses: Int(genericContext.typePackHeader?.layout.numShapeClasses ?? 0),
+            totalKeyArguments: Int(genericContext.header.numKeyArguments),
+            metadataPackShapeDescriptors: genericContext.typePacks.filter { $0.kind == .metadata }
+        )
     }
 
     private func depthZeroFlatIndex(forIndex index: Int, keyArgumentFlags: [Bool]) -> Int? {
