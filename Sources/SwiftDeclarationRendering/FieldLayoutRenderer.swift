@@ -307,11 +307,13 @@ package struct FieldLayoutRenderer<MachO: MachOSwiftSectionRepresentableWithCach
 
     private func substitutedNestedTypeNode<ParentMetadata: ValueMetadataProtocol>(for mangledTypeName: MangledName, parentMetadata: ParentMetadata) -> Node? {
         guard let node = try? MetadataReader.demangleTypeUncached(for: mangledTypeName) else { return nil }
-        guard let keyArgumentFlags = topLevelGenericKeyArgumentFlags(of: parentMetadata) else {
+        guard let topLevelParameters = topLevelGenericParameters(of: parentMetadata) else {
             return node
         }
+        let keyArgumentFlags = topLevelParameters.map(\.hasKeyArgument)
+        let parameterKinds = topLevelParameters.map(\.kind)
         let keyArgumentCount = keyArgumentFlags.lazy.filter { $0 }.count
-        return substitutingGenericParameters(in: node, parentMetadata: parentMetadata, keyArgumentFlags: keyArgumentFlags, keyArgumentCount: keyArgumentCount)
+        return substitutingGenericParameters(in: node, parentMetadata: parentMetadata, keyArgumentFlags: keyArgumentFlags, parameterKinds: parameterKinds, keyArgumentCount: keyArgumentCount)
     }
 
     private func staticallyBoundMetatype<ParentMetadata: ValueMetadataProtocol>(for mangledTypeName: MangledName, parentMetadata: ParentMetadata) -> Any.Type? {
@@ -320,18 +322,33 @@ package struct FieldLayoutRenderer<MachO: MachOSwiftSectionRepresentableWithCach
         guard typeNode.kind == .dependentGenericParamType,
               let (depthValue, indexValue) = genericParameterDepthAndIndex(of: typeNode),
               depthValue == 0,
-              let keyArgumentFlags = topLevelGenericKeyArgumentFlags(of: parentMetadata),
-              let flatIndex = depthZeroFlatIndex(forIndex: indexValue, keyArgumentFlags: keyArgumentFlags)
+              let topLevelParameters = topLevelGenericParameters(of: parentMetadata),
+              indexValue < topLevelParameters.count,
+              // Only a *type* parameter's key-argument slot holds a metadata
+              // pointer. A `.value` (SE-0452 value generic) slot holds the raw
+              // integer value and a `.typePack` slot a tagged metadata-pack
+              // pointer — bit-casting either to `Any.Type` traps the runtime.
+              topLevelParameters[indexValue].kind == .type
         else { return nil }
+        let keyArgumentFlags = topLevelParameters.map(\.hasKeyArgument)
+        guard let flatIndex = depthZeroFlatIndex(forIndex: indexValue, keyArgumentFlags: keyArgumentFlags) else { return nil }
         let keyArgumentCount = keyArgumentFlags.lazy.filter { $0 }.count
         return boundGenericArgumentType(at: flatIndex, keyArgumentCount: keyArgumentCount, of: parentMetadata)
     }
 
-    private func substitutingGenericParameters<ParentMetadata: ValueMetadataProtocol>(in node: Node, parentMetadata: ParentMetadata, keyArgumentFlags: [Bool], keyArgumentCount: Int) -> Node {
+    private func substitutingGenericParameters<ParentMetadata: ValueMetadataProtocol>(in node: Node, parentMetadata: ParentMetadata, keyArgumentFlags: [Bool], parameterKinds: [GenericParamKind], keyArgumentCount: Int) -> Node {
         if #available(macOS 11, iOS 14, tvOS 14, watchOS 7, *),
            node.kind == .dependentGenericParamType,
            let (depthValue, indexValue) = genericParameterDepthAndIndex(of: node),
            depthValue == 0,
+           indexValue < parameterKinds.count,
+           // Substitute only *type* parameters: a `.value` (SE-0452 value
+           // generic) key argument is the raw integer value and a `.typePack`
+           // one a tagged pack pointer — neither is an `Any.Type`, and bit-
+           // casting it would crash `_mangledTypeName` in the runtime (e.g. the
+           // value `1` dereferenced as metadata → `EXC_BAD_ACCESS` at `0x1`).
+           // Leaving the placeholder node keeps the unbound parameter name.
+           parameterKinds[indexValue] == .type,
            let flatIndex = depthZeroFlatIndex(forIndex: indexValue, keyArgumentFlags: keyArgumentFlags),
            let argumentType = boundGenericArgumentType(at: flatIndex, keyArgumentCount: keyArgumentCount, of: parentMetadata),
            let argumentMangledString = _mangledTypeName(argumentType),
@@ -339,7 +356,7 @@ package struct FieldLayoutRenderer<MachO: MachOSwiftSectionRepresentableWithCach
             return innerTypeNode(of: argumentNode)
         }
         let substitutedChildren = node.children.map {
-            substitutingGenericParameters(in: $0, parentMetadata: parentMetadata, keyArgumentFlags: keyArgumentFlags, keyArgumentCount: keyArgumentCount)
+            substitutingGenericParameters(in: $0, parentMetadata: parentMetadata, keyArgumentFlags: keyArgumentFlags, parameterKinds: parameterKinds, keyArgumentCount: keyArgumentCount)
         }
         return Node.create(kind: node.kind, contents: node.contents, children: Array(substitutedChildren))
     }
@@ -349,16 +366,27 @@ package struct FieldLayoutRenderer<MachO: MachOSwiftSectionRepresentableWithCach
         guard let metadataPointer = try? parentMetadata.asPointer else { return nil }
         let genericArgumentsBase = metadataPointer.advanced(by: MemoryLayout<ParentMetadata.Layout>.size)
         let argumentBitPattern = genericArgumentsBase.load(fromByteOffset: flatIndex * MemoryLayout<UInt>.size, as: UInt.self)
-        guard argumentBitPattern != 0, let argumentPointer = UnsafeRawPointer(bitPattern: argumentBitPattern) else { return nil }
+        // Callers gate on `GenericParamKind.type`, so this slot must hold a
+        // pointer-aligned metadata pointer. Reject a null or misaligned word as
+        // a defensive backstop: a stray non-pointer value that ever reached
+        // here would otherwise be bit-cast to a bogus `Any.Type` and trap the
+        // runtime inside `_mangledTypeName`.
+        guard argumentBitPattern != 0,
+              argumentBitPattern % UInt(MemoryLayout<UnsafeRawPointer>.alignment) == 0,
+              let argumentPointer = UnsafeRawPointer(bitPattern: argumentBitPattern) else { return nil }
         return unsafeBitCast(argumentPointer, to: Any.Type.self)
     }
 
-    private func topLevelGenericKeyArgumentFlags<ParentMetadata: ValueMetadataProtocol>(of parentMetadata: ParentMetadata) -> [Bool]? {
+    /// The depth-0 (top-level) generic parameter descriptors of `parentMetadata`'s
+    /// nominal type, carrying both `hasKeyArgument` (for the generic-argument
+    /// vector flat-index accounting) and `kind` (so substitution can skip
+    /// non-`.type` parameters whose key-argument slots are not metadata pointers).
+    private func topLevelGenericParameters<ParentMetadata: ValueMetadataProtocol>(of parentMetadata: ParentMetadata) -> [GenericParamDescriptor]? {
         guard let descriptor = try? parentMetadata.descriptor(),
               let genericContext = try? descriptor.genericContext(),
               let topLevelParameters = genericContext.allParameters.first
         else { return nil }
-        return topLevelParameters.map(\.hasKeyArgument)
+        return topLevelParameters
     }
 
     private func depthZeroFlatIndex(forIndex index: Int, keyArgumentFlags: [Bool]) -> Int? {
