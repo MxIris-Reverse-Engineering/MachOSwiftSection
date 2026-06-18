@@ -132,13 +132,11 @@ public final class SwiftDiffableInterfaceRenderer<
 
         units += await diffMembers(old: fieldMembers(old, level: level, printer: oldPrinter), new: fieldMembers(new, level: level, printer: newPrinter), level: level)
 
-        units += await diffMembers(old: functionMembers(old?.allocators, printer: oldPrinter, level: level), new: functionMembers(new?.allocators, printer: newPrinter, level: level), level: level)
-        units += await diffMembers(old: variableMembers(old?.variables, printer: oldPrinter, level: level), new: variableMembers(new?.variables, printer: newPrinter, level: level), level: level)
-        units += await diffMembers(old: functionMembers(old?.functions, printer: oldPrinter, level: level), new: functionMembers(new?.functions, printer: newPrinter, level: level), level: level)
-        units += await diffMembers(old: subscriptMembers(old?.subscripts, printer: oldPrinter, level: level), new: subscriptMembers(new?.subscripts, printer: newPrinter, level: level), level: level)
-        units += await diffMembers(old: variableMembers(old?.staticVariables, printer: oldPrinter, level: level), new: variableMembers(new?.staticVariables, printer: newPrinter, level: level), level: level)
-        units += await diffMembers(old: functionMembers(old?.staticFunctions, printer: oldPrinter, level: level), new: functionMembers(new?.staticFunctions, printer: newPrinter, level: level), level: level)
-        units += await diffMembers(old: subscriptMembers(old?.staticSubscripts, printer: oldPrinter, level: level), new: subscriptMembers(new?.staticSubscripts, printer: newPrinter, level: level), level: level)
+        units += await diffMemberCategories(
+            level: level,
+            old: { renderableMembers(old, in: $0, printer: oldPrinter, level: level) },
+            new: { renderableMembers(new, in: $0, printer: newPrinter, level: level) }
+        )
 
         units += await diffMembers(old: deinitMembers(old, printer: oldPrinter), new: deinitMembers(new, printer: newPrinter), level: level)
 
@@ -165,13 +163,11 @@ public final class SwiftDiffableInterfaceRenderer<
 
         var units: [SemanticString] = []
         units += await diffMembers(old: associatedTypeMembers(old, printer: oldPrinter), new: associatedTypeMembers(new, printer: newPrinter), level: level)
-        units += await diffMembers(old: functionMembers(old?.allocators, printer: oldPrinter, level: level), new: functionMembers(new?.allocators, printer: newPrinter, level: level), level: level)
-        units += await diffMembers(old: variableMembers(old?.variables, printer: oldPrinter, level: level), new: variableMembers(new?.variables, printer: newPrinter, level: level), level: level)
-        units += await diffMembers(old: functionMembers(old?.functions, printer: oldPrinter, level: level), new: functionMembers(new?.functions, printer: newPrinter, level: level), level: level)
-        units += await diffMembers(old: subscriptMembers(old?.subscripts, printer: oldPrinter, level: level), new: subscriptMembers(new?.subscripts, printer: newPrinter, level: level), level: level)
-        units += await diffMembers(old: variableMembers(old?.staticVariables, printer: oldPrinter, level: level), new: variableMembers(new?.staticVariables, printer: newPrinter, level: level), level: level)
-        units += await diffMembers(old: functionMembers(old?.staticFunctions, printer: oldPrinter, level: level), new: functionMembers(new?.staticFunctions, printer: newPrinter, level: level), level: level)
-        units += await diffMembers(old: subscriptMembers(old?.staticSubscripts, printer: oldPrinter, level: level), new: subscriptMembers(new?.staticSubscripts, printer: newPrinter, level: level), level: level)
+        units += await diffMemberCategories(
+            level: level,
+            old: { renderableMembers(old, in: $0, printer: oldPrinter, level: level) },
+            new: { renderableMembers(new, in: $0, printer: newPrinter, level: level) }
+        )
 
         return assembleContainer(oldHeader: oldHeader, newHeader: newHeader, marker: marker, bodyUnits: units, level: level)
     }
@@ -220,13 +216,11 @@ public final class SwiftDiffableInterfaceRenderer<
         }
 
         var units: [SemanticString] = []
-        units += await diffMembers(old: extensionFunctionMembers(old?.definitions, \.allocators, printer: oldPrinter, level: level), new: extensionFunctionMembers(new?.definitions, \.allocators, printer: newPrinter, level: level), level: level)
-        units += await diffMembers(old: extensionVariableMembers(old?.definitions, \.variables, printer: oldPrinter, level: level), new: extensionVariableMembers(new?.definitions, \.variables, printer: newPrinter, level: level), level: level)
-        units += await diffMembers(old: extensionFunctionMembers(old?.definitions, \.functions, printer: oldPrinter, level: level), new: extensionFunctionMembers(new?.definitions, \.functions, printer: newPrinter, level: level), level: level)
-        units += await diffMembers(old: extensionSubscriptMembers(old?.definitions, \.subscripts, printer: oldPrinter, level: level), new: extensionSubscriptMembers(new?.definitions, \.subscripts, printer: newPrinter, level: level), level: level)
-        units += await diffMembers(old: extensionVariableMembers(old?.definitions, \.staticVariables, printer: oldPrinter, level: level), new: extensionVariableMembers(new?.definitions, \.staticVariables, printer: newPrinter, level: level), level: level)
-        units += await diffMembers(old: extensionFunctionMembers(old?.definitions, \.staticFunctions, printer: oldPrinter, level: level), new: extensionFunctionMembers(new?.definitions, \.staticFunctions, printer: newPrinter, level: level), level: level)
-        units += await diffMembers(old: extensionSubscriptMembers(old?.definitions, \.staticSubscripts, printer: oldPrinter, level: level), new: extensionSubscriptMembers(new?.definitions, \.staticSubscripts, printer: newPrinter, level: level), level: level)
+        units += await diffMemberCategories(
+            level: level,
+            old: { renderableMembers(old?.definitions, in: $0, printer: oldPrinter, level: level) },
+            new: { renderableMembers(new?.definitions, in: $0, printer: newPrinter, level: level) }
+        )
 
         return assembleContainer(oldHeader: header, newHeader: header, marker: marker, bodyUnits: units, level: level)
     }
@@ -248,16 +242,33 @@ public final class SwiftDiffableInterfaceRenderer<
         return RenderableMember(identityKey: record.identityKey, payloadKey: record.payloadKey) { await printer.printSubscript(subscriptDefinition, level: level) }
     }
 
-    private func variableMembers<M>(_ variables: [VariableDefinition]?, printer: SwiftDeclarationPrinter<M>, level: Int) -> [RenderableMember] {
-        (variables ?? []).map { variableMember($0, printer: printer, level: level) }
+    /// Projects one `OrderedMember` to a `RenderableMember`, dispatching to the
+    /// matching per-member builder. Allocators and functions share the function
+    /// builder (both are `FunctionDefinition`s, keyed identically by their
+    /// mangled signature), mirroring the printer's `renderMember`.
+    private func renderableMember<MachO>(for member: OrderedMember, printer: SwiftDeclarationPrinter<MachO>, level: Int) -> RenderableMember {
+        switch member {
+        case .allocator(let function), .function(let function):
+            functionMember(function, printer: printer, level: level)
+        case .variable(let variable):
+            variableMember(variable, printer: printer, level: level)
+        case .subscript(let subscriptDefinition):
+            subscriptMember(subscriptDefinition, printer: printer, level: level)
+        }
     }
 
-    private func functionMembers<M>(_ functions: [FunctionDefinition]?, printer: SwiftDeclarationPrinter<M>, level: Int) -> [RenderableMember] {
-        (functions ?? []).map { functionMember($0, printer: printer, level: level) }
+    /// The renderable members of one definition in `category`, in declaration
+    /// order — the diff-side counterpart of the printer's `members(in:)` walk.
+    private func renderableMembers<EnclosingDefinition: Definition, MachO>(_ definition: EnclosingDefinition?, in category: MemberCategory, printer: SwiftDeclarationPrinter<MachO>, level: Int) -> [RenderableMember] {
+        guard let definition else { return [] }
+        return definition.members(in: category).map { renderableMember(for: $0, printer: printer, level: level) }
     }
 
-    private func subscriptMembers<M>(_ subscripts: [SubscriptDefinition]?, printer: SwiftDeclarationPrinter<M>, level: Int) -> [RenderableMember] {
-        (subscripts ?? []).map { subscriptMember($0, printer: printer, level: level) }
+    /// The renderable members of `category` merged across an extension bucket,
+    /// category-major (all definitions' members of this one category), matching
+    /// how `ABIDiffer` keys a bucket's merged member set.
+    private func renderableMembers<MachO>(_ definitions: [ExtensionDefinition]?, in category: MemberCategory, printer: SwiftDeclarationPrinter<MachO>, level: Int) -> [RenderableMember] {
+        (definitions ?? []).flatMap { renderableMembers($0, in: category, printer: printer, level: level) }
     }
 
     private func fieldMembers<M>(_ definition: TypeDefinition?, level: Int, printer: SwiftDeclarationPrinter<M>) -> [RenderableMember] {
@@ -289,19 +300,24 @@ public final class SwiftDiffableInterfaceRenderer<
         }
     }
 
-    private func extensionVariableMembers<M>(_ definitions: [ExtensionDefinition]?, _ keyPath: KeyPath<ExtensionDefinition, [VariableDefinition]>, printer: SwiftDeclarationPrinter<M>, level: Int) -> [RenderableMember] {
-        (definitions ?? []).flatMap { variableMembers($0[keyPath: keyPath], printer: printer, level: level) }
-    }
-
-    private func extensionFunctionMembers<M>(_ definitions: [ExtensionDefinition]?, _ keyPath: KeyPath<ExtensionDefinition, [FunctionDefinition]>, printer: SwiftDeclarationPrinter<M>, level: Int) -> [RenderableMember] {
-        (definitions ?? []).flatMap { functionMembers($0[keyPath: keyPath], printer: printer, level: level) }
-    }
-
-    private func extensionSubscriptMembers<M>(_ definitions: [ExtensionDefinition]?, _ keyPath: KeyPath<ExtensionDefinition, [SubscriptDefinition]>, printer: SwiftDeclarationPrinter<M>, level: Int) -> [RenderableMember] {
-        (definitions ?? []).flatMap { subscriptMembers($0[keyPath: keyPath], printer: printer, level: level) }
-    }
-
     // MARK: - Member diffing
+
+    /// Diffs every `MemberCategory` in canonical order, concatenating the marked
+    /// units. Both `old`/`new` map a category to that side's renderable members;
+    /// driving the loop from `MemberCategory.allCases` keeps the category
+    /// schedule identical to the printer's `printMembersByCategory`, so a member
+    /// category can never be silently dropped from the diff view.
+    private func diffMemberCategories(
+        level: Int,
+        old: (MemberCategory) -> [RenderableMember],
+        new: (MemberCategory) -> [RenderableMember]
+    ) async -> [SemanticString] {
+        var units: [SemanticString] = []
+        for category in MemberCategory.allCases {
+            units += await diffMembers(old: old(category), new: new(category), level: level)
+        }
+        return units
+    }
 
     /// Three-way set difference over one category's members, keyed by
     /// `identityKey` (matching `ABIDiffer.diffMembers`). Emits, in new order:
