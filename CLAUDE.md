@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Documentation
+
+All project documentation (design notes, migration guides, refactor write-ups, etc.) lives in the `Documentations/` directory. Name doc files in **PascalCase** with the `.md` extension (e.g. `SwiftModularizationMigration.md`, `ReadingContextAbstraction.md`). When asked to "write a doc", put it there with a PascalCase name — do not scatter docs next to source files.
+
 ## Build and Test Commands
 
 ```bash
