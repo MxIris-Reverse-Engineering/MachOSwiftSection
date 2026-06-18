@@ -18,6 +18,11 @@ public struct GenericParamDescriptor: ResolvableLocatableLayoutWrapper {
     }
 
     public var kind: GenericParamKind {
-        .init(rawValue: layout.rawValue & 0x3F)!
+        // An unmodeled kind byte (the 60 reserved low-6-bits values `3...0x3E`,
+        // e.g. emitted by a future toolchain) must not trap: the runtime
+        // reserves `Max` (0x3F) as the guard sentinel, so fold any unknown value
+        // into `.max`. Every caller tests against `.type` / `.value` /
+        // `.typePack`, for which `.max` correctly reads as "none of these".
+        .init(rawValue: layout.rawValue & 0x3F) ?? .max
     }
 }
