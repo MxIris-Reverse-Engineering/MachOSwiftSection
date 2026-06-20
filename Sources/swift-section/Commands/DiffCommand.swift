@@ -29,8 +29,8 @@ struct DiffCommand: AsyncParsableCommand {
     @Argument(help: "The new Mach-O file path.", completion: .file())
     var newPath: String
 
-    @Option(name: .shortAndLong, help: "The architecture slice to use for fat binaries.")
-    var architecture: Architecture = .arm64
+    @Option(name: .shortAndLong, help: "The architecture slice to use for fat binaries. Required when either path is a fat (universal) binary.")
+    var architecture: Architecture?
 
     @Flag(name: [.customLong("dyld-shared-cache")], help: "Treat both paths as dyld shared caches and extract the same image (--cache-image-name) from each.")
     var isDyldSharedCache: Bool = false
@@ -132,37 +132,20 @@ struct DiffCommand: AsyncParsableCommand {
 
     /// Loads a Mach-O for diffing: either an image extracted from a dyld shared
     /// cache (so cross-image references into Foundation/libswiftCore resolve), or
-    /// a thin/fat file on disk (selecting the requested architecture slice).
+    /// a thin/fat file on disk. Both sides go through the shared
+    /// `MachOFile.load(...)` so the fat-binary affordance and cache-image
+    /// disambiguation match the rest of the CLI. `--dyld-shared-cache` here means
+    /// "treat each path as a cache and pull the same image from both", so the
+    /// system-cache path is never taken.
     private func loadMachO(at path: String) throws -> MachOFile {
-        let url = URL(fileURLWithPath: path)
-
-        if isDyldSharedCache {
-            let cache = try DyldCache(url: url)
-            if let cacheImagePath {
-                guard let image = cache.machOFile(by: .path(cacheImagePath)) else {
-                    throw SwiftSectionCommandError.imageNotFound
-                }
-                return image
-            }
-            guard let cacheImageName else {
-                throw SwiftSectionCommandError.missingCacheImageNameOrCacheImagePath
-            }
-            guard let image = cache.machOFile(by: .name(cacheImageName)) else {
-                throw SwiftSectionCommandError.imageNotFound
-            }
-            return image
-        }
-
-        switch try File.loadFromFile(url: url) {
-        case .machO(let machOFile):
-            return machOFile
-        case .fat(let fatFile):
-            let machOFiles = try fatFile.machOFiles()
-            guard let slice = machOFiles.first(where: { $0.header.cpu.subtype == architecture.cpu }) else {
-                throw SwiftSectionCommandError.invalidArchitecture
-            }
-            return slice
-        }
+        try MachOFile.load(
+            filePath: path,
+            isDyldSharedCache: isDyldSharedCache,
+            usesSystemDyldSharedCache: false,
+            cacheImageName: cacheImageName,
+            cacheImagePath: cacheImagePath,
+            architecture: architecture
+        )
     }
 
     /// Writes the annotated interface: plain text to `--output`, or per-line

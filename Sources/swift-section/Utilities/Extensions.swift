@@ -5,38 +5,51 @@ import Rainbow
 import Semantic
 
 extension MachOFile {
-    static func load(options: MachOOptionGroup) throws -> MachOFile {
-        if options.isDyldSharedCache || options.usesSystemDyldSharedCache {
+    /// The core loader shared by every command: either a thin/fat Mach-O file at
+    /// `filePath` (selecting `architecture` for a fat binary), or an image
+    /// extracted from a dyld shared cache (the running system's, or the cache at
+    /// `filePath`). Centralizing it keeps every command's fat-binary affordance
+    /// (the `availableArchitectures` hint) and cache-image disambiguation
+    /// identical instead of each command re-deriving them and drifting.
+    static func load(
+        filePath: String?,
+        isDyldSharedCache: Bool,
+        usesSystemDyldSharedCache: Bool,
+        cacheImageName: String?,
+        cacheImagePath: String?,
+        architecture: Architecture?
+    ) throws -> MachOFile {
+        if isDyldSharedCache || usesSystemDyldSharedCache {
             let dyldCache: DyldCache
-            if options.usesSystemDyldSharedCache {
+            if usesSystemDyldSharedCache {
                 if let host = DyldCache.host {
                     dyldCache = host
                 } else {
                     throw SwiftSectionCommandError.unsupportedSystemVersionForDyldSharedCache
                 }
             } else {
-                let url = try URL(fileURLWithPath: required(options.filePath, error: SwiftSectionCommandError.missingFilePath))
+                let url = try URL(fileURLWithPath: required(filePath, error: SwiftSectionCommandError.missingFilePath))
                 dyldCache = try DyldCache(url: url)
             }
 
-            if let _ = options.cacheImagePath, let _ = options.cacheImageName {
+            if cacheImagePath != nil, cacheImageName != nil {
                 throw SwiftSectionCommandError.ambiguousCacheImageNameAndCacheImagePath
-            } else if let cacheImageName = options.cacheImageName {
+            } else if let cacheImageName {
                 return try required(dyldCache.machOFile(by: .name(cacheImageName)), error: SwiftSectionCommandError.imageNotFound)
-            } else if let cacheImagePath = options.cacheImagePath {
+            } else if let cacheImagePath {
                 return try required(dyldCache.machOFile(by: .path(cacheImagePath)), error: SwiftSectionCommandError.imageNotFound)
             } else {
                 throw SwiftSectionCommandError.missingCacheImageNameOrCacheImagePath
             }
         } else {
-            let url = try URL(fileURLWithPath: required(options.filePath, error: SwiftSectionCommandError.missingFilePath))
+            let url = try URL(fileURLWithPath: required(filePath, error: SwiftSectionCommandError.missingFilePath))
             let file = try File.loadFromFile(url: url)
             switch file {
             case .machO(let machOFile):
                 return machOFile
             case .fat(let fatFile):
                 let machOFiles = try fatFile.machOFiles()
-                guard let architecture = options.architecture else {
+                guard let architecture else {
                     let availableArchitectures = machOFiles.map { machOFile -> String in
                         Architecture(cpu: machOFile.header.cpu)?.rawValue ?? machOFile.header.cpu.description
                     }
@@ -45,6 +58,17 @@ extension MachOFile {
                 return try required(machOFiles.first { $0.header.cpu.subtype == architecture.cpu }, error: SwiftSectionCommandError.invalidArchitecture)
             }
         }
+    }
+
+    static func load(options: MachOOptionGroup) throws -> MachOFile {
+        try load(
+            filePath: options.filePath,
+            isDyldSharedCache: options.isDyldSharedCache,
+            usesSystemDyldSharedCache: options.usesSystemDyldSharedCache,
+            cacheImageName: options.cacheImageName,
+            cacheImagePath: options.cacheImagePath,
+            architecture: options.architecture
+        )
     }
 }
 
