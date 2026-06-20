@@ -1,20 +1,17 @@
 import SwiftDeclaration
-import SwiftAttributeInference
 import SwiftDeclarationRendering
 import MachOSwiftSection
 import Semantic
 import Demangling
 
-/// Per-member rendering primitives used by the diffable-interface renderer.
+/// Per-member stored-field / enum-case rendering primitives, shared by the
+/// full-interface printer (`renderModelFields`) and the diffable-interface
+/// renderer (which needs each member as a *standalone* `SemanticString` so it can
+/// prefix every line with a `+`/`-`/` ` marker). They render straight from the
+/// (Mach-O-free, post-index) `SwiftDeclaration` model, so they need no dumper.
 ///
-/// `printTypeDefinition` renders a whole type by composing several sources, and
-/// its stored fields / enum cases come from `SwiftDump`'s dumpers as one blob.
-/// The diff renderer needs every member as a *standalone* `SemanticString` so it
-/// can prefix each member's line(s) with a `+`/`-`/` ` marker. The symbol-backed
-/// members already have per-member entry points (`printVariable` / `printFunction`
-/// / `printSubscript`); these add the missing ones — stored fields, enum cases,
-/// `deinit`, and associated types — rendered straight from the (Mach-O-free,
-/// post-index) `SwiftDeclaration` model so they need no dumper.
+/// The diff-only header / `deinit` / `associatedtype` entry points live with the
+/// diff renderer in `SwiftInterface`, not here.
 @_spi(Support)
 extension SwiftDeclarationPrinter {
     /// Renders a single stored field (`weak var name: Type`) from its model
@@ -73,21 +70,6 @@ extension SwiftDeclarationPrinter {
         return result
     }
 
-    /// Renders the `deinit` keyword line.
-    @SemanticStringBuilder
-    public func printDeinit() -> SemanticString {
-        Keyword(.deinit)
-    }
-
-    /// Renders a single protocol associated-type requirement
-    /// (`associatedtype Name`).
-    @SemanticStringBuilder
-    public func printAssociatedType(_ name: String) -> SemanticString {
-        Keyword(.associatedtype)
-        Space()
-        MemberDeclaration(name)
-    }
-
     /// Emits the storage-modifier + mutability-keyword prefix for a stored field
     /// (trailing space included), derived from the model `FieldFlags`. Mirrors
     /// `TypedDumper.fieldDeclarationKeywords` but reads the model flags instead
@@ -131,44 +113,5 @@ extension SwiftDeclarationPrinter {
         } else {
             Keyword(.let)
         }
-    }
-}
-
-// MARK: - Declaration headers (header line only, no `{` / body)
-
-/// Header-only renderers for the diff renderer, which composes a type's lines
-/// itself (so it can interleave `+`/`-` members) instead of going through
-/// `printTypeDefinition`. Each returns just the declaration header — attributes
-/// + the `struct Foo<A> : Bar` line — with no opening brace, body, or trailing
-/// newline. They intentionally mirror the header portion of the matching
-/// `print*Definition` method; keep them in sync.
-@_spi(Support)
-extension SwiftDeclarationPrinter {
-    @SemanticStringBuilder
-    public func printTypeHeader(_ typeDefinition: TypeDefinition, level: Int, displayParentName: Bool = false) async throws -> SemanticString {
-        if !typeDefinition.isIndexed {
-            try await typeDefinition.index(in: machO)
-        }
-
-        let typeAttributeInferrer = TypeAttributeInferrer()
-        typeDefinition.attributes = typeAttributeInferrer.infer(for: typeDefinition)
-
-        // Attributes each on their own line; the diff renderer adds indentation
-        // when it marks the lines, so none is emitted here.
-        for attribute in typeDefinition.attributes {
-            Keyword(attribute.keyword)
-            BreakLine()
-        }
-
-        try await renderTypeDeclarationHeader(for: typeDefinition.type, displayParentName: displayParentName, level: level)
-    }
-
-    @SemanticStringBuilder
-    public func printProtocolHeader(_ protocolDefinition: ProtocolDefinition, level: Int, displayParentName: Bool = false) async throws -> SemanticString {
-        if !protocolDefinition.isIndexed {
-            try await protocolDefinition.index(in: machO)
-        }
-
-        try await renderProtocolDeclarationHeader(for: protocolDefinition.protocol, displayParentName: displayParentName)
     }
 }

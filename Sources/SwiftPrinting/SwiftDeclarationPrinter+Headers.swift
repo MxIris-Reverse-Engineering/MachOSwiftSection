@@ -23,18 +23,18 @@ extension SwiftDeclarationPrinter {
     /// mirroring the matching `StructDumper`/`ClassDumper`/`EnumDumper`
     /// `declaration` getter in its unbound form.
     @SemanticStringBuilder
-    func renderTypeDeclarationHeader(for type: TypeContextWrapper, displayParentName: Bool, level: Int) async throws -> SemanticString {
+    package func renderTypeDeclarationHeader(for type: TypeContextWrapper, displayParentName: Bool, level: Int, leafNameNode: Node? = nil) async throws -> SemanticString {
         let resolver = typeDemangleResolver
         switch type {
         case .struct(let dumped):
             Keyword(.struct)
             Space()
-            try await renderUnboundTypeName(.struct, descriptorWrapper: .type(.struct(dumped.descriptor)), name: dumped.descriptor.name(in: machO), displayParentName: displayParentName, resolver: resolver)
+            try await renderUnboundTypeName(.struct, descriptorWrapper: .type(.struct(dumped.descriptor)), name: dumped.descriptor.name(in: machO), displayParentName: displayParentName, leafNameNode: leafNameNode, resolver: resolver)
             try await renderGenericSignatureWithInvertibles(genericContext: dumped.genericContext, invertibleProtocolSet: dumped.invertibleProtocolSet, resolver: resolver)
         case .enum(let dumped):
             Keyword(.enum)
             Space()
-            try await renderUnboundTypeName(.enum, descriptorWrapper: .type(.enum(dumped.descriptor)), name: dumped.descriptor.name(in: machO), displayParentName: displayParentName, resolver: resolver)
+            try await renderUnboundTypeName(.enum, descriptorWrapper: .type(.enum(dumped.descriptor)), name: dumped.descriptor.name(in: machO), displayParentName: displayParentName, leafNameNode: leafNameNode, resolver: resolver)
             try await renderGenericSignatureWithInvertibles(genericContext: dumped.genericContext, invertibleProtocolSet: dumped.invertibleProtocolSet, resolver: resolver)
         case .class(let dumped):
             if dumped.descriptor.isActor {
@@ -47,7 +47,7 @@ extension SwiftDeclarationPrinter {
                 Keyword(.class)
             }
             Space()
-            try await renderUnboundTypeName(.class, descriptorWrapper: .type(.class(dumped.descriptor)), name: dumped.descriptor.name(in: machO), displayParentName: displayParentName, resolver: resolver)
+            try await renderUnboundTypeName(.class, descriptorWrapper: .type(.class(dumped.descriptor)), name: dumped.descriptor.name(in: machO), displayParentName: displayParentName, leafNameNode: leafNameNode, resolver: resolver)
             let superclass = try await renderClassSuperclass(dumped, resolver: resolver)
             if let genericContext = dumped.genericContext {
                 try await genericContext.dumpGenericSignature(resolver: resolver, in: machO) {
@@ -73,11 +73,30 @@ extension SwiftDeclarationPrinter {
     }
 
     @SemanticStringBuilder
-    private func renderUnboundTypeName(_ kind: SemanticType.TypeKind, descriptorWrapper: ContextDescriptorWrapper, name: String, displayParentName: Bool, resolver: DemangleResolver) async throws -> SemanticString {
+    private func renderUnboundTypeName(_ kind: SemanticType.TypeKind, descriptorWrapper: ContextDescriptorWrapper, name: String, displayParentName: Bool, leafNameNode: Node?, resolver: DemangleResolver) async throws -> SemanticString {
         if displayParentName {
             try await resolver.resolve(for: MetadataReader.demangleContext(for: descriptorWrapper, in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
-            TypeDeclaration(kind: kind, name)
+            renderLeafName(kind: kind, bareName: name, leafNameNode: leafNameNode)
+        }
+    }
+
+    /// Renders a declaration's own leaf name. For an ordinary type this is just
+    /// `TypeDeclaration(kind, bareName)`; for a `private`/`fileprivate` type whose
+    /// leaf name demangles to a `.privateDeclName`, the build-specific
+    /// discriminator is surfaced as `(Name in _ABC)` by printing the leaf node with
+    /// `.showPrivateDiscriminators`. Without it a discriminator-only difference
+    /// between two builds renders as two identical bare names, making a nested
+    /// private type look wholly changed when only its discriminator moved. Both
+    /// `.default` printing and the descriptor `name` elide the discriminator, so
+    /// re-including it requires that explicit option on the leaf node. `leafNameNode`
+    /// is `nil` on the normal (non-diff) print path, which keeps the bare name.
+    @SemanticStringBuilder
+    private func renderLeafName(kind: SemanticType.TypeKind, bareName: String, leafNameNode: Node?) -> SemanticString {
+        if let leafNameNode, leafNameNode.kind == .privateDeclName {
+            leafNameNode.printSemantic(using: [.showPrivateDiscriminators])
+        } else {
+            TypeDeclaration(kind: kind, bareName)
         }
     }
 
@@ -133,14 +152,14 @@ extension SwiftDeclarationPrinter {
     /// Renders a protocol's declaration header (`protocol Foo : Bar where …`),
     /// mirroring `ProtocolDumper.declaration`.
     @SemanticStringBuilder
-    func renderProtocolDeclarationHeader(for dumped: MachOSwiftSection.`Protocol`, displayParentName: Bool) async throws -> SemanticString {
+    package func renderProtocolDeclarationHeader(for dumped: MachOSwiftSection.`Protocol`, displayParentName: Bool, leafNameNode: Node? = nil) async throws -> SemanticString {
         let resolver = typeDemangleResolver
         Keyword(.protocol)
         Space()
         if displayParentName {
             try await resolver.resolve(for: MetadataReader.demangleContext(for: .protocol(dumped.descriptor), in: machO)).replacingTypeNameOrOtherToTypeDeclaration()
         } else {
-            try TypeDeclaration(kind: .protocol, dumped.descriptor.name(in: machO))
+            renderLeafName(kind: .protocol, bareName: try dumped.descriptor.name(in: machO), leafNameNode: leafNameNode)
         }
 
         if dumped.numberOfRequirementsInSignature > 0 {
