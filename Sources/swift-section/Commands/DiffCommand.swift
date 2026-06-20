@@ -47,8 +47,11 @@ struct DiffCommand: AsyncParsableCommand {
     @Flag(help: "Emit the full Swift interface annotated with diff markers instead of the change-list.")
     var interface: Bool = false
 
-    @Option(name: .long, help: "Annotated-interface format: inline (git-diff style), unified (real unified diff), or markdown (```diff fence). Requires --interface.")
-    var format: DiffOutputFormat = .inline
+    @Option(name: .long, help: "Annotated-interface format: inline (git-diff style), unified (real unified diff), or markdown (```diff fence). Requires --interface; defaults to inline.")
+    var format: DiffOutputFormat?
+
+    @Flag(help: "Exit with a nonzero status when the diff contains an ABI-breaking change, for CI gating. Honored with --interface too.")
+    var failOnBreaking: Bool = false
 
     @Option(name: .shortAndLong, help: "Write the report to this path instead of stdout.", completion: .file())
     var outputPath: String?
@@ -65,11 +68,18 @@ struct DiffCommand: AsyncParsableCommand {
         let newBuilder = SwiftDiffableInterfaceBuilder(in: newMachO)
         try await newBuilder.prepare()
 
+        // The change-list report and the `--fail-on-breaking` CI gate both need
+        // the ABI diff; the annotated-interface path does not, so compute it only
+        // when one of those actually requires it.
+        let abiDiff = (!interface || failOnBreaking)
+            ? ABIDiffer().diff(old: oldBuilder.abiModule(), new: newBuilder.abiModule())
+            : nil
+
         if interface {
             log("Rendering annotated interface…")
             let renderer = SwiftDiffableInterfaceRenderer(old: oldBuilder, new: newBuilder)
             let diffFormat: DiffFormat
-            switch format {
+            switch format ?? .inline {
             case .inline:
                 diffFormat = .inline
             case .unified:
@@ -79,25 +89,44 @@ struct DiffCommand: AsyncParsableCommand {
             }
             let annotated = await renderer.printAnnotatedInterface(format: diffFormat)
             try emit(annotated.string)
-            return
+        } else if let abiDiff {
+            log("Diffing…")
+            let verdict = "ABI-breaking: \(abiDiff.hasBreakingChange) · backward-compatible: \(abiDiff.isBackwardCompatible)"
+            if summaryOnly {
+                print(verdict)
+            } else {
+                let report = ABIDiffReporter().report(abiDiff) + "\n\n" + verdict
+                if let outputPath {
+                    try report.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
+                    log("Report written to \(outputPath)")
+                } else {
+                    print(report)
+                }
+            }
         }
 
-        log("Diffing…")
-        let diff = ABIDiffer().diff(old: oldBuilder.abiModule(), new: newBuilder.abiModule())
-
-        let verdict = "ABI-breaking: \(diff.hasBreakingChange) · backward-compatible: \(diff.isBackwardCompatible)"
-
-        if summaryOnly {
-            print(verdict)
-            return
+        if failOnBreaking, let abiDiff, abiDiff.hasBreakingChange {
+            throw ExitCode.failure
         }
+    }
 
-        let report = ABIDiffReporter().report(diff) + "\n\n" + verdict
-        if let outputPath {
-            try report.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
-            log("Report written to \(outputPath)")
-        } else {
-            print(report)
+    /// Rejects flag combinations that would otherwise be silently ignored, so the
+    /// user gets immediate feedback instead of a no-op.
+    func validate() throws {
+        if interface, summaryOnly {
+            throw ValidationError("--interface and --summary-only are mutually exclusive.")
+        }
+        if format != nil, !interface {
+            throw ValidationError("--format only applies to the annotated interface; pass --interface.")
+        }
+        if cacheImageName != nil, cacheImagePath != nil {
+            throw ValidationError("--cache-image-name and --cache-image-path are mutually exclusive; pass only one.")
+        }
+        if cacheImageName != nil || cacheImagePath != nil, !isDyldSharedCache {
+            throw ValidationError("--cache-image-name / --cache-image-path require --dyld-shared-cache.")
+        }
+        if isDyldSharedCache, cacheImageName == nil, cacheImagePath == nil {
+            throw ValidationError("--dyld-shared-cache requires --cache-image-name or --cache-image-path.")
         }
     }
 
@@ -110,7 +139,7 @@ struct DiffCommand: AsyncParsableCommand {
         if isDyldSharedCache {
             let cache = try DyldCache(url: url)
             if let cacheImagePath {
-                guard let image = try cache.machOFile(by: .path(cacheImagePath)) else {
+                guard let image = cache.machOFile(by: .path(cacheImagePath)) else {
                     throw SwiftSectionCommandError.imageNotFound
                 }
                 return image
@@ -118,7 +147,7 @@ struct DiffCommand: AsyncParsableCommand {
             guard let cacheImageName else {
                 throw SwiftSectionCommandError.missingCacheImageNameOrCacheImagePath
             }
-            guard let image = try cache.machOFile(by: .name(cacheImageName)) else {
+            guard let image = cache.machOFile(by: .name(cacheImageName)) else {
                 throw SwiftSectionCommandError.imageNotFound
             }
             return image
