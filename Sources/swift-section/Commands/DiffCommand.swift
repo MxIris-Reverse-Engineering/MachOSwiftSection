@@ -6,6 +6,17 @@ import MachOFoundation
 import ArgumentParser
 import Rainbow
 
+/// The output format for the annotated interface (`--interface`).
+enum DiffOutputFormat: String, CaseIterable, ExpressibleByArgument {
+    /// git-diff-style `+`/`-`/` ` line prefixes (the default).
+    case inline
+    /// A real unified diff (`--- old`/`+++ new` + `@@` hunks), consumable by
+    /// `git apply` / `patch` / `delta`.
+    case unified
+    /// The inline body wrapped in a Markdown ```` ```diff ```` fence.
+    case markdown
+}
+
 struct DiffCommand: AsyncParsableCommand {
     static let configuration: CommandConfiguration = .init(
         commandName: "diff",
@@ -33,8 +44,11 @@ struct DiffCommand: AsyncParsableCommand {
     @Flag(help: "Print only the breaking/backward-compatible verdict, not the full report.")
     var summaryOnly: Bool = false
 
-    @Flag(help: "Emit the full Swift interface annotated with inline +/- markers (git-diff style) instead of the change-list.")
+    @Flag(help: "Emit the full Swift interface annotated with diff markers instead of the change-list.")
     var interface: Bool = false
+
+    @Option(name: .long, help: "Annotated-interface format: inline (git-diff style), unified (real unified diff), or markdown (```diff fence). Requires --interface.")
+    var format: DiffOutputFormat = .inline
 
     @Option(name: .shortAndLong, help: "Write the report to this path instead of stdout.", completion: .file())
     var outputPath: String?
@@ -54,7 +68,16 @@ struct DiffCommand: AsyncParsableCommand {
         if interface {
             log("Rendering annotated interface…")
             let renderer = SwiftDiffableInterfaceRenderer(old: oldBuilder, new: newBuilder)
-            let annotated = await renderer.printAnnotatedInterface()
+            let diffFormat: DiffFormat
+            switch format {
+            case .inline:
+                diffFormat = .inline
+            case .unified:
+                diffFormat = .unified(oldLabel: oldPath, newLabel: newPath)
+            case .markdown:
+                diffFormat = .markdownFenced
+            }
+            let annotated = await renderer.printAnnotatedInterface(format: diffFormat)
             try emit(annotated.string)
             return
         }
@@ -113,8 +136,8 @@ struct DiffCommand: AsyncParsableCommand {
         }
     }
 
-    /// Writes the annotated interface: plain text to `--output`, or git-diff-style
-    /// per-line colorized (added green, removed red) to the terminal.
+    /// Writes the annotated interface: plain text to `--output`, or per-line
+    /// colorized (added green, removed red) to the terminal.
     private func emit(_ text: String) throws {
         if let outputPath {
             try text.write(to: URL(fileURLWithPath: outputPath), atomically: true, encoding: .utf8)
@@ -122,13 +145,23 @@ struct DiffCommand: AsyncParsableCommand {
             return
         }
         var output = ""
-        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
-            if line.hasPrefix("+") {
-                output += String(line).green
-            } else if line.hasPrefix("-") {
-                output += String(line).red
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        for (index, line) in lines.enumerated() {
+            let lineText = String(line)
+            // In a unified diff the first two lines are the `--- old` / `+++ new`
+            // file headers and `@@ … @@` lines are hunk headers; colorize those by
+            // position / prefix so an added/removed content line that happens to
+            // begin with `++` or `--` is never mistaken for a file header.
+            if format == .unified, index < 2 {
+                output += lineText.cyan
+            } else if format == .unified, lineText.hasPrefix("@@") {
+                output += lineText.cyan
+            } else if lineText.hasPrefix("+") {
+                output += lineText.green
+            } else if lineText.hasPrefix("-") {
+                output += lineText.red
             } else {
-                output += String(line)
+                output += lineText
             }
             output += "\n"
         }

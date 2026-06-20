@@ -8,17 +8,23 @@ import Semantic
 import Demangling
 import OrderedCollections
 
-/// Renders a **full Swift interface annotated with inline `+`/`-` markers** — a
-/// git-diff-style view of how the new binary's ABI surface differs from the old.
+/// Renders a **full Swift interface annotated with diff markers** — a git-diff
+/// style view of how the new binary's ABI surface differs from the old.
 ///
 /// It is the rendering analogue of ``ABIDiffer``: where the differ produces a
 /// machine-readable change list, this produces the *whole* interface (every
-/// declaration, changed or not) with each line prefixed by `+` (added), `-`
-/// (removed), or a space (unchanged). It is structure-driven — it walks the two
-/// indexed models, matches declarations on the same `ABIKey` the differ uses,
-/// and emits each member from its own per-member printer so a single member's
-/// lines can carry its own marker. A modified member shows as its old line
-/// (`-`) immediately followed by its new line (`+`).
+/// declaration, changed or not) with each line classified as `added` (`+`),
+/// `removed` (`-`), or `unchanged` (a space). It is structure-driven — it walks
+/// the two indexed models, matches declarations on the same `ABIKey` the differ
+/// uses, and emits each member from its own per-member printer so a single
+/// member's lines can carry its own marker. A modified member shows as its old
+/// line (`-`) immediately followed by its new line (`+`).
+///
+/// The renderer deliberately produces a *classified* stream — a block-grouped
+/// `[[DiffLine]]` — and never bakes a diff symbol in. How a ``DiffMarker``
+/// becomes concrete output (git-diff prefixes, a unified-diff hunk, HTML, …) is
+/// the job of a ``DiffFormat``; ``printAnnotatedInterface(format:)`` defaults to
+/// ``DiffFormat/inline``, which reproduces the original git-diff output.
 ///
 /// Surface is FULL: public, package, internal, and private declarations are all
 /// rendered (private discriminators kept). Access-level splitting is a future
@@ -45,43 +51,58 @@ public final class SwiftDiffableInterfaceRenderer<
 
     // MARK: - Top level
 
-    /// Produces the annotated interface. Top-level declarations are rendered in
-    /// the order globals → types → protocols → extensions, each separated by a
-    /// blank line. Every line begins with a `+`/`-`/` ` marker at column 0.
-    public func printAnnotatedInterface() async -> SemanticString {
-        var blocks: [SemanticString] = []
+    /// Produces the annotated interface in the chosen ``DiffFormat`` (default
+    /// ``DiffFormat/inline``, which reproduces the original git-diff output). The
+    /// classified stream comes from ``annotatedDiffBlocks()``; the format turns it
+    /// into the final string.
+    public func printAnnotatedInterface(format: DiffFormat = .inline) async -> SemanticString {
+        await format.render(annotatedDiffBlocks())
+    }
 
-        blocks.append(contentsOf: await renderGlobalVariables())
-        blocks.append(contentsOf: await renderGlobalFunctions())
-        blocks.append(contentsOf: await renderTypeList(
+    /// The full classified diff as a block-grouped, single-line-split stream: the
+    /// outer array is the top-level declaration blocks in render order (globals →
+    /// types → protocols → extensions), each inner array is one block's lines.
+    /// Empty blocks are dropped. This is the structured input every ``DiffFormat``
+    /// consumes; expose it for callers that need the raw classification rather
+    /// than a rendered string.
+    @_spi(Support)
+    public func annotatedDiffBlocks() async -> [[DiffLine]] {
+        var blocks: [[DiffLine]] = []
+
+        blocks += await renderGlobalVariables()
+        blocks += await renderGlobalFunctions()
+        blocks += await renderTypeListUnits(
             old: Array(oldIndexer.rootTypeDefinitions.values),
             new: Array(newIndexer.rootTypeDefinitions.values),
             level: 1
-        ))
-        blocks.append(contentsOf: await renderProtocolList(
+        )
+        blocks += await renderProtocolListUnits(
             old: Array(oldIndexer.rootProtocolDefinitions.values),
             new: Array(newIndexer.rootProtocolDefinitions.values),
             level: 1
-        ))
-        blocks.append(contentsOf: await renderExtensionBuckets(
+        )
+        blocks += await renderExtensionBucketsUnits(
             old: oldIndexer.typeExtensionDefinitions, new: newIndexer.typeExtensionDefinitions
-        ))
-        blocks.append(contentsOf: await renderExtensionBuckets(
+        )
+        blocks += await renderExtensionBucketsUnits(
             old: oldIndexer.protocolExtensionDefinitions, new: newIndexer.protocolExtensionDefinitions
-        ))
-        blocks.append(contentsOf: await renderExtensionBuckets(
+        )
+        blocks += await renderExtensionBucketsUnits(
             old: oldIndexer.typeAliasExtensionDefinitions, new: newIndexer.typeAliasExtensionDefinitions
-        ))
-        blocks.append(contentsOf: await renderExtensionBuckets(
+        )
+        blocks += await renderExtensionBucketsUnits(
             old: oldIndexer.conformanceExtensionDefinitions, new: newIndexer.conformanceExtensionDefinitions
-        ))
+        )
 
-        return joinBlocks(blocks, separator: "\n\n")
+        return blocks.filter { !$0.isEmpty }
     }
 
     // MARK: - Globals
+    //
+    // Each global member is its own top-level block (no enclosing container), so
+    // the format separates them the same way it separates declarations.
 
-    private func renderGlobalVariables() async -> [SemanticString] {
+    private func renderGlobalVariables() async -> [[DiffLine]] {
         await diffMembers(
             old: oldIndexer.globalVariableDefinitions.map { variableMember($0, printer: oldPrinter, level: 0) },
             new: newIndexer.globalVariableDefinitions.map { variableMember($0, printer: newPrinter, level: 0) },
@@ -89,7 +110,7 @@ public final class SwiftDiffableInterfaceRenderer<
         )
     }
 
-    private func renderGlobalFunctions() async -> [SemanticString] {
+    private func renderGlobalFunctions() async -> [[DiffLine]] {
         await diffMembers(
             old: oldIndexer.globalFunctionDefinitions.map { functionMember($0, printer: oldPrinter, level: 0) },
             new: newIndexer.globalFunctionDefinitions.map { functionMember($0, printer: newPrinter, level: 0) },
@@ -99,36 +120,42 @@ public final class SwiftDiffableInterfaceRenderer<
 
     // MARK: - Types
 
-    private func renderTypeList(old: [TypeDefinition], new: [TypeDefinition], level: Int) async -> [SemanticString] {
-        var blocks: [SemanticString] = []
+    /// One classified block per matched top-level type (each block already flat —
+    /// header, body, and closing brace in one ordered line list). Used both at the
+    /// top level (each block separated as a declaration) and for nested types
+    /// (each block contributed as one body unit of its enclosing container).
+    private func renderTypeListUnits(old: [TypeDefinition], new: [TypeDefinition], level: Int) async -> [[DiffLine]] {
+        var units: [[DiffLine]] = []
         for pair in matchByKey(old, new, key: { ABIKey.makeUnwrappingType(for: $0.typeName.node) }) {
-            let block = await renderType(old: pair.old, new: pair.new, level: level)
-            if !block.string.isEmpty { blocks.append(block) }
+            let lines = await renderType(old: pair.old, new: pair.new, level: level)
+            if !lines.isEmpty { units.append(lines) }
         }
-        return blocks
+        return units
     }
 
-    private func renderType(old: TypeDefinition?, new: TypeDefinition?, level: Int) async -> SemanticString {
-        guard old != nil || new != nil else { return SemanticString() }
+    private func renderType(old: TypeDefinition?, new: TypeDefinition?, level: Int) async -> [DiffLine] {
+        guard old != nil || new != nil else { return [] }
         let marker: DiffMarker = old == nil ? .added : (new == nil ? .removed : .unchanged)
 
         let oldHeader = await header(old) { try await oldPrinter.printTypeHeader($0, level: level) }
         let newHeader = await header(new) { try await newPrinter.printTypeHeader($0, level: level) }
 
         let bodyUnits = await typeBodyUnits(old: old, new: new, level: level)
-        return assembleContainer(oldHeader: oldHeader, newHeader: newHeader, marker: marker, bodyUnits: bodyUnits, level: level)
+        return DiffContainerAssembler.assemble(oldHeader: oldHeader, newHeader: newHeader, marker: marker, bodyUnits: bodyUnits, level: level)
     }
 
     /// The body of a type, mirroring `printTypeDefinition`'s composition order:
     /// nested types, nested protocols, stored fields / enum cases, then the
     /// symbol-backed member categories, then `deinit`. Each category is diffed
     /// independently; a nil side contributes an empty list, so this one path
-    /// serves added, removed, and common types alike.
-    private func typeBodyUnits(old: TypeDefinition?, new: TypeDefinition?, level: Int) async -> [SemanticString] {
-        var units: [SemanticString] = []
+    /// serves added, removed, and common types alike. Returns one unit per
+    /// member / nested declaration (units are flattened into the container block
+    /// by ``DiffContainerAssembler/assemble(oldHeader:newHeader:marker:bodyUnits:level:)``).
+    private func typeBodyUnits(old: TypeDefinition?, new: TypeDefinition?, level: Int) async -> [[DiffLine]] {
+        var units: [[DiffLine]] = []
 
-        units += await renderTypeList(old: old?.typeChildren ?? [], new: new?.typeChildren ?? [], level: level + 1)
-        units += await renderProtocolList(old: old?.protocolChildren ?? [], new: new?.protocolChildren ?? [], level: level + 1)
+        units += await renderTypeListUnits(old: old?.typeChildren ?? [], new: new?.typeChildren ?? [], level: level + 1)
+        units += await renderProtocolListUnits(old: old?.protocolChildren ?? [], new: new?.protocolChildren ?? [], level: level + 1)
 
         units += await diffMembers(old: fieldMembers(old, level: level, printer: oldPrinter), new: fieldMembers(new, level: level, printer: newPrinter), level: level)
 
@@ -145,23 +172,23 @@ public final class SwiftDiffableInterfaceRenderer<
 
     // MARK: - Protocols
 
-    private func renderProtocolList(old: [ProtocolDefinition], new: [ProtocolDefinition], level: Int) async -> [SemanticString] {
-        var blocks: [SemanticString] = []
+    private func renderProtocolListUnits(old: [ProtocolDefinition], new: [ProtocolDefinition], level: Int) async -> [[DiffLine]] {
+        var units: [[DiffLine]] = []
         for pair in matchByKey(old, new, key: { ABIKey.makeUnwrappingType(for: $0.protocolName.node) }) {
-            let block = await renderProtocol(old: pair.old, new: pair.new, level: level)
-            if !block.string.isEmpty { blocks.append(block) }
+            let lines = await renderProtocol(old: pair.old, new: pair.new, level: level)
+            if !lines.isEmpty { units.append(lines) }
         }
-        return blocks
+        return units
     }
 
-    private func renderProtocol(old: ProtocolDefinition?, new: ProtocolDefinition?, level: Int) async -> SemanticString {
-        guard old != nil || new != nil else { return SemanticString() }
+    private func renderProtocol(old: ProtocolDefinition?, new: ProtocolDefinition?, level: Int) async -> [DiffLine] {
+        guard old != nil || new != nil else { return [] }
         let marker: DiffMarker = old == nil ? .added : (new == nil ? .removed : .unchanged)
 
         let oldHeader = await header(old) { try await oldPrinter.printProtocolHeader($0, level: level) }
         let newHeader = await header(new) { try await newPrinter.printProtocolHeader($0, level: level) }
 
-        var units: [SemanticString] = []
+        var units: [[DiffLine]] = []
         units += await diffMembers(old: associatedTypeMembers(old, printer: oldPrinter), new: associatedTypeMembers(new, printer: newPrinter), level: level)
         units += await diffMemberCategories(
             level: level,
@@ -169,7 +196,7 @@ public final class SwiftDiffableInterfaceRenderer<
             new: { renderableMembers(new, in: $0, printer: newPrinter, level: level) }
         )
 
-        return assembleContainer(oldHeader: oldHeader, newHeader: newHeader, marker: marker, bodyUnits: units, level: level)
+        return DiffContainerAssembler.assemble(oldHeader: oldHeader, newHeader: newHeader, marker: marker, bodyUnits: units, level: level)
     }
 
     // MARK: - Extensions
@@ -181,26 +208,26 @@ public final class SwiftDiffableInterfaceRenderer<
     // bucket merges multiple conformances). TODO(P2): per-conformance attribution
     // so the annotated headers carry the `: Protocol` clause and `where` blocks.
 
-    private func renderExtensionBuckets(
+    private func renderExtensionBucketsUnits(
         old: OrderedDictionary<ExtensionName, [ExtensionDefinition]>,
         new: OrderedDictionary<ExtensionName, [ExtensionDefinition]>
-    ) async -> [SemanticString] {
+    ) async -> [[DiffLine]] {
         let oldBuckets = old.map { (name: $0.key, definitions: $0.value) }
         let newBuckets = new.map { (name: $0.key, definitions: $0.value) }
-        var blocks: [SemanticString] = []
+        var units: [[DiffLine]] = []
         for pair in matchByKey(oldBuckets, newBuckets, key: { ABIDiffer.extensionBucketKey(for: $0.name) }) {
-            let block = await renderExtensionBucket(old: pair.old, new: pair.new, level: 1)
-            if !block.string.isEmpty { blocks.append(block) }
+            let lines = await renderExtensionBucket(old: pair.old, new: pair.new, level: 1)
+            if !lines.isEmpty { units.append(lines) }
         }
-        return blocks
+        return units
     }
 
     private func renderExtensionBucket(
         old: (name: ExtensionName, definitions: [ExtensionDefinition])?,
         new: (name: ExtensionName, definitions: [ExtensionDefinition])?,
         level: Int
-    ) async -> SemanticString {
-        guard old != nil || new != nil else { return SemanticString() }
+    ) async -> [DiffLine] {
+        guard old != nil || new != nil else { return [] }
         let marker: DiffMarker = old == nil ? .added : (new == nil ? .removed : .unchanged)
 
         let extensionName = new?.name ?? old?.name
@@ -215,29 +242,29 @@ public final class SwiftDiffableInterfaceRenderer<
             header = SemanticString()
         }
 
-        var units: [SemanticString] = []
+        var units: [[DiffLine]] = []
         units += await diffMemberCategories(
             level: level,
             old: { renderableMembers(old?.definitions, in: $0, printer: oldPrinter, level: level) },
             new: { renderableMembers(new?.definitions, in: $0, printer: newPrinter, level: level) }
         )
 
-        return assembleContainer(oldHeader: header, newHeader: header, marker: marker, bodyUnits: units, level: level)
+        return DiffContainerAssembler.assemble(oldHeader: header, newHeader: header, marker: marker, bodyUnits: units, level: level)
     }
 
     // MARK: - Per-category renderable-member builders
 
-    private func variableMember<M>(_ variable: VariableDefinition, printer: SwiftDeclarationPrinter<M>, level: Int) -> RenderableMember {
+    private func variableMember<MachO>(_ variable: VariableDefinition, printer: SwiftDeclarationPrinter<MachO>, level: Int) -> RenderableMember {
         let record = MemberRecord.make(variable)
         return RenderableMember(identityKey: record.identityKey, payloadKey: record.payloadKey) { await printer.printVariable(variable, level: level) }
     }
 
-    private func functionMember<M>(_ function: FunctionDefinition, printer: SwiftDeclarationPrinter<M>, level: Int) -> RenderableMember {
+    private func functionMember<MachO>(_ function: FunctionDefinition, printer: SwiftDeclarationPrinter<MachO>, level: Int) -> RenderableMember {
         let record = MemberRecord.make(function)
         return RenderableMember(identityKey: record.identityKey, payloadKey: record.payloadKey) { await printer.printFunction(function, level: level) }
     }
 
-    private func subscriptMember<M>(_ subscriptDefinition: SubscriptDefinition, printer: SwiftDeclarationPrinter<M>, level: Int) -> RenderableMember {
+    private func subscriptMember<MachO>(_ subscriptDefinition: SubscriptDefinition, printer: SwiftDeclarationPrinter<MachO>, level: Int) -> RenderableMember {
         let record = MemberRecord.make(subscriptDefinition)
         return RenderableMember(identityKey: record.identityKey, payloadKey: record.payloadKey) { await printer.printSubscript(subscriptDefinition, level: level) }
     }
@@ -271,7 +298,7 @@ public final class SwiftDiffableInterfaceRenderer<
         (definitions ?? []).flatMap { renderableMembers($0, in: category, printer: printer, level: level) }
     }
 
-    private func fieldMembers<M>(_ definition: TypeDefinition?, level: Int, printer: SwiftDeclarationPrinter<M>) -> [RenderableMember] {
+    private func fieldMembers<MachO>(_ definition: TypeDefinition?, level: Int, printer: SwiftDeclarationPrinter<MachO>) -> [RenderableMember] {
         guard let definition else { return [] }
         if case .enum = definition.type {
             return definition.fields.enumerated().map { index, field in
@@ -286,13 +313,13 @@ public final class SwiftDiffableInterfaceRenderer<
         }
     }
 
-    private func deinitMembers<M>(_ definition: TypeDefinition?, printer: SwiftDeclarationPrinter<M>) -> [RenderableMember] {
+    private func deinitMembers<MachO>(_ definition: TypeDefinition?, printer: SwiftDeclarationPrinter<MachO>) -> [RenderableMember] {
         guard let definition, definition.hasDeallocator else { return [] }
         let record = MemberRecord.makeDeinit()
         return [RenderableMember(identityKey: record.identityKey, payloadKey: record.payloadKey) { printer.printDeinit() }]
     }
 
-    private func associatedTypeMembers<M>(_ definition: ProtocolDefinition?, printer: SwiftDeclarationPrinter<M>) -> [RenderableMember] {
+    private func associatedTypeMembers<MachO>(_ definition: ProtocolDefinition?, printer: SwiftDeclarationPrinter<MachO>) -> [RenderableMember] {
         guard let definition else { return [] }
         return definition.associatedTypes.map { name in
             let record = MemberRecord.makeAssociatedType(name)
@@ -302,17 +329,17 @@ public final class SwiftDiffableInterfaceRenderer<
 
     // MARK: - Member diffing
 
-    /// Diffs every `MemberCategory` in canonical order, concatenating the marked
-    /// units. Both `old`/`new` map a category to that side's renderable members;
-    /// driving the loop from `MemberCategory.allCases` keeps the category
+    /// Diffs every `MemberCategory` in canonical order, concatenating the per-unit
+    /// line lists. Both `old`/`new` map a category to that side's renderable
+    /// members; driving the loop from `MemberCategory.allCases` keeps the category
     /// schedule identical to the printer's `printMembersByCategory`, so a member
     /// category can never be silently dropped from the diff view.
     private func diffMemberCategories(
         level: Int,
         old: (MemberCategory) -> [RenderableMember],
         new: (MemberCategory) -> [RenderableMember]
-    ) async -> [SemanticString] {
-        var units: [SemanticString] = []
+    ) async -> [[DiffLine]] {
+        var units: [[DiffLine]] = []
         for category in MemberCategory.allCases {
             units += await diffMembers(old: old(category), new: new(category), level: level)
         }
@@ -323,12 +350,14 @@ public final class SwiftDiffableInterfaceRenderer<
     /// `identityKey` (matching `ABIDiffer.diffMembers`). Emits, in new order:
     /// unchanged members (` `), added members (`+`), and modified members as the
     /// old line (`-`) immediately followed by the new line (`+`). Removed members
-    /// are appended at the category's end (`-`).
-    private func diffMembers(old: [RenderableMember], new: [RenderableMember], level: Int) async -> [SemanticString] {
+    /// are appended at the category's end (`-`). Returns one unit (a `[DiffLine]`)
+    /// per emitted member side; empty units (a member that renders to nothing) are
+    /// dropped so they never leave a stray marker.
+    private func diffMembers(old: [RenderableMember], new: [RenderableMember], level: Int) async -> [[DiffLine]] {
         let oldByKey = firstWinsKeyed(old)
         let newByKey = firstWinsKeyed(new)
 
-        var units: [SemanticString] = []
+        var units: [[DiffLine]] = []
         for newMember in new {
             if let oldMember = oldByKey[newMember.identityKey] {
                 if oldMember.payloadKey != newMember.payloadKey {
@@ -341,61 +370,24 @@ public final class SwiftDiffableInterfaceRenderer<
                     let oldRendered = await oldMember.render()
                     let newRendered = await newMember.render()
                     if oldRendered.string == newRendered.string {
-                        units.append(DiffMarking.markLines(newRendered, marker: .unchanged, indentLevel: level))
+                        units.append(DiffMarking.markedLines(newRendered, marker: .unchanged, indentLevel: level))
                     } else {
-                        units.append(DiffMarking.markLines(oldRendered, marker: .removed, indentLevel: level))
-                        units.append(DiffMarking.markLines(newRendered, marker: .added, indentLevel: level))
+                        units.append(DiffMarking.markedLines(oldRendered, marker: .removed, indentLevel: level))
+                        units.append(DiffMarking.markedLines(newRendered, marker: .added, indentLevel: level))
                     }
                 } else {
-                    units.append(DiffMarking.markLines(await newMember.render(), marker: .unchanged, indentLevel: level))
+                    units.append(DiffMarking.markedLines(await newMember.render(), marker: .unchanged, indentLevel: level))
                 }
             } else {
-                units.append(DiffMarking.markLines(await newMember.render(), marker: .added, indentLevel: level))
+                units.append(DiffMarking.markedLines(await newMember.render(), marker: .added, indentLevel: level))
             }
         }
         var emittedRemoved: Set<ABIKey> = []
         for oldMember in old where newByKey[oldMember.identityKey] == nil {
             guard emittedRemoved.insert(oldMember.identityKey).inserted else { continue }
-            units.append(DiffMarking.markLines(await oldMember.render(), marker: .removed, indentLevel: level))
+            units.append(DiffMarking.markedLines(await oldMember.render(), marker: .removed, indentLevel: level))
         }
-        return units.filter { !$0.string.isEmpty }
-    }
-
-    // MARK: - Assembly
-
-    /// Assembles a container block from its header(s), the marker for the
-    /// container as a whole, and its already-marked body units.
-    ///
-    /// For an added/removed container every line carries the container marker.
-    /// For a common container the header is unchanged unless it actually changed
-    /// (e.g. a conformance or generic-signature edit), in which case the old
-    /// header is shown as `-` and the new header as `+`; the body carries its own
-    /// per-member markers.
-    private func assembleContainer(oldHeader: SemanticString, newHeader: SemanticString, marker: DiffMarker, bodyUnits: [SemanticString], level: Int) -> SemanticString {
-        let opening = bodyUnits.isEmpty ? " {}" : " {"
-        let headerLevel = level - 1
-
-        var headerBlocks: [SemanticString] = []
-        switch marker {
-        case .added:
-            headerBlocks.append(DiffMarking.markLines(newHeader.appending(opening), marker: .added, indentLevel: headerLevel))
-        case .removed:
-            headerBlocks.append(DiffMarking.markLines(oldHeader.appending(opening), marker: .removed, indentLevel: headerLevel))
-        case .unchanged:
-            if oldHeader.string != newHeader.string {
-                headerBlocks.append(DiffMarking.markLines(oldHeader.appending(opening), marker: .removed, indentLevel: headerLevel))
-                headerBlocks.append(DiffMarking.markLines(newHeader.appending(opening), marker: .added, indentLevel: headerLevel))
-            } else {
-                headerBlocks.append(DiffMarking.markLines(newHeader.appending(opening), marker: .unchanged, indentLevel: headerLevel))
-            }
-        }
-
-        var blocks = headerBlocks
-        blocks.append(contentsOf: bodyUnits)
-        if !bodyUnits.isEmpty {
-            blocks.append(DiffMarking.markLines("}", marker: marker, indentLevel: headerLevel))
-        }
-        return joinBlocks(blocks, separator: "\n")
+        return units.filter { !$0.isEmpty }
     }
 
     // MARK: - Generic helpers
@@ -441,17 +433,6 @@ public final class SwiftDiffableInterfaceRenderer<
         result.reserveCapacity(pairs.count)
         for (elementKey, element) in pairs where result[elementKey] == nil {
             result[elementKey] = element
-        }
-        return result
-    }
-
-    private func joinBlocks(_ blocks: [SemanticString], separator: SemanticString) -> SemanticString {
-        var result = SemanticString()
-        var isFirst = true
-        for block in blocks where !block.string.isEmpty {
-            if !isFirst { result.append(separator) }
-            result.append(block)
-            isFirst = false
         }
         return result
     }
