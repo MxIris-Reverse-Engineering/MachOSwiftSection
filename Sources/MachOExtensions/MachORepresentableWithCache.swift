@@ -14,6 +14,14 @@ public protocol MachORepresentableWithCache: MachORepresentable, Sendable {
 public enum MachOTargetIdentifier: Hashable {
     case image(UnsafeRawPointer)
     case file(String)
+    /// A file-backed image keyed additionally by its `LC_BUILD_VERSION`
+    /// (platform + SDK). The same install path can back *different* binaries — the
+    /// SwiftUI image extracted from two dyld shared caches, or two simulator
+    /// runtimes, all live at `/System/.../SwiftUI` — so keying on the path alone
+    /// collides in `SharedCache`-backed per-image caches (the symbol index, …),
+    /// letting the second-indexed binary read the first's data. The build version
+    /// distinguishes the OS builds and keeps the keys apart.
+    case versionedFile(path: String, platform: UInt32, sdk: UInt32)
 }
 
 extension MachOFile {
@@ -34,7 +42,10 @@ extension MachOImage {
 
 extension MachOFile: MachORepresentableWithCache, @unchecked @retroactive Sendable {
     public var identifier: MachOTargetIdentifier {
-        .file(imagePath)
+        if let buildVersionCommand = loadCommands.buildVersionCommand {
+            return .versionedFile(path: imagePath, platform: buildVersionCommand.layout.platform, sdk: buildVersionCommand.layout.sdk)
+        }
+        return .file(imagePath)
     }
 
     public var startOffset: Int {
