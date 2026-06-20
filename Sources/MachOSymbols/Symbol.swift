@@ -11,7 +11,7 @@ public struct Symbol: AsyncResolvable, SymbolProtocol, Hashable {
     public let name: String
 
     public let nlist: (any NlistProtocol)?
-    
+
     public init(offset: Int, name: String, nlist: (any NlistProtocol)? = nil) {
         self.offset = offset
         self.name = name

@@ -50,11 +50,11 @@ extension TypeLayout {
     fileprivate var dumpDescription: String {
         "Type Layout: (size: \(size), stride: \(stride), alignment: \(flags.alignment), extraInhabitantCount: \(extraInhabitantCount))"
     }
-    
+
     fileprivate var dumpTupleDescription: String {
         "Layout: (size: \(size), stride: \(stride), alignment: \(flags.alignment), extraInhabitantCount: \(extraInhabitantCount))"
     }
-    
+
     fileprivate var dumpDebugDescription: String {
         "\(description.dropLast(1)), isPOD: \(flags.isPOD), isInlineStorage: \(flags.isInlineStorage), isBitwiseTakable: \(flags.isBitwiseTakable), isBitwiseBorrowable: \(flags.isBitwiseBorrowable), isCopyable: \(flags.isCopyable), hasEnumWitnesses: \(flags.hasEnumWitnesses), isIncomplete: \(flags.isIncomplete))"
     }

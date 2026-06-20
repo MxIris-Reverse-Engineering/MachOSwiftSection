@@ -27,7 +27,7 @@ public enum DemangleResolver: Sendable {
             return nil
         }
     }
-    
+
     public func resolve(for node: Node) async throws -> SemanticString {
         switch self {
         case .options(let options):

@@ -392,7 +392,7 @@ public final class SwiftDiffableInterfaceRenderer<
 
     // MARK: - Generic helpers
 
-    private func header<Definition>(_ definition: Definition?, _ render: (Definition) async throws -> SemanticString) async -> SemanticString {
+    private func header<EnclosingDefinition>(_ definition: EnclosingDefinition?, _ render: (EnclosingDefinition) async throws -> SemanticString) async -> SemanticString {
         guard let definition else { return SemanticString() }
         return (try? await render(definition)) ?? SemanticString()
     }
