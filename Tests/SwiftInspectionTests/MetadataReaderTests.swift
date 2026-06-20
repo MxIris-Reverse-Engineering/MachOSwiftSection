@@ -83,7 +83,7 @@ final class MetadataReaderImageTests: MachOImageTests, @unchecked Sendable {
 
 @Suite
 final class MetadataReaderFileTests: MachOFileTests, @unchecked Sendable {
-    override class var fileName: MachOFileName { .iOS_26_2_Simulator_SwiftUI }
+    override class var fileName: MachOFileName { .iOS_26_5_Simulator_SwiftUI }
 
     @Test func demangleTypeFromFile() async throws {
         let node = try await demangleAsNode("$sSi")
