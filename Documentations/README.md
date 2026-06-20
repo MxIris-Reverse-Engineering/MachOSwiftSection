@@ -26,6 +26,7 @@ this repository. Not part of the public documentation surface (mixed Chinese / E
 | [GenericArgumentSubstitution.md](Internal/GenericArgumentSubstitution.md) | The static generic-argument substitution in nested field-offset rendering: what it solves, why it exists (runtime PAC-fault avoidance), the ABI, value/pack support. |
 | [LeafMigrationPlan.md](Internal/LeafMigrationPlan.md) | Plan for making `SwiftDump` a leaf module. |
 | [DiffableInterfacePlan.md](Internal/DiffableInterfacePlan.md) | Implementation plan for the diffable (ABI-diff) interface. |
+| [ABIDiffDesignAndLimitations.md](Internal/ABIDiffDesignAndLimitations.md) | The `SwiftDiffing` ABI-diff engine: identity/payload keys, three-way match, extension-bucket merging, and the known limitations (notably: `@frozen` is unrecoverable from the binary, so the compatibility verdict treats every type as resilient). |
 | [MetadataReaderRefactoring.md](Internal/MetadataReaderRefactoring.md) | `MetadataReader` refactoring plan. |
 | [ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md) | The `ReadingContext` reading-abstraction design. |
 | [TaskReports/](Internal/TaskReports/) | Dated per-task fix / investigation reports. |

@@ -32,6 +32,19 @@ public enum ABIKey: Hashable, Sendable, Codable {
     /// (`FunctionDefinition.node`, `VariableDefinition.node`,
     /// `SubscriptDefinition.node`) which are rooted at `.global` / `.function`
     /// and remangle as-is.
+    ///
+    /// Known limitation — `.mangled` and `.printed` are distinct cases that never
+    /// compare equal, so the branch is part of the identity. Remangling is
+    /// deterministic for a given node, so this is stable when both sides present
+    /// the *same* node. But if the two binaries emit structurally different
+    /// demangle trees for what is the same declaration (e.g. built with different
+    /// toolchains) and one tree remangles while the other throws, the identity
+    /// flips `.mangled`↔`.printed` and the declaration surfaces as removed+added
+    /// rather than modified. Narrow — it needs the rare throw path on exactly one
+    /// side — and a structural tree difference usually *is* a real change, so it
+    /// is documented rather than worked around. TODO(P2): a remangle-success-
+    /// independent identity would require reworking the key and is not worth the
+    /// precision loss. See `Documentations/Internal/ABIDiffDesignAndLimitations.md`.
     public static func make(for node: Node) -> ABIKey {
         // `canMangle` is literally `(try? mangleAsString) != nil`, so a single
         // `try?` decides the branch and remangles exactly once.
