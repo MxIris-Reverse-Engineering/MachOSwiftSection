@@ -32,4 +32,13 @@ public final class ImageUniverse<MachO: MachOSwiftSectionRepresentableWithCache>
         }
         return nil
     }
+
+    /// Resolves a fully-qualified protocol name to its class constraint, or
+    /// `nil` if no image in the universe defines that protocol. Used to decide
+    /// whether an existential is class-bound.
+    func resolveProtocolClassConstraint(
+        byQualifiedTypeName qualifiedTypeName: String
+    ) -> ProtocolClassConstraint? {
+        rootImage.protocolClassConstraint(forQualifiedTypeName: qualifiedTypeName)
+    }
 }

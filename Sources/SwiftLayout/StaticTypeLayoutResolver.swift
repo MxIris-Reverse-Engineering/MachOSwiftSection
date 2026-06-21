@@ -65,9 +65,10 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
             return .pointerSized
         case .metatype:
             return try metatypeLayout(forNode: node)
+        case .protocolList, .protocolListWithAnyObject, .protocolListWithClass:
+            return try existentialLayout(forNode: node, in: originImage)
         case .existentialMetatype:
-            // Size depends on the protocol witness-table count; deferred.
-            throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "existentialMetatype"))
+            return try existentialMetatypeLayout(forNode: node, in: originImage)
         case .dependentGenericParamType:
             throw LayoutResolutionError.unknown(.genericParameterUnsubstituted)
         default:
@@ -132,6 +133,21 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
             return .fixedWidthScalar(byteCount: 8)
         case "Builtin.Int128":
             return .fixedWidthScalar(byteCount: 16)
+        case "Builtin.DefaultActorStorage":
+            // A default actor's opaque inline storage: NumWords_DefaultActor (12)
+            // machine words, aligned to twice the pointer alignment (16). Ported
+            // from the runtime reflection lowering's
+            // `getDefaultActorStorageTypeInfo()`; this image emits no builtin
+            // descriptor for it, so it is answered here.
+            let defaultActorWordCount = 12
+            let size = 8 * defaultActorWordCount
+            return TypeLayoutInfo(
+                size: size,
+                stride: size,
+                alignmentMask: 15,
+                extraInhabitantCount: 0,
+                isBitwiseTakable: true
+            )
         default:
             return nil
         }

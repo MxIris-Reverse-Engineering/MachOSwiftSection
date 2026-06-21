@@ -120,8 +120,9 @@ Printing and indexing are peers — neither depends on the other.
 - `BasicLayout` - Offline port of the runtime `performBasicLayout` (struct/class/tuple field accumulation)
 - `KnownLayoutTable` / `BuiltinTypeLayoutIndex` - Frozen stdlib layouts + per-image `__swift5_builtin` numerics
 - `EnumLayoutBridge` - No-payload + single-payload (incl. `Optional`) enum layout (runtime `getEnumTagCounts` formulas)
-- `ImageUniverse` / `ImageReference` - Single-image resolution today; the type-lookup seam for the dependency-closure phase
-- Per-field degradation: unresolved fields (existential, actor default storage, cross-module resilient) report `FieldResolution.unknown` instead of failing the whole type
+- `ExistentialLayoutBridge` - Existential containers (`any P`, compositions, `AnyObject`, `any Error`) + existential metatypes, ported from the runtime reflection lowering (`ExistentialTypeInfoBuilder`): opaque `32 + 8N`, class-bound `8·(1+N)`, error `8`; class-boundness derived from each protocol's class constraint
+- `ImageUniverse` / `ImageReference` - Single-image resolution today; the type-lookup seam for the dependency-closure phase. `ImageReference` indexes both type descriptors (`__swift5_types`) and protocol class constraints (`__swift5_protos`)
+- Per-field degradation: unresolved fields (ObjC-ancestor classes, cross-module resilient types/superclasses, generic parameters, multi-payload enums) report `FieldResolution.unknown` instead of failing the whole type. Existentials and the default-actor storage builtin are resolved.
 - See [Documentations/Internal/StaticLayoutEngine.md](Documentations/Internal/StaticLayoutEngine.md)
 
 **Semantic** - Semantic string building for colored/annotated output

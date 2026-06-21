@@ -48,6 +48,23 @@ enum NodeTypeNaming {
         return qualifiedName(ofNominal: nominal)
     }
 
+    /// The fully-qualified name of a protocol reference node (`.protocol`),
+    /// stripping any `.type` wrapper — e.g. `"SymbolTestsCore.Protocols.Foo"`.
+    /// Used to key the per-image protocol class-constraint index and to look a
+    /// protocol up from an existential's component list, sharing the same
+    /// `qualifiedName(ofNominal:)` formatting as the type side so the two agree.
+    static func protocolQualifiedName(of node: Node) -> String? {
+        let unwrapped = (node.kind == .type ? node.firstChild : node) ?? node
+        guard unwrapped.kind == .protocol else { return nil }
+        return qualifiedName(ofNominal: unwrapped)
+    }
+
+    /// The fully-qualified name of a declared nominal-or-protocol node. Lets the
+    /// per-image index treat a protocol context the same way as a type context.
+    static func declaredQualifiedName(of node: Node) -> String? {
+        nominalQualifiedName(of: node) ?? protocolQualifiedName(of: node)
+    }
+
     private static func qualifiedName(ofNominal node: Node) -> String? {
         guard let identifier = node.identifier else { return nil }
         guard let context = node.firstChild else { return identifier }
