@@ -59,6 +59,10 @@ swift-section (CLI)
                                                                                     └── MachOKit (external)
 ```
 
+`SwiftLayout` (static field-offset engine) is an independent peer that depends on
+`SwiftInspection` + `MachOSwiftSection`; nothing depends on it yet — it backs the
+static ABI-analysis path (consumed by `SwiftDiffing` in a later step).
+
 ### Core Modules
 
 **Demangling** - Custom Swift symbol demangler supporting symbolic references
@@ -109,6 +113,16 @@ Printing and indexing are peers — neither depends on the other.
 - `EnumLayoutCalculator` - Calculates enum memory layouts (multi-payload enum support)
 - `ClassHierarchyDumper` - Dumps class inheritance hierarchies
 - `MetadataReader` - Reads runtime metadata from MachOImage
+
+**SwiftLayout** - Static aggregate-layout engine (offline field offsets, no runtime)
+- `StaticLayoutCalculator` - Entry point: computes struct/class stored-property field offsets from a Mach-O file without loading the process or calling the metadata accessor
+- `StaticTypeLayoutResolver` - Recursive `mangled name → TypeLayoutInfo` solver (`Node.Kind` dispatch, memoized, cycle-guarded); class references stop at one pointer
+- `BasicLayout` - Offline port of the runtime `performBasicLayout` (struct/class/tuple field accumulation)
+- `KnownLayoutTable` / `BuiltinTypeLayoutIndex` - Frozen stdlib layouts + per-image `__swift5_builtin` numerics
+- `EnumLayoutBridge` - No-payload + single-payload (incl. `Optional`) enum layout (runtime `getEnumTagCounts` formulas)
+- `ImageUniverse` / `ImageReference` - Single-image resolution today; the type-lookup seam for the dependency-closure phase
+- Per-field degradation: unresolved fields (existential, actor default storage, cross-module resilient) report `FieldResolution.unknown` instead of failing the whole type
+- See [Documentations/Internal/StaticLayoutEngine.md](Documentations/Internal/StaticLayoutEngine.md)
 
 **Semantic** - Semantic string building for colored/annotated output
 - `SemanticString` - String with semantic type annotations (keyword, type, variable)
