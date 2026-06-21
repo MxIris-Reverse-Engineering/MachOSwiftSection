@@ -424,6 +424,7 @@ extension Target {
         dependencies: [
             .product(.MachOKit),
             .product(.Demangling),
+            .target(.MachOExtensions),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.Utilities),

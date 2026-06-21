@@ -12,8 +12,13 @@ import Demangling
 public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache>: @unchecked Sendable {
     public let machO: MachO
     let builtinLayoutIndex: BuiltinTypeLayoutIndex
-    private let typeDescriptorsByQualifiedName: [String: TypeContextDescriptorWrapper]
-    private let protocolClassConstraintsByQualifiedName: [String: ProtocolClassConstraint]
+    /// Exposed (package-internal) so `ImageUniverse` can merge each image's
+    /// per-image index into the closure-wide global index. Keyed by
+    /// fully-qualified type name.
+    let typeDescriptorsByQualifiedName: [String: TypeContextDescriptorWrapper]
+    /// Exposed (package-internal) so `ImageUniverse` can merge each image's
+    /// protocol class-constraint index into the closure-wide global index.
+    let protocolClassConstraintsByQualifiedName: [String: ProtocolClassConstraint]
 
     public init(machO: MachO) throws {
         self.machO = machO
@@ -21,9 +26,11 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
 
         // `demangleContext` reconstructs the fully-qualified name from the
         // descriptor's parent chain (the descriptor's own `mangledName` is not a
-        // demangleable type reference).
+        // demangleable type reference). A dependency image with no Swift type
+        // section (a pure-ObjC/C dylib) contributes no types rather than failing
+        // the whole closure.
         var typeIndex: [String: TypeContextDescriptorWrapper] = [:]
-        for contextDescriptor in try machO.swift.contextDescriptors {
+        for contextDescriptor in Self.contextDescriptorsOrEmpty(in: machO) {
             guard
                 let typeDescriptor = contextDescriptor.typeContextDescriptorWrapper,
                 let contextNode = try? MetadataReader.demangleContext(for: contextDescriptor, in: machO),
@@ -38,7 +45,7 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
         // existential's representation — opaque vs class-bound — can be derived
         // from its protocol composition.
         var protocolIndex: [String: ProtocolClassConstraint] = [:]
-        for protocolDescriptor in try machO.swift.protocolDescriptors {
+        for protocolDescriptor in Self.protocolDescriptorsOrEmpty(in: machO) {
             guard
                 let classConstraint = protocolDescriptor.flags.kindSpecificFlags?.protocolFlags?.classConstraint,
                 let contextNode = try? MetadataReader.demangleContext(for: .protocol(protocolDescriptor), in: machO),
@@ -59,5 +66,29 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
     /// or `nil` if no protocol with that name is defined in this image.
     func protocolClassConstraint(forQualifiedTypeName qualifiedTypeName: String) -> ProtocolClassConstraint? {
         protocolClassConstraintsByQualifiedName[qualifiedTypeName]
+    }
+
+    /// Reads the image's type context descriptors, treating an absent
+    /// `__swift5_types` section as "no Swift types" rather than an error.
+    private static func contextDescriptorsOrEmpty(in machO: MachO) -> [ContextDescriptorWrapper] {
+        do {
+            return try machO.swift.contextDescriptors
+        } catch let MachOSwiftSectionError.sectionNotFound(section, _) where section == .__swift5_types {
+            return []
+        } catch {
+            return []
+        }
+    }
+
+    /// Reads the image's protocol descriptors, treating an absent
+    /// `__swift5_protos` section as "no Swift protocols" rather than an error.
+    private static func protocolDescriptorsOrEmpty(in machO: MachO) -> [ProtocolDescriptor] {
+        do {
+            return try machO.swift.protocolDescriptors
+        } catch let MachOSwiftSectionError.sectionNotFound(section, _) where section == .__swift5_protos {
+            return []
+        } catch {
+            return []
+        }
     }
 }

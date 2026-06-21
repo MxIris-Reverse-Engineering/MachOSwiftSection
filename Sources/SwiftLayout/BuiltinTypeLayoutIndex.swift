@@ -13,7 +13,17 @@ public struct BuiltinTypeLayoutIndex: Sendable {
 
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(machO: MachO) throws {
         var index: [String: TypeLayoutInfo] = [:]
-        for descriptor in try machO.swift.builtinTypeDescriptors {
+        // A missing `__swift5_builtin` section is a normal state — most images
+        // emit no builtin descriptors — so it yields an empty index rather than
+        // failing. This matters for dependency-closure images (a sibling
+        // framework, a pure-ObjC/C dylib) that have no builtin section at all.
+        let builtinTypeDescriptors: [BuiltinTypeDescriptor]
+        do {
+            builtinTypeDescriptors = try machO.swift.builtinTypeDescriptors
+        } catch let MachOSwiftSectionError.sectionNotFound(section, _) where section == .__swift5_builtin {
+            builtinTypeDescriptors = []
+        }
+        for descriptor in builtinTypeDescriptors {
             guard let typeName = try descriptor.typeName(in: machO) else { continue }
             let layout = TypeLayoutInfo(
                 size: Int(descriptor.layout.size),
