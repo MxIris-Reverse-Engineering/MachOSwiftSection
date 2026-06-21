@@ -86,8 +86,11 @@ extension MemberRecord {
     /// (non-frozen) struct, reordering stored properties is binary-compatible,
     /// so order-sensitivity would be a false positive. Enum cases — where order
     /// IS unconditionally ABI-significant — use ``makeCase(_:tag:)`` instead.
-    /// TODO(P2): resilience-aware frozen-struct field-order sensitivity; fold
-    /// `flags` (weak / lazy / indirect) into `payloadKey`.
+    /// TODO(P2): resilience-aware frozen-struct field-order sensitivity.
+    /// Reference-storage (`weak` / `unowned`) needs no separate flag handling:
+    /// the model derives it from `typeNode.contains(.weak)`, so it already
+    /// travels in the `typeNode` the payload folds in. (The `indirect` flag is an
+    /// enum-case concern, keyed — minus the flag — in ``makeCase(_:tag:)``.)
     public static func make(_ field: FieldDefinition) -> MemberRecord {
         let typeText = field.typeNode.print(using: .default)
         return MemberRecord(
