@@ -1,7 +1,7 @@
 import SwiftDeclaration
 import MemberwiseInit
 import Semantic
-import SwiftDump
+import SwiftDeclarationRendering
 import MachOSwiftSection
 
 public enum SwiftDeclarationMemberSortOrder: Hashable, Codable, Sendable, CaseIterable {

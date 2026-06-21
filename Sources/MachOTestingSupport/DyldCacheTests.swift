@@ -22,7 +22,7 @@ package class DyldCacheTests: Sendable {
 
     package class var mainCacheImageName: MachOImageName { .SwiftUI }
 
-    package class var cacheImageName: MachOImageName { .AttributeGraph }
+    package class var cacheImageName: MachOImageName { .SwiftUI }
 
     package class var cachePath: DyldSharedCachePath { .current }
 

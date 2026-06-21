@@ -12,14 +12,10 @@ import MachOFixtureSupport
 @_spi(Internals) @testable import MachOSymbols
 @_spi(Internals) @testable import MachOCaches
 
-protocol SwiftInterfaceBuilderTests {}
+protocol SwiftInterfaceBuilderTests: SwiftInterfaceDumpTests {}
 
 @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
 extension SwiftInterfaceBuilderTests {
-    var rootDirectory: URL {
-        .documentsDirectory.appending(path: "SwiftInterfaceTests")
-    }
-
     var builderConfiguration: SwiftInterfaceBuilderConfiguration {
         SwiftInterfaceBuilderConfiguration(
             indexConfiguration: .init(
@@ -44,63 +40,24 @@ extension SwiftInterfaceBuilderTests {
         builder.addExtraDataProvider(SwiftInterfaceBuilderOpaqueTypeProvider(machO: machO))
         return builder
     }
-    
-    func buildString(in machO: MachOFile) async throws {
+
+    /// Builds the interface (timed) and returns the rendered source. The two
+    /// `@Test` entry points below only differ in where they send this string.
+    private func buildInterfaceString<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws -> String {
         let builder = try makeBuilder(in: machO)
-        let clock = ContinuousClock()
-        let duration = try await clock.measure {
-            try await builder.prepare()
-        }
-        #if !SILENT_TEST
-        print(duration)
-        #endif
-        let result = try await builder.printRoot()
-        #if !SILENT_TEST
-        print(result.string)
-        #endif
+        try await measuringPreparation { try await builder.prepare() }
+        return try await builder.printRoot().string
     }
 
-    func buildString(in machO: MachOImage) async throws {
-        let builder = try makeBuilder(in: machO)
-        let clock = ContinuousClock()
-        let duration = try await clock.measure {
-            try await builder.prepare()
-        }
-        #if !SILENT_TEST
-        print(duration)
-        #endif
-        let result = try await builder.printRoot()
-        #if !SILENT_TEST
-        print(result.string)
-        #endif
+    func buildString<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
+        printResult(try await buildInterfaceString(in: machO))
     }
 
-    func buildFile(in machO: MachOFile) async throws {
-        let builder = try makeBuilder(in: machO)
-        let clock = ContinuousClock()
-        let duration = try await clock.measure {
-            try await builder.prepare()
-        }
-        #if !SILENT_TEST
-        print(duration)
-        #endif
-        let result = try await builder.printRoot()
-        try rootDirectory.createDirectoryIfNeeded()
-        try result.string.write(to: rootDirectory.appending(path: "\(machO.loadCommands.buildVersionCommand!)-\(machO.imagePath.lastPathComponent)-FileDump.swiftinterface"), atomically: true, encoding: .utf8)
-    }
-
-    func buildFile(in machO: MachOImage) async throws {
-        let builder = try makeBuilder(in: machO)
-        let clock = ContinuousClock()
-        let duration = try await clock.measure {
-            try await builder.prepare()
-        }
-        #if !SILENT_TEST
-        print(duration)
-        #endif
-        let result = try await builder.printRoot()
-        try rootDirectory.createDirectoryIfNeeded()
-        try result.string.write(to: rootDirectory.appending(path: "\(machO.loadCommands.buildVersionCommand!)-\(machO.imagePath.lastPathComponent)-ImageDump.swiftinterface"), atomically: true, encoding: .utf8)
+    func buildFile<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
+        // Preserve the historical `-FileDump` / `-ImageDump` naming so the file
+        // tells you which reader produced it.
+        let suffix = machO is MachOImage ? "ImageDump" : "FileDump"
+        try write(try await buildInterfaceString(in: machO), for: machO, suffix: suffix)
     }
 }
 
@@ -171,85 +128,6 @@ enum SwiftInterfaceBuilderTestSuite {
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
         @Test func buildString() async throws {
             try await buildString(in: machOFile)
-        }
-    }
-}
-
-extension LoadCommandsProtocol {
-    var buildVersionCommand: BuildVersionCommand? {
-        for command in self {
-            switch command {
-            case .buildVersion(let buildVersionCommand):
-                return buildVersionCommand
-            default:
-                break
-            }
-        }
-        return nil
-    }
-}
-
-extension BuildVersionCommand: @retroactive CustomStringConvertible {
-    public var description: String {
-        "\(platform.stringValue)-\(sdk)"
-    }
-}
-
-extension MachOKit.Platform {
-    var stringValue: String {
-        switch self {
-        case .unknown:
-            "Unknown"
-        case .any:
-            "Any"
-        case .macOS:
-            "macOS"
-        case .iOS:
-            "iOS"
-        case .tvOS:
-            "tvOS"
-        case .watchOS:
-            "watchOS"
-        case .bridgeOS:
-            "bridgeOS"
-        case .macCatalyst:
-            "macCatalyst"
-        case .iOSSimulator:
-            "iOSSimulator"
-        case .tvOSSimulator:
-            "tvOSSimulator"
-        case .watchOSSimulator:
-            "watchOSSimulator"
-        case .driverKit:
-            "DriverKit"
-        case .visionOS:
-            "visionOS"
-        case .visionOSSimulator:
-            "visionOSSimulator"
-        case .firmware:
-            "Firmware"
-        case .sepOS:
-            "sepOS"
-        case .macOSExclaveCore:
-            "macOSExclaveCore"
-        case .macOSExclaveKit:
-            "macOSExclaveKit"
-        case .iOSExclaveCore:
-            "iOSExclaveCore"
-        case .iOSExclaveKit:
-            "iOSExclaveKit"
-        case .tvOSExclaveCore:
-            "tvOSExclaveCore"
-        case .tvOSExclaveKit:
-            "tvOSExclaveKit"
-        case .watchOSExclaveCore:
-            "watchOSExclaveCore"
-        case .watchOSExclaveKit:
-            "watchOSExclaveKit"
-        case .visionOSExclaveCore:
-            "visionOSExclaveCore"
-        case .visionOSExclaveKit:
-            "visionOSExclaveKit"
         }
     }
 }

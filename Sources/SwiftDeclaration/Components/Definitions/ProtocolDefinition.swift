@@ -2,7 +2,6 @@ import Foundation
 import MachOSwiftSection
 import MemberwiseInit
 import OrderedCollections
-import SwiftDump
 import Demangling
 import Semantic
 import SwiftStdlibToolbox

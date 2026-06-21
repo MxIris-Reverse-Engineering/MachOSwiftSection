@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import Demangling
 import Semantic
+import SwiftDeclarationRendering
 @testable import SwiftDump
 
 // MARK: - Helpers

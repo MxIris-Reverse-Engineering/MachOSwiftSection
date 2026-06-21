@@ -122,28 +122,23 @@ var dependencies: [Package.Dependency] = [
     .MachOObjCSection,
     .Demangling,
     .Semantic,
-    
+
     .package(url: "https://github.com/swiftlang/swift-syntax.git", "509.1.0" ..< "604.0.0"),
     .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.4"),
     .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.1"),
     .package(url: "https://github.com/apple/swift-collections", from: "1.2.0"),
-    
+
     .package(url: "https://github.com/p-x9/AssociatedObject", from: "0.13.0"),
     .package(url: "https://github.com/p-x9/swift-fileio.git", from: "0.9.0"),
     .package(url: "https://github.com/Mx-Iris/FrameworkToolbox", from: "0.4.0"),
-    
+
     .package(url: "https://github.com/gohanlon/swift-memberwise-init-macro", from: "0.6.0"),
-//    .package(url: "https://github.com/Mx-Iris/SourceKitD", from: "0.1.0"),
-//    .package(url: "https://github.com/christophhagen/BinaryCodable", from: "3.1.0"),
-    
+
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.9.4"),
-//    .package(url: "https://github.com/MxIris-DeveloperTool/swift-clang", from: "0.2.0"),
-//    .package(url: "https://github.com/MxIris-DeveloperTool/swift-apinotes", from: "0.1.0"),
-    .package(url: "https://github.com/MxIris-Reverse-Engineering/swift-dyld-private", from: "1.2.0"),
     
     // CLI
     .package(url: "https://github.com/onevcat/Rainbow", from: "4.0.0"),
-    
+
     // Testing
     .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.18.9"),
 ]
@@ -163,22 +158,22 @@ extension Package.Dependency {
 
     static let MachOKitOrigin = Package.Dependency.package(
         url: "https://github.com/p-x9/MachOKit.git",
-        exact: MachOKitVersion
+        exact: MachOKitVersion,
     )
 
     static let MachOKitSPM = Package.Dependency.package(
         url: "https://github.com/p-x9/MachOKit-SPM.git",
-        from: MachOKitVersion
+        from: MachOKitVersion,
     )
 
     static let MachOKitMain = Package.Dependency.package(
         local: .package(
             path: "../MachOKit",
-            isRelative: true
+            isRelative: true,
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKit.git",
-            from: "0.46.100"
+            from: "0.46.100",
         ),
     )
 }
@@ -194,17 +189,17 @@ extension Package.Dependency {
 
     static let MachOObjCSectionOrigin = Package.Dependency.package(
         url: "https://github.com/p-x9/MachOObjCSection.git",
-        from: "0.6.0"
+        from: "0.6.0",
     )
 
     static let MachOObjCSectionMain = Package.Dependency.package(
         local: .package(
             path: "../MachOObjCSection",
-            isRelative: true
+            isRelative: true,
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOObjCSection.git",
-            from: "0.6.100"
+            from: "0.6.100",
         ),
     )
 }
@@ -213,82 +208,82 @@ extension Package.Dependency {
     static let Demangling = Package.Dependency.package(
         local: .package(
             path: "../swift-demangling",
-            isRelative: true
+            isRelative: true,
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-demangling",
-            from: "0.4.0"
-        )
+            from: "0.4.3",
+        ),
     )
 
     static let Semantic = Package.Dependency.package(
         local: .package(
             path: "../swift-semantic-string",
-            isRelative: true
+            isRelative: true,
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-semantic-string",
-            exact: "0.1.1"
-        )
+            exact: "0.1.1",
+        ),
     )
 }
 
 extension Target.Dependency {
     static let MachOKit = Target.Dependency.product(
         name: "MachOKit",
-        package: "MachOKit"
+        package: "MachOKit",
     )
     static let MachOObjCSection = Target.Dependency.product(
         name: "MachOObjCSection",
-        package: "MachOObjCSection"
+        package: "MachOObjCSection",
     )
     static let MachOKitMain = Target.Dependency.product(
         name: "MachOKit",
-        package: "MachOKit"
+        package: "MachOKit",
     )
     static let MachOKitSPM = Target.Dependency.product(
         name: "MachOKit",
-        package: "MachOKit-SPM"
+        package: "MachOKit-SPM",
     )
     static let Demangling = Target.Dependency.product(
         name: "Demangling",
-        package: "swift-demangling"
+        package: "swift-demangling",
     )
     static let Semantic = Target.Dependency.product(
         name: "Semantic",
-        package: "swift-semantic-string"
+        package: "swift-semantic-string",
     )
     static let SwiftSyntax = Target.Dependency.product(
         name: "SwiftSyntax",
-        package: "swift-syntax"
+        package: "swift-syntax",
     )
     static let SwiftParser = Target.Dependency.product(
         name: "SwiftParser",
-        package: "swift-syntax"
+        package: "swift-syntax",
     )
     static let SwiftSyntaxMacros = Target.Dependency.product(
         name: "SwiftSyntaxMacros",
-        package: "swift-syntax"
+        package: "swift-syntax",
     )
     static let SwiftCompilerPlugin = Target.Dependency.product(
         name: "SwiftCompilerPlugin",
-        package: "swift-syntax"
+        package: "swift-syntax",
     )
     static let SwiftSyntaxMacrosTestSupport = Target.Dependency.product(
         name: "SwiftSyntaxMacrosTestSupport",
-        package: "swift-syntax"
+        package: "swift-syntax",
     )
     static let SwiftSyntaxBuilder = Target.Dependency.product(
         name: "SwiftSyntaxBuilder",
-        package: "swift-syntax"
+        package: "swift-syntax",
     )
     static let SwiftTUI = Target.Dependency.product(
         name: "SwiftTUI",
-        package: "SwiftTUI"
+        package: "SwiftTUI",
     )
     static let TermKit = Target.Dependency.product(
         name: "TermKit",
-        package: "TermKit"
+        package: "TermKit",
     )
 }
 
@@ -304,7 +299,7 @@ extension Target {
             .product(name: "OrderedCollections", package: "swift-collections"),
             .product(name: "Dependencies", package: "swift-dependencies"),
             .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
-        ]
+        ],
     )
 
     static let MachOExtensions = Target.target(
@@ -312,7 +307,7 @@ extension Target {
         dependencies: [
             .product(.MachOKit),
             .target(.Utilities),
-        ]
+        ],
     )
 
     static let MachOCaches = Target.target(
@@ -321,7 +316,7 @@ extension Target {
             .product(.MachOKit),
             .target(.MachOExtensions),
             .target(.Utilities),
-        ]
+        ],
     )
 
     static let MachOReading = Target.target(
@@ -331,7 +326,7 @@ extension Target {
             .target(.MachOExtensions),
             .target(.Utilities),
             .product(name: "FileIO", package: "swift-fileio"),
-        ]
+        ],
     )
 
     static let MachOResolving = Target.target(
@@ -340,7 +335,7 @@ extension Target {
             .product(.MachOKit),
             .target(.MachOExtensions),
             .target(.MachOReading),
-        ]
+        ],
     )
 
     static let MachOSymbols = Target.target(
@@ -362,7 +357,7 @@ extension Target {
             .target(.MachOReading),
             .target(.MachOResolving),
             .target(.Utilities),
-        ]
+        ],
     )
 
     static let MachOSymbolPointers = Target.target(
@@ -374,7 +369,7 @@ extension Target {
             .target(.MachOPointers),
             .target(.MachOSymbols),
             .target(.Utilities),
-        ]
+        ],
     )
 
     static let MachOFoundation = Target.target(
@@ -388,11 +383,11 @@ extension Target {
             .target(.MachOResolving),
             .target(.MachOSymbolPointers),
             .target(.Utilities),
-        ]
+        ],
     )
 
     static let MachOSwiftSectionC = Target.target(
-        name: "MachOSwiftSectionC"
+        name: "MachOSwiftSectionC",
     )
 
     static let MachOSwiftSection = Target.target(
@@ -403,8 +398,7 @@ extension Target {
             .target(.MachOFoundation),
             .target(.MachOSwiftSectionC),
             .target(.Utilities),
-            .product(name: "DyldPrivate", package: "swift-dyld-private"),
-        ]
+        ],
     )
 
     static let SwiftInspection = Target.target(
@@ -416,7 +410,26 @@ extension Target {
             .product(.Demangling),
             .target(.MachOSwiftSection),
             .target(.Utilities),
-        ]
+        ],
+    )
+
+    /// Low-level Swift declaration rendering engine extracted from `SwiftDump`:
+    /// pure `Keyword`/`Node`/`SemanticString`/`String` extensions, the
+    /// `DemangleResolver`, the render configuration, the header-rendering
+    /// helpers, and the field-metadata comment engine. Shared by both the
+    /// raw-descriptor dump path (`SwiftDump`) and the model-driven interface
+    /// path (`SwiftPrinting`), so neither has to depend on the other.
+    static let SwiftDeclarationRendering = Target.target(
+        name: "SwiftDeclarationRendering",
+        dependencies: [
+            .product(.MachOKit),
+            .product(.MachOObjCSection),
+            .product(.Semantic),
+            .product(.Demangling),
+            .target(.MachOSwiftSection),
+            .target(.Utilities),
+            .target(.SwiftInspection),
+        ],
     )
 
     static let SwiftDump = Target.target(
@@ -426,11 +439,11 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
-            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .target(.MachOSwiftSection),
             .target(.Utilities),
             .target(.SwiftInspection),
-        ]
+            .target(.SwiftDeclarationRendering),
+        ],
     )
 
     /// Shared declaration model: `TypeDefinition`, `ProtocolDefinition`,
@@ -444,12 +457,11 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
-            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.SwiftDump),
+            .target(.SwiftDeclarationRendering),
             .target(.Utilities),
-        ]
+        ],
     )
 
     /// Builds the `SwiftDeclaration` model from a Mach-O image:
@@ -462,13 +474,11 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
-            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.SwiftDump),
             .target(.Utilities),
             .target(.SwiftDeclaration),
-        ]
+        ],
     )
 
     /// Infers source-level Swift attributes (`@propertyWrapper`,
@@ -482,13 +492,23 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
-            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.SwiftDump),
             .target(.Utilities),
             .target(.SwiftDeclaration),
-        ]
+        ],
+    )
+
+    /// Diffs the Swift ABI of two indexed modules. Keys every declaration on
+    /// its remangled `Node` and computes a recursive set difference; a pure
+    /// peer over the model (no Mach-O), so it only needs `SwiftDeclaration`
+    /// and `Demangling`.
+    static let SwiftDiffing = Target.target(
+        name: "SwiftDiffing",
+        dependencies: [
+            .product(.Demangling),
+            .target(.SwiftDeclaration),
+        ],
     )
 
     /// Renders the `SwiftDeclaration` model as Swift source:
@@ -502,14 +522,13 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
-            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.SwiftDump),
+            .target(.SwiftDeclarationRendering),
             .target(.Utilities),
             .target(.SwiftDeclaration),
             .target(.SwiftAttributeInference),
-        ]
+        ],
     )
 
     /// Runtime generic-specialization engine (`GenericSpecializer`,
@@ -524,15 +543,12 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
-            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
-            .product(name: "AssociatedObject", package: "AssociatedObject"),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.SwiftDump),
             .target(.Utilities),
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
-        ]
+        ],
     )
 
     /// Orchestrator: `SwiftInterfaceBuilder` ties indexing and printing
@@ -544,15 +560,16 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
-            .product(name: "FoundationToolbox", package: "FrameworkToolbox"),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
-            .target(.SwiftDump),
+            .target(.SwiftDeclarationRendering),
             .target(.Utilities),
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
+            .target(.SwiftAttributeInference),
             .target(.SwiftPrinting),
             .target(.SwiftSpecialization),
+            .target(.SwiftDiffing),
         ],
     )
 
@@ -579,10 +596,11 @@ extension Target {
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
             .target(.SwiftPrinting),
+            .target(.SwiftDiffing),
             .target(.SwiftInterface),
             .product(name: "Rainbow", package: "Rainbow"),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
-        ]
+        ],
     )
 
     static let baseline_generator = Target.executableTarget(
@@ -591,7 +609,7 @@ extension Target {
             .target(.MachOFixtureSupport),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ],
-        swiftSettings: testSettings
+        swiftSettings: testSettings,
     )
 
     // MARK: - Plugins
@@ -604,17 +622,17 @@ extension Target {
         capability: .command(
             intent: .custom(
                 verb: "regen-baselines",
-                description: "Regenerate MachOSwiftSection fixture-test ABI baselines."
+                description: "Regenerate MachOSwiftSection fixture-test ABI baselines.",
             ),
             permissions: [
                 .writeToPackageDirectory(
-                    reason: "Writes regenerated baselines under Tests/MachOSwiftSectionTests/Fixtures/__Baseline__/."
-                )
-            ]
+                    reason: "Writes regenerated baselines under Tests/MachOSwiftSectionTests/Fixtures/__Baseline__/.",
+                ),
+            ],
         ),
         dependencies: [
             .target(.baseline_generator),
-        ]
+        ],
     )
 
     // MARK: - Macros
@@ -626,7 +644,7 @@ extension Target {
             .product(.SwiftSyntaxMacros),
             .product(.SwiftCompilerPlugin),
             .product(.SwiftSyntaxBuilder),
-        ]
+        ],
     )
 
     // MARK: - Testing
@@ -654,7 +672,7 @@ extension Target {
             .product(.SwiftParser),
             .product(.SwiftSyntaxBuilder),
         ],
-        swiftSettings: testSettings
+        swiftSettings: testSettings,
     )
 
     /// `swift-testing` base classes (`MachOFileTests`, `MachOImageTests`,
@@ -676,14 +694,14 @@ extension Target {
             .target(.SwiftSpecialization),
             .target(.SwiftInterface),
         ],
-        swiftSettings: testSettings
+        swiftSettings: testSettings,
     )
 
     static let MachOTestingSupportC = Target.target(
         name: "MachOTestingSupportC",
         dependencies: [
         ],
-        swiftSettings: testSettings
+        swiftSettings: testSettings,
     )
 
     static let MachOSymbolsTests = Target.testTarget(
@@ -693,7 +711,7 @@ extension Target {
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
         ],
-        swiftSettings: testSettings
+        swiftSettings: testSettings,
     )
 
     static let MachOSwiftSectionTests = Target.testTarget(
@@ -704,7 +722,7 @@ extension Target {
             .target(.MachOFixtureSupport),
             .target(.SwiftDump),
         ],
-        swiftSettings: testSettings
+        swiftSettings: testSettings,
     )
 
     static let MachOCachesTests = Target.testTarget(
@@ -712,7 +730,7 @@ extension Target {
         dependencies: [
             .target(.MachOCaches),
         ],
-        swiftSettings: testSettings
+        swiftSettings: testSettings,
     )
 
     static let SwiftInspectionTests = Target.testTarget(
@@ -723,7 +741,7 @@ extension Target {
             .target(.MachOFixtureSupport),
             .target(.SwiftInspection),
         ],
-        swiftSettings: testSettings
+        swiftSettings: testSettings,
     )
 
     static let SwiftDumpTests = Target.testTarget(
@@ -737,7 +755,7 @@ extension Target {
             .product(.Demangling),
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
         ],
-        swiftSettings: testSettings
+        swiftSettings: testSettings,
     )
 
 //    static let TypeIndexingTests = Target.testTarget(
@@ -762,7 +780,7 @@ extension Target {
             .target(.MachOFixtureSupport),
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
         ],
-        swiftSettings: testSettings
+        swiftSettings: testSettings,
     )
 
     static let SwiftPrintingTests = Target.testTarget(
@@ -774,7 +792,7 @@ extension Target {
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
         ],
-        swiftSettings: testSettings
+        swiftSettings: testSettings,
     )
 
     static let SwiftAttributeInferenceTests = Target.testTarget(
@@ -786,7 +804,16 @@ extension Target {
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
         ],
-        swiftSettings: testSettings
+        swiftSettings: testSettings,
+    )
+
+    static let SwiftDiffingTests = Target.testTarget(
+        name: "SwiftDiffingTests",
+        dependencies: [
+            .target(.SwiftDeclaration),
+            .target(.SwiftDiffing),
+        ],
+        swiftSettings: testSettings,
     )
 
     static let SwiftIndexingTests = Target.testTarget(
@@ -799,7 +826,7 @@ extension Target {
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
         ],
-        swiftSettings: testSettings
+        swiftSettings: testSettings,
     )
 
     static let SwiftSpecializationTests = Target.testTarget(
@@ -812,7 +839,7 @@ extension Target {
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
         ],
-        swiftSettings: testSettings
+        swiftSettings: testSettings,
     )
 
     static let MachOTestingSupportTests = Target.testTarget(
@@ -825,7 +852,7 @@ extension Target {
             "Coverage/Fixtures/SampleSource.swift.txt",
             "Coverage/Fixtures/SuiteSampleSource.swift.txt",
         ],
-        swiftSettings: testSettings
+        swiftSettings: testSettings,
     )
 
     static let IntegrationTests = Target.testTarget(
@@ -846,6 +873,7 @@ extension Target {
             .target(.SwiftIndexing),
             .target(.SwiftPrinting),
             .target(.SwiftInterface),
+            .target(.SwiftDiffing),
 //            .target(.TypeIndexing),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
@@ -855,7 +883,7 @@ extension Target {
             .product(.Semantic),
             .product(name: "Dependencies", package: "swift-dependencies"),
         ],
-        swiftSettings: testSettings
+        swiftSettings: testSettings,
     )
 }
 
@@ -865,9 +893,11 @@ let package = Package(
     products: [
         .library(.MachOSwiftSection),
         .library(.SwiftInspection),
+        .library(.SwiftDeclarationRendering),
         .library(.SwiftDump),
         .library(.SwiftDeclaration),
         .library(.SwiftAttributeInference),
+        .library(.SwiftDiffing),
         .library(.SwiftIndexing),
         .library(.SwiftPrinting),
         .library(.SwiftSpecialization),
@@ -890,9 +920,11 @@ let package = Package(
         .MachOSwiftSectionC,
         .MachOSwiftSection,
         .SwiftInspection,
+        .SwiftDeclarationRendering,
         .SwiftDump,
         .SwiftDeclaration,
         .SwiftAttributeInference,
+        .SwiftDiffing,
         .SwiftIndexing,
         .SwiftPrinting,
         .SwiftSpecialization,
@@ -902,7 +934,7 @@ let package = Package(
         .MachOFixtureSupport,
         .MachOTestingSupport,
         .MachOTestingSupportC,
-        
+
         // Executable
         .swift_section,
         .baseline_generator,
@@ -919,19 +951,20 @@ let package = Package(
 //        .TypeIndexingTests,
         .SwiftPrintingTests,
         .SwiftAttributeInferenceTests,
+        .SwiftDiffingTests,
         .SwiftIndexingTests,
         .SwiftSpecializationTests,
         .SwiftInterfaceTests,
         .MachOTestingSupportTests,
         .IntegrationTests,
-    ]
+    ],
 )
 
 extension SwiftSetting {
-    static let existentialAny: Self = .enableUpcomingFeature("ExistentialAny")                                    // SE-0335, Swift 5.6,  SwiftPM 5.8+
-    static let internalImportsByDefault: Self = .enableUpcomingFeature("InternalImportsByDefault")                // SE-0409, Swift 6.0,  SwiftPM 6.0+
-    static let memberImportVisibility: Self = .enableUpcomingFeature("MemberImportVisibility")                    // SE-0444, Swift 6.1,  SwiftPM 6.1+
-    static let inferIsolatedConformances: Self = .enableUpcomingFeature("InferIsolatedConformances")              // SE-0470, Swift 6.2,  SwiftPM 6.2+
-    static let nonisolatedNonsendingByDefault: Self = .enableUpcomingFeature("NonisolatedNonsendingByDefault")    // SE-0461, Swift 6.2,  SwiftPM 6.2+
-    static let immutableWeakCaptures: Self = .enableUpcomingFeature("ImmutableWeakCaptures")                      // SE-0481, Swift 6.2,  SwiftPM 6.2+
+    static let existentialAny: Self = .enableUpcomingFeature("ExistentialAny") // SE-0335, Swift 5.6,  SwiftPM 5.8+
+    static let internalImportsByDefault: Self = .enableUpcomingFeature("InternalImportsByDefault") // SE-0409, Swift 6.0,  SwiftPM 6.0+
+    static let memberImportVisibility: Self = .enableUpcomingFeature("MemberImportVisibility") // SE-0444, Swift 6.1,  SwiftPM 6.1+
+    static let inferIsolatedConformances: Self = .enableUpcomingFeature("InferIsolatedConformances") // SE-0470, Swift 6.2,  SwiftPM 6.2+
+    static let nonisolatedNonsendingByDefault: Self = .enableUpcomingFeature("NonisolatedNonsendingByDefault") // SE-0461, Swift 6.2,  SwiftPM 6.2+
+    static let immutableWeakCaptures: Self = .enableUpcomingFeature("ImmutableWeakCaptures") // SE-0481, Swift 6.2,  SwiftPM 6.2+
 }

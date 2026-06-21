@@ -3,6 +3,7 @@ import Demangling
 import MachOKit
 import MachOSwiftSection
 import Utilities
+import SwiftDeclarationRendering
 
 extension Class: NamedDumpable {
     public func dumpName<MachO: MachOSwiftSectionRepresentableWithCache>(using configuration: DumperConfiguration, in machO: MachO) async throws -> SemanticString {

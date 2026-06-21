@@ -1,5 +1,4 @@
 import SwiftDeclaration
-import SwiftDump
 import MachOSwiftSection
 import Demangling
 

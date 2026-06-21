@@ -28,4 +28,14 @@ final class DyldCacheAssociatedTypeTests: DyldCacheTests, @unchecked Sendable {
 //            }
         }
     }
+
+
+    @Test
+    func mangledName() throws {
+        let machO = machOFileInCache
+
+        for context in try machO.swift.typeContextDescriptors {
+            try context.typeName(in: machO).node.print(using: [.showPrivateDiscriminators]).print()
+        }
+    }
 }

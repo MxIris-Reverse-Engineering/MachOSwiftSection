@@ -2,6 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Documentation
+
+All project documentation lives in the `Documentations/` directory, split by audience (see [`Documentations/README.md`](Documentations/README.md)):
+
+- **`Documentations/` (top level) — external / public docs**, for library users and other developers. Reference-style, English or bilingual (an `*_zh.md` companion). Currently just `SwiftEnumLayout.md` (+ `SwiftEnumLayout_zh.md`).
+- **`Documentations/Internal/` — maintainer-facing notes** (design notes, migration guides, refactor write-ups; `Internal/TaskReports/` holds dated per-task reports). This is the default home for working docs.
+
+Name doc files in **PascalCase** with the `.md` extension (e.g. `Internal/SwiftModularizationMigration.md`, `Internal/ReadingContextAbstraction.md`). When asked to "write a doc", default to `Documentations/Internal/` with a PascalCase name — only put it at the top level if it is genuinely a public, externally-facing reference (and then keep it English/bilingual). Do not scatter docs next to source files. When adding or moving a doc, update `Documentations/README.md`.
+
 ## Build and Test Commands
 
 ```bash

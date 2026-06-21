@@ -61,16 +61,9 @@ public enum OrderedMember: Sendable {
         members.sorted { ($0.pwtOffset ?? .max) < ($1.pwtOffset ?? .max) }
     }
 
-    /// Collect all members from a Definition into a flat list.
+    /// Collect all members from a Definition into a flat list, in the canonical
+    /// category order defined by `MemberCategory`.
     package static func allMembers(from definition: some Definition) -> [OrderedMember] {
-        var result: [OrderedMember] = []
-        result.append(contentsOf: definition.allocators.map { .allocator($0) })
-        result.append(contentsOf: definition.variables.map { .variable($0) })
-        result.append(contentsOf: definition.functions.map { .function($0) })
-        result.append(contentsOf: definition.subscripts.map { .subscript($0) })
-        result.append(contentsOf: definition.staticVariables.map { .variable($0) })
-        result.append(contentsOf: definition.staticFunctions.map { .function($0) })
-        result.append(contentsOf: definition.staticSubscripts.map { .subscript($0) })
-        return result
+        MemberCategory.allCases.flatMap { definition.members(in: $0) }
     }
 }

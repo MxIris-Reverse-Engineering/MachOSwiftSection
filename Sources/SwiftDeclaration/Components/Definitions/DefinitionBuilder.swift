@@ -1,7 +1,7 @@
 import Demangling
 import MachOSymbols
 import MachOSwiftSection
-import SwiftDump
+import OrderedCollections
 
 package enum DefinitionBuilder {
     package static func variables(
@@ -48,7 +48,13 @@ package enum DefinitionBuilder {
         isStatic: Bool
     ) -> [SubscriptDefinition] {
         var subscripts: [SubscriptDefinition] = []
-        var accessorsByNode: [Node: [Accessor]] = [:]
+        // OrderedDictionary (not a plain `Dictionary`) so the emitted subscript
+        // order is deterministic: overloaded subscripts all share the name
+        // "subscript", so they cannot be name-sorted like `variables`; plain
+        // `Dictionary` iteration order is randomized per process and made the
+        // interface output unstable across runs. Insertion order follows the
+        // (deterministic) symbol order of `demangledSymbols`.
+        var accessorsByNode: OrderedDictionary<Node, [Accessor]> = [:]
         for demangledSymbol in demangledSymbols {
             guard let subscriptNode = demangledSymbol.demangledNode.first(of: .subscript) else { continue }
             let kind = demangledSymbol.accessorKind
@@ -82,7 +88,9 @@ package enum DefinitionBuilder {
         // the canonical `allocator` subtree, so the same init appears twice. Keep
         // the canonical (non-merged) entry when both are present.
         var canonicalIndexByAllocatorNode: [Node: Int] = [:]
-        var pendingMergedByAllocatorNode: [Node: DemangledSymbolWithOffset] = [:]
+        // OrderedDictionary so the merged-thunk tail is appended in deterministic
+        // (symbol) order — plain `Dictionary` iteration is randomized per process.
+        var pendingMergedByAllocatorNode: OrderedDictionary<Node, DemangledSymbolWithOffset> = [:]
         var allocators: [FunctionDefinition] = []
         for demangledSymbol in demangledSymbols {
             guard let allocatorNode = demangledSymbol.demangledNode.first(of: .allocator) else { continue }
@@ -135,7 +143,9 @@ package enum DefinitionBuilder {
         // canonical (non-merged) symbol when both exist; fall back to the merged
         // one when it's the only copy.
         var canonicalIndexByFunctionNode: [Node: Int] = [:]
-        var pendingMergedByFunctionNode: [Node: DemangledSymbolWithOffset] = [:]
+        // OrderedDictionary so the merged-thunk tail is appended in deterministic
+        // (symbol) order — plain `Dictionary` iteration is randomized per process.
+        var pendingMergedByFunctionNode: OrderedDictionary<Node, DemangledSymbolWithOffset> = [:]
         var functions: [FunctionDefinition] = []
         for demangledSymbol in demangledSymbols {
             guard let functionNode = demangledSymbol.demangledNode.first(of: .function), let name = functionNode.identifier else { continue }

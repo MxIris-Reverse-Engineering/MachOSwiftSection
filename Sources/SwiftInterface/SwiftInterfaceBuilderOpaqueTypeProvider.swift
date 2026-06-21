@@ -8,7 +8,7 @@ import Dependencies
 import OrderedCollections
 @_spi(Internals) import MachOSymbols
 import SwiftStdlibToolbox
-import SwiftDump
+import SwiftDeclarationRendering
 @_spi(Internals) import SwiftInspection
 
 public struct SwiftInterfaceBuilderOpaqueTypeProvider<MachO: MachOSwiftSectionRepresentableWithCache & Sendable>: SwiftInterfaceBuilderExtraDataProvider, Sendable {

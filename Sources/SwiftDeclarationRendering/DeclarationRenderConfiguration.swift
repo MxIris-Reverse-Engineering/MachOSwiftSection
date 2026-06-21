@@ -41,10 +41,16 @@ public typealias VTableOffsetTransformer = IdentifiableClosure<(slotOffset: Int,
 public typealias ExpandedFieldOffsetTransformer = IdentifiableClosure<(fieldName: String, typeName: String, offset: Int, treePrefix: String), SemanticString>
 public typealias SpareBitAnalysisTransformer = IdentifiableClosure<(analysis: SpareBitAnalyzer.Analysis, indentation: Int), SemanticString>
 
-// MARK: - Dumper Configuration
+// MARK: - Declaration Render Configuration
+
+/// Source-compatibility alias for the former `DumperConfiguration` name. The
+/// configuration was lifted out of `SwiftDump` into `SwiftDeclarationRendering`
+/// so both the raw-descriptor dump path and the model-driven interface path can
+/// share it; existing call sites keep compiling through this alias.
+public typealias DumperConfiguration = DeclarationRenderConfiguration
 
 @MemberwiseInit(.public)
-public struct DumperConfiguration: Sendable {
+public struct DeclarationRenderConfiguration: Sendable {
     public var demangleResolver: DemangleResolver
     public var indentation: Int = 1
     public var displayParentName: Bool = true
@@ -70,7 +76,7 @@ public struct DumperConfiguration: Sendable {
     }
 }
 
-extension DumperConfiguration {
+extension DeclarationRenderConfiguration {
     package var indentString: Indent {
         .init(level: indentation)
     }

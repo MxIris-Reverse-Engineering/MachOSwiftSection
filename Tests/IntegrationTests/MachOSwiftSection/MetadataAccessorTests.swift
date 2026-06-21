@@ -7,6 +7,7 @@ import MachOKit
 import MachOFixtureSupport
 @testable import MachOSwiftSection
 @testable import SwiftDump
+import SwiftDeclarationRendering
 
 #if canImport(SwiftUI)
 import SwiftUI

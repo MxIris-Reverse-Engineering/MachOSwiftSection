@@ -4,6 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
+import SwiftDeclarationRendering
 import Semantic
 
 struct DumpCommand: AsyncParsableCommand, Sendable {

@@ -1,7 +1,6 @@
 import MemberwiseInit
 import Demangling
 import MachOSwiftSection
-import SwiftDump
 import Utilities
 
 @MemberwiseInit(.public)

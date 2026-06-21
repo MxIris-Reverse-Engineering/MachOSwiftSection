@@ -1,5 +1,6 @@
 import Foundation
 import MachOSwiftSection
+import SwiftDeclarationRendering
 
 extension TypeContextWrapper {
     package func dumper(using configuration: DumperConfiguration, metadata: MetadataWrapper? = nil, in machO: some MachOSwiftSectionRepresentableWithCache) -> any TypedDumper {

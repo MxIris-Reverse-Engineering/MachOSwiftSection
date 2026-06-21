@@ -57,4 +57,12 @@ extension LoadCommandsProtocol {
                 $0.segname == "__AUTH_CONST"
             }
     }
+
+    /// The `LC_BUILD_VERSION` load command, if present — the binary's target
+    /// platform and SDK. Used as a fallback (after `LC_UUID`) to disambiguate
+    /// same-install-path images built for different OS versions in
+    /// ``MachOTargetIdentifier``.
+    package var buildVersionCommand: BuildVersionCommand? {
+        info(of: LoadCommand.buildVersion)
+    }
 }

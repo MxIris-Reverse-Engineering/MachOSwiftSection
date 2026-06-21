@@ -4,6 +4,7 @@ import MachOSwiftSection
 import Semantic
 import Utilities
 import Demangling
+import SwiftDeclarationRendering
 import OrderedCollections
 
 extension MachOSwiftSection.`Protocol`: NamedDumpable {

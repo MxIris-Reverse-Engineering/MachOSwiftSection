@@ -1,5 +1,6 @@
 import Semantic
 import MachOSwiftSection
+import SwiftDeclarationRendering
 
 package protocol Dumper<Dumped, MachO>: Sendable {
     associatedtype Dumped: Sendable
