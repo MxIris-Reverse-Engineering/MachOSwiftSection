@@ -76,7 +76,7 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
             // bare-dumper contract: a `nil` `metadataContext` emits no offsets.
             let fieldLayoutRenderer = FieldLayoutRenderer(
                 type: .struct(dumped),
-                metadata: try? metadataContext?.metadata.asMetadataWrapper(in: machO),
+                metadata: try? metadataContext?.resolvedMetadataWrapper(),
                 machO: machO,
                 configuration: configuration,
                 autoResolveAccessorMetadata: false

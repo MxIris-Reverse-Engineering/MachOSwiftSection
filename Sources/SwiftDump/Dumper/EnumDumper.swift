@@ -75,7 +75,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
             // its default `autoResolveAccessorMetadata` behaviour.
             let fieldLayoutRenderer = FieldLayoutRenderer(
                 type: .enum(dumped),
-                metadata: try? metadataContext?.metadata.asMetadataWrapper(in: machO),
+                metadata: try? metadataContext?.resolvedMetadataWrapper(),
                 machO: machO,
                 configuration: configuration
             )

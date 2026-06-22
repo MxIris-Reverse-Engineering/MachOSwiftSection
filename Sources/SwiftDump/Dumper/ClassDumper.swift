@@ -136,7 +136,7 @@ package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Type
             // behind `autoResolveAccessorMetadata: false`.
             let fieldLayoutRenderer = FieldLayoutRenderer(
                 type: .class(dumped),
-                metadata: try? metadataContext?.metadata.asMetadataWrapper(in: machO),
+                metadata: try? metadataContext?.resolvedMetadataWrapper(),
                 machO: machO,
                 configuration: configuration,
                 autoResolveAccessorMetadata: false
