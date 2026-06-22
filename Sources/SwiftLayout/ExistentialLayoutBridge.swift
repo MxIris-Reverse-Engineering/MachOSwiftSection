@@ -85,6 +85,14 @@ extension StaticTypeLayoutResolver {
         var isClassBound = structurallyClassBound
         var witnessTableCount = 0
         for protocolNode in protocolNodes {
+            // An imported Objective-C protocol has no Swift protocol descriptor.
+            // It is always class-bound and contributes no Swift witness table
+            // (`id<P>` is a single class reference), so it forces the existential
+            // class-bound and is not counted.
+            if NodeTypeNaming.objCProtocolBareName(of: protocolNode) != nil {
+                isClassBound = true
+                continue
+            }
             guard let qualifiedName = NodeTypeNaming.protocolQualifiedName(of: protocolNode) else {
                 throw LayoutResolutionError.unknown(.demangleFailure)
             }

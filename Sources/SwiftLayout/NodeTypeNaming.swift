@@ -83,6 +83,25 @@ enum NodeTypeNaming {
         return nominal.identifier
     }
 
+    /// The bare name of an imported Objective-C protocol node (a `.protocol`
+    /// whose module is the synthetic `__C` Clang-importer module), e.g.
+    /// `"NSCopying"`, or `nil` if the node is not an imported ObjC protocol.
+    ///
+    /// An ObjC protocol has no Swift protocol descriptor (`__swift5_protos`), so
+    /// an existential routes it through this check instead of the Swift
+    /// class-constraint index: an ObjC protocol is always class-bound and carries
+    /// no Swift witness table.
+    static func objCProtocolBareName(of node: Node) -> String? {
+        let unwrapped = (node.kind == .type ? node.firstChild : node) ?? node
+        guard unwrapped.kind == .protocol else { return nil }
+        guard
+            let context = unwrapped.firstChild,
+            context.kind == .module,
+            context.text == objcModule
+        else { return nil }
+        return unwrapped.identifier
+    }
+
     private static func qualifiedName(ofNominal node: Node) -> String? {
         guard let identifier = node.identifier else { return nil }
         guard let context = node.firstChild else { return identifier }

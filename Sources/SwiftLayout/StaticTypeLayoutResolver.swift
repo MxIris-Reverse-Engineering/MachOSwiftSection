@@ -59,6 +59,14 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
             // A thick function value is a (function pointer, context pointer)
             // pair: two words, not bitwise-takable (the context is retained).
             return TypeLayoutInfo(size: 16, stride: 16, alignmentMask: 7, extraInhabitantCount: 0, isBitwiseTakable: false)
+        case .cFunctionPointer, .objCBlock, .escapingObjCBlock:
+            // A C function pointer (`@convention(c)`/`@convention(thin)`) and an
+            // Objective-C block (`@convention(block)`) are a single word — unlike
+            // the thick Swift `.functionType` (function + context = 16 bytes).
+            // Modelled as one pointer; a block's reference-counted nature is not
+            // reflected in `isBitwiseTakable`, but size/stride/alignment — all
+            // field-offset computation needs — are exact.
+            return .pointerSized
         case .weak, .unowned, .unmanaged:
             // Reference-storage qualifiers wrap a class reference; the storage
             // itself is one machine word.
