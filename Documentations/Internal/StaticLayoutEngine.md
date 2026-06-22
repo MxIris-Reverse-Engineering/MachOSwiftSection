@@ -25,7 +25,7 @@ Sources/SwiftLayout/
 ├── TypeLayoutInfo.swift            # 输出值类型 (size/stride/alignmentMask/XI/isBitwiseTakable)
 ├── BasicLayout.swift               # runBasicLayout 内核（performBasicLayout 离线移植）
 ├── KnownLayoutTable.swift          # 硬编码 stdlib 固定布局表
-├── BuiltinTypeLayoutIndex.swift    # __swift5_builtin 按类型名索引（数值真值）
+├── BuiltinTypeLayoutIndex.swift    # __swift5_builtin 整体布局索引：C-imported 值类型 + multi-payload enum，按 demangle 还原的限定名建 key
 ├── NodeTypeNaming.swift            # 从 demangle Node 提取限定类型名 / 协议限定名（忽略泛型参数）；ObjC class 节点（__C.X）取裸名
 ├── StaticTypeLayoutResolver.swift  # 递归求解器：Node.Kind 分派 + memoization + 防环
 ├── EnumLayoutBridge.swift          # enum/Optional 布局（getEnumTagCounts 公式移植）
@@ -44,15 +44,17 @@ Tests/SwiftLayoutTests/
 ├── ExistentialLayoutTests.swift    # existential / actor 字面值锁定（精确 field-offset 向量）
 ├── DependencyClosureLayoutTests.swift # 跨依赖闭包：DistributedActorTest 对 runtime vector 自动校验 + resilient 字面值锁定 + 单镜像 partial 回归守卫 + MachOFile 离线路径
 ├── ObjCAncestorLayoutTests.swift    # 阶段 4：ObjCMembersTest/ObjCBridge 闭包重算对 runtime vector 自动校验（均 [8]）+ 无字段 ObjCBridgeWithProto + 单镜像 partial 回归守卫
-├── Support/StaticLayoutTestSupport.swift # 闭包/ObjC 套件共用的 helper（fieldLayout / runtimeFieldOffsets / assertFullyComputed，单一真源）
+├── BuiltinTypeLayoutTests.swift     # builtin 整体布局回退：multi-payload enum + __C.Decimal 索引对 runtime VWT 自动对拍 + resolver 端到端
+├── Support/StaticLayoutTestSupport.swift # 闭包/ObjC/builtin 套件共用的 helper（fieldLayout / runtimeFieldOffsets / runtimeValueWitnessSizeStride / assertFullyComputed，单一真源）
 └── StaticLayoutVsRuntimeTests.swift# 核心：遍历 fixture 真实类型 static == runtime 逐字段（单镜像）
 ```
 
 ## 核心算法
 
 - **`BasicLayout.compute`**：照搬 `Metadata.cpp:2321-2360`。逐字段 `offset = roundUpToAlignMask(accumulator, fieldAlignMask)`，累加用 **size 不是 stride**，尾部 padding 只进 stride。struct 起点 0；class 起点 = 父类 instance size（= 父类 `size`，根类 16 = `HeapObject`），递归父类；tuple 起点 0。
-- **`StaticTypeLayoutResolver`**：按 `Node.Kind` 分派。`builtinTypeName` → KnownLayoutTable / BuiltinTypeLayoutIndex（含 `Builtin.DefaultActorStorage` 特判，见下）；`class`/`boundGenericClass` → 一个指针（**不递归字段，天然破环**）；`structure` → known 表或递归 descriptor；`enum` → EnumLayoutBridge；`protocolList`·`protocolListWithAnyObject`·`protocolListWithClass`·`existentialMetatype` → ExistentialLayoutBridge；`tuple`/`functionType`(2 words)/`weak`·`unowned`·`unmanaged`(1 word)/`metatype`(thin=0/thick=8) 各自处理；其余抛 `unknown` 降级。memoize 按限定名，`inProgressKeys` 防环兜底。
-- **`EnumLayoutBridge`**：no-payload（最小 tag 字节）+ single-payload（含 `Optional`，用 payload 的 extra inhabitants 编码空 case，溢出才加 tag 字节）。`getEnumTagCounts` 公式从 runtime `EnumImpl` 移植。multi-payload 首期降级。
+- **`StaticTypeLayoutResolver`**：按 `Node.Kind` 分派。`builtinTypeName` → KnownLayoutTable / `builtinPrimitiveLayout`（含 `Builtin.DefaultActorStorage` 特判，见下）；`class`/`boundGenericClass` → 一个指针（**不递归字段，天然破环**）；`structure` → **BuiltinTypeLayoutIndex 回退**（C-imported 值类型，见下）或 known 表 / 递归 descriptor；`enum` → EnumLayoutBridge；`protocolList`·`protocolListWithAnyObject`·`protocolListWithClass`·`existentialMetatype` → ExistentialLayoutBridge；`tuple`/`functionType`(2 words)/`weak`·`unowned`·`unmanaged`(1 word)/`metatype`(thin=0/thick=8) 各自处理；其余抛 `unknown` 降级。memoize 按限定名，`inProgressKeys` 防环兜底。
+- **`EnumLayoutBridge`**：no-payload（最小 tag 字节）+ single-payload（含 `Optional`，用 payload 的 extra inhabitants 编码空 case，溢出才加 tag 字节）。`getEnumTagCounts` 公式从 runtime `EnumImpl` 移植。**multi-payload（及 indirect / `@objc` raw）enum 经 `BuiltinTypeLayoutIndex` 解析**（见下），不再降级。
+- **`BuiltinTypeLayoutIndex`（整体布局回退）**：`__swift5_builtin` 段的 `BuiltinTypeDescriptor` 记录了「reflection 无法结构化推导布局」类型的**整体布局**（size/stride/align/XI/bitwiseTakable）——即**imported C 值类型**（`__C.CGRect`/`__C.Decimal`/…）与 **multi-payload enum**。编译器在**每个反射性引用该类型的镜像**（如把它当存储字段的类型所在镜像）里都 emit 一份，故「使用方镜像」必带。求解器在 `structureLayout`/`enumLayout` 里对**非泛型** `structure`/`enum` 节点先查 `originImage.builtinLayoutIndex`：命中（C 类型、multi-payload enum）即返回该整体布局；未命中（普通 struct/enum 不 emit builtin descriptor）落回结构化路径。对「作为字段」的场景只需整体 size/align/stride，故无需 C struct 内部偏移、也无需 multi-payload 的 spare-bit 分析。descriptor 的 `typeName` 是**符号引用**（裸串为空），故按 demangle 还原的限定名建 key（与求解器查找侧同一格式）。语义同 resilient：「针对这组具体二进制」。
 - **`ExistentialLayoutBridge`**：从 runtime `ExistentialTypeInfoBuilder`（`TypeLowering.cpp`）移植。opaque `any P` / 协议组合 = 3-word inline buffer + 1 metadata word + 每协议 1 witness word（`32 + 8N`）；class-bound（`AnyObject` / class 约束协议 / 显式 superclass）= 1 object word + N witness（`8·(1+N)`）；`any Error` = 1 boxed word（8）；existential metatype = 1 metadata word + N witness（`8·(1+N)`，与 class-bound 无关）。是否 class-bound 由各协议 descriptor 的 class 约束决定（`protocolListWithAnyObject`/`WithClass` 结构上即 class-bound）。**marker 协议（`Sendable` 等）已被编译器从 mangled field 名剥离**，故每个列出的协议都计 1 个 witness，无需自行过滤 marker。跨模块协议的 class 约束现经依赖闭包解析（见下）。
 - **ObjC 祖先起点（阶段 4）**：`superclassStartLayout` 中，超类 demangle 出的若是 `__C.<Name>`（ObjC 类，由 `NodeTypeNaming.objCClassBareName` 识别），则该类自身字段从 ObjC 父类的 `instanceSize` 起算（`NSObject` = 8，仅 isa），经第三个 seam `resolveObjCClassInstanceSize(byBareName:)` 取得；**先于** Swift 侧 `resolveType` 判断（ObjC 名在 Swift 类型索引里必然 miss，若先走 `resolveType` 会无谓地把整条依赖闭包索引一遍）。读法用 `ObjCClassIndex`：从 `__objc_classlist` 取 instance `class_ro_t`（in-process 的 realized 类经 `class_rw_t` 回退）的 `instanceSize`——与 `ObjCClass.info(in:).instanceSize` 同值但不解析 methods/ivars；**取 `instanceSize` 而非 `instanceStart`**（后者是 ObjC 类自身首 ivar 起点，cache 上常为 0）。alignmentMask 取 7（指针对齐）。ObjC 类无 Swift descriptor，故只能这样起算；其上的 Swift 字段照常累加。
 - **`ImageUniverse` 依赖闭包（阶段 3）**：`singleImage` 之外新增 `dependencyClosure`。求解器始终只经 `resolveType` / `resolveProtocolClassConstraint` / `resolveObjCClassInstanceSize` 三个 seam 查类型，故闭包**不动求解器一行**。root 立即索引，依赖按 BFS 顺序**惰性索引**——仅当某次 resolve 在已索引镜像里全部 miss 时，才推进索引下一个依赖、命中即停（一次 OS 全闭包可达数百镜像，eager demangle 每个会耗数秒；真实查询只命中前几个 Swift 依赖）。便利工厂：`MachOImage` 经活动 dyld（`MachOImage(name: bareName)`）解析，`MachOFile` 经显式 on-disk 路径 + dyld shared cache（cache 一次性按 bare-name 建索引）。详见 [StaticLayoutDependencyClosure.md](StaticLayoutDependencyClosure.md)。
@@ -73,7 +75,12 @@ Tests/SwiftLayoutTests/
 - **`ObjCBridgeWithProto`（无 stored property）**：runtime vector `[]`，闭包重算同为 `[]` 且无 unknown 字段（ObjC 父类成功解析）。
 - **单镜像回归守卫**：单镜像引擎下带字段的两类必为 partial（ObjC 父类 `class_ro_t` 不可达），证明是闭包定位到 libobjc 才解析掉的（无字段的那类因无字段天然「全算对」，不纳入守卫）。
 
-> 单镜像基线只验证 fixture 模块（`SymbolTests*`）自己定义的类型；跨模块 C-imported 类型（如 `__C.Decimal`，其 C bitfield 布局不反映在 Swift field records 里）仍排除在外（无 Swift descriptor，闭包也不解析）。
+`BuiltinTypeLayoutTests` 验证 builtin 整体布局回退（multi-payload enum + imported C 值类型）：
+- **multi-payload enum**（`MultiPayloadEnumTests`/`MultiPayloadEnumTests2`/`FunctionReferenceCaseTest`/`AssociatedValueErrorTest`/`CodableEnumTest`）：`BuiltinTypeLayoutIndex` 按限定名解析出的 size/stride 与 **runtime value-witness table 自动相等**。
+- **`__C.Decimal`**（imported C 值类型，无 Swift descriptor）：经 builtin 索引解析出 `size/stride=20、align=4`。
+- **resolver 端到端**：之前降级为 unknown 的 `MultiPayloadEnumTests`，现经 resolver 走 builtin 回退算出整体布局，与 runtime VWT 一致。
+
+> 单镜像 `StaticLayoutVsRuntimeTests` 基线仍只遍历 `SymbolTests*` 模块自己定义的**非泛型 struct/class**（且只比对有 field-offset vector 的类型）；C-imported 值类型与 multi-payload enum 作为**字段**时已能解析（见 `BuiltinTypeLayoutTests`），但它们本身不作为该基线的顶层遍历目标。
 
 ## 实测发现（与调研的差异）
 
@@ -92,6 +99,9 @@ Tests/SwiftLayoutTests/
 - **ObjC 起点取 `instanceSize` 而非 `instanceStart`，且 realized 类不可读 `classROData`（阶段 4 的关键坑）**：调研单点 finding 主推「读 `class_ro_t.instanceStart`」，实测**否决**——(1) `instanceStart` 是 ObjC 类自身首 ivar 起点（= 其父类大小），dyld cache 上常写 0；Swift 子类字段起点应是父类 **`instanceSize`**（`NSObject` = 8）。(2) **in-process 的 `NSObject` 是 realized 类**，`classROData(in: MachOImage)` 返回 `nil`（`data` 指向 `class_rw_t`），须经 `classRWData → classROData`（或 `ext.classROData`）回退取 instance ro；offline 的 cache `MachOFile` 则 `classROData` 直接可读。唯一在 in-process 与 cache 两条 reader 上都正确且一致的值是 instance `class_ro_t.instanceSize`（= `ObjCClass.info(in:).instanceSize`，但 `ObjCClassIndex` 直接读 ro、不解析 methods/ivars/metaclass，故更轻）。
 - **ObjC 索引随 Swift 索引同步惰性折入，无额外扫描**：`resolveObjCClassInstanceSize` 复用 `resolveType` 的 `indexNextDependency` 折入机制（ObjC 索引在 `ImageReference.init` 里一并构建、`mergeIndexes` 一并合并）。又因 ObjC 父类在 `superclassStartLayout` 里**先于** Swift `resolveType` 判断，ObjC 名不会触发「Swift 全 miss → 折满 551 镜像」；折到 libobjc 命中 `NSObject` 即停，比旧路径（ObjC 名走 `resolveType` 折满全闭包再抛错）更快。
 - **`objc.classes64` / `info(in:)` 是 `MachOFile`/`MachOImage` 具体重载（非协议泛型）**：故 `ObjCClassIndex` 与 `ImageReference` 的 ObjC 索引构建须按 `as? MachOImage` / `as? MachOFile` 向下转型分派，复刻 `ImageUniverse+DependencyClosure` 的 `where MachO == …` 拆分写法。
+- **`BuiltinTypeDescriptor.typeName` 是符号引用，裸串为空——必须 demangle 才有 key**：`__swift5_builtin` 段实测**不含** `Builtin.*` 条目，全是 imported C 值类型（`__C.Decimal`/`__C.CGRect`/…）与 multi-payload enum；其 `typeName` 指向 context descriptor（相对指针），`typeString` 为空字符串。旧 `BuiltinTypeLayoutIndex` 按 `typeString` 建 key，把全部条目塞进 key `""`（互相覆盖）→ 索引等于失效、且只在 `builtinTypeName` 分支被查（而该段无 `Builtin.*`），实为死代码。修复：用 `MetadataReader.demangleType` 还原成限定名（`__C.Decimal` / `SymbolTestsCore.Enums.MultiPayloadEnumTests`）建 key。
+- **builtin descriptor 由「使用方」镜像 emit，故查 `originImage`**：编译器在每个**反射性引用**该类型的镜像里都 emit 一份 builtin descriptor（实测 fixture 自己就带 `__C.Decimal`、Foundation 也带一份）。所以解析某字段类型时查**字段所属镜像**（`originImage`，求解器已线程化）的 builtin 索引正中靶心，无需跨镜像合并。
+- **builtin 回退限非泛型节点**：builtin key 是 generic-argument-free 的限定名（`nominalQualifiedName` 会剥泛型实参），故只对 `node.kind == .structure`/`.enum`（非 `boundGeneric*`）查 builtin，避免 `Foo<Int>` 与 `Foo<String>` 撞到同一 key；`Optional<T>` 等泛型枚举继续走结构化/payload 路径。
 
 ## 已知降级（当前范围外）
 
@@ -99,13 +109,14 @@ Tests/SwiftLayoutTests/
 |---|---|---|
 | ObjC 协议 existential | 需读 ObjC 协议 class 约束 | 阶段 4+（未做） |
 | 泛型参数（`dependentGenericParamType`） | 需参数替换 | 阶段 5 |
-| multi-payload enum | 需接 `SpareBitAnalyzer` | Phase 2.5 |
+| 无 builtin descriptor 的 multi-payload enum / C 类型 | 编译器未对该类型 emit builtin（如反射裁剪、未被反射性引用） | 罕见，按字段降级 |
 
-> **已落地（原降级，现已解析）**：existential（`any P` / 协议组合 / `AnyObject` / `any Error` / `existentialMetatype`）、actor 默认存储（`Builtin.DefaultActorStorage`）、**跨模块字段 / 父类 / 协议（阶段 3 依赖闭包）**——含跨模块 resilient 父类（按「具体二进制」语义静态重算），以及 **ObjC 祖先类（阶段 4）**——Swift 类直继 `NSObject` 等 ObjC 根类时，自身字段从 ObjC 父类 `instanceSize` 起算（经依赖闭包内的 libobjc 定位）。详见上文「核心算法」「验证」「实测发现」。
+> **已落地（原降级，现已解析）**：existential（`any P` / 协议组合 / `AnyObject` / `any Error` / `existentialMetatype`）、actor 默认存储（`Builtin.DefaultActorStorage`）、**跨模块字段 / 父类 / 协议（阶段 3 依赖闭包）**——含跨模块 resilient 父类（按「具体二进制」语义静态重算）、**ObjC 祖先类（阶段 4）**——Swift 类直继 `NSObject` 等 ObjC 根类时自身字段从 ObjC 父类 `instanceSize` 起算（经依赖闭包内的 libobjc 定位），以及 **multi-payload enum 与 imported C 值类型（builtin 整体布局）**——经 `BuiltinTypeLayoutIndex` 取编译器 emit 的整体布局。详见上文「核心算法」「验证」「实测发现」。
 
 ## 后续工作（扩展点已预留）
 
 - **ObjC 协议 existential**：`any <ObjCProto>` 的 class 约束需读 ObjC 协议（非 Swift `__swift5_protos`），当前 existential 的 class-bound 判定只查 Swift 协议索引，故 ObjC 协议组合仍可能降级。`ObjCClassIndex` 的同款读法可扩展到 ObjC 协议。
+- **multi-payload enum 的结构化重算（可选）**：当前经 builtin descriptor 取整体布局已满足「作为字段」需求；若需 enum **payload 内部偏移**或在无 builtin descriptor 时也能算，才需接 spare-bit 分析（`SpareBitAnalyzer` / runtime multi-payload tag 编码）。
 - **阶段 5 泛型**：`dependentGenericParamType` 分派点已就位，补参数替换逻辑即可。
 - **`@rpath` 完整展开**：`MachOFile` 闭包 MVP 靠 dyld cache bare-name + 显式路径覆盖；完整 `@rpath`/`@loader_path`/`@executable_path` 展开（读 `LC_RPATH` + 相对 root 定位）未做，调用方可预先展开为绝对路径。
 - **路径 A（读 vector）未实现**：runtime accessor 已是更强的 ground truth，`FieldOffsetVectorReader` 未单独建。如需纯 MachOFile 的交叉校验可后补。
