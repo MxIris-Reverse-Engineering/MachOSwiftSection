@@ -23,10 +23,10 @@
 | `DistributedActorTest` | 跨模块字段 `Distributed.LocalTestingActorID`（struct） | **阶段 3** | ✅ runtime vector 非空 `[16,112,128]`，经现有 harness 验证 |
 | `ResilientChild` | 跨模块 resilient 父类 `ResilientBase`（SymbolTestsHelper） | **阶段 3** | ⚠️ runtime field-offset vector 为空 → 需改用 field-offset global 作真值（见下） |
 | `ResilientObjCStubChild` | 跨模块 Swift 父类 `Object`（SymbolTestsHelper） | **阶段 3** | ⚠️ 同上（resilient，vector 为空） |
-| `ObjCMembersTest` | ObjC 祖先 `NSObject`（无 Swift descriptor） | **阶段 4** | ❌ 需 `class_ro_t.instanceStart`（MachOObjCSection） |
-| `ObjCBridge` | ObjC 祖先 | **阶段 4** | ❌ 同上 |
+| `ObjCMembersTest` | ObjC 祖先 `NSObject`（无 Swift descriptor） | **阶段 4** | ✅（阶段 4 已做）经 ObjC `class_ro_t.instanceSize` 起算，runtime vector `[8]` 自动校验 |
+| `ObjCBridge` | ObjC 祖先 | **阶段 4** | ✅（阶段 4 已做）同上，runtime vector `[8]` |
 
-阶段 3 收掉 3 个；ObjC 祖先 2 个明确留阶段 4（`superclassStartLayout` 的 ObjC 降级分支**保持不动**）。
+阶段 3 收掉 3 个；ObjC 祖先 2 个当时明确留阶段 4。**阶段 4 已落地**：`superclassStartLayout` 在 Swift `resolveType` 之前加 ObjC 兜底，经第三个 seam `resolveObjCClassInstanceSize` 从 ObjC `class_ro_t` 取 `instanceSize`（**非 `instanceStart`**，见下更正）作起点。详见 [StaticLayoutEngine.md](StaticLayoutEngine.md) 的「核心算法」「实测发现」。
 
 ## 关键正确性边界（必须先讲清）
 
@@ -38,7 +38,8 @@
 
 2. **resilient 类的 runtime vector 为空 → 现有验证 harness 不能直接验证它们。** `StaticLayoutVsRuntimeTests` 以 `metadata.fieldOffsets(in:)` 为真值，对 `ResilientChild` 返回 `[]`。验证策略须扩展（见「验证」）。
 
-3. **ObjC 祖先（`NSObject`）根本无 Swift descriptor**，偏移在 `class_ro_t.InstanceStart`（`Metadata.cpp:3778-3785` 的 else 分支）。阶段 3 **不碰**，留阶段 4 接 MachOObjCSection。
+3. **ObjC 祖先（`NSObject`）根本无 Swift descriptor**。阶段 3 **不碰**，留阶段 4 接 MachOObjCSection。
+   - **阶段 4 更正**：当时此处写「偏移在 `class_ro_t.InstanceStart`」是**错的**。Swift 子类字段起点是 ObjC 父类的 **`instanceSize`**（`Metadata.cpp:3774` `super->getInstanceSize()`，`NSObject` = 8）；`instanceStart` 是 ObjC 类自身首 ivar 起点、cache 上常为 0。且 in-process 的 `NSObject` 是 realized 类，须经 `class_rw_t` 回退才能读到 instance `class_ro_t`。详见 StaticLayoutEngine.md「实测发现」。
 
 ## 设计
 

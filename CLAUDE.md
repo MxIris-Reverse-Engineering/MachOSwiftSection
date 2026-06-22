@@ -60,8 +60,9 @@ swift-section (CLI)
 ```
 
 `SwiftLayout` (static field-offset engine) is an independent peer that depends on
-`SwiftInspection` + `MachOSwiftSection`; nothing depends on it yet — it backs the
-static ABI-analysis path (consumed by `SwiftDiffing` in a later step).
+`SwiftInspection` + `MachOSwiftSection` (+ `MachOObjCSection` for ObjC-ancestor
+instance sizes); nothing depends on it yet — it backs the static ABI-analysis
+path (consumed by `SwiftDiffing` in a later step).
 
 ### Core Modules
 
@@ -121,9 +122,10 @@ Printing and indexing are peers — neither depends on the other.
 - `KnownLayoutTable` / `BuiltinTypeLayoutIndex` - Frozen stdlib layouts + per-image `__swift5_builtin` numerics
 - `EnumLayoutBridge` - No-payload + single-payload (incl. `Optional`) enum layout (runtime `getEnumTagCounts` formulas)
 - `ExistentialLayoutBridge` - Existential containers (`any P`, compositions, `AnyObject`, `any Error`) + existential metatypes, ported from the runtime reflection lowering (`ExistentialTypeInfoBuilder`): opaque `32 + 8N`, class-bound `8·(1+N)`, error `8`; class-boundness derived from each protocol's class constraint
-- `ImageUniverse` / `ImageReference` - Type/protocol lookup seam. `ImageReference` indexes one image's type descriptors (`__swift5_types`) and protocol class constraints (`__swift5_protos`); `ImageUniverse` is either single-image (`singleImage`) or a **dependency closure** (`dependencyClosure`) that merges a root plus its transitive dependencies, **indexing each dependency lazily** (root eager, dependencies folded in resolution order only when a lookup misses) so a several-hundred-image OS closure is not eagerly demangled
+- `ObjCClassIndex` - Phase-4 Objective-C ancestor support: reads a class's instance `class_ro_t.instanceSize` from `__objc_classlist` (bare name → start layout), resolving the realized `class_rw_t` form for classes dyld has realized in-process. Uses `instanceSize` (where a Swift subclass's first field begins), **not** `instanceStart`; value matches `ObjCClass.info(in:).instanceSize` without parsing methods/ivars. `objc.classes64`/ro accessors are concrete `MachOFile`/`MachOImage` overloads, so the builder is split per reader
+- `ImageUniverse` / `ImageReference` - Type/protocol/ObjC-class lookup seam (three resolvers: `resolveType`, `resolveProtocolClassConstraint`, `resolveObjCClassInstanceSize`). `ImageReference` indexes one image's type descriptors (`__swift5_types`), protocol class constraints (`__swift5_protos`), and ObjC class instance sizes (`__objc_classlist`); `ImageUniverse` is either single-image (`singleImage`) or a **dependency closure** (`dependencyClosure`) that merges a root plus its transitive dependencies, **indexing each dependency lazily** (root eager, dependencies folded in resolution order only when a lookup misses, all three indexes merged together) so a several-hundred-image OS closure is not eagerly demangled
 - `ImageUniverse+DependencyClosure` - Closure factories: in-process (`dependencyClosure(root: MachOImage)`, resolves dependencies through the active dyld) and offline (`dependencyClosure(root: MachOFile, searchPaths:)`, resolves through explicit on-disk paths + the dyld shared cache, the latter indexed once by bare name). `LayoutDependencySearchPath` is SwiftLayout-local (no `SwiftInterface` dependency). Dependency load names are matched by **bare name** (`MachOImage(name:)` semantics); `MachOFile.imagePath` is the install name, not a filesystem path
-- Per-field degradation: unresolved fields (ObjC-ancestor classes, generic parameters, multi-payload enums) report `FieldResolution.unknown` instead of failing the whole type. Existentials, the default-actor storage builtin, and **cross-module field/superclass/protocol types (via the dependency closure)** are resolved; cross-module resilient classes' offsets are computed against the dependency's actual binary ("this specific deployment" semantics)
+- Per-field degradation: unresolved fields (generic parameters, multi-payload enums, ObjC-*protocol* existentials) report `FieldResolution.unknown` instead of failing the whole type. Existentials, the default-actor storage builtin, **cross-module field/superclass/protocol types (via the dependency closure)**, and **ObjC-ancestor classes** (a Swift class deriving from `NSObject` et al. starts its own fields at the ObjC ancestor's `instanceSize`, located via the closure's libobjc) are resolved; cross-module resilient classes' offsets are computed against the dependency's actual binary ("this specific deployment" semantics)
 - See [Documentations/Internal/StaticLayoutEngine.md](Documentations/Internal/StaticLayoutEngine.md) and [Documentations/Internal/StaticLayoutDependencyClosure.md](Documentations/Internal/StaticLayoutDependencyClosure.md)
 
 **Semantic** - Semantic string building for colored/annotated output
