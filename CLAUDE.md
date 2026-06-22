@@ -59,10 +59,15 @@ swift-section (CLI)
                                                                                     └── MachOKit (external)
 ```
 
-`SwiftLayout` (static field-offset engine) is an independent peer that depends on
+`SwiftLayout` (static field-offset engine) is a peer that depends on
 `SwiftInspection` + `MachOSwiftSection` (+ `MachOObjCSection` for ObjC-ancestor
-instance sizes); nothing depends on it yet — it backs the static ABI-analysis
-path (consumed by `SwiftDiffing` in a later step).
+instance sizes). It backs the static ABI-analysis path and is consumed by
+`SwiftDeclarationRendering`, whose `FieldLayoutRenderer` is reader-specialized:
+the `MachOImage` path renders field-offset / type-layout / expanded-tree / enum-layout
+comments from in-process runtime metadata, while the `MachOFile` (offline) path
+computes the same comments statically through SwiftLayout — so `swift-section dump`
+/ `interface` on a file now emit real field offsets without loading the process.
+See [Documentations/Internal/FieldLayoutRendererReaderSpecialization.md](Documentations/Internal/FieldLayoutRendererReaderSpecialization.md).
 
 ### Core Modules
 

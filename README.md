@@ -178,6 +178,28 @@ swift-section dump --output-path output.txt /path/to/binary
 swift-section dump --architecture arm64 /path/to/binary
 ```
 
+**Static memory-layout comments (computed offline, no process loaded):**
+```bash
+# Field offsets for struct/class stored properties
+swift-section dump --emit-field-offsets /path/to/binary
+
+# Field offsets + per-field type layout (size / stride / alignment)
+swift-section dump --emit-field-offsets --emit-type-layout /path/to/binary
+
+# Expand nested struct fields with their absolute offsets
+swift-section dump --emit-expanded-field-offsets /path/to/binary
+
+# Enum layout (strategy / per-case / spare bits)
+swift-section dump --emit-enum-layout /path/to/binary
+```
+
+These offsets are computed statically by the `SwiftLayout` engine — no runtime,
+no metadata accessor, no loading the binary into a process — so they work on any
+on-disk Mach-O file (including resilient classes and cross-module field types,
+resolved through the dependency closure over the dyld shared cache). The
+`interface` command's `--emit-offset-comments` / `--emit-expanded-field-offsets`
+flags use the same static engine.
+
 **Working with dyld shared cache:**
 ```bash
 # Dump from system dyld shared cache
