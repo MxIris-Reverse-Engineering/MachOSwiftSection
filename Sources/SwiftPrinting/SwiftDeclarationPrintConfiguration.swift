@@ -23,6 +23,12 @@ public struct SwiftDeclarationPrintConfiguration: Equatable, Sendable {
     public var printTypeLayout: Bool = false
     public var printEnumLayout: Bool = false
 
+    /// How the static (`MachOFile`) field-layout path resolves cross-module
+    /// types when a layout-bearing flag is on. Defaults to the full transitive
+    /// dependency closure over the system dyld shared cache; set `.singleImage`
+    /// to restrict resolution to the binary being printed.
+    public var staticLayoutDependencyResolution: StaticLayoutDependencyResolution = .default
+
     public var memberAddressTransformer: MemberAddressTransformer? = nil
     public var vtableOffsetTransformer: VTableOffsetTransformer? = nil
     public var fieldOffsetTransformer: FieldOffsetTransformer? = nil

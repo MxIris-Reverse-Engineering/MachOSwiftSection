@@ -29,6 +29,37 @@ public final class SwiftDeclarationPrinter<MachO: MachOSwiftSectionRepresentable
     @Mutex
     var typeDemangleResolver: DemangleResolver = .using(options: .default)
 
+    /// Memoized static field-layout provider for the offline (`MachOFile`) path,
+    /// built once on first use — only when the reader is a `MachOFile` and a
+    /// layout-bearing flag is on. `.computed(nil)` records "no provider", so the
+    /// (relatively expensive) dependency-closure build is attempted at most once.
+    @Mutex
+    private var memoizedStaticFieldLayoutProvider: StaticFieldLayoutProviderState = .uncomputed
+
+    private enum StaticFieldLayoutProviderState: Sendable {
+        case uncomputed
+        case computed((any StaticFieldLayoutProvider)?)
+    }
+
+    /// Builds (once) and returns the offline field-layout provider for the
+    /// current configuration, or `nil` for the in-process (`MachOImage`) path or
+    /// when no layout-bearing flag is set.
+    func staticFieldLayoutProvider() -> (any StaticFieldLayoutProvider)? {
+        if case .computed(let provider) = memoizedStaticFieldLayoutProvider {
+            return provider
+        }
+        let configuration = self.configuration
+        let provider: (any StaticFieldLayoutProvider)?
+        if let machOFile = machO as? MachOFile,
+           configuration.printFieldOffset || configuration.printTypeLayout || configuration.printEnumLayout || configuration.printExpandedFieldOffsets {
+            provider = MachOFileStaticFieldLayoutProvider(machOFile: machOFile, resolution: configuration.staticLayoutDependencyResolution)
+        } else {
+            provider = nil
+        }
+        memoizedStaticFieldLayoutProvider = .computed(provider)
+        return provider
+    }
+
     public init(configuration: SwiftDeclarationPrintConfiguration = .init(), eventHandlers: [SwiftIndexEvents.Handler] = [], in machO: MachO) {
         self.machO = machO
         self.configuration = configuration

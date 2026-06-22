@@ -290,7 +290,9 @@ extension SwiftDeclarationPrinter {
             expandedFieldOffsetTransformer: configuration.expandedFieldOffsetTransformer,
             typeLayoutTransformer: configuration.typeLayoutTransformer,
             enumLayoutTransformer: configuration.enumLayoutTransformer,
-            enumLayoutCaseTransformer: configuration.enumLayoutCaseTransformer
+            enumLayoutCaseTransformer: configuration.enumLayoutCaseTransformer,
+            staticFieldLayoutProvider: staticFieldLayoutProvider(),
+            staticLayoutDependencyResolution: configuration.staticLayoutDependencyResolution
         )
         let fieldLayoutRenderer = FieldLayoutRenderer(type: typeDefinition.type, metadata: typeDefinition.metadata, machO: machO, configuration: renderConfiguration)
         let fieldRecords = (try? typeDefinition.type.contextDescriptorWrapper.typeContextDescriptor?.fieldDescriptor(in: machO).records(in: machO)) ?? []
