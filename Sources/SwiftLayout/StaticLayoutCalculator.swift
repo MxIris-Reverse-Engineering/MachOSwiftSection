@@ -1,4 +1,5 @@
 import MachOSwiftSection
+@_spi(Internals) import SwiftInspection
 
 /// The public entry point: computes Swift struct/class stored-property field
 /// offsets statically from a Mach-O file, without loading the process or
@@ -9,8 +10,8 @@ import MachOSwiftSection
 /// parameter) is reported as `unknown` rather than failing the whole type, so
 /// callers (e.g. ABI diffing) can still consume the offsets that *are* known.
 public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCache> {
-    private let imageUniverse: ImageUniverse<MachO>
-    private let resolver: StaticTypeLayoutResolver<MachO>
+    let imageUniverse: ImageUniverse<MachO>
+    let resolver: StaticTypeLayoutResolver<MachO>
 
     /// Builds a single-image calculator over `machO`.
     public init(machO: MachO) throws {
@@ -30,10 +31,10 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
     /// have no stored-property field-offset vector) return an empty field list.
     public func fieldLayout(of typeDescriptor: TypeContextDescriptorWrapper) throws -> AggregateFieldLayout {
         if let structDescriptor = typeDescriptor.struct {
-            return try fieldLayout(ofStruct: structDescriptor)
+            return try fieldLayout(ofStruct: structDescriptor, in: imageUniverse.rootImage)
         }
         if let classDescriptor = typeDescriptor.class {
-            return try fieldLayout(ofClass: classDescriptor)
+            return try fieldLayout(ofClass: classDescriptor, in: imageUniverse.rootImage)
         }
         // Enums carry no field-offset vector; report no fields.
         return AggregateFieldLayout(fields: [], size: 0, stride: 1, alignment: 1, extraInhabitantCount: 0)
@@ -45,10 +46,27 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
         try resolver.computeStructLayout(structDescriptor, in: imageUniverse.rootImage).typeLayoutInfo()
     }
 
+    /// The resolved whole-type layout of any field type given by its mangled
+    /// name (struct/class/enum/tuple/…), as the resolver would lay it out when
+    /// reached as a stored field. Used by renderers that need a field type's
+    /// size/extra-inhabitants (e.g. enum payload sizing) without a descriptor in
+    /// hand.
+    public func typeLayout(forMangledTypeName mangledTypeName: MangledName) throws -> TypeLayoutInfo {
+        try resolver.layout(forMangledTypeName: mangledTypeName, in: imageUniverse.rootImage)
+    }
+
+    /// The resolved whole-type layout of any struct/class/enum descriptor, as the
+    /// resolver would lay it out. Demangles the descriptor's context to a node and
+    /// resolves it (a class yields a single pointer). Used for enum whole-type
+    /// sizing in renderers that hold a descriptor rather than a mangled name.
+    public func typeLayout(forDescriptor typeDescriptor: TypeContextDescriptorWrapper) throws -> TypeLayoutInfo {
+        let node = try MetadataReader.demangleContext(for: typeDescriptor.asContextDescriptorWrapper, in: imageUniverse.rootImage.machO)
+        return try resolver.layout(forTypeNode: node, in: imageUniverse.rootImage)
+    }
+
     // MARK: - Struct
 
-    private func fieldLayout(ofStruct descriptor: StructDescriptor) throws -> AggregateFieldLayout {
-        let image = imageUniverse.rootImage
+    private func fieldLayout(ofStruct descriptor: StructDescriptor, in image: ImageReference<MachO>) throws -> AggregateFieldLayout {
         let records = try descriptor.fieldDescriptor(in: image.machO).records(in: image.machO)
         return try accumulateFieldLayout(
             records: records,
@@ -60,8 +78,7 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
 
     // MARK: - Class
 
-    private func fieldLayout(ofClass descriptor: ClassDescriptor) throws -> AggregateFieldLayout {
-        let image = imageUniverse.rootImage
+    private func fieldLayout(ofClass descriptor: ClassDescriptor, in image: ImageReference<MachO>) throws -> AggregateFieldLayout {
         let records = try descriptor.fieldDescriptor(in: image.machO).records(in: image.machO)
         do {
             let start = try resolver.superclassStartLayout(of: descriptor, in: image)

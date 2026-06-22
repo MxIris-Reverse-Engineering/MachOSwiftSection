@@ -7,7 +7,7 @@ import MachOSwiftSection
 /// binary. Mirrors the resolution strategies used elsewhere in the package, but
 /// kept local so `SwiftLayout` does not depend on the higher-level
 /// `SwiftInterface` module that defines the analogous `DependencyPath`.
-public enum LayoutDependencySearchPath: Sendable {
+public enum LayoutDependencySearchPath: Sendable, Equatable, Hashable {
     /// An explicit on-disk path to a Mach-O (or fat) binary file. Used for
     /// non-cache dependencies such as a sibling framework reached through
     /// `@rpath` (the MVP does not expand `@rpath` itself).
