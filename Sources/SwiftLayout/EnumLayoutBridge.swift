@@ -1,10 +1,13 @@
 import MachOSwiftSection
+@_spi(Internals) import SwiftInspection
 import Demangling
 
-/// Enum layout for the resolver: no-payload (tag-only) and single-payload
-/// (including `Optional`) enums, with the size/extra-inhabitant formulas ported
-/// from the Swift runtime's `EnumImpl`. Multi-payload enums are deferred and
-/// surface as `unknown` for now.
+/// Enum layout for the resolver: no-payload (tag-only), single-payload
+/// (including `Optional`), and multi-payload enums, with the size formulas
+/// ported from the Swift runtime's `EnumImpl`. Multi-payload enums are computed
+/// structurally by reusing `SwiftInspection.EnumLayoutCalculator` (the
+/// reference port of `GenEnum.cpp` / `TypeLowering.cpp`) — the fallback when no
+/// `__swift5_builtin` whole-type descriptor is available.
 extension StaticTypeLayoutResolver {
     func enumLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> TypeLayoutInfo {
         guard let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node) else {
@@ -51,7 +54,112 @@ extension StaticTypeLayoutResolver {
             let payload = try singlePayloadType(descriptor: descriptor, node: node, in: image)
             return Self.singlePayloadEnumLayout(payload: payload, emptyCaseCount: emptyCaseCount)
         }
-        throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "multiPayloadEnum:\(payloadCaseCount)"))
+        return try multiPayloadEnumLayout(descriptor, node: node, in: image)
+    }
+
+    /// Computes a multi-payload enum's whole-type layout structurally — the
+    /// fallback reached when `enumLayout` found no `__swift5_builtin` whole-type
+    /// descriptor (the primary, compiler-exact source). Reuses
+    /// `EnumLayoutCalculator` (the `GenEnum.cpp` / `TypeLowering.cpp` port): the
+    /// payload area is the largest payload case, tags are encoded in the common
+    /// spare bits (from the enum's `MultiPayloadEnumDescriptor`) or, failing
+    /// that, in appended extra tag bytes.
+    ///
+    /// Only whole-type `size`/`stride`/`alignment` are derived — all an
+    /// aggregate needs to place the enum as a field. Extra inhabitants are
+    /// reported as 0 (a conservative under-count; the builtin path supplies the
+    /// exact value when present). A payload type that cannot be resolved (a
+    /// generic parameter) propagates as `.unknown`, degrading the field.
+    func multiPayloadEnumLayout(
+        _ descriptor: EnumDescriptor,
+        node: Node,
+        in image: ImageReference<MachO>
+    ) throws -> TypeLayoutInfo {
+        let payloadCaseCount = descriptor.numberOfPayloadCases
+        let emptyCaseCount = descriptor.numberOfEmptyCases
+
+        // The payload area is the largest payload case; alignment and
+        // bitwise-takability are the maxima/conjunction over all payload cases.
+        var payloadSize = 0
+        var payloadAlignmentMask = 0
+        var isBitwiseTakable = true
+        let records = try descriptor.fieldDescriptor(in: image.machO).records(in: image.machO)
+        for record in records {
+            let isIndirect = record.layout.flags.contains(.isIndirectCase)
+            let mangledTypeName = try record.mangledTypeName(in: image.machO)
+            guard isIndirect || !mangledTypeName.isEmpty else { continue } // empty case
+            // An indirect case boxes its payload behind a single heap pointer.
+            let payloadLayout = isIndirect
+                ? TypeLayoutInfo.pointerSized
+                : try layout(forMangledTypeName: mangledTypeName, in: image)
+            payloadSize = max(payloadSize, payloadLayout.size)
+            payloadAlignmentMask = max(payloadAlignmentMask, payloadLayout.alignmentMask)
+            isBitwiseTakable = isBitwiseTakable && payloadLayout.isBitwiseTakable
+        }
+
+        let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node)
+        let result: EnumLayoutCalculator.LayoutResult
+        if
+            let qualifiedTypeName,
+            let multiPayloadDescriptor = multiPayloadEnumDescriptor(forQualifiedTypeName: qualifiedTypeName, in: image),
+            multiPayloadDescriptor.usesPayloadSpareBits
+        {
+            // Spare-bits strategy: the descriptor carries the common spare-bit
+            // mask the compiler computed across all payloads.
+            let spareBytes = try multiPayloadDescriptor.payloadSpareBits(in: image.machO)
+            let spareBytesOffset = Int(try multiPayloadDescriptor.payloadSpareBitMaskByteOffset(in: image.machO))
+            result = EnumLayoutCalculator.calculateMultiPayload(
+                payloadSize: payloadSize,
+                spareBytes: spareBytes,
+                spareBytesOffset: spareBytesOffset,
+                numPayloadCases: payloadCaseCount,
+                numEmptyCases: emptyCaseCount
+            )
+        } else {
+            // No common spare bits (or no descriptor): tags occupy appended
+            // extra tag bytes.
+            result = EnumLayoutCalculator.calculateTaggedMultiPayload(
+                payloadSize: payloadSize,
+                numPayloadCases: payloadCaseCount,
+                numEmptyCases: emptyCaseCount
+            )
+        }
+
+        // `LayoutResult` exposes no size/stride: derive them. Extra tag bytes (if
+        // any) are the tag region that begins at/after the payload area; tags
+        // encoded purely in spare bits leave a region *within* the payload.
+        var extraTagByteCount = 0
+        if let tagRegion = result.tagRegion, tagRegion.range.lowerBound >= payloadSize {
+            extraTagByteCount = tagRegion.range.upperBound - payloadSize
+        }
+        let size = payloadSize + extraTagByteCount
+        let stride = max(1, (size + payloadAlignmentMask) & ~payloadAlignmentMask)
+        return TypeLayoutInfo(
+            size: size,
+            stride: stride,
+            alignmentMask: payloadAlignmentMask,
+            extraInhabitantCount: 0,
+            isBitwiseTakable: isBitwiseTakable
+        )
+    }
+
+    /// Finds the `MultiPayloadEnumDescriptor` (`__swift5_mpenum`) for an enum by
+    /// matching its mangled type name to `qualifiedTypeName`. Scanned on demand
+    /// because this is a rare fallback path; an absent section yields `nil`.
+    private func multiPayloadEnumDescriptor(
+        forQualifiedTypeName qualifiedTypeName: String,
+        in image: ImageReference<MachO>
+    ) -> MultiPayloadEnumDescriptor? {
+        guard let descriptors = try? image.machO.swift.multiPayloadEnumDescriptors else { return nil }
+        for descriptor in descriptors {
+            guard
+                let mangledTypeName = try? descriptor.mangledTypeName(in: image.machO),
+                let node = try? MetadataReader.demangleType(for: mangledTypeName, in: image.machO),
+                NodeTypeNaming.nominalQualifiedName(of: node) == qualifiedTypeName
+            else { continue }
+            return descriptor
+        }
+        return nil
     }
 
     /// `Optional<T>`: a single-payload enum with exactly one empty case
