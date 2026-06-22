@@ -16,6 +16,16 @@ extension StaticTypeLayoutResolver {
         if qualifiedTypeName == "Swift.Optional" {
             return try optionalLayout(forNode: node, in: originImage)
         }
+        // An enum whose layout reflection cannot derive structurally —
+        // multi-payload, indirect, `@objc` raw — carries its whole-type layout
+        // in the using image's `__swift5_builtin` descriptor. Restricted to
+        // non-generic enums (the builtin key is generic-argument-free, so a
+        // generic node must not match it). Single-/no-payload enums the engine
+        // computes itself emit no builtin descriptor and fall through below.
+        if node.kind == .enum,
+           let builtinLayout = originImage.builtinLayoutIndex.layout(forTypeName: qualifiedTypeName) {
+            return builtinLayout
+        }
         return try memoizedNominalLayout(forQualifiedTypeName: qualifiedTypeName) {
             guard let resolved = imageUniverse.resolveType(byQualifiedTypeName: qualifiedTypeName) else {
                 throw LayoutResolutionError.unknown(.typeDescriptorNotFound(qualifiedTypeName: qualifiedTypeName))

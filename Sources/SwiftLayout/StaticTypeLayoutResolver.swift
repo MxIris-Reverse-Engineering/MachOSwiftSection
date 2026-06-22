@@ -159,6 +159,16 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         guard let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node) else {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }
+        // An imported C value type (e.g. `__C.CGRect`) has no Swift type
+        // descriptor, but the using image carries its whole-type layout in a
+        // `__swift5_builtin` descriptor. Restricted to non-generic structures —
+        // the builtin key is generic-argument-free, so a generic node must not
+        // match it. Normal Swift structs emit no builtin descriptor and fall
+        // through to the structural path below.
+        if node.kind == .structure,
+           let builtinLayout = originImage.builtinLayoutIndex.layout(forTypeName: qualifiedTypeName) {
+            return builtinLayout
+        }
         return try memoizedNominalLayout(forQualifiedTypeName: qualifiedTypeName) {
             guard let resolved = imageUniverse.resolveType(byQualifiedTypeName: qualifiedTypeName) else {
                 throw LayoutResolutionError.unknown(.typeDescriptorNotFound(qualifiedTypeName: qualifiedTypeName))
