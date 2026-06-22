@@ -65,6 +65,24 @@ enum NodeTypeNaming {
         nominalQualifiedName(of: node) ?? protocolQualifiedName(of: node)
     }
 
+    /// The bare name of an Objective-C class node (a `.class` whose module is
+    /// the synthetic `__C` Clang-importer module), e.g. `"NSObject"` for
+    /// `__C.NSObject`, or `nil` if the node is not an imported ObjC class.
+    ///
+    /// An ObjC ancestor has no Swift type descriptor, so the resolver routes it
+    /// to the ObjC class index rather than `resolveType` — and routes it *first*,
+    /// because a Swift-side lookup of an ObjC name is a guaranteed miss that
+    /// would needlessly fold the entire dependency closure.
+    static func objCClassBareName(of node: Node) -> String? {
+        guard let nominal = unwrappedNominal(of: node), nominal.kind == .class else { return nil }
+        guard
+            let context = nominal.firstChild,
+            context.kind == .module,
+            context.text == objcModule
+        else { return nil }
+        return nominal.identifier
+    }
+
     private static func qualifiedName(ofNominal node: Node) -> String? {
         guard let identifier = node.identifier else { return nil }
         guard let context = node.firstChild else { return identifier }

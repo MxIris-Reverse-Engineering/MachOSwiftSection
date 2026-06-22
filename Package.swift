@@ -423,6 +423,7 @@ extension Target {
         name: "SwiftLayout",
         dependencies: [
             .product(.MachOKit),
+            .product(.MachOObjCSection),
             .product(.Demangling),
             .target(.MachOExtensions),
             .target(.MachOSwiftSection),

@@ -9,6 +9,11 @@ public enum LayoutUnknownReason: Sendable, Hashable {
     case resilientFieldUnresolved
     /// A field type lives in a dependency image that could not be located.
     case missingDependencyImage(installName: String)
+    /// A class has an Objective-C ancestor whose `class_ro_t` could not be
+    /// located in the current image scope (e.g. the single-image engine, or a
+    /// closure that does not reach the framework defining it), so its instance
+    /// size — the start offset for this class's own fields — is unknown.
+    case objCAncestorUnresolved(className: String)
     /// The demangled type node has a kind the engine does not yet handle
     /// (existential, function, reference storage, …). Carries the kind's name.
     case unsupportedTypeKind(nodeKindName: String)
