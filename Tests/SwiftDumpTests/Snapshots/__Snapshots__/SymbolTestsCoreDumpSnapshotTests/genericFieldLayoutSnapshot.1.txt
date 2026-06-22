@@ -240,3 +240,204 @@ class SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSO
     method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field3.getter : Swift.Int
     method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field3.setter : Swift.Int
 }
+struct SymbolTestsCore.GenericFieldLayout.Box<A> {
+    var value: A
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.Box.value.getter : A
+    SymbolTestsCore.GenericFieldLayout.Box.value.setter : A
+}
+struct SymbolTestsCore.GenericFieldLayout.Pair<A, B> {
+    var first: A
+    var second: B
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.Pair.second.getter : B
+    SymbolTestsCore.GenericFieldLayout.Pair.second.setter : B
+    SymbolTestsCore.GenericFieldLayout.Pair.first.getter : A
+    SymbolTestsCore.GenericFieldLayout.Pair.first.setter : A
+}
+enum SymbolTestsCore.GenericFieldLayout.SecondParameterPayloadEnum<A, B> {
+    case payload(B)
+    case empty
+}
+enum SymbolTestsCore.GenericFieldLayout.TwoPayloadGenericEnum<A, B> {
+    case first(A)
+    case second(B)
+}
+class SymbolTestsCore.GenericFieldLayout.GenericBaseClass<A> {
+    var baseValue: A
+
+    /* [Getter] */ SymbolTestsCore.GenericFieldLayout.GenericBaseClass.baseValue.getter : A
+    /* [Setter] */ SymbolTestsCore.GenericFieldLayout.GenericBaseClass.baseValue.setter : A
+    /* [Modify] */ SymbolTestsCore.GenericFieldLayout.GenericBaseClass.baseValue.modify : A
+    /* [ Init ] */ SymbolTestsCore.GenericFieldLayout.GenericBaseClass.__allocating_init(baseValue: A) -> SymbolTestsCore.GenericFieldLayout.GenericBaseClass<A>
+
+    /* Allocator */
+    SymbolTestsCore.GenericFieldLayout.GenericBaseClass.__allocating_init(baseValue: A) -> SymbolTestsCore.GenericFieldLayout.GenericBaseClass<A>
+
+    /* Deallocator */
+    SymbolTestsCore.GenericFieldLayout.GenericBaseClass.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.GenericFieldLayout.GenericBaseClass.init(baseValue: A) -> SymbolTestsCore.GenericFieldLayout.GenericBaseClass<A>
+
+    /* Destructor */
+    SymbolTestsCore.GenericFieldLayout.GenericBaseClass.deinit
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.GenericBaseClass.baseValue.getter : A
+    SymbolTestsCore.GenericFieldLayout.GenericBaseClass.baseValue.setter : A
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericBaseClass.__allocating_init(baseValue: A) -> SymbolTestsCore.GenericFieldLayout.GenericBaseClass<A>
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericBaseClass.baseValue.getter : A
+    method descriptor for SymbolTestsCore.GenericFieldLayout.GenericBaseClass.baseValue.setter : A
+}
+struct SymbolTestsCore.GenericFieldLayout.ConcreteGenericStructFieldHolder {
+    var leading: Swift.Int
+    var intInstance: SymbolTestsCore.GenericFieldLayout.GenericStructNonRequirement<Swift.Int>
+    var stringInstance: SymbolTestsCore.GenericFieldLayout.GenericStructNonRequirement<Swift.String>
+    var trailing: Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.ConcreteGenericStructFieldHolder.intInstance.getter : SymbolTestsCore.GenericFieldLayout.GenericStructNonRequirement<Swift.Int>
+    SymbolTestsCore.GenericFieldLayout.ConcreteGenericStructFieldHolder.intInstance.setter : SymbolTestsCore.GenericFieldLayout.GenericStructNonRequirement<Swift.Int>
+    SymbolTestsCore.GenericFieldLayout.ConcreteGenericStructFieldHolder.stringInstance.getter : SymbolTestsCore.GenericFieldLayout.GenericStructNonRequirement<Swift.String>
+    SymbolTestsCore.GenericFieldLayout.ConcreteGenericStructFieldHolder.stringInstance.setter : SymbolTestsCore.GenericFieldLayout.GenericStructNonRequirement<Swift.String>
+    SymbolTestsCore.GenericFieldLayout.ConcreteGenericStructFieldHolder.trailing.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.ConcreteGenericStructFieldHolder.trailing.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.ConcreteGenericStructFieldHolder.leading.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.ConcreteGenericStructFieldHolder.leading.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.NestedGenericFieldHolder {
+    var leading: Swift.Int
+    var nested: SymbolTestsCore.GenericFieldLayout.Pair<SymbolTestsCore.GenericFieldLayout.Box<Swift.Int>, Swift.Int>
+    var trailing: Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.NestedGenericFieldHolder.nested.getter : SymbolTestsCore.GenericFieldLayout.Pair<SymbolTestsCore.GenericFieldLayout.Box<Swift.Int>, Swift.Int>
+    SymbolTestsCore.GenericFieldLayout.NestedGenericFieldHolder.nested.setter : SymbolTestsCore.GenericFieldLayout.Pair<SymbolTestsCore.GenericFieldLayout.Box<Swift.Int>, Swift.Int>
+    SymbolTestsCore.GenericFieldLayout.NestedGenericFieldHolder.leading.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.NestedGenericFieldHolder.leading.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.NestedGenericFieldHolder.trailing.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.NestedGenericFieldHolder.trailing.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.OptionalGenericFieldHolder {
+    var leading: Swift.Int
+    var optional: SymbolTestsCore.GenericFieldLayout.Box<Swift.Int>?
+    var trailing: Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.OptionalGenericFieldHolder.optional.setter : SymbolTestsCore.GenericFieldLayout.Box<Swift.Int>?
+    SymbolTestsCore.GenericFieldLayout.OptionalGenericFieldHolder.optional.getter : SymbolTestsCore.GenericFieldLayout.Box<Swift.Int>?
+    SymbolTestsCore.GenericFieldLayout.OptionalGenericFieldHolder.trailing.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.OptionalGenericFieldHolder.leading.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.OptionalGenericFieldHolder.trailing.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.OptionalGenericFieldHolder.leading.getter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.TupleGenericFieldHolder {
+    var leading: Swift.Int
+    var tuple: (SymbolTestsCore.GenericFieldLayout.Box<Swift.Int>, SymbolTestsCore.GenericFieldLayout.Box<Swift.String>)
+    var trailing: Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.TupleGenericFieldHolder.tuple.getter : (SymbolTestsCore.GenericFieldLayout.Box<Swift.Int>, SymbolTestsCore.GenericFieldLayout.Box<Swift.String>)
+    SymbolTestsCore.GenericFieldLayout.TupleGenericFieldHolder.tuple.setter : (SymbolTestsCore.GenericFieldLayout.Box<Swift.Int>, SymbolTestsCore.GenericFieldLayout.Box<Swift.String>)
+    SymbolTestsCore.GenericFieldLayout.TupleGenericFieldHolder.trailing.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.TupleGenericFieldHolder.trailing.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.TupleGenericFieldHolder.leading.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.TupleGenericFieldHolder.leading.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.SinglePayloadGenericEnumFieldHolder {
+    var leading: Swift.Int
+    var enumField: SymbolTestsCore.GenericFieldLayout.SecondParameterPayloadEnum<Swift.Bool, Swift.Int64>
+    var trailing: Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.SinglePayloadGenericEnumFieldHolder.enumField.getter : SymbolTestsCore.GenericFieldLayout.SecondParameterPayloadEnum<Swift.Bool, Swift.Int64>
+    SymbolTestsCore.GenericFieldLayout.SinglePayloadGenericEnumFieldHolder.enumField.setter : SymbolTestsCore.GenericFieldLayout.SecondParameterPayloadEnum<Swift.Bool, Swift.Int64>
+    SymbolTestsCore.GenericFieldLayout.SinglePayloadGenericEnumFieldHolder.leading.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.SinglePayloadGenericEnumFieldHolder.leading.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.SinglePayloadGenericEnumFieldHolder.trailing.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.SinglePayloadGenericEnumFieldHolder.trailing.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.MultiPayloadGenericEnumFieldHolder {
+    var leading: Swift.Int
+    var enumField: SymbolTestsCore.GenericFieldLayout.TwoPayloadGenericEnum<Swift.Int, Swift.Double>
+    var trailing: Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.MultiPayloadGenericEnumFieldHolder.enumField.getter : SymbolTestsCore.GenericFieldLayout.TwoPayloadGenericEnum<Swift.Int, Swift.Double>
+    SymbolTestsCore.GenericFieldLayout.MultiPayloadGenericEnumFieldHolder.enumField.setter : SymbolTestsCore.GenericFieldLayout.TwoPayloadGenericEnum<Swift.Int, Swift.Double>
+    SymbolTestsCore.GenericFieldLayout.MultiPayloadGenericEnumFieldHolder.leading.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.MultiPayloadGenericEnumFieldHolder.leading.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.MultiPayloadGenericEnumFieldHolder.trailing.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.MultiPayloadGenericEnumFieldHolder.trailing.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.ClassReferenceGenericFieldHolder {
+    var leading: Swift.Int
+    var classReference: SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement<Swift.Int>
+    var trailing: Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.ClassReferenceGenericFieldHolder.classReference.getter : SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement<Swift.Int>
+    SymbolTestsCore.GenericFieldLayout.ClassReferenceGenericFieldHolder.classReference.setter : SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement<Swift.Int>
+    SymbolTestsCore.GenericFieldLayout.ClassReferenceGenericFieldHolder.leading.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.ClassReferenceGenericFieldHolder.leading.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.ClassReferenceGenericFieldHolder.trailing.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.ClassReferenceGenericFieldHolder.trailing.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.FrozenGenericFieldHolder {
+    var leading: Swift.Int
+    var array: [Swift.Int]
+    var pointer: Swift.UnsafePointer<Swift.Double>
+    var trailing: Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.FrozenGenericFieldHolder.array.setter : [Swift.Int]
+    SymbolTestsCore.GenericFieldLayout.FrozenGenericFieldHolder.array.getter : [Swift.Int]
+    SymbolTestsCore.GenericFieldLayout.FrozenGenericFieldHolder.leading.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.FrozenGenericFieldHolder.leading.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.FrozenGenericFieldHolder.pointer.getter : Swift.UnsafePointer<Swift.Double>
+    SymbolTestsCore.GenericFieldLayout.FrozenGenericFieldHolder.pointer.setter : Swift.UnsafePointer<Swift.Double>
+    SymbolTestsCore.GenericFieldLayout.FrozenGenericFieldHolder.trailing.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.FrozenGenericFieldHolder.trailing.setter : Swift.Int
+}
+class SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass: SymbolTestsCore.GenericFieldLayout.GenericBaseClass<Swift.Int> {
+    var ownValue: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass.ownValue.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass.ownValue.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass.ownValue.modify : Swift.Int
+    /* [ Init ] */ SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass.__allocating_init(baseValue: Swift.Int, ownValue: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass
+
+    /* [ Init ] */ override vtable thunk for SymbolTestsCore.GenericFieldLayout.GenericBaseClass.__allocating_init(baseValue: A) -> SymbolTestsCore.GenericFieldLayout.GenericBaseClass<A> dispatching to SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass.__allocating_init(baseValue: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass
+
+    /* Allocator */
+    SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass.__allocating_init(baseValue: Swift.Int, ownValue: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass
+    SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass.__allocating_init(baseValue: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass
+
+    /* Deallocator */
+    SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass.init(baseValue: Swift.Int, ownValue: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass
+    SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass.init(baseValue: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass
+
+    /* Destructor */
+    SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass.deinit
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass.ownValue.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass.ownValue.setter : Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass.__allocating_init(baseValue: Swift.Int, ownValue: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass.ownValue.getter : Swift.Int
+    method descriptor for SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass.ownValue.setter : Swift.Int
+}

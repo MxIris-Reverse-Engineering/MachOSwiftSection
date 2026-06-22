@@ -106,10 +106,11 @@ final class StaticLayoutVsRuntimeTests: MachOSwiftSectionFixtureTests, @unchecke
         // passing vacuously): the fixture module has many fully-resolvable
         // struct/class types.
         #expect(comparedCount > 100, "expected to compare many fixture types, got \(comparedCount)")
-        // With existential, existential-metatype and default-actor storage now
-        // resolved, only ObjC-ancestor / cross-module-resilient types remain
-        // unresolved (a handful). Floor set to lock that gain in.
-        #expect(fullyComputedCount > 128, "expected most fixture types to fully resolve, got \(fullyComputedCount)")
+        // With existential, existential-metatype, default-actor storage and now
+        // concrete bound-generic instantiations resolved, only the genuinely
+        // generic top-level types and a handful of cross-module-resilient types
+        // remain unresolved. Floor set to lock that gain in.
+        #expect(fullyComputedCount > 140, "expected most fixture types to fully resolve, got \(fullyComputedCount)")
         #expect(
             mismatches.isEmpty,
             Comment(rawValue: "field-offset mismatches:\n" + mismatches.map(\.description).joined(separator: "\n"))

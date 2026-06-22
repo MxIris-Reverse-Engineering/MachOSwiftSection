@@ -12,8 +12,8 @@ enum ProtocolRecordBaseline {
     }
 
     static let firstRecord = Entry(
-    offset: 0x3af64,
-    resolvedDescriptorOffset: 0x33530,
+    offset: 0x3d774,
+    resolvedDescriptorOffset: 0x357d0,
     resolvedDescriptorName: "GlobalActorIsolatedProtocolTest"
     )
 }

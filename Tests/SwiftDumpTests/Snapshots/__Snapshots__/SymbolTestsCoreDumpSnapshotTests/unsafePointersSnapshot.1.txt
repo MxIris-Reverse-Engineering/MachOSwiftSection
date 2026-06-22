@@ -49,6 +49,6 @@ struct SymbolTestsCore.UnsafePointers.AutoreleasingPointerFieldTest {
     SymbolTestsCore.UnsafePointers.AutoreleasingPointerFieldTest.init(autoreleasing: Swift.AutoreleasingUnsafeMutablePointer<Swift.AnyObject?>) -> SymbolTestsCore.UnsafePointers.AutoreleasingPointerFieldTest
 
     /* Variable */
-    SymbolTestsCore.UnsafePointers.AutoreleasingPointerFieldTest.autoreleasing.setter : Swift.AutoreleasingUnsafeMutablePointer<Swift.AnyObject?>
     SymbolTestsCore.UnsafePointers.AutoreleasingPointerFieldTest.autoreleasing.getter : Swift.AutoreleasingUnsafeMutablePointer<Swift.AnyObject?>
+    SymbolTestsCore.UnsafePointers.AutoreleasingPointerFieldTest.autoreleasing.setter : Swift.AutoreleasingUnsafeMutablePointer<Swift.AnyObject?>
 }

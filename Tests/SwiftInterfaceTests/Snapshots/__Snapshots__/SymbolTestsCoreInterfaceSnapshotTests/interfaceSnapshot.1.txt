@@ -1037,6 +1037,78 @@ enum GenericFieldLayout {
 
         deinit
     }
+    struct Box<A> {
+        var value: A
+    }
+    struct Pair<A, B> {
+        var first: A
+        var second: B
+    }
+    enum SecondParameterPayloadEnum<A, B> {
+        case payload(B)
+        case empty
+    }
+    enum TwoPayloadGenericEnum<A, B> {
+        case first(A)
+        case second(B)
+    }
+    class GenericBaseClass<A> {
+        var baseValue: A
+
+        init(baseValue: A)
+
+        deinit
+    }
+    struct ConcreteGenericStructFieldHolder {
+        var leading: Swift.Int
+        var intInstance: SymbolTestsCore.GenericFieldLayout.GenericStructNonRequirement<Swift.Int>
+        var stringInstance: SymbolTestsCore.GenericFieldLayout.GenericStructNonRequirement<Swift.String>
+        var trailing: Swift.Int
+    }
+    struct NestedGenericFieldHolder {
+        var leading: Swift.Int
+        var nested: SymbolTestsCore.GenericFieldLayout.Pair<SymbolTestsCore.GenericFieldLayout.Box<Swift.Int>, Swift.Int>
+        var trailing: Swift.Int
+    }
+    struct OptionalGenericFieldHolder {
+        var leading: Swift.Int
+        var optional: SymbolTestsCore.GenericFieldLayout.Box<Swift.Int>?
+        var trailing: Swift.Int
+    }
+    struct TupleGenericFieldHolder {
+        var leading: Swift.Int
+        var tuple: (SymbolTestsCore.GenericFieldLayout.Box<Swift.Int>, SymbolTestsCore.GenericFieldLayout.Box<Swift.String>)
+        var trailing: Swift.Int
+    }
+    struct SinglePayloadGenericEnumFieldHolder {
+        var leading: Swift.Int
+        var enumField: SymbolTestsCore.GenericFieldLayout.SecondParameterPayloadEnum<Swift.Bool, Swift.Int64>
+        var trailing: Swift.Int
+    }
+    struct MultiPayloadGenericEnumFieldHolder {
+        var leading: Swift.Int
+        var enumField: SymbolTestsCore.GenericFieldLayout.TwoPayloadGenericEnum<Swift.Int, Swift.Double>
+        var trailing: Swift.Int
+    }
+    struct ClassReferenceGenericFieldHolder {
+        var leading: Swift.Int
+        var classReference: SymbolTestsCore.GenericFieldLayout.GenericClassNonRequirement<Swift.Int>
+        var trailing: Swift.Int
+    }
+    struct FrozenGenericFieldHolder {
+        var leading: Swift.Int
+        var array: [Swift.Int]
+        var pointer: Swift.UnsafePointer<Swift.Double>
+        var trailing: Swift.Int
+    }
+    class ConcreteGenericSuperclassSubclass: SymbolTestsCore.GenericFieldLayout.GenericBaseClass<Swift.Int> {
+        var ownValue: Swift.Int
+
+        init(baseValue: Swift.Int, ownValue: Swift.Int)
+        init(baseValue: Swift.Int)
+
+        deinit
+    }
 }
 enum GenericRequirementVariants {
     struct ProtocolRequirementTest<A> where A: SymbolTestsCore.Protocols.ProtocolTest {
