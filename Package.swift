@@ -448,6 +448,7 @@ extension Target {
             .target(.MachOSwiftSection),
             .target(.Utilities),
             .target(.SwiftInspection),
+            .target(.SwiftLayout),
         ],
     )
 
@@ -827,6 +828,21 @@ extension Target {
         swiftSettings: testSettings,
     )
 
+    static let SwiftDeclarationRenderingTests = Target.testTarget(
+        name: "SwiftDeclarationRenderingTests",
+        dependencies: [
+            .target(.MachOSwiftSection),
+            .target(.SwiftInspection),
+            .target(.SwiftLayout),
+            .target(.SwiftDeclarationRendering),
+            .target(.MachOTestingSupport),
+            .target(.MachOFixtureSupport),
+            .product(.Semantic),
+            .product(.Demangling),
+        ],
+        swiftSettings: testSettings,
+    )
+
     static let SwiftAttributeInferenceTests = Target.testTarget(
         name: "SwiftAttributeInferenceTests",
         dependencies: [
@@ -985,6 +1001,7 @@ let package = Package(
         .SwiftDumpTests,
 //        .TypeIndexingTests,
         .SwiftPrintingTests,
+        .SwiftDeclarationRenderingTests,
         .SwiftAttributeInferenceTests,
         .SwiftDiffingTests,
         .SwiftIndexingTests,

@@ -5,6 +5,7 @@ import Semantic
 import Utilities
 import MemberwiseInit
 import Demangling
+import SwiftLayout
 @_spi(Internals) import SwiftInspection
 
 // MARK: - Identifiable Closure
@@ -70,6 +71,18 @@ public struct DeclarationRenderConfiguration: Sendable {
     public var enumLayoutTransformer: EnumLayoutTransformer? = nil
     public var enumLayoutCaseTransformer: EnumLayoutCaseTransformer? = nil
     public var spareBitAnalysisTransformer: SpareBitAnalysisTransformer? = nil
+
+    /// Injected once per session: the static (offline) field-layout source the
+    /// `MachOFile` rendering path uses to compute field offsets / type layouts /
+    /// the expanded tree without loading the process. `nil` ⇒ either the
+    /// runtime / `MachOImage` path, or graceful degradation when no provider
+    /// could be built. See ``MachOFileStaticFieldLayoutProvider``.
+    public var staticFieldLayoutProvider: (any StaticFieldLayoutProvider)? = nil
+
+    /// How the static `MachOFile` path resolves cross-module field / superclass
+    /// / protocol types when a provider is built. Defaults to the full
+    /// transitive dependency closure over the system dyld shared cache.
+    public var staticLayoutDependencyResolution: StaticLayoutDependencyResolution = .default
 
     public static func demangleOptions(_ demangleOptions: DemangleOptions) -> Self {
         .init(demangleResolver: .options(demangleOptions))
@@ -187,6 +200,22 @@ extension DeclarationRenderConfiguration {
         } else {
             InlineComment(layoutResult.strategyDescription)
         }
+        BreakLine()
+    }
+
+    /// Builds the `// Type Layout:` comment for a statically-computed field type
+    /// layout (the `MachOFile` path), mirroring the default format of
+    /// `MetadataWrapper.dumpTypeLayout` (the runtime path).
+    ///
+    /// This intentionally does not route through `typeLayoutTransformer`: that
+    /// transformer is typed on the runtime `TypeLayout`, which cannot be
+    /// synthesized from the static `TypeLayoutInfo` outside `MachOSwiftSection`.
+    /// A custom transformer therefore applies to the runtime / `MachOImage` path
+    /// only; the static path always emits the default format.
+    @SemanticStringBuilder
+    package func staticTypeLayoutComment(_ typeLayoutInfo: TypeLayoutInfo) -> SemanticString {
+        indentString
+        Comment("Type Layout: (size: \(typeLayoutInfo.size), stride: \(typeLayoutInfo.stride), alignment: \(typeLayoutInfo.alignment), extraInhabitantCount: \(typeLayoutInfo.extraInhabitantCount))")
         BreakLine()
     }
 }
