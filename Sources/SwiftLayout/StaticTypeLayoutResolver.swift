@@ -231,13 +231,24 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         } catch {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }
+        // An Objective-C ancestor (e.g. `NSObject`) has no Swift descriptor; its
+        // mangled name demangles to `__C.<Name>`. Start this class's own fields
+        // at the ObjC class's instance size, read from the ObjC class index.
+        // Checked *before* the Swift lookup below, which would otherwise fold the
+        // entire dependency closure on a name it can never define.
+        if let objCClassBareName = NodeTypeNaming.objCClassBareName(of: superclassNode) {
+            guard let objCStartLayout = imageUniverse.resolveObjCClassInstanceSize(byBareName: objCClassBareName) else {
+                throw LayoutResolutionError.unknown(.objCAncestorUnresolved(className: objCClassBareName))
+            }
+            return objCStartLayout
+        }
         guard
             let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: superclassNode),
             let resolved = imageUniverse.resolveType(byQualifiedTypeName: qualifiedTypeName),
             let superclassDescriptor = resolved.descriptor.class
         else {
-            // ObjC ancestor (phase 4) or cross-module resilient superclass
-            // (phase 3): not resolvable in single-image scope.
+            // A cross-module resilient Swift superclass not reachable in the
+            // current scope (resolved by the dependency closure).
             throw LayoutResolutionError.unknown(.resilientFieldUnresolved)
         }
         let superclassAggregate = try computeClassLayout(superclassDescriptor, in: resolved.image)

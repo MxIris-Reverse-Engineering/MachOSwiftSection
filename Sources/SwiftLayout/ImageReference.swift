@@ -1,3 +1,4 @@
+import MachOKit
 import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 import Demangling
@@ -19,6 +20,10 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
     /// Exposed (package-internal) so `ImageUniverse` can merge each image's
     /// protocol class-constraint index into the closure-wide global index.
     let protocolClassConstraintsByQualifiedName: [String: ProtocolClassConstraint]
+    /// Exposed (package-internal) so `ImageUniverse` can merge each image's
+    /// Objective-C class start layouts into the closure-wide index. Keyed by
+    /// bare ObjC class name (ObjC class names carry no module qualifier).
+    let objCClassInstanceSizesByBareName: [String: (instanceSize: Int, alignmentMask: Int)]
 
     public init(machO: MachO) throws {
         self.machO = machO
@@ -54,6 +59,13 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
             protocolIndex[qualifiedTypeName] = classConstraint
         }
         self.protocolClassConstraintsByQualifiedName = protocolIndex
+
+        // Index every Objective-C class's instance size (from `__objc_classlist`)
+        // so a Swift class with an ObjC ancestor can start its own fields at the
+        // ancestor's instance size — the ObjC class has no Swift descriptor, so
+        // it is invisible to the type index above. Read through the concrete
+        // reader because the ObjC accessors are not protocol-generic.
+        self.objCClassInstanceSizesByBareName = Self.objCClassInstanceSizes(in: machO)
     }
 
     /// Looks up a type descriptor by its fully-qualified name (as produced by
@@ -66,6 +78,19 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
     /// or `nil` if no protocol with that name is defined in this image.
     func protocolClassConstraint(forQualifiedTypeName qualifiedTypeName: String) -> ProtocolClassConstraint? {
         protocolClassConstraintsByQualifiedName[qualifiedTypeName]
+    }
+
+    /// Builds the bare-name → ObjC-class start-layout index, dispatching to the
+    /// concrete `MachOImage` / `MachOFile` ObjC reader. A reader the engine does
+    /// not recognize (or an image with no ObjC classes) contributes nothing.
+    private static func objCClassInstanceSizes(in machO: MachO) -> [String: (instanceSize: Int, alignmentMask: Int)] {
+        if let inProcessImage = machO as? MachOImage {
+            return ObjCClassIndex.instanceSizesByBareName(in: inProcessImage)
+        }
+        if let fileImage = machO as? MachOFile {
+            return ObjCClassIndex.instanceSizesByBareName(in: fileImage)
+        }
+        return [:]
     }
 
     /// Reads the image's type context descriptors, treating an absent

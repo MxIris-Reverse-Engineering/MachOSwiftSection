@@ -42,6 +42,12 @@ public final class ImageUniverse<MachO: MachOSwiftSectionRepresentableWithCache>
     /// root-first / first-writer-wins policy as `typeIndex`.
     private var protocolIndex: [String: (image: ImageReference<MachO>, constraint: ProtocolClassConstraint)] = [:]
 
+    /// Closure-wide Objective-C class start-layout index (bare name →
+    /// instanceSize/alignmentMask), grown lazily alongside `typeIndex` with the
+    /// same root-first / first-writer-wins policy. Lets a Swift class start its
+    /// fields at the size of an ObjC ancestor that lives in another image.
+    private var objCClassIndex: [String: (instanceSize: Int, alignmentMask: Int)] = [:]
+
     init(rootImage: ImageReference<MachO>, dependencyMachOs: [MachO] = []) {
         self.rootImage = rootImage
         self.dependencyMachOs = dependencyMachOs
@@ -90,6 +96,20 @@ public final class ImageUniverse<MachO: MachOSwiftSectionRepresentableWithCache>
         return protocolIndex[qualifiedTypeName]?.constraint
     }
 
+    /// Resolves an Objective-C class's start layout (its instance size and a
+    /// pointer start alignment) by bare name, or `nil` if no image in the
+    /// closure defines that ObjC class. The third resolution seam, sharing the
+    /// same lazy fold-in as `resolveType` / `resolveProtocolClassConstraint`:
+    /// every dependency's ObjC index is merged when that dependency is folded,
+    /// so this needs no extra scan over the closure.
+    func resolveObjCClassInstanceSize(
+        byBareName bareName: String
+    ) -> (instanceSize: Int, alignmentMask: Int)? {
+        if let resolved = objCClassIndex[bareName] { return resolved }
+        while objCClassIndex[bareName] == nil, indexNextDependency() {}
+        return objCClassIndex[bareName]
+    }
+
     /// Folds the next un-indexed dependency into the merged indexes. Returns
     /// `false` when the dependency list is exhausted. A dependency whose
     /// `ImageReference` cannot be built (a malformed binary) is skipped rather
@@ -112,6 +132,9 @@ public final class ImageUniverse<MachO: MachOSwiftSectionRepresentableWithCache>
         }
         for (qualifiedTypeName, classConstraint) in image.protocolClassConstraintsByQualifiedName where protocolIndex[qualifiedTypeName] == nil {
             protocolIndex[qualifiedTypeName] = (image, classConstraint)
+        }
+        for (bareName, startLayout) in image.objCClassInstanceSizesByBareName where objCClassIndex[bareName] == nil {
+            objCClassIndex[bareName] = startLayout
         }
     }
 }
