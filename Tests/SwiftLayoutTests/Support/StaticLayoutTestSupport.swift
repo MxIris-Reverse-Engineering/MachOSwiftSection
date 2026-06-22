@@ -60,6 +60,27 @@ func runtimeFieldOffsets(ofQualifiedTypeName qualifiedTypeName: String, in machO
     return nil
 }
 
+/// The runtime whole-type (size, stride) of a type, read from its value-witness
+/// table after materializing the metadata via the accessor — the ground truth a
+/// builtin-descriptor-backed static layout (multi-payload enums, imported C
+/// value types) is checked against. `nil` if the type is not found.
+func runtimeValueWitnessSizeStride(ofQualifiedTypeName qualifiedTypeName: String, in machO: MachOImage) throws -> (size: Int, stride: Int)? {
+    for contextDescriptor in try machO.swift.contextDescriptors {
+        guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
+        guard
+            let name = (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+                .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
+            name == qualifiedTypeName,
+            let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO)
+        else { continue }
+        let response = try accessor(request: .init())
+        let metadata = try response.value.resolve(in: machO)
+        let valueWitnessTable = try metadata.valueWitnessTable(in: machO)
+        return (Int(valueWitnessTable.layout.size), Int(valueWitnessTable.layout.stride))
+    }
+    return nil
+}
+
 /// Asserts every field resolved (none degraded to `unknown`) and the computed
 /// offset vector matches `expectedOffsets` exactly.
 func assertFullyComputed(
