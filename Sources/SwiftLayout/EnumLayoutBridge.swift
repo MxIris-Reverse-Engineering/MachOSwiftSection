@@ -19,6 +19,12 @@ extension StaticTypeLayoutResolver {
         if qualifiedTypeName == "Swift.Optional" {
             return try optionalLayout(forNode: node, in: originImage)
         }
+        // A frozen stdlib enum whose layout is argument-independent resolves by
+        // its bare name through the frozen table — checked before the generic
+        // instantiation cache key (below) can bypass it.
+        if let known = KnownLayoutTable.layout(forFullyQualifiedTypeName: qualifiedTypeName) {
+            return known
+        }
         // An enum whose layout reflection cannot derive structurally —
         // multi-payload, indirect, `@objc` raw — carries its whole-type layout
         // in the using image's `__swift5_builtin` descriptor. Restricted to
@@ -29,21 +35,33 @@ extension StaticTypeLayoutResolver {
            let builtinLayout = originImage.builtinLayoutIndex.layout(forTypeName: qualifiedTypeName) {
             return builtinLayout
         }
-        return try memoizedNominalLayout(forQualifiedTypeName: qualifiedTypeName) {
-            guard let resolved = imageUniverse.resolveType(byQualifiedTypeName: qualifiedTypeName) else {
+        // For a concrete bound-generic instantiation (`MyEnum<Int>`) capture the
+        // depth-0 arguments; payload field records reference these by
+        // `dependentGenericParamType` and are substituted during payload reading.
+        let environment = GenericArgumentEnvironment.make(forBoundGenericNode: node)
+        let compute: () throws -> TypeLayoutInfo = {
+            guard let resolved = self.imageUniverse.resolveType(byQualifiedTypeName: qualifiedTypeName) else {
                 throw LayoutResolutionError.unknown(.typeDescriptorNotFound(qualifiedTypeName: qualifiedTypeName))
             }
             guard let enumDescriptor = resolved.descriptor.enum else {
                 throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "non-enum:\(qualifiedTypeName)"))
             }
-            return try computeEnumLayout(enumDescriptor, node: node, in: resolved.image)
+            return try self.computeEnumLayout(enumDescriptor, node: node, in: resolved.image, environment: environment)
         }
+        if environment.isEmpty {
+            return try memoizedNominalLayout(forQualifiedTypeName: qualifiedTypeName, compute: compute)
+        }
+        return try memoizedInstantiationLayout(
+            forInstantiationKey: Self.instantiationKey(of: node, qualifiedTypeName: qualifiedTypeName),
+            compute: compute
+        )
     }
 
     private func computeEnumLayout(
         _ descriptor: EnumDescriptor,
         node: Node,
-        in image: ImageReference<MachO>
+        in image: ImageReference<MachO>,
+        environment: GenericArgumentEnvironment = .empty
     ) throws -> TypeLayoutInfo {
         let payloadCaseCount = descriptor.numberOfPayloadCases
         let emptyCaseCount = descriptor.numberOfEmptyCases
@@ -51,10 +69,10 @@ extension StaticTypeLayoutResolver {
             return Self.noPayloadEnumLayout(emptyCaseCount: emptyCaseCount)
         }
         if payloadCaseCount == 1 {
-            let payload = try singlePayloadType(descriptor: descriptor, node: node, in: image)
+            let payload = try singlePayloadType(descriptor: descriptor, node: node, in: image, environment: environment)
             return Self.singlePayloadEnumLayout(payload: payload, emptyCaseCount: emptyCaseCount)
         }
-        return try multiPayloadEnumLayout(descriptor, node: node, in: image)
+        return try multiPayloadEnumLayout(descriptor, node: node, in: image, environment: environment)
     }
 
     /// Computes a multi-payload enum's whole-type layout structurally — the
@@ -73,7 +91,8 @@ extension StaticTypeLayoutResolver {
     func multiPayloadEnumLayout(
         _ descriptor: EnumDescriptor,
         node: Node,
-        in image: ImageReference<MachO>
+        in image: ImageReference<MachO>,
+        environment: GenericArgumentEnvironment = .empty
     ) throws -> TypeLayoutInfo {
         let payloadCaseCount = descriptor.numberOfPayloadCases
         let emptyCaseCount = descriptor.numberOfEmptyCases
@@ -89,9 +108,11 @@ extension StaticTypeLayoutResolver {
             let mangledTypeName = try record.mangledTypeName(in: image.machO)
             guard isIndirect || !mangledTypeName.isEmpty else { continue } // empty case
             // An indirect case boxes its payload behind a single heap pointer.
+            // The payload type is read through the generic environment so a
+            // concrete `MyEnum<Int>` substitutes its payload parameters.
             let payloadLayout = isIndirect
                 ? TypeLayoutInfo.pointerSized
-                : try layout(forMangledTypeName: mangledTypeName, in: image)
+                : try layout(forMangledTypeName: mangledTypeName, in: image, environment: environment)
             payloadSize = max(payloadSize, payloadLayout.size)
             payloadAlignmentMask = max(payloadAlignmentMask, payloadLayout.alignmentMask)
             isBitwiseTakable = isBitwiseTakable && payloadLayout.isBitwiseTakable
@@ -175,20 +196,19 @@ extension StaticTypeLayoutResolver {
         return Self.singlePayloadEnumLayout(payload: payload, emptyCaseCount: 1)
     }
 
-    /// Resolves the payload type of a single-payload enum. For a generic enum
-    /// such as `Optional<T>` the payload is the bound generic argument (the
-    /// field record only carries the dependent parameter); for a non-generic
-    /// enum it is the single payload case's field-record type.
+    /// Resolves the payload type of a single-payload enum from its field
+    /// record, substituting the enum's generic arguments via `environment`.
+    /// So `enum Box<A> { case some(A) }` instantiated `Box<Int>` reads the
+    /// record's `A` and substitutes `Int`; `enum E<First, Second> { case a(Second) }`
+    /// correctly picks `Second` — unlike the previous shortcut, which blindly
+    /// took the *first* bound-generic argument regardless of which parameter the
+    /// payload used.
     private func singlePayloadType(
         descriptor: EnumDescriptor,
         node: Node,
-        in image: ImageReference<MachO>
+        in image: ImageReference<MachO>,
+        environment: GenericArgumentEnvironment = .empty
     ) throws -> TypeLayoutInfo {
-        if node.kind == .boundGenericEnum,
-           let typeList = node.first(of: .typeList),
-           let firstArgument = typeList.first(of: .type) {
-            return try layout(forTypeNode: firstArgument, in: image)
-        }
         let fieldDescriptor = try descriptor.fieldDescriptor(in: image.machO)
         let records = try fieldDescriptor.records(in: image.machO)
         for record in records {
@@ -197,7 +217,7 @@ extension StaticTypeLayoutResolver {
             }
             let mangledTypeName = try record.mangledTypeName(in: image.machO)
             if !mangledTypeName.isEmpty {
-                return try layout(forMangledTypeName: mangledTypeName, in: image)
+                return try layout(forMangledTypeName: mangledTypeName, in: image, environment: environment)
             }
         }
         throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "singlePayloadNoType"))

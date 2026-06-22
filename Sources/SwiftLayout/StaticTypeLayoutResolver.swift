@@ -167,6 +167,14 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         guard let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node) else {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }
+        // A frozen stdlib type whose layout is argument-independent (Array,
+        // UnsafePointer, …) resolves by its bare name through the frozen table.
+        // Checked first so a generic instantiation cache key (below) never
+        // bypasses it and tries to expand the stdlib type's internal storage
+        // structurally — which would fail or compute garbage.
+        if let known = KnownLayoutTable.layout(forFullyQualifiedTypeName: qualifiedTypeName) {
+            return known
+        }
         // An imported C value type (e.g. `__C.CGRect`) has no Swift type
         // descriptor, but the using image carries its whole-type layout in a
         // `__swift5_builtin` descriptor. Restricted to non-generic structures —
@@ -177,15 +185,27 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
            let builtinLayout = originImage.builtinLayoutIndex.layout(forTypeName: qualifiedTypeName) {
             return builtinLayout
         }
-        return try memoizedNominalLayout(forQualifiedTypeName: qualifiedTypeName) {
-            guard let resolved = imageUniverse.resolveType(byQualifiedTypeName: qualifiedTypeName) else {
+        // For a concrete bound-generic instantiation (`Foo<Int>`) capture the
+        // depth-0 arguments; the base descriptor's field records reference these
+        // by `dependentGenericParamType` and are substituted during field
+        // reading. A plain `.structure` node yields `.empty`.
+        let environment = GenericArgumentEnvironment.make(forBoundGenericNode: node)
+        let compute: () throws -> TypeLayoutInfo = {
+            guard let resolved = self.imageUniverse.resolveType(byQualifiedTypeName: qualifiedTypeName) else {
                 throw LayoutResolutionError.unknown(.typeDescriptorNotFound(qualifiedTypeName: qualifiedTypeName))
             }
             guard let structDescriptor = resolved.descriptor.struct else {
                 throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "non-struct:\(qualifiedTypeName)"))
             }
-            return try computeStructLayout(structDescriptor, in: resolved.image).typeLayoutInfo()
+            return try self.computeStructLayout(structDescriptor, in: resolved.image, environment: environment).typeLayoutInfo()
         }
+        if environment.isEmpty {
+            return try memoizedNominalLayout(forQualifiedTypeName: qualifiedTypeName, compute: compute)
+        }
+        return try memoizedInstantiationLayout(
+            forInstantiationKey: Self.instantiationKey(of: node, qualifiedTypeName: qualifiedTypeName),
+            compute: compute
+        )
     }
 
     /// Resolves a nominal type's layout through the frozen table, the memo
@@ -209,11 +229,65 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         return layout
     }
 
+    /// Memoizes a *generic instantiation* keyed by its remangled name, so
+    /// `Foo<Int>` and `Foo<String>` are distinct cache and cycle-guard entries.
+    /// Unlike `memoizedNominalLayout`, it skips the frozen-table probe — that
+    /// table is keyed by bare names only, never by instantiation keys.
+    ///
+    /// The cycle guard keys by instantiation, so a pathological self-embedding
+    /// value-type generic would recurse (a distinct key per level) rather than
+    /// trip `cyclicLayout`; a well-formed binary cannot contain an
+    /// infinitely-sized value type (the compiler rejects it), so this is safe.
+    func memoizedInstantiationLayout(
+        forInstantiationKey key: String,
+        compute: () throws -> TypeLayoutInfo
+    ) throws -> TypeLayoutInfo {
+        if let cached = memoizationCache[key] { return cached }
+        guard !inProgressKeys.contains(key) else {
+            throw LayoutResolutionError.unknown(.cyclicLayout)
+        }
+        inProgressKeys.insert(key)
+        defer { inProgressKeys.remove(key) }
+        let layout = try compute()
+        memoizationCache[key] = layout
+        return layout
+    }
+
+    /// A stable, instantiation-unique cache key for a bound-generic node: its
+    /// remangled name (the inverse of demangling, canonical per instantiation),
+    /// falling back to a structural description if remangling fails.
+    static func instantiationKey(of node: Node, qualifiedTypeName: String) -> String {
+        if let mangled = try? mangleAsString(node) { return mangled }
+        return qualifiedTypeName + "|" + String(describing: node)
+    }
+
+    /// Resolves a field/payload type from its mangled name, first substituting
+    /// the enclosing type's generic arguments (`dependentGenericParamType` →
+    /// concrete) so a field typed `A` in `Foo<Int>` resolves as `Int`.
+    func layout(
+        forMangledTypeName mangledTypeName: MangledName,
+        in originImage: ImageReference<MachO>,
+        environment: GenericArgumentEnvironment
+    ) throws -> TypeLayoutInfo {
+        let typeNode: Node
+        do {
+            typeNode = try MetadataReader.demangleType(for: mangledTypeName, in: originImage.machO)
+        } catch {
+            throw LayoutResolutionError.unknown(.demangleFailure)
+        }
+        return try layout(forTypeNode: environment.substituting(in: typeNode), in: originImage)
+    }
+
     /// Computes the full aggregate layout (field offsets + size/stride) of a
     /// struct from its field descriptor. Also the entry point used by the
-    /// top-level calculator.
-    func computeStructLayout(_ descriptor: StructDescriptor, in image: ImageReference<MachO>) throws -> AggregateLayout {
-        let fieldLayouts = try fieldLayouts(ofFieldDescriptorOwner: descriptor, in: image)
+    /// top-level calculator. `environment` substitutes generic arguments when
+    /// the struct is reached as a concrete bound-generic instantiation.
+    func computeStructLayout(
+        _ descriptor: StructDescriptor,
+        in image: ImageReference<MachO>,
+        environment: GenericArgumentEnvironment = .empty
+    ) throws -> AggregateLayout {
+        let fieldLayouts = try fieldLayouts(ofFieldDescriptorOwner: descriptor, in: image, environment: environment)
         return BasicLayout.compute(startOffset: 0, startAlignmentMask: 0, fieldLayouts: fieldLayouts)
     }
 
@@ -222,9 +296,13 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
     /// Computes the full aggregate layout of a class, starting the accumulator
     /// at the superclass instance size (16 for a root class) and recursing
     /// through Swift superclasses.
-    func computeClassLayout(_ descriptor: ClassDescriptor, in image: ImageReference<MachO>) throws -> AggregateLayout {
-        let start = try superclassStartLayout(of: descriptor, in: image)
-        let fieldLayouts = try fieldLayouts(ofFieldDescriptorOwner: descriptor, in: image)
+    func computeClassLayout(
+        _ descriptor: ClassDescriptor,
+        in image: ImageReference<MachO>,
+        environment: GenericArgumentEnvironment = .empty
+    ) throws -> AggregateLayout {
+        let start = try superclassStartLayout(of: descriptor, in: image, environment: environment)
+        let fieldLayouts = try fieldLayouts(ofFieldDescriptorOwner: descriptor, in: image, environment: environment)
         return BasicLayout.compute(
             startOffset: start.instanceSize,
             startAlignmentMask: start.alignmentMask,
@@ -234,7 +312,8 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
 
     func superclassStartLayout(
         of descriptor: ClassDescriptor,
-        in image: ImageReference<MachO>
+        in image: ImageReference<MachO>,
+        environment: GenericArgumentEnvironment = .empty
     ) throws -> (instanceSize: Int, alignmentMask: Int) {
         guard
             let superclassMangledName = try descriptor.superclassTypeMangledName(in: image.machO),
@@ -243,12 +322,17 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
             // Root class: sizeof(HeapObject) == isa + refcount == 16, 8-aligned.
             return (16, 7)
         }
-        let superclassNode: Node
+        let demangledSuperclassNode: Node
         do {
-            superclassNode = try MetadataReader.demangleType(for: superclassMangledName, in: image.machO)
+            demangledSuperclassNode = try MetadataReader.demangleType(for: superclassMangledName, in: image.machO)
         } catch {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }
+        // Substitute this class's generic arguments into the superclass
+        // reference first, so `class Sub<T>: Base<T>` instantiated as `Sub<Int>`
+        // resolves its superclass as `Base<Int>` (and then binds Base's own
+        // parameter to `Int` below).
+        let superclassNode = environment.substituting(in: demangledSuperclassNode)
         // An Objective-C ancestor (e.g. `NSObject`) has no Swift descriptor; its
         // mangled name demangles to `__C.<Name>`. Start this class's own fields
         // at the ObjC class's instance size, read from the ObjC class index.
@@ -269,7 +353,10 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
             // current scope (resolved by the dependency closure).
             throw LayoutResolutionError.unknown(.resilientFieldUnresolved)
         }
-        let superclassAggregate = try computeClassLayout(superclassDescriptor, in: resolved.image)
+        // The superclass's own generic arguments come from the (substituted)
+        // superclass node: `Base<Int>` binds Base's parameters to `Int`.
+        let superclassEnvironment = GenericArgumentEnvironment.make(forBoundGenericNode: superclassNode)
+        let superclassAggregate = try computeClassLayout(superclassDescriptor, in: resolved.image, environment: superclassEnvironment)
         // A subclass starts where the superclass instance ends (its size, not
         // its stride: classes carry no trailing value padding).
         return (superclassAggregate.size, superclassAggregate.alignmentMask)
@@ -292,7 +379,8 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
     /// in declaration order.
     private func fieldLayouts(
         ofFieldDescriptorOwner descriptor: some TypeContextDescriptorProtocol,
-        in image: ImageReference<MachO>
+        in image: ImageReference<MachO>,
+        environment: GenericArgumentEnvironment = .empty
     ) throws -> [TypeLayoutInfo] {
         let fieldDescriptor = try descriptor.fieldDescriptor(in: image.machO)
         let records = try fieldDescriptor.records(in: image.machO)
@@ -300,7 +388,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         fieldLayouts.reserveCapacity(records.count)
         for record in records {
             let mangledTypeName = try record.mangledTypeName(in: image.machO)
-            fieldLayouts.append(try layout(forMangledTypeName: mangledTypeName, in: image))
+            fieldLayouts.append(try layout(forMangledTypeName: mangledTypeName, in: image, environment: environment))
         }
         return fieldLayouts
     }
