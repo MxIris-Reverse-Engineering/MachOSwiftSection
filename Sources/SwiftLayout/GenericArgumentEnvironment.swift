@@ -42,8 +42,20 @@ struct GenericArgumentEnvironment {
         guard isBoundGenericKind(boundGenericNode.kind), let typeList = directTypeList(of: boundGenericNode) else {
             return .empty
         }
+        return make(forDepthZeroTypeArguments: Array(typeList.children))
+    }
+
+    /// Builds the depth-0 substitution map directly from a list of concrete
+    /// type arguments (ordered by declaration), as supplied by a caller that
+    /// holds a generic type descriptor and its instantiation arguments rather
+    /// than a `boundGeneric*` node. Each argument must be a `.type`-wrapped
+    /// type node; a value or pack argument degrades the whole environment to
+    /// `.empty`, matching `make(forBoundGenericNode:)`. An empty argument list
+    /// yields `.empty` (nothing to substitute).
+    static func make(forDepthZeroTypeArguments arguments: [Node]) -> GenericArgumentEnvironment {
+        guard !arguments.isEmpty else { return .empty }
         var substitutions: [GenericParameterKey: Node] = [:]
-        for (index, argument) in typeList.children.enumerated() {
+        for (index, argument) in arguments.enumerated() {
             // Bail on any non-type (value / pack) argument: those occupy
             // parameter ordinals too, and modelling them statically is out of
             // scope — degrade the whole instantiation rather than misindex.
