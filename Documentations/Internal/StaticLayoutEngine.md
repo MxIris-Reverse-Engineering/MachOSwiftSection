@@ -69,7 +69,7 @@ Tests/SwiftLayoutTests/
 
 `StaticLayoutVsRuntimeTests` 遍历 fixture 二进制（`SymbolTestsCore`）里**每个非泛型 struct/class**，以 runtime metadata accessor 读出的 field-offset vector 为 ground truth，断言静态引擎重算**逐字段相等**（引擎自身从不调用 accessor）。降级类型则断言**已算前缀**与 runtime 前缀一致。`ExistentialLayoutTests` 另以**字面值**锁定 existential / actor 类型的完整 field-offset 向量（如 `ExistentialFieldTest = [0, 40, 80, 120, 128, 136]`），独立于宽泛前缀套件，精确钉住容器尺寸公式。
 
-单镜像当前结果：**147 个类型参与比较，142 个完全算对，0 个 mismatch**；其余 5 个为单镜像下的合理降级（ObjC 祖先 2 个 + 跨模块 resilient/字段 3 个）——其中 ObjC 祖先 2 个与跨模块 3 个均由依赖闭包（阶段 3/4）解析掉，见下。覆盖率下限断言（`comparedCount > 100`、`fullyComputedCount > 140`）防止「全降级静默通过」并锁定 existential + actor + 具体 bound-generic 实例化收敛带来的提升。具体 bound-generic 实例化作字段另由 `GenericInstantiationLayoutTests` 专门验证：9 个非泛型包裹类型（字段含 `GenericStructNonRequirement<Int>`/`<String>`、`Pair<Box<Int>, Int>`、`Box<Int>?`、元组、单/多 payload 泛型枚举、具体泛型超类的子类等）全部**完全解析**且逐字段等于 runtime offset；`GenericArgumentEnvironmentTests` 以手搓 Node 树单测替换与 value 实参降级守卫。
+单镜像当前结果：**147 个类型参与比较，142 个完全算对，0 个 mismatch**；其余 5 个为单镜像下的合理降级（ObjC 祖先 2 个 + 跨模块 resilient/字段 3 个）——其中 ObjC 祖先 2 个与跨模块 3 个均由依赖闭包（阶段 3/4）解析掉，见下。覆盖率下限断言（`comparedCount > 100`、`fullyComputedCount > 140`）防止「全降级静默通过」并锁定 existential + actor + 具体 bound-generic 实例化收敛带来的提升。具体 bound-generic 实例化作字段另由 `GenericInstantiationLayoutTests` 专门验证：9 个非泛型包裹类型（字段含 `GenericStructNonRequirement<Int>`/`<String>`、`Pair<Box<Int>, Int>`、`Box<Int>?`、元组、单/多 payload 泛型枚举、具体泛型超类的子类等）全部**完全解析**且逐字段等于 runtime offset；`GenericArgumentEnvironmentTests` 以手搓 Node 树单测替换与 value 实参降级守卫。**顶层**具体实例化另由 `TopLevelGenericInstantiationLayoutTests` 验证：`fieldLayout(of:genericArguments:)` 对 `GenericStructNonRequirement<Int>`/`<String>` 与 `GenericClassNonRequirement<Int>`、`fieldLayout(forInstantiationMangledName:)` 对一条**二进制里真实的 `GenericStructNonRequirement<Int>` 字段引用**，均**完全解析**且逐字段等于 runtime **特化** metadata 向量（经 accessor 传具体实参 metatype 取真值），并守卫 value 实参降级（裸 `field2: A` 后续字段转 `unknown`，前序 `field1: Double` 仍算对）。
 
 依赖闭包另由 `DependencyClosureLayoutTests` 验证那 3 个跨模块 partial：
 - **`DistributedActorTest`**（字段 `Distributed.LocalTestingActorID`）：runtime vector `[16, 112, 128]` 非空，闭包重算与之**自动逐字段相等**——同时覆盖跨模块 struct 字段解析。
@@ -116,7 +116,7 @@ Tests/SwiftLayoutTests/
 
 | 形态 | 原因 | 归属阶段 |
 |---|---|---|
-| 泛型类型**自身**作顶层（未实例化的 `T`） | 顶层泛型类型无具体实参，字段里的 `T` 依赖实例化 | 不可静态定（本质如此） |
+| 泛型类型**自身**作顶层且**未提供实参**（裸 `T`） | 无具体实参时字段里的 `T` 依赖实例化；**提供具体实参后已可算**（见「后续工作」的「顶层具体实例化」） | 裸泛型不可静态定（本质如此） |
 | value/pack 泛型实参（`Foo<3, Int>` / `each T`） | 环境只建 depth-0 纯类型实参映射，value/pack 整体降级以防位置错配 | 范围外，按字段降级 |
 | depth > 0 的嵌套泛型上下文参数 | 当前环境只映射 depth-0 | 范围外，按字段降级 |
 | 无 builtin descriptor 的 multi-payload enum / C 类型 | 编译器未对该类型 emit builtin（如反射裁剪、未被反射性引用） | 罕见，按字段降级 |
@@ -127,6 +127,7 @@ Tests/SwiftLayoutTests/
 ## 后续工作（扩展点已预留）
 
 - **~~阶段 5 具体 bound-generic 实例化作字段~~（已完成）**：经 `GenericArgumentEnvironment` 纯语法 Node 替换实现，见上文「核心算法」。落地时确认**无需** `SwiftGenericSupport` 共享层——替换只需从 `boundGeneric*` 节点直接读 `(depth,index)` 与节点自带的 `typeList`（按位置映射），用不到 `GenericSpecializer` 的描述符泛型签名/需求枚举/key-argument 向量；故未引入跨模块重构。后续若 SwiftLayout 需要运行期驱动的特化再议。剩余不可静态定：顶层泛型类型自身未实例化的 `T`、value/pack 实参、depth>0 嵌套泛型上下文（见「已知降级」）。
+- **~~顶层具体泛型实例化的逐字段 offset~~（已完成）**：把阶段 5 的 `GenericArgumentEnvironment` 替换从「字段场景」**对称扩展**到「顶层请求场景」。新增两个公开入口：`StaticLayoutCalculator.fieldLayout(of:genericArguments:)`（descriptor + 具体实参 `Node`，按 depth-0 位置建环境）与 `fieldLayout(forInstantiationMangledName:)`（二进制里的 `Foo<Int>` 引用：demangle → 按限定名解析 descriptor → 经 `make(forBoundGenericNode:)` 建环境，故跨模块实例化在其**定义镜像**上展开）。实现上把富信息逐字段路径（`accumulateFieldLayout` → `AggregateFieldLayout`，**带逐字段降级**）线程化 `environment`（默认 `.empty` ⇒ 非泛型行为逐字节不变），并把私有 `fieldLayout(ofStruct:/ofClass:)` 抽出 `in image:` 以支持跨镜像；新增 `GenericArgumentEnvironment.make(forDepthZeroTypeArguments:)` 直接从实参 Node 列表建环境。仅 depth-0 **类型**参数；value/pack、depth>0、裸泛型仍按字段降级。**未**引入对 `SwiftSpecialization` 的依赖——runtime 真值在测试侧用底层 accessor 传具体实参 metatype 取得（无约束泛型无需 PWT）。
 - **multi-payload enum 的 payload 内部偏移（可选，未做）**：当前结构化路径只给整体 size/stride/align（已满足「作为字段」需求，且对全部 fixture multi-payload enum 与 runtime VWT 逐一吻合）。若需逐 case 的 payload 投影/tag 编码细节，`EnumLayoutCalculator.LayoutResult.cases` 已含，可后续暴露。multi-payload enum 的精确 extra inhabitants 当前结构化路径记 0（builtin 路径给精确值）。
 - **`@rpath` 完整展开**：`MachOFile` 闭包 MVP 靠 dyld cache bare-name + 显式路径覆盖；完整 `@rpath`/`@loader_path`/`@executable_path` 展开（读 `LC_RPATH` + 相对 root 定位）未做，调用方可预先展开为绝对路径。
 - **路径 A（读 vector）未实现**：runtime accessor 已是更强的 ground truth，`FieldOffsetVectorReader` 未单独建。如需纯 MachOFile 的交叉校验可后补。
