@@ -7,34 +7,91 @@ import SwiftLayout
 import Utilities
 @_spi(Internals) import SwiftInspection
 
-/// The **static** (offline) `FieldLayoutRenderer` implementation, used when the
-/// Mach-O reader is a `MachOFile`. It computes field offsets / type layouts / the
-/// expanded nested tree / enum layouts from the binary via the `SwiftLayout`
-/// engine — never loading the process or calling a metadata accessor — through an
-/// injected `StaticFieldLayoutProvider`.
+/// `MachOFile` renders field comments **statically** through the `SwiftLayout`
+/// engine — no process, no metadata accessor.
+extension MachOFile: FieldLayoutRenderable {
+    public static func makeStaticFieldLayoutProvider(machO: MachOFile, resolution: StaticLayoutDependencyResolution) -> (any StaticFieldLayoutProvider)? {
+        MachOFileStaticFieldLayoutProvider(machOFile: machO, resolution: resolution)
+    }
+
+    public static func precomputedStaticAggregateFieldLayout(for type: TypeContextWrapper, machO: MachOFile, configuration: DeclarationRenderConfiguration) -> AggregateFieldLayout? {
+        // Only when a layout-bearing flag is on and a provider was injected;
+        // enums (no field-offset vector) compute their layout lazily instead.
+        guard configuration.printFieldOffset || configuration.printTypeLayout || configuration.printExpandedFieldOffsets,
+              let provider = configuration.staticFieldLayoutProvider else {
+            return nil
+        }
+        let descriptorWrapper: TypeContextDescriptorWrapper
+        switch type {
+        case .struct(let structType):
+            descriptorWrapper = .struct(structType.descriptor)
+        case .class(let classType):
+            descriptorWrapper = .class(classType.descriptor)
+        case .enum:
+            return nil
+        }
+        return provider.aggregateFieldLayout(forDescriptor: descriptorWrapper)
+    }
+
+    public static func renderFieldOffsets(_ state: FieldLayoutRenderState, machO: MachOFile) -> [Int]? {
+        StaticFieldLayoutBackend(state, machO: machO).fieldOffsets
+    }
+
+    public static func renderStoredFieldComments(_ state: FieldLayoutRenderState, machO: MachOFile, forFieldAtIndex index: Int, mangledTypeName: MangledName, fieldOffsets: [Int]?) async -> SemanticString {
+        await StaticFieldLayoutBackend(state, machO: machO).storedFieldComments(forFieldAtIndex: index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
+    }
+
+    public static func renderEnumLayout(_ state: FieldLayoutRenderState, machO: MachOFile) async -> EnumLayoutCalculator.LayoutResult? {
+        await StaticFieldLayoutBackend(state, machO: machO).enumLayout
+    }
+
+    public static func renderEnumPrefixComments(_ state: FieldLayoutRenderState, machO: MachOFile, enumLayout: EnumLayoutCalculator.LayoutResult?) async -> SemanticString {
+        await StaticFieldLayoutBackend(state, machO: machO).enumPrefixComments(enumLayout: enumLayout)
+    }
+
+    public static func renderEnumCaseComments(_ state: FieldLayoutRenderState, machO: MachOFile, forCaseAtIndex index: Int, mangledTypeName: MangledName, enumLayout: EnumLayoutCalculator.LayoutResult?) async -> SemanticString {
+        await StaticFieldLayoutBackend(state, machO: machO).enumCaseComments(forCaseAtIndex: index, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
+    }
+}
+
+/// The **static** (offline) backend, used when the Mach-O reader is a
+/// `MachOFile`. It computes field offsets / type layouts / the expanded nested
+/// tree / enum layouts from the binary via the `SwiftLayout` engine — never
+/// loading the process — through an injected `StaticFieldLayoutProvider`.
 ///
 /// With no provider injected (or when SwiftLayout cannot resolve a type), each
-/// entry point yields nothing, which is exactly how the renderer behaved for a
+/// entry point yields nothing, which is how the renderer behaved for a
 /// `MachOFile` before SwiftLayout was wired in (offline metadata is unavailable,
-/// so the runtime path produced no offsets either). The runtime counterpart
-/// lives in `FieldLayoutRenderer+MachOImage.swift`.
-extension FieldLayoutRenderer where MachO == MachOFile {
+/// so the runtime path produced no comments either).
+struct StaticFieldLayoutBackend {
+    let state: FieldLayoutRenderState
+    let machO: MachOFile
+
+    init(_ state: FieldLayoutRenderState, machO: MachOFile) {
+        self.state = state
+        self.machO = machO
+    }
+
+    private var configuration: DeclarationRenderConfiguration { state.configuration }
+    private var enumValue: Enum? { state.enumValue }
+    private var staticAggregateFieldLayout: AggregateFieldLayout? { state.staticAggregateFieldLayout }
+
     // MARK: - Field offsets (struct / class)
 
     /// The statically-computed field-offset vector, truncated at the first field
     /// SwiftLayout could not resolve (so a degraded field and everything after it
     /// emit no offset comment rather than a wrong one).
-    var staticFieldOffsets: [Int]? {
+    var fieldOffsets: [Int]? {
         guard configuration.printFieldOffset else { return nil }
         return staticAggregateFieldLayout?.computedFieldOffsets
     }
 
     @SemanticStringBuilder
-    func fileStoredFieldComments(
+    func storedFieldComments(
         forFieldAtIndex index: Int,
         mangledTypeName: MangledName,
         fieldOffsets: [Int]?
-    ) -> SemanticString {
+    ) async -> SemanticString {
         if let fieldOffsets, let startOffset = fieldOffsets[safe: index] {
             let endOffset: Int?
             if let nextFieldOffset = fieldOffsets[safe: index + 1] {
@@ -49,7 +106,7 @@ extension FieldLayoutRenderer where MachO == MachOFile {
             configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
 
             if configuration.printExpandedFieldOffsets {
-                fileExpandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset)
+                expandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset)
             }
         }
 
@@ -61,7 +118,7 @@ extension FieldLayoutRenderer where MachO == MachOFile {
     // MARK: - Expanded nested field offsets
 
     @SemanticStringBuilder
-    private func fileExpandedFieldOffsets(for mangledTypeName: MangledName, baseOffset: Int) -> SemanticString {
+    private func expandedFieldOffsets(for mangledTypeName: MangledName, baseOffset: Int) -> SemanticString {
         if let provider = configuration.staticFieldLayoutProvider {
             let tree = provider.nestedFieldOffsetTree(
                 forMangledTypeName: mangledTypeName,
@@ -84,11 +141,11 @@ extension FieldLayoutRenderer where MachO == MachOFile {
     // MARK: - Enum cases
 
     @SemanticStringBuilder
-    func fileEnumCaseComments(
+    func enumCaseComments(
         forCaseAtIndex index: Int,
         mangledTypeName: MangledName,
         enumLayout: EnumLayoutCalculator.LayoutResult?
-    ) -> SemanticString {
+    ) async -> SemanticString {
         var isTypeLayoutPrinted = false
 
         if !mangledTypeName.isEmpty,
@@ -112,12 +169,14 @@ extension FieldLayoutRenderer where MachO == MachOFile {
 
     // MARK: - Enum layout (static)
 
-    var fileEnumLayout: EnumLayoutCalculator.LayoutResult? {
-        guard configuration.printEnumLayout,
-              let enumValue,
-              !enumValue.descriptor.isGeneric,
-              let provider = configuration.staticFieldLayoutProvider else { return nil }
-        return try? computeStaticEnumLayout(enumValue, provider: provider)
+    var enumLayout: EnumLayoutCalculator.LayoutResult? {
+        get async {
+            guard configuration.printEnumLayout,
+                  let enumValue,
+                  !enumValue.descriptor.isGeneric,
+                  let provider = configuration.staticFieldLayoutProvider else { return nil }
+            return try? computeStaticEnumLayout(enumValue, provider: provider)
+        }
     }
 
     private func computeStaticEnumLayout(_ enumValue: Enum, provider: any StaticFieldLayoutProvider) throws -> EnumLayoutCalculator.LayoutResult? {
@@ -146,7 +205,7 @@ extension FieldLayoutRenderer where MachO == MachOFile {
     }
 
     @SemanticStringBuilder
-    func fileEnumPrefixComments(enumLayout: EnumLayoutCalculator.LayoutResult?) -> SemanticString {
+    func enumPrefixComments(enumLayout: EnumLayoutCalculator.LayoutResult?) async -> SemanticString {
         if configuration.printEnumLayout, let enumLayout {
             BreakLine()
             configuration.enumLayoutComment(layoutResult: enumLayout)

@@ -10,7 +10,7 @@ import Dependencies
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 
-package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
+package struct EnumDumper<MachO: FieldLayoutRenderable>: TypedDumper {
     package typealias Dumped = Enum
 
     package typealias Metadata = EnumMetadata

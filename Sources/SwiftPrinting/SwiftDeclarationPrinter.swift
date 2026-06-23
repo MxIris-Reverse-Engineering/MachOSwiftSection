@@ -15,7 +15,7 @@ import Utilities
 @_spi(Internals) import SwiftInspection
 
 @_spi(Support)
-public final class SwiftDeclarationPrinter<MachO: MachOSwiftSectionRepresentableWithCache>: Sendable {
+public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendable {
     public let machO: MachO
 
     @Mutex
@@ -50,9 +50,10 @@ public final class SwiftDeclarationPrinter<MachO: MachOSwiftSectionRepresentable
         }
         let configuration = self.configuration
         let provider: (any StaticFieldLayoutProvider)?
-        if let machOFile = machO as? MachOFile,
-           configuration.printFieldOffset || configuration.printTypeLayout || configuration.printEnumLayout || configuration.printExpandedFieldOffsets {
-            provider = MachOFileStaticFieldLayoutProvider(machOFile: machOFile, resolution: configuration.staticLayoutDependencyResolution)
+        if configuration.printFieldOffset || configuration.printTypeLayout || configuration.printEnumLayout || configuration.printExpandedFieldOffsets {
+            // Reader-type-dispatched (no runtime cast): only `MachOFile` builds a
+            // provider; `MachOImage` returns nil.
+            provider = MachO.makeStaticFieldLayoutProvider(machO: machO, resolution: configuration.staticLayoutDependencyResolution)
         } else {
             provider = nil
         }

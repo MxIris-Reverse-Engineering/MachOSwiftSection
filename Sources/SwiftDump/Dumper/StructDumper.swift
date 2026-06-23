@@ -9,7 +9,7 @@ import Demangling
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 
-package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
+package struct StructDumper<MachO: FieldLayoutRenderable>: TypedDumper {
     package typealias Dumped = Struct
 
     package typealias Metadata = StructMetadata

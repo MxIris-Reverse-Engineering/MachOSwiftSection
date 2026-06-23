@@ -14,51 +14,87 @@ import Utilities
 /// implementation (single source of truth).
 package let nestedFieldOffsetExpansionDepthLimit = 16
 
-/// Shared renderer for the *metadata-derived* field comments of a nominal type —
-/// `// Field offset:`, `// Type Layout:`, the expanded nested-field-offset tree,
-/// and the enum `Enum Layout` / spare-bit comments. The logic was lifted out of
-/// `SwiftDump`'s `StructDumper` / `ClassDumper` / `EnumDumper` so the
-/// model-driven `SwiftDeclarationPrinter` can emit the same comments without
+/// The reader-independent state a `FieldLayoutRenderer` carries, passed to the
+/// reader-specialized rendering witnesses (see `FieldLayoutRenderable`).
+///
+/// It exists so those static witnesses can take the renderer's state *without*
+/// naming `FieldLayoutRenderer<Self>` — a `Self` nested in a generic type is not
+/// allowed in a protocol requirement satisfied by a non-final class (and
+/// `MachOFile` / `MachOImage` are non-final). The reader itself is passed
+/// separately as `machO: Self` (a plain parameter position, which *is* allowed).
+public struct FieldLayoutRenderState {
+    public let type: TypeContextWrapper
+    public let metadata: MetadataWrapper?
+    public let configuration: DeclarationRenderConfiguration
+    public let isGeneric: Bool
+    public let staticAggregateFieldLayout: AggregateFieldLayout?
+
+    /// The dumped type as an `Enum`, or `nil` for struct/class.
+    public var enumValue: Enum? {
+        if case .enum(let enumType) = type { return enumType }
+        return nil
+    }
+}
+
+/// A Mach-O reader that knows how to render a nominal type's metadata-derived
+/// field comments — `// Field offset:`, `// Type Layout:`, the expanded
+/// nested-offset tree, and the enum `Enum Layout` / spare-bit comments.
+///
+/// The reader **type** selects the rendering strategy at compile time (no
+/// runtime `as?`): `MachOImage` renders from in-process runtime metadata, while
+/// `MachOFile` renders statically through the `SwiftLayout` engine. The generic
+/// `FieldLayoutRenderer<MachO>` is a thin facade that forwards each entry point
+/// to the matching `MachO.render…` witness; the actual logic lives in the
+/// internal `RuntimeFieldLayoutBackend` / `StaticFieldLayoutBackend`.
+///
+/// Only `MachOFile` and `MachOImage` conform (in `SwiftDeclarationRendering`).
+/// These witnesses are an implementation detail surfaced only so the type system
+/// can pick the backend — callers use `FieldLayoutRenderer`, never them.
+public protocol FieldLayoutRenderable: MachOSwiftSectionRepresentableWithCache {
+    /// Builds the static (offline) field-layout provider for this reader, or
+    /// `nil` for the in-process (`MachOImage`) path. Lets a session root pick a
+    /// provider by reader type at compile time, without a runtime cast.
+    static func makeStaticFieldLayoutProvider(machO: Self, resolution: StaticLayoutDependencyResolution) -> (any StaticFieldLayoutProvider)?
+
+    /// Precompute (once per type, at renderer init) the static aggregate layout
+    /// the offline path reads field offsets / type layouts from. `nil` for the
+    /// runtime path or when no static provider was injected.
+    static func precomputedStaticAggregateFieldLayout(for type: TypeContextWrapper, machO: Self, configuration: DeclarationRenderConfiguration) -> AggregateFieldLayout?
+
+    static func renderFieldOffsets(_ state: FieldLayoutRenderState, machO: Self) -> [Int]?
+
+    static func renderStoredFieldComments(_ state: FieldLayoutRenderState, machO: Self, forFieldAtIndex index: Int, mangledTypeName: MangledName, fieldOffsets: [Int]?) async -> SemanticString
+
+    static func renderEnumLayout(_ state: FieldLayoutRenderState, machO: Self) async -> EnumLayoutCalculator.LayoutResult?
+
+    static func renderEnumPrefixComments(_ state: FieldLayoutRenderState, machO: Self, enumLayout: EnumLayoutCalculator.LayoutResult?) async -> SemanticString
+
+    static func renderEnumCaseComments(_ state: FieldLayoutRenderState, machO: Self, forCaseAtIndex index: Int, mangledTypeName: MangledName, enumLayout: EnumLayoutCalculator.LayoutResult?) async -> SemanticString
+}
+
+/// Shared renderer for the *metadata-derived* field comments of a nominal type.
+/// Lifted out of `SwiftDump`'s `StructDumper` / `ClassDumper` / `EnumDumper` so
+/// the model-driven `SwiftDeclarationPrinter` can emit the same comments without
 /// depending on `SwiftDump` — both now route through this type.
 ///
-/// It deliberately avoids the generic `Metadata` parameter the dumpers carry:
-/// the field-offset vector is read from the supplied (already-typed) metadata
-/// wrapper, and per-field metatype resolution is parameterised by the type's
-/// generic-ness + the optional specialized metadata, so a single concrete type
-/// serves struct, class, value, and class-metadata callers alike.
-///
-/// # Reader specialization
-///
-/// The actual computation is split by Mach-O reader (this generic type is a thin
-/// dispatching facade):
-///
-/// - **`MachOImage`** (in-process, e.g. RuntimeViewer) — the *runtime* path:
-///   materializes metadata in-process (`StructMetadata.createInProcess`,
-///   value-witness tables, `RuntimeFunctions.getTypeByMangledNameInContext`).
-///   See `FieldLayoutRenderer+MachOImage.swift`.
-/// - **`MachOFile`** (offline dump / interface) — the *static* path: computes
-///   field offsets / type layouts / the expanded tree / enum layouts from the
-///   binary via the `SwiftLayout` engine, never loading the process. Backed by an
-///   injected `StaticFieldLayoutProvider`. See `FieldLayoutRenderer+MachOFile.swift`.
-///
-/// Each public entry point below dispatches to the matching reader-specialized
-/// implementation; with no provider (and no in-process metadata) the static path
-/// simply emits nothing, exactly as before SwiftLayout was wired in.
-package struct FieldLayoutRenderer<MachO: MachOSwiftSectionRepresentableWithCache> {
+/// This generic value is a thin facade: each entry point forwards to the
+/// reader-specialized backend selected at compile time by the `MachO`
+/// conformance to `FieldLayoutRenderable`.
+package struct FieldLayoutRenderer<MachO: FieldLayoutRenderable> {
     package let type: TypeContextWrapper
     package let metadata: MetadataWrapper?
     package let machO: MachO
     package let configuration: DeclarationRenderConfiguration
 
     /// Whether the *dumped* type is generic. Drives the substitution policy in
-    /// the MachOImage path's `resolveFieldMetatype` — generic types substitute
+    /// the runtime path's `resolveFieldMetatype` — generic types substitute
     /// against `metadata`, non-generic types resolve the bare mangled name.
     package let isGeneric: Bool
 
-    /// Precomputed once per type for the MachOFile static path: the field offsets
-    /// plus each field type's own layout from `SwiftLayout`. `nil` for the
-    /// MachOImage (runtime) path, for enums (no field-offset vector), or when no
-    /// static provider was injected.
+    /// Precomputed once per type for the static (`MachOFile`) path: the field
+    /// offsets plus each field type's own layout from `SwiftLayout`. `nil` for
+    /// the runtime (`MachOImage`) path, for enums (no field-offset vector), or
+    /// when no static provider was injected.
     package let staticAggregateFieldLayout: AggregateFieldLayout?
 
     /// - Parameters:
@@ -95,7 +131,7 @@ package struct FieldLayoutRenderer<MachO: MachOSwiftSectionRepresentableWithCach
             self.metadata = try? FieldLayoutRenderer.resolveAccessorMetadata(for: type, in: machO)
         }
 
-        self.staticAggregateFieldLayout = FieldLayoutRenderer.precomputeStaticAggregateFieldLayout(for: type, machO: machO, configuration: configuration)
+        self.staticAggregateFieldLayout = MachO.precomputedStaticAggregateFieldLayout(for: type, machO: machO, configuration: configuration)
     }
 
     private static func resolveAccessorMetadata(for type: TypeContextWrapper, in machO: MachO) throws -> MetadataWrapper? {
@@ -109,107 +145,36 @@ package struct FieldLayoutRenderer<MachO: MachOSwiftSectionRepresentableWithCach
         }
     }
 
-    /// Computes the static aggregate layout once per type for the MachOFile path.
-    /// Only runs for a `MachOFile`, when a layout-bearing flag is on, and when a
-    /// provider was injected; enums (which carry no field-offset vector) are
-    /// skipped — their layout is computed lazily by the enum path instead.
-    private static func precomputeStaticAggregateFieldLayout(for type: TypeContextWrapper, machO: MachO, configuration: DeclarationRenderConfiguration) -> AggregateFieldLayout? {
-        guard machO is MachOFile,
-              configuration.printFieldOffset || configuration.printTypeLayout || configuration.printExpandedFieldOffsets,
-              let provider = configuration.staticFieldLayoutProvider else {
-            return nil
-        }
-        let descriptorWrapper: TypeContextDescriptorWrapper
-        switch type {
-        case .struct(let structType):
-            descriptorWrapper = .struct(structType.descriptor)
-        case .class(let classType):
-            descriptorWrapper = .class(classType.descriptor)
-        case .enum:
-            return nil
-        }
-        return provider.aggregateFieldLayout(forDescriptor: descriptorWrapper)
-    }
-
-    /// The dumped type as an `Enum`, or `nil` for struct/class. Shared by both
-    /// reader-specialized enum implementations.
+    /// The dumped type as an `Enum`, or `nil` for struct/class.
     package var enumValue: Enum? {
         if case .enum(let enumType) = type { return enumType }
         return nil
     }
 
-    // MARK: - Reader-dispatched entry points
+    /// The reader-independent state handed to the rendering witnesses.
+    private var renderState: FieldLayoutRenderState {
+        FieldLayoutRenderState(type: type, metadata: metadata, configuration: configuration, isGeneric: isGeneric, staticAggregateFieldLayout: staticAggregateFieldLayout)
+    }
 
-    /// The resolved field-offset vector for a struct or class, or `nil` when
-    /// offsets are disabled, unavailable, or the type is not a stored-field
-    /// aggregate. Dispatches to the runtime (MachOImage) or static (MachOFile)
-    /// implementation.
+    // MARK: - Compile-time-dispatched entry points (forward to the reader's backend)
+
     package var fieldOffsets: [Int]? {
-        if let imageRenderer = self as? FieldLayoutRenderer<MachOImage> {
-            return imageRenderer.runtimeFieldOffsets
-        }
-        if let fileRenderer = self as? FieldLayoutRenderer<MachOFile> {
-            return fileRenderer.staticFieldOffsets
-        }
-        return nil
+        MachO.renderFieldOffsets(renderState, machO: machO)
     }
 
-    /// Renders the comment block that precedes a single stored field of a struct
-    /// or class — the `// Field offset:` line (with end offset), the expanded
-    /// nested-offset tree, and the `// Type Layout:` block. `fieldOffsets` is
-    /// passed in so the caller computes it once per type.
-    @SemanticStringBuilder
-    package func storedFieldComments(
-        forFieldAtIndex index: Int,
-        mangledTypeName: MangledName,
-        fieldOffsets: [Int]?
-    ) async -> SemanticString {
-        if let imageRenderer = self as? FieldLayoutRenderer<MachOImage> {
-            await imageRenderer.imageStoredFieldComments(forFieldAtIndex: index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
-        } else if let fileRenderer = self as? FieldLayoutRenderer<MachOFile> {
-            fileRenderer.fileStoredFieldComments(forFieldAtIndex: index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
-        }
+    package func storedFieldComments(forFieldAtIndex index: Int, mangledTypeName: MangledName, fieldOffsets: [Int]?) async -> SemanticString {
+        await MachO.renderStoredFieldComments(renderState, machO: machO, forFieldAtIndex: index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
     }
 
-    /// Renders the comment block that precedes a single enum case — the
-    /// `// Type Layout:` block for the case's payload, then (when an `enumLayout`
-    /// projection is supplied) the per-case `Enum Layout` comment.
-    @SemanticStringBuilder
-    package func enumCaseComments(
-        forCaseAtIndex index: Int,
-        mangledTypeName: MangledName,
-        enumLayout: EnumLayoutCalculator.LayoutResult?
-    ) async -> SemanticString {
-        if let imageRenderer = self as? FieldLayoutRenderer<MachOImage> {
-            await imageRenderer.imageEnumCaseComments(forCaseAtIndex: index, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
-        } else if let fileRenderer = self as? FieldLayoutRenderer<MachOFile> {
-            fileRenderer.fileEnumCaseComments(forCaseAtIndex: index, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
-        }
-    }
-
-    /// Computes the enum's layout strategy projection, or `nil` when layout
-    /// printing is disabled, the type is generic, or the enum is neither single-
-    /// nor multi-payload.
     package var enumLayout: EnumLayoutCalculator.LayoutResult? {
-        get async {
-            if let imageRenderer = self as? FieldLayoutRenderer<MachOImage> {
-                return await imageRenderer.imageEnumLayout
-            }
-            if let fileRenderer = self as? FieldLayoutRenderer<MachOFile> {
-                return fileRenderer.fileEnumLayout
-            }
-            return nil
-        }
+        get async { await MachO.renderEnumLayout(renderState, machO: machO) }
     }
 
-    /// Type-level enum comments emitted once before the case list: the
-    /// `Enum Layout` strategy line and the spare-bit summary.
-    @SemanticStringBuilder
     package func enumPrefixComments(enumLayout: EnumLayoutCalculator.LayoutResult?) async -> SemanticString {
-        if let imageRenderer = self as? FieldLayoutRenderer<MachOImage> {
-            await imageRenderer.imageEnumPrefixComments(enumLayout: enumLayout)
-        } else if let fileRenderer = self as? FieldLayoutRenderer<MachOFile> {
-            fileRenderer.fileEnumPrefixComments(enumLayout: enumLayout)
-        }
+        await MachO.renderEnumPrefixComments(renderState, machO: machO, enumLayout: enumLayout)
+    }
+
+    package func enumCaseComments(forCaseAtIndex index: Int, mangledTypeName: MangledName, enumLayout: EnumLayoutCalculator.LayoutResult?) async -> SemanticString {
+        await MachO.renderEnumCaseComments(renderState, machO: machO, forCaseAtIndex: index, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
     }
 }

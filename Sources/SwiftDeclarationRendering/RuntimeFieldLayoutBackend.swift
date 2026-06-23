@@ -3,18 +3,66 @@ import Semantic
 import Demangling
 import MachOKit
 import MachOSwiftSection
+import SwiftLayout
 import Utilities
 @_spi(Internals) import SwiftInspection
 
-/// The **runtime** (in-process) `FieldLayoutRenderer` implementation, used when
-/// the Mach-O reader is a `MachOImage`. It materializes metadata in-process —
-/// `StructMetadata.createInProcess`, value-witness tables, and
-/// `RuntimeFunctions.getTypeByMangledNameInContext` — so it works only for an
-/// image loaded into the running process (e.g. RuntimeViewer). Behaviour is the
-/// pre-split implementation, verbatim; only the public entry points are renamed
-/// so the generic facade can dispatch to them. The offline counterpart lives in
-/// `FieldLayoutRenderer+MachOFile.swift`.
-extension FieldLayoutRenderer where MachO == MachOImage {
+/// `MachOImage` renders field comments from **in-process runtime metadata**.
+extension MachOImage: FieldLayoutRenderable {
+    public static func makeStaticFieldLayoutProvider(machO: MachOImage, resolution: StaticLayoutDependencyResolution) -> (any StaticFieldLayoutProvider)? {
+        // The in-process path renders from runtime metadata, not SwiftLayout.
+        nil
+    }
+
+    public static func precomputedStaticAggregateFieldLayout(for type: TypeContextWrapper, machO: MachOImage, configuration: DeclarationRenderConfiguration) -> AggregateFieldLayout? {
+        // The runtime path reads offsets from materialized metadata, not from a
+        // statically-precomputed aggregate.
+        nil
+    }
+
+    public static func renderFieldOffsets(_ state: FieldLayoutRenderState, machO: MachOImage) -> [Int]? {
+        RuntimeFieldLayoutBackend(state, machO: machO).fieldOffsets
+    }
+
+    public static func renderStoredFieldComments(_ state: FieldLayoutRenderState, machO: MachOImage, forFieldAtIndex index: Int, mangledTypeName: MangledName, fieldOffsets: [Int]?) async -> SemanticString {
+        await RuntimeFieldLayoutBackend(state, machO: machO).storedFieldComments(forFieldAtIndex: index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
+    }
+
+    public static func renderEnumLayout(_ state: FieldLayoutRenderState, machO: MachOImage) async -> EnumLayoutCalculator.LayoutResult? {
+        await RuntimeFieldLayoutBackend(state, machO: machO).enumLayout
+    }
+
+    public static func renderEnumPrefixComments(_ state: FieldLayoutRenderState, machO: MachOImage, enumLayout: EnumLayoutCalculator.LayoutResult?) async -> SemanticString {
+        await RuntimeFieldLayoutBackend(state, machO: machO).enumPrefixComments(enumLayout: enumLayout)
+    }
+
+    public static func renderEnumCaseComments(_ state: FieldLayoutRenderState, machO: MachOImage, forCaseAtIndex index: Int, mangledTypeName: MangledName, enumLayout: EnumLayoutCalculator.LayoutResult?) async -> SemanticString {
+        await RuntimeFieldLayoutBackend(state, machO: machO).enumCaseComments(forCaseAtIndex: index, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
+    }
+}
+
+/// The **runtime** (in-process) backend, used when the Mach-O reader is a
+/// `MachOImage`. It materializes metadata in-process — `StructMetadata.createInProcess`,
+/// value-witness tables, and `RuntimeFunctions.getTypeByMangledNameInContext` —
+/// so it works only for an image loaded into the running process (e.g.
+/// RuntimeViewer). Behaviour is the pre-split implementation, verbatim; the
+/// convenience forwarders below let the method bodies reference `machO` /
+/// `metadata` / `type` / `configuration` / `isGeneric` / `enumValue` unchanged.
+struct RuntimeFieldLayoutBackend {
+    let state: FieldLayoutRenderState
+    let machO: MachOImage
+
+    init(_ state: FieldLayoutRenderState, machO: MachOImage) {
+        self.state = state
+        self.machO = machO
+    }
+
+    private var type: TypeContextWrapper { state.type }
+    private var metadata: MetadataWrapper? { state.metadata }
+    private var configuration: DeclarationRenderConfiguration { state.configuration }
+    private var isGeneric: Bool { state.isGeneric }
+    private var enumValue: Enum? { state.enumValue }
+
     /// `MachOContext` for non-generic types, `InProcessContext.shared` for
     /// specialized generic metadata — mirrors `TypeContextWrapper.dumper`'s
     /// reading-context selection so `fieldOffsets(for:in:)` reads from the
@@ -28,7 +76,7 @@ extension FieldLayoutRenderer where MachO == MachOImage {
     /// The resolved field-offset vector for a struct or class, or `nil` when
     /// offsets are disabled, no metadata is available, or the type is not a
     /// stored-field aggregate.
-    var runtimeFieldOffsets: [Int]? {
+    var fieldOffsets: [Int]? {
         guard configuration.printFieldOffset, let metadata else { return nil }
         switch type {
         case .struct(let structType):
@@ -43,7 +91,7 @@ extension FieldLayoutRenderer where MachO == MachOImage {
     }
 
     @SemanticStringBuilder
-    func imageStoredFieldComments(
+    func storedFieldComments(
         forFieldAtIndex index: Int,
         mangledTypeName: MangledName,
         fieldOffsets: [Int]?
@@ -52,8 +100,7 @@ extension FieldLayoutRenderer where MachO == MachOImage {
             let endOffset: Int?
             if let nextFieldOffset = fieldOffsets[safe: index + 1] {
                 endOffset = nextFieldOffset
-            } else if let machOImage = machO.asMachOImage,
-                      let metatype = resolveFieldMetatype(for: mangledTypeName, in: machOImage),
+            } else if let metatype = resolveFieldMetatype(for: mangledTypeName, in: machO),
                       let typeLayout = try? StructMetadata.createInProcess(metatype).asMetadataWrapper().valueWitnessTable().typeLayout {
                 endOffset = startOffset + Int(typeLayout.size)
             } else {
@@ -61,14 +108,13 @@ extension FieldLayoutRenderer where MachO == MachOImage {
             }
             configuration.fieldOffsetComment(startOffset: startOffset, endOffset: endOffset)
 
-            if configuration.printExpandedFieldOffsets, let machOImage = machO.asMachOImage {
-                expandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset, baseIndentation: configuration.indentation, ancestors: [], in: machOImage)
+            if configuration.printExpandedFieldOffsets {
+                expandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset, baseIndentation: configuration.indentation, ancestors: [], in: machO)
             }
         }
 
         if configuration.printTypeLayout,
-           let machOImage = machO.asMachOImage,
-           let resolvedMetatype = resolveFieldMetatype(for: mangledTypeName, in: machOImage),
+           let resolvedMetatype = resolveFieldMetatype(for: mangledTypeName, in: machO),
            let resolvedMetadata = try? StructMetadata.createInProcess(resolvedMetatype) {
             try? await resolvedMetadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
         }
@@ -77,7 +123,7 @@ extension FieldLayoutRenderer where MachO == MachOImage {
     // MARK: - Enum cases
 
     @SemanticStringBuilder
-    func imageEnumCaseComments(
+    func enumCaseComments(
         forCaseAtIndex index: Int,
         mangledTypeName: MangledName,
         enumLayout: EnumLayoutCalculator.LayoutResult?
@@ -86,8 +132,7 @@ extension FieldLayoutRenderer where MachO == MachOImage {
 
         if !mangledTypeName.isEmpty,
            configuration.printTypeLayout,
-           let machOImage = machO.asMachOImage,
-           let resolvedMetatype = resolveFieldMetatype(for: mangledTypeName, in: machOImage),
+           let resolvedMetatype = resolveFieldMetatype(for: mangledTypeName, in: machO),
            let resolvedMetadata = try? StructMetadata.createInProcess(resolvedMetatype) {
             try? await resolvedMetadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
             isTypeLayoutPrinted = true
@@ -480,13 +525,12 @@ extension FieldLayoutRenderer where MachO == MachOImage {
         try? metadata?.valueWitnessTable(in: machO).typeLayout
     }
 
-    var imageEnumLayout: EnumLayoutCalculator.LayoutResult? {
+    var enumLayout: EnumLayoutCalculator.LayoutResult? {
         get async {
             guard configuration.printEnumLayout,
                   let enumValue,
-                  !enumValue.descriptor.isGeneric,
-                  let machOImage = machO.asMachOImage else { return nil }
-            return try? await computeEnumLayout(enumValue, in: machOImage)
+                  !enumValue.descriptor.isGeneric else { return nil }
+            return try? await computeEnumLayout(enumValue, in: machO)
         }
     }
 
@@ -512,7 +556,7 @@ extension FieldLayoutRenderer where MachO == MachOImage {
     }
 
     @SemanticStringBuilder
-    func imageEnumPrefixComments(enumLayout: EnumLayoutCalculator.LayoutResult?) async -> SemanticString {
+    func enumPrefixComments(enumLayout: EnumLayoutCalculator.LayoutResult?) async -> SemanticString {
         if configuration.printEnumLayout, let enumLayout {
             BreakLine()
             configuration.enumLayoutComment(layoutResult: enumLayout)
@@ -520,8 +564,7 @@ extension FieldLayoutRenderer where MachO == MachOImage {
 
         if configuration.printSpareBitAnalysis,
            let enumValue, !enumValue.descriptor.isGeneric, enumValue.isMultiPayload,
-           let machOImage = machO.asMachOImage,
-           let analysis = spareBitAnalysis(for: enumValue, in: machOImage) {
+           let analysis = spareBitAnalysis(for: enumValue, in: machO) {
             BreakLine()
             configuration.spareBitAnalysisComment(analysis: analysis)
         }

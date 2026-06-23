@@ -8,11 +8,11 @@ import SwiftDeclarationRendering
 import OrderedCollections
 
 extension MachOSwiftSection.`Protocol`: NamedDumpable {
-    public func dumpName<MachO: MachOSwiftSectionRepresentableWithCache>(using configuration: DumperConfiguration, in machO: MachO) async throws -> SemanticString {
+    public func dumpName<MachO: FieldLayoutRenderable>(using configuration: DumperConfiguration, in machO: MachO) async throws -> SemanticString {
         try await ProtocolDumper(self, using: configuration, in: machO).name
     }
 
-    public func dump<MachO: MachOSwiftSectionRepresentableWithCache>(using configuration: DumperConfiguration, in machO: MachO) async throws -> SemanticString {
+    public func dump<MachO: FieldLayoutRenderable>(using configuration: DumperConfiguration, in machO: MachO) async throws -> SemanticString {
         try await ProtocolDumper(self, using: configuration, in: machO).body
     }
 }

@@ -9,7 +9,7 @@ import OrderedCollections
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 
-package struct ClassDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
+package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
     package typealias Dumped = Class
 
     package typealias Metadata = ClassMetadataObjCInterop

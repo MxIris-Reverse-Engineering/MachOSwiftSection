@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import SwiftDeclarationRendering
 import Demangling
 @testable import MachOTestingSupport
 import MachOFixtureSupport
@@ -11,7 +12,7 @@ import MachOSwiftSection
 protocol OpaqueTypeTests {}
 
 extension OpaqueTypeTests {
-    func opaqueTypes<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
+    func opaqueTypes<MachO: FieldLayoutRenderable>(in machO: MachO) async throws {
         let symbols = SymbolIndexStore.shared.symbols(of: .opaqueTypeDescriptor, in: machO)
         for symbol in symbols {
             guard symbol.offset > 0 else { continue }
