@@ -19,26 +19,45 @@ Type Layout / expanded 树 / Enum Layout **全部为空**。
 
 ## 设计
 
-### 1. 泛型 facade + 两套特化实现（分派）
+### 1. 泛型 facade + 两套特化实现（**编译期** witness 分派，零运行时 `as?`）
 
 `FieldLayoutRenderer<MachO>` 仍是调用方看到的泛型类型，但退化为**瘦分派 facade**：保留存储属性、
 `init`、`enumValue`，以及 6 个调用方入口（`fieldOffsets`、`storedFieldComments`、`enumLayout`、
-`enumPrefixComments`、`enumCaseComments`）。每个入口按具体 reader 分派：
+`enumPrefixComments`、`enumCaseComments`）。分派**不在运行时判断 reader 类型**，而是由类型系统在编译期选定：
 
 ```swift
-if let imageRenderer = self as? FieldLayoutRenderer<MachOImage> { imageRenderer.<image impl> }
-else if let fileRenderer = self as? FieldLayoutRenderer<MachOFile> { fileRenderer.<file impl> }
+public protocol FieldLayoutRenderable: MachOSwiftSectionRepresentableWithCache {
+    static func renderFieldOffsets(_ state: FieldLayoutRenderState, machO: Self) -> [Int]?
+    // storedFieldComments / enumLayout / enumPrefixComments / enumCaseComments
+    // + makeStaticFieldLayoutProvider / precomputedStaticAggregateFieldLayout
+}
+package struct FieldLayoutRenderer<MachO: FieldLayoutRenderable> {
+    package var fieldOffsets: [Int]? { MachO.renderFieldOffsets(renderState, machO: machO) }  // 无 as?
+}
 ```
 
-之所以能 `self as?` 到具体泛型实例化：只有 `MachOFile` / `MachOImage` 两种类型 conform
-`MachOSwiftSectionRepresentableWithCache`，两分支即穷尽；值类型对具体泛型实例化的条件下转在运行期可用。
-调用方全是泛型（`SwiftDeclarationPrinter<MachO>` / 各 dumper），无法直接调用 `where MachO == X`
-约束扩展里的方法，故必须经 facade 分派 —— 这也保持了 6 个入口的签名不变、调用点零改动。
+每个入口转发到 `MachO.render…` 的协议 witness；对具体实例化（如 CLI 的 `FieldLayoutRenderer<MachOFile>`）
+编译器单态化为静态直调。`MachOFile`/`MachOImage` 各自 conform 提供两套实现。
 
-- `FieldLayoutRenderer+MachOImage.swift`（`extension … where MachO == MachOImage`）：原运行期实现整体移入，
-  仅把 4 个入口改名为 image 专用名（`runtimeFieldOffsets`、`imageStoredFieldComments`、`imageEnumLayout`、
-  `imageEnumPrefixComments`、`imageEnumCaseComments`）。**行为零改动**（含 PAC-fault-avoiding 的泛型实参静态替换）。
-- `FieldLayoutRenderer+MachOFile.swift`（`extension … where MachO == MachOFile`）：新的 SwiftLayout 静态实现。
+**两个 non-final-class 约束（关键设计）**：`MachOFile`/`MachOImage` 是 MachOKit 的 non-final class，
+协议 witness 里 `Self` 不能嵌套在泛型类型中（`FieldLayoutRenderer<Self>` 非法）。故 witness 用
+`machO: Self`（**参数位置**，合法）+ 一个**非泛型** public `FieldLayoutRenderState`（打包 type/metadata/
+configuration/isGeneric/staticAggregateFieldLayout，不含 `Self`）传递 renderer 状态，绕开该限制；
+`FieldLayoutRenderer` 因此无需 public，仍是 `package`。
+
+- `RuntimeFieldLayoutBackend.swift`（`struct`，持 `state + machO: MachOImage`）：原运行期实现整体移入，
+  入口改名匹配协议；便利转发器（`type`/`metadata`/`configuration`/…）使方法体几乎零改动（含 PAC-fault-avoiding
+  的泛型实参静态替换）。`extension MachOImage: FieldLayoutRenderable` 薄转发到它。**行为零改动。**
+- `StaticFieldLayoutBackend.swift`（`struct`，持 `state + machO: MachOFile`）：SwiftLayout 静态实现，
+  `extension MachOFile: FieldLayoutRenderable` 薄转发。
+
+**约束传染**：`FieldLayoutRenderable` refine `MachOSwiftSectionRepresentableWithCache`，沿构造 renderer 的整条
+泛型链机械传染——`Dumpable`/`NamedDumpable`/`ConformedDumpable`/`Dumper` 协议要求、`Struct/Class/Enum` dumper、
+`SwiftDeclarationPrinter`、`SwiftInterfaceBuilder`/`SwiftDiffableInterfaceBuilder` 及 dump/interface 测试辅助。
+只有 `MachOFile`/`MachOImage` conform，故所有真实调用方不受影响（interface 快照无变化）。
+
+> 早期曾用运行时 `self as? FieldLayoutRenderer<MachOImage>/<MachOFile>` 分派；现已全面改为上述编译期 witness，
+> 渲染路径零运行时类型转换（printer 选 provider、init 预算 aggregate 也都走 witness）。
 
 ### 2. 注入 seam：`StaticFieldLayoutProvider`（建一次，注一次）
 
