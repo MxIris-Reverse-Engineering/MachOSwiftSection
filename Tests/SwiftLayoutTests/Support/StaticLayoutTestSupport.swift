@@ -5,6 +5,7 @@ import MachOFoundation
 @testable import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 @testable import SwiftLayout
+import Demangling
 
 /// Shared helpers for the SwiftLayout fixture suites. Factored out of
 /// `DependencyClosureLayoutTests` so the dependency-closure and ObjC-ancestor
@@ -32,6 +33,64 @@ func fieldLayout<MachO: MachOSwiftSectionRepresentableWithCache>(
     }
     Issue.record("type \(qualifiedTypeName) not found in fixture", sourceLocation: sourceLocation)
     throw LayoutResolutionError.unknown(.typeDescriptorNotFound(qualifiedTypeName: qualifiedTypeName))
+}
+
+/// Finds a *generic* struct/class type in `machO` by its fully-qualified
+/// (generic-argument-free) name and returns the statically-computed field
+/// layout for a concrete instantiation, substituting the depth-0 parameters
+/// with `genericArguments` (`.type`-wrapped type nodes, declaration order).
+func fieldLayout<MachO: MachOSwiftSectionRepresentableWithCache>(
+    ofGenericQualifiedTypeName qualifiedTypeName: String,
+    genericArguments: [Node],
+    with calculator: StaticLayoutCalculator<MachO>,
+    in machO: MachO,
+    sourceLocation: SourceLocation = #_sourceLocation
+) throws -> AggregateFieldLayout {
+    for contextDescriptor in try machO.swift.contextDescriptors {
+        guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
+        guard descriptor.isStruct || descriptor.isClass else { continue }
+        guard
+            let name = (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+                .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
+            name == qualifiedTypeName
+        else { continue }
+        return try calculator.fieldLayout(of: descriptor, genericArguments: genericArguments)
+    }
+    Issue.record("generic type \(qualifiedTypeName) not found in fixture", sourceLocation: sourceLocation)
+    throw LayoutResolutionError.unknown(.typeDescriptorNotFound(qualifiedTypeName: qualifiedTypeName))
+}
+
+/// The runtime field-offset vector of a concrete generic instantiation,
+/// obtained by materializing its *specialized* metadata through the accessor
+/// with `argumentMetatype` as the single depth-0 generic argument (no protocol
+/// witness tables — the helper covers requirement-free generics only). This is
+/// the independent ground truth the top-level static instantiation path is
+/// checked against. `nil` for types with no field-offset vector.
+func runtimeFieldOffsets(
+    ofGenericQualifiedTypeName qualifiedTypeName: String,
+    argumentMetatype: Any.Type,
+    in machO: MachOImage
+) throws -> [Int]? {
+    for contextDescriptor in try machO.swift.contextDescriptors {
+        guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
+        guard
+            let name = (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+                .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
+            name == qualifiedTypeName,
+            let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO)
+        else { continue }
+        let response = try accessor(request: .init(), metatypes: argumentMetatype)
+        let metadata = try response.value.resolve(in: machO)
+        switch metadata {
+        case .struct(let structMetadata):
+            return try structMetadata.fieldOffsets(in: machO).map { Int($0) }
+        case .class(let classMetadata):
+            return try classMetadata.fieldOffsets(in: machO).map { Int($0) }
+        default:
+            return nil
+        }
+    }
+    return nil
 }
 
 /// The runtime field-offset vector of a type, obtained by materializing its

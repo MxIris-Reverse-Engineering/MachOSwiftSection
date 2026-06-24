@@ -1,5 +1,6 @@
 import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
+import Demangling
 
 /// The public entry point: computes Swift struct/class stored-property field
 /// offsets statically from a Mach-O file, without loading the process or
@@ -30,14 +31,53 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
     /// Computes the per-field layout of a struct or class type. Enums (which
     /// have no stored-property field-offset vector) return an empty field list.
     public func fieldLayout(of typeDescriptor: TypeContextDescriptorWrapper) throws -> AggregateFieldLayout {
-        if let structDescriptor = typeDescriptor.struct {
-            return try fieldLayout(ofStruct: structDescriptor, in: imageUniverse.rootImage)
+        try fieldLayout(of: typeDescriptor, in: imageUniverse.rootImage, environment: .empty)
+    }
+
+    /// Computes the per-field layout of a *concrete generic instantiation* of
+    /// `typeDescriptor` (e.g. `Foo<Int>`), substituting the type's depth-0
+    /// generic parameters with `genericArguments`.
+    ///
+    /// `genericArguments` are the concrete type arguments as demangled,
+    /// `.type`-wrapped `Node`s, in declaration order. Arguments that cannot be
+    /// modelled statically (value / pack arguments, or a count that does not
+    /// cover a referenced parameter) degrade the dependent fields to `.unknown`
+    /// rather than yield a wrong offset — matching the engine's per-field
+    /// degradation. An enum descriptor reports no fields (enums carry no
+    /// field-offset vector); use `typeLayout(...)` for an enum's whole-type
+    /// size.
+    public func fieldLayout(
+        of typeDescriptor: TypeContextDescriptorWrapper,
+        genericArguments: [Node]
+    ) throws -> AggregateFieldLayout {
+        let environment = GenericArgumentEnvironment.make(forDepthZeroTypeArguments: genericArguments)
+        return try fieldLayout(of: typeDescriptor, in: imageUniverse.rootImage, environment: environment)
+    }
+
+    /// Computes the per-field layout of a concrete generic instantiation given
+    /// its bound-generic mangled name (e.g. a `Foo<Int>` type reference read
+    /// from a binary). The instantiation's type descriptor is resolved by
+    /// qualified name within the image universe — so a cross-module
+    /// instantiation lays out against its defining image — and its depth-0
+    /// arguments are captured from the bound-generic node. Throws `unknown` for
+    /// a name that does not demangle, is not a bound-generic nominal type, or
+    /// whose descriptor cannot be found.
+    public func fieldLayout(forInstantiationMangledName mangledTypeName: MangledName) throws -> AggregateFieldLayout {
+        let typeNode: Node
+        do {
+            typeNode = try MetadataReader.demangleType(for: mangledTypeName, in: imageUniverse.rootImage.machO)
+        } catch {
+            throw LayoutResolutionError.unknown(.demangleFailure)
         }
-        if let classDescriptor = typeDescriptor.class {
-            return try fieldLayout(ofClass: classDescriptor, in: imageUniverse.rootImage)
+        let node = typeNode.kind == .type ? (typeNode.firstChild ?? typeNode) : typeNode
+        guard let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node) else {
+            throw LayoutResolutionError.unknown(.demangleFailure)
         }
-        // Enums carry no field-offset vector; report no fields.
-        return AggregateFieldLayout(fields: [], size: 0, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        guard let resolved = imageUniverse.resolveType(byQualifiedTypeName: qualifiedTypeName) else {
+            throw LayoutResolutionError.unknown(.typeDescriptorNotFound(qualifiedTypeName: qualifiedTypeName))
+        }
+        let environment = GenericArgumentEnvironment.make(forBoundGenericNode: node)
+        return try fieldLayout(of: resolved.descriptor, in: resolved.image, environment: environment)
     }
 
     /// The resolved whole-type layout of a struct field type. Convenience for
@@ -64,29 +104,56 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
         return try resolver.layout(forTypeNode: node, in: imageUniverse.rootImage)
     }
 
+    // MARK: - Descriptor dispatch
+
+    private func fieldLayout(
+        of typeDescriptor: TypeContextDescriptorWrapper,
+        in image: ImageReference<MachO>,
+        environment: GenericArgumentEnvironment
+    ) throws -> AggregateFieldLayout {
+        if let structDescriptor = typeDescriptor.struct {
+            return try fieldLayout(ofStruct: structDescriptor, in: image, environment: environment)
+        }
+        if let classDescriptor = typeDescriptor.class {
+            return try fieldLayout(ofClass: classDescriptor, in: image, environment: environment)
+        }
+        // Enums carry no field-offset vector; report no fields.
+        return AggregateFieldLayout(fields: [], size: 0, stride: 1, alignment: 1, extraInhabitantCount: 0)
+    }
+
     // MARK: - Struct
 
-    private func fieldLayout(ofStruct descriptor: StructDescriptor, in image: ImageReference<MachO>) throws -> AggregateFieldLayout {
+    private func fieldLayout(
+        ofStruct descriptor: StructDescriptor,
+        in image: ImageReference<MachO>,
+        environment: GenericArgumentEnvironment
+    ) throws -> AggregateFieldLayout {
         let records = try descriptor.fieldDescriptor(in: image.machO).records(in: image.machO)
         return try accumulateFieldLayout(
             records: records,
             startOffset: 0,
             startAlignmentMask: 0,
-            in: image
+            in: image,
+            environment: environment
         )
     }
 
     // MARK: - Class
 
-    private func fieldLayout(ofClass descriptor: ClassDescriptor, in image: ImageReference<MachO>) throws -> AggregateFieldLayout {
+    private func fieldLayout(
+        ofClass descriptor: ClassDescriptor,
+        in image: ImageReference<MachO>,
+        environment: GenericArgumentEnvironment
+    ) throws -> AggregateFieldLayout {
         let records = try descriptor.fieldDescriptor(in: image.machO).records(in: image.machO)
         do {
-            let start = try resolver.superclassStartLayout(of: descriptor, in: image)
+            let start = try resolver.superclassStartLayout(of: descriptor, in: image, environment: environment)
             return try accumulateFieldLayout(
                 records: records,
                 startOffset: start.instanceSize,
                 startAlignmentMask: start.alignmentMask,
-                in: image
+                in: image,
+                environment: environment
             )
         } catch let LayoutResolutionError.unknown(reason) {
             // The superclass instance size is unknown, so no field offset in
@@ -110,7 +177,8 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
         records: [FieldRecord],
         startOffset: Int,
         startAlignmentMask: Int,
-        in image: ImageReference<MachO>
+        in image: ImageReference<MachO>,
+        environment: GenericArgumentEnvironment
     ) throws -> AggregateFieldLayout {
         var offsetAccumulator = startOffset
         var alignmentMask = startAlignmentMask
@@ -136,7 +204,7 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
             }
 
             do {
-                let fieldLayout = try resolver.layout(forMangledTypeName: mangledTypeName, in: image)
+                let fieldLayout = try resolver.layout(forMangledTypeName: mangledTypeName, in: image, environment: environment)
                 let fieldAlignmentMask = fieldLayout.alignmentMask
                 let alignedOffset = (offsetAccumulator + fieldAlignmentMask) & ~fieldAlignmentMask
                 entries.append(FieldLayoutEntry(
