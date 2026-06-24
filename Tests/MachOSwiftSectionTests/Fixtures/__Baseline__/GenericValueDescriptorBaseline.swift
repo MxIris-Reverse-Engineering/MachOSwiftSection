@@ -12,7 +12,7 @@ enum GenericValueDescriptorBaseline {
     }
 
     static let fixedSizeArrayFirstValue = Entry(
-    offset: 0x35ac8,
+    offset: 0x37fe0,
     layoutType: 0,
     typeRawValue: 0
     )

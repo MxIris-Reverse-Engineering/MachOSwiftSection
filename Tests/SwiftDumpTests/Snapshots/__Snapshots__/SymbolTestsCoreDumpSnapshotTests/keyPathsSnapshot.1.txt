@@ -14,8 +14,6 @@ struct SymbolTestsCore.KeyPaths.KeyPathHolderTest {
     SymbolTestsCore.KeyPaths.KeyPathHolderTest.init(readOnlyKeyPath: Swift.KeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>, writableKeyPath: Swift.WritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>, referenceWritableKeyPath: Swift.ReferenceWritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathReferenceTest, Swift.String>, partialKeyPath: Swift.PartialKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest>, anyKeyPath: Swift.AnyKeyPath, value: Swift.Int, text: Swift.String) -> SymbolTestsCore.KeyPaths.KeyPathHolderTest
 
     /* Variable */
-    SymbolTestsCore.KeyPaths.KeyPathHolderTest.writableKeyPath.getter : Swift.WritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>
-    SymbolTestsCore.KeyPaths.KeyPathHolderTest.writableKeyPath.setter : Swift.WritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>
     SymbolTestsCore.KeyPaths.KeyPathHolderTest.referenceWritableKeyPath.getter : Swift.ReferenceWritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathReferenceTest, Swift.String>
     SymbolTestsCore.KeyPaths.KeyPathHolderTest.referenceWritableKeyPath.setter : Swift.ReferenceWritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathReferenceTest, Swift.String>
     SymbolTestsCore.KeyPaths.KeyPathHolderTest.partialKeyPath.getter : Swift.PartialKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest>
@@ -25,6 +23,8 @@ struct SymbolTestsCore.KeyPaths.KeyPathHolderTest {
     SymbolTestsCore.KeyPaths.KeyPathHolderTest.text.setter : Swift.String
     SymbolTestsCore.KeyPaths.KeyPathHolderTest.readOnlyKeyPath.getter : Swift.KeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>
     SymbolTestsCore.KeyPaths.KeyPathHolderTest.readOnlyKeyPath.setter : Swift.KeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>
+    SymbolTestsCore.KeyPaths.KeyPathHolderTest.writableKeyPath.getter : Swift.WritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>
+    SymbolTestsCore.KeyPaths.KeyPathHolderTest.writableKeyPath.setter : Swift.WritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>
     SymbolTestsCore.KeyPaths.KeyPathHolderTest.text.getter : Swift.String
     SymbolTestsCore.KeyPaths.KeyPathHolderTest.value.getter : Swift.Int
     SymbolTestsCore.KeyPaths.KeyPathHolderTest.value.setter : Swift.Int

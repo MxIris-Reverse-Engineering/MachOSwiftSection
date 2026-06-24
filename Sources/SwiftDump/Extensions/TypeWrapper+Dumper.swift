@@ -3,7 +3,7 @@ import MachOSwiftSection
 import SwiftDeclarationRendering
 
 extension TypeContextWrapper {
-    package func dumper(using configuration: DumperConfiguration, metadata: MetadataWrapper? = nil, in machO: some MachOSwiftSectionRepresentableWithCache) -> any TypedDumper {
+    package func dumper(using configuration: DumperConfiguration, metadata: MetadataWrapper? = nil, in machO: some FieldLayoutRenderable) -> any TypedDumper {
         switch self {
         case .enum(let type):
             let metadataContext: DumperMetadataContext<EnumMetadata>?

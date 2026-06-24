@@ -21,7 +21,7 @@ enum AssociatedTypeDescriptorBaseline {
     }
 
     static let concreteWitnessTest = Entry(
-    offset: 0x32b80,
+    offset: 0x34e20,
     layoutNumAssociatedTypes: 5,
     layoutAssociatedTypeRecordSize: 8,
     actualSize: 56,

@@ -66,6 +66,18 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
     @Flag(help: "Generate PWT (Protocol Witness Table) address comments for protocol conformances")
     var emitPWTAddresses: Bool = false
 
+    @Flag(help: "Generate field offset comments for struct/class stored properties, computed statically via SwiftLayout")
+    var emitFieldOffsets: Bool = false
+
+    @Flag(help: "Generate type layout (size/stride/alignment) comments, computed statically via SwiftLayout")
+    var emitTypeLayout: Bool = false
+
+    @Flag(help: "Generate enum layout (strategy/per-case/spare-bit) comments, computed statically via SwiftLayout")
+    var emitEnumLayout: Bool = false
+
+    @Flag(help: "Expand nested struct fields with their absolute offsets (implies --emit-field-offsets)")
+    var emitExpandedFieldOffsets: Bool = false
+
     @Flag(help: "The definitions of types and protocols will be output in the order they are stored in the binary.")
     var preferredBinaryOrder: Bool = false
 
@@ -77,6 +89,21 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
         dumpConfiguration.printMemberAddress = emitMemberAddresses
         dumpConfiguration.printVTableOffset = emitVtableOffsets
         dumpConfiguration.printConformancePWTAddress = emitPWTAddresses
+        dumpConfiguration.printFieldOffset = emitFieldOffsets || emitExpandedFieldOffsets
+        dumpConfiguration.printTypeLayout = emitTypeLayout
+        dumpConfiguration.printEnumLayout = emitEnumLayout
+        dumpConfiguration.printExpandedFieldOffsets = emitExpandedFieldOffsets
+
+        // The static (offline) field-layout path needs a SwiftLayout-backed
+        // provider; build it once per session when any layout comment is
+        // requested. Without it the offline dumpers emit no layout comments
+        // (offline metadata is unavailable), exactly as before.
+        if dumpConfiguration.printFieldOffset || dumpConfiguration.printTypeLayout || dumpConfiguration.printEnumLayout || dumpConfiguration.printExpandedFieldOffsets {
+            dumpConfiguration.staticFieldLayoutProvider = MachOFileStaticFieldLayoutProvider(
+                machOFile: machOFile,
+                resolution: dumpConfiguration.staticLayoutDependencyResolution
+            )
+        }
 
         let isDefaultSections = sections.isEmpty
 

@@ -34,8 +34,8 @@ import OrderedCollections
 /// here. The two binaries may be different `MachO` types (e.g. a standalone
 /// dylib vs a dyld-cache image), so the renderer is generic over both.
 public final class SwiftDiffableInterfaceRenderer<
-    OldMachO: MachOSwiftSectionRepresentableWithCache,
-    NewMachO: MachOSwiftSectionRepresentableWithCache
+    OldMachO: FieldLayoutRenderable,
+    NewMachO: FieldLayoutRenderable
 >: Sendable {
     private let oldIndexer: SwiftDeclarationIndexer<OldMachO>
     private let newIndexer: SwiftDeclarationIndexer<NewMachO>

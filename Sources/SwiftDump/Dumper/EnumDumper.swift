@@ -10,7 +10,7 @@ import Dependencies
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 
-package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
+package struct EnumDumper<MachO: FieldLayoutRenderable>: TypedDumper {
     package typealias Dumped = Enum
 
     package typealias Metadata = EnumMetadata
@@ -75,7 +75,7 @@ package struct EnumDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typed
             // its default `autoResolveAccessorMetadata` behaviour.
             let fieldLayoutRenderer = FieldLayoutRenderer(
                 type: .enum(dumped),
-                metadata: try? metadataContext?.metadata.asMetadataWrapper(in: machO),
+                metadata: try? metadataContext?.resolvedMetadataWrapper(),
                 machO: machO,
                 configuration: configuration
             )

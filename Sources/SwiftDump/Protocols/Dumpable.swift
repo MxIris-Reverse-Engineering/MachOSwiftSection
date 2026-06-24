@@ -7,5 +7,5 @@ import SwiftDeclarationRendering
 public typealias DemangleOptions = Demangling.DemangleOptions
 
 public protocol Dumpable: Sendable {
-    func dump<MachO: MachOSwiftSectionRepresentableWithCache>(using configuration: DumperConfiguration, in machO: MachO) async throws -> SemanticString
+    func dump<MachO: FieldLayoutRenderable>(using configuration: DumperConfiguration, in machO: MachO) async throws -> SemanticString
 }

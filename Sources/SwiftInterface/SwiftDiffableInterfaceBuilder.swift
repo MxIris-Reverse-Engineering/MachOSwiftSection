@@ -1,5 +1,6 @@
 import SwiftDeclaration
 @_spi(Support) import SwiftIndexing
+import SwiftDeclarationRendering
 import SwiftDiffing
 import MachOSwiftSection
 
@@ -13,7 +14,7 @@ import MachOSwiftSection
 ///
 /// Unlike the printer-driven flow, the differ never prints, so `prepare()` must
 /// force the otherwise-lazy per-definition member indexing itself — see below.
-public final class SwiftDiffableInterfaceBuilder<MachO: MachOSwiftSectionRepresentableWithCache>: Sendable {
+public final class SwiftDiffableInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable {
     public let machO: MachO
 
     @_spi(Support)

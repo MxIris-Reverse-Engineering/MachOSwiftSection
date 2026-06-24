@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import SwiftDeclarationRendering
 import MachOKit
 import MachOExtensions
 import MachOFixtureSupport
@@ -27,7 +28,7 @@ extension SwiftDiffableInterfaceBuilderTests {
     /// Builds and `prepare()`s both binaries in one timed step — the differ needs
     /// both sides indexed before it can compare them, so the printed duration
     /// covers the whole preparation.
-    private func preparedBuilders<Old: MachOSwiftSectionRepresentableWithCache, New: MachOSwiftSectionRepresentableWithCache>(
+    private func preparedBuilders<Old: FieldLayoutRenderable, New: FieldLayoutRenderable>(
         old: Old,
         new: New
     ) async throws -> (old: SwiftDiffableInterfaceBuilder<Old>, new: SwiftDiffableInterfaceBuilder<New>) {
@@ -42,7 +43,7 @@ extension SwiftDiffableInterfaceBuilderTests {
 
     /// The machine-readable change list plus the one-line compatibility verdict,
     /// mirroring `swift-section diff`'s text report.
-    private func changeListReport<Old, New>(
+    private func changeListReport<Old: FieldLayoutRenderable, New: FieldLayoutRenderable>(
         old: SwiftDiffableInterfaceBuilder<Old>,
         new: SwiftDiffableInterfaceBuilder<New>
     ) -> String {
@@ -53,7 +54,7 @@ extension SwiftDiffableInterfaceBuilderTests {
 
     /// The full interface annotated with inline `+`/`-` markers, mirroring
     /// `swift-section diff --interface`.
-    private func annotatedInterface<Old, New>(
+    private func annotatedInterface<Old: FieldLayoutRenderable, New: FieldLayoutRenderable>(
         old: SwiftDiffableInterfaceBuilder<Old>,
         new: SwiftDiffableInterfaceBuilder<New>
     ) async -> String {
@@ -62,7 +63,7 @@ extension SwiftDiffableInterfaceBuilderTests {
 
     /// Console analogue of `buildString`: prepares both binaries, then prints the
     /// change list and the annotated interface.
-    func diffString<Old: MachOSwiftSectionRepresentableWithCache, New: MachOSwiftSectionRepresentableWithCache>(
+    func diffString<Old: FieldLayoutRenderable, New: FieldLayoutRenderable>(
         old: Old,
         new: New
     ) async throws {
@@ -74,7 +75,7 @@ extension SwiftDiffableInterfaceBuilderTests {
     /// File analogue of `buildFile`: writes the change list (`-Diff.txt`) and the
     /// annotated interface (`-AnnotatedInterface.swiftinterface`) next to the
     /// single-binary interface dumps, both named after the *new* binary.
-    func diffFile<Old: MachOSwiftSectionRepresentableWithCache, New: MachOSwiftSectionRepresentableWithCache>(
+    func diffFile<Old: FieldLayoutRenderable, New: FieldLayoutRenderable>(
         old: Old,
         new: New
     ) async throws {

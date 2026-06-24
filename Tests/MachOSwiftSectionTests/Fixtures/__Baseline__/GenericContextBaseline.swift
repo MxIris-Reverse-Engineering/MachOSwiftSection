@@ -33,7 +33,7 @@ enum GenericContextBaseline {
     }
 
     static let nonRequirement = Entry(
-    offset: 0x3533c,
+    offset: 0x375dc,
     size: 20,
     depth: 0,
     parametersCount: 1,
@@ -60,7 +60,7 @@ enum GenericContextBaseline {
     )
 
     static let layoutRequirement = Entry(
-    offset: 0x3536c,
+    offset: 0x3760c,
     size: 32,
     depth: 0,
     parametersCount: 1,
@@ -87,7 +87,7 @@ enum GenericContextBaseline {
     )
 
     static let protocolRequirement = Entry(
-    offset: 0x353a8,
+    offset: 0x37648,
     size: 32,
     depth: 0,
     parametersCount: 1,
@@ -114,7 +114,7 @@ enum GenericContextBaseline {
     )
 
     static let parameterPack = Entry(
-    offset: 0x357f8,
+    offset: 0x37d10,
     size: 32,
     depth: 0,
     parametersCount: 1,
@@ -141,7 +141,7 @@ enum GenericContextBaseline {
     )
 
     static let invertibleProtocol = Entry(
-    offset: 0x35884,
+    offset: 0x37d9c,
     size: 32,
     depth: 0,
     parametersCount: 1,

@@ -9,7 +9,7 @@ import Demangling
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 
-package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: TypedDumper {
+package struct StructDumper<MachO: FieldLayoutRenderable>: TypedDumper {
     package typealias Dumped = Struct
 
     package typealias Metadata = StructMetadata
@@ -76,7 +76,7 @@ package struct StructDumper<MachO: MachOSwiftSectionRepresentableWithCache>: Typ
             // bare-dumper contract: a `nil` `metadataContext` emits no offsets.
             let fieldLayoutRenderer = FieldLayoutRenderer(
                 type: .struct(dumped),
-                metadata: try? metadataContext?.metadata.asMetadataWrapper(in: machO),
+                metadata: try? metadataContext?.resolvedMetadataWrapper(),
                 machO: machO,
                 configuration: configuration,
                 autoResolveAccessorMetadata: false

@@ -15,7 +15,7 @@ import Utilities
 @_spi(Internals) import SwiftInspection
 
 @_spi(Support)
-public final class SwiftDeclarationPrinter<MachO: MachOSwiftSectionRepresentableWithCache>: Sendable {
+public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendable {
     public let machO: MachO
 
     @Mutex
@@ -28,6 +28,50 @@ public final class SwiftDeclarationPrinter<MachO: MachOSwiftSectionRepresentable
 
     @Mutex
     var typeDemangleResolver: DemangleResolver = .using(options: .default)
+
+    /// Memoized static field-layout provider for the offline (`MachOFile`) path,
+    /// built once on first use — only when the reader is a `MachOFile` and a
+    /// layout-bearing flag is on. `.computed(nil)` records "no provider", so the
+    /// (relatively expensive) dependency-closure build is attempted at most once.
+    @Mutex
+    private var memoizedStaticFieldLayoutProvider: StaticFieldLayoutProviderState = .uncomputed
+
+    private enum StaticFieldLayoutProviderState: Sendable {
+        case uncomputed
+        case computed((any StaticFieldLayoutProvider)?)
+    }
+
+    /// Builds (once) and returns the offline field-layout provider for the
+    /// current configuration, or `nil` for the in-process (`MachOImage`) path or
+    /// when no layout-bearing flag is set.
+    ///
+    /// Fast path reads the synthesized `@Mutex` getter (one `withLock`); when the
+    /// state is still `.uncomputed`, the slow path takes the underlying `Mutex`
+    /// directly via `_memoizedStaticFieldLayoutProvider.withLock` and runs a
+    /// double-checked compute-and-install inside one critical section, so the
+    /// (relatively expensive) dependency-closure build cannot race or duplicate
+    /// even when the printer is shared across concurrent renders.
+    func staticFieldLayoutProvider() -> (any StaticFieldLayoutProvider)? {
+        if case .computed(let provider) = memoizedStaticFieldLayoutProvider {
+            return provider
+        }
+        let configurationSnapshot = self.configuration
+        return _memoizedStaticFieldLayoutProvider.withLock { state in
+            if case .computed(let provider) = state {
+                return provider
+            }
+            let provider: (any StaticFieldLayoutProvider)?
+            if configurationSnapshot.printFieldOffset || configurationSnapshot.printTypeLayout || configurationSnapshot.printEnumLayout || configurationSnapshot.printExpandedFieldOffsets {
+                // Reader-type-dispatched (no runtime cast): only `MachOFile` builds a
+                // provider; `MachOImage` returns nil.
+                provider = MachO.makeStaticFieldLayoutProvider(machO: machO, resolution: configurationSnapshot.staticLayoutDependencyResolution)
+            } else {
+                provider = nil
+            }
+            state = .computed(provider)
+            return provider
+        }
+    }
 
     public init(configuration: SwiftDeclarationPrintConfiguration = .init(), eventHandlers: [SwiftIndexEvents.Handler] = [], in machO: MachO) {
         self.machO = machO
@@ -43,6 +87,10 @@ public final class SwiftDeclarationPrinter<MachO: MachOSwiftSectionRepresentable
 
     public func updateConfiguration(_ configuration: SwiftDeclarationPrintConfiguration) {
         self.configuration = configuration
+        // The memoized provider was built against the previous configuration's
+        // layout flags + dependency resolution. Reset it so the next
+        // `staticFieldLayoutProvider()` call rebuilds against the new one.
+        _memoizedStaticFieldLayoutProvider.withLock { $0 = .uncomputed }
     }
 
     public func addTypeNameResolver(_ resolver: any TypeNameResolvable) {

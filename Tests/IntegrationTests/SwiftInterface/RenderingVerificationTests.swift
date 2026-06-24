@@ -99,7 +99,7 @@ struct RenderingVerificationTests {
 
     // MARK: - Renderers
 
-    private func renderInterface(in machO: some MachOSwiftSectionRepresentableWithCache, options: Set<String>) async throws -> String {
+    private func renderInterface(in machO: some FieldLayoutRenderable, options: Set<String>) async throws -> String {
         var configuration = SwiftInterfaceBuilderConfiguration()
         configuration.printConfiguration.printFieldOffset = options.contains("fieldOffset")
         configuration.printConfiguration.printExpandedFieldOffsets = options.contains("expandedFieldOffsets")
@@ -113,7 +113,7 @@ struct RenderingVerificationTests {
         return try await builder.printRoot().string
     }
 
-    private func renderDump(in machO: some MachOSwiftSectionRepresentableWithCache, options: Set<String>) async throws -> String {
+    private func renderDump(in machO: some FieldLayoutRenderable, options: Set<String>) async throws -> String {
         var configuration = DumperConfiguration(demangleResolver: .using(options: .test))
         configuration.printFieldOffset = options.contains("fieldOffset")
         configuration.printExpandedFieldOffsets = options.contains("expandedFieldOffsets")

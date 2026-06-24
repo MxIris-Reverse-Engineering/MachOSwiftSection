@@ -13,9 +13,9 @@ enum TypeReferenceBaseline {
     }
 
     static let structTestRecord = Entry(
-    recordFieldOffset: 0x3b6f0,
-    relativeOffset: -17896,
+    recordFieldOffset: 0x3df38,
+    relativeOffset: -18712,
     kindRawValue: 0x0,
-    resolvedDescriptorOffset: 0x37108
+    resolvedDescriptorOffset: 0x39620
     )
 }

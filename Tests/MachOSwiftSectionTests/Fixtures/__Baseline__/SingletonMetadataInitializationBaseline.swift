@@ -23,9 +23,9 @@ enum SingletonMetadataInitializationBaseline {
     }
 
     static let firstSingletonInit = Entry(
-    descriptorOffset: 0x33bc8,
-    initializationCacheRelativeOffsetBits: 0x1b948,
-    incompleteMetadataRelativeOffsetBits: 0xdfb4,
-    completionFunctionRelativeOffsetBits: 0xfffffffffffd0734
+    descriptorOffset: 0x35e68,
+    initializationCacheRelativeOffsetBits: 0x1d788,
+    incompleteMetadataRelativeOffsetBits: 0xfd1c,
+    completionFunctionRelativeOffsetBits: 0xfffffffffffce494
     )
 }

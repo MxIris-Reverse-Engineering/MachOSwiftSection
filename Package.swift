@@ -413,6 +413,25 @@ extension Target {
         ],
     )
 
+    /// Static aggregate-layout engine: computes Swift struct/class field
+    /// offsets offline from a Mach-O file without loading the process or
+    /// calling the runtime. Ports the runtime `performBasicLayout` algorithm
+    /// and a static `mangled name -> TypeLayoutInfo` resolver. Sits above
+    /// `SwiftInspection` so it can reuse `EnumLayoutCalculator` and
+    /// `MetadataReader`. Consumed by the static ABI-analysis path.
+    static let SwiftLayout = Target.target(
+        name: "SwiftLayout",
+        dependencies: [
+            .product(.MachOKit),
+            .product(.MachOObjCSection),
+            .product(.Demangling),
+            .target(.MachOExtensions),
+            .target(.MachOSwiftSection),
+            .target(.SwiftInspection),
+            .target(.Utilities),
+        ],
+    )
+
     /// Low-level Swift declaration rendering engine extracted from `SwiftDump`:
     /// pure `Keyword`/`Node`/`SemanticString`/`String` extensions, the
     /// `DemangleResolver`, the render configuration, the header-rendering
@@ -429,6 +448,7 @@ extension Target {
             .target(.MachOSwiftSection),
             .target(.Utilities),
             .target(.SwiftInspection),
+            .target(.SwiftLayout),
         ],
     )
 
@@ -744,6 +764,19 @@ extension Target {
         swiftSettings: testSettings,
     )
 
+    static let SwiftLayoutTests = Target.testTarget(
+        name: "SwiftLayoutTests",
+        dependencies: [
+            .target(.MachOSwiftSection),
+            .target(.SwiftInspection),
+            .target(.SwiftLayout),
+            .target(.MachOTestingSupport),
+            .target(.MachOFixtureSupport),
+            .product(.Demangling),
+        ],
+        swiftSettings: testSettings,
+    )
+
     static let SwiftDumpTests = Target.testTarget(
         name: "SwiftDumpTests",
         dependencies: [
@@ -791,6 +824,21 @@ extension Target {
             .target(.SwiftPrinting),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
+        ],
+        swiftSettings: testSettings,
+    )
+
+    static let SwiftDeclarationRenderingTests = Target.testTarget(
+        name: "SwiftDeclarationRenderingTests",
+        dependencies: [
+            .target(.MachOSwiftSection),
+            .target(.SwiftInspection),
+            .target(.SwiftLayout),
+            .target(.SwiftDeclarationRendering),
+            .target(.MachOTestingSupport),
+            .target(.MachOFixtureSupport),
+            .product(.Semantic),
+            .product(.Demangling),
         ],
         swiftSettings: testSettings,
     )
@@ -893,6 +941,7 @@ let package = Package(
     products: [
         .library(.MachOSwiftSection),
         .library(.SwiftInspection),
+        .library(.SwiftLayout),
         .library(.SwiftDeclarationRendering),
         .library(.SwiftDump),
         .library(.SwiftDeclaration),
@@ -920,6 +969,7 @@ let package = Package(
         .MachOSwiftSectionC,
         .MachOSwiftSection,
         .SwiftInspection,
+        .SwiftLayout,
         .SwiftDeclarationRendering,
         .SwiftDump,
         .SwiftDeclaration,
@@ -947,9 +997,11 @@ let package = Package(
         .MachOSwiftSectionTests,
         .MachOCachesTests,
         .SwiftInspectionTests,
+        .SwiftLayoutTests,
         .SwiftDumpTests,
 //        .TypeIndexingTests,
         .SwiftPrintingTests,
+        .SwiftDeclarationRenderingTests,
         .SwiftAttributeInferenceTests,
         .SwiftDiffingTests,
         .SwiftIndexingTests,
