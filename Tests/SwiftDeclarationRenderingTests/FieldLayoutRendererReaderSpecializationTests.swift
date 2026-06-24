@@ -6,7 +6,6 @@ import MachOFoundation
 @_spi(Internals) import SwiftInspection
 @testable import SwiftLayout
 import SwiftDeclarationRendering
-import Semantic
 import Demangling
 @testable import MachOTestingSupport
 import MachOFixtureSupport
