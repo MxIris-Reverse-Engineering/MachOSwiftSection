@@ -44,21 +44,33 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
     /// Builds (once) and returns the offline field-layout provider for the
     /// current configuration, or `nil` for the in-process (`MachOImage`) path or
     /// when no layout-bearing flag is set.
+    ///
+    /// Fast path reads the synthesized `@Mutex` getter (one `withLock`); when the
+    /// state is still `.uncomputed`, the slow path takes the underlying `Mutex`
+    /// directly via `_memoizedStaticFieldLayoutProvider.withLock` and runs a
+    /// double-checked compute-and-install inside one critical section, so the
+    /// (relatively expensive) dependency-closure build cannot race or duplicate
+    /// even when the printer is shared across concurrent renders.
     func staticFieldLayoutProvider() -> (any StaticFieldLayoutProvider)? {
         if case .computed(let provider) = memoizedStaticFieldLayoutProvider {
             return provider
         }
-        let configuration = self.configuration
-        let provider: (any StaticFieldLayoutProvider)?
-        if configuration.printFieldOffset || configuration.printTypeLayout || configuration.printEnumLayout || configuration.printExpandedFieldOffsets {
-            // Reader-type-dispatched (no runtime cast): only `MachOFile` builds a
-            // provider; `MachOImage` returns nil.
-            provider = MachO.makeStaticFieldLayoutProvider(machO: machO, resolution: configuration.staticLayoutDependencyResolution)
-        } else {
-            provider = nil
+        let configurationSnapshot = self.configuration
+        return _memoizedStaticFieldLayoutProvider.withLock { state in
+            if case .computed(let provider) = state {
+                return provider
+            }
+            let provider: (any StaticFieldLayoutProvider)?
+            if configurationSnapshot.printFieldOffset || configurationSnapshot.printTypeLayout || configurationSnapshot.printEnumLayout || configurationSnapshot.printExpandedFieldOffsets {
+                // Reader-type-dispatched (no runtime cast): only `MachOFile` builds a
+                // provider; `MachOImage` returns nil.
+                provider = MachO.makeStaticFieldLayoutProvider(machO: machO, resolution: configurationSnapshot.staticLayoutDependencyResolution)
+            } else {
+                provider = nil
+            }
+            state = .computed(provider)
+            return provider
         }
-        memoizedStaticFieldLayoutProvider = .computed(provider)
-        return provider
     }
 
     public init(configuration: SwiftDeclarationPrintConfiguration = .init(), eventHandlers: [SwiftIndexEvents.Handler] = [], in machO: MachO) {
