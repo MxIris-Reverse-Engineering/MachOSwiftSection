@@ -76,7 +76,7 @@ final class FieldLayoutRendererReaderSpecializationTests: MachOSwiftSectionFixtu
 
         #expect(comparedCount > 80, "expected to compare many fixture types, got \(comparedCount)")
         #expect(nonEmptyCount > 30, "expected many types to render non-empty static offsets, got \(nonEmptyCount)")
-        #expect(mismatches.isEmpty, Comment(rawValue: "renderer-vs-calculator field-offset mismatches:\n" + mismatches.joined(separator: "\n")))
+        #expect(mismatches.isEmpty, Testing.Comment(rawValue: "renderer-vs-calculator field-offset mismatches:\n" + mismatches.joined(separator: "\n")))
     }
 
     @MainActor
