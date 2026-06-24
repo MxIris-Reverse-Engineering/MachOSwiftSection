@@ -87,6 +87,10 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
 
     public func updateConfiguration(_ configuration: SwiftDeclarationPrintConfiguration) {
         self.configuration = configuration
+        // The memoized provider was built against the previous configuration's
+        // layout flags + dependency resolution. Reset it so the next
+        // `staticFieldLayoutProvider()` call rebuilds against the new one.
+        _memoizedStaticFieldLayoutProvider.withLock { $0 = .uncomputed }
     }
 
     public func addTypeNameResolver(_ resolver: any TypeNameResolvable) {
