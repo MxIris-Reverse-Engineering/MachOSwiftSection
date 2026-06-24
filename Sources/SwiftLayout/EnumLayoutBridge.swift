@@ -271,8 +271,6 @@ extension StaticTypeLayoutResolver {
         let totalRepresentableValues: Int
         if size == 0 {
             totalRepresentableValues = 1
-        } else if size >= 4 {
-            totalRepresentableValues = Int(UInt32.max)
         } else {
             totalRepresentableValues = 1 << (size * 8)
         }
