@@ -20,6 +20,21 @@ import MachOSwiftSection
 /// Because the resolver only ever calls `resolveType(byQualifiedTypeName:)` /
 /// `resolveProtocolClassConstraint(byQualifiedTypeName:)`, neither it nor any
 /// layout bridge changes when the universe grows from one image to a closure.
+///
+/// **Threading contract.** `ImageUniverse` is declared `@unchecked Sendable` so
+/// the rest of the layout pipeline (which transitively holds it through a
+/// non-`Sendable` `StaticTypeLayoutResolver` and a `StaticLayoutCalculator`
+/// struct) can be carried into a `Sendable` holder. The universe itself is
+/// **not internally synchronized**: lazy dependency indexing mutates
+/// `nextDependencyToIndex` / `typeIndex` / `protocolIndex` / `objCClassIndex`
+/// in place during lookups. Concurrent direct sharing is therefore the
+/// holder's responsibility — the in-tree owner that needs cross-task safety,
+/// `MachOFileStaticFieldLayoutProvider`, funnels every calculator call through
+/// one `NSLock` for exactly this reason (see
+/// `SwiftDeclarationRendering/StaticFieldLayoutProvider.swift`). If a future
+/// caller needs to share an `ImageUniverse` across tasks without that outer
+/// lock, push the synchronization down into this class (or convert the
+/// pipeline to an `actor`).
 public final class ImageUniverse<MachO: MachOSwiftSectionRepresentableWithCache>: @unchecked Sendable {
     /// The root image (the binary whose types are being laid out). Its
     /// definitions take priority when a name is defined in more than one image.
