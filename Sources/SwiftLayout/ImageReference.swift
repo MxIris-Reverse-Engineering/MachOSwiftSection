@@ -35,7 +35,7 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
         // section (a pure-ObjC/C dylib) contributes no types rather than failing
         // the whole closure.
         var typeIndex: [String: TypeContextDescriptorWrapper] = [:]
-        for contextDescriptor in Self.contextDescriptorsOrEmpty(in: machO) {
+        for contextDescriptor in try Self.contextDescriptorsOrEmpty(in: machO) {
             guard
                 let typeDescriptor = contextDescriptor.typeContextDescriptorWrapper,
                 let contextNode = try? MetadataReader.demangleContext(for: contextDescriptor, in: machO),
@@ -50,7 +50,7 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
         // existential's representation — opaque vs class-bound — can be derived
         // from its protocol composition.
         var protocolIndex: [String: ProtocolClassConstraint] = [:]
-        for protocolDescriptor in Self.protocolDescriptorsOrEmpty(in: machO) {
+        for protocolDescriptor in try Self.protocolDescriptorsOrEmpty(in: machO) {
             guard
                 let classConstraint = protocolDescriptor.flags.kindSpecificFlags?.protocolFlags?.classConstraint,
                 let contextNode = try? MetadataReader.demangleContext(for: .protocol(protocolDescriptor), in: machO),
@@ -95,24 +95,22 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
 
     /// Reads the image's type context descriptors, treating an absent
     /// `__swift5_types` section as "no Swift types" rather than an error.
-    private static func contextDescriptorsOrEmpty(in machO: MachO) -> [ContextDescriptorWrapper] {
+    /// Any other read error propagates — matches `BuiltinTypeLayoutIndex`.
+    private static func contextDescriptorsOrEmpty(in machO: MachO) throws -> [ContextDescriptorWrapper] {
         do {
             return try machO.swift.contextDescriptors
         } catch let MachOSwiftSectionError.sectionNotFound(section, _) where section == .__swift5_types {
-            return []
-        } catch {
             return []
         }
     }
 
     /// Reads the image's protocol descriptors, treating an absent
     /// `__swift5_protos` section as "no Swift protocols" rather than an error.
-    private static func protocolDescriptorsOrEmpty(in machO: MachO) -> [ProtocolDescriptor] {
+    /// Any other read error propagates — matches `BuiltinTypeLayoutIndex`.
+    private static func protocolDescriptorsOrEmpty(in machO: MachO) throws -> [ProtocolDescriptor] {
         do {
             return try machO.swift.protocolDescriptors
         } catch let MachOSwiftSectionError.sectionNotFound(section, _) where section == .__swift5_protos {
-            return []
-        } catch {
             return []
         }
     }
