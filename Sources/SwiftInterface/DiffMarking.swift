@@ -33,14 +33,24 @@ public struct DiffLine: Sendable {
 }
 
 enum DiffMarking {
+    /// A one-space gutter inserted between the marker and the structural indent
+    /// in the human-readable formats (``DiffFormat/inline`` and the
+    /// ``DiffFormat/markdownFenced`` body) so column 0 is dedicated to the
+    /// `+`/`-`/` ` marker and content always starts at column 2 — the marker
+    /// column never visually runs into the code. The real-unified-diff path
+    /// keeps its empty gutter so the output stays consumable by `git apply` /
+    /// `patch`.
+    static let inlineGutter = " "
+
     /// Prefixes every line of `source` with `marker` at column 0, followed by the
-    /// indentation for `indentLevel`, then the line's original content.
+    /// inline gutter, then the indentation for `indentLevel`, then the line's
+    /// original content.
     ///
     /// `source` is one rendered unit (a type header, a single member, a closing
     /// brace) with NO indentation and NO leading/trailing newline of its own —
-    /// the marker sits at column 0, git-diff style (`+    var x: Int`). Lines are
-    /// joined by `\n`; the result has no trailing newline so callers can join
-    /// units with `\n`.
+    /// the marker sits at column 0, followed by the gutter and the structural
+    /// indent (`+     var x: Int`). Lines are joined by `\n`; the result has no
+    /// trailing newline so callers can join units with `\n`.
     ///
     /// This is the eager, fully-marked form. It shares its per-line rule with
     /// ``inlineLineComponents`` — and therefore with ``DiffFormat/inline`` — so
@@ -56,7 +66,7 @@ enum DiffMarking {
             if lineIndex > 0 {
                 output.append(AtomicComponent(string: "\n", type: .standard))
             }
-            output.append(contentsOf: inlineLineComponents(marker: marker, content: SemanticString(components: line), indentLevel: indentLevel))
+            output.append(contentsOf: inlineLineComponents(marker: marker, content: SemanticString(components: line), indentLevel: indentLevel, gutter: inlineGutter))
         }
         return SemanticString(components: output)
     }
@@ -76,18 +86,21 @@ enum DiffMarking {
     }
 
     /// The atomic components of one git-diff-style line: the marker at column 0,
-    /// then the indentation for `indentLevel` (only on non-blank lines, so blank
-    /// lines carry no trailing whitespace after the marker), then the line's
-    /// content components (their semantic types preserved untouched).
+    /// then `gutter` (empty by default — used by the human-readable formats to
+    /// keep the marker column from visually eating into the code), then the
+    /// indentation for `indentLevel`, then the line's content components (their
+    /// semantic types preserved untouched). Neither the gutter nor the indent is
+    /// emitted on blank lines, so blank lines carry no trailing whitespace after
+    /// the marker.
     ///
     /// A line counts as blank when every content component is all-whitespace —
     /// the same rule the original `markLines` used, NOT `content.string.isEmpty`,
     /// so a line of pure spaces is still treated as blank.
-    static func inlineLineComponents(marker: DiffMarker, content: SemanticString, indentLevel: Int) -> [AtomicComponent] {
+    static func inlineLineComponents(marker: DiffMarker, content: SemanticString, indentLevel: Int, gutter: String = "") -> [AtomicComponent] {
         let contentComponents = content.components
         let lineHasContent = contentComponents.contains { !$0.string.allSatisfy(\.isWhitespace) }
         let indentation = String(repeating: " ", count: max(0, indentLevel) * 4)
-        var components: [AtomicComponent] = [AtomicComponent(string: marker.rawValue + (lineHasContent ? indentation : ""), type: .standard)]
+        var components: [AtomicComponent] = [AtomicComponent(string: marker.rawValue + (lineHasContent ? (gutter + indentation) : ""), type: .standard)]
         components.append(contentsOf: contentComponents)
         return components
     }

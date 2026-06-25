@@ -24,7 +24,9 @@ import OrderedCollections
 /// `[[DiffLine]]` — and never bakes a diff symbol in. How a ``DiffMarker``
 /// becomes concrete output (git-diff prefixes, a unified-diff hunk, HTML, …) is
 /// the job of a ``DiffFormat``; ``printAnnotatedInterface(format:)`` defaults to
-/// ``DiffFormat/inline``, which reproduces the original git-diff output.
+/// ``DiffFormat/inline``, which emits the git-diff-style `+`/`-`/` ` line prefix
+/// at column 0 followed by a one-space gutter so column 0 is dedicated to the
+/// marker and content always starts at column 2.
 ///
 /// Surface is FULL: public, package, internal, and private declarations are all
 /// rendered (private discriminators kept). Access-level splitting is a future
@@ -52,9 +54,9 @@ public final class SwiftDiffableInterfaceRenderer<
     // MARK: - Top level
 
     /// Produces the annotated interface in the chosen ``DiffFormat`` (default
-    /// ``DiffFormat/inline``, which reproduces the original git-diff output). The
-    /// classified stream comes from ``annotatedDiffBlocks()``; the format turns it
-    /// into the final string.
+    /// ``DiffFormat/inline``, the git-diff-style `+`/`-`/` ` markers with a
+    /// one-space gutter). The classified stream comes from
+    /// ``annotatedDiffBlocks()``; the format turns it into the final string.
     public func printAnnotatedInterface(format: DiffFormat = .inline) async -> SemanticString {
         await format.render(annotatedDiffBlocks())
     }

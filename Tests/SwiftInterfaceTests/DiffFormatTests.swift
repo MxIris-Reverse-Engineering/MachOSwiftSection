@@ -9,10 +9,10 @@ private func line(_ marker: DiffMarker, _ content: SemanticString, indent: Int =
 
 @Suite("DiffFormat.inline")
 struct DiffFormatInlineTests {
-    @Test("a single line is marker + level indent + content at column 0")
+    @Test("a single line is marker + one-space gutter + level indent + content at column 0")
     func singleLine() {
         let blocks = [[line(.added, "var x: Int", indent: 1)]]
-        #expect(DiffFormat.inline.render(blocks).string == "+    var x: Int")
+        #expect(DiffFormat.inline.render(blocks).string == "+     var x: Int")
     }
 
     @Test("lines within a block are joined by a single newline")
@@ -22,7 +22,7 @@ struct DiffFormatInlineTests {
             line(.added, "var x: Int", indent: 1),
             line(.unchanged, "}", indent: 0),
         ]]
-        #expect(DiffFormat.inline.render(blocks).string == " struct A {\n+    var x: Int\n }")
+        #expect(DiffFormat.inline.render(blocks).string == "  struct A {\n+     var x: Int\n  }")
     }
 
     @Test("top-level blocks are separated by exactly one bare blank line")
@@ -31,32 +31,33 @@ struct DiffFormatInlineTests {
             [line(.unchanged, "struct A {", indent: 0), line(.unchanged, "}", indent: 0)],
             [line(.removed, "func gone()", indent: 0)],
         ]
-        #expect(DiffFormat.inline.render(blocks).string == " struct A {\n }\n\n-func gone()")
+        #expect(DiffFormat.inline.render(blocks).string == "  struct A {\n  }\n\n- func gone()")
     }
 
-    @Test("a blank interior line carries only the marker, no trailing indent")
+    @Test("a blank interior line carries only the marker, no trailing gutter or indent")
     func blankInteriorLine() {
         let blocks = [[
             line(.added, "a", indent: 1),
             line(.added, "", indent: 1),
             line(.added, "b", indent: 1),
         ]]
-        #expect(DiffFormat.inline.render(blocks).string == "+    a\n+\n+    b")
+        #expect(DiffFormat.inline.render(blocks).string == "+     a\n+\n+     b")
     }
 
-    @Test("an all-whitespace line gets no structural indent (content kept verbatim)")
+    @Test("an all-whitespace line gets no gutter or structural indent (content kept verbatim)")
     func whitespaceOnlyLineIsBlank() {
         let blocks = [[line(.unchanged, "    ", indent: 2)]]
-        // All-whitespace content => the marker is NOT followed by the level's
-        // indent (the `whitespace`, not `isEmpty`, blankness rule); the four
-        // content spaces themselves are kept. So: " " (marker) + "    " (content).
+        // All-whitespace content => the marker is NOT followed by the gutter or
+        // the level's indent (the `whitespace`, not `isEmpty`, blankness rule);
+        // the four content spaces themselves are kept. So: " " (marker) + "    "
+        // (content).
         #expect(DiffFormat.inline.render(blocks).string == "     ")
     }
 
     @Test("empty blocks contribute nothing and emit no separator")
     func emptyBlocksSkipped() {
         let blocks: [[DiffLine]] = [[], [line(.added, "x", indent: 0)], []]
-        #expect(DiffFormat.inline.render(blocks).string == "+x")
+        #expect(DiffFormat.inline.render(blocks).string == "+ x")
     }
 
     @Test("the result has no leading or trailing newline")
@@ -64,7 +65,7 @@ struct DiffFormatInlineTests {
         let rendered = DiffFormat.inline.render([[line(.unchanged, "a", indent: 0)]]).string
         #expect(!rendered.hasPrefix("\n"))
         #expect(!rendered.hasSuffix("\n"))
-        #expect(rendered == " a")
+        #expect(rendered == "  a")
     }
 
     @Test("an empty stream renders to nothing")
@@ -228,7 +229,7 @@ struct DiffFormatMarkdownTests {
         let blocks = [[line(.added, "var x: Int", indent: 0)]]
         let expected = """
         ```diff
-        +var x: Int
+        + var x: Int
         ```
         """
         #expect(DiffFormat.markdownFenced.render(blocks).string == expected)
