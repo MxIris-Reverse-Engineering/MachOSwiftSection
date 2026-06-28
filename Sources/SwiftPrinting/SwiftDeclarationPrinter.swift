@@ -342,6 +342,12 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
     /// `byCategory` paths so the per-member comment layout has a single source of
     /// truth. The emit flags and comment prefix are hoisted by the caller (they
     /// depend on the enclosing definition, not the member).
+    ///
+    /// The body is wrapped in a `Rows(level: level) { ... }` so each comment
+    /// and the trailing declaration become independent rows at the enclosing
+    /// `MemberList`'s indent level. Returning a plain `SemanticString` without
+    /// `Rows` would fuse them into one row and drop the `BreakLine + Indent`
+    /// separators.
     @SemanticStringBuilder
     private func renderMember(
         _ member: OrderedMember,
@@ -352,28 +358,30 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         printMemberAddress: Bool,
         vtableTransformerClosure: (@Sendable (Int, String?) -> SemanticString)?
     ) async -> SemanticString {
-        switch member {
-        case .allocator(let function), .function(let function):
-            OffsetComment(prefix: offsetCommentPrefix, offset: function.offset, emit: emitOffsetComment)
-            VTableOffsetComment(vtableOffset: function.vtableOffset, emit: printVTableOffset, transformer: vtableTransformerClosure)
-            AddressComment(addressString: memberAddressString(forOffset: function.symbol.offset), emit: printMemberAddress)
-            await printFunction(function, level: level)
+        await Rows(level: level) {
+            switch member {
+            case .allocator(let function), .function(let function):
+                OffsetComment(prefix: offsetCommentPrefix, offset: function.offset, emit: emitOffsetComment)
+                VTableOffsetComment(vtableOffset: function.vtableOffset, emit: printVTableOffset, transformer: vtableTransformerClosure)
+                AddressComment(addressString: memberAddressString(forOffset: function.symbol.offset), emit: printMemberAddress)
+                await printFunction(function, level: level)
 
-        case .variable(let variable):
-            OffsetComment(prefix: offsetCommentPrefix, offset: variable.offset, emit: emitOffsetComment)
-            for accessor in variable.accessors {
-                VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: printVTableOffset, transformer: vtableTransformerClosure)
-                AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
-            }
-            await printVariable(variable, level: level)
+            case .variable(let variable):
+                OffsetComment(prefix: offsetCommentPrefix, offset: variable.offset, emit: emitOffsetComment)
+                for accessor in variable.accessors {
+                    VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: printVTableOffset, transformer: vtableTransformerClosure)
+                    AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
+                }
+                await printVariable(variable, level: level)
 
-        case .subscript(let `subscript`):
-            OffsetComment(prefix: offsetCommentPrefix, offset: `subscript`.offset, emit: emitOffsetComment)
-            for accessor in `subscript`.accessors {
-                VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: printVTableOffset, transformer: vtableTransformerClosure)
-                AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
+            case .subscript(let `subscript`):
+                OffsetComment(prefix: offsetCommentPrefix, offset: `subscript`.offset, emit: emitOffsetComment)
+                for accessor in `subscript`.accessors {
+                    VTableOffsetComment(vtableOffset: accessor.vtableOffset, label: accessor.kind.addressLabel, emit: printVTableOffset, transformer: vtableTransformerClosure)
+                    AddressComment(addressString: memberAddressString(forOffset: accessor.symbol.offset), label: accessor.kind.addressLabel, emit: printMemberAddress)
+                }
+                await printSubscript(`subscript`, level: level)
             }
-            await printSubscript(`subscript`, level: level)
         }
     }
 
