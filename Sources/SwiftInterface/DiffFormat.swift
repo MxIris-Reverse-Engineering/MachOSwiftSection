@@ -70,13 +70,14 @@ extension DiffFormat {
     }
 
     /// The default: git-diff-style line prefixes (`+` added, `-` removed, a space
-    /// for unchanged) at column 0, then the structural indentation, then the
-    /// content. Top-level blocks are separated by one bare blank line. This
-    /// reproduces the original annotated-interface output byte-for-byte: its
+    /// for unchanged) at column 0, then a one-space gutter so column 0 is reserved
+    /// for the marker and content always starts at column 2 (the marker column
+    /// never visually runs into the code), then the structural indentation, then
+    /// the content. Top-level blocks are separated by one bare blank line. The
     /// per-line rule is ``DiffMarking/inlineLineComponents``, shared with
     /// ``DiffMarking/markLines``.
     public static let inline: DiffFormat = .perLine(blockSeparator: "\n\n") { marker, content, indentLevel in
-        SemanticString(components: DiffMarking.inlineLineComponents(marker: marker, content: content, indentLevel: indentLevel))
+        SemanticString(components: DiffMarking.inlineLineComponents(marker: marker, content: content, indentLevel: indentLevel, gutter: DiffMarking.inlineGutter))
     }
 
     /// The ``inline`` body wrapped in a ```` ```diff ```` fenced code block, ready
