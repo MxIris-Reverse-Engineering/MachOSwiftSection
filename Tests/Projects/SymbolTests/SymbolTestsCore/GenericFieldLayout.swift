@@ -191,4 +191,94 @@ public enum GenericFieldLayout {
             super.init(baseValue: baseValue)
         }
     }
+
+    // MARK: - Value-generic (SE-0452) and parameter-pack (SE-0393) types
+
+    /// A variadic generic struct whose single stored property is the expanded
+    /// pack tuple.
+    public struct VariadicPack<each Element> {
+        public var values: (repeat each Element)
+    }
+
+    /// A scalar parameter alongside a pack parameter — parameter ordinals must
+    /// stay aligned across the mixed argument list — with a pattern-wrapping
+    /// expansion (`Optional<each Rest>`).
+    public struct MixedScalarAndPack<First, each Rest> {
+        public var first: First
+        public var rest: (repeat (each Rest)?)
+    }
+
+    /// Forwards its own pack into another variadic type (the argument pack
+    /// stays `Pack{PackExpansion(…)}` until substitution flattens it) and wraps
+    /// each element in a nominal pattern.
+    public struct VariadicForwarder<each Element> {
+        public var forwarded: VariadicPack<repeat each Element>
+        public var wrapped: (repeat Box<each Element>)
+    }
+
+    /// A value-generic struct: its `InlineArray` field depends on the
+    /// enclosing `count` value parameter.
+    public struct ValueGenericBuffer<let count: Int> {
+        public var storage: InlineArray<count, Int8>
+        public var tail: Int32
+    }
+
+    // MARK: - Non-generic holders of value-generic / pack instantiations
+
+    /// Pack-argument fields: `(repeat each Element)` must flatten to the
+    /// concrete elements — including the empty pack (a zero-sized field) and
+    /// the single-element tuple collapse.
+    public struct PackExpansionFieldHolder {
+        public var leading: Int
+        public var triple: VariadicPack<Int32, Int8, Int64>
+        public var single: VariadicPack<Int16>
+        public var empty: VariadicPack< >
+        public var trailing: Int
+    }
+
+    /// A scalar parameter and a pack parameter mixed in one argument list.
+    public struct MixedPackFieldHolder {
+        public var leading: Int
+        public var mixed: MixedScalarAndPack<Int, Bool, Int8>
+        public var trailing: Int
+    }
+
+    /// A pack forwarded through another variadic type plus a pattern-wrapping
+    /// expansion (`Box<each Element>`).
+    public struct PackForwardingFieldHolder {
+        public var leading: Int
+        public var forwarder: VariadicForwarder<Int32, Bool>
+        public var trailing: Int
+    }
+
+    /// A single-payload enum whose payload is a value-generic fixed array —
+    /// the payload's extra inhabitants (from the `Bool` element) absorb the
+    /// empty case, so the enum adds no tag byte. (Enums cannot declare a type
+    /// pack themselves — the compiler rejects it — so packs reach enum layout
+    /// only through struct/tuple payload types.)
+    public struct FixedArrayPayloadEnumFieldHolder {
+        public var leading: Int
+        public var enumField: SecondParameterPayloadEnum<Bool, InlineArray<3, Bool>>
+        public var trailing: Int8
+    }
+
+    /// Value-generic and fixed-array fields, including extra-inhabitant
+    /// propagation from the array element (`InlineArray<3, Bool>?` adds no tag
+    /// byte).
+    public struct ValueGenericFieldHolder {
+        public var leading: Int
+        public var buffer: ValueGenericBuffer<5>
+        public var inline: InlineArray<3, Int64>
+        public var optionalInline: InlineArray<3, Bool>?
+        public var trailing: Int
+    }
+
+    /// A tuple's extra inhabitants come from its richest element (`Bool`), so
+    /// the optional adds no tag byte and `trailing` starts right after the
+    /// tuple's three bytes.
+    public struct TupleExtraInhabitantFieldHolder {
+        public var leading: Int
+        public var optionalTuple: (Int16, Bool)?
+        public var trailing: Int8
+    }
 }

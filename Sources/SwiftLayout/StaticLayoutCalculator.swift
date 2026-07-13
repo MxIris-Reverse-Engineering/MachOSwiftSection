@@ -207,9 +207,18 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
                 let fieldLayout = try resolver.layout(forMangledTypeName: mangledTypeName, in: image, environment: environment)
                 let fieldAlignmentMask = fieldLayout.alignmentMask
                 let alignedOffset = (offsetAccumulator + fieldAlignmentMask) & ~fieldAlignmentMask
+                // A zero-sized field occupies no storage, and the
+                // compiler-emitted field-offset vector reports 0 for it (IRGen
+                // `ElementLayout::completeEmpty` zeroes the reported
+                // `ByteOffset`, tracking the running layout position
+                // separately) — mirror that rather than the accumulator
+                // position. Runtime-instantiated metadata
+                // (`performBasicLayout`) would report the accumulator instead;
+                // the difference is inert for a field without storage.
+                let reportedOffset = fieldLayout.size == 0 ? 0 : alignedOffset
                 entries.append(FieldLayoutEntry(
                     fieldName: fieldName,
-                    offset: alignedOffset,
+                    offset: reportedOffset,
                     typeMangledName: typeNameString,
                     layout: fieldLayout,
                     resolution: .computed

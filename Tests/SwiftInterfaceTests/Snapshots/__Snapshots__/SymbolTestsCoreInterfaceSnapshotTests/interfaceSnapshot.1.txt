@@ -233,7 +233,7 @@ enum BuiltinTypeFields {
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
         var pairField: (Swift.Int, Swift.Double)
         // Field offset: 0x10
-        // Type Layout: (size: 17, stride: 24, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 17, stride: 24, alignment: 8, extraInhabitantCount: 254)
         var tripleField: (Swift.Int, Swift.Double, Swift.Bool)
         // Field offset: 0x28
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
@@ -466,7 +466,7 @@ enum CodableTests {
         }
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         case withValue(Swift.Int)
-        // Type Layout: (size: 24, stride: 24, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 24, stride: 24, alignment: 8, extraInhabitantCount: 1)
         case withPair(left: Swift.String, right: Swift.Int)
         case empty
     }
@@ -863,13 +863,13 @@ enum Enums {
     enum IndirectEnumTest {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         indirect case leaf(Swift.Int)
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 126)
         indirect case node(SymbolTestsCore.Enums.IndirectEnumTest, SymbolTestsCore.Enums.IndirectEnumTest)
     }
     enum PartialIndirectEnumTest {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         case leaf(Swift.Int)
-        // Type Layout: (size: 25, stride: 32, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 25, stride: 32, alignment: 8, extraInhabitantCount: 253)
         indirect case node(SymbolTestsCore.Enums.PartialIndirectEnumTest, SymbolTestsCore.Enums.PartialIndirectEnumTest)
         // Type Layout: (size: 9, stride: 16, alignment: 8, extraInhabitantCount: 253)
         indirect case chain(SymbolTestsCore.Enums.PartialIndirectEnumTest)
@@ -934,7 +934,7 @@ enum ErrorTypes {
         case withMessage(Swift.String)
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         case withCode(Swift.Int)
-        // Type Layout: (size: 32, stride: 32, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 32, stride: 32, alignment: 8, extraInhabitantCount: 4095)
         case withContext(message: Swift.String, code: Swift.Int, underlying: Swift.Error?)
     }
     struct LocalizedErrorTest {
@@ -1408,6 +1408,99 @@ enum GenericFieldLayout {
         init(baseValue: Swift.Int)
 
         deinit
+    }
+    struct VariadicPack<each A> {
+        var values: (repeat A)
+    }
+    struct MixedScalarAndPack<A, each B> {
+        var first: A
+        var rest: (repeat B?)
+    }
+    struct VariadicForwarder<each A> {
+        var forwarded: SymbolTestsCore.GenericFieldLayout.VariadicPack<>
+        var wrapped: (repeat SymbolTestsCore.GenericFieldLayout.Box<A>)
+    }
+    struct ValueGenericBuffer<let a: Int> {
+        var storage: Swift.InlineArray<A, Swift.Int8>
+        var tail: Swift.Int32
+    }
+    struct PackExpansionFieldHolder {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var leading: Swift.Int
+        // Field offset: 0x8
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        var triple: SymbolTestsCore.GenericFieldLayout.VariadicPack<>
+        // Field offset: 0x18
+        // Type Layout: (size: 2, stride: 2, alignment: 2, extraInhabitantCount: 0)
+        var single: SymbolTestsCore.GenericFieldLayout.VariadicPack<>
+        // Field offset: 0x0
+        // Type Layout: (size: 0, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var empty: SymbolTestsCore.GenericFieldLayout.VariadicPack<>
+        // Field offset: 0x20
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var trailing: Swift.Int
+    }
+    struct MixedPackFieldHolder {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var leading: Swift.Int
+        // Field offset: 0x8
+        // Type Layout: (size: 11, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        var mixed: SymbolTestsCore.GenericFieldLayout.MixedScalarAndPack<Swift.Int, >
+        // Field offset: 0x18
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var trailing: Swift.Int
+    }
+    struct PackForwardingFieldHolder {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var leading: Swift.Int
+        // Field offset: 0x8
+        // Type Layout: (size: 13, stride: 16, alignment: 4, extraInhabitantCount: 0)
+        var forwarder: SymbolTestsCore.GenericFieldLayout.VariadicForwarder<>
+        // Field offset: 0x18
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var trailing: Swift.Int
+    }
+    struct FixedArrayPayloadEnumFieldHolder {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var leading: Swift.Int
+        // Field offset: 0x8
+        // Type Layout: (size: 3, stride: 3, alignment: 1, extraInhabitantCount: 253)
+        var enumField: SymbolTestsCore.GenericFieldLayout.SecondParameterPayloadEnum<Swift.Bool, Swift.InlineArray<, Swift.Bool>>
+        // Field offset: 0xb
+        // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var trailing: Swift.Int8
+    }
+    struct ValueGenericFieldHolder {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var leading: Swift.Int
+        // Field offset: 0x8
+        // Type Layout: (size: 12, stride: 12, alignment: 4, extraInhabitantCount: 0)
+        var buffer: SymbolTestsCore.GenericFieldLayout.ValueGenericBuffer<>
+        // Field offset: 0x18
+        // Type Layout: (size: 24, stride: 24, alignment: 8, extraInhabitantCount: 0)
+        var inline: Swift.InlineArray<, Swift.Int64>
+        // Field offset: 0x30
+        // Type Layout: (size: 3, stride: 3, alignment: 1, extraInhabitantCount: 253)
+        var optionalInline: Swift.InlineArray<, Swift.Bool>?
+        // Field offset: 0x38
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var trailing: Swift.Int
+    }
+    struct TupleExtraInhabitantFieldHolder {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var leading: Swift.Int
+        // Field offset: 0x8
+        // Type Layout: (size: 3, stride: 4, alignment: 2, extraInhabitantCount: 253)
+        var optionalTuple: (Swift.Int16, Swift.Bool)?
+        // Field offset: 0xb
+        // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var trailing: Swift.Int8
     }
 }
 enum GenericRequirementVariants {
@@ -2207,13 +2300,13 @@ enum Subscripts {
 enum Tuples {
     struct TupleFieldTest {
         // Field offset: 0x0
-        // Type Layout: (size: 24, stride: 24, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 24, stride: 24, alignment: 8, extraInhabitantCount: 1)
         var namedTuple: (first: Swift.Int, second: Swift.String)
         // Field offset: 0x18
-        // Type Layout: (size: 17, stride: 24, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 17, stride: 24, alignment: 8, extraInhabitantCount: 254)
         var unnamedTuple: (Swift.Int, Swift.Double, Swift.Bool)
         // Field offset: 0x30
-        // Type Layout: (size: 48, stride: 48, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 48, stride: 48, alignment: 8, extraInhabitantCount: 1)
         var nestedTuple: ((Swift.Int, Swift.Int), (Swift.String, Swift.String))
 
         init(namedTuple: (first: Swift.Int, second: Swift.String), unnamedTuple: (Swift.Int, Swift.Double, Swift.Bool), nestedTuple: ((Swift.Int, Swift.Int), (Swift.String, Swift.String)))

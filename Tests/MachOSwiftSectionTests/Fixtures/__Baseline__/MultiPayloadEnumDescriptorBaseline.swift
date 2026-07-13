@@ -23,7 +23,7 @@ enum MultiPayloadEnumDescriptorBaseline {
     }
 
     static let multiPayloadEnumTest = Entry(
-    offset: 0x3e2d4,
+    offset: 0x41544,
     layoutSizeFlags: 0x10000,
     mangledTypeNameRawString: "\u{1}",
     contentsSizeInWord: 0x1,

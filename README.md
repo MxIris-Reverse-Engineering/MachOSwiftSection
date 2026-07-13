@@ -196,7 +196,9 @@ swift-section dump --emit-enum-layout /path/to/binary
 These offsets are computed statically by the `SwiftLayout` engine — no runtime,
 no metadata accessor, no loading the binary into a process — so they work on any
 on-disk Mach-O file (including resilient classes and cross-module field types,
-resolved through the dependency closure over the dyld shared cache). The
+resolved through the dependency closure over the dyld shared cache, as well as
+value-generic and parameter-pack instantiations such as `InlineArray<5, Int8>`
+or `Variadic<Int, String>` fields). The
 `interface` command's `--emit-offset-comments` / `--emit-expanded-field-offsets`
 flags use the same static engine.
 

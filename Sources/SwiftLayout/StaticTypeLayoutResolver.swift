@@ -45,6 +45,11 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         switch node.kind {
         case .builtinTypeName:
             return try builtinLayout(forNode: node, in: originImage)
+        case .builtinFixedArray:
+            guard let countNode = node.firstChild, let elementTypeNode = node.children.at(1) else {
+                throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "builtinFixedArray(malformed)"))
+            }
+            return try fixedArrayLayout(countNode: countNode, elementTypeNode: elementTypeNode, in: originImage)
         case .class, .boundGenericClass:
             // A class field is a single reference; do not recurse (this is also
             // what breaks any potential layout cycle).
@@ -103,7 +108,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
             return .pointerSized
         case .structure, .boundGenericStructure,
              .enum, .boundGenericEnum,
-             .tuple, .builtinTypeName:
+             .tuple, .builtinTypeName, .builtinFixedArray:
             return .empty
         default:
             throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "metatype(\(instance.kind))"))
@@ -161,6 +166,50 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         }
     }
 
+    // MARK: - Fixed array
+
+    /// The layout of `Builtin.FixedArray<count, Element>` (and of
+    /// `Swift.InlineArray`, which wraps it as its only stored field). Ported
+    /// from the runtime's `swift_getFixedArrayTypeMetadata` /
+    /// `FixedArrayCacheEntry::tryInitialize` and cross-checked against IRGen's
+    /// `convertBuiltinFixedArrayType` and RemoteInspection's `ArrayTypeInfo`: a
+    /// zero or negative count is the empty layout; otherwise
+    /// `size == stride == element.stride × count` (no tail-padding
+    /// reclamation, even for a count of 1), alignment and bitwise-takability
+    /// follow the element, and extra inhabitants come from the first element.
+    private func fixedArrayLayout(
+        countNode: Node,
+        elementTypeNode: Node,
+        in originImage: ImageReference<MachO>
+    ) throws -> TypeLayoutInfo {
+        let count = unwrappedType(countNode)
+        switch count.kind {
+        case .negativeInteger:
+            return .empty
+        case .integer:
+            guard let rawCount = count.index, let elementCount = Int(exactly: rawCount) else {
+                throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "fixedArrayCount(no-value)"))
+            }
+            guard elementCount > 0 else { return .empty }
+            let elementLayout = try layout(forTypeNode: elementTypeNode, in: originImage)
+            let (byteCount, didOverflow) = elementLayout.stride.multipliedReportingOverflow(by: elementCount)
+            guard !didOverflow else {
+                throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "fixedArrayCount(overflow)"))
+            }
+            return TypeLayoutInfo(
+                size: byteCount,
+                stride: byteCount,
+                alignmentMask: elementLayout.alignmentMask,
+                extraInhabitantCount: elementLayout.extraInhabitantCount,
+                isBitwiseTakable: elementLayout.isBitwiseTakable
+            )
+        case .dependentGenericParamType:
+            throw LayoutResolutionError.unknown(.genericParameterUnsubstituted)
+        default:
+            throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "fixedArrayCount(\(count.kind))"))
+        }
+    }
+
     // MARK: - Structure
 
     private func structureLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> TypeLayoutInfo {
@@ -174,6 +223,18 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         // structurally — which would fail or compute garbage.
         if let known = KnownLayoutTable.layout(forFullyQualifiedTypeName: qualifiedTypeName) {
             return known
+        }
+        // `Swift.InlineArray<count, Element>` is guaranteed layout-identical to
+        // its only stored field, `Builtin.FixedArray<count, Element>`. Computed
+        // directly so single-image scopes work (its descriptor lives in the
+        // standard library, like `Optional`'s); a dependency closure that can
+        // reach the stdlib would resolve it structurally to the same result.
+        if qualifiedTypeName == "Swift.InlineArray",
+           node.kind == .boundGenericStructure,
+           let typeList = node.children.first(where: { $0.kind == .typeList }),
+           let countNode = typeList.firstChild,
+           let elementTypeNode = typeList.children.at(1) {
+            return try fixedArrayLayout(countNode: countNode, elementTypeNode: elementTypeNode, in: originImage)
         }
         // An imported C value type (e.g. `__C.CGRect`) has no Swift type
         // descriptor, but the using image carries its whole-type layout in a
@@ -368,9 +429,20 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         var elementLayouts: [TypeLayoutInfo] = []
         for element in node.children {
             guard let elementTypeNode = element.first(of: .type) else { continue }
+            // A pack expansion that survived substitution means its count was
+            // never concretely bound (a bare generic context, a depth > 0
+            // parameter): the tuple's very arity is unknown.
+            if elementTypeNode.firstChild?.kind == .packExpansion {
+                throw LayoutResolutionError.unknown(.genericParameterUnsubstituted)
+            }
             elementLayouts.append(try layout(forTypeNode: elementTypeNode, in: originImage))
         }
-        return BasicLayout.compute(startOffset: 0, startAlignmentMask: 0, fieldLayouts: elementLayouts).typeLayoutInfo()
+        // A tuple takes its extra inhabitants from the element with the most
+        // (runtime `swift_getTupleTypeMetadata`); size/stride/alignment fold
+        // through `performBasicLayout` as for any aggregate.
+        let extraInhabitantCount = elementLayouts.map(\.extraInhabitantCount).max() ?? 0
+        return BasicLayout.compute(startOffset: 0, startAlignmentMask: 0, fieldLayouts: elementLayouts)
+            .typeLayoutInfo(extraInhabitantCount: extraInhabitantCount)
     }
 
     // MARK: - Shared field reading

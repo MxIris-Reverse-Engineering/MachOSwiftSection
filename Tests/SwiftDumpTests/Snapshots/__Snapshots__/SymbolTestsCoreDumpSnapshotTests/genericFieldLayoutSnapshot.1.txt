@@ -346,8 +346,8 @@ struct SymbolTestsCore.GenericFieldLayout.TupleGenericFieldHolder {
     /* Variable */
     SymbolTestsCore.GenericFieldLayout.TupleGenericFieldHolder.tuple.getter : (SymbolTestsCore.GenericFieldLayout.Box<Swift.Int>, SymbolTestsCore.GenericFieldLayout.Box<Swift.String>)
     SymbolTestsCore.GenericFieldLayout.TupleGenericFieldHolder.tuple.setter : (SymbolTestsCore.GenericFieldLayout.Box<Swift.Int>, SymbolTestsCore.GenericFieldLayout.Box<Swift.String>)
-    SymbolTestsCore.GenericFieldLayout.TupleGenericFieldHolder.trailing.getter : Swift.Int
     SymbolTestsCore.GenericFieldLayout.TupleGenericFieldHolder.trailing.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.TupleGenericFieldHolder.trailing.getter : Swift.Int
     SymbolTestsCore.GenericFieldLayout.TupleGenericFieldHolder.leading.getter : Swift.Int
     SymbolTestsCore.GenericFieldLayout.TupleGenericFieldHolder.leading.setter : Swift.Int
 }
@@ -440,4 +440,131 @@ class SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass: Symb
     /* [Method] Variable */
     method descriptor for SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass.ownValue.getter : Swift.Int
     method descriptor for SymbolTestsCore.GenericFieldLayout.ConcreteGenericSuperclassSubclass.ownValue.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.VariadicPack<each A> {
+    var values: (repeat A)
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.VariadicPack.values.getter : (repeat A)
+    SymbolTestsCore.GenericFieldLayout.VariadicPack.values.setter : (repeat A)
+}
+struct SymbolTestsCore.GenericFieldLayout.MixedScalarAndPack<A, each B> {
+    var first: A
+    var rest: (repeat B?)
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.MixedScalarAndPack.first.getter : A
+    SymbolTestsCore.GenericFieldLayout.MixedScalarAndPack.first.setter : A
+    SymbolTestsCore.GenericFieldLayout.MixedScalarAndPack.rest.getter : (repeat B?)
+    SymbolTestsCore.GenericFieldLayout.MixedScalarAndPack.rest.setter : (repeat B?)
+}
+struct SymbolTestsCore.GenericFieldLayout.VariadicForwarder<each A> {
+    var forwarded: SymbolTestsCore.GenericFieldLayout.VariadicPack<Pack{repeat A}>
+    var wrapped: (repeat SymbolTestsCore.GenericFieldLayout.Box<A>)
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.VariadicForwarder.forwarded.getter : SymbolTestsCore.GenericFieldLayout.VariadicPack<Pack{repeat A}>
+    SymbolTestsCore.GenericFieldLayout.VariadicForwarder.forwarded.setter : SymbolTestsCore.GenericFieldLayout.VariadicPack<Pack{repeat A}>
+    SymbolTestsCore.GenericFieldLayout.VariadicForwarder.wrapped.getter : (repeat SymbolTestsCore.GenericFieldLayout.Box<A>)
+    SymbolTestsCore.GenericFieldLayout.VariadicForwarder.wrapped.setter : (repeat SymbolTestsCore.GenericFieldLayout.Box<A>)
+}
+struct SymbolTestsCore.GenericFieldLayout.ValueGenericBuffer<let a: Int> {
+    var storage: Swift.InlineArray<A, Swift.Int8>
+    var tail: Swift.Int32
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.ValueGenericBuffer.storage.getter : Swift.InlineArray<A, Swift.Int8>
+    SymbolTestsCore.GenericFieldLayout.ValueGenericBuffer.storage.setter : Swift.InlineArray<A, Swift.Int8>
+    SymbolTestsCore.GenericFieldLayout.ValueGenericBuffer.tail.getter : Swift.Int32
+    SymbolTestsCore.GenericFieldLayout.ValueGenericBuffer.tail.setter : Swift.Int32
+}
+struct SymbolTestsCore.GenericFieldLayout.PackExpansionFieldHolder {
+    var leading: Swift.Int
+    var triple: SymbolTestsCore.GenericFieldLayout.VariadicPack<Pack{Swift.Int32, Swift.Int8, Swift.Int64}>
+    var single: SymbolTestsCore.GenericFieldLayout.VariadicPack<Pack{Swift.Int16}>
+    var empty: SymbolTestsCore.GenericFieldLayout.VariadicPack<Pack{}>
+    var trailing: Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.PackExpansionFieldHolder.triple.getter : SymbolTestsCore.GenericFieldLayout.VariadicPack<Pack{Swift.Int32, Swift.Int8, Swift.Int64}>
+    SymbolTestsCore.GenericFieldLayout.PackExpansionFieldHolder.triple.setter : SymbolTestsCore.GenericFieldLayout.VariadicPack<Pack{Swift.Int32, Swift.Int8, Swift.Int64}>
+    SymbolTestsCore.GenericFieldLayout.PackExpansionFieldHolder.single.getter : SymbolTestsCore.GenericFieldLayout.VariadicPack<Pack{Swift.Int16}>
+    SymbolTestsCore.GenericFieldLayout.PackExpansionFieldHolder.single.setter : SymbolTestsCore.GenericFieldLayout.VariadicPack<Pack{Swift.Int16}>
+    SymbolTestsCore.GenericFieldLayout.PackExpansionFieldHolder.trailing.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.PackExpansionFieldHolder.trailing.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.PackExpansionFieldHolder.empty.getter : SymbolTestsCore.GenericFieldLayout.VariadicPack<Pack{}>
+    SymbolTestsCore.GenericFieldLayout.PackExpansionFieldHolder.empty.setter : SymbolTestsCore.GenericFieldLayout.VariadicPack<Pack{}>
+    SymbolTestsCore.GenericFieldLayout.PackExpansionFieldHolder.leading.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.PackExpansionFieldHolder.leading.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.MixedPackFieldHolder {
+    var leading: Swift.Int
+    var mixed: SymbolTestsCore.GenericFieldLayout.MixedScalarAndPack<Swift.Int, Pack{Swift.Bool, Swift.Int8}>
+    var trailing: Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.MixedPackFieldHolder.mixed.getter : SymbolTestsCore.GenericFieldLayout.MixedScalarAndPack<Swift.Int, Pack{Swift.Bool, Swift.Int8}>
+    SymbolTestsCore.GenericFieldLayout.MixedPackFieldHolder.mixed.setter : SymbolTestsCore.GenericFieldLayout.MixedScalarAndPack<Swift.Int, Pack{Swift.Bool, Swift.Int8}>
+    SymbolTestsCore.GenericFieldLayout.MixedPackFieldHolder.leading.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.MixedPackFieldHolder.leading.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.MixedPackFieldHolder.trailing.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.MixedPackFieldHolder.trailing.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.PackForwardingFieldHolder {
+    var leading: Swift.Int
+    var forwarder: SymbolTestsCore.GenericFieldLayout.VariadicForwarder<Pack{Swift.Int32, Swift.Bool}>
+    var trailing: Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.PackForwardingFieldHolder.forwarder.getter : SymbolTestsCore.GenericFieldLayout.VariadicForwarder<Pack{Swift.Int32, Swift.Bool}>
+    SymbolTestsCore.GenericFieldLayout.PackForwardingFieldHolder.forwarder.setter : SymbolTestsCore.GenericFieldLayout.VariadicForwarder<Pack{Swift.Int32, Swift.Bool}>
+    SymbolTestsCore.GenericFieldLayout.PackForwardingFieldHolder.leading.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.PackForwardingFieldHolder.leading.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.PackForwardingFieldHolder.trailing.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.PackForwardingFieldHolder.trailing.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.FixedArrayPayloadEnumFieldHolder {
+    var leading: Swift.Int
+    var enumField: SymbolTestsCore.GenericFieldLayout.SecondParameterPayloadEnum<Swift.Bool, Swift.InlineArray<3, Swift.Bool>>
+    var trailing: Swift.Int8
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.FixedArrayPayloadEnumFieldHolder.enumField.getter : SymbolTestsCore.GenericFieldLayout.SecondParameterPayloadEnum<Swift.Bool, Swift.InlineArray<3, Swift.Bool>>
+    SymbolTestsCore.GenericFieldLayout.FixedArrayPayloadEnumFieldHolder.enumField.setter : SymbolTestsCore.GenericFieldLayout.SecondParameterPayloadEnum<Swift.Bool, Swift.InlineArray<3, Swift.Bool>>
+    SymbolTestsCore.GenericFieldLayout.FixedArrayPayloadEnumFieldHolder.trailing.setter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.FixedArrayPayloadEnumFieldHolder.trailing.getter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.FixedArrayPayloadEnumFieldHolder.leading.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.FixedArrayPayloadEnumFieldHolder.leading.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.ValueGenericFieldHolder {
+    var leading: Swift.Int
+    var buffer: SymbolTestsCore.GenericFieldLayout.ValueGenericBuffer<5>
+    var inline: Swift.InlineArray<3, Swift.Int64>
+    var optionalInline: Swift.InlineArray<3, Swift.Bool>?
+    var trailing: Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.ValueGenericFieldHolder.buffer.getter : SymbolTestsCore.GenericFieldLayout.ValueGenericBuffer<5>
+    SymbolTestsCore.GenericFieldLayout.ValueGenericFieldHolder.buffer.setter : SymbolTestsCore.GenericFieldLayout.ValueGenericBuffer<5>
+    SymbolTestsCore.GenericFieldLayout.ValueGenericFieldHolder.inline.getter : Swift.InlineArray<3, Swift.Int64>
+    SymbolTestsCore.GenericFieldLayout.ValueGenericFieldHolder.inline.setter : Swift.InlineArray<3, Swift.Int64>
+    SymbolTestsCore.GenericFieldLayout.ValueGenericFieldHolder.optionalInline.getter : Swift.InlineArray<3, Swift.Bool>?
+    SymbolTestsCore.GenericFieldLayout.ValueGenericFieldHolder.optionalInline.setter : Swift.InlineArray<3, Swift.Bool>?
+    SymbolTestsCore.GenericFieldLayout.ValueGenericFieldHolder.trailing.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.ValueGenericFieldHolder.trailing.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.ValueGenericFieldHolder.leading.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.ValueGenericFieldHolder.leading.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.TupleExtraInhabitantFieldHolder {
+    var leading: Swift.Int
+    var optionalTuple: (Swift.Int16, Swift.Bool)?
+    var trailing: Swift.Int8
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.TupleExtraInhabitantFieldHolder.optionalTuple.getter : (Swift.Int16, Swift.Bool)?
+    SymbolTestsCore.GenericFieldLayout.TupleExtraInhabitantFieldHolder.optionalTuple.setter : (Swift.Int16, Swift.Bool)?
+    SymbolTestsCore.GenericFieldLayout.TupleExtraInhabitantFieldHolder.trailing.getter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.TupleExtraInhabitantFieldHolder.trailing.setter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.TupleExtraInhabitantFieldHolder.leading.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.TupleExtraInhabitantFieldHolder.leading.setter : Swift.Int
 }
