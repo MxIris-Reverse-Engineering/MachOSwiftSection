@@ -37,6 +37,52 @@ extension StaticTypeLayoutResolver {
         return Self.existentialContainer(wordCount: 4 + composition.witnessTableCount)
     }
 
+    /// The layout of a constrained ("extended") existential — `any P<Int>` or a
+    /// same-type-constrained `any Sequence<Element == Int>` — encoded via an
+    /// `extendedExistentialTypeShape` symbolic reference (SE-0353). The
+    /// generalization arguments and requirement constraints do **not** change the
+    /// container's size: `any P<Int>` has the same representation as `any P`
+    /// (opaque buffer + metadata + one witness table per protocol). So the shape's
+    /// inner existential (a plain `protocolList` / `…WithClass` / `…WithAnyObject`)
+    /// is extracted and routed through the ordinary existential layout, which
+    /// already handles the class-bound vs opaque distinction.
+    func extendedExistentialLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> TypeLayoutInfo {
+        guard let innerExistential = Self.constrainedExistentialInnerType(of: node) else {
+            throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "extendedExistential(no-shape)"))
+        }
+        // A constrained existential metatype (`any P<Int>.Type`) wraps the
+        // existential in a metatype; route it through the metatype path.
+        if innerExistential.kind == .existentialMetatype {
+            return try existentialMetatypeLayout(forNode: innerExistential, in: originImage)
+        }
+        return try existentialLayout(forNode: innerExistential, in: originImage)
+    }
+
+    /// Extracts the plain existential type node (`protocolList` / `…WithClass` /
+    /// `…WithAnyObject` / `existentialMetatype`) nested inside a
+    /// `symbolicExtendedExistentialType`'s shape reference:
+    /// `symbolicExtendedExistentialType → (unique|nonUnique)…ShapeSymbolicReference
+    /// → constrainedExistential → Type → <existential>`.
+    private static func constrainedExistentialInnerType(of node: Node) -> Node? {
+        let unwrapped = (node.kind == .type ? node.firstChild : node) ?? node
+        guard unwrapped.kind == .symbolicExtendedExistentialType else { return nil }
+        guard let constrainedExistential = firstDescendant(of: unwrapped, kind: .constrainedExistential) else { return nil }
+        // The constrained existential's first child is the `.type`-wrapped
+        // existential (a protocol list); its second is the requirement list,
+        // which does not affect layout.
+        guard let typeChild = constrainedExistential.children.first(where: { $0.kind == .type }) else { return nil }
+        return typeChild
+    }
+
+    /// The first descendant node of the given kind in a pre-order walk.
+    private static func firstDescendant(of node: Node, kind: Node.Kind) -> Node? {
+        if node.kind == kind { return node }
+        for child in node.children {
+            if let found = firstDescendant(of: child, kind: kind) { return found }
+        }
+        return nil
+    }
+
     /// The layout of an existential metatype (`any P.Type`, `Any.Type`,
     /// `AnyObject.Type`): a metadata word plus one word per witness table.
     func existentialMetatypeLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> TypeLayoutInfo {

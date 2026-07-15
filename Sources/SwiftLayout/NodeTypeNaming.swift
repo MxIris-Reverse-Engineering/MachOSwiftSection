@@ -117,6 +117,19 @@ enum NodeTypeNaming {
             return node.text
         case .structure, .enum, .class:
             return qualifiedName(ofNominal: node)
+        case .type:
+            // A `.type`-wrapped context (as appears inside a bound-generic
+            // parent's first child): unwrap and recurse.
+            return node.firstChild.flatMap(contextQualifiedName)
+        case .boundGenericStructure, .boundGenericEnum, .boundGenericClass:
+            // A nested type whose enclosing type is a *specialized* generic
+            // (e.g. the `Environment<Bool>` in `Environment<Bool>.Content`)
+            // carries a `boundGeneric*` context node. Key by the enclosing
+            // type's generic-argument-free name — matching how the type index
+            // names the nested type's own descriptor — by unwrapping to the
+            // underlying nominal. Without this the parent chain is lost and the
+            // nested type degrades to a bare, unresolvable identifier.
+            return unwrappedNominal(of: node).flatMap(contextQualifiedName)
         case .extension:
             // `.extension` children are [module, extendedType, ...]; the
             // nesting context is the extended type.

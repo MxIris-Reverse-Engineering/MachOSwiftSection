@@ -24,6 +24,14 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
     /// Objective-C class start layouts into the closure-wide index. Keyed by
     /// bare ObjC class name (ObjC class names carry no module qualifier).
     let objCClassInstanceSizesByBareName: [String: (instanceSize: Int, alignmentMask: Int)]
+    /// Exposed (package-internal) so `ImageUniverse` can merge each image's
+    /// associated-type witnesses into the closure-wide index. Keyed by
+    /// `"conformingQualifiedName|protocolQualifiedName|associatedTypeName"`; the
+    /// value is the `__swift5_assocty` record whose `substitutedTypeName` is the
+    /// witness type (demangled on demand, in this image). Lets the resolver turn
+    /// a `dependentMemberType` — `Array.Index` after substituting the base —
+    /// into the concrete witness (`Int`).
+    let associatedTypeWitnessRecordsByKey: [String: AssociatedTypeRecord]
 
     public init(machO: MachO) throws {
         self.machO = machO
@@ -66,12 +74,40 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
         // it is invisible to the type index above. Read through the concrete
         // reader because the ObjC accessors are not protocol-generic.
         self.objCClassInstanceSizesByBareName = Self.objCClassInstanceSizes(in: machO)
+
+        // Index every associated-type witness (from `__swift5_assocty`) so a
+        // `dependentMemberType` (`SomeType.Index`) can be resolved to its
+        // concrete witness after the base type is substituted. The conforming
+        // type and protocol names are demangled to the same qualified-name form
+        // the resolver computes on the lookup side; a record whose names cannot
+        // be demangled is skipped. An absent section contributes nothing.
+        var witnessIndex: [String: AssociatedTypeRecord] = [:]
+        for descriptor in try Self.associatedTypeDescriptorsOrEmpty(in: machO) {
+            guard
+                let conformingNode = try? MetadataReader.demangleType(for: descriptor.conformingTypeName(in: machO), in: machO),
+                let conformingName = NodeTypeNaming.nominalQualifiedName(of: conformingNode),
+                let protocolNode = try? MetadataReader.demangleType(for: descriptor.protocolTypeName(in: machO), in: machO),
+                let protocolName = NodeTypeNaming.protocolQualifiedName(of: protocolNode),
+                let records = try? descriptor.associatedTypeRecords(in: machO)
+            else { continue }
+            for record in records {
+                guard let associatedTypeName = try? record.name(in: machO) else { continue }
+                witnessIndex[Self.associatedTypeWitnessKey(conformingName: conformingName, protocolName: protocolName, associatedTypeName: associatedTypeName)] = record
+            }
+        }
+        self.associatedTypeWitnessRecordsByKey = witnessIndex
     }
 
     /// Looks up a type descriptor by its fully-qualified name (as produced by
     /// `NodeTypeNaming.nominalQualifiedName`).
     func typeDescriptor(forQualifiedTypeName qualifiedTypeName: String) -> TypeContextDescriptorWrapper? {
         typeDescriptorsByQualifiedName[qualifiedTypeName]
+    }
+
+    /// The associated-type witness key format shared by the index and lookup
+    /// sides: `"conformingQualifiedName|protocolQualifiedName|associatedTypeName"`.
+    static func associatedTypeWitnessKey(conformingName: String, protocolName: String, associatedTypeName: String) -> String {
+        "\(conformingName)|\(protocolName)|\(associatedTypeName)"
     }
 
     /// Looks up a Swift protocol's class constraint by its fully-qualified name,
@@ -111,6 +147,16 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
         do {
             return try machO.swift.protocolDescriptors
         } catch let MachOSwiftSectionError.sectionNotFound(section, _) where section == .__swift5_protos {
+            return []
+        }
+    }
+
+    /// Reads the image's associated-type descriptors, treating an absent
+    /// `__swift5_assocty` section as "no associated types" rather than an error.
+    private static func associatedTypeDescriptorsOrEmpty(in machO: MachO) throws -> [AssociatedTypeDescriptor] {
+        do {
+            return try machO.swift.associatedTypeDescriptors
+        } catch let MachOSwiftSectionError.sectionNotFound(section, _) where section == .__swift5_assocty {
             return []
         }
     }

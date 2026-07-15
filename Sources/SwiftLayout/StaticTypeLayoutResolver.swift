@@ -80,16 +80,20 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
             return try metatypeLayout(forNode: node)
         case .protocolList, .protocolListWithAnyObject, .protocolListWithClass:
             return try existentialLayout(forNode: node, in: originImage)
+        case .symbolicExtendedExistentialType:
+            return try extendedExistentialLayout(forNode: node, in: originImage)
         case .existentialMetatype:
             return try existentialMetatypeLayout(forNode: node, in: originImage)
         case .dependentGenericParamType:
             throw LayoutResolutionError.unknown(.genericParameterUnsubstituted)
+        case .dependentMemberType:
+            return try dependentMemberTypeLayout(forNode: node, in: originImage)
         default:
             throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: String(describing: node.kind)))
         }
     }
 
-    private func unwrappedType(_ node: Node) -> Node {
+    func unwrappedType(_ node: Node) -> Node {
         if node.kind == .type, let inner = node.firstChild { return inner }
         return node
     }
@@ -132,6 +136,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         switch builtinName {
         case "Builtin.NativeObject",
              "Builtin.RawPointer",
+             "Builtin.RawUnsafeContinuation",
              "Builtin.BridgeObject",
              "Builtin.UnknownObject",
              "Builtin.Word":

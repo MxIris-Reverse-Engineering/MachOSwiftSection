@@ -63,6 +63,12 @@ public final class ImageUniverse<MachO: MachOSwiftSectionRepresentableWithCache>
     /// fields at the size of an ObjC ancestor that lives in another image.
     private var objCClassIndex: [String: (instanceSize: Int, alignmentMask: Int)] = [:]
 
+    /// Closure-wide associated-type witness index: `"conforming|protocol|assoc"`
+    /// → (defining image, witness record). Grown lazily with the same root-first
+    /// / first-writer-wins policy. Lets a `dependentMemberType` resolve its
+    /// witness against whichever image declares the conformance.
+    private var associatedTypeWitnessIndex: [String: (image: ImageReference<MachO>, record: AssociatedTypeRecord)] = [:]
+
     init(rootImage: ImageReference<MachO>, dependencyMachOs: [MachO] = []) {
         self.rootImage = rootImage
         self.dependencyMachOs = dependencyMachOs
@@ -125,6 +131,18 @@ public final class ImageUniverse<MachO: MachOSwiftSectionRepresentableWithCache>
         return objCClassIndex[bareName]
     }
 
+    /// Resolves an associated-type witness — the concrete type a conformance
+    /// binds an associated type to — to its defining image and record, or `nil`
+    /// if no image in the closure declares that conformance. The fourth
+    /// resolution seam, sharing the same lazy fold-in as the others.
+    func resolveAssociatedTypeWitness(
+        forKey key: String
+    ) -> (image: ImageReference<MachO>, record: AssociatedTypeRecord)? {
+        if let resolved = associatedTypeWitnessIndex[key] { return resolved }
+        while associatedTypeWitnessIndex[key] == nil, indexNextDependency() {}
+        return associatedTypeWitnessIndex[key]
+    }
+
     /// Folds the next un-indexed dependency into the merged indexes. Returns
     /// `false` when the dependency list is exhausted. A dependency whose
     /// `ImageReference` cannot be built (a malformed binary) is skipped rather
@@ -150,6 +168,9 @@ public final class ImageUniverse<MachO: MachOSwiftSectionRepresentableWithCache>
         }
         for (bareName, startLayout) in image.objCClassInstanceSizesByBareName where objCClassIndex[bareName] == nil {
             objCClassIndex[bareName] = startLayout
+        }
+        for (key, record) in image.associatedTypeWitnessRecordsByKey where associatedTypeWitnessIndex[key] == nil {
+            associatedTypeWitnessIndex[key] = (image, record)
         }
     }
 }
