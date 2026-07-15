@@ -9,7 +9,7 @@ import Demangling
 /// reference port of `GenEnum.cpp` / `TypeLowering.cpp`) — the fallback when no
 /// `__swift5_builtin` whole-type descriptor is available.
 extension StaticTypeLayoutResolver {
-    func enumLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> TypeLayoutInfo {
+    func enumLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> StaticTypeLayout {
         guard let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node) else {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }
@@ -39,7 +39,7 @@ extension StaticTypeLayoutResolver {
         // depth-0 arguments; payload field records reference these by
         // `dependentGenericParamType` and are substituted during payload reading.
         let environment = GenericArgumentEnvironment.make(forBoundGenericNode: node)
-        let compute: () throws -> TypeLayoutInfo = {
+        let compute: () throws -> StaticTypeLayout = {
             guard let resolved = self.imageUniverse.resolveType(byQualifiedTypeName: qualifiedTypeName) else {
                 throw LayoutResolutionError.unknown(.typeDescriptorNotFound(qualifiedTypeName: qualifiedTypeName))
             }
@@ -62,7 +62,7 @@ extension StaticTypeLayoutResolver {
         node: Node,
         in image: ImageReference<MachO>,
         environment: GenericArgumentEnvironment = .empty
-    ) throws -> TypeLayoutInfo {
+    ) throws -> StaticTypeLayout {
         let payloadCaseCount = descriptor.numberOfPayloadCases
         let emptyCaseCount = descriptor.numberOfEmptyCases
         if payloadCaseCount == 0 {
@@ -93,7 +93,7 @@ extension StaticTypeLayoutResolver {
         node: Node,
         in image: ImageReference<MachO>,
         environment: GenericArgumentEnvironment = .empty
-    ) throws -> TypeLayoutInfo {
+    ) throws -> StaticTypeLayout {
         let payloadCaseCount = descriptor.numberOfPayloadCases
         let emptyCaseCount = descriptor.numberOfEmptyCases
 
@@ -111,7 +111,7 @@ extension StaticTypeLayoutResolver {
             // The payload type is read through the generic environment so a
             // concrete `MyEnum<Int>` substitutes its payload parameters.
             let payloadLayout = isIndirect
-                ? TypeLayoutInfo.pointerSized
+                ? StaticTypeLayout.pointerSized
                 : try layout(forMangledTypeName: mangledTypeName, in: image, environment: environment)
             payloadSize = max(payloadSize, payloadLayout.size)
             payloadAlignmentMask = max(payloadAlignmentMask, payloadLayout.alignmentMask)
@@ -155,7 +155,7 @@ extension StaticTypeLayoutResolver {
         }
         let size = payloadSize + extraTagByteCount
         let stride = max(1, (size + payloadAlignmentMask) & ~payloadAlignmentMask)
-        return TypeLayoutInfo(
+        return StaticTypeLayout(
             size: size,
             stride: stride,
             alignmentMask: payloadAlignmentMask,
@@ -185,7 +185,7 @@ extension StaticTypeLayoutResolver {
 
     /// `Optional<T>`: a single-payload enum with exactly one empty case
     /// (`.none`), its payload being the bound generic argument.
-    private func optionalLayout(forNode node: Node, in image: ImageReference<MachO>) throws -> TypeLayoutInfo {
+    private func optionalLayout(forNode node: Node, in image: ImageReference<MachO>) throws -> StaticTypeLayout {
         guard
             let typeList = node.first(of: .typeList),
             let payloadType = typeList.first(of: .type)
@@ -208,7 +208,7 @@ extension StaticTypeLayoutResolver {
         node: Node,
         in image: ImageReference<MachO>,
         environment: GenericArgumentEnvironment = .empty
-    ) throws -> TypeLayoutInfo {
+    ) throws -> StaticTypeLayout {
         let fieldDescriptor = try descriptor.fieldDescriptor(in: image.machO)
         let records = try fieldDescriptor.records(in: image.machO)
         for record in records {
@@ -228,7 +228,7 @@ extension StaticTypeLayoutResolver {
     /// A single-payload enum reuses the payload's extra inhabitants to encode
     /// empty cases; only the overflow needs extra tag bytes appended after the
     /// payload.
-    static func singlePayloadEnumLayout(payload: TypeLayoutInfo, emptyCaseCount: Int) -> TypeLayoutInfo {
+    static func singlePayloadEnumLayout(payload: StaticTypeLayout, emptyCaseCount: Int) -> StaticTypeLayout {
         let payloadExtraInhabitants = payload.extraInhabitantCount
         let size: Int
         let usedExtraInhabitants: Int
@@ -244,7 +244,7 @@ extension StaticTypeLayoutResolver {
         let alignmentMask = payload.alignmentMask
         let stride = max(1, (size + alignmentMask) & ~alignmentMask)
         let remainingExtraInhabitants = max(0, payloadExtraInhabitants - usedExtraInhabitants)
-        return TypeLayoutInfo(
+        return StaticTypeLayout(
             size: size,
             stride: stride,
             alignmentMask: alignmentMask,
@@ -255,7 +255,7 @@ extension StaticTypeLayoutResolver {
 
     /// A no-payload enum is a plain tag occupying the fewest bytes that can
     /// represent every case.
-    static func noPayloadEnumLayout(emptyCaseCount: Int) -> TypeLayoutInfo {
+    static func noPayloadEnumLayout(emptyCaseCount: Int) -> StaticTypeLayout {
         let size: Int
         if emptyCaseCount <= 1 {
             size = 0
@@ -275,7 +275,7 @@ extension StaticTypeLayoutResolver {
             totalRepresentableValues = 1 << (size * 8)
         }
         let extraInhabitantCount = max(0, totalRepresentableValues - emptyCaseCount)
-        return TypeLayoutInfo(
+        return StaticTypeLayout(
             size: size,
             stride: stride,
             alignmentMask: alignmentMask,

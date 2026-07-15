@@ -13,7 +13,7 @@ metadata accessor），并 gating 在 `machO.asMachOImage` 上。后果：对 **
 Type Layout / expanded 树 / Enum Layout **全部为空**。
 
 `SwiftLayout`（静态布局引擎）正是为离线设计：`StaticLayoutCalculator<MachOFile>` 不加载进程、
-不调 accessor，即可算出 struct/class 字段 offset、每字段类型的 `TypeLayoutInfo`、resilient class 字段起点、
+不调 accessor，即可算出 struct/class 字段 offset、每字段类型的 `StaticTypeLayout`、resilient class 字段起点、
 以及跨模块字段（经依赖闭包）。本次改造把 `FieldLayoutRenderer` 拆成两套按 reader 特化的实现，
 并把 SwiftLayout 接到 MachOFile 路径上，使离线输出**与 MachOImage 全量对齐**。
 
@@ -88,7 +88,7 @@ configuration/isGeneric/staticAggregateFieldLayout，不含 `Self`）传递 rend
 ### 4. 渲染细节
 
 - end offset：优先取下一字段偏移；末字段用 `fields[i].layout.size`（静态每字段都有）。
-- Type Layout：MachOFile 走 `configuration.staticTypeLayoutComment(_:)`，由 `TypeLayoutInfo` 直接渲染默认格式。
+- Type Layout：MachOFile 走 `configuration.staticTypeLayoutComment(_:)`，由 `StaticTypeLayout` 直接渲染默认格式。
 - Enum Layout：静态版 `computeEnumLayout`——payload size/XI 经 `provider.typeLayout(forMangledTypeName:)`，
   枚举自身大小经 `typeLayout(forDescriptor:)`，multi-payload 的 spare bytes 经 `__swift5_mpenum`（section 读，
   MachOFile 本就可读），复用 `SwiftInspection.EnumLayoutCalculator.calculate{MultiPayload,TaggedMultiPayload,SinglePayload}`。
@@ -108,9 +108,9 @@ configuration/isGeneric/staticAggregateFieldLayout，不含 `Self`）传递 rend
 ## 已知限制
 
 - **`typeLayoutTransformer` 仅作用于运行期路径**：transformer 类型绑定运行期 `TypeLayout`，无法从静态
-  `TypeLayoutInfo` 在 `MachOSwiftSection` 外合成（其 init 仅 `@testable` 可见，且给核心模型加 public init
+  `StaticTypeLayout` 在 `MachOSwiftSection` 外合成（其 init 仅 `@testable` 可见，且给核心模型加 public init
   会牵动覆盖率不变量、属层级越界），故 MachOFile 路径恒走默认格式。
-- **tuple 字段的 Type Layout 无逐元素分解**：`TypeLayoutInfo` 不携带元素信息，静态路径输出单行聚合布局。
+- **tuple 字段的 Type Layout 无逐元素分解**：`StaticTypeLayout` 不携带元素信息，静态路径输出单行聚合布局。
 - expanded 树对深层泛型实例化按 SwiftLayout 现状逐子树降级（停止递归而非错算）。
 - 跨模块解析默认走依赖闭包（系统 dyld cache）；`.singleImage` 下跨模块字段降级。`@rpath` 未展开（沿用
   SwiftLayout 闭包 MVP 限制）。

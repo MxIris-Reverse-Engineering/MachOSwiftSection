@@ -40,7 +40,7 @@ final class MultiPayloadEnumStructuralTests: MachOSwiftSectionFixtureTests, @unc
 
             // The structural method may legitimately fail to resolve a payload
             // (e.g. a generic parameter); only assert on the ones it can compute.
-            let structural: TypeLayoutInfo
+            let structural: StaticTypeLayout
             do {
                 structural = try resolver.multiPayloadEnumLayout(enumDescriptor, node: node, in: universe.rootImage)
             } catch {

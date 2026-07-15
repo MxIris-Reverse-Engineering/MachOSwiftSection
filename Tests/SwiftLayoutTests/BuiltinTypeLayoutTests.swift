@@ -67,7 +67,7 @@ final class BuiltinTypeLayoutTests: MachOSwiftSectionFixtureTests, @unchecked Se
         let resolver = StaticTypeLayoutResolver(imageUniverse: universe)
         let targetName = "SymbolTestsCore.Enums.MultiPayloadEnumTests"
 
-        var resolved: TypeLayoutInfo?
+        var resolved: StaticTypeLayout?
         for contextDescriptor in try machO.swift.contextDescriptors {
             guard
                 let node = try? MetadataReader.demangleContext(for: contextDescriptor, in: machO),

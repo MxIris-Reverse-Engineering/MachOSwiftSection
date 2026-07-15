@@ -5,10 +5,10 @@
 /// table.
 ///
 /// This is the unit both consumed and produced by the layout engine: every
-/// stored-property field resolves to a `TypeLayoutInfo`, and the aggregate
+/// stored-property field resolves to a `StaticTypeLayout`, and the aggregate
 /// (`runBasicLayout`) folds a sequence of them into the enclosing type's own
-/// `TypeLayoutInfo`.
-public struct TypeLayoutInfo: Sendable, Hashable {
+/// `StaticTypeLayout`.
+public struct StaticTypeLayout: Sendable, Hashable {
     /// The number of bytes used by the type's significant data, excluding the
     /// trailing padding that distinguishes `stride` from `size`.
     public let size: Int
@@ -54,11 +54,11 @@ public struct TypeLayoutInfo: Sendable, Hashable {
     }
 }
 
-extension TypeLayoutInfo {
+extension StaticTypeLayout {
     /// A single machine pointer / class reference: 8 bytes, 8-byte aligned,
     /// with the runtime's standard 0x1000 pointer extra inhabitants (the low
     /// addresses reserved as invalid).
-    public static let pointerSized = TypeLayoutInfo(
+    public static let pointerSized = StaticTypeLayout(
         size: 8,
         stride: 8,
         alignmentMask: 7,
@@ -68,7 +68,7 @@ extension TypeLayoutInfo {
 
     /// `Swift.Bool`: a single byte holding `0`/`1`, leaving 254 extra
     /// inhabitants (the patterns `2...255`).
-    public static let bool = TypeLayoutInfo(
+    public static let bool = StaticTypeLayout(
         size: 1,
         stride: 1,
         alignmentMask: 0,
@@ -79,8 +79,8 @@ extension TypeLayoutInfo {
     /// A fixed-width integer / floating-point primitive whose `size` and
     /// `stride` equal `byteCount`, naturally aligned, with no extra
     /// inhabitants (every bit pattern is a valid value).
-    public static func fixedWidthScalar(byteCount: Int) -> TypeLayoutInfo {
-        TypeLayoutInfo(
+    public static func fixedWidthScalar(byteCount: Int) -> StaticTypeLayout {
+        StaticTypeLayout(
             size: byteCount,
             stride: byteCount,
             alignmentMask: byteCount - 1,
@@ -91,7 +91,7 @@ extension TypeLayoutInfo {
 
     /// The empty layout (`size == stride == 0`): the unit/`Void` shape and the
     /// identity element for aggregate accumulation.
-    public static let empty = TypeLayoutInfo(
+    public static let empty = StaticTypeLayout(
         size: 0,
         stride: 1,
         alignmentMask: 0,

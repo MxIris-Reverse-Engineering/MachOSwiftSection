@@ -15,7 +15,7 @@ import Demangling
 /// (`Array`'s `Element` witness is `Array`'s element parameter), so it is
 /// substituted a second time under an environment built from the base.
 extension StaticTypeLayoutResolver {
-    func dependentMemberTypeLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> TypeLayoutInfo {
+    func dependentMemberTypeLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> StaticTypeLayout {
         guard
             let baseTypeNode = node.firstChild,
             let associatedTypeReference = node.children.at(1),

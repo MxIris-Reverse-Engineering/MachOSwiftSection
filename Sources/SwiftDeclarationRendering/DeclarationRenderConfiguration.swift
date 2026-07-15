@@ -209,13 +209,13 @@ extension DeclarationRenderConfiguration {
     ///
     /// This intentionally does not route through `typeLayoutTransformer`: that
     /// transformer is typed on the runtime `TypeLayout`, which cannot be
-    /// synthesized from the static `TypeLayoutInfo` outside `MachOSwiftSection`.
+    /// synthesized from the static `StaticTypeLayout` outside `MachOSwiftSection`.
     /// A custom transformer therefore applies to the runtime / `MachOImage` path
     /// only; the static path always emits the default format.
     @SemanticStringBuilder
-    package func staticTypeLayoutComment(_ typeLayoutInfo: TypeLayoutInfo) -> SemanticString {
+    package func staticTypeLayoutComment(_ staticTypeLayout: StaticTypeLayout) -> SemanticString {
         indentString
-        Comment("Type Layout: (size: \(typeLayoutInfo.size), stride: \(typeLayoutInfo.stride), alignment: \(typeLayoutInfo.alignment), extraInhabitantCount: \(typeLayoutInfo.extraInhabitantCount))")
+        Comment("Type Layout: (size: \(staticTypeLayout.size), stride: \(staticTypeLayout.stride), alignment: \(staticTypeLayout.alignment), extraInhabitantCount: \(staticTypeLayout.extraInhabitantCount))")
         BreakLine()
     }
 }

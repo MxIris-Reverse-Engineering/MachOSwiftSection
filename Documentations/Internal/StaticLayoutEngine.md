@@ -22,7 +22,7 @@
 
 ```
 Sources/SwiftLayout/
-├── TypeLayoutInfo.swift            # 输出值类型 (size/stride/alignmentMask/XI/isBitwiseTakable)
+├── StaticTypeLayout.swift          # 输出值类型 (size/stride/alignmentMask/XI/isBitwiseTakable)
 ├── BasicLayout.swift               # runBasicLayout 内核（performBasicLayout 离线移植）
 ├── KnownLayoutTable.swift          # 硬编码 stdlib 固定布局表
 ├── BuiltinTypeLayoutIndex.swift    # __swift5_builtin 整体布局索引：C-imported 值类型 + multi-payload enum，按 demangle 还原的限定名建 key

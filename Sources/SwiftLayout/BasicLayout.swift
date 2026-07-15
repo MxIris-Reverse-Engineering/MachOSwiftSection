@@ -1,5 +1,5 @@
 /// The result of folding a sequence of field layouts into an aggregate: the
-/// per-field byte offsets plus the aggregate's own `TypeLayoutInfo` components.
+/// per-field byte offsets plus the aggregate's own `StaticTypeLayout` components.
 public struct AggregateLayout: Sendable, Hashable {
     /// The byte offset of each field, in declaration order.
     public let fieldOffsets: [Int]
@@ -13,11 +13,11 @@ public struct AggregateLayout: Sendable, Hashable {
     /// Whether every field is bitwise-takable.
     public let isBitwiseTakable: Bool
 
-    /// The aggregate viewed as a `TypeLayoutInfo`. Extra inhabitants are not
+    /// The aggregate viewed as a `StaticTypeLayout`. Extra inhabitants are not
     /// derived here (a struct/class does not inherit a field's spare patterns
     /// in general), so the caller supplies them — defaulting to `0`.
-    public func typeLayoutInfo(extraInhabitantCount: Int = 0) -> TypeLayoutInfo {
-        TypeLayoutInfo(
+    public func asStaticTypeLayout(extraInhabitantCount: Int = 0) -> StaticTypeLayout {
+        StaticTypeLayout(
             size: size,
             stride: stride,
             alignmentMask: alignmentMask,
@@ -42,7 +42,7 @@ public enum BasicLayout {
     public static func compute(
         startOffset: Int,
         startAlignmentMask: Int,
-        fieldLayouts: [TypeLayoutInfo]
+        fieldLayouts: [StaticTypeLayout]
     ) -> AggregateLayout {
         var offsetAccumulator = startOffset
         var alignmentMask = startAlignmentMask

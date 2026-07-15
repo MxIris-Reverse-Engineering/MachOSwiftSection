@@ -37,11 +37,11 @@ public protocol StaticFieldLayoutProvider: Sendable {
 
     /// The whole-type layout (size / stride / alignment / extra inhabitants) of a
     /// field type given its mangled name — used for enum payload sizing.
-    func typeLayout(forMangledTypeName mangledTypeName: MangledName) -> TypeLayoutInfo?
+    func typeLayout(forMangledTypeName mangledTypeName: MangledName) -> StaticTypeLayout?
 
     /// The whole-type layout of a type given its descriptor — used for an enum's
     /// own size when computing its single-payload layout.
-    func typeLayout(forDescriptor descriptor: TypeContextDescriptorWrapper) -> TypeLayoutInfo?
+    func typeLayout(forDescriptor descriptor: TypeContextDescriptorWrapper) -> StaticTypeLayout?
 
     /// The expanded nested-field-offset tree for a field type placed at
     /// `baseOffset`, descending up to `depthLimit` levels.
@@ -80,13 +80,13 @@ public final class MachOFileStaticFieldLayoutProvider: StaticFieldLayoutProvider
         return try? calculator.fieldLayout(of: descriptor)
     }
 
-    public func typeLayout(forMangledTypeName mangledTypeName: MangledName) -> TypeLayoutInfo? {
+    public func typeLayout(forMangledTypeName mangledTypeName: MangledName) -> StaticTypeLayout? {
         lock.lock()
         defer { lock.unlock() }
         return try? calculator.typeLayout(forMangledTypeName: mangledTypeName)
     }
 
-    public func typeLayout(forDescriptor descriptor: TypeContextDescriptorWrapper) -> TypeLayoutInfo? {
+    public func typeLayout(forDescriptor descriptor: TypeContextDescriptorWrapper) -> StaticTypeLayout? {
         lock.lock()
         defer { lock.unlock() }
         return try? calculator.typeLayout(forDescriptor: descriptor)

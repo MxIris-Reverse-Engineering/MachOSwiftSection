@@ -39,14 +39,14 @@ public struct FieldLayoutEntry: Sendable {
     public let offset: Int
     public let typeMangledName: String
     /// The field type's own layout, or `nil` when unresolved.
-    public let layout: TypeLayoutInfo?
+    public let layout: StaticTypeLayout?
     public let resolution: FieldResolution
 
     public init(
         fieldName: String,
         offset: Int,
         typeMangledName: String,
-        layout: TypeLayoutInfo?,
+        layout: StaticTypeLayout?,
         resolution: FieldResolution
     ) {
         self.fieldName = fieldName

@@ -19,10 +19,10 @@ import MachOSwiftSection
 /// recovered by demangling, then keyed with the same `nominalQualifiedName`
 /// formatting the resolver looks types up by.
 public struct BuiltinTypeLayoutIndex: Sendable {
-    private let layoutsByQualifiedName: [String: TypeLayoutInfo]
+    private let layoutsByQualifiedName: [String: StaticTypeLayout]
 
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(machO: MachO) throws {
-        var index: [String: TypeLayoutInfo] = [:]
+        var index: [String: StaticTypeLayout] = [:]
         // A missing `__swift5_builtin` section is a normal state — most images
         // emit no builtin descriptors — so it yields an empty index rather than
         // failing. This matters for dependency-closure images (a sibling
@@ -36,7 +36,7 @@ public struct BuiltinTypeLayoutIndex: Sendable {
         for descriptor in builtinTypeDescriptors {
             guard let mangledTypeName = try descriptor.typeName(in: machO) else { continue }
             guard let qualifiedName = Self.qualifiedName(of: mangledTypeName, in: machO) else { continue }
-            let layout = TypeLayoutInfo(
+            let layout = StaticTypeLayout(
                 size: Int(descriptor.layout.size),
                 stride: Int(descriptor.layout.stride),
                 alignmentMask: max(0, descriptor.alignment - 1),
@@ -69,7 +69,7 @@ public struct BuiltinTypeLayoutIndex: Sendable {
 
     /// Returns the embedded whole-type layout for a fully-qualified type name, or
     /// `nil` if this image emits no builtin descriptor for it.
-    public func layout(forTypeName qualifiedTypeName: String) -> TypeLayoutInfo? {
+    public func layout(forTypeName qualifiedTypeName: String) -> StaticTypeLayout? {
         layoutsByQualifiedName[qualifiedTypeName]
     }
 }

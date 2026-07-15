@@ -82,8 +82,8 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
 
     /// The resolved whole-type layout of a struct field type. Convenience for
     /// callers that want size/stride rather than per-field offsets.
-    public func typeLayout(ofStruct structDescriptor: StructDescriptor) throws -> TypeLayoutInfo {
-        try resolver.computeStructLayout(structDescriptor, in: imageUniverse.rootImage).typeLayoutInfo()
+    public func typeLayout(ofStruct structDescriptor: StructDescriptor) throws -> StaticTypeLayout {
+        try resolver.computeStructLayout(structDescriptor, in: imageUniverse.rootImage).asStaticTypeLayout()
     }
 
     /// The resolved whole-type layout of any field type given by its mangled
@@ -91,7 +91,7 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
     /// reached as a stored field. Used by renderers that need a field type's
     /// size/extra-inhabitants (e.g. enum payload sizing) without a descriptor in
     /// hand.
-    public func typeLayout(forMangledTypeName mangledTypeName: MangledName) throws -> TypeLayoutInfo {
+    public func typeLayout(forMangledTypeName mangledTypeName: MangledName) throws -> StaticTypeLayout {
         try resolver.layout(forMangledTypeName: mangledTypeName, in: imageUniverse.rootImage)
     }
 
@@ -99,7 +99,7 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
     /// resolver would lay it out. Demangles the descriptor's context to a node and
     /// resolves it (a class yields a single pointer). Used for enum whole-type
     /// sizing in renderers that hold a descriptor rather than a mangled name.
-    public func typeLayout(forDescriptor typeDescriptor: TypeContextDescriptorWrapper) throws -> TypeLayoutInfo {
+    public func typeLayout(forDescriptor typeDescriptor: TypeContextDescriptorWrapper) throws -> StaticTypeLayout {
         let node = try MetadataReader.demangleContext(for: typeDescriptor.asContextDescriptorWrapper, in: imageUniverse.rootImage.machO)
         return try resolver.layout(forTypeNode: node, in: imageUniverse.rootImage)
     }

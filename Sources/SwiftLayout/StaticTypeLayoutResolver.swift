@@ -3,7 +3,7 @@ import MachOSwiftSection
 import Demangling
 
 /// Resolves a Swift type (given by its mangled name or demangled `Node`) to its
-/// `TypeLayoutInfo`, recursing into struct/tuple fields and stopping class
+/// `StaticTypeLayout`, recursing into struct/tuple fields and stopping class
 /// references at a single pointer.
 ///
 /// Dispatch is by `Node.Kind`. Results are memoized per fully-qualified name,
@@ -15,7 +15,7 @@ import Demangling
 /// image can switch context without changing this code.
 final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCache> {
     let imageUniverse: ImageUniverse<MachO>
-    private var memoizationCache: [String: TypeLayoutInfo] = [:]
+    private var memoizationCache: [String: StaticTypeLayout] = [:]
     private var inProgressKeys: Set<String> = []
 
     init(imageUniverse: ImageUniverse<MachO>) {
@@ -26,7 +26,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
     func layout(
         forMangledTypeName mangledTypeName: MangledName,
         in originImage: ImageReference<MachO>
-    ) throws -> TypeLayoutInfo {
+    ) throws -> StaticTypeLayout {
         let typeNode: Node
         do {
             typeNode = try MetadataReader.demangleType(for: mangledTypeName, in: originImage.machO)
@@ -40,7 +40,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
     func layout(
         forTypeNode typeNode: Node,
         in originImage: ImageReference<MachO>
-    ) throws -> TypeLayoutInfo {
+    ) throws -> StaticTypeLayout {
         let node = unwrappedType(typeNode)
         switch node.kind {
         case .builtinTypeName:
@@ -63,7 +63,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         case .functionType:
             // A thick function value is a (function pointer, context pointer)
             // pair: two words, not bitwise-takable (the context is retained).
-            return TypeLayoutInfo(size: 16, stride: 16, alignmentMask: 7, extraInhabitantCount: 0, isBitwiseTakable: false)
+            return StaticTypeLayout(size: 16, stride: 16, alignmentMask: 7, extraInhabitantCount: 0, isBitwiseTakable: false)
         case .cFunctionPointer, .objCBlock, .escapingObjCBlock:
             // A C function pointer (`@convention(c)`/`@convention(thin)`) and an
             // Objective-C block (`@convention(block)`) are a single word — unlike
@@ -102,7 +102,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
     /// (struct/enum/tuple/builtin) is thin — zero-sized, since the type is
     /// statically known; the metatype of a class is thick — a single metadata
     /// pointer.
-    private func metatypeLayout(forNode node: Node) throws -> TypeLayoutInfo {
+    private func metatypeLayout(forNode node: Node) throws -> StaticTypeLayout {
         guard let instanceType = node.firstChild else {
             throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "metatype(no-instance)"))
         }
@@ -121,7 +121,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
 
     // MARK: - Builtin
 
-    private func builtinLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> TypeLayoutInfo {
+    private func builtinLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> StaticTypeLayout {
         if let builtinName = node.text {
             if let known = KnownLayoutTable.layout(forFullyQualifiedTypeName: builtinName) { return known }
             if let fromImage = originImage.builtinLayoutIndex.layout(forTypeName: builtinName) { return fromImage }
@@ -132,7 +132,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
 
     /// Fallback layouts for the compiler's builtin primitives, used when the
     /// image emits no `BuiltinTypeDescriptor` for them.
-    private static func builtinPrimitiveLayout(forName builtinName: String) -> TypeLayoutInfo? {
+    private static func builtinPrimitiveLayout(forName builtinName: String) -> StaticTypeLayout? {
         switch builtinName {
         case "Builtin.NativeObject",
              "Builtin.RawPointer",
@@ -159,7 +159,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
             // descriptor for it, so it is answered here.
             let defaultActorWordCount = 12
             let size = 8 * defaultActorWordCount
-            return TypeLayoutInfo(
+            return StaticTypeLayout(
                 size: size,
                 stride: size,
                 alignmentMask: 15,
@@ -186,7 +186,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         countNode: Node,
         elementTypeNode: Node,
         in originImage: ImageReference<MachO>
-    ) throws -> TypeLayoutInfo {
+    ) throws -> StaticTypeLayout {
         let count = unwrappedType(countNode)
         switch count.kind {
         case .negativeInteger:
@@ -201,7 +201,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
             guard !didOverflow else {
                 throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "fixedArrayCount(overflow)"))
             }
-            return TypeLayoutInfo(
+            return StaticTypeLayout(
                 size: byteCount,
                 stride: byteCount,
                 alignmentMask: elementLayout.alignmentMask,
@@ -217,7 +217,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
 
     // MARK: - Structure
 
-    private func structureLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> TypeLayoutInfo {
+    private func structureLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> StaticTypeLayout {
         guard let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node) else {
             throw LayoutResolutionError.unknown(.demangleFailure)
         }
@@ -256,14 +256,14 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         // by `dependentGenericParamType` and are substituted during field
         // reading. A plain `.structure` node yields `.empty`.
         let environment = GenericArgumentEnvironment.make(forBoundGenericNode: node)
-        let compute: () throws -> TypeLayoutInfo = {
+        let compute: () throws -> StaticTypeLayout = {
             guard let resolved = self.imageUniverse.resolveType(byQualifiedTypeName: qualifiedTypeName) else {
                 throw LayoutResolutionError.unknown(.typeDescriptorNotFound(qualifiedTypeName: qualifiedTypeName))
             }
             guard let structDescriptor = resolved.descriptor.struct else {
                 throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "non-struct:\(qualifiedTypeName)"))
             }
-            return try self.computeStructLayout(structDescriptor, in: resolved.image, environment: environment).typeLayoutInfo()
+            return try self.computeStructLayout(structDescriptor, in: resolved.image, environment: environment).asStaticTypeLayout()
         }
         if environment.isEmpty {
             return try memoizedNominalLayout(forQualifiedTypeName: qualifiedTypeName, compute: compute)
@@ -279,8 +279,8 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
     /// genuine cache miss. Shared by struct and enum resolution.
     func memoizedNominalLayout(
         forQualifiedTypeName qualifiedTypeName: String,
-        compute: () throws -> TypeLayoutInfo
-    ) throws -> TypeLayoutInfo {
+        compute: () throws -> StaticTypeLayout
+    ) throws -> StaticTypeLayout {
         // Frozen stdlib types (Int/String/Array/…) short-circuit before any
         // descriptor recursion — critical for the reference-backed containers.
         if let known = KnownLayoutTable.layout(forFullyQualifiedTypeName: qualifiedTypeName) { return known }
@@ -306,8 +306,8 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
     /// infinitely-sized value type (the compiler rejects it), so this is safe.
     func memoizedInstantiationLayout(
         forInstantiationKey key: String,
-        compute: () throws -> TypeLayoutInfo
-    ) throws -> TypeLayoutInfo {
+        compute: () throws -> StaticTypeLayout
+    ) throws -> StaticTypeLayout {
         if let cached = memoizationCache[key] { return cached }
         guard !inProgressKeys.contains(key) else {
             throw LayoutResolutionError.unknown(.cyclicLayout)
@@ -334,7 +334,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         forMangledTypeName mangledTypeName: MangledName,
         in originImage: ImageReference<MachO>,
         environment: GenericArgumentEnvironment
-    ) throws -> TypeLayoutInfo {
+    ) throws -> StaticTypeLayout {
         let typeNode: Node
         do {
             typeNode = try MetadataReader.demangleType(for: mangledTypeName, in: originImage.machO)
@@ -430,8 +430,8 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
 
     // MARK: - Tuple
 
-    private func tupleLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> TypeLayoutInfo {
-        var elementLayouts: [TypeLayoutInfo] = []
+    private func tupleLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> StaticTypeLayout {
+        var elementLayouts: [StaticTypeLayout] = []
         for element in node.children {
             guard let elementTypeNode = element.first(of: .type) else { continue }
             // A pack expansion that survived substitution means its count was
@@ -447,7 +447,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         // through `performBasicLayout` as for any aggregate.
         let extraInhabitantCount = elementLayouts.map(\.extraInhabitantCount).max() ?? 0
         return BasicLayout.compute(startOffset: 0, startAlignmentMask: 0, fieldLayouts: elementLayouts)
-            .typeLayoutInfo(extraInhabitantCount: extraInhabitantCount)
+            .asStaticTypeLayout(extraInhabitantCount: extraInhabitantCount)
     }
 
     // MARK: - Shared field reading
@@ -458,10 +458,10 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         ofFieldDescriptorOwner descriptor: some TypeContextDescriptorProtocol,
         in image: ImageReference<MachO>,
         environment: GenericArgumentEnvironment = .empty
-    ) throws -> [TypeLayoutInfo] {
+    ) throws -> [StaticTypeLayout] {
         let fieldDescriptor = try descriptor.fieldDescriptor(in: image.machO)
         let records = try fieldDescriptor.records(in: image.machO)
-        var fieldLayouts: [TypeLayoutInfo] = []
+        var fieldLayouts: [StaticTypeLayout] = []
         fieldLayouts.reserveCapacity(records.count)
         for record in records {
             let mangledTypeName = try record.mangledTypeName(in: image.machO)

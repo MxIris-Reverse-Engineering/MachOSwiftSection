@@ -4,10 +4,10 @@ import Testing
 /// Pure numeric tests for the `performBasicLayout` port — no Mach-O involved.
 @Suite
 struct BasicLayoutTests {
-    private let int = TypeLayoutInfo.fixedWidthScalar(byteCount: 8)
-    private let int32 = TypeLayoutInfo.fixedWidthScalar(byteCount: 4)
-    private let int16 = TypeLayoutInfo.fixedWidthScalar(byteCount: 2)
-    private let int8 = TypeLayoutInfo.fixedWidthScalar(byteCount: 1)
+    private let int = StaticTypeLayout.fixedWidthScalar(byteCount: 8)
+    private let int32 = StaticTypeLayout.fixedWidthScalar(byteCount: 4)
+    private let int16 = StaticTypeLayout.fixedWidthScalar(byteCount: 2)
+    private let int8 = StaticTypeLayout.fixedWidthScalar(byteCount: 1)
 
     @Test func threeWordFieldsArePackedAtEightByteStride() {
         let result = BasicLayout.compute(startOffset: 0, startAlignmentMask: 0, fieldLayouts: [int, int, int])

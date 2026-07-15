@@ -16,12 +16,12 @@ public enum KnownLayoutTable {
     /// Returns the frozen layout for a fully-qualified type name such as
     /// `"Swift.Int"`, or `nil` if the type is not a known fixed-layout
     /// primitive.
-    public static func layout(forFullyQualifiedTypeName fullyQualifiedTypeName: String) -> TypeLayoutInfo? {
+    public static func layout(forFullyQualifiedTypeName fullyQualifiedTypeName: String) -> StaticTypeLayout? {
         knownLayouts[fullyQualifiedTypeName]
     }
 
-    private static let knownLayouts: [String: TypeLayoutInfo] = {
-        var table: [String: TypeLayoutInfo] = [:]
+    private static let knownLayouts: [String: StaticTypeLayout] = {
+        var table: [String: StaticTypeLayout] = [:]
 
         // Word-sized integers.
         for wordIntegerName in ["Swift.Int", "Swift.UInt", "Swift.Int64", "Swift.UInt64"] {
@@ -67,7 +67,7 @@ public enum KnownLayoutTable {
         }
 
         // Buffer pointers are a (base pointer, count) pair — two words.
-        let bufferPointerLayout = TypeLayoutInfo(
+        let bufferPointerLayout = StaticTypeLayout(
             size: 16, stride: 16, alignmentMask: 7, extraInhabitantCount: 0, isBitwiseTakable: true
         )
         for bufferPointerName in [
@@ -93,7 +93,7 @@ public enum KnownLayoutTable {
         // `String` / `Character` are a 16-byte `_StringObject`. `Optional<String>`
         // is also 16 bytes, so the string object exposes spare patterns; a
         // conservative count of 1 is enough to keep `Optional<String>` at 16.
-        let stringLayout = TypeLayoutInfo(
+        let stringLayout = StaticTypeLayout(
             size: 16,
             stride: 16,
             alignmentMask: 7,

@@ -25,7 +25,7 @@ private let errorProtocolName = "Swift.Error"
 /// trustworthy), matching the runtime lowering's `markInvalid` behaviour.
 extension StaticTypeLayoutResolver {
     /// The layout of an existential value (`any …`).
-    func existentialLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> TypeLayoutInfo {
+    func existentialLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> StaticTypeLayout {
         let composition = try existentialComposition(of: node, in: originImage)
         if composition.isError {
             return Self.existentialContainer(wordCount: 1)
@@ -46,7 +46,7 @@ extension StaticTypeLayoutResolver {
     /// inner existential (a plain `protocolList` / `…WithClass` / `…WithAnyObject`)
     /// is extracted and routed through the ordinary existential layout, which
     /// already handles the class-bound vs opaque distinction.
-    func extendedExistentialLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> TypeLayoutInfo {
+    func extendedExistentialLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> StaticTypeLayout {
         guard let innerExistential = Self.constrainedExistentialInnerType(of: node) else {
             throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "extendedExistential(no-shape)"))
         }
@@ -85,7 +85,7 @@ extension StaticTypeLayoutResolver {
 
     /// The layout of an existential metatype (`any P.Type`, `Any.Type`,
     /// `AnyObject.Type`): a metadata word plus one word per witness table.
-    func existentialMetatypeLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> TypeLayoutInfo {
+    func existentialMetatypeLayout(forNode node: Node, in originImage: ImageReference<MachO>) throws -> StaticTypeLayout {
         guard let instanceType = node.firstChild else {
             throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "existentialMetatype(no-instance)"))
         }
@@ -184,13 +184,13 @@ extension StaticTypeLayoutResolver {
     /// An existential container of `wordCount` machine words: 8-byte aligned,
     /// with the metadata/object word providing the standard pointer extra
     /// inhabitants (so `Optional<any …>` stays the same size).
-    private static func existentialContainer(wordCount: Int) -> TypeLayoutInfo {
+    private static func existentialContainer(wordCount: Int) -> StaticTypeLayout {
         let size = 8 * wordCount
-        return TypeLayoutInfo(
+        return StaticTypeLayout(
             size: size,
             stride: max(1, size),
             alignmentMask: 7,
-            extraInhabitantCount: TypeLayoutInfo.pointerSized.extraInhabitantCount,
+            extraInhabitantCount: StaticTypeLayout.pointerSized.extraInhabitantCount,
             isBitwiseTakable: true
         )
     }
