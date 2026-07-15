@@ -16,7 +16,7 @@ enum BuiltinTypeBaseline {
     }
 
     static let firstBuiltin = Entry(
-    descriptorOffset: 0x40900,
+    descriptorOffset: 0x42150,
     hasTypeName: true
     )
 }

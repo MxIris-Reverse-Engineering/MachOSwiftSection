@@ -281,4 +281,68 @@ public enum GenericFieldLayout {
         public var optionalTuple: (Int16, Bool)?
         public var trailing: Int8
     }
+
+    // MARK: - Nested types inside specialized generic parents, associated types,
+    //         and constrained existentials
+
+    /// A generic struct with a non-generic nested type. When the nested type is
+    /// referenced as a field of a *specialized* parent (`Outer<Int>.Inner`), the
+    /// field's mangled type carries a `boundGeneric*` parent context whose
+    /// qualified name must keep the parent chain (`Outer.Inner`), not degrade to
+    /// a bare `Inner`.
+    public struct GenericOuter<Value> {
+        public var value: Value
+
+        public struct Inner {
+            public var flag: Bool
+            public var count: Int32
+        }
+
+        public enum InnerEnum {
+            case none
+            case some(Int16)
+        }
+    }
+
+    /// Non-generic holder whose fields are nested types of a *specialized*
+    /// generic parent — exercises the parent-chain-preserving name resolution.
+    public struct NestedInSpecializedParentFieldHolder {
+        public var leading: Int
+        public var innerStruct: GenericOuter<Int>.Inner
+        public var innerEnum: GenericOuter<String>.InnerEnum
+        public var trailing: Int8
+    }
+
+    /// A generic struct whose stored fields are *associated types* of its own
+    /// parameter's conformance (`C.Index`, `C.Element`). Reached as a concrete
+    /// instantiation (`AssociatedTypeFieldHolder<[Int16]>` below), these resolve
+    /// through the conformance's `__swift5_assocty` witnesses.
+    public struct AssociatedTypeStorage<C: Collection> {
+        public var index: C.Index
+        public var element: C.Element
+    }
+
+    /// Non-generic holder of a concrete instantiation whose fields are
+    /// associated types. For `Array<Int16>`: `Index == Int`, `Element == Int16`.
+    public struct AssociatedTypeFieldHolder {
+        public var leading: Int
+        public var storage: AssociatedTypeStorage<[Int16]>
+        public var trailing: Int8
+    }
+
+    /// A protocol with a primary associated type, for constrained existentials.
+    public protocol Boxed<Wrapped> {
+        associatedtype Wrapped
+        var wrapped: Wrapped { get }
+    }
+
+    /// Non-generic holder whose fields are *constrained* existentials
+    /// (`any Boxed<Int>`) — encoded via an extended existential type shape. The
+    /// constraint does not change the container size versus `any Boxed`.
+    public struct ConstrainedExistentialFieldHolder {
+        public var leading: Int
+        public var boxed: any Boxed<Int>
+        public var optionalBoxed: (any Boxed<String>)?
+        public var trailing: Int8
+    }
 }

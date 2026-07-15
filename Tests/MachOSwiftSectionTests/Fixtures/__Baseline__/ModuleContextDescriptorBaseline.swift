@@ -11,7 +11,7 @@ enum ModuleContextDescriptorBaseline {
     }
 
     static let symbolTestsCore = Entry(
-    offset: 0x384f0,
+    offset: 0x39aa0,
     layoutFlagsRawValue: 0x0
     )
 }

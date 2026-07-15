@@ -568,3 +568,88 @@ struct SymbolTestsCore.GenericFieldLayout.TupleExtraInhabitantFieldHolder {
     SymbolTestsCore.GenericFieldLayout.TupleExtraInhabitantFieldHolder.leading.getter : Swift.Int
     SymbolTestsCore.GenericFieldLayout.TupleExtraInhabitantFieldHolder.leading.setter : Swift.Int
 }
+struct SymbolTestsCore.GenericFieldLayout.GenericOuter<A> {
+    var value: A
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.GenericOuter.value.getter : A
+    SymbolTestsCore.GenericFieldLayout.GenericOuter.value.setter : A
+}
+struct SymbolTestsCore.GenericFieldLayout.GenericOuter.Inner {
+    var flag: Swift.Bool
+    var count: Swift.Int32
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.GenericOuter.Inner.count.getter : Swift.Int32
+    SymbolTestsCore.GenericFieldLayout.GenericOuter.Inner.count.setter : Swift.Int32
+    SymbolTestsCore.GenericFieldLayout.GenericOuter.Inner.flag.getter : Swift.Bool
+    SymbolTestsCore.GenericFieldLayout.GenericOuter.Inner.flag.setter : Swift.Bool
+}
+enum SymbolTestsCore.GenericFieldLayout.GenericOuter.InnerEnum {
+    case some(Swift.Int16)
+    case none
+}
+struct SymbolTestsCore.GenericFieldLayout.NestedInSpecializedParentFieldHolder {
+    var leading: Swift.Int
+    var innerStruct: SymbolTestsCore.GenericFieldLayout.GenericOuter<Swift.Int>.Inner
+    var innerEnum: SymbolTestsCore.GenericFieldLayout.GenericOuter<Swift.String>.InnerEnum
+    var trailing: Swift.Int8
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.NestedInSpecializedParentFieldHolder.innerStruct.getter : SymbolTestsCore.GenericFieldLayout.GenericOuter<Swift.Int>.Inner
+    SymbolTestsCore.GenericFieldLayout.NestedInSpecializedParentFieldHolder.innerStruct.setter : SymbolTestsCore.GenericFieldLayout.GenericOuter<Swift.Int>.Inner
+    SymbolTestsCore.GenericFieldLayout.NestedInSpecializedParentFieldHolder.innerEnum.getter : SymbolTestsCore.GenericFieldLayout.GenericOuter<Swift.String>.InnerEnum
+    SymbolTestsCore.GenericFieldLayout.NestedInSpecializedParentFieldHolder.innerEnum.setter : SymbolTestsCore.GenericFieldLayout.GenericOuter<Swift.String>.InnerEnum
+    SymbolTestsCore.GenericFieldLayout.NestedInSpecializedParentFieldHolder.trailing.getter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.NestedInSpecializedParentFieldHolder.trailing.setter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.NestedInSpecializedParentFieldHolder.leading.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.NestedInSpecializedParentFieldHolder.leading.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.AssociatedTypeStorage<A> where A: Swift.Collection {
+    var index: A.Collection.Index
+    var element: A.Sequence.Element
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.AssociatedTypeStorage.index.getter : A.Index
+    SymbolTestsCore.GenericFieldLayout.AssociatedTypeStorage.index.setter : A.Index
+    SymbolTestsCore.GenericFieldLayout.AssociatedTypeStorage.element.getter : A.Element
+    SymbolTestsCore.GenericFieldLayout.AssociatedTypeStorage.element.setter : A.Element
+}
+struct SymbolTestsCore.GenericFieldLayout.AssociatedTypeFieldHolder {
+    var leading: Swift.Int
+    var storage: SymbolTestsCore.GenericFieldLayout.AssociatedTypeStorage<[Swift.Int16]>
+    var trailing: Swift.Int8
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.AssociatedTypeFieldHolder.storage.getter : SymbolTestsCore.GenericFieldLayout.AssociatedTypeStorage<[Swift.Int16]>
+    SymbolTestsCore.GenericFieldLayout.AssociatedTypeFieldHolder.storage.setter : SymbolTestsCore.GenericFieldLayout.AssociatedTypeStorage<[Swift.Int16]>
+    SymbolTestsCore.GenericFieldLayout.AssociatedTypeFieldHolder.trailing.getter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.AssociatedTypeFieldHolder.trailing.setter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.AssociatedTypeFieldHolder.leading.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.AssociatedTypeFieldHolder.leading.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.ConstrainedExistentialFieldHolder {
+    var leading: Swift.Int
+    var boxed: symbolic existential type (non-unique) 0x0 <Swift.Int>
+    var optionalBoxed: (symbolic existential type (non-unique) 0x0 <Swift.String>)?
+    var trailing: Swift.Int8
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.ConstrainedExistentialFieldHolder.boxed.getter : any SymbolTestsCore.GenericFieldLayout.Boxed<Self.Boxed.Wrapped == Swift.Int>
+    SymbolTestsCore.GenericFieldLayout.ConstrainedExistentialFieldHolder.boxed.setter : any SymbolTestsCore.GenericFieldLayout.Boxed<Self.Boxed.Wrapped == Swift.Int>
+    SymbolTestsCore.GenericFieldLayout.ConstrainedExistentialFieldHolder.optionalBoxed.getter : (any SymbolTestsCore.GenericFieldLayout.Boxed<Self.Boxed.Wrapped == Swift.String>)?
+    SymbolTestsCore.GenericFieldLayout.ConstrainedExistentialFieldHolder.optionalBoxed.setter : (any SymbolTestsCore.GenericFieldLayout.Boxed<Self.Boxed.Wrapped == Swift.String>)?
+    SymbolTestsCore.GenericFieldLayout.ConstrainedExistentialFieldHolder.trailing.getter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.ConstrainedExistentialFieldHolder.trailing.setter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.ConstrainedExistentialFieldHolder.leading.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.ConstrainedExistentialFieldHolder.leading.setter : Swift.Int
+}
+
+// MARK: - Protocols
+
+protocol SymbolTestsCore.GenericFieldLayout.Boxed {
+    associatedtype Wrapped
+
+    associated type descriptor for SymbolTestsCore.GenericFieldLayout.Boxed.Wrapped
+    method descriptor for SymbolTestsCore.GenericFieldLayout.Boxed.wrapped.getter : A.Wrapped
+}

@@ -1502,6 +1502,72 @@ enum GenericFieldLayout {
         // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
         var trailing: Swift.Int8
     }
+    struct GenericOuter<A> {
+        struct Inner {
+            // Field offset: 0x0
+            // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 254)
+            var flag: Swift.Bool
+            // Field offset: 0x4
+            // Type Layout: (size: 4, stride: 4, alignment: 4, extraInhabitantCount: 0)
+            var count: Swift.Int32
+        }
+        enum InnerEnum {
+            // Type Layout: (size: 2, stride: 2, alignment: 2, extraInhabitantCount: 0)
+            case some(Swift.Int16)
+            case none
+        }
+        var value: A
+    }
+    struct NestedInSpecializedParentFieldHolder {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var leading: Swift.Int
+        // Field offset: 0x8
+        // Type Layout: (size: 8, stride: 8, alignment: 4, extraInhabitantCount: 0)
+        var innerStruct: SymbolTestsCore.GenericFieldLayout.GenericOuter<Swift.Int>.Inner
+        // Field offset: 0x10
+        // Type Layout: (size: 3, stride: 4, alignment: 2, extraInhabitantCount: 0)
+        var innerEnum: SymbolTestsCore.GenericFieldLayout.GenericOuter<Swift.String>.InnerEnum
+        // Field offset: 0x13
+        // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var trailing: Swift.Int8
+    }
+    struct AssociatedTypeStorage<A> where A: Swift.Collection {
+        var index: A.Index
+        var element: A.Element
+    }
+    struct AssociatedTypeFieldHolder {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var leading: Swift.Int
+        // Field offset: 0x8
+        // Type Layout: (size: 10, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        var storage: SymbolTestsCore.GenericFieldLayout.AssociatedTypeStorage<[Swift.Int16]>
+        // Field offset: 0x12
+        // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var trailing: Swift.Int8
+    }
+    struct ConstrainedExistentialFieldHolder {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var leading: Swift.Int
+        // Field offset: 0x8
+        // Type Layout: (size: 40, stride: 40, alignment: 8, extraInhabitantCount: 4096)
+        var boxed: Swift.Int
+        // Field offset: 0x30
+        // Type Layout: (size: 40, stride: 40, alignment: 8, extraInhabitantCount: 4095)
+        var optionalBoxed: (Swift.String)?
+        // Field offset: 0x58
+        // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var trailing: Swift.Int8
+    }
+    protocol Boxed {
+        associatedtype Wrapped
+
+        var wrapped: Self.Wrapped {
+            get
+        }
+    }
 }
 enum GenericRequirementVariants {
     struct ProtocolRequirementTest<A> where A: SymbolTestsCore.Protocols.ProtocolTest {
