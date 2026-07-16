@@ -252,6 +252,8 @@ struct SymbolTestsCore.GenericFieldLayout.Pair<A, B> {
     var second: B
 
     /* Variable */
+    merged SymbolTestsCore.GenericFieldLayout.Pair.second.getter : B
+    merged SymbolTestsCore.GenericFieldLayout.Pair.second.setter : B
     SymbolTestsCore.GenericFieldLayout.Pair.second.getter : B
     SymbolTestsCore.GenericFieldLayout.Pair.second.setter : B
     SymbolTestsCore.GenericFieldLayout.Pair.first.getter : A
@@ -643,6 +645,111 @@ struct SymbolTestsCore.GenericFieldLayout.ConstrainedExistentialFieldHolder {
     SymbolTestsCore.GenericFieldLayout.ConstrainedExistentialFieldHolder.trailing.setter : Swift.Int8
     SymbolTestsCore.GenericFieldLayout.ConstrainedExistentialFieldHolder.leading.getter : Swift.Int
     SymbolTestsCore.GenericFieldLayout.ConstrainedExistentialFieldHolder.leading.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<A> {
+    var content: SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<A>.Content
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.ParentArgumentUser.content.getter : SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<A>.Content
+    SymbolTestsCore.GenericFieldLayout.ParentArgumentUser.content.setter : SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<A>.Content
+}
+enum SymbolTestsCore.GenericFieldLayout.ParentArgumentUser.Content {
+    case keyPath(Swift.KeyPath<Swift.Int, A>)
+    case value(A)
+}
+struct SymbolTestsCore.GenericFieldLayout.ParentArgumentUser.Storage {
+    var stored: A
+    var flag: Swift.Bool
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.ParentArgumentUser.Storage.flag.getter : Swift.Bool
+    SymbolTestsCore.GenericFieldLayout.ParentArgumentUser.Storage.flag.setter : Swift.Bool
+    SymbolTestsCore.GenericFieldLayout.ParentArgumentUser.Storage.stored.getter : A
+    SymbolTestsCore.GenericFieldLayout.ParentArgumentUser.Storage.stored.setter : A
+}
+enum SymbolTestsCore.GenericFieldLayout.ParentArgumentUser.SingleContent {
+    case some(A)
+    case none
+}
+struct SymbolTestsCore.GenericFieldLayout.NestedParentArgumentFieldHolder {
+    var leading: Swift.Int
+    var wholeParent: SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Bool>
+    var content: SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Bool>.Content
+    var optionalContent: SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Bool>.Content?
+    var storage: SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Int32>.Storage
+    var singleContent: SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Int16>.SingleContent
+    var wideContent: SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.String>.Content
+    var trailing: Swift.Int8
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.NestedParentArgumentFieldHolder.wholeParent.getter : SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Bool>
+    SymbolTestsCore.GenericFieldLayout.NestedParentArgumentFieldHolder.wholeParent.setter : SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Bool>
+    SymbolTestsCore.GenericFieldLayout.NestedParentArgumentFieldHolder.content.getter : SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Bool>.Content
+    SymbolTestsCore.GenericFieldLayout.NestedParentArgumentFieldHolder.content.setter : SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Bool>.Content
+    SymbolTestsCore.GenericFieldLayout.NestedParentArgumentFieldHolder.optionalContent.getter : SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Bool>.Content?
+    SymbolTestsCore.GenericFieldLayout.NestedParentArgumentFieldHolder.optionalContent.setter : SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Bool>.Content?
+    SymbolTestsCore.GenericFieldLayout.NestedParentArgumentFieldHolder.storage.getter : SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Int32>.Storage
+    SymbolTestsCore.GenericFieldLayout.NestedParentArgumentFieldHolder.storage.setter : SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Int32>.Storage
+    SymbolTestsCore.GenericFieldLayout.NestedParentArgumentFieldHolder.singleContent.getter : SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Int16>.SingleContent
+    SymbolTestsCore.GenericFieldLayout.NestedParentArgumentFieldHolder.singleContent.setter : SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Int16>.SingleContent
+    SymbolTestsCore.GenericFieldLayout.NestedParentArgumentFieldHolder.wideContent.getter : SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.String>.Content
+    SymbolTestsCore.GenericFieldLayout.NestedParentArgumentFieldHolder.wideContent.setter : SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.String>.Content
+    SymbolTestsCore.GenericFieldLayout.NestedParentArgumentFieldHolder.trailing.getter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.NestedParentArgumentFieldHolder.trailing.setter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.NestedParentArgumentFieldHolder.leading.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.NestedParentArgumentFieldHolder.leading.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.MultiLevelOuter<A> {
+    var value: A
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.MultiLevelOuter.value.getter : A
+    SymbolTestsCore.GenericFieldLayout.MultiLevelOuter.value.setter : A
+}
+struct SymbolTestsCore.GenericFieldLayout.MultiLevelOuter.Inner<A1> {
+    var outerStored: A
+    var innerStored: A1
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.MultiLevelOuter.Inner.innerStored.getter : A1
+    SymbolTestsCore.GenericFieldLayout.MultiLevelOuter.Inner.innerStored.setter : A1
+    SymbolTestsCore.GenericFieldLayout.MultiLevelOuter.Inner.outerStored.getter : A
+    SymbolTestsCore.GenericFieldLayout.MultiLevelOuter.Inner.outerStored.setter : A
+}
+struct SymbolTestsCore.GenericFieldLayout.MultiLevelNestedFieldHolder {
+    var leading: Swift.Int
+    var inner: SymbolTestsCore.GenericFieldLayout.MultiLevelOuter<Swift.Int8>.Inner<Swift.Int64>
+    var trailing: Swift.Int8
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.MultiLevelNestedFieldHolder.inner.getter : SymbolTestsCore.GenericFieldLayout.MultiLevelOuter<Swift.Int8>.Inner<Swift.Int64>
+    SymbolTestsCore.GenericFieldLayout.MultiLevelNestedFieldHolder.inner.setter : SymbolTestsCore.GenericFieldLayout.MultiLevelOuter<Swift.Int8>.Inner<Swift.Int64>
+    SymbolTestsCore.GenericFieldLayout.MultiLevelNestedFieldHolder.trailing.getter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.MultiLevelNestedFieldHolder.trailing.setter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.MultiLevelNestedFieldHolder.leading.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.MultiLevelNestedFieldHolder.leading.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder {
+    var leading: Swift.Int
+    var bareElement: SymbolTestsCore.ObjCOnlyElementProtocol
+    var anchoredElement: NSObject & SymbolTestsCore.ObjCOnlyElementProtocol
+    var optionalElement: SymbolTestsCore.ObjCOnlyElementProtocol?
+    var composedElement: SymbolTestsCore.DescriptorBackedSwiftProtocol & SymbolTestsCore.ObjCOnlyElementProtocol
+    var trailing: Swift.Int8
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.anchoredElement.getter : NSObject & SymbolTestsCore.ObjCOnlyElementProtocol
+    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.anchoredElement.setter : NSObject & SymbolTestsCore.ObjCOnlyElementProtocol
+    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.optionalElement.getter : SymbolTestsCore.ObjCOnlyElementProtocol?
+    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.optionalElement.setter : SymbolTestsCore.ObjCOnlyElementProtocol?
+    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.composedElement.getter : SymbolTestsCore.DescriptorBackedSwiftProtocol & SymbolTestsCore.ObjCOnlyElementProtocol
+    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.composedElement.setter : SymbolTestsCore.DescriptorBackedSwiftProtocol & SymbolTestsCore.ObjCOnlyElementProtocol
+    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.trailing.getter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.trailing.setter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.bareElement.getter : SymbolTestsCore.ObjCOnlyElementProtocol
+    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.bareElement.setter : SymbolTestsCore.ObjCOnlyElementProtocol
+    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.leading.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.leading.setter : Swift.Int
 }
 
 // MARK: - Protocols

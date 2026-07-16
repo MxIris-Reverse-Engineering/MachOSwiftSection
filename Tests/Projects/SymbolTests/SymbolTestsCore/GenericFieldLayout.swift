@@ -345,4 +345,104 @@ public enum GenericFieldLayout {
         public var optionalBoxed: (any Boxed<String>)?
         public var trailing: Int8
     }
+
+    // MARK: - Nested types that use the specialized parent's own arguments
+
+    /// Mirrors `SwiftUI.Environment<Value>`: the stored properties are nested
+    /// types whose fields reference the *parent's* parameter. A nested type
+    /// declares no parameters of its own, so a field reference
+    /// (`ParentArgumentUser<Bool>.Content`) mangles as a plain nominal node
+    /// whose bound arguments ride the parent context — the substitution
+    /// environment must be collected from the parent chain, not from the
+    /// node's own (absent) argument list.
+    public struct ParentArgumentUser<Value> {
+        /// A generic *multi-payload* enum instantiation: the runtime lays it
+        /// out with appended tag bytes (never spare bits), and the unused tag
+        /// values become extra inhabitants.
+        public enum Content {
+            case keyPath(KeyPath<Int, Value>)
+            case value(Value)
+        }
+
+        /// A nested struct whose first field is the parent's parameter.
+        public struct Storage {
+            public var stored: Value
+            public var flag: Bool
+        }
+
+        /// A single-payload nested enum over the parent's parameter.
+        public enum SingleContent {
+            case none
+            case some(Value)
+        }
+
+        public var content: Content
+    }
+
+    /// Non-generic holder of nested types whose layouts depend on the
+    /// *parent's* generic arguments.
+    public struct NestedParentArgumentFieldHolder {
+        public var leading: Int
+        public var wholeParent: ParentArgumentUser<Bool>
+        public var content: ParentArgumentUser<Bool>.Content
+        public var optionalContent: ParentArgumentUser<Bool>.Content?
+        public var storage: ParentArgumentUser<Int32>.Storage
+        public var singleContent: ParentArgumentUser<Int16>.SingleContent
+        public var wideContent: ParentArgumentUser<String>.Content
+        public var trailing: Int8
+    }
+
+    /// Two parameter-declaring levels: a generic nested type inside a generic
+    /// parent. A field reference (`MultiLevelOuter<Int8>.Inner<Int64>`) carries
+    /// one argument list per level — depth 0 binds the outer's parameter,
+    /// depth 1 the inner's.
+    public struct MultiLevelOuter<OuterValue> {
+        public struct Inner<InnerValue> {
+            public var outerStored: OuterValue
+            public var innerStored: InnerValue
+        }
+
+        public var value: OuterValue
+    }
+
+    /// Non-generic holder of a two-level nested instantiation.
+    public struct MultiLevelNestedFieldHolder {
+        public var leading: Int
+        public var inner: MultiLevelOuter<Int8>.Inner<Int64>
+        public var trailing: Int8
+    }
+
+    // MARK: - Swift-declared @objc protocol existentials
+
+    /// Non-generic holder of existentials over a Swift-declared `@objc`
+    /// protocol (declared at file scope below — `@objc` protocols cannot nest).
+    /// Such a protocol emits no Swift protocol descriptor; its only runtime
+    /// artifact is the ObjC protocol record, so the existential is a single
+    /// class reference with no Swift witness table. `anchoredElement` mirrors
+    /// the SwiftUI shape that motivated the fallback
+    /// (`PlatformAccessibilityElementProtocol & NSObject`); `composedElement`
+    /// checks that a Swift protocol in the composition still contributes its
+    /// witness table.
+    public struct ObjCProtocolExistentialFieldHolder {
+        public var leading: Int
+        public var bareElement: any ObjCOnlyElementProtocol
+        public var anchoredElement: NSObject & ObjCOnlyElementProtocol
+        public var optionalElement: (any ObjCOnlyElementProtocol)?
+        public var composedElement: any ObjCOnlyElementProtocol & DescriptorBackedSwiftProtocol
+        public var trailing: Int8
+    }
+}
+
+/// A Swift-declared `@objc` protocol (file scope — `@objc` protocols cannot be
+/// nested): it emits **no** Swift protocol descriptor (`__swift5_protos`); its
+/// only runtime artifact is the Objective-C protocol record
+/// (`__objc_protolist`, legacy `_TtP…_` name).
+@objc public protocol ObjCOnlyElementProtocol {
+    func identify() -> Int
+}
+
+/// A plain Swift protocol with a `__swift5_protos` descriptor, composed with
+/// the `@objc` protocol above to check mixed compositions.
+public protocol DescriptorBackedSwiftProtocol {
+    func describe() -> Int
 }

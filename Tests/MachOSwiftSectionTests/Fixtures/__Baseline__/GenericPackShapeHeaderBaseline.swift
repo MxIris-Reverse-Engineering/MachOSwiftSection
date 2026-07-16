@@ -12,7 +12,7 @@ enum GenericPackShapeHeaderBaseline {
     }
 
     static let parameterPackHeader = Entry(
-    offset: 0x3c460,
+    offset: 0x3ede4,
     layoutNumPacks: 1,
     layoutNumShapeClasses: 1
     )

@@ -107,7 +107,7 @@ struct GenericArgumentEnvironmentTests {
         ]))
         let typeList = Node.create(kind: .typeList, children: [Node.create(kind: .type, child: intStructure())])
         let boundGeneric = Node.create(kind: .boundGenericStructure, children: [unboundType, typeList])
-        #expect(!GenericArgumentEnvironment.make(forBoundGenericNode: boundGeneric).isEmpty)
+        #expect(!GenericArgumentEnvironment.make(forInstantiatedTypeNode: boundGeneric).isEmpty)
     }
 
     @Test func makeBindsValueArgument() {
@@ -121,7 +121,7 @@ struct GenericArgumentEnvironmentTests {
         let valueArgument = Node.create(kind: .type, child: Node.create(kind: .integer, index: 4))
         let typeList = Node.create(kind: .typeList, children: [valueArgument])
         let boundGeneric = Node.create(kind: .boundGenericStructure, children: [unboundType, typeList])
-        let environment = GenericArgumentEnvironment.make(forBoundGenericNode: boundGeneric)
+        let environment = GenericArgumentEnvironment.make(forInstantiatedTypeNode: boundGeneric)
         #expect(!environment.isEmpty)
         let fieldNode = Node.create(kind: .type, child: dependentParameter(depth: 0, index: 0))
         let result = environment.substituting(in: fieldNode)
@@ -131,7 +131,7 @@ struct GenericArgumentEnvironmentTests {
 
     @Test func makeBindsFlatPackArgument() {
         let boundGeneric = boundGenericPair(argument: Node.create(kind: .type, child: packNode([intStructure(), boolStructure()])))
-        let environment = GenericArgumentEnvironment.make(forBoundGenericNode: boundGeneric)
+        let environment = GenericArgumentEnvironment.make(forInstantiatedTypeNode: boundGeneric)
         #expect(!environment.isEmpty)
     }
 
@@ -144,11 +144,11 @@ struct GenericArgumentEnvironmentTests {
             Node.create(kind: .type, child: packExpansionNode(pattern: parameter, count: parameter)),
         ])
         let boundGeneric = boundGenericPair(argument: Node.create(kind: .type, child: unexpandedPack))
-        #expect(GenericArgumentEnvironment.make(forBoundGenericNode: boundGeneric).isEmpty)
+        #expect(GenericArgumentEnvironment.make(forInstantiatedTypeNode: boundGeneric).isEmpty)
     }
 
     @Test func makeReturnsEmptyForNonGenericNode() {
-        #expect(GenericArgumentEnvironment.make(forBoundGenericNode: intStructure()).isEmpty)
+        #expect(GenericArgumentEnvironment.make(forInstantiatedTypeNode: intStructure()).isEmpty)
     }
 
     // MARK: - Pack expansion substitution

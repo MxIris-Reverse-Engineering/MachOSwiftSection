@@ -1368,7 +1368,7 @@ enum GenericFieldLayout {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var leading: Swift.Int
         // Field offset: 0x8
-        // Type Layout: (size: 9, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 9, stride: 16, alignment: 8, extraInhabitantCount: 254)
         var enumField: SymbolTestsCore.GenericFieldLayout.TwoPayloadGenericEnum<Swift.Int, Swift.Double>
         // Field offset: 0x18
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
@@ -1558,6 +1558,86 @@ enum GenericFieldLayout {
         // Type Layout: (size: 40, stride: 40, alignment: 8, extraInhabitantCount: 4095)
         var optionalBoxed: (Swift.String)?
         // Field offset: 0x58
+        // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var trailing: Swift.Int8
+    }
+    struct ParentArgumentUser<A> {
+        enum Content {
+            // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
+            case keyPath(Swift.KeyPath<Swift.Int, A>)
+            case value(A)
+        }
+        struct Storage {
+            var stored: A
+            var flag: Swift.Bool
+        }
+        enum SingleContent {
+            case some(A)
+            case none
+        }
+        var content: SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<A>.Content
+    }
+    struct NestedParentArgumentFieldHolder {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var leading: Swift.Int
+        // Field offset: 0x8
+        // Type Layout: (size: 9, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        var wholeParent: SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Bool>
+        // Field offset: 0x18
+        // Type Layout: (size: 9, stride: 16, alignment: 8, extraInhabitantCount: 254)
+        var content: SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Bool>.Content
+        // Field offset: 0x28
+        // Type Layout: (size: 9, stride: 16, alignment: 8, extraInhabitantCount: 253)
+        var optionalContent: SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Bool>.Content?
+        // Field offset: 0x34
+        // Type Layout: (size: 5, stride: 8, alignment: 4, extraInhabitantCount: 0)
+        var storage: SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Int32>.Storage
+        // Field offset: 0x3a
+        // Type Layout: (size: 3, stride: 4, alignment: 2, extraInhabitantCount: 0)
+        var singleContent: SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Int16>.SingleContent
+        // Field offset: 0x40
+        // Type Layout: (size: 17, stride: 24, alignment: 8, extraInhabitantCount: 254)
+        var wideContent: SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.String>.Content
+        // Field offset: 0x51
+        // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var trailing: Swift.Int8
+    }
+    struct MultiLevelOuter<A> {
+        struct Inner<A1> {
+            var outerStored: A
+            var innerStored: A1
+        }
+        var value: A
+    }
+    struct MultiLevelNestedFieldHolder {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var leading: Swift.Int
+        // Field offset: 0x8
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        var inner: SymbolTestsCore.GenericFieldLayout.MultiLevelOuter<Swift.Int8>.Inner<Swift.Int64>
+        // Field offset: 0x18
+        // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var trailing: Swift.Int8
+    }
+    struct ObjCProtocolExistentialFieldHolder {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var leading: Swift.Int
+        // Field offset: 0x8
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
+        var bareElement: SymbolTestsCore.ObjCOnlyElementProtocol
+        // Field offset: 0x10
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
+        var anchoredElement: __C.NSObject & SymbolTestsCore.ObjCOnlyElementProtocol
+        // Field offset: 0x18
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4095)
+        var optionalElement: SymbolTestsCore.ObjCOnlyElementProtocol?
+        // Field offset: 0x20
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 4096)
+        var composedElement: SymbolTestsCore.DescriptorBackedSwiftProtocol & SymbolTestsCore.ObjCOnlyElementProtocol
+        // Field offset: 0x30
         // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
         var trailing: Swift.Int8
     }
@@ -2534,6 +2614,10 @@ enum WeakUnownedReferences {
 
         deinit
     }
+}
+
+protocol DescriptorBackedSwiftProtocol {
+    func describe() -> Swift.Int
 }
 
 extension SymbolTestsCore.Generics.GenericRequirementTest where A: Swift.RawRepresentable, A: SymbolTestsCore.Protocols.ProtocolTest {

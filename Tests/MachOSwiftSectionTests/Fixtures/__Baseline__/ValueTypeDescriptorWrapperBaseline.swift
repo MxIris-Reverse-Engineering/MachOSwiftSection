@@ -12,7 +12,7 @@ enum ValueTypeDescriptorWrapperBaseline {
     }
 
     static let structTest = Entry(
-    descriptorOffset: 0x3dd5c,
+    descriptorOffset: 0x406e0,
     hasParent: true,
     hasGenericContext: false
     )
