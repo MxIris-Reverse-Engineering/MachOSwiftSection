@@ -32,6 +32,13 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
     /// a `dependentMemberType` — `Array.Index` after substituting the base —
     /// into the concrete witness (`Int`).
     let associatedTypeWitnessRecordsByKey: [String: AssociatedTypeRecord]
+    /// Exposed (package-internal) so `ImageUniverse` can merge each image's
+    /// Objective-C protocol declarations (`__objc_protolist`) into the
+    /// closure-wide index. Keyed by Swift qualified name, parsed from the
+    /// legacy `_TtP…_` mangling; a hit identifies a Swift-declared `@objc`
+    /// protocol, which emits no Swift protocol descriptor but is always
+    /// class-bound and carries no Swift witness table.
+    let objCProtocolQualifiedNames: Set<String>
 
     public init(machO: MachO) throws {
         self.machO = machO
@@ -74,6 +81,12 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
         // it is invisible to the type index above. Read through the concrete
         // reader because the ObjC accessors are not protocol-generic.
         self.objCClassInstanceSizesByBareName = Self.objCClassInstanceSizes(in: machO)
+
+        // Index every Swift-declared `@objc` protocol (from `__objc_protolist`)
+        // so an existential over one — which has no Swift protocol descriptor —
+        // can still be recognized and laid out as a class-bound component with
+        // no witness table.
+        self.objCProtocolQualifiedNames = Self.objCProtocolQualifiedNames(in: machO)
 
         // Index every associated-type witness (from `__swift5_assocty`) so a
         // `dependentMemberType` (`SomeType.Index`) can be resolved to its
@@ -127,6 +140,20 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
             return ObjCClassIndex.instanceSizesByBareName(in: fileImage)
         }
         return [:]
+    }
+
+    /// Builds the Swift-qualified-name index of the image's `@objc` protocol
+    /// declarations, dispatching to the concrete `MachOImage` / `MachOFile`
+    /// ObjC reader. A reader the engine does not recognize (or an image with
+    /// no ObjC protocols) contributes nothing.
+    private static func objCProtocolQualifiedNames(in machO: MachO) -> Set<String> {
+        if let inProcessImage = machO as? MachOImage {
+            return ObjCProtocolIndex.qualifiedNames(in: inProcessImage)
+        }
+        if let fileImage = machO as? MachOFile {
+            return ObjCProtocolIndex.qualifiedNames(in: fileImage)
+        }
+        return []
     }
 
     /// Reads the image's type context descriptors, treating an absent

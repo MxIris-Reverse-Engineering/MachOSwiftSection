@@ -142,30 +142,32 @@ extension StaticTypeLayoutResolver {
             guard let qualifiedName = NodeTypeNaming.protocolQualifiedName(of: protocolNode) else {
                 throw LayoutResolutionError.unknown(.demangleFailure)
             }
-            let classConstraint = try resolveProtocolClassConstraint(forQualifiedName: qualifiedName)
-            if classConstraint == .class { isClassBound = true }
-            witnessTableCount += 1
+            if let classConstraint = imageUniverse.resolveProtocolClassConstraint(byQualifiedTypeName: qualifiedName) {
+                if classConstraint == .class { isClassBound = true }
+                witnessTableCount += 1
+                continue
+            }
+            // `Error` reaching this point is part of a composition, where it
+            // contributes an ordinary (non-class) witness table.
+            if qualifiedName == errorProtocolName {
+                witnessTableCount += 1
+                continue
+            }
+            // A Swift-declared `@objc` protocol also has no Swift protocol
+            // descriptor — its only runtime artifact is the ObjC protocol
+            // record. Like an imported ObjC protocol it is class-bound and
+            // contributes no Swift witness table.
+            if imageUniverse.isObjCProtocolDeclared(byQualifiedTypeName: qualifiedName) {
+                isClassBound = true
+                continue
+            }
+            throw LayoutResolutionError.unknown(.typeDescriptorNotFound(qualifiedTypeName: qualifiedName))
         }
         return ExistentialComposition(
             witnessTableCount: witnessTableCount,
             isClassBound: isClassBound,
             isError: false
         )
-    }
-
-    /// Resolves a protocol's class constraint by qualified name, degrading the
-    /// field when an out-of-image protocol (other than the well-known stdlib
-    /// ones) cannot be resolved in single-image scope.
-    private func resolveProtocolClassConstraint(forQualifiedName qualifiedName: String) throws -> ProtocolClassConstraint {
-        if let constraint = imageUniverse.resolveProtocolClassConstraint(byQualifiedTypeName: qualifiedName) {
-            return constraint
-        }
-        // `Error` reaching this point is part of a composition, where it
-        // contributes an ordinary (non-class) witness table.
-        if qualifiedName == errorProtocolName {
-            return .any
-        }
-        throw LayoutResolutionError.unknown(.typeDescriptorNotFound(qualifiedTypeName: qualifiedName))
     }
 
     /// The `.protocol` component nodes of an existential node. For

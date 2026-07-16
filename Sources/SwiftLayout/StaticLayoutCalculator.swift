@@ -76,7 +76,7 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
         guard let resolved = imageUniverse.resolveType(byQualifiedTypeName: qualifiedTypeName) else {
             throw LayoutResolutionError.unknown(.typeDescriptorNotFound(qualifiedTypeName: qualifiedTypeName))
         }
-        let environment = GenericArgumentEnvironment.make(forBoundGenericNode: node)
+        let environment = GenericArgumentEnvironment.make(forInstantiatedTypeNode: node)
         return try fieldLayout(of: resolved.descriptor, in: resolved.image, environment: environment)
     }
 

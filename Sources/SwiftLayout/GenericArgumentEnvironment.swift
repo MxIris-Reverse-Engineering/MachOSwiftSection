@@ -13,13 +13,20 @@ struct GenericParameterKey: Hashable {
 /// `dependentGenericParamType` nodes in a field's demangled type tree — no
 /// metadata accessor, no protocol witness tables, no runtime.
 ///
-/// Built from a `boundGeneric*` node: the node carries its source-level
-/// arguments in a `.typeList`, ordered by declaration. A generic type's own
-/// parameters are at depth 0, so the i-th argument maps to the parameter
-/// `(depth: 0, index: i)` — the exact `(depth, index)` the field records'
-/// `dependentGenericParamType` nodes reference.
+/// Built from an instantiated type node: each `boundGeneric*` level along the
+/// nominal context chain carries that level's source-level arguments in a
+/// `.typeList`, ordered by declaration. The demangler wraps exactly the
+/// parameter-declaring levels in `boundGeneric*` nodes (a nesting level that
+/// declares no parameters gets no wrapper), and generic-parameter depth counts
+/// exactly those levels outermost-first — so the i-th argument of the d-th
+/// bound-generic level (outermost = 0) maps to the parameter
+/// `(depth: d, index: i)`, the exact coordinates the field records'
+/// `dependentGenericParamType` nodes reference. This covers both a plain
+/// bound generic (`Foo<Int>`, one level) and a nested type of a specialized
+/// parent (`Environment<Bool>.Content`, a plain `.enum` node whose *context*
+/// is the bound-generic level).
 ///
-/// Scope: depth-0 parameters, in three argument kinds:
+/// Scope: three argument kinds per level:
 /// - plain **type** arguments (`Foo<Int>`),
 /// - **value** arguments (`Foo<5>`) — bound as `.integer` / `.negativeInteger`
 ///   nodes and consumed by the resolver's fixed-array formulas,
@@ -41,18 +48,56 @@ struct GenericArgumentEnvironment {
 
     var isEmpty: Bool { substitutions.isEmpty }
 
-    /// Derives the depth-0 substitution map from a `boundGeneric*` node, or
-    /// `.empty` for a non-generic node or one whose arguments cannot all be
-    /// modelled.
-    static func make(forBoundGenericNode node: Node) -> GenericArgumentEnvironment {
-        // Tolerate a leading `.type` wrapper: a freshly demangled type node is
-        // `.type`-wrapped, whereas the resolver's dispatch unwraps it first —
-        // both must build the same environment.
-        let boundGenericNode = (node.kind == .type ? node.firstChild : node) ?? node
-        guard isBoundGenericKind(boundGenericNode.kind), let typeList = directTypeList(of: boundGenericNode) else {
-            return .empty
+    /// Derives the substitution map from an instantiated type node: the node's
+    /// own `boundGeneric*` argument list (if any) plus the argument lists of
+    /// every bound-generic level along its nominal context chain, bound at
+    /// their generic-signature depths (outermost level = depth 0). Returns
+    /// `.empty` for a node with no instantiated level, or one whose arguments
+    /// cannot all be modelled.
+    static func make(forInstantiatedTypeNode node: Node) -> GenericArgumentEnvironment {
+        let argumentListsByDepth = instantiatedLevelArgumentLists(endingAt: node)
+        guard !argumentListsByDepth.isEmpty else { return .empty }
+        var substitutions: [GenericParameterKey: Node] = [:]
+        for (depth, arguments) in argumentListsByDepth.enumerated() {
+            for (index, argument) in arguments.enumerated() {
+                // Bail on any argument that cannot be substituted positionally:
+                // those occupy parameter ordinals too, so degrade the whole
+                // instantiation rather than misindex.
+                guard let inner = substitutableInnerArgument(of: argument) else { return .empty }
+                substitutions[GenericParameterKey(depth: UInt64(depth), index: UInt64(index))] = inner
+            }
         }
-        return make(forDepthZeroTypeArguments: Array(typeList.children))
+        return GenericArgumentEnvironment(substitutions: substitutions)
+    }
+
+    /// Collects one argument list per instantiated level along the nominal
+    /// context chain of `node`, ordered outermost-first (the generic-signature
+    /// depth order). Walks from the node outward through `.type` wrappers,
+    /// `boundGeneric*` shells (collecting each non-empty direct `.typeList`),
+    /// and nominal contexts; any other context kind (a module, an extension, a
+    /// function) ends the walk — an instantiated level cannot appear beyond it.
+    private static func instantiatedLevelArgumentLists(endingAt node: Node) -> [[Node]] {
+        var argumentListsInnermostFirst: [[Node]] = []
+        var currentNode: Node? = node
+        while let cursor = currentNode {
+            // Tolerate a leading `.type` wrapper at every step: a freshly
+            // demangled node is `.type`-wrapped, and so is the underlying
+            // nominal inside each `boundGeneric*` shell.
+            let unwrapped = (cursor.kind == .type ? cursor.firstChild : cursor) ?? cursor
+            if isBoundGenericKind(unwrapped.kind) {
+                if let typeList = directTypeList(of: unwrapped), !typeList.children.isEmpty {
+                    argumentListsInnermostFirst.append(Array(typeList.children))
+                }
+                currentNode = unwrapped.firstChild
+            } else if unwrapped.kind == .structure || unwrapped.kind == .enum || unwrapped.kind == .class {
+                // A nominal's first child is its declaration context — the next
+                // link outward in the chain.
+                currentNode = unwrapped.firstChild
+            } else {
+                currentNode = nil
+            }
+        }
+        return argumentListsInnermostFirst.reversed()
     }
 
     /// Builds the depth-0 substitution map directly from a list of concrete
@@ -60,8 +105,8 @@ struct GenericArgumentEnvironment {
     /// generic type descriptor and its instantiation arguments rather than a
     /// `boundGeneric*` node. Each argument must be a `.type`-wrapped type,
     /// value, or flat pack node; anything else degrades the whole environment
-    /// to `.empty`, matching `make(forBoundGenericNode:)`. An empty argument
-    /// list yields `.empty` (nothing to substitute).
+    /// to `.empty`, matching `make(forInstantiatedTypeNode:)`. An empty
+    /// argument list yields `.empty` (nothing to substitute).
     static func make(forDepthZeroTypeArguments arguments: [Node]) -> GenericArgumentEnvironment {
         guard !arguments.isEmpty else { return .empty }
         var substitutions: [GenericParameterKey: Node] = [:]

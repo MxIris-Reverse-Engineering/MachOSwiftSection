@@ -69,6 +69,12 @@ public final class ImageUniverse<MachO: MachOSwiftSectionRepresentableWithCache>
     /// witness against whichever image declares the conformance.
     private var associatedTypeWitnessIndex: [String: (image: ImageReference<MachO>, record: AssociatedTypeRecord)] = [:]
 
+    /// Closure-wide Swift-declared `@objc` protocol index (Swift qualified
+    /// names parsed from `__objc_protolist`), grown lazily alongside the other
+    /// indexes. Membership is the whole answer — an `@objc` protocol is always
+    /// class-bound and carries no Swift witness table.
+    private var objCProtocolQualifiedNames: Set<String> = []
+
     init(rootImage: ImageReference<MachO>, dependencyMachOs: [MachO] = []) {
         self.rootImage = rootImage
         self.dependencyMachOs = dependencyMachOs
@@ -143,6 +149,17 @@ public final class ImageUniverse<MachO: MachOSwiftSectionRepresentableWithCache>
         return associatedTypeWitnessIndex[key]
     }
 
+    /// Whether any image in the closure declares an Objective-C protocol with
+    /// this Swift qualified name — i.e. whether the name identifies a
+    /// Swift-declared `@objc` protocol (which emits no Swift protocol
+    /// descriptor, so `resolveProtocolClassConstraint` misses it). The fifth
+    /// resolution seam, sharing the same lazy fold-in as the others.
+    func isObjCProtocolDeclared(byQualifiedTypeName qualifiedTypeName: String) -> Bool {
+        if objCProtocolQualifiedNames.contains(qualifiedTypeName) { return true }
+        while !objCProtocolQualifiedNames.contains(qualifiedTypeName), indexNextDependency() {}
+        return objCProtocolQualifiedNames.contains(qualifiedTypeName)
+    }
+
     /// Folds the next un-indexed dependency into the merged indexes. Returns
     /// `false` when the dependency list is exhausted. A dependency whose
     /// `ImageReference` cannot be built (a malformed binary) is skipped rather
@@ -172,5 +189,6 @@ public final class ImageUniverse<MachO: MachOSwiftSectionRepresentableWithCache>
         for (key, record) in image.associatedTypeWitnessRecordsByKey where associatedTypeWitnessIndex[key] == nil {
             associatedTypeWitnessIndex[key] = (image, record)
         }
+        objCProtocolQualifiedNames.formUnion(image.objCProtocolQualifiedNames)
     }
 }

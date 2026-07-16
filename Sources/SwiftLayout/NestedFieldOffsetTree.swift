@@ -88,7 +88,7 @@ extension StaticLayoutCalculator {
             let resolved = imageUniverse.resolveType(byQualifiedTypeName: qualifiedTypeName),
             let structDescriptor = resolved.descriptor.struct
         else { return [] }
-        let environment = GenericArgumentEnvironment.make(forBoundGenericNode: node)
+        let environment = GenericArgumentEnvironment.make(forInstantiatedTypeNode: node)
         guard
             let aggregate = try? resolver.computeStructLayout(structDescriptor, in: resolved.image, environment: environment),
             let records = try? structDescriptor.fieldDescriptor(in: resolved.image.machO).records(in: resolved.image.machO)
@@ -124,7 +124,7 @@ extension StaticLayoutCalculator {
             enumDescriptor.hasPayloadCases,
             let records = try? enumDescriptor.fieldDescriptor(in: resolved.image.machO).records(in: resolved.image.machO)
         else { return [] }
-        let environment = GenericArgumentEnvironment.make(forBoundGenericNode: node)
+        let environment = GenericArgumentEnvironment.make(forInstantiatedTypeNode: node)
         let payloadRecords = records.prefix(enumDescriptor.numberOfPayloadCases)
 
         var children: [NestedFieldOffset] = []

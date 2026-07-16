@@ -67,7 +67,7 @@ extension StaticTypeLayoutResolver {
         // The witness may reference the conforming type's own generic parameters
         // (e.g. `Array`'s `Element` witness is parameter (0, 0)); substitute them
         // from the concrete base instantiation before resolving.
-        let baseEnvironment = GenericArgumentEnvironment.make(forBoundGenericNode: baseTypeNode)
+        let baseEnvironment = GenericArgumentEnvironment.make(forInstantiatedTypeNode: baseTypeNode)
         let substitutedWitnessNode = baseEnvironment.substituting(in: witnessNode)
         return try layout(forTypeNode: substitutedWitnessNode, in: witness.image)
     }

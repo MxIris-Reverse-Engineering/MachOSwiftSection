@@ -241,21 +241,25 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
            let elementTypeNode = typeList.children.at(1) {
             return try fixedArrayLayout(countNode: countNode, elementTypeNode: elementTypeNode, in: originImage)
         }
+        // For a concrete generic instantiation (`Foo<Int>`, or a nested
+        // `Parent<Int>.Inner` whose arguments ride the parent chain) capture
+        // the per-level arguments; the base descriptor's field records
+        // reference these by `dependentGenericParamType` and are substituted
+        // during field reading. A plain non-instantiated `.structure` node
+        // yields `.empty`. Built before the builtin check so an instantiated
+        // node (whose layout is argument-dependent) can never match the
+        // generic-argument-free builtin key.
+        let environment = GenericArgumentEnvironment.make(forInstantiatedTypeNode: node)
         // An imported C value type (e.g. `__C.CGRect`) has no Swift type
         // descriptor, but the using image carries its whole-type layout in a
-        // `__swift5_builtin` descriptor. Restricted to non-generic structures —
-        // the builtin key is generic-argument-free, so a generic node must not
-        // match it. Normal Swift structs emit no builtin descriptor and fall
-        // through to the structural path below.
-        if node.kind == .structure,
+        // `__swift5_builtin` descriptor. Restricted to non-instantiated
+        // structures — the builtin key is generic-argument-free. Normal Swift
+        // structs emit no builtin descriptor and fall through to the
+        // structural path below.
+        if node.kind == .structure, environment.isEmpty,
            let builtinLayout = originImage.builtinLayoutIndex.layout(forTypeName: qualifiedTypeName) {
             return builtinLayout
         }
-        // For a concrete bound-generic instantiation (`Foo<Int>`) capture the
-        // depth-0 arguments; the base descriptor's field records reference these
-        // by `dependentGenericParamType` and are substituted during field
-        // reading. A plain `.structure` node yields `.empty`.
-        let environment = GenericArgumentEnvironment.make(forBoundGenericNode: node)
         let compute: () throws -> StaticTypeLayout = {
             guard let resolved = self.imageUniverse.resolveType(byQualifiedTypeName: qualifiedTypeName) else {
                 throw LayoutResolutionError.unknown(.typeDescriptorNotFound(qualifiedTypeName: qualifiedTypeName))
@@ -421,7 +425,7 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         }
         // The superclass's own generic arguments come from the (substituted)
         // superclass node: `Base<Int>` binds Base's parameters to `Int`.
-        let superclassEnvironment = GenericArgumentEnvironment.make(forBoundGenericNode: superclassNode)
+        let superclassEnvironment = GenericArgumentEnvironment.make(forInstantiatedTypeNode: superclassNode)
         let superclassAggregate = try computeClassLayout(superclassDescriptor, in: resolved.image, environment: superclassEnvironment)
         // A subclass starts where the superclass instance ends (its size, not
         // its stride: classes carry no trailing value padding).

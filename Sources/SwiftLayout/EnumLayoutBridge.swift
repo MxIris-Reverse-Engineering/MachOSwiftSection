@@ -25,20 +25,24 @@ extension StaticTypeLayoutResolver {
         if let known = KnownLayoutTable.layout(forFullyQualifiedTypeName: qualifiedTypeName) {
             return known
         }
+        // For a concrete generic instantiation (`MyEnum<Int>`, or a nested
+        // `Parent<Int>.Inner` whose arguments ride the parent chain) capture
+        // the per-level arguments; payload field records reference these by
+        // `dependentGenericParamType` and are substituted during payload
+        // reading. Built before the builtin check so an instantiated node
+        // (whose layout is argument-dependent) can never match the
+        // generic-argument-free builtin key.
+        let environment = GenericArgumentEnvironment.make(forInstantiatedTypeNode: node)
         // An enum whose layout reflection cannot derive structurally —
         // multi-payload, indirect, `@objc` raw — carries its whole-type layout
         // in the using image's `__swift5_builtin` descriptor. Restricted to
-        // non-generic enums (the builtin key is generic-argument-free, so a
-        // generic node must not match it). Single-/no-payload enums the engine
-        // computes itself emit no builtin descriptor and fall through below.
-        if node.kind == .enum,
+        // non-instantiated enums (the builtin key is generic-argument-free).
+        // Single-/no-payload enums the engine computes itself emit no builtin
+        // descriptor and fall through below.
+        if node.kind == .enum, environment.isEmpty,
            let builtinLayout = originImage.builtinLayoutIndex.layout(forTypeName: qualifiedTypeName) {
             return builtinLayout
         }
-        // For a concrete bound-generic instantiation (`MyEnum<Int>`) capture the
-        // depth-0 arguments; payload field records reference these by
-        // `dependentGenericParamType` and are substituted during payload reading.
-        let environment = GenericArgumentEnvironment.make(forBoundGenericNode: node)
         let compute: () throws -> StaticTypeLayout = {
             guard let resolved = self.imageUniverse.resolveType(byQualifiedTypeName: qualifiedTypeName) else {
                 throw LayoutResolutionError.unknown(.typeDescriptorNotFound(qualifiedTypeName: qualifiedTypeName))
@@ -120,7 +124,14 @@ extension StaticTypeLayoutResolver {
 
         let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node)
         let result: EnumLayoutCalculator.LayoutResult
+        var extraInhabitantCount = 0
         if
+            // A generic instantiation never uses the spare-bits strategy: the
+            // runtime's `swift_initEnumMetadataMultiPayload` always appends tag
+            // bytes (a spare-bit layout requires compile-time payload
+            // knowledge), so an `environment`-carrying node must take the
+            // tagged branch even when the unspecialized enum has a descriptor.
+            environment.isEmpty,
             let qualifiedTypeName,
             let multiPayloadDescriptor = multiPayloadEnumDescriptor(forQualifiedTypeName: qualifiedTypeName, in: image),
             multiPayloadDescriptor.usesPayloadSpareBits
@@ -138,12 +149,26 @@ extension StaticTypeLayoutResolver {
             )
         } else {
             // No common spare bits (or no descriptor): tags occupy appended
-            // extra tag bytes.
+            // extra tag bytes. The unused values of the tag byte(s) are the
+            // enum's extra inhabitants — ported from
+            // `swift_initEnumMetadataMultiPayload` (Enum.cpp), which computes
+            // `(1 << (numTagBytes * 8)) - numTags` (saturated for a 4-byte tag)
+            // capped at `ValueWitnessFlags::MaxNumExtraInhabitants`.
             result = EnumLayoutCalculator.calculateTaggedMultiPayload(
                 payloadSize: payloadSize,
                 numPayloadCases: payloadCaseCount,
                 numEmptyCases: emptyCaseCount
             )
+            let tagCounts = Self.enumTagCounts(
+                payloadSize: payloadSize,
+                emptyCaseCount: emptyCaseCount,
+                payloadCaseCount: payloadCaseCount
+            )
+            let maximumExtraInhabitantCount = Int(Int32.max)
+            let unusedTagValues = tagCounts.numTagBytes >= 4
+                ? maximumExtraInhabitantCount
+                : (1 << (tagCounts.numTagBytes * 8)) - tagCounts.numTags
+            extraInhabitantCount = min(unusedTagValues, maximumExtraInhabitantCount)
         }
 
         // `LayoutResult` exposes no size/stride: derive them. Extra tag bytes (if
@@ -159,7 +184,7 @@ extension StaticTypeLayoutResolver {
             size: size,
             stride: stride,
             alignmentMask: payloadAlignmentMask,
-            extraInhabitantCount: 0,
+            extraInhabitantCount: extraInhabitantCount,
             isBitwiseTakable: isBitwiseTakable
         )
     }
