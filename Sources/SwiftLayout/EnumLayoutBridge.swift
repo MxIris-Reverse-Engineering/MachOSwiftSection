@@ -68,9 +68,7 @@ extension StaticTypeLayoutResolver {
         environment: GenericArgumentEnvironment = .empty
     ) throws -> StaticTypeLayout {
         // Class-bound parameters lay out as one object reference even without
-        // a substitution. The augmented environment also (correctly) forces an
-        // unspecialized class-bound generic multi-payload enum onto the tagged
-        // branch below — a generic instantiation never uses spare bits.
+        // a substitution.
         let environment = environment.augmentedWithClassBoundParameterKeys(
             ClassBoundGenericParameterAnalysis.classBoundParameterKeys(of: descriptor, in: image, imageUniverse: imageUniverse)
         )
@@ -107,38 +105,21 @@ extension StaticTypeLayoutResolver {
     ) throws -> StaticTypeLayout {
         let payloadCaseCount = descriptor.numberOfPayloadCases
         let emptyCaseCount = descriptor.numberOfEmptyCases
-
-        // The payload area is the largest payload case; alignment and
-        // bitwise-takability are the maxima/conjunction over all payload cases.
-        var payloadSize = 0
-        var payloadAlignmentMask = 0
-        var isBitwiseTakable = true
-        let records = try descriptor.fieldDescriptor(in: image.machO).records(in: image.machO)
-        for record in records {
-            let isIndirect = record.layout.flags.contains(.isIndirectCase)
-            let mangledTypeName = try record.mangledTypeName(in: image.machO)
-            guard isIndirect || !mangledTypeName.isEmpty else { continue } // empty case
-            // An indirect case boxes its payload behind a single heap pointer.
-            // The payload type is read through the generic environment so a
-            // concrete `MyEnum<Int>` substitutes its payload parameters.
-            let payloadLayout = isIndirect
-                ? StaticTypeLayout.pointerSized
-                : try layout(forMangledTypeName: mangledTypeName, in: image, environment: environment)
-            payloadSize = max(payloadSize, payloadLayout.size)
-            payloadAlignmentMask = max(payloadAlignmentMask, payloadLayout.alignmentMask)
-            isBitwiseTakable = isBitwiseTakable && payloadLayout.isBitwiseTakable
-        }
+        let payloadArea = try multiPayloadArea(of: descriptor, in: image, environment: environment)
+        let payloadSize = payloadArea.size
+        let payloadAlignmentMask = payloadArea.alignmentMask
+        let isBitwiseTakable = payloadArea.isBitwiseTakable
 
         let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node)
         let result: EnumLayoutCalculator.LayoutResult
         var extraInhabitantCount = 0
         if
-            // A generic instantiation never uses the spare-bits strategy: the
-            // runtime's `swift_initEnumMetadataMultiPayload` always appends tag
-            // bytes (a spare-bit layout requires compile-time payload
-            // knowledge), so an `environment`-carrying node must take the
-            // tagged branch even when the unspecialized enum has a descriptor.
-            environment.isEmpty,
+            // A generic enum never uses the spare-bits strategy: the runtime's
+            // `swift_initEnumMetadataMultiPayload` always appends tag bytes (a
+            // spare-bit layout requires compile-time payload knowledge), so a
+            // generic descriptor — instantiated or not — takes the tagged
+            // branch even when a `__swift5_mpenum` descriptor is present.
+            !descriptor.isGeneric,
             let qualifiedTypeName,
             let multiPayloadDescriptor = multiPayloadEnumDescriptor(forQualifiedTypeName: qualifiedTypeName, in: image),
             multiPayloadDescriptor.usesPayloadSpareBits
@@ -196,6 +177,34 @@ extension StaticTypeLayoutResolver {
         )
     }
 
+    /// The payload area of a multi-payload enum: the largest payload case's
+    /// size; alignment and bitwise-takability are the maxima/conjunction over
+    /// all payload cases. An indirect case boxes its payload behind a single
+    /// heap pointer. Payload types are read through the generic environment so
+    /// a concrete `MyEnum<Int>` substitutes its payload parameters.
+    func multiPayloadArea(
+        of descriptor: EnumDescriptor,
+        in image: ImageReference<MachO>,
+        environment: GenericArgumentEnvironment
+    ) throws -> (size: Int, alignmentMask: Int, isBitwiseTakable: Bool) {
+        var payloadSize = 0
+        var payloadAlignmentMask = 0
+        var isBitwiseTakable = true
+        let records = try descriptor.fieldDescriptor(in: image.machO).records(in: image.machO)
+        for record in records {
+            let isIndirect = record.layout.flags.contains(.isIndirectCase)
+            let mangledTypeName = try record.mangledTypeName(in: image.machO)
+            guard isIndirect || !mangledTypeName.isEmpty else { continue } // empty case
+            let payloadLayout = isIndirect
+                ? StaticTypeLayout.pointerSized
+                : try layout(forMangledTypeName: mangledTypeName, in: image, environment: environment)
+            payloadSize = max(payloadSize, payloadLayout.size)
+            payloadAlignmentMask = max(payloadAlignmentMask, payloadLayout.alignmentMask)
+            isBitwiseTakable = isBitwiseTakable && payloadLayout.isBitwiseTakable
+        }
+        return (payloadSize, payloadAlignmentMask, isBitwiseTakable)
+    }
+
     /// Finds the `MultiPayloadEnumDescriptor` (`__swift5_mpenum`) for an enum by
     /// matching its mangled type name to `qualifiedTypeName`. Scanned on demand
     /// because this is a rare fallback path; an absent section yields `nil`.
@@ -216,7 +225,11 @@ extension StaticTypeLayoutResolver {
     }
 
     /// `Optional<T>`: a single-payload enum with exactly one empty case
-    /// (`.none`), its payload being the bound generic argument.
+    /// (`.none`), its payload being the bound generic argument. The payload's
+    /// metatype-thinness is decided by its own syntactic instance kind (a
+    /// concrete `Int.Type` payload is thin ⇒ `Optional<Int.Type>` is 1 byte; a
+    /// `T.Type` payload is thick ⇒ 8 bytes), so no special context is needed
+    /// here.
     private func optionalLayout(forNode node: Node, in image: ImageReference<MachO>) throws -> StaticTypeLayout {
         guard
             let typeList = node.first(of: .typeList),
@@ -253,6 +266,66 @@ extension StaticTypeLayoutResolver {
             }
         }
         throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "singlePayloadNoType"))
+    }
+
+    // MARK: - Case-projection layout (for renderers)
+
+    /// The per-case projection layout (`EnumLayoutCalculator.LayoutResult`:
+    /// payload/tag regions and per-case tag values) of an enum descriptor,
+    /// computed statically — the renderer-facing counterpart of the whole-type
+    /// `computeEnumLayout`. Returns `nil` for a no-payload enum (nothing to
+    /// project) and throws when a payload type cannot be resolved.
+    ///
+    /// Works for generic enums too: class-bound parameters resolve through the
+    /// requirement-signature analysis, and any generic descriptor takes the
+    /// tagged multi-payload strategy (a generic instantiation never uses spare
+    /// bits), so an unspecialized `enum Content<Element: AnyObject>` projects
+    /// exactly like every one of its instantiations.
+    func enumCaseLayoutResult(
+        of descriptor: EnumDescriptor,
+        in image: ImageReference<MachO>
+    ) throws -> EnumLayoutCalculator.LayoutResult? {
+        let environment = GenericArgumentEnvironment.empty.augmentedWithClassBoundParameterKeys(
+            ClassBoundGenericParameterAnalysis.classBoundParameterKeys(of: descriptor, in: image, imageUniverse: imageUniverse)
+        )
+        let payloadCaseCount = descriptor.numberOfPayloadCases
+        let emptyCaseCount = descriptor.numberOfEmptyCases
+        guard payloadCaseCount > 0 else { return nil }
+
+        let node = try MetadataReader.demangleContext(for: .type(.enum(descriptor)), in: image.machO)
+        if payloadCaseCount == 1 {
+            let payload = try singlePayloadType(descriptor: descriptor, node: node, in: image, environment: environment)
+            let wholeType = Self.singlePayloadEnumLayout(payload: payload, emptyCaseCount: emptyCaseCount)
+            return EnumLayoutCalculator.calculateSinglePayload(
+                size: wholeType.size,
+                payloadSize: payload.size,
+                numEmptyCases: emptyCaseCount,
+                numExtraInhabitants: payload.extraInhabitantCount
+            )
+        }
+
+        let payloadArea = try multiPayloadArea(of: descriptor, in: image, environment: environment)
+        if
+            !descriptor.isGeneric,
+            let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node),
+            let multiPayloadDescriptor = multiPayloadEnumDescriptor(forQualifiedTypeName: qualifiedTypeName, in: image),
+            multiPayloadDescriptor.usesPayloadSpareBits
+        {
+            let spareBytes = try multiPayloadDescriptor.payloadSpareBits(in: image.machO)
+            let spareBytesOffset = Int(try multiPayloadDescriptor.payloadSpareBitMaskByteOffset(in: image.machO))
+            return EnumLayoutCalculator.calculateMultiPayload(
+                payloadSize: payloadArea.size,
+                spareBytes: spareBytes,
+                spareBytesOffset: spareBytesOffset,
+                numPayloadCases: payloadCaseCount,
+                numEmptyCases: emptyCaseCount
+            )
+        }
+        return EnumLayoutCalculator.calculateTaggedMultiPayload(
+            payloadSize: payloadArea.size,
+            numPayloadCases: payloadCaseCount,
+            numEmptyCases: emptyCaseCount
+        )
     }
 
     // MARK: - Layout formulas (ported from the Swift runtime EnumImpl)

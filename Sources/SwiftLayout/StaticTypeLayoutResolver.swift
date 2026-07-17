@@ -98,17 +98,31 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         return node
     }
 
-    /// The layout of a metatype value. The metatype of a concrete value type
-    /// (struct/enum/tuple/builtin) is thin — zero-sized, since the type is
-    /// statically known; the metatype of a class is thick — a single metadata
-    /// pointer.
+    /// The layout of a metatype value, decided by the instance type's kind —
+    /// and, crucially, the *syntactic* kind in the field record, which
+    /// substitution deliberately leaves intact (see
+    /// `GenericArgumentEnvironment.substitute`).
+    ///
+    /// A metatype is **thin** (zero-sized, no runtime storage) only when its
+    /// instance is a statically-known concrete value type
+    /// (struct/enum/tuple/builtin) — IRGen references its metadata directly,
+    /// with no field storage. A metatype is **thick** (a single metadata
+    /// pointer, `PointerPointerBox` with the heap-object extra-inhabitant count
+    /// = `.pointerSized`) when its instance is a class (dynamic type carried at
+    /// runtime) **or** a generic parameter / dependent member (an archetype
+    /// whose metadata is only known once substituted). The archetype case is
+    /// fixed across every instantiation — `T.Type` occupies 8 bytes in
+    /// `Foo<Int>` and `Foo<Int8>` alike (empirically verified) — so a field
+    /// typed by an unsubstituted parameter's metatype resolves exactly even
+    /// unspecialized.
     private func metatypeLayout(forNode node: Node) throws -> StaticTypeLayout {
         guard let instanceType = node.firstChild else {
             throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "metatype(no-instance)"))
         }
         let instance = unwrappedType(instanceType)
         switch instance.kind {
-        case .class, .boundGenericClass:
+        case .class, .boundGenericClass,
+             .dependentGenericParamType, .dependentMemberType:
             return .pointerSized
         case .structure, .boundGenericStructure,
              .enum, .boundGenericEnum,

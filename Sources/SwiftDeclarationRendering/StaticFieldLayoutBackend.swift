@@ -108,10 +108,44 @@ struct StaticFieldLayoutBackend {
             if configuration.printExpandedFieldOffsets {
                 expandedFieldOffsets(for: mangledTypeName, baseOffset: startOffset)
             }
+        } else if
+            configuration.printFieldOffset,
+            case .unknown(let reason)? = staticAggregateFieldLayout?.fields[safe: index]?.resolution
+        {
+            // The offset could not be computed: say why, instead of silently
+            // omitting the comment (an unresolved generic parameter reads very
+            // differently from a disabled flag). The field's own type layout —
+            // often still resolvable — renders below as usual.
+            configuration.unknownFieldOffsetComment(reasonDescription: Self.shortDescription(of: reason))
         }
 
         if configuration.printTypeLayout, let fieldLayout = staticAggregateFieldLayout?.fields[safe: index]?.layout {
             configuration.staticTypeLayoutComment(fieldLayout)
+        }
+    }
+
+    /// A one-line human-readable rendering of a layout degradation reason,
+    /// used in the `Field offset: unknown (…)` comment.
+    static func shortDescription(of reason: LayoutUnknownReason) -> String {
+        switch reason {
+        case .resilientFieldUnresolved:
+            return "resilient field type unresolved"
+        case .missingDependencyImage(let installName):
+            return "missing dependency image \(installName)"
+        case .objCAncestorUnresolved(let className):
+            return "Objective-C ancestor \(className) unresolved"
+        case .unsupportedTypeKind(let nodeKindName):
+            return "unsupported type kind \(nodeKindName)"
+        case .typeDescriptorNotFound(let qualifiedTypeName):
+            return "type descriptor not found for \(qualifiedTypeName)"
+        case .genericParameterUnsubstituted:
+            return "generic parameter not substituted"
+        case .cyclicLayout:
+            return "cyclic layout"
+        case .demangleFailure:
+            return "mangled type name did not demangle"
+        case .precedingFieldUnresolved:
+            return "preceding field unresolved"
         }
     }
 
@@ -151,7 +185,7 @@ struct StaticFieldLayoutBackend {
         if !mangledTypeName.isEmpty,
            configuration.printTypeLayout,
            let provider = configuration.staticFieldLayoutProvider,
-           let payloadTypeLayout = provider.typeLayout(forMangledTypeName: mangledTypeName) {
+           let payloadTypeLayout = payloadTypeLayout(for: mangledTypeName, provider: provider) {
             configuration.staticTypeLayoutComment(payloadTypeLayout)
             isTypeLayoutPrinted = true
         }
@@ -169,39 +203,29 @@ struct StaticFieldLayoutBackend {
 
     // MARK: - Enum layout (static)
 
+    /// The enum's per-case projection layout, computed by the SwiftLayout
+    /// engine from the descriptor. Generic enums are included: the engine
+    /// resolves class-bound payload parameters without arguments and takes the
+    /// tagged multi-payload strategy for every generic descriptor; an enum
+    /// whose payload genuinely needs an argument yields `nil` (no comment) as
+    /// before.
     var enumLayout: EnumLayoutCalculator.LayoutResult? {
         get async {
             guard configuration.printEnumLayout,
                   let enumValue,
-                  !enumValue.descriptor.isGeneric,
                   let provider = configuration.staticFieldLayoutProvider else { return nil }
-            return try? computeStaticEnumLayout(enumValue, provider: provider)
+            return provider.enumCaseLayoutResult(forDescriptor: .enum(enumValue.descriptor))
         }
     }
 
-    private func computeStaticEnumLayout(_ enumValue: Enum, provider: any StaticFieldLayoutProvider) throws -> EnumLayoutCalculator.LayoutResult? {
-        let payloadSize = try staticEnumPayloadSize(enumValue.descriptor, provider: provider)
-        let numberOfPayloadCases = enumValue.numberOfPayloadCases
-        let numberOfEmptyCases = enumValue.numberOfEmptyCases
-        if enumValue.isMultiPayload {
-            let node = try MetadataReader.demangleContext(for: .type(.enum(enumValue.descriptor)), in: machO)
-            if let multiPayloadEnumDescriptor = try staticMultiPayloadEnumDescriptor(for: node), multiPayloadEnumDescriptor.usesPayloadSpareBits {
-                let spareBytes = try multiPayloadEnumDescriptor.payloadSpareBits(in: machO)
-                let spareBytesOffset = try multiPayloadEnumDescriptor.payloadSpareBitMaskByteOffset(in: machO)
-                return EnumLayoutCalculator.calculateMultiPayload(payloadSize: payloadSize, spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast(), numPayloadCases: numberOfPayloadCases, numEmptyCases: numberOfEmptyCases)
-            } else {
-                return EnumLayoutCalculator.calculateTaggedMultiPayload(payloadSize: payloadSize, numPayloadCases: numberOfPayloadCases, numEmptyCases: numberOfEmptyCases)
-            }
-        } else if enumValue.isSinglePayload {
-            // The single-payload formula refines its result with the enum's own
-            // total size; compute it statically (the enum bridge derives the same
-            // size structurally).
-            guard let enumTypeLayout = provider.typeLayout(forDescriptor: .enum(enumValue.descriptor)) else { return nil }
-            let payloadExtraInhabitantCount = try staticEnumPayloadExtraInhabitantCount(enumValue.descriptor, provider: provider)
-            return EnumLayoutCalculator.calculateSinglePayload(size: enumTypeLayout.size, payloadSize: payloadSize, numEmptyCases: numberOfEmptyCases, numExtraInhabitants: payloadExtraInhabitantCount)
-        } else {
-            return nil
+    /// A payload case's own type layout, resolved in the enum descriptor's
+    /// context so a generic enum's parameter-typed payloads (`Element` under a
+    /// class-bound constraint) still resolve.
+    private func payloadTypeLayout(for mangledTypeName: MangledName, provider: any StaticFieldLayoutProvider) -> StaticTypeLayout? {
+        if let enumValue {
+            return provider.typeLayout(forMangledTypeName: mangledTypeName, inContextOfDescriptor: .enum(enumValue.descriptor))
         }
+        return provider.typeLayout(forMangledTypeName: mangledTypeName)
     }
 
     @SemanticStringBuilder
@@ -244,38 +268,4 @@ struct StaticFieldLayoutBackend {
         return nil
     }
 
-    private func staticEnumPayloadSize(_ descriptor: EnumDescriptor, provider: any StaticFieldLayoutProvider) throws -> Int {
-        guard descriptor.hasPayloadCases else { return .zero }
-        let records = try descriptor.fieldDescriptor(in: machO).records(in: machO)
-        guard !records.isEmpty else { return .zero }
-        var payloadSize = 0
-        let indirectPayloadSize = MemoryLayout<StoredPointer>.size
-        for record in records {
-            if record.flags.contains(.isIndirectCase) {
-                payloadSize = max(payloadSize, indirectPayloadSize)
-                continue
-            }
-            let mangledTypeName = try record.mangledTypeName(in: machO)
-            guard !mangledTypeName.isEmpty else { continue }
-            guard let typeLayout = provider.typeLayout(forMangledTypeName: mangledTypeName) else { continue }
-            payloadSize = max(payloadSize, typeLayout.size)
-        }
-        return payloadSize
-    }
-
-    private func staticEnumPayloadExtraInhabitantCount(_ descriptor: EnumDescriptor, provider: any StaticFieldLayoutProvider) throws -> Int? {
-        guard descriptor.hasPayloadCases else { return nil }
-        let records = try descriptor.fieldDescriptor(in: machO).records(in: machO)
-        guard !records.isEmpty else { return nil }
-        for record in records {
-            if record.flags.contains(.isIndirectCase) {
-                return nil
-            }
-            let mangledTypeName = try record.mangledTypeName(in: machO)
-            guard !mangledTypeName.isEmpty else { continue }
-            guard let typeLayout = provider.typeLayout(forMangledTypeName: mangledTypeName) else { continue }
-            return typeLayout.extraInhabitantCount
-        }
-        return nil
-    }
 }

@@ -104,6 +104,39 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
         return try resolver.layout(forTypeNode: node, in: imageUniverse.rootImage)
     }
 
+    /// The resolved whole-type layout of a field type given by its mangled
+    /// name, lowered **in the context of** `contextDescriptor` — the descriptor
+    /// whose field/payload record carries that mangled name. The context
+    /// supplies what the bare mangled name alone cannot: the requirement
+    /// signature's class-bound parameters (an unsubstituted `Element` payload of
+    /// `enum Content<Element: AnyObject>` resolves as one object reference). For
+    /// a non-generic descriptor this is exactly `typeLayout(forMangledTypeName:)`.
+    public func typeLayout(
+        forMangledTypeName mangledTypeName: MangledName,
+        inContextOfDescriptor contextDescriptor: TypeContextDescriptorWrapper
+    ) throws -> StaticTypeLayout {
+        let image = imageUniverse.rootImage
+        let environment = GenericArgumentEnvironment.empty.augmentedWithClassBoundParameterKeys(
+            ClassBoundGenericParameterAnalysis.classBoundParameterKeys(
+                of: contextDescriptor.typeContextDescriptor,
+                in: image,
+                imageUniverse: imageUniverse
+            )
+        )
+        return try resolver.layout(forMangledTypeName: mangledTypeName, in: image, environment: environment)
+    }
+
+    /// The per-case projection layout of an enum descriptor (payload/tag
+    /// regions and per-case tag values), computed statically — including for
+    /// generic enums whose layout is determined without arguments (class-bound
+    /// payload parameters, or payloads not using any parameter). Returns `nil`
+    /// for a non-enum descriptor, a no-payload enum, or an enum whose payload
+    /// types cannot be resolved.
+    public func enumCaseLayoutResult(forDescriptor typeDescriptor: TypeContextDescriptorWrapper) -> EnumLayoutCalculator.LayoutResult? {
+        guard let enumDescriptor = typeDescriptor.enum else { return nil }
+        return try? resolver.enumCaseLayoutResult(of: enumDescriptor, in: imageUniverse.rootImage)
+    }
+
     // MARK: - Descriptor dispatch
 
     private func fieldLayout(
@@ -168,13 +201,16 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
             )
         } catch let LayoutResolutionError.unknown(reason) {
             // The superclass instance size is unknown, so no field offset in
-            // this class is trustworthy: mark them all unknown.
+            // this class is trustworthy: mark them all unknown. Each field's
+            // *own* type layout is still resolved where possible — offsets need
+            // the superclass start, per-type size/stride does not.
             let unresolvedFields = try records.map { record in
-                FieldLayoutEntry(
+                let mangledTypeName = try record.mangledTypeName(in: image.machO)
+                return FieldLayoutEntry(
                     fieldName: (try? record.fieldName(in: image.machO)) ?? "",
                     offset: 0,
-                    typeMangledName: (try record.mangledTypeName(in: image.machO)).typeString,
-                    layout: nil,
+                    typeMangledName: mangledTypeName.typeString,
+                    layout: try? resolver.layout(forMangledTypeName: mangledTypeName, in: image, environment: environment),
                     resolution: .unknown(reason: reason)
                 )
             }
@@ -204,11 +240,14 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
             let typeNameString = mangledTypeName.typeString
 
             guard accumulatorIsTrustworthy else {
+                // The offset is untrustworthy, but the field's *own* type
+                // layout usually is not — resolve it so renderers can still
+                // report the type's size/stride behind an unresolved field.
                 entries.append(FieldLayoutEntry(
                     fieldName: fieldName,
                     offset: offsetAccumulator,
                     typeMangledName: typeNameString,
-                    layout: nil,
+                    layout: try? resolver.layout(forMangledTypeName: mangledTypeName, in: image, environment: environment),
                     resolution: .unknown(reason: .precedingFieldUnresolved)
                 ))
                 continue

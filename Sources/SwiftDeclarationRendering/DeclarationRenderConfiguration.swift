@@ -124,6 +124,18 @@ extension DeclarationRenderConfiguration {
         BreakLine()
     }
 
+    /// Builds the comment line for a field whose offset could not be computed
+    /// statically, naming the degradation reason — so a reader can tell "the
+    /// engine cannot know this" apart from "the flag is off".
+    ///
+    /// The returned ``SemanticString`` includes indentation and a trailing line break.
+    @SemanticStringBuilder
+    package func unknownFieldOffsetComment(reasonDescription: String) -> SemanticString {
+        indentString
+        Comment("Field offset: unknown (\(reasonDescription))")
+        BreakLine()
+    }
+
     /// Builds an expanded field offset comment line for a nested struct sub-field.
     ///
     /// The returned ``SemanticString`` includes indentation and a trailing line break.

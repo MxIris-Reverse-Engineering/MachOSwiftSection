@@ -179,6 +179,15 @@ struct GenericArgumentEnvironment {
             // spelling is inert.
             if isClassBoundParameter(node) { return Self.classBoundParameterPlaceholderNode() }
             return node
+        case .metatype:
+            // A metatype's layout is decided by its instance's *syntactic* kind
+            // (archetype / class → thick one pointer; concrete value type →
+            // thin zero-sized), and is fixed across instantiations: `T.Type` is
+            // 8 bytes in every `Foo<…>`. Substituting the instance would erase
+            // that — an archetype `T.Type` would look like a concrete
+            // `Int.Type` and wrongly lower thin. Leave the metatype intact and
+            // let `metatypeLayout` classify it from the unsubstituted instance.
+            return node
         case .tuple:
             return substituteTuple(node)
         case .pack:

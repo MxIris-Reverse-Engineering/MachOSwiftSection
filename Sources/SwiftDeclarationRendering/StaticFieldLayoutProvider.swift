@@ -2,6 +2,7 @@ import Foundation
 import MachOKit
 import MachOSwiftSection
 import SwiftLayout
+@_spi(Internals) import SwiftInspection
 
 /// How the static (MachOFile) field-layout path resolves field / superclass /
 /// protocol types that live in *other* images.
@@ -42,6 +43,20 @@ public protocol StaticFieldLayoutProvider: Sendable {
     /// The whole-type layout of a type given its descriptor — used for an enum's
     /// own size when computing its single-payload layout.
     func typeLayout(forDescriptor descriptor: TypeContextDescriptorWrapper) -> StaticTypeLayout?
+
+    /// The whole-type layout of a field/payload type given its mangled name,
+    /// lowered in the context of the descriptor whose record carries it — the
+    /// context supplies class-bound generic parameters and the
+    /// runtime-instantiation flag, so a generic enum's `Element` payload can
+    /// still resolve. Equivalent to `typeLayout(forMangledTypeName:)` for a
+    /// non-generic context.
+    func typeLayout(forMangledTypeName mangledTypeName: MangledName, inContextOfDescriptor contextDescriptor: TypeContextDescriptorWrapper) -> StaticTypeLayout?
+
+    /// The per-case projection layout of an enum descriptor (payload/tag
+    /// regions and per-case tag values), or `nil` when it cannot be computed.
+    /// Works for generic enums whose layout is argument-independent
+    /// (class-bound payload parameters).
+    func enumCaseLayoutResult(forDescriptor descriptor: TypeContextDescriptorWrapper) -> EnumLayoutCalculator.LayoutResult?
 
     /// The expanded nested-field-offset tree for a field type placed at
     /// `baseOffset`, descending up to `depthLimit` levels.
@@ -90,6 +105,18 @@ public final class MachOFileStaticFieldLayoutProvider: StaticFieldLayoutProvider
         lock.lock()
         defer { lock.unlock() }
         return try? calculator.typeLayout(forDescriptor: descriptor)
+    }
+
+    public func typeLayout(forMangledTypeName mangledTypeName: MangledName, inContextOfDescriptor contextDescriptor: TypeContextDescriptorWrapper) -> StaticTypeLayout? {
+        lock.lock()
+        defer { lock.unlock() }
+        return try? calculator.typeLayout(forMangledTypeName: mangledTypeName, inContextOfDescriptor: contextDescriptor)
+    }
+
+    public func enumCaseLayoutResult(forDescriptor descriptor: TypeContextDescriptorWrapper) -> EnumLayoutCalculator.LayoutResult? {
+        lock.lock()
+        defer { lock.unlock() }
+        return calculator.enumCaseLayoutResult(forDescriptor: descriptor)
     }
 
     public func nestedFieldOffsetTree(forMangledTypeName mangledTypeName: MangledName, baseOffset: Int, depthLimit: Int) -> [NestedFieldOffset] {
