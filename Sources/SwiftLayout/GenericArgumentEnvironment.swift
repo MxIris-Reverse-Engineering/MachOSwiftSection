@@ -50,7 +50,7 @@ struct GenericArgumentEnvironment {
     /// class node — every class instantiation lays out as the same single
     /// object reference, so the exact layout is known without an argument.
     /// Substitutions always take precedence; the keys only catch what no
-    /// argument covers. Populated by `augmentedWithClassBoundParameterKeys`
+    /// argument covers. Populated by `augmented(withRequirementFacts:)`
     /// from `ClassBoundGenericParameterAnalysis`.
     let classBoundParameterKeys: Set<GenericParameterKey>
 
@@ -66,14 +66,22 @@ struct GenericArgumentEnvironment {
 
     var isEmpty: Bool { substitutions.isEmpty && classBoundParameterKeys.isEmpty }
 
-    /// This environment with `keys` added to the class-bound parameter set —
-    /// applied by the field-reading entry points with the analysis result for
-    /// the descriptor whose fields are being laid out.
-    func augmentedWithClassBoundParameterKeys(_ keys: Set<GenericParameterKey>) -> GenericArgumentEnvironment {
-        guard !keys.isEmpty else { return self }
+    /// This environment augmented with a descriptor's requirement-signature
+    /// layout facts — applied by the field-reading entry points for the
+    /// descriptor whose fields are being laid out. Class-bound keys merge into
+    /// the placeholder-class set; concrete same-type pins (`T == Date`) merge
+    /// as real substitutions, but only for parameters the instantiation node
+    /// did not already substitute (a genuine instantiation argument wins — it
+    /// cannot contradict a same-type pin anyway).
+    func augmented(withRequirementFacts facts: RequirementSignatureLayoutFacts) -> GenericArgumentEnvironment {
+        guard !facts.isEmpty else { return self }
+        var mergedSubstitutions = substitutions
+        for (key, node) in facts.concreteSameTypeSubstitutions where mergedSubstitutions[key] == nil {
+            mergedSubstitutions[key] = node
+        }
         return GenericArgumentEnvironment(
-            substitutions: substitutions,
-            classBoundParameterKeys: classBoundParameterKeys.union(keys)
+            substitutions: mergedSubstitutions,
+            classBoundParameterKeys: classBoundParameterKeys.union(facts.classBoundParameterKeys)
         )
     }
 

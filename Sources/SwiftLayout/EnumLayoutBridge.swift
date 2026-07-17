@@ -69,8 +69,8 @@ extension StaticTypeLayoutResolver {
     ) throws -> StaticTypeLayout {
         // Class-bound parameters lay out as one object reference even without
         // a substitution.
-        let environment = environment.augmentedWithClassBoundParameterKeys(
-            ClassBoundGenericParameterAnalysis.classBoundParameterKeys(of: descriptor, in: image, imageUniverse: imageUniverse)
+        let environment = environment.augmented(
+            withRequirementFacts: ClassBoundGenericParameterAnalysis.layoutFacts(of: descriptor, in: image, imageUniverse: imageUniverse)
         )
         let payloadCaseCount = descriptor.numberOfPayloadCases
         let emptyCaseCount = descriptor.numberOfEmptyCases
@@ -285,8 +285,8 @@ extension StaticTypeLayoutResolver {
         of descriptor: EnumDescriptor,
         in image: ImageReference<MachO>
     ) throws -> EnumLayoutCalculator.LayoutResult? {
-        let environment = GenericArgumentEnvironment.empty.augmentedWithClassBoundParameterKeys(
-            ClassBoundGenericParameterAnalysis.classBoundParameterKeys(of: descriptor, in: image, imageUniverse: imageUniverse)
+        let environment = GenericArgumentEnvironment.empty.augmented(
+            withRequirementFacts: ClassBoundGenericParameterAnalysis.layoutFacts(of: descriptor, in: image, imageUniverse: imageUniverse)
         )
         let payloadCaseCount = descriptor.numberOfPayloadCases
         let emptyCaseCount = descriptor.numberOfEmptyCases

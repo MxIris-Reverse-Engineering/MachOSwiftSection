@@ -2,20 +2,38 @@ import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 import Demangling
 
-/// Derives, from a generic type descriptor's requirement signature, the set of
-/// generic parameters whose stored representation is known to be a single
-/// object reference **without any substitution**: parameters constrained to a
-/// class layout (`T: AnyObject`), to a superclass (`T: SomeClass`), or to a
-/// class-bound protocol (`T: SomeClassBoundProtocol`, `T: NSCopying`).
+/// The layout facts a generic type descriptor's requirement signature yields
+/// **without any instantiation argument** — what the signature alone pins about
+/// each parameter's storage.
+struct RequirementSignatureLayoutFacts {
+    /// Parameters constrained to a single object reference (`T: AnyObject` /
+    /// `: SomeClass` / a class-bound protocol) — laid out as one pointer.
+    let classBoundParameterKeys: Set<GenericParameterKey>
+
+    /// Parameters pinned to a **concrete** type by a same-type requirement
+    /// (`T == Foundation.Date`, from a constrained extension), mapped to the
+    /// pinned type's unwrapped `Node`. A real substitution — the parameter is
+    /// that concrete type in every valid use.
+    let concreteSameTypeSubstitutions: [GenericParameterKey: Node]
+
+    static let empty = RequirementSignatureLayoutFacts(classBoundParameterKeys: [], concreteSameTypeSubstitutions: [:])
+
+    var isEmpty: Bool { classBoundParameterKeys.isEmpty && concreteSameTypeSubstitutions.isEmpty }
+}
+
+/// Derives, from a generic type descriptor's requirement signature, the layout
+/// facts about its parameters that hold **without any substitution**:
 ///
-/// Every class instantiation of such a parameter has the identical field
-/// layout (one pointer — size/stride/alignment 8, extra inhabitants
-/// `swift_getHeapObjectExtraInhabitantCount`), so a field typed by the
-/// parameter — and every field after it — can be laid out exactly even when
-/// the type is dumped *unspecialized*. The substitution environment consumes
-/// the result: an unsubstituted `dependentGenericParamType` whose `(depth,
-/// index)` is in the set rewrites to a placeholder class node instead of
-/// degrading (see `GenericArgumentEnvironment`).
+/// - A parameter constrained to a class layout (`T: AnyObject`), a superclass
+///   (`T: SomeClass`), or a class-bound protocol (`T: SomeClassBoundProtocol`,
+///   `T: NSCopying`) has the identical single-object-reference layout in every
+///   class instantiation, so a field typed by it lays out exactly. The
+///   environment rewrites such an unsubstituted parameter to a placeholder
+///   class node (see `GenericArgumentEnvironment`).
+/// - A parameter pinned to a **concrete** type by a same-type requirement
+///   (`T == Date`, contributed by a constrained extension — e.g. a type nested
+///   in `extension Foo where Value == Date`) is that type in every valid use,
+///   so it is a genuine substitution.
 ///
 /// The requirement list read here is the descriptor's cumulative canonical
 /// signature (inherited parent-context requirements included), and requirement
@@ -23,16 +41,18 @@ import Demangling
 /// coordinates field records use — so nested generic contexts need no extra
 /// bookkeeping.
 enum ClassBoundGenericParameterAnalysis {
-    /// The `(depth, index)` keys of every class-bound generic parameter of
-    /// `descriptor`, or `[]` for a non-generic descriptor (a fast flag check)
+    /// The requirement-signature layout facts of `descriptor` (class-bound
+    /// parameters + concrete same-type pins) in a single pass over its
+    /// requirements. `.empty` for a non-generic descriptor (a fast flag check)
     /// or one whose generic context cannot be read.
-    static func classBoundParameterKeys<MachO: MachOSwiftSectionRepresentableWithCache>(
+    static func layoutFacts<MachO: MachOSwiftSectionRepresentableWithCache>(
         of descriptor: some TypeContextDescriptorProtocol,
         in image: ImageReference<MachO>,
         imageUniverse: ImageUniverse<MachO>
-    ) -> Set<GenericParameterKey> {
-        guard let genericContext = try? descriptor.genericContext(in: image.machO) else { return [] }
+    ) -> RequirementSignatureLayoutFacts {
+        guard let genericContext = try? descriptor.genericContext(in: image.machO) else { return .empty }
         var classBoundParameterKeys: Set<GenericParameterKey> = []
+        var concreteSameTypeSubstitutions: [GenericParameterKey: Node] = [:]
         for requirement in genericContext.requirements {
             // A pack requirement (`repeat each T: AnyObject`) constrains each
             // element to a pointer, but the pack's arity stays unknown — the
@@ -40,14 +60,53 @@ enum ClassBoundGenericParameterAnalysis {
             // marked. (Marking it would still be layout-safe — the expansion
             // machinery degrades on a non-pack count — but is never useful.)
             guard !requirement.layout.flags.contains(.isPackRequirement) else { continue }
-            guard isClassBound(requirement, in: image, imageUniverse: imageUniverse) else { continue }
             // Only a constraint on the parameter *itself* pins its storage: a
-            // constraint on a dependent member (`T.Element: AnyObject`) says
-            // nothing about `T`.
+            // constraint on a dependent member (`T.Element: AnyObject`,
+            // `T.Element == Int`) says nothing about `T`'s own layout.
             guard let parameterKey = bareParameterKey(of: requirement, in: image.machO) else { continue }
-            classBoundParameterKeys.insert(parameterKey)
+            switch requirement.layout.flags.kind {
+            case .sameType:
+                // `T == <concrete>`: a real substitution, but only when the RHS
+                // is fully concrete (does not reference another parameter or a
+                // dependent member — those cannot stand alone).
+                if let concreteType = concreteSameType(of: requirement, in: image.machO) {
+                    concreteSameTypeSubstitutions[parameterKey] = concreteType
+                }
+            default:
+                if isClassBound(requirement, in: image, imageUniverse: imageUniverse) {
+                    classBoundParameterKeys.insert(parameterKey)
+                }
+            }
         }
-        return classBoundParameterKeys
+        return RequirementSignatureLayoutFacts(
+            classBoundParameterKeys: classBoundParameterKeys,
+            concreteSameTypeSubstitutions: concreteSameTypeSubstitutions
+        )
+    }
+
+    /// The unwrapped concrete type a same-type requirement pins its subject to,
+    /// or `nil` when the RHS is not `.type`, does not demangle, or is not fully
+    /// concrete (it references a generic parameter / dependent member, so it
+    /// cannot be substituted standalone).
+    private static func concreteSameType<MachO: MachOSwiftSectionRepresentableWithCache>(
+        of requirement: GenericRequirementDescriptor,
+        in machO: MachO
+    ) -> Node? {
+        guard
+            case .type(let rightHandSideName)? = try? requirement.resolvedContent(in: machO),
+            let rightHandSideNode = try? MetadataReader.demangleType(for: rightHandSideName, in: machO)
+        else { return nil }
+        let unwrapped = rightHandSideNode.kind == .type ? (rightHandSideNode.firstChild ?? rightHandSideNode) : rightHandSideNode
+        guard !nodeReferencesParameterOrMember(unwrapped) else { return nil }
+        return unwrapped
+    }
+
+    /// Whether a demangled type node (transitively) references a generic
+    /// parameter or a dependent member — i.e. is not a standalone concrete type.
+    private static func nodeReferencesParameterOrMember(_ node: Node) -> Bool {
+        if node.kind == .dependentGenericParamType || node.kind == .dependentMemberType { return true }
+        for child in node.children where nodeReferencesParameterOrMember(child) { return true }
+        return false
     }
 
     /// The `(depth, index)` of a requirement whose subject is a bare generic

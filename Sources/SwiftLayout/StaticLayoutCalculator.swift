@@ -109,15 +109,16 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
     /// whose field/payload record carries that mangled name. The context
     /// supplies what the bare mangled name alone cannot: the requirement
     /// signature's class-bound parameters (an unsubstituted `Element` payload of
-    /// `enum Content<Element: AnyObject>` resolves as one object reference). For
-    /// a non-generic descriptor this is exactly `typeLayout(forMangledTypeName:)`.
+    /// `enum Content<Element: AnyObject>` resolves as one object reference) and
+    /// concrete same-type pins (`Value == Date`). For a non-generic descriptor
+    /// this is exactly `typeLayout(forMangledTypeName:)`.
     public func typeLayout(
         forMangledTypeName mangledTypeName: MangledName,
         inContextOfDescriptor contextDescriptor: TypeContextDescriptorWrapper
     ) throws -> StaticTypeLayout {
         let image = imageUniverse.rootImage
-        let environment = GenericArgumentEnvironment.empty.augmentedWithClassBoundParameterKeys(
-            ClassBoundGenericParameterAnalysis.classBoundParameterKeys(
+        let environment = GenericArgumentEnvironment.empty.augmented(
+            withRequirementFacts: ClassBoundGenericParameterAnalysis.layoutFacts(
                 of: contextDescriptor.typeContextDescriptor,
                 in: image,
                 imageUniverse: imageUniverse
@@ -163,8 +164,8 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
     ) throws -> AggregateFieldLayout {
         // Class-bound parameters lay out as one object reference even without
         // a substitution, so an unspecialized dump still resolves their fields.
-        let environment = environment.augmentedWithClassBoundParameterKeys(
-            ClassBoundGenericParameterAnalysis.classBoundParameterKeys(of: descriptor, in: image, imageUniverse: imageUniverse)
+        let environment = environment.augmented(
+            withRequirementFacts: ClassBoundGenericParameterAnalysis.layoutFacts(of: descriptor, in: image, imageUniverse: imageUniverse)
         )
         let records = try descriptor.fieldDescriptor(in: image.machO).records(in: image.machO)
         return try accumulateFieldLayout(
@@ -186,8 +187,8 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
         // Class-bound parameters lay out as one object reference even without
         // a substitution — applied before the superclass computation so
         // `class Sub<Element: AnyObject>: Base<Element>` resolves its start.
-        let environment = environment.augmentedWithClassBoundParameterKeys(
-            ClassBoundGenericParameterAnalysis.classBoundParameterKeys(of: descriptor, in: image, imageUniverse: imageUniverse)
+        let environment = environment.augmented(
+            withRequirementFacts: ClassBoundGenericParameterAnalysis.layoutFacts(of: descriptor, in: image, imageUniverse: imageUniverse)
         )
         let records = try descriptor.fieldDescriptor(in: image.machO).records(in: image.machO)
         do {

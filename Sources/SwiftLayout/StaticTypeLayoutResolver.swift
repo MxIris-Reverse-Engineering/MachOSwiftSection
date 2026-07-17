@@ -374,8 +374,8 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         // Class-bound parameters lay out as one object reference even without
         // a substitution (relevant when a bare generic reference reaches the
         // whole-type path with no argument list).
-        let environment = environment.augmentedWithClassBoundParameterKeys(
-            ClassBoundGenericParameterAnalysis.classBoundParameterKeys(of: descriptor, in: image, imageUniverse: imageUniverse)
+        let environment = environment.augmented(
+            withRequirementFacts: ClassBoundGenericParameterAnalysis.layoutFacts(of: descriptor, in: image, imageUniverse: imageUniverse)
         )
         let fieldLayouts = try fieldLayouts(ofFieldDescriptorOwner: descriptor, in: image, environment: environment)
         return BasicLayout.compute(startOffset: 0, startAlignmentMask: 0, fieldLayouts: fieldLayouts)
@@ -394,8 +394,8 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         // Class-bound parameters lay out as one object reference even without
         // a substitution — applied before the superclass computation so
         // `class Sub<Element: AnyObject>: Base<Element>` resolves its start.
-        let environment = environment.augmentedWithClassBoundParameterKeys(
-            ClassBoundGenericParameterAnalysis.classBoundParameterKeys(of: descriptor, in: image, imageUniverse: imageUniverse)
+        let environment = environment.augmented(
+            withRequirementFacts: ClassBoundGenericParameterAnalysis.layoutFacts(of: descriptor, in: image, imageUniverse: imageUniverse)
         )
         let start = try superclassStartLayout(of: descriptor, in: image, environment: environment)
         let fieldLayouts = try fieldLayouts(ofFieldDescriptorOwner: descriptor, in: image, environment: environment)
