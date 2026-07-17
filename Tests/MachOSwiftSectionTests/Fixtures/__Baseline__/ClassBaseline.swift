@@ -27,7 +27,7 @@ enum ClassBaseline {
     }
 
     static let classTest = Entry(
-    descriptorOffset: 0x3ec00,
+    descriptorOffset: 0x3ed60,
     hasGenericContext: false,
     hasResilientSuperclass: false,
     hasForeignMetadataInitialization: false,
@@ -48,7 +48,7 @@ enum ClassBaseline {
     )
 
     static let subclassTest = Entry(
-    descriptorOffset: 0x3ec7c,
+    descriptorOffset: 0x3eddc,
     hasGenericContext: false,
     hasResilientSuperclass: false,
     hasForeignMetadataInitialization: false,

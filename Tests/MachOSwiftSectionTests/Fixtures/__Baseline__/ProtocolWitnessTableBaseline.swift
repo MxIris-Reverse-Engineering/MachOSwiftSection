@@ -10,6 +10,6 @@ enum ProtocolWitnessTableBaseline {
     }
 
     static let firstWitnessTable = Entry(
-    offset: 0x3316c
+    offset: 0x331cc
     )
 }

@@ -581,6 +581,38 @@ public enum GenericFieldLayout {
         public var optionalParameterKind: Element.Type?
         public var trailingMarker: Int8
     }
+
+    // MARK: - Concrete same-type-pinned parameters (constrained extensions)
+
+    /// A generic type whose parameter is left free at the top level, but pinned
+    /// to a concrete type by a **constrained extension**. A type nested in such
+    /// an extension inherits the parameter *and* the `Value == …` same-type
+    /// requirement in its own generic signature, so a field typed by the
+    /// parameter resolves to the pinned concrete type **without any argument** —
+    /// the requirement signature alone determines it.
+    public struct SameTypePinnedOuter<Value> {
+        public var anchor: Value
+    }
+}
+
+extension GenericFieldLayout.SameTypePinnedOuter where Value == Int64 {
+    /// `Value` is pinned to `Int64`: `pinnedValue: Value` lays out as `Int64`
+    /// (8 bytes) unspecialized.
+    public struct ScalarPinnedInner {
+        public var pinnedValue: Value
+        public var trailingMarker: Int8
+    }
+}
+
+extension GenericFieldLayout.SameTypePinnedOuter where Value == Swift.Range<Swift.Int> {
+    /// `Value` is pinned to a **bound-generic concrete** type
+    /// (`Range<Int>`, 16 bytes): the same-type substitution feeds a full
+    /// concrete type node, not just a scalar.
+    public struct RangePinnedInner {
+        public var leadingMarker: Int8
+        public var pinnedRange: Value
+        public var trailingMarker: Int8
+    }
 }
 
 /// A Swift-declared `@objc` protocol (file scope — `@objc` protocols cannot be

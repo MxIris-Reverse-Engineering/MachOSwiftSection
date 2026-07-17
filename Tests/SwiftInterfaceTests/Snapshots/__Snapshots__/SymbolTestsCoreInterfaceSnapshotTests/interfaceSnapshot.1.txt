@@ -1879,6 +1879,10 @@ enum GenericFieldLayout {
         // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
         var trailingMarker: Swift.Int8
     }
+    struct SameTypePinnedOuter<A> {
+        // Field offset: unknown (generic parameter not substituted)
+        var anchor: A
+    }
     protocol Boxed {
         associatedtype Wrapped
 
@@ -2901,6 +2905,29 @@ protocol DescriptorBackedSwiftProtocol {
     func describe() -> Swift.Int
 }
 
+extension SymbolTestsCore.GenericFieldLayout.SameTypePinnedOuter where A == Swift.Int64 {
+    struct ScalarPinnedInner {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var pinnedValue: Swift.Int64
+        // Field offset: 0x8
+        // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var trailingMarker: Swift.Int8
+    }
+}
+extension SymbolTestsCore.GenericFieldLayout.SameTypePinnedOuter where A == Swift.Range<Swift.Int> {
+    struct RangePinnedInner {
+        // Field offset: 0x0
+        // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var leadingMarker: Swift.Int8
+        // Field offset: 0x8
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        var pinnedRange: Swift.Range<Swift.Int>
+        // Field offset: 0x18
+        // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var trailingMarker: Swift.Int8
+    }
+}
 extension SymbolTestsCore.Generics.GenericRequirementTest where A: Swift.RawRepresentable, A: SymbolTestsCore.Protocols.ProtocolTest {
     struct RawRepresentableNestedStruct {
         struct NestedStruct {}

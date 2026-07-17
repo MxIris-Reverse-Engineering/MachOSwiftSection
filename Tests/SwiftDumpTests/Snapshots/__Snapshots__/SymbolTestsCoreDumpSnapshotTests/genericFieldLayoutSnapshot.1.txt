@@ -1006,6 +1006,13 @@ struct SymbolTestsCore.GenericFieldLayout.GenericMetatypeFieldStruct<A> {
     SymbolTestsCore.GenericFieldLayout.GenericMetatypeFieldStruct.optionalParameterKind.getter : A.Type?
     SymbolTestsCore.GenericFieldLayout.GenericMetatypeFieldStruct.optionalParameterKind.setter : A.Type?
 }
+struct SymbolTestsCore.GenericFieldLayout.SameTypePinnedOuter<A> {
+    var anchor: A
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.SameTypePinnedOuter.anchor.getter : A
+    SymbolTestsCore.GenericFieldLayout.SameTypePinnedOuter.anchor.setter : A
+}
 
 // MARK: - Protocols
 
