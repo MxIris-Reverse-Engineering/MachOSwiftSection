@@ -129,12 +129,13 @@ class SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement<A> where 
     SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.deinit
 
     /* Variable */
-    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field3.getter : Swift.Int
-    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field3.setter : Swift.Int
     SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field2.getter : A
-    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field2.setter : A
+    merged SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field2.setter : A
     SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field1.getter : Swift.Double
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field3.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field2.setter : A
     SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field1.setter : Swift.Double
+    SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.field3.setter : Swift.Int
 
     /* [Method] Allocator */
     method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement.__allocating_init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirement<A>
@@ -228,6 +229,7 @@ class SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSO
     SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field2.setter : A
     SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field3.getter : Swift.Int
     SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field3.setter : Swift.Int
+    merged SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.field2.setter : A
 
     /* [Method] Allocator */
     method descriptor for SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject.__allocating_init(field1: Swift.Double, field2: A, field3: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.GenericClassLayoutRequirementInheritNSObject<A>
@@ -751,6 +753,221 @@ struct SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder {
     SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.leading.getter : Swift.Int
     SymbolTestsCore.GenericFieldLayout.ObjCProtocolExistentialFieldHolder.leading.setter : Swift.Int
 }
+class SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass {
+    var ancestorIdentifier: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass.ancestorIdentifier.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass.ancestorIdentifier.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass.ancestorIdentifier.modify : Swift.Int
+    /* [ Init ] */ SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass.__allocating_init() -> SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass
+
+    /* Allocator */
+    SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass.__allocating_init() -> SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass
+
+    /* Deallocator */
+    SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass.init() -> SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass
+
+    /* Destructor */
+    SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass.deinit
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass.ancestorIdentifier.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass.ancestorIdentifier.setter : Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass.__allocating_init() -> SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass.ancestorIdentifier.getter : Swift.Int
+    method descriptor for SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass.ancestorIdentifier.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.GenericStructClassBoundSwiftProtocolRequirement<A> where A: SymbolTestsCore.GenericFieldLayout.ClassBoundElementProtocol {
+    var field1: Swift.Double
+    var field2: A
+    var field3: Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.GenericStructClassBoundSwiftProtocolRequirement.field1.getter : Swift.Double
+    SymbolTestsCore.GenericFieldLayout.GenericStructClassBoundSwiftProtocolRequirement.field1.setter : Swift.Double
+    SymbolTestsCore.GenericFieldLayout.GenericStructClassBoundSwiftProtocolRequirement.field2.getter : A
+    SymbolTestsCore.GenericFieldLayout.GenericStructClassBoundSwiftProtocolRequirement.field2.setter : A
+    SymbolTestsCore.GenericFieldLayout.GenericStructClassBoundSwiftProtocolRequirement.field3.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.GenericStructClassBoundSwiftProtocolRequirement.field3.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.GenericStructBaseClassRequirement<A> where A: SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass {
+    var field1: Swift.Double
+    var field2: A
+    var field3: Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.GenericStructBaseClassRequirement.field1.getter : Swift.Double
+    SymbolTestsCore.GenericFieldLayout.GenericStructBaseClassRequirement.field1.setter : Swift.Double
+    SymbolTestsCore.GenericFieldLayout.GenericStructBaseClassRequirement.field2.getter : A
+    SymbolTestsCore.GenericFieldLayout.GenericStructBaseClassRequirement.field2.setter : A
+    SymbolTestsCore.GenericFieldLayout.GenericStructBaseClassRequirement.field3.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.GenericStructBaseClassRequirement.field3.setter : Swift.Int
+}
+struct SymbolTestsCore.GenericFieldLayout.PartiallyClassBoundGenericStruct<A, B> where A: AnyObject {
+    var firstReference: A
+    var counter: Swift.Int64
+    var storedValue: B
+    var trailingReference: A
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.PartiallyClassBoundGenericStruct.counter.getter : Swift.Int64
+    SymbolTestsCore.GenericFieldLayout.PartiallyClassBoundGenericStruct.counter.setter : Swift.Int64
+    SymbolTestsCore.GenericFieldLayout.PartiallyClassBoundGenericStruct.storedValue.getter : B
+    SymbolTestsCore.GenericFieldLayout.PartiallyClassBoundGenericStruct.storedValue.setter : B
+    SymbolTestsCore.GenericFieldLayout.PartiallyClassBoundGenericStruct.trailingReference.getter : A
+    SymbolTestsCore.GenericFieldLayout.PartiallyClassBoundGenericStruct.trailingReference.setter : A
+    SymbolTestsCore.GenericFieldLayout.PartiallyClassBoundGenericStruct.firstReference.getter : A
+    SymbolTestsCore.GenericFieldLayout.PartiallyClassBoundGenericStruct.firstReference.setter : A
+}
+struct SymbolTestsCore.GenericFieldLayout.ClassBoundWrappedFieldStruct<A> where A: AnyObject {
+    var optionalElement: A?
+    var elementPair: (A, Swift.Int32)
+    var elementArray: [A]
+    var elementClosure: (A) -> A
+    var trailingMarker: Swift.Int8
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.ClassBoundWrappedFieldStruct.elementPair.getter : (A, Swift.Int32)
+    SymbolTestsCore.GenericFieldLayout.ClassBoundWrappedFieldStruct.elementPair.setter : (A, Swift.Int32)
+    SymbolTestsCore.GenericFieldLayout.ClassBoundWrappedFieldStruct.elementArray.getter : [A]
+    SymbolTestsCore.GenericFieldLayout.ClassBoundWrappedFieldStruct.elementArray.setter : [A]
+    SymbolTestsCore.GenericFieldLayout.ClassBoundWrappedFieldStruct.elementClosure.getter : (A) -> A
+    SymbolTestsCore.GenericFieldLayout.ClassBoundWrappedFieldStruct.elementClosure.setter : (A) -> A
+    SymbolTestsCore.GenericFieldLayout.ClassBoundWrappedFieldStruct.trailingMarker.getter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.ClassBoundWrappedFieldStruct.trailingMarker.setter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.ClassBoundWrappedFieldStruct.optionalElement.getter : A?
+    SymbolTestsCore.GenericFieldLayout.ClassBoundWrappedFieldStruct.optionalElement.setter : A?
+}
+enum SymbolTestsCore.GenericFieldLayout.ClassBoundContent<A> where A: AnyObject {
+    case first(A)
+    case second(A, Swift.Int32)
+    case none
+}
+struct SymbolTestsCore.GenericFieldLayout.GenericStructWithClassBoundEnumField<A> where A: AnyObject {
+    var content: SymbolTestsCore.GenericFieldLayout.ClassBoundContent<A>
+    var trailingMarker: Swift.Int8
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.GenericStructWithClassBoundEnumField.content.getter : SymbolTestsCore.GenericFieldLayout.ClassBoundContent<A>
+    SymbolTestsCore.GenericFieldLayout.GenericStructWithClassBoundEnumField.content.setter : SymbolTestsCore.GenericFieldLayout.ClassBoundContent<A>
+    SymbolTestsCore.GenericFieldLayout.GenericStructWithClassBoundEnumField.trailingMarker.getter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.GenericStructWithClassBoundEnumField.trailingMarker.setter : Swift.Int8
+}
+class SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass<A> where A: AnyObject {
+    var baseElement: A
+
+    /* [Getter] */ SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass.baseElement.getter : A
+    /* [Setter] */ SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass.baseElement.setter : A
+    /* [Modify] */ SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass.baseElement.modify : A
+    /* [ Init ] */ SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass.__allocating_init(baseElement: A) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass<A>
+
+    /* Allocator */
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass.__allocating_init(baseElement: A) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass<A>
+
+    /* Deallocator */
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass.init(baseElement: A) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass<A>
+
+    /* Destructor */
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass.deinit
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass.baseElement.getter : A
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass.baseElement.setter : A
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass.__allocating_init(baseElement: A) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass<A>
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass.baseElement.getter : A
+    method descriptor for SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass.baseElement.setter : A
+}
+class SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass<A>: SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass<A> where A: AnyObject {
+    var subclassElement: A
+    var subclassIdentifier: Swift.Int64
+
+    /* [ Init ] */ SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass.__allocating_init(baseElement: A, subclassElement: A, subclassIdentifier: Swift.Int64) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass<A>
+
+    /* [ Init ] */ override function signature specialization <Arg[0] = Dead, Arg[1] = Dead> of SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass.init(baseElement: A) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass<A>
+
+    /* Allocator */
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass.__allocating_init(baseElement: A, subclassElement: A, subclassIdentifier: Swift.Int64) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass<A>
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass.__allocating_init(baseElement: A) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass<A>
+
+    /* Deallocator */
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass.init(baseElement: A, subclassElement: A, subclassIdentifier: Swift.Int64) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass<A>
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass.init(baseElement: A) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass<A>
+
+    /* Destructor */
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass.deinit
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass.subclassElement.getter : A
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass.subclassElement.setter : A
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass.subclassIdentifier.getter : Swift.Int64
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass.subclassIdentifier.setter : Swift.Int64
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass.__allocating_init(baseElement: A, subclassElement: A, subclassIdentifier: Swift.Int64) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericSubclass<A>
+}
+class SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass<A>: NSObject where A: AnyObject {
+    var element: A
+    var identifier: Swift.Int
+
+    /* [ Init ] */ SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass.__allocating_init(element: A, identifier: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass<A>
+
+    /* Allocator */
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass.__allocating_init(element: A, identifier: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass<A>
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass.__allocating_init() -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass<A>
+
+    /* Deallocator */
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass.init(element: A, identifier: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass<A>
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass.init() -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass<A>
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass.element.getter : A
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass.element.setter : A
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass.identifier.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass.identifier.setter : Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass.__allocating_init(element: A, identifier: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.ClassBoundGenericNSObjectSubclass<A>
+}
+struct SymbolTestsCore.GenericFieldLayout.ClassBoundOuter<A> where A: AnyObject {
+    var anchor: A
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.ClassBoundOuter.anchor.getter : A
+    SymbolTestsCore.GenericFieldLayout.ClassBoundOuter.anchor.setter : A
+}
+struct SymbolTestsCore.GenericFieldLayout.ClassBoundOuter.ClassBoundInner<A1> where A1: AnyObject {
+    var outerStored: A
+    var innerStored: A1
+    var marker: Swift.Int16
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.ClassBoundOuter.ClassBoundInner.marker.getter : Swift.Int16
+    SymbolTestsCore.GenericFieldLayout.ClassBoundOuter.ClassBoundInner.marker.setter : Swift.Int16
+    SymbolTestsCore.GenericFieldLayout.ClassBoundOuter.ClassBoundInner.innerStored.getter : A1
+    SymbolTestsCore.GenericFieldLayout.ClassBoundOuter.ClassBoundInner.innerStored.setter : A1
+    SymbolTestsCore.GenericFieldLayout.ClassBoundOuter.ClassBoundInner.outerStored.getter : A
+    SymbolTestsCore.GenericFieldLayout.ClassBoundOuter.ClassBoundInner.outerStored.setter : A
+}
 
 // MARK: - Protocols
 
@@ -759,4 +976,7 @@ protocol SymbolTestsCore.GenericFieldLayout.Boxed {
 
     associated type descriptor for SymbolTestsCore.GenericFieldLayout.Boxed.Wrapped
     method descriptor for SymbolTestsCore.GenericFieldLayout.Boxed.wrapped.getter : A.Wrapped
+}
+protocol SymbolTestsCore.GenericFieldLayout.ClassBoundElementProtocol: AnyObject {
+    method descriptor for SymbolTestsCore.GenericFieldLayout.ClassBoundElementProtocol.classBoundIdentity() -> Swift.Int
 }

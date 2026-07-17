@@ -13,9 +13,9 @@ enum TypeMetadataRecordBaseline {
     }
 
     static let structTestRecord = Entry(
-    offset: 0x455f8,
-    layoutRelativeOffset: -20248,
+    offset: 0x47ab0,
+    layoutRelativeOffset: -21080,
     typeKindRawValue: 0x0,
-    contextDescriptorOffset: 0x406e0
+    contextDescriptorOffset: 0x42858
     )
 }

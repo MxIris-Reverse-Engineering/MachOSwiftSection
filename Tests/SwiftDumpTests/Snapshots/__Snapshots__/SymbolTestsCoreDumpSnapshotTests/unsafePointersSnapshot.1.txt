@@ -15,8 +15,6 @@ struct SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest {
     SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.init(readPointer: Swift.UnsafePointer<Swift.Int>, mutablePointer: Swift.UnsafeMutablePointer<Swift.Int>, rawPointer: Swift.UnsafeRawPointer, mutableRawPointer: Swift.UnsafeMutableRawPointer, bufferPointer: Swift.UnsafeBufferPointer<Swift.Int>, mutableBufferPointer: Swift.UnsafeMutableBufferPointer<Swift.Int>, rawBufferPointer: Swift.UnsafeRawBufferPointer, opaquePointer: Swift.OpaquePointer) -> SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest
 
     /* Variable */
-    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.mutablePointer.getter : Swift.UnsafeMutablePointer<Swift.Int>
-    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.mutablePointer.setter : Swift.UnsafeMutablePointer<Swift.Int>
     SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.bufferPointer.getter : Swift.UnsafeBufferPointer<Swift.Int>
     SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.bufferPointer.setter : Swift.UnsafeBufferPointer<Swift.Int>
     SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.mutableBufferPointer.getter : Swift.UnsafeMutableBufferPointer<Swift.Int>
@@ -31,6 +29,8 @@ struct SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest {
     SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.rawPointer.setter : Swift.UnsafeRawPointer
     SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.readPointer.getter : Swift.UnsafePointer<Swift.Int>
     SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.readPointer.setter : Swift.UnsafePointer<Swift.Int>
+    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.mutablePointer.getter : Swift.UnsafeMutablePointer<Swift.Int>
+    SymbolTestsCore.UnsafePointers.UnsafePointerFieldTest.mutablePointer.setter : Swift.UnsafeMutablePointer<Swift.Int>
 }
 struct SymbolTestsCore.UnsafePointers.UnmanagedFieldTest {
     var unmanagedReference: Swift.Unmanaged<Swift.AnyObject>

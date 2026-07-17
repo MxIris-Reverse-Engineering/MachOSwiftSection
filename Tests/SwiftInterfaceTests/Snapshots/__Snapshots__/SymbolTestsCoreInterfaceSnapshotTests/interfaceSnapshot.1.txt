@@ -244,16 +244,22 @@ enum BuiltinTypeFields {
 }
 enum ClassBoundGenerics {
     struct AnyObjectBoundTest<A> where A: AnyObject {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
         var element: A
 
         init(element: A)
     }
     struct AnyObjectAndProtocolBoundTest<A> where A: AnyObject, A: SymbolTestsCore.Protocols.ProtocolTest {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
         var element: A
 
         init(element: A)
     }
     class ClassBoundGenericClassTest<A> where A: AnyObject {
+        // Field offset: 0x10
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
         var element: A
 
         init(element: A)
@@ -1220,7 +1226,11 @@ enum GenericFieldLayout {
         // Field offset: 0x0
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var field1: Swift.Double
+        // Field offset: 0x8
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
         var field2: A
+        // Field offset: 0x10
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var field3: Swift.Int
     }
     struct GenericStructSwiftProtocolRequirement<A> where A: Swift.Equatable {
@@ -1234,7 +1244,11 @@ enum GenericFieldLayout {
         // Field offset: 0x0
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var field1: Swift.Double
+        // Field offset: 0x8
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
         var field2: A
+        // Field offset: 0x10
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var field3: Swift.Int
     }
     class GenericClassNonRequirement<A> {
@@ -1252,7 +1266,11 @@ enum GenericFieldLayout {
         // Field offset: 0x10
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var field1: Swift.Double
+        // Field offset: 0x18
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
         var field2: A
+        // Field offset: 0x20
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var field3: Swift.Int
 
         init(field1: Swift.Double, field2: A, field3: Swift.Int)
@@ -1275,7 +1293,11 @@ enum GenericFieldLayout {
         // Field offset: 0x8
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var field1: Swift.Double
+        // Field offset: 0x10
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
         var field2: A
+        // Field offset: 0x18
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var field3: Swift.Int
 
         @objc init(field1: Swift.Double, field2: A, field3: Swift.Int)
@@ -1641,12 +1663,137 @@ enum GenericFieldLayout {
         // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
         var trailing: Swift.Int8
     }
+    class LayoutAncestorClass {
+        // Field offset: 0x10
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var ancestorIdentifier: Swift.Int
+
+        init()
+
+        deinit
+    }
+    struct GenericStructClassBoundSwiftProtocolRequirement<A> where A: SymbolTestsCore.GenericFieldLayout.ClassBoundElementProtocol {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var field1: Swift.Double
+        // Field offset: 0x8
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
+        var field2: A
+        // Field offset: 0x10
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var field3: Swift.Int
+    }
+    struct GenericStructBaseClassRequirement<A> where A: SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var field1: Swift.Double
+        // Field offset: 0x8
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
+        var field2: A
+        // Field offset: 0x10
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var field3: Swift.Int
+    }
+    struct PartiallyClassBoundGenericStruct<A, B> where A: AnyObject {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
+        var firstReference: A
+        // Field offset: 0x8
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var counter: Swift.Int64
+        var storedValue: B
+        var trailingReference: A
+    }
+    struct ClassBoundWrappedFieldStruct<A> where A: AnyObject {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4095)
+        var optionalElement: A?
+        // Field offset: 0x8
+        // Type Layout: (size: 12, stride: 16, alignment: 8, extraInhabitantCount: 4096)
+        var elementPair: (A, Swift.Int32)
+        // Field offset: 0x18
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
+        var elementArray: [A]
+        // Field offset: 0x20
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        var elementClosure: (_: A) -> A
+        // Field offset: 0x30
+        // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var trailingMarker: Swift.Int8
+    }
+    enum ClassBoundContent<A> where A: AnyObject {
+        case first(A)
+        case second(A, Swift.Int32)
+        case none
+    }
+    struct GenericStructWithClassBoundEnumField<A> where A: AnyObject {
+        // Field offset: 0x0
+        // Type Layout: (size: 13, stride: 16, alignment: 8, extraInhabitantCount: 253)
+        var content: SymbolTestsCore.GenericFieldLayout.ClassBoundContent<A>
+        // Field offset: 0xd
+        // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var trailingMarker: Swift.Int8
+    }
+    class ClassBoundGenericBaseClass<A> where A: AnyObject {
+        // Field offset: 0x10
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
+        var baseElement: A
+
+        init(baseElement: A)
+
+        deinit
+    }
+    class ClassBoundGenericSubclass<A>: SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass<A> where A: AnyObject {
+        // Field offset: 0x18
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
+        var subclassElement: A
+        // Field offset: 0x20
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var subclassIdentifier: Swift.Int64
+
+        init(baseElement: A, subclassElement: A, subclassIdentifier: Swift.Int64)
+        init(baseElement: A)
+
+        deinit
+    }
+    class ClassBoundGenericNSObjectSubclass<A>: __C.NSObject where A: AnyObject {
+        // Field offset: 0x8
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
+        var element: A
+        // Field offset: 0x10
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var identifier: Swift.Int
+
+        @objc init(element: A, identifier: Swift.Int)
+        @objc init()
+
+        deinit
+    }
+    struct ClassBoundOuter<A> where A: AnyObject {
+        struct ClassBoundInner<A1> where A1: AnyObject {
+            // Field offset: 0x0
+            // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
+            var outerStored: A
+            // Field offset: 0x8
+            // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
+            var innerStored: A1
+            // Field offset: 0x10
+            // Type Layout: (size: 2, stride: 2, alignment: 2, extraInhabitantCount: 0)
+            var marker: Swift.Int16
+        }
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
+        var anchor: A
+    }
     protocol Boxed {
         associatedtype Wrapped
 
         var wrapped: Self.Wrapped {
             get
         }
+    }
+    protocol ClassBoundElementProtocol: AnyObject {
+        func classBoundIdentity() -> Swift.Int
     }
 }
 enum GenericRequirementVariants {
@@ -1671,11 +1818,15 @@ enum GenericRequirementVariants {
         deinit
     }
     struct BaseClassRequirementTest<A> where A: SymbolTestsCore.GenericRequirementVariants.GenericBaseClassForRequirementTest {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
         var element: A
 
         init(element: A)
     }
     struct LayoutAnyObjectRequirementTest<A> where A: AnyObject {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
         var element: A
 
         init(element: A)

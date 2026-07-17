@@ -431,6 +431,128 @@ public enum GenericFieldLayout {
         public var composedElement: any ObjCOnlyElementProtocol & DescriptorBackedSwiftProtocol
         public var trailing: Int8
     }
+
+    // MARK: - Class-bound generic parameters, laid out unspecialized
+
+    /// A class-bound protocol: a `T: ClassBoundElementProtocol` parameter is
+    /// necessarily a single object reference, so fields typed by it lay out
+    /// exactly without any substitution. Requires a Swift protocol witness
+    /// table at instantiation (unlike the `AnyObject` layout constraint), so
+    /// the static engine — which needs no metadata — is the only offline way
+    /// to this layout.
+    public protocol ClassBoundElementProtocol: AnyObject {
+        func classBoundIdentity() -> Int
+    }
+
+    /// A superclass bound for `baseClass` generic requirements.
+    open class LayoutAncestorClass {
+        public var ancestorIdentifier: Int = 0
+        public init() {}
+    }
+
+    /// Same field shape as `GenericStructLayoutRequirement` (`A: AnyObject`),
+    /// constrained through a class-bound Swift protocol instead — the layouts
+    /// must be identical.
+    public struct GenericStructClassBoundSwiftProtocolRequirement<A: ClassBoundElementProtocol> {
+        public var field1: Double
+        public var field2: A
+        public var field3: Int
+    }
+
+    /// Same field shape again, constrained through a superclass bound
+    /// (a `baseClass` generic requirement — validation-only, no witness table).
+    public struct GenericStructBaseClassRequirement<A: LayoutAncestorClass> {
+        public var field1: Double
+        public var field2: A
+        public var field3: Int
+    }
+
+    /// One class-bound and one unconstrained parameter: the reference fields
+    /// and everything before the first `Value` field resolve; the `Value`
+    /// field itself and everything after it degrade.
+    public struct PartiallyClassBoundGenericStruct<Reference: AnyObject, Value> {
+        public var firstReference: Reference
+        public var counter: Int64
+        public var storedValue: Value
+        public var trailingReference: Reference
+    }
+
+    /// Class-bound parameter wrapped in compound field types: the placeholder
+    /// substitution must reach through optionals (single-payload layout with
+    /// the heap reference's extra inhabitants), tuples, frozen containers, and
+    /// function types.
+    public struct ClassBoundWrappedFieldStruct<Element: AnyObject> {
+        public var optionalElement: Element?
+        public var elementPair: (Element, Int32)
+        public var elementArray: [Element]
+        public var elementClosure: (Element) -> Element
+        public var trailingMarker: Int8
+    }
+
+    /// A generic multi-payload enum over a class-bound parameter: the runtime
+    /// lays every generic instantiation out with appended tag bytes (never
+    /// spare bits), so the unspecialized static layout must take the tagged
+    /// branch too.
+    public enum ClassBoundContent<Element: AnyObject> {
+        case first(Element)
+        case second(Element, Int32)
+        case none
+    }
+
+    /// Holder exercising the generic multi-payload enum above as a stored
+    /// field of an (itself generic) type.
+    public struct GenericStructWithClassBoundEnumField<Element: AnyObject> {
+        public var content: ClassBoundContent<Element>
+        public var trailingMarker: Int8
+    }
+
+    /// A generic class pair: the subclass's fields start at the superclass's
+    /// instance size, both resolved without specialization through the
+    /// class-bound parameter.
+    open class ClassBoundGenericBaseClass<Element: AnyObject> {
+        public var baseElement: Element
+
+        public init(baseElement: Element) {
+            self.baseElement = baseElement
+        }
+    }
+
+    public final class ClassBoundGenericSubclass<Element: AnyObject>: ClassBoundGenericBaseClass<Element> {
+        public var subclassElement: Element
+        public var subclassIdentifier: Int64
+
+        public init(baseElement: Element, subclassElement: Element, subclassIdentifier: Int64) {
+            self.subclassElement = subclassElement
+            self.subclassIdentifier = subclassIdentifier
+            super.init(baseElement: baseElement)
+        }
+    }
+
+    /// A class-bound generic class with an Objective-C ancestor: its own
+    /// fields start at `NSObject`'s instance size.
+    public final class ClassBoundGenericNSObjectSubclass<Element: AnyObject>: NSObject {
+        public var element: Element
+        public var identifier: Int
+
+        public init(element: Element, identifier: Int) {
+            self.element = element
+            self.identifier = identifier
+        }
+    }
+
+    /// Two parameter-declaring levels, both class-bound: the requirement
+    /// signature read from `ClassBoundInner`'s descriptor is cumulative, so
+    /// the inherited depth-0 constraint and the own depth-1 constraint both
+    /// mark their parameters.
+    public struct ClassBoundOuter<OuterElement: AnyObject> {
+        public struct ClassBoundInner<InnerElement: AnyObject> {
+            public var outerStored: OuterElement
+            public var innerStored: InnerElement
+            public var marker: Int16
+        }
+
+        public var anchor: OuterElement
+    }
 }
 
 /// A Swift-declared `@objc` protocol (file scope — `@objc` protocols cannot be
