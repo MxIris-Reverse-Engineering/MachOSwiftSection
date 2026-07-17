@@ -89,9 +89,19 @@ configuration/isGeneric/staticAggregateFieldLayout，不含 `Self`）传递 rend
 
 - end offset：优先取下一字段偏移；末字段用 `fields[i].layout.size`（静态每字段都有）。
 - Type Layout：MachOFile 走 `configuration.staticTypeLayoutComment(_:)`，由 `StaticTypeLayout` 直接渲染默认格式。
-- Enum Layout：静态版 `computeEnumLayout`——payload size/XI 经 `provider.typeLayout(forMangledTypeName:)`，
-  枚举自身大小经 `typeLayout(forDescriptor:)`，multi-payload 的 spare bytes 经 `__swift5_mpenum`（section 读，
-  MachOFile 本就可读），复用 `SwiftInspection.EnumLayoutCalculator.calculate{MultiPayload,TaggedMultiPayload,SinglePayload}`。
+- Enum Layout：静态版**统一收口到 SwiftLayout 引擎**——`provider.enumCaseLayoutResult(forDescriptor:)`
+  返回逐 case 投影（`EnumLayoutBridge.enumCaseLayoutResult`，内部按 single-/multi-payload 分派并移植 runtime
+  公式）。此前 backend 自行拼装 payload size / spare bytes / `EnumLayoutCalculator`，现全部下沉到引擎，backend
+  只做渲染。**放开泛型 enum**：引擎能不特化解析的泛型 enum（class-bound payload 参数、或 payload 不引用参数）
+  照常渲染 enum-layout 注释（此前一律 `!isGeneric` 跳过）；真正需要实参的 enum 返回 nil、无注释。
+- 泛型 enum 的 payload Type Layout / 字段 Type Layout 经
+  `provider.typeLayout(forMangledTypeName:inContextOfDescriptor:)`——在**该 descriptor 的上下文**里 lower，
+  故 class-bound 参数 payload 与 metatype thinness 都能正确判定（裸 `typeLayout(forMangledTypeName:)` 缺上下文，
+  无法解析泛型参数 payload）。
+- **未知偏移显式化**：字段偏移算不出时不再静默省略注释，而是渲染 `// Field offset: unknown (<原因>)`
+  （`DeclarationRenderConfiguration.unknownFieldOffsetComment`，原因来自 `LayoutUnknownReason` 的可读描述），
+  让读者区分「引擎算不了」与「开关没开」；字段**自身**类型布局（多数仍可解析）照常在下方渲染
+  （`StaticLayoutCalculator` 现即使偏移不可信也会尽力解析每字段 `layout`）。
 
 ## 正确性验证
 
@@ -112,6 +122,8 @@ configuration/isGeneric/staticAggregateFieldLayout，不含 `Self`）传递 rend
   会牵动覆盖率不变量、属层级越界），故 MachOFile 路径恒走默认格式。
 - **tuple 字段的 Type Layout 无逐元素分解**：`StaticTypeLayout` 不携带元素信息，静态路径输出单行聚合布局。
 - expanded 树对深层泛型实例化按 SwiftLayout 现状逐子树降级（停止递归而非错算）。
+- **泛型 enum 的 enum-layout 注释已放开**（class-bound / 无参数 payload），但**依赖实参**的泛型 enum
+  （payload 为裸 `T`）仍返回 nil、不渲染——与字段路径的降级语义一致。
 - 跨模块解析默认走依赖闭包（系统 dyld cache）；`.singleImage` 下跨模块字段降级。`@rpath` 未展开（沿用
   SwiftLayout 闭包 MVP 限制）。
 
