@@ -968,6 +968,44 @@ struct SymbolTestsCore.GenericFieldLayout.ClassBoundOuter.ClassBoundInner<A1> wh
     SymbolTestsCore.GenericFieldLayout.ClassBoundOuter.ClassBoundInner.outerStored.getter : A
     SymbolTestsCore.GenericFieldLayout.ClassBoundOuter.ClassBoundInner.outerStored.setter : A
 }
+struct SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct {
+    var valueKind: Swift.Int64.Type
+    var leadingMarker: Swift.Int8
+    var classKind: SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass.Type
+    var optionalValueKind: Swift.Int64.Type?
+    var trailingMarker: Swift.Int8
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.optionalValueKind.getter : Swift.Int64.Type?
+    SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.optionalValueKind.setter : Swift.Int64.Type?
+    SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.trailingMarker.getter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.trailingMarker.setter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.leadingMarker.getter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.leadingMarker.setter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.classKind.getter : SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass.Type
+    SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.classKind.setter : SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass.Type
+    SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.valueKind.getter : Swift.Int64.Type
+    SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.valueKind.setter : Swift.Int64.Type
+}
+struct SymbolTestsCore.GenericFieldLayout.GenericMetatypeFieldStruct<A> {
+    var parameterKind: A.Type
+    var leadingMarker: Swift.Int8
+    var concreteKind: Swift.Int64.Type
+    var optionalParameterKind: A.Type?
+    var trailingMarker: Swift.Int8
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.GenericMetatypeFieldStruct.concreteKind.getter : Swift.Int64.Type
+    SymbolTestsCore.GenericFieldLayout.GenericMetatypeFieldStruct.concreteKind.setter : Swift.Int64.Type
+    SymbolTestsCore.GenericFieldLayout.GenericMetatypeFieldStruct.leadingMarker.getter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.GenericMetatypeFieldStruct.leadingMarker.setter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.GenericMetatypeFieldStruct.parameterKind.getter : A.Type
+    SymbolTestsCore.GenericFieldLayout.GenericMetatypeFieldStruct.parameterKind.setter : A.Type
+    SymbolTestsCore.GenericFieldLayout.GenericMetatypeFieldStruct.trailingMarker.getter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.GenericMetatypeFieldStruct.trailingMarker.setter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.GenericMetatypeFieldStruct.optionalParameterKind.getter : A.Type?
+    SymbolTestsCore.GenericFieldLayout.GenericMetatypeFieldStruct.optionalParameterKind.setter : A.Type?
+}
 
 // MARK: - Protocols
 

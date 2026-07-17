@@ -11,7 +11,7 @@ enum OverrideTableHeaderBaseline {
     }
 
     static let subclassTest = Entry(
-    offset: 0x3e9b8,
+    offset: 0x3eca8,
     layoutNumEntries: 9
     )
 }

@@ -18,7 +18,7 @@ enum ProtocolBaseline {
 
     static let protocolTest = Entry(
     name: "ProtocolTest",
-    descriptorOffset: 0x42240,
+    descriptorOffset: 0x4257c,
     protocolFlagsRawValue: 0x3,
     numberOfRequirements: 4,
     numberOfRequirementsInSignature: 1,
@@ -29,7 +29,7 @@ enum ProtocolBaseline {
 
     static let protocolWitnessTableTest = Entry(
     name: "ProtocolWitnessTableTest",
-    descriptorOffset: 0x42284,
+    descriptorOffset: 0x425c0,
     protocolFlagsRawValue: 0x3,
     numberOfRequirements: 5,
     numberOfRequirementsInSignature: 0,

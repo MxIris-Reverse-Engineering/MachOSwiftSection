@@ -11,27 +11,27 @@ enum GenericRequirementBaseline {
     }
 
     static let layoutRequirement = Entry(
-    descriptorOffset: 0x40040,
+    descriptorOffset: 0x40330,
     resolvedContentCase: "layout"
     )
 
     static let swiftProtocolRequirement = Entry(
-    descriptorOffset: 0x4007c,
+    descriptorOffset: 0x4036c,
     resolvedContentCase: "protocol"
     )
 
     static let objcProtocolRequirement = Entry(
-    descriptorOffset: 0x400b8,
+    descriptorOffset: 0x403a8,
     resolvedContentCase: "protocol"
     )
 
     static let baseClassRequirement = Entry(
-    descriptorOffset: 0x40ee4,
+    descriptorOffset: 0x41220,
     resolvedContentCase: "type"
     )
 
     static let sameTypeRequirement = Entry(
-    descriptorOffset: 0x40e54,
+    descriptorOffset: 0x41190,
     resolvedContentCase: "type"
     )
 }

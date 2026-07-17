@@ -127,7 +127,9 @@ enum AsyncSequenceTests {
 enum Attributes {
     @propertyWrapper
     struct PropertyWrapperStruct<A> where A: Swift.Comparable {
+        // Field offset: unknown (generic parameter not substituted)
         var wrappedValue: A
+        // Field offset: unknown (preceding field unresolved)
         var projectedValue: Swift.ClosedRange<A>
 
         init(wrappedValue: A, range: Swift.ClosedRange<A>)
@@ -481,7 +483,10 @@ enum CodableTests {
             case element
             case metadata
         }
+        // Field offset: unknown (generic parameter not substituted)
         var element: A
+        // Field offset: unknown (preceding field unresolved)
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
         var metadata: [Swift.String : Swift.String]
 
         init(element: A, metadata: [Swift.String : Swift.String])
@@ -574,6 +579,7 @@ enum Concurrency {
 }
 enum ConditionalConformanceVariants {
     struct ConditionalContainerTest<A> {
+        // Field offset: unknown (generic parameter not substituted)
         var element: A
 
         init(element: A)
@@ -681,6 +687,7 @@ enum DeinitVariants {
         deinit
     }
     class GenericDeinitTest<A> {
+        // Field offset: unknown (generic parameter not substituted)
         var element: A
 
         init(element: A)
@@ -690,12 +697,15 @@ enum DeinitVariants {
 }
 enum DependentTypeAccess {
     struct DependentAccessTest<A> where A: SymbolTestsCore.DependentTypeAccess.OuterProtocol {
+        // Field offset: unknown (generic parameter not substituted)
         var middleLeaf: A.Middle.Leaf?
+        // Field offset: unknown (preceding field unresolved)
         var innerValue: A.Inner.Value?
 
         init(middleLeaf: A.Middle.Leaf?, innerValue: A.Inner.Value?)
     }
     struct DeepDependentAccessTest<A> where A: SymbolTestsCore.DependentTypeAccess.OuterProtocol {
+        // Field offset: unknown (generic parameter not substituted)
         var branchFinal: A.Middle.Branch.Final?
 
         init(branchFinal: A.Middle.Branch.Final?)
@@ -1020,11 +1030,13 @@ enum ExistentialAny {
 }
 enum Extensions {
     struct ExtensionBaseStruct<A> {
+        // Field offset: unknown (generic parameter not substituted)
         var element: A
 
         init(element: A)
     }
     struct ExtensionConstrainedStruct<A> {
+        // Field offset: unknown (generic parameter not substituted)
         var element: A
 
         init(element: A)
@@ -1089,11 +1101,20 @@ enum FieldDescriptorVariants {
         // Field offset: 0x8
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
         var concreteString: Swift.String
+        // Field offset: unknown (generic parameter not substituted)
         var genericElement: A
+        // Field offset: unknown (preceding field unresolved)
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
         var arrayOfElement: [A]
+        // Field offset: unknown (preceding field unresolved)
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
         var dictionaryOfElement: [Swift.String : A]
+        // Field offset: unknown (preceding field unresolved)
         var optionalElement: A?
+        // Field offset: unknown (preceding field unresolved)
         var tupleField: (Swift.Int, A)
+        // Field offset: unknown (preceding field unresolved)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
         var functionField: (_: A) -> Swift.Int
 
         init(concreteInt: Swift.Int, concreteString: Swift.String, genericElement: A, arrayOfElement: [A], dictionaryOfElement: [Swift.String : A], optionalElement: A?, tupleField: (Swift.Int, A), functionField: @escaping (_: A) -> Swift.Int)
@@ -1219,7 +1240,10 @@ enum GenericFieldLayout {
         // Field offset: 0x0
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var field1: Swift.Double
+        // Field offset: unknown (generic parameter not substituted)
         var field2: A
+        // Field offset: unknown (preceding field unresolved)
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var field3: Swift.Int
     }
     struct GenericStructLayoutRequirement<A> where A: AnyObject {
@@ -1237,7 +1261,10 @@ enum GenericFieldLayout {
         // Field offset: 0x0
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var field1: Swift.Double
+        // Field offset: unknown (generic parameter not substituted)
         var field2: A
+        // Field offset: unknown (preceding field unresolved)
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var field3: Swift.Int
     }
     struct GenericStructObjCProtocolRequirement<A> where A: __C.NSCopying {
@@ -1255,7 +1282,10 @@ enum GenericFieldLayout {
         // Field offset: 0x10
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var field1: Swift.Double
+        // Field offset: unknown (generic parameter not substituted)
         var field2: A
+        // Field offset: unknown (preceding field unresolved)
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var field3: Swift.Int
 
         init(field1: Swift.Double, field2: A, field3: Swift.Int)
@@ -1281,7 +1311,10 @@ enum GenericFieldLayout {
         // Field offset: 0x8
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var field1: Swift.Double
+        // Field offset: unknown (generic parameter not substituted)
         var field2: A
+        // Field offset: unknown (preceding field unresolved)
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var field3: Swift.Int
 
         @objc init(field1: Swift.Double, field2: A, field3: Swift.Int)
@@ -1306,10 +1339,13 @@ enum GenericFieldLayout {
         deinit
     }
     struct Box<A> {
+        // Field offset: unknown (generic parameter not substituted)
         var value: A
     }
     struct Pair<A, B> {
+        // Field offset: unknown (generic parameter not substituted)
         var first: A
+        // Field offset: unknown (preceding field unresolved)
         var second: B
     }
     enum SecondParameterPayloadEnum<A, B> {
@@ -1321,6 +1357,7 @@ enum GenericFieldLayout {
         case second(B)
     }
     class GenericBaseClass<A> {
+        // Field offset: unknown (generic parameter not substituted)
         var baseValue: A
 
         init(baseValue: A)
@@ -1432,18 +1469,26 @@ enum GenericFieldLayout {
         deinit
     }
     struct VariadicPack<each A> {
+        // Field offset: unknown (generic parameter not substituted)
         var values: (repeat A)
     }
     struct MixedScalarAndPack<A, each B> {
+        // Field offset: unknown (generic parameter not substituted)
         var first: A
+        // Field offset: unknown (preceding field unresolved)
         var rest: (repeat B?)
     }
     struct VariadicForwarder<each A> {
+        // Field offset: unknown (generic parameter not substituted)
         var forwarded: SymbolTestsCore.GenericFieldLayout.VariadicPack<>
+        // Field offset: unknown (preceding field unresolved)
         var wrapped: (repeat SymbolTestsCore.GenericFieldLayout.Box<A>)
     }
     struct ValueGenericBuffer<let a: Int> {
+        // Field offset: unknown (generic parameter not substituted)
         var storage: Swift.InlineArray<A, Swift.Int8>
+        // Field offset: unknown (preceding field unresolved)
+        // Type Layout: (size: 4, stride: 4, alignment: 4, extraInhabitantCount: 0)
         var tail: Swift.Int32
     }
     struct PackExpansionFieldHolder {
@@ -1538,6 +1583,7 @@ enum GenericFieldLayout {
             case some(Swift.Int16)
             case none
         }
+        // Field offset: unknown (generic parameter not substituted)
         var value: A
     }
     struct NestedInSpecializedParentFieldHolder {
@@ -1555,7 +1601,9 @@ enum GenericFieldLayout {
         var trailing: Swift.Int8
     }
     struct AssociatedTypeStorage<A> where A: Swift.Collection {
+        // Field offset: unknown (generic parameter not substituted)
         var index: A.Index
+        // Field offset: unknown (preceding field unresolved)
         var element: A.Element
     }
     struct AssociatedTypeFieldHolder {
@@ -1590,13 +1638,17 @@ enum GenericFieldLayout {
             case value(A)
         }
         struct Storage {
+            // Field offset: unknown (generic parameter not substituted)
             var stored: A
+            // Field offset: unknown (preceding field unresolved)
+            // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 254)
             var flag: Swift.Bool
         }
         enum SingleContent {
             case some(A)
             case none
         }
+        // Field offset: unknown (generic parameter not substituted)
         var content: SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<A>.Content
     }
     struct NestedParentArgumentFieldHolder {
@@ -1627,9 +1679,12 @@ enum GenericFieldLayout {
     }
     struct MultiLevelOuter<A> {
         struct Inner<A1> {
+            // Field offset: unknown (generic parameter not substituted)
             var outerStored: A
+            // Field offset: unknown (preceding field unresolved)
             var innerStored: A1
         }
+        // Field offset: unknown (generic parameter not substituted)
         var value: A
     }
     struct MultiLevelNestedFieldHolder {
@@ -1701,7 +1756,10 @@ enum GenericFieldLayout {
         // Field offset: 0x8
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var counter: Swift.Int64
+        // Field offset: unknown (generic parameter not substituted)
         var storedValue: B
+        // Field offset: unknown (preceding field unresolved)
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
         var trailingReference: A
     }
     struct ClassBoundWrappedFieldStruct<A> where A: AnyObject {
@@ -1722,7 +1780,9 @@ enum GenericFieldLayout {
         var trailingMarker: Swift.Int8
     }
     enum ClassBoundContent<A> where A: AnyObject {
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
         case first(A)
+        // Type Layout: (size: 12, stride: 16, alignment: 8, extraInhabitantCount: 4096)
         case second(A, Swift.Int32)
         case none
     }
@@ -1785,6 +1845,40 @@ enum GenericFieldLayout {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
         var anchor: A
     }
+    struct ConcreteMetatypeFieldStruct {
+        // Field offset: 0x0
+        // Type Layout: (size: 0, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var valueKind: Swift.Int64.Type
+        // Field offset: 0x0
+        // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var leadingMarker: Swift.Int8
+        // Field offset: 0x8
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
+        var classKind: SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass.Type
+        // Field offset: 0x10
+        // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var optionalValueKind: Swift.Int64.Type?
+        // Field offset: 0x11
+        // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var trailingMarker: Swift.Int8
+    }
+    struct GenericMetatypeFieldStruct<A> {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
+        var parameterKind: A.Type
+        // Field offset: 0x8
+        // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var leadingMarker: Swift.Int8
+        // Field offset: 0x0
+        // Type Layout: (size: 0, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var concreteKind: Swift.Int64.Type
+        // Field offset: 0x10
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4095)
+        var optionalParameterKind: A.Type?
+        // Field offset: 0x18
+        // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var trailingMarker: Swift.Int8
+    }
     protocol Boxed {
         associatedtype Wrapped
 
@@ -1798,12 +1892,15 @@ enum GenericFieldLayout {
 }
 enum GenericRequirementVariants {
     struct ProtocolRequirementTest<A> where A: SymbolTestsCore.Protocols.ProtocolTest {
+        // Field offset: unknown (generic parameter not substituted)
         var element: A
 
         init(element: A)
     }
     struct SameTypeRequirementTest<A, B> where A == B {
+        // Field offset: unknown (generic parameter not substituted)
         var first: A
+        // Field offset: unknown (preceding field unresolved)
         var second: A
 
         init(first: A, second: A)
@@ -1832,21 +1929,25 @@ enum GenericRequirementVariants {
         init(element: A)
     }
     struct ParameterPackRequirementTest<each A> {
+        // Field offset: unknown (generic parameter not substituted)
         var elements: (repeat A)
 
         init(elements: (repeat A))
     }
     struct ConstrainedParameterPackTest<each A> where repeat each A: SymbolTestsCore.Protocols.ProtocolTest {
+        // Field offset: unknown (generic parameter not substituted)
         var elements: (repeat A)
 
         init(elements: (repeat A))
     }
     struct InvertibleProtocolRequirementTest<A>: ~Swift.Copyable where A: ~Swift.Copyable {
+        // Field offset: unknown (generic parameter not substituted)
         var element: A
     }
 }
 enum Generics {
     struct GenericRequirementTest<A> where A: SymbolTestsCore.Protocols.ProtocolTest {
+        // Field offset: unknown (generic parameter not substituted)
         var content: A
 
         init(content: A)
@@ -1858,6 +1959,7 @@ enum Generics {
         static func test(lhs: A, rhs: SymbolTestsCore.Generics.GenericRequirementTest<A>) -> Swift.Bool
     }
     struct GenericPackTest<A, each B, C> where repeat each B: SymbolTestsCore.Protocols.ProtocolTest {
+        // Field offset: unknown (generic parameter not substituted)
         var _content: (repeat B)
 
         var body: Swift.Never {
@@ -1865,6 +1967,7 @@ enum Generics {
         }
     }
     struct GenericValueTest<A, let b: Int, C> {
+        // Field offset: unknown (generic parameter not substituted)
         var content: C
 
         var body: Swift.Never {
@@ -1874,7 +1977,9 @@ enum Generics {
         func function(value: C) -> Swift.Bool
     }
     struct GenericNestedFunction<A, B> {
+        // Field offset: unknown (generic parameter not substituted)
         let a: A
+        // Field offset: unknown (preceding field unresolved)
         let b: B
 
         func function<A1, B1>(a: A1, b: B1)
@@ -2069,8 +2174,11 @@ enum NestedGenerics {
     struct OuterGenericTest<A> {
         struct InnerGenericTest<A1> {
             struct InnerMostGenericTest<A2> {
+                // Field offset: unknown (generic parameter not substituted)
                 var outer: A
+                // Field offset: unknown (preceding field unresolved)
                 var inner: A1
+                // Field offset: unknown (preceding field unresolved)
                 var innerMost: A2
 
                 init(outer: A, inner: A1, innerMost: A2)
@@ -2079,7 +2187,9 @@ enum NestedGenerics {
     }
     struct NestedGenericWithConstraintsTest<A> where A: Swift.Comparable {
         struct InnerConstrainedTest<A1> where A1: Swift.Hashable {
+            // Field offset: unknown (generic parameter not substituted)
             var outer: A
+            // Field offset: unknown (preceding field unresolved)
             var inner: A1
 
             init(outer: A, inner: A1)
@@ -2095,8 +2205,11 @@ enum NestedGenerics {
     struct NestedGenericThreeLevelConstraintTest<A> where A: Swift.Hashable {
         struct MiddleConstrainedTest<A1> where A1: Swift.Equatable {
             struct InnerMostConstrainedTest<A2> where A2: Swift.Comparable {
+                // Field offset: unknown (generic parameter not substituted)
                 var outer: A
+                // Field offset: unknown (preceding field unresolved)
                 var middle: A1
+                // Field offset: unknown (preceding field unresolved)
                 var innerMost: A2
 
                 init(outer: A, middle: A1, innerMost: A2)
@@ -2126,6 +2239,7 @@ enum Noncopyable {
         func unwrap() -> Swift.Int
     }
     struct NoncopyableGenericTest<A>: ~Swift.Copyable where A: ~Swift.Copyable {
+        // Field offset: unknown (generic parameter not substituted)
         let value: A
     }
 }
@@ -2149,6 +2263,8 @@ enum ObjCClassWrapperFixtures {
 }
 enum ObjCResilientStubFixtures {
     class ResilientObjCStubChild: SymbolTestsHelper.Object {
+        // Field offset: unknown (resilient field type unresolved)
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var stubField: Swift.Int
 
         override init()
@@ -2243,6 +2359,7 @@ enum OptionSetAndRawRepresentable {
         var rawValue: Swift.Int
     }
     struct GenericRawRepresentableTest<A> where A: Swift.Hashable {
+        // Field offset: unknown (generic parameter not substituted)
         var rawValue: A
     }
 }
@@ -2267,6 +2384,7 @@ enum OverloadedMembers {
 enum PropertyWrapperVariants {
     @propertyWrapper
     struct ProjectedValueWrapperTest<A> {
+        // Field offset: unknown (generic parameter not substituted)
         var storage: A
 
         init(wrappedValue: A)
@@ -2290,6 +2408,7 @@ enum PropertyWrapperVariants {
     }
     @propertyWrapper
     struct StaticSubscriptWrapperTest<A, B> where A: AnyObject {
+        // Field offset: unknown (generic parameter not substituted)
         var storage: B
 
         init(wrappedValue: B)
@@ -2412,6 +2531,8 @@ enum Protocols {
 }
 enum ResilientClassFixtures {
     class ResilientChild: SymbolTestsHelper.ResilientBase {
+        // Field offset: unknown (resilient field type unresolved)
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var extraField: Swift.Int
 
         override init()
@@ -2441,20 +2562,27 @@ enum ResultBuilderDSL {
 }
 enum SameTypeRequirements {
     struct SameTypeElementTest<A, B> where A: Swift.Sequence, B: Swift.Sequence, A.Element == B.Element {
+        // Field offset: unknown (generic parameter not substituted)
         var first: A
+        // Field offset: unknown (preceding field unresolved)
         var second: B
 
         init(first: A, second: B)
     }
     struct NestedSameTypeTest<A, B> where A: Swift.Collection, B: Swift.Collection, A.Element == B.Element, A.Index == Swift.Int, B.Index == Swift.Int {
+        // Field offset: unknown (generic parameter not substituted)
         var first: A
+        // Field offset: unknown (preceding field unresolved)
         var second: B
 
         init(first: A, second: B)
     }
     struct ChainedSameTypeTest<A, B, C> where A: SymbolTestsCore.Protocols.ProtocolTest, B == A.Body, C == B.Body {
+        // Field offset: unknown (generic parameter not substituted)
         var first: A
+        // Field offset: unknown (preceding field unresolved)
         var second: B
+        // Field offset: unknown (preceding field unresolved)
         var third: C
 
         init(first: A, second: B, third: C)
@@ -2614,7 +2742,9 @@ enum Tuples {
         func acceptNamedTuple(_: (identifier: Swift.Int, label: Swift.String)) -> (result: Swift.Bool, score: Swift.Double)
     }
     struct GenericTupleTest<A, B> {
+        // Field offset: unknown (generic parameter not substituted)
         var pair: (A, B)
+        // Field offset: unknown (preceding field unresolved)
         var labeled: (left: A, right: B)
 
         init(pair: (A, B), labeled: (left: A, right: B))

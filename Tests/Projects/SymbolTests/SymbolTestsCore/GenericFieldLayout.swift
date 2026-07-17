@@ -553,6 +553,34 @@ public enum GenericFieldLayout {
 
         public var anchor: OuterElement
     }
+
+    // MARK: - Metatype fields (thin vs thick, both lowering worlds)
+
+    /// A **non-generic** type's metatype fields are compiler-lowered: a
+    /// concrete value-type metatype (`Int64.Type`) is *thin* (zero-sized), a
+    /// class metatype (`LayoutAncestorClass.Type`) is *thick* (one pointer),
+    /// and `Int64.Type?` wraps the thin metatype (so it is 1 byte, not 8).
+    public struct ConcreteMetatypeFieldStruct {
+        public var valueKind: Int64.Type = Int64.self
+        public var leadingMarker: Int8 = 0
+        public var classKind: LayoutAncestorClass.Type = LayoutAncestorClass.self
+        public var optionalValueKind: Int64.Type? = nil
+        public var trailingMarker: Int8 = 0
+    }
+
+    /// A **generic** type whose metatype fields reference the generic
+    /// parameter: `Element.Type` is a metatype of an archetype, so it is
+    /// *thick* (one pointer) in every instantiation — fixed at metadata-pattern
+    /// time. A literal concrete metatype in the same generic type stays thin,
+    /// and `Element.Type?` wraps the thick metatype (8 bytes). All resolvable
+    /// unspecialized: none of these depend on which type `Element` binds to.
+    public struct GenericMetatypeFieldStruct<Element> {
+        public var parameterKind: Element.Type
+        public var leadingMarker: Int8
+        public var concreteKind: Int64.Type
+        public var optionalParameterKind: Element.Type?
+        public var trailingMarker: Int8
+    }
 }
 
 /// A Swift-declared `@objc` protocol (file scope — `@objc` protocols cannot be
