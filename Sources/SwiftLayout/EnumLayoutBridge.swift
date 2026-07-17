@@ -67,6 +67,13 @@ extension StaticTypeLayoutResolver {
         in image: ImageReference<MachO>,
         environment: GenericArgumentEnvironment = .empty
     ) throws -> StaticTypeLayout {
+        // Class-bound parameters lay out as one object reference even without
+        // a substitution. The augmented environment also (correctly) forces an
+        // unspecialized class-bound generic multi-payload enum onto the tagged
+        // branch below — a generic instantiation never uses spare bits.
+        let environment = environment.augmentedWithClassBoundParameterKeys(
+            ClassBoundGenericParameterAnalysis.classBoundParameterKeys(of: descriptor, in: image, imageUniverse: imageUniverse)
+        )
         let payloadCaseCount = descriptor.numberOfPayloadCases
         let emptyCaseCount = descriptor.numberOfEmptyCases
         if payloadCaseCount == 0 {

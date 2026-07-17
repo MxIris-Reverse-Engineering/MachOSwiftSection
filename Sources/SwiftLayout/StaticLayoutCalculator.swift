@@ -128,6 +128,11 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
         in image: ImageReference<MachO>,
         environment: GenericArgumentEnvironment
     ) throws -> AggregateFieldLayout {
+        // Class-bound parameters lay out as one object reference even without
+        // a substitution, so an unspecialized dump still resolves their fields.
+        let environment = environment.augmentedWithClassBoundParameterKeys(
+            ClassBoundGenericParameterAnalysis.classBoundParameterKeys(of: descriptor, in: image, imageUniverse: imageUniverse)
+        )
         let records = try descriptor.fieldDescriptor(in: image.machO).records(in: image.machO)
         return try accumulateFieldLayout(
             records: records,
@@ -145,6 +150,12 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
         in image: ImageReference<MachO>,
         environment: GenericArgumentEnvironment
     ) throws -> AggregateFieldLayout {
+        // Class-bound parameters lay out as one object reference even without
+        // a substitution — applied before the superclass computation so
+        // `class Sub<Element: AnyObject>: Base<Element>` resolves its start.
+        let environment = environment.augmentedWithClassBoundParameterKeys(
+            ClassBoundGenericParameterAnalysis.classBoundParameterKeys(of: descriptor, in: image, imageUniverse: imageUniverse)
+        )
         let records = try descriptor.fieldDescriptor(in: image.machO).records(in: image.machO)
         do {
             let start = try resolver.superclassStartLayout(of: descriptor, in: image, environment: environment)

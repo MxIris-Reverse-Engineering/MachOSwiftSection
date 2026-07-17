@@ -44,9 +44,38 @@ struct GenericParameterKey: Hashable {
 struct GenericArgumentEnvironment {
     let substitutions: [GenericParameterKey: Node]
 
+    /// Parameters known to be class-bound (`T: AnyObject`, `T: SomeClass`,
+    /// `T: SomeClassBoundProtocol`) from the enclosing descriptor's requirement
+    /// signature. An unsubstituted reference to one rewrites to a placeholder
+    /// class node — every class instantiation lays out as the same single
+    /// object reference, so the exact layout is known without an argument.
+    /// Substitutions always take precedence; the keys only catch what no
+    /// argument covers. Populated by `augmentedWithClassBoundParameterKeys`
+    /// from `ClassBoundGenericParameterAnalysis`.
+    let classBoundParameterKeys: Set<GenericParameterKey>
+
+    init(
+        substitutions: [GenericParameterKey: Node],
+        classBoundParameterKeys: Set<GenericParameterKey> = []
+    ) {
+        self.substitutions = substitutions
+        self.classBoundParameterKeys = classBoundParameterKeys
+    }
+
     static let empty = GenericArgumentEnvironment(substitutions: [:])
 
-    var isEmpty: Bool { substitutions.isEmpty }
+    var isEmpty: Bool { substitutions.isEmpty && classBoundParameterKeys.isEmpty }
+
+    /// This environment with `keys` added to the class-bound parameter set —
+    /// applied by the field-reading entry points with the analysis result for
+    /// the descriptor whose fields are being laid out.
+    func augmentedWithClassBoundParameterKeys(_ keys: Set<GenericParameterKey>) -> GenericArgumentEnvironment {
+        guard !keys.isEmpty else { return self }
+        return GenericArgumentEnvironment(
+            substitutions: substitutions,
+            classBoundParameterKeys: classBoundParameterKeys.union(keys)
+        )
+    }
 
     /// Derives the substitution map from an instantiated type node: the node's
     /// own `boundGeneric*` argument list (if any) plus the argument lists of
@@ -142,7 +171,14 @@ struct GenericArgumentEnvironment {
     private func substitute(_ node: Node) -> Node {
         switch node.kind {
         case .dependentGenericParamType:
-            return substitutionValue(for: node) ?? node
+            if let substituted = substitutionValue(for: node) { return substituted }
+            // A class-bound parameter with no substitution still has an exact
+            // layout — one object reference — so stand a placeholder class in
+            // for it. The resolver never reads a class node's name (a class
+            // field is a single pointer, not recursed), so the placeholder's
+            // spelling is inert.
+            if isClassBoundParameter(node) { return Self.classBoundParameterPlaceholderNode() }
+            return node
         case .tuple:
             return substituteTuple(node)
         case .pack:
@@ -160,6 +196,28 @@ struct GenericArgumentEnvironment {
             return nil
         }
         return substitutions[GenericParameterKey(depth: depth, index: index)]
+    }
+
+    private func isClassBoundParameter(_ parameterNode: Node) -> Bool {
+        guard
+            let depth = parameterNode.firstChild?.index,
+            let index = parameterNode.children.at(1)?.index
+        else {
+            return false
+        }
+        return classBoundParameterKeys.contains(GenericParameterKey(depth: depth, index: index))
+    }
+
+    /// The stand-in substituted for an unbound class-constrained parameter. Any
+    /// class reference has the identical stored layout (`.pointerSized`, with
+    /// the heap-object extra-inhabitant count), and the resolver stops at every
+    /// class node without reading its name — the spelling exists only for cache
+    /// keys and diagnostics.
+    private static func classBoundParameterPlaceholderNode() -> Node {
+        Node.create(kind: .class, children: [
+            Node.create(kind: .module, text: "Swift"),
+            Node.create(kind: .identifier, text: "AnyObject"),
+        ])
     }
 
     private func substitutingChildren(of node: Node) -> Node {
@@ -293,7 +351,10 @@ struct GenericArgumentEnvironment {
             }
             elementSubstitutions[key] = elementInner
         }
-        return GenericArgumentEnvironment(substitutions: elementSubstitutions)
+        return GenericArgumentEnvironment(
+            substitutions: elementSubstitutions,
+            classBoundParameterKeys: classBoundParameterKeys
+        )
     }
 
     // MARK: - Node shape helpers
