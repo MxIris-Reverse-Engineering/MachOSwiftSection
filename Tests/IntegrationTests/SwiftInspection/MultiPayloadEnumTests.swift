@@ -69,9 +69,13 @@ final class MultiPayloadEnumTests: MachOImageTests {
                         let spareBytes = try? multiPayloadEnumDescriptor.payloadSpareBits(),
                         let spareBytesOffset = try? multiPayloadEnumDescriptor.payloadSpareBitMaskByteOffset() {
                         try? printMultiPayloadEnum(multiPayloadEnumDescriptor)
-                        Calculator.calculateMultiPayload( /* enumSize: enumTypeLayout.size.cast(), */ payloadSize: payloadSize.cast(), spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast(), numPayloadCases: payloadCases.cast(), numEmptyCases: emptyCases.cast()).print()
+                        let multiPayloadResult = Calculator.calculateMultiPayload( /* enumSize: enumTypeLayout.size.cast(), */ payloadSize: payloadSize.cast(), spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast(), numPayloadCases: payloadCases.cast(), numEmptyCases: emptyCases.cast())
+                        multiPayloadResult.print()
                         if optionalSize > .zero {
-                            Calculator.calculateSinglePayload(size: optionalSize, payloadSize: payloadSize.cast(), numEmptyCases: 1, spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast()).print()
+                            // `Optional<MPE>` wraps the enum as a single payload;
+                            // the enum's own leftover extra inhabitants (unused
+                            // tag values) absorb the `nil` case.
+                            Calculator.calculateSinglePayload(size: optionalSize, payloadSize: payloadSize.cast(), numEmptyCases: 1, numExtraInhabitants: multiPayloadResult.extraInhabitantCount).print()
                         }
                     } else {
                         Calculator.calculateTaggedMultiPayload(payloadSize: payloadSize.cast(), numPayloadCases: payloadCases.cast(), numEmptyCases: emptyCases.cast()).print()

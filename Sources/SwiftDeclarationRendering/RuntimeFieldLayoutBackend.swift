@@ -538,21 +538,72 @@ struct RuntimeFieldLayoutBackend {
         let payloadSize = try enumPayloadSize(enumValue.descriptor, in: machOImage)
         let numberOfPayloadCases = enumValue.numberOfPayloadCases
         let numberOfEmptyCases = enumValue.numberOfEmptyCases
+        var layoutResult: EnumLayoutCalculator.LayoutResult
         if enumValue.isMultiPayload {
             let node = try MetadataReader.demangleContext(for: .type(.enum(enumValue.descriptor)), in: machOImage)
             if let multiPayloadEnumDescriptor = try multiPayloadEnumDescriptor(for: node, in: machOImage), multiPayloadEnumDescriptor.usesPayloadSpareBits {
                 let spareBytes = try multiPayloadEnumDescriptor.payloadSpareBits(in: machOImage)
                 let spareBytesOffset = try multiPayloadEnumDescriptor.payloadSpareBitMaskByteOffset(in: machOImage)
-                return EnumLayoutCalculator.calculateMultiPayload(payloadSize: payloadSize.cast(), spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast(), numPayloadCases: numberOfPayloadCases.cast(), numEmptyCases: numberOfEmptyCases.cast())
+                layoutResult = EnumLayoutCalculator.calculateMultiPayload(payloadSize: payloadSize.cast(), spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast(), numPayloadCases: numberOfPayloadCases.cast(), numEmptyCases: numberOfEmptyCases.cast())
             } else {
-                return EnumLayoutCalculator.calculateTaggedMultiPayload(payloadSize: payloadSize.cast(), numPayloadCases: numberOfPayloadCases.cast(), numEmptyCases: numberOfEmptyCases.cast())
+                layoutResult = EnumLayoutCalculator.calculateTaggedMultiPayload(payloadSize: payloadSize.cast(), numPayloadCases: numberOfPayloadCases.cast(), numEmptyCases: numberOfEmptyCases.cast())
             }
         } else if enumValue.isSinglePayload, let typeLayout = enumTypeLayout {
             let payloadXI = try enumPayloadExtraInhabitantCount(enumValue.descriptor, in: machOImage)
-            return EnumLayoutCalculator.calculateSinglePayload(size: typeLayout.size.cast(), payloadSize: payloadSize.cast(), numEmptyCases: numberOfEmptyCases.cast(), numExtraInhabitants: payloadXI)
+            layoutResult = EnumLayoutCalculator.calculateSinglePayload(size: typeLayout.size.cast(), payloadSize: payloadSize.cast(), numEmptyCases: numberOfEmptyCases.cast(), numExtraInhabitants: payloadXI)
+            // The formula knows only how many extra inhabitants the payload
+            // has, not which bytes they occupy (that is a per-payload-type
+            // detail: a class reference's low invalid addresses, `String`'s
+            // reserved discriminator patterns, …). The metadata is live in
+            // this process, so replace the unresolved patterns with the exact
+            // bytes the enum's own value witnesses write.
+            if let exactCasePatterns = projectedExactCasePatterns(
+                numberOfPayloadCases: numberOfPayloadCases.cast(),
+                totalCases: layoutResult.cases.count
+            ) {
+                layoutResult = layoutResult.applyingExactCasePatterns(exactCasePatterns)
+            }
         } else {
             return nil
         }
+        if let declaredCaseNames = declaredEnumCaseNames(of: enumValue.descriptor, in: machOImage) {
+            layoutResult = layoutResult.attachingDeclaredCaseNames(declaredCaseNames)
+        }
+        return layoutResult
+    }
+
+    /// The enum metadata's absolute in-process address. A non-generic enum's
+    /// metadata wrapper was resolved through `machO` (see `enumTypeLayout`),
+    /// so its `offset` is relative to the image base; specialized generic
+    /// metadata resolves through `InProcessContext`, where the offset already
+    /// is the absolute address.
+    private var inProcessEnumMetadataPointer: UnsafeRawPointer? {
+        guard let enumMetadata = metadata?.enum ?? metadata?.optional else { return nil }
+        if isGeneric {
+            return UnsafeRawPointer(bitPattern: enumMetadata.offset)
+        }
+        return machO.ptr + enumMetadata.offset
+    }
+
+    /// Exact per-case fixed-byte patterns projected through the enum's own
+    /// value witnesses (`RuntimeEnumCaseProjector`), keyed by tag-order case
+    /// index. `nil` degrades the caller to the formula-derived patterns.
+    private func projectedExactCasePatterns(numberOfPayloadCases: Int, totalCases: Int) -> [Int: [Int: UInt8]]? {
+        guard let enumMetadataPointer = inProcessEnumMetadataPointer else { return nil }
+        guard let casePatterns = RuntimeEnumCaseProjector.projectCasePatterns(
+            enumMetadataPointer: enumMetadataPointer,
+            payloadCaseCount: numberOfPayloadCases,
+            caseCount: totalCases
+        ) else { return nil }
+        return Dictionary(uniqueKeysWithValues: casePatterns.map { ($0.caseIndex, $0.fixedBytes) })
+    }
+
+    /// The source-level case names in tag order (field records store payload
+    /// cases first, then empty cases — the same order the layout's projections
+    /// use).
+    private func declaredEnumCaseNames(of descriptor: EnumDescriptor, in machOImage: MachOImage) -> [String]? {
+        guard let records = try? descriptor.fieldDescriptor(in: machOImage).records(in: machOImage) else { return nil }
+        return try? records.map { try $0.fieldName(in: machOImage) }
     }
 
     @SemanticStringBuilder

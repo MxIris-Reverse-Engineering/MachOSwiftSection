@@ -283,39 +283,48 @@ extension StaticTypeLayoutResolver {
         guard payloadCaseCount > 0 else { return nil }
 
         let node = try MetadataReader.demangleContext(for: .type(.enum(descriptor)), in: image.machO)
+        let layoutResult: EnumLayoutCalculator.LayoutResult
         if payloadCaseCount == 1 {
             let payload = try singlePayloadType(descriptor: descriptor, node: node, in: image, environment: environment)
             let wholeType = Self.singlePayloadEnumLayout(payload: payload, emptyCaseCount: emptyCaseCount)
-            return EnumLayoutCalculator.calculateSinglePayload(
+            layoutResult = EnumLayoutCalculator.calculateSinglePayload(
                 size: wholeType.size,
                 payloadSize: payload.size,
                 numEmptyCases: emptyCaseCount,
                 numExtraInhabitants: payload.extraInhabitantCount
             )
+        } else {
+            let payloadArea = try multiPayloadArea(of: descriptor, in: image, environment: environment)
+            if
+                !descriptor.isGeneric,
+                let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node),
+                let multiPayloadDescriptor = multiPayloadEnumDescriptor(forQualifiedTypeName: qualifiedTypeName, in: image),
+                multiPayloadDescriptor.usesPayloadSpareBits
+            {
+                let spareBytes = try multiPayloadDescriptor.payloadSpareBits(in: image.machO)
+                let spareBytesOffset = Int(try multiPayloadDescriptor.payloadSpareBitMaskByteOffset(in: image.machO))
+                layoutResult = EnumLayoutCalculator.calculateMultiPayload(
+                    payloadSize: payloadArea.size,
+                    spareBytes: spareBytes,
+                    spareBytesOffset: spareBytesOffset,
+                    numPayloadCases: payloadCaseCount,
+                    numEmptyCases: emptyCaseCount
+                )
+            } else {
+                layoutResult = EnumLayoutCalculator.calculateTaggedMultiPayload(
+                    payloadSize: payloadArea.size,
+                    numPayloadCases: payloadCaseCount,
+                    numEmptyCases: emptyCaseCount
+                )
+            }
         }
-
-        let payloadArea = try multiPayloadArea(of: descriptor, in: image, environment: environment)
-        if
-            !descriptor.isGeneric,
-            let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node),
-            let multiPayloadDescriptor = multiPayloadEnumDescriptor(forQualifiedTypeName: qualifiedTypeName, in: image),
-            multiPayloadDescriptor.usesPayloadSpareBits
-        {
-            let spareBytes = try multiPayloadDescriptor.payloadSpareBits(in: image.machO)
-            let spareBytesOffset = Int(try multiPayloadDescriptor.payloadSpareBitMaskByteOffset(in: image.machO))
-            return EnumLayoutCalculator.calculateMultiPayload(
-                payloadSize: payloadArea.size,
-                spareBytes: spareBytes,
-                spareBytesOffset: spareBytesOffset,
-                numPayloadCases: payloadCaseCount,
-                numEmptyCases: emptyCaseCount
-            )
+        // Attach the source-level case names (field records store payload
+        // cases first, then empty cases — the projections' tag order).
+        if let records = try? descriptor.fieldDescriptor(in: image.machO).records(in: image.machO),
+           let declaredCaseNames = try? records.map({ try $0.fieldName(in: image.machO) }) {
+            return layoutResult.attachingDeclaredCaseNames(declaredCaseNames)
         }
-        return EnumLayoutCalculator.calculateTaggedMultiPayload(
-            payloadSize: payloadArea.size,
-            numPayloadCases: payloadCaseCount,
-            numEmptyCases: emptyCaseCount
-        )
+        return layoutResult
     }
 
     // MARK: - Layout formulas (ported from the Swift runtime EnumImpl)
