@@ -66,7 +66,7 @@ extension SwiftInterfaceBuilderTests {
 enum SwiftInterfaceBuilderTestSuite {
     class DyldCacheTests: MachOTestingSupport.DyldCacheTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var cacheImageName: MachOImageName {
-            .SwiftUICore
+            .SwiftUI
         }
 
         override class var cachePath: DyldSharedCachePath {
@@ -86,7 +86,7 @@ enum SwiftInterfaceBuilderTestSuite {
 
     class MachOFileTests: MachOTestingSupport.MachOFileTests, SwiftInterfaceBuilderTests, @unchecked Sendable {
         override class var fileName: MachOFileName {
-            .iOS_18_5_Simulator_SwiftUICore
+            .iOS_26_5_Simulator_SwiftUICore
         }
 
         @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
