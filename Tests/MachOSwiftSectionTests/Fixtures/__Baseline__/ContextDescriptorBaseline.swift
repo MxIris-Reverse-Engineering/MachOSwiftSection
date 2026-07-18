@@ -11,7 +11,7 @@ enum ContextDescriptorBaseline {
     }
 
     static let structTest = Entry(
-    offset: 0x42de4,
+    offset: 0x42f64,
     layoutFlagsRawValue: 0x51
     )
 }
