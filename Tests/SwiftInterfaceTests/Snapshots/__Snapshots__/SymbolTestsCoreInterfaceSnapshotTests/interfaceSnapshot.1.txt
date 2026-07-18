@@ -1536,7 +1536,7 @@ enum GenericFieldLayout {
         var leading: Swift.Int
         // Field offset: 0x8
         // Type Layout: (size: 3, stride: 3, alignment: 1, extraInhabitantCount: 253)
-        var enumField: SymbolTestsCore.GenericFieldLayout.SecondParameterPayloadEnum<Swift.Bool, Swift.InlineArray<, Swift.Bool>>
+        var enumField: SymbolTestsCore.GenericFieldLayout.SecondParameterPayloadEnum<Swift.Bool, Swift.InlineArray<3, Swift.Bool>>
         // Field offset: 0xb
         // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
         var trailing: Swift.Int8
@@ -1547,13 +1547,13 @@ enum GenericFieldLayout {
         var leading: Swift.Int
         // Field offset: 0x8
         // Type Layout: (size: 12, stride: 12, alignment: 4, extraInhabitantCount: 0)
-        var buffer: SymbolTestsCore.GenericFieldLayout.ValueGenericBuffer<>
+        var buffer: SymbolTestsCore.GenericFieldLayout.ValueGenericBuffer<5>
         // Field offset: 0x18
         // Type Layout: (size: 24, stride: 24, alignment: 8, extraInhabitantCount: 0)
-        var inline: Swift.InlineArray<, Swift.Int64>
+        var inline: Swift.InlineArray<3, Swift.Int64>
         // Field offset: 0x30
         // Type Layout: (size: 3, stride: 3, alignment: 1, extraInhabitantCount: 253)
-        var optionalInline: Swift.InlineArray<, Swift.Bool>?
+        var optionalInline: Swift.InlineArray<3, Swift.Bool>?
         // Field offset: 0x38
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var trailing: Swift.Int
@@ -2924,6 +2924,16 @@ extension SymbolTestsCore.GenericFieldLayout.SameTypePinnedOuter where A == Swif
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
         var pinnedRange: Swift.Range<Swift.Int>
         // Field offset: 0x18
+        // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var trailingMarker: Swift.Int8
+    }
+}
+extension SymbolTestsCore.GenericFieldLayout.ValueGenericBuffer where A == 5 {
+    struct ValuePinnedInner {
+        // Field offset: 0x0
+        // Type Layout: (size: 10, stride: 10, alignment: 2, extraInhabitantCount: 0)
+        var pinnedStorage: Swift.InlineArray<5, Swift.Int16>
+        // Field offset: 0xa
         // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
         var trailingMarker: Swift.Int8
     }

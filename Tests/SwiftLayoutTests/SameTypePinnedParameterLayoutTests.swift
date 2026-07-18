@@ -13,6 +13,9 @@ import Demangling
 /// Date`) is resolved from the requirement signature alone — a type nested in
 /// such an extension inherits the `Value == …` requirement, so a field typed by
 /// the parameter lays out as the pinned concrete type **without any argument**.
+/// The same holds for a **value** parameter pinned by a same-value requirement
+/// (`extension Foo where count == 5` — a `sameType` requirement with
+/// `isValueRequirement` set whose RHS mangles an integer).
 ///
 /// Because a same-type-to-concrete parameter is dropped from the metadata
 /// accessor's key arguments (it is fully determined), the no-argument runtime
@@ -62,6 +65,30 @@ final class SameTypePinnedParameterLayoutTests: MachOSwiftSectionFixtureTests, @
         assertFullyComputed(aggregate, equals: runtimeOffsets, typeName: qualifiedTypeName)
         // The pinned field resolved to Range<Int> (16 bytes).
         #expect(aggregate.fields[safe: 1]?.layout?.size == 16, "pinnedRange must resolve to Range<Int> (16 bytes)")
+    }
+
+    /// A **value** parameter pinned by a same-value requirement (`count == 5`):
+    /// the pinned `.integer` node substitutes into `InlineArray<count, Int16>`,
+    /// which lays out as 10 bytes unspecialized — the requirement signature
+    /// alone determines the value parameter.
+    @MainActor
+    @Test func valuePinnedParameterResolvesSingleImage() async throws {
+        let machO = machOImage
+        let qualifiedTypeName = "SymbolTestsCore.GenericFieldLayout.ValueGenericBuffer.ValuePinnedInner"
+        let runtimeOffsets = try #require(
+            try runtimeFieldOffsets(ofQualifiedTypeName: qualifiedTypeName, in: machO),
+            "no runtime field-offset vector for \(qualifiedTypeName)"
+        )
+
+        let calculator = try StaticLayoutCalculator(machO: machO)
+        let aggregate = try fieldLayout(ofQualifiedTypeName: qualifiedTypeName, with: calculator, in: machO)
+        assertFullyComputed(aggregate, equals: runtimeOffsets, typeName: qualifiedTypeName)
+        // The pinned field resolved to InlineArray<5, Int16> (10 bytes).
+        #expect(aggregate.fields.first?.layout?.size == 10, "pinnedStorage must resolve to InlineArray<5, Int16> (10 bytes)")
+
+        let fileCalculator = try StaticLayoutCalculator(machO: machOFile)
+        let fileAggregate = try fieldLayout(ofQualifiedTypeName: qualifiedTypeName, with: fileCalculator, in: machOFile)
+        assertFullyComputed(fileAggregate, equals: runtimeOffsets, typeName: "\(qualifiedTypeName) (MachOFile)")
     }
 
     /// The analysis pins only a parameter whose same-type RHS is fully concrete.

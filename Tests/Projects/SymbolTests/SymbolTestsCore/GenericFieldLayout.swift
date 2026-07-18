@@ -615,6 +615,18 @@ extension GenericFieldLayout.SameTypePinnedOuter where Value == Swift.Range<Swif
     }
 }
 
+extension GenericFieldLayout.ValueGenericBuffer where count == 5 {
+    /// The **value** parameter `count` is pinned to `5` by a same-value
+    /// requirement (encoded as a `sameType` requirement whose RHS mangles an
+    /// integer, with `isValueRequirement` set): the `InlineArray<count, Int16>`
+    /// field lays out as 10 bytes unspecialized — the requirement signature
+    /// alone determines the value parameter.
+    public struct ValuePinnedInner {
+        public var pinnedStorage: InlineArray<count, Int16>
+        public var trailingMarker: Int8
+    }
+}
+
 /// A Swift-declared `@objc` protocol (file scope — `@objc` protocols cannot be
 /// nested): it emits **no** Swift protocol descriptor (`__swift5_protos`); its
 /// only runtime artifact is the Objective-C protocol record
