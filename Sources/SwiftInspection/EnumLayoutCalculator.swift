@@ -97,6 +97,12 @@ public enum EnumLayoutCalculator {
         /// via ``patternResolution``.
         public let memoryChanges: [Int: UInt8]
         public let patternResolution: PatternResolution
+        /// A human-readable sentence describing *how* this case is encoded
+        /// (which mechanism, with the concrete tag / index values woven in).
+        /// Composed by the strategy that built the projection, since only it
+        /// knows the full context (spare bits vs extra tag bytes vs extra
+        /// inhabitants, payload extent, …).
+        public let encodingExplanation: String
 
         public init(
             caseIndex: Int,
@@ -106,7 +112,8 @@ public enum EnumLayoutCalculator {
             tagValue: Int,
             payloadValue: Int,
             memoryChanges: [Int: UInt8],
-            patternResolution: PatternResolution = .exactBytes
+            patternResolution: PatternResolution = .exactBytes,
+            encodingExplanation: String = ""
         ) {
             self.caseIndex = caseIndex
             self.caseName = caseName
@@ -116,47 +123,67 @@ public enum EnumLayoutCalculator {
             self.payloadValue = payloadValue
             self.memoryChanges = memoryChanges
             self.patternResolution = patternResolution
+            self.encodingExplanation = encodingExplanation
         }
 
         public var description: String {
             description(indent: .zero)
         }
 
-        /// One line per case, e.g.
+        /// The detailed default rendering — deliberately information-rich,
+        /// since consumers with narrower needs can supply an
+        /// `enumLayoutCaseTransformer` and pick the fields they want:
         ///
         /// ```
-        /// Case 1 `implicit` (empty case #0): bytes[0x8..<0x10] = 0x1
-        /// Case 0 `explicit` (payload case): no fixed bytes — holds the payload; any pattern no empty case claims selects it
+        /// Case 1 (0x01) `implicit` — empty case #0
+        ///   encoding: stored as the payload's extra-inhabitant pattern #0 (an invalid payload bit pattern)
+        ///   fixed bytes: bytes[0x8..<0x10] = 0x1
+        ///     offset 0x08 = 0x01 (0b00000001)
+        ///     offset 0x09 = 0x00 (0b00000000)
+        ///     …
         /// ```
         public func description(indent: Int, prefix: String = "") -> String {
             let indentString = String(repeating: "    ", count: indent)
-            var header = "Case \(caseIndex)"
+            var lines: [String] = []
+
+            var header = "Case \(caseIndex) (\(String(format: "0x%02X", caseIndex)))"
             if let declaredName {
                 header += " `\(declaredName)`"
             }
-            header += " (\(caseName))"
+            header += " — \(caseName)"
+            lines.append(header)
 
-            let body: String
-            switch patternResolution {
-            case .exactBytes:
-                if memoryChanges.isEmpty {
-                    body = isPayloadCase
-                        ? "no fixed bytes — holds the payload; any pattern no empty case claims selects it"
-                        : "no fixed bytes recorded"
-                } else if isPayloadCase {
-                    body = "\(formattedFixedBytes()); remaining bytes hold the payload"
-                } else {
-                    body = formattedFixedBytes()
-                }
-            case .unresolvedExtraInhabitant(let extraInhabitantIndex):
-                var explanation = "payload extra-inhabitant pattern #\(extraInhabitantIndex) — exact bytes depend on the payload type (not resolved offline)"
-                if !memoryChanges.isEmpty {
-                    explanation += "; \(formattedFixedBytes())"
-                }
-                body = explanation
+            if !encodingExplanation.isEmpty {
+                lines.append("encoding: \(encodingExplanation)")
+            }
+            if case .unresolvedExtraInhabitant = patternResolution {
+                lines.append("note: the exact bytes depend on the payload type's extra-inhabitant scheme and were not resolved offline (the in-process runtime path resolves them)")
             }
 
-            return "\(indentString)\(prefix) \(header): \(body)\n"
+            if memoryChanges.isEmpty {
+                if case .unresolvedExtraInhabitant = patternResolution {
+                    lines.append("fixed bytes: not computed")
+                } else if isPayloadCase {
+                    lines.append("fixed bytes: none — any pattern no empty case claims selects this case")
+                } else {
+                    lines.append("fixed bytes: none recorded")
+                }
+            } else {
+                lines.append("fixed bytes: \(formattedFixedBytes())")
+                for offset in memoryChanges.keys.sorted() {
+                    let byteValue = memoryChanges[offset]!
+                    let binaryDigits = String(byteValue, radix: 2)
+                    let paddedBinaryDigits = String(repeating: "0", count: 8 - binaryDigits.count) + binaryDigits
+                    lines.append("    offset 0x\(String(format: "%02X", offset)) = 0x\(String(format: "%02X", byteValue)) (0b\(paddedBinaryDigits))")
+                }
+            }
+
+            var output = ""
+            for (lineIndex, line) in lines.enumerated() {
+                let continuationIndent = lineIndex == 0 ? "" : "  "
+                output += "\(indentString)\(prefix) \(continuationIndent)\(line)\n"
+            }
+            return output
         }
 
         /// The fixed bytes compressed into contiguous runs, little-endian:
@@ -211,7 +238,8 @@ public enum EnumLayoutCalculator {
                 tagValue: tagValue,
                 payloadValue: payloadValue,
                 memoryChanges: fixedBytes,
-                patternResolution: .exactBytes
+                patternResolution: .exactBytes,
+                encodingExplanation: encodingExplanation
             )
         }
 
@@ -225,7 +253,8 @@ public enum EnumLayoutCalculator {
                 tagValue: tagValue,
                 payloadValue: payloadValue,
                 memoryChanges: memoryChanges,
-                patternResolution: patternResolution
+                patternResolution: patternResolution,
+                encodingExplanation: encodingExplanation
             )
         }
     }
@@ -246,6 +275,31 @@ public enum EnumLayoutCalculator {
         public let tagRegion: SpareRegion?
         public let payloadRegion: SpareRegion?
         public let cases: [EnumCaseProjection]
+
+        /// A rich one-line summary for the default type-level comment:
+        /// strategy, case counts, tag counts / bits, tag and occupied-bit
+        /// regions when present, and the leftover extra inhabitants an outer
+        /// enum could still use. Deliberately detailed — consumers wanting a
+        /// terser line can supply an `enumLayoutTransformer` and pick fields
+        /// (`strategyDescription`, `numTags`, `bitsNeededForTag`, …) directly.
+        public var summaryDescription: String {
+            let payloadCaseCount = cases.count { $0.isPayloadCase }
+            let emptyCaseCount = cases.count - payloadCaseCount
+            var parts: [String] = []
+            parts.append("cases: \(cases.count) (\(payloadCaseCount) payload + \(emptyCaseCount) empty)")
+            parts.append("tag values used: \(numTags)")
+            if bitsNeededForTag > 0 {
+                parts.append("tag bits: \(bitsNeededForTag)")
+            }
+            if let tagRegion {
+                parts.append("tag region: offsets \(tagRegion.range) (\(tagRegion.bitCount) bits)")
+            }
+            if let payloadRegion {
+                parts.append("occupied-bits region: offsets \(payloadRegion.range) (\(payloadRegion.bitCount) bits)")
+            }
+            parts.append("leftover extra inhabitants for an outer enum: \(extraInhabitantCount)")
+            return "\(strategyDescription) — " + parts.joined(separator: "; ")
+        }
 
         public var description: String {
             var output = "=== Enum Layout Result (\(strategyDescription)) ===\n"
@@ -421,13 +475,18 @@ public enum EnumLayoutCalculator {
                 }
             }
 
+            var payloadCaseExplanation = "tag \(tagValue) scattered into the payloads' common spare bits; the occupied (non-spare) bits hold this payload's value"
+            if extraTagByteCount > 0 {
+                payloadCaseExplanation += "; upper tag bits in the extra tag byte(s) after the payload area"
+            }
             let `case` = EnumCaseProjection(
                 caseIndex: i,
                 caseName: "payload case #\(i)",
                 isPayloadCase: true,
                 tagValue: tagValue,
                 payloadValue: 0,
-                memoryChanges: memoryChanges
+                memoryChanges: memoryChanges,
+                encodingExplanation: payloadCaseExplanation
             )
             cases.append(`case`)
         }
@@ -486,13 +545,18 @@ public enum EnumLayoutCalculator {
                     }
                 }
 
+                var emptyCaseExplanation = "tag \(finalTag) in the common spare bits + empty-case value \(payloadValue) in the occupied (non-spare) bits"
+                if extraTagByteCount > 0 {
+                    emptyCaseExplanation += "; upper tag bits in the extra tag byte(s) after the payload area"
+                }
                 let `case` = EnumCaseProjection(
                     caseIndex: globalIndex,
                     caseName: "empty case #\(i)",
                     isPayloadCase: false,
                     tagValue: finalTag,
                     payloadValue: payloadValue,
-                    memoryChanges: memoryChanges
+                    memoryChanges: memoryChanges,
+                    encodingExplanation: emptyCaseExplanation
                 )
 
                 cases.append(`case`)
@@ -650,6 +714,10 @@ public enum EnumLayoutCalculator {
 
             let isPayloadCase = caseIndex < numPayloadCases
             let name = isPayloadCase ? "payload case #\(caseIndex)" : "empty case #\(caseIndex - numPayloadCases)"
+            let payloadAreaEnd = String(payloadSize, radix: 16)
+            let explanation = isPayloadCase
+                ? "tag byte(s) after the payload area = \(tagValue); bytes[0x0..<0x\(payloadAreaEnd)] hold this payload's value"
+                : "tag byte(s) after the payload area = \(tagValue); the payload area holds empty-case value \(payloadValue)"
 
             cases.append(EnumCaseProjection(
                 caseIndex: caseIndex,
@@ -657,7 +725,8 @@ public enum EnumLayoutCalculator {
                 isPayloadCase: isPayloadCase,
                 tagValue: tagValue,
                 payloadValue: isPayloadCase ? 0 : payloadValue,
-                memoryChanges: memoryChanges
+                memoryChanges: memoryChanges,
+                encodingExplanation: explanation
             ))
         }
 
@@ -764,16 +833,24 @@ public enum EnumLayoutCalculator {
         }
 
         var cases: [EnumCaseProjection] = []
+        let payloadAreaEnd = String(payloadSize, radix: 16)
+        let zeroedExtraTagSuffix = extraTagBytes > 0
+            ? "; the extra tag byte(s) after the payload area are zero"
+            : ""
 
         // --- A. Payload case ---
         // EnumImpl.h: whichCase == 0 → payload case, extra tag bits zeroed.
+        let payloadCaseExplanation = extraTagBytes > 0
+            ? "holds a valid payload value in bytes[0x0..<0x\(payloadAreaEnd)]\(zeroedExtraTagSuffix)"
+            : "holds a valid payload value in bytes[0x0..<0x\(payloadAreaEnd)]; selected when the payload bytes match no empty-case pattern"
         cases.append(EnumCaseProjection(
             caseIndex: 0,
             caseName: "payload case",
             isPayloadCase: true,
             tagValue: 0,
             payloadValue: 0,
-            memoryChanges: zeroedExtraTagBytes
+            memoryChanges: zeroedExtraTagBytes,
+            encodingExplanation: payloadCaseExplanation
         ))
 
         // --- B. Extra-inhabitant cases ---
@@ -788,7 +865,8 @@ public enum EnumLayoutCalculator {
                 tagValue: 0,
                 payloadValue: 0,
                 memoryChanges: zeroedExtraTagBytes,
-                patternResolution: .unresolvedExtraInhabitant(extraInhabitantIndex: extraInhabitantIndex)
+                patternResolution: .unresolvedExtraInhabitant(extraInhabitantIndex: extraInhabitantIndex),
+                encodingExplanation: "stored as the payload's extra-inhabitant pattern #\(extraInhabitantIndex) (an invalid payload bit pattern)\(zeroedExtraTagSuffix)"
             ))
         }
 
@@ -844,7 +922,8 @@ public enum EnumLayoutCalculator {
                 isPayloadCase: false,
                 tagValue: tagValue,
                 payloadValue: payloadValue,
-                memoryChanges: memoryChanges
+                memoryChanges: memoryChanges,
+                encodingExplanation: "overflow beyond the payload's extra inhabitants: extra tag byte(s) = \(tagValue), payload area reused for overflow index \(payloadValue)"
             ))
         }
 

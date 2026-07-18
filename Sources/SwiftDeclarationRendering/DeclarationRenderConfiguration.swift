@@ -210,7 +210,7 @@ extension DeclarationRenderConfiguration {
         if let enumLayoutTransformer {
             enumLayoutTransformer(layoutResult)
         } else {
-            InlineComment(layoutResult.strategyDescription)
+            InlineComment(layoutResult.summaryDescription)
         }
         BreakLine()
     }
