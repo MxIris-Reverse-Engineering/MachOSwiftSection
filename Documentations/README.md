@@ -32,5 +32,6 @@ this repository. Not part of the public documentation surface (mixed Chinese / E
 | [DiffableInterfacePlan.md](Internal/DiffableInterfacePlan.md) | Implementation plan for the diffable (ABI-diff) interface. |
 | [ABIDiffDesignAndLimitations.md](Internal/ABIDiffDesignAndLimitations.md) | The `SwiftDiffing` ABI-diff engine: identity/payload keys, three-way match, extension-bucket merging, and the known limitations (notably: `@frozen` is unrecoverable from the binary, so the compatibility verdict treats every type as resilient). |
 | [MetadataReaderRefactoring.md](Internal/MetadataReaderRefactoring.md) | `MetadataReader` refactoring plan. |
+| [RuntimeEnumCaseProjection.md](Internal/RuntimeEnumCaseProjection.md) | 基于 value witness 的枚举 case 内存图样投影：为什么「只知道 XI 个数」推不出单 payload 空 case 的判别字节（`Text.Style.LineStyle` 反馈案例），`RuntimeEnumCaseProjector` 的双基线注入 + `getEnumTag` 回读校验机制，`EnumCaseProjection` 模型重构（`declaredName` / `isPayloadCase` / `patternResolution`）与可读化渲染，runtime 精确 / static 诚实降级的两路接线。 |
 | [ReadingContextAbstraction.md](Internal/ReadingContextAbstraction.md) | The `ReadingContext` reading-abstraction design. |
 | [TaskReports/](Internal/TaskReports/) | Dated per-task fix / investigation reports. |

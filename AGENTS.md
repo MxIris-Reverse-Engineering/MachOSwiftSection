@@ -121,7 +121,8 @@ The interface generation is split into layered peer modules over a shared `Swift
 Printing and indexing are peers — neither depends on the other.
 
 **SwiftInspection** - Runtime metadata analysis
-- `EnumLayoutCalculator` - Calculates enum memory layouts (multi-payload enum support)
+- `EnumLayoutCalculator` - Predicts enum memory layouts from the runtime's formulas (single-payload XI/overflow, multi-payload spare-bits/tagged). Per-case projections carry `declaredName` (source-level case name), `isPayloadCase`, and a `patternResolution`: `.exactBytes` when `memoryChanges` is authoritative, `.unresolvedExtraInhabitant` when only the extra-inhabitant *index* is known — a formula over the XI *count* cannot recover the concrete bytes (a class reference's XI are small invalid addresses, `String`'s are `_StringObject` discriminator patterns, nested payloads compose recursively), so the offline path renders an honest "not resolved offline" note instead of fabricating patterns
+- `RuntimeEnumCaseProjector` - Resolves those patterns **exactly** when the enum's metadata is live in-process: dual-baseline (`0x00`/`0xFF`) `destructiveInjectEnumTag` injection diffs out each case's fixed bytes, `getEnumTag` round-trip guards empty cases, ptrauth (arm64e) degrades to `nil`. Used by `RuntimeFieldLayoutBackend` for single-payload enums via `LayoutResult.applyingExactCasePatterns` (multi-payload patterns come exact from the `__swift5_mpenum` spare-bit mask already); this is what renders `Text.Style.LineStyle`-style comments as `bytes[0x8..<0x10] = 0x1` instead of a placeholder. See [Documentations/Internal/RuntimeEnumCaseProjection.md](Documentations/Internal/RuntimeEnumCaseProjection.md)
 - `ClassHierarchyDumper` - Dumps class inheritance hierarchies
 - `MetadataReader` - Reads runtime metadata from MachOImage
 
