@@ -119,11 +119,15 @@ func runtimeFieldOffsets(ofQualifiedTypeName qualifiedTypeName: String, in machO
     return nil
 }
 
-/// The runtime whole-type (size, stride) of a type, read from its value-witness
-/// table after materializing the metadata via the accessor — the ground truth a
-/// builtin-descriptor-backed static layout (multi-payload enums, imported C
-/// value types) is checked against. `nil` if the type is not found.
-func runtimeValueWitnessSizeStride(ofQualifiedTypeName qualifiedTypeName: String, in machO: MachOImage) throws -> (size: Int, stride: Int)? {
+/// The runtime whole-type (size, stride, extra inhabitant count) of a type,
+/// read from its value-witness table after materializing the metadata via the
+/// accessor — the ground truth a static whole-type layout (multi-payload
+/// enums, imported C value types) is checked against. `nil` if the type is not
+/// found.
+func runtimeValueWitnessLayout(
+    ofQualifiedTypeName qualifiedTypeName: String,
+    in machO: MachOImage
+) throws -> (size: Int, stride: Int, extraInhabitantCount: Int)? {
     for contextDescriptor in try machO.swift.contextDescriptors {
         guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
         guard
@@ -135,7 +139,30 @@ func runtimeValueWitnessSizeStride(ofQualifiedTypeName qualifiedTypeName: String
         let response = try accessor(request: .init())
         let metadata = try response.value.resolve(in: machO)
         let valueWitnessTable = try metadata.valueWitnessTable(in: machO)
-        return (Int(valueWitnessTable.layout.size), Int(valueWitnessTable.layout.stride))
+        return (
+            Int(valueWitnessTable.layout.size),
+            Int(valueWitnessTable.layout.stride),
+            Int(valueWitnessTable.layout.numExtraInhabitants)
+        )
+    }
+    return nil
+}
+
+/// The live in-process metatype of a type in `machO` (an image loaded into
+/// this process), materialized through its metadata accessor — for ground
+/// truths that need the actual `Any.Type` (e.g. measuring `Optional<X>`
+/// through `MemoryLayout`). `nil` if the type is not found.
+func runtimeMetatype(ofQualifiedTypeName qualifiedTypeName: String, in machO: MachOImage) throws -> Any.Type? {
+    for contextDescriptor in try machO.swift.contextDescriptors {
+        guard let descriptor = contextDescriptor.typeContextDescriptorWrapper else { continue }
+        guard
+            let name = (try? MetadataReader.demangleContext(for: contextDescriptor, in: machO))
+                .flatMap(NodeTypeNaming.nominalQualifiedName(of:)),
+            name == qualifiedTypeName,
+            let accessor = try descriptor.typeContextDescriptor.metadataAccessorFunction(in: machO)
+        else { continue }
+        let response = try accessor(request: .init())
+        return unsafeBitCast(UInt(response.value.address), to: Any.Type.self)
     }
     return nil
 }

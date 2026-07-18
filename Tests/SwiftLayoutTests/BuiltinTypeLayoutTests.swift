@@ -37,7 +37,7 @@ final class BuiltinTypeLayoutTests: MachOSwiftSectionFixtureTests, @unchecked Se
                 Issue.record("builtin index missing \(typeName)")
                 continue
             }
-            guard let runtime = try runtimeValueWitnessSizeStride(ofQualifiedTypeName: typeName, in: machO) else {
+            guard let runtime = try runtimeValueWitnessLayout(ofQualifiedTypeName: typeName, in: machO) else {
                 Issue.record("no runtime value-witness table for \(typeName)")
                 continue
             }
@@ -77,7 +77,7 @@ final class BuiltinTypeLayoutTests: MachOSwiftSectionFixtureTests, @unchecked Se
             break
         }
 
-        let runtime = try runtimeValueWitnessSizeStride(ofQualifiedTypeName: targetName, in: machO)
+        let runtime = try runtimeValueWitnessLayout(ofQualifiedTypeName: targetName, in: machO)
         #expect(resolved != nil, "resolver did not resolve \(targetName)")
         #expect(runtime != nil, "no runtime value-witness table for \(targetName)")
         #expect(resolved?.size == runtime?.size, "resolver size \(String(describing: resolved?.size)) != runtime \(String(describing: runtime?.size))")
