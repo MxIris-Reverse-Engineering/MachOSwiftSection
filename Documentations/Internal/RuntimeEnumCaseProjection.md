@@ -80,25 +80,47 @@ package enum LineStyle {
 - `isPayloadCase: Bool`；
 - `patternResolution: PatternResolution` —— `.exactBytes`（`memoryChanges` 权威）或
   `.unresolvedExtraInhabitant(extraInhabitantIndex:)`（只知道是 payload 的第 i 个 XI 图样，
-  具体字节未解析）。
+  具体字节未解析）；
+- `encodingExplanation: String` —— 由构建投影的策略拼出的「这个 case 怎么编码」的整句说明
+  （spare-bit tag 值、XI 图样序号、溢出 tag/索引、payload 范围），因为只有策略本身知道全部上下文。
 
 `calculateSinglePayload` 移除 `spareBytes`/`spareBytesOffset` 参数与 scatter 捏造路径
 （实际调用方从未传过）；XI 空 case 诚实标注为 `.unresolvedExtraInhabitant`；payload case 与
 XI case 在存在 extra tag 字节时携带「tag 字节 = 0」这一确切约束（`EnumImpl.h:156-160`）。
 
-渲染重写为每 case 一行、可读的形式（连续字节压成 run，little-endian 显示）：
+### 默认渲染：信息拉满，裁剪交给 Transformer
+
+设计取向（用户反馈）：库的**默认**渲染要尽量详尽，因为消费方（如 RuntimeViewer）可以通过
+`enumLayoutCaseTransformer` / `enumLayoutTransformer` 自行挑字段、裁成更短的形式；默认给得少反而
+逼每个消费方各自重造。于是 `EnumCaseProjection.description(indent:prefix:)` 输出多行块：
 
 ```
-Case 0 `explicit` (payload case): no fixed bytes — holds the payload; any pattern no empty case claims selects it
-Case 1 `implicit` (empty case #0): bytes[0x8..<0x10] = 0x1        ← runtime 路径（精确）
-Case 1 `implicit` (empty case #0): payload extra-inhabitant pattern #0 — exact bytes depend on the payload type (not resolved offline)
-                                                                   ← static 路径（诚实降级）
+Case 1 (0x01) `implicit` — empty case #0
+  encoding: stored as the payload's extra-inhabitant pattern #0 (an invalid payload bit pattern)
+  note: the exact bytes depend on the payload type's extra-inhabitant scheme and were not resolved offline (the in-process runtime path resolves them)
+  fixed bytes: not computed
 ```
 
-单字节 run 附二进制（方便读 spare-bit 子字节 tag）：`byte[0x7] = 0x40 (0b01000000)`。
-全零图样（如非 Optional 类引用的空 case #0 = 空指针）显示为 `bytes[0x0..<0x8] = 0x0`，
-与「没算出来」不再混淆。策略行同步改写（如
-`Single Payload (2 empty cases stored as payload extra inhabitants)`）。
+runtime 精确路径下则是：
+
+```
+Case 1 (0x01) `implicit` — empty case #0
+  encoding: stored as the payload's extra-inhabitant pattern #0 (an invalid payload bit pattern)
+  fixed bytes: bytes[0x8..<0x10] = 0x1
+    offset 0x08 = 0x01 (0b00000001)
+    offset 0x09 = 0x00 (0b00000000)
+    …
+```
+
+每行块含：头（case 序号、hex、`declaredName`、结构标签）、encoding 解释、未解析时的 note、
+run 压缩摘要（连续字节压成 little-endian run，如 `bytes[0x8..<0x10] = 0x1`；单字节附二进制
+`byte[0x7] = 0x40 (0b01000000)`，方便读 spare-bit 子字节 tag）、以及逐字节
+`offset / hex / binary` 明细。全零图样（如非 Optional 类引用的空 case #0 = 空指针）显示为
+`bytes[0x0..<0x8] = 0x0`，与「没算出来」不再混淆。
+
+类型级前缀注释改用 `LayoutResult.summaryDescription`：策略 + case 计数（payload/empty）+
+tag 值/位数 + tag/occupied-bit 区域 + 「留给外层 enum 的剩余 XI」，一行拉满。策略行本身也改写为
+完整语句（如 `Single Payload (2 empty cases stored as payload extra inhabitants)`）。
 
 ### 3. 两条路径的接线
 
@@ -130,9 +152,13 @@ Case 1 `implicit` (empty case #0): payload extra-inhabitant pattern #0 — exact
 ## 兼容性
 
 - `EnumCaseProjection` 的 memberwise init 增加了必填的 `isPayloadCase`（`declaredName`/
-  `patternResolution` 有默认值）；`calculateSinglePayload` 移除了两个从未被使用的参数
-  （仓库内唯一调用点 `IntegrationTests/MultiPayloadEnumTests` 已改为用
+  `patternResolution`/`encodingExplanation` 有默认值）；`calculateSinglePayload` 移除了两个
+  从未被使用的参数（仓库内唯一调用点 `IntegrationTests/MultiPayloadEnumTests` 已改为用
   `calculateMultiPayload` 结果的 `extraInhabitantCount` —— 语义反而更正确）。
 - 快照测试不含 enum layout 输出（该选项默认关闭），无需重录。
 - `enumLayoutCaseTransformer`/`enumLayoutTransformer` 自定义渲染的外部消费者会看到新增字段，
-  默认渲染文本已变化。
+  默认渲染文本已变化。**RuntimeViewerCore 已同步**（`Transformer.SwiftEnumLayout`）：`CaseInput`
+  新增 `declaredName`/`encoding`/`patternKind`/`patternNote`/`fixedBytesSummary` token，`Input`
+  新增 `summary`/`leftoverExtraInhabitantCount`；case 分类改用 `isPayloadCase`；默认 Standard
+  模板对齐库的详细格式，旧格式保留为 `Classic`；不再对未解析/payload case 打
+  `(No bits set / Zero)`。
