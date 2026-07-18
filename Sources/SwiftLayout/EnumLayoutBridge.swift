@@ -92,11 +92,16 @@ extension StaticTypeLayoutResolver {
     /// spare bits (from the enum's `MultiPayloadEnumDescriptor`) or, failing
     /// that, in appended extra tag bytes.
     ///
-    /// Only whole-type `size`/`stride`/`alignment` are derived — all an
-    /// aggregate needs to place the enum as a field. Extra inhabitants are
-    /// reported as 0 (a conservative under-count; the builtin path supplies the
-    /// exact value when present). A payload type that cannot be resolved (a
-    /// generic parameter) propagates as `.unknown`, degrading the field.
+    /// Whole-type `size`/`stride`/`alignment` are derived here; the extra
+    /// inhabitants come exact from `LayoutResult` (unused tag values, per
+    /// strategy — see `LayoutResult.extraInhabitantCount`), so an
+    /// `Optional<MPE>` wrapper spends an inhabitant instead of appending a tag
+    /// byte even on this fallback path. Note the official offline
+    /// implementation (RemoteInspection `TypeLowering.cpp`) never derives
+    /// spare-bits XI structurally — without the builtin descriptor it falls
+    /// back to the tagged formula outright. A payload type that cannot be
+    /// resolved (a generic parameter) propagates as `.unknown`, degrading the
+    /// field.
     func multiPayloadEnumLayout(
         _ descriptor: EnumDescriptor,
         node: Node,
@@ -112,7 +117,6 @@ extension StaticTypeLayoutResolver {
 
         let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node)
         let result: EnumLayoutCalculator.LayoutResult
-        var extraInhabitantCount = 0
         if
             // A generic enum never uses the spare-bits strategy: the runtime's
             // `swift_initEnumMetadataMultiPayload` always appends tag bytes (a
@@ -137,26 +141,12 @@ extension StaticTypeLayoutResolver {
             )
         } else {
             // No common spare bits (or no descriptor): tags occupy appended
-            // extra tag bytes. The unused values of the tag byte(s) are the
-            // enum's extra inhabitants — ported from
-            // `swift_initEnumMetadataMultiPayload` (Enum.cpp), which computes
-            // `(1 << (numTagBytes * 8)) - numTags` (saturated for a 4-byte tag)
-            // capped at `ValueWitnessFlags::MaxNumExtraInhabitants`.
+            // extra tag bytes.
             result = EnumLayoutCalculator.calculateTaggedMultiPayload(
                 payloadSize: payloadSize,
                 numPayloadCases: payloadCaseCount,
                 numEmptyCases: emptyCaseCount
             )
-            let tagCounts = Self.enumTagCounts(
-                payloadSize: payloadSize,
-                emptyCaseCount: emptyCaseCount,
-                payloadCaseCount: payloadCaseCount
-            )
-            let maximumExtraInhabitantCount = Int(Int32.max)
-            let unusedTagValues = tagCounts.numTagBytes >= 4
-                ? maximumExtraInhabitantCount
-                : (1 << (tagCounts.numTagBytes * 8)) - tagCounts.numTags
-            extraInhabitantCount = min(unusedTagValues, maximumExtraInhabitantCount)
         }
 
         // `LayoutResult` exposes no size/stride: derive them. Extra tag bytes (if
@@ -172,7 +162,7 @@ extension StaticTypeLayoutResolver {
             size: size,
             stride: stride,
             alignmentMask: payloadAlignmentMask,
-            extraInhabitantCount: extraInhabitantCount,
+            extraInhabitantCount: result.extraInhabitantCount,
             isBitwiseTakable: isBitwiseTakable
         )
     }

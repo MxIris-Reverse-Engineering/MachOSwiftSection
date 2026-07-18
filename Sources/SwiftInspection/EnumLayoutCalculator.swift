@@ -47,6 +47,10 @@ public enum EnumLayoutCalculator {
         return EnumTagCounts(numTags: numTags, numTagBytes: numTagBytes)
     }
 
+    /// `ValueWitnessFlags::MaxNumExtraInhabitants` (MetadataValues.h): the cap
+    /// every extra-inhabitant count saturates to.
+    public static let maximumExtraInhabitantCount = 0x7FFF_FFFF
+
     // MARK: - Result Structures
 
     public struct SpareRegion: CustomStringConvertible, Sendable {
@@ -106,6 +110,14 @@ public enum EnumLayoutCalculator {
         public let bitsNeededForTag: Int
         public let bitsAvailableForPayload: Int
         public let numTags: Int
+        /// The enum's own extra inhabitants — tag values the layout can
+        /// represent but no case uses, available to an outer enum. Exact per
+        /// strategy: unused tag-bit values (spare-bits/hybrid, GenEnum.cpp
+        /// `getFixedExtraInhabitantCount`), unused extra-tag-byte values
+        /// (tagged, Enum.cpp `swift_initEnumMetadataMultiPayload`), or the
+        /// payload's leftover inhabitants (single-payload). Capped at
+        /// `maximumExtraInhabitantCount`.
+        public let extraInhabitantCount: Int
         public let tagRegion: SpareRegion?
         public let payloadRegion: SpareRegion?
         public let cases: [EnumCaseProjection]
@@ -343,11 +355,21 @@ public enum EnumLayoutCalculator {
             tagRegion = calculateRegion(from: payloadTagBitsMask, bitCount: numTagBits)
         }
 
+        // The extra inhabitants are the unused tag values. The tag can address
+        // every common spare bit plus the extra tag bits rounded up to whole
+        // bytes — GenEnum.cpp: MultiPayloadEnumImplStrategy::
+        // getFixedExtraInhabitantCount / getExtraTagBitCountForExtraInhabitants.
+        let totalTagBits = commonSpareBitCount + extraTagByteCount * 8
+        let extraInhabitantCount = totalTagBits >= 32
+            ? maximumExtraInhabitantCount
+            : min((1 << totalTagBits) - numTags, maximumExtraInhabitantCount)
+
         return LayoutResult(
             strategyDescription: strategyDescription,
             bitsNeededForTag: numTagBits,
             bitsAvailableForPayload: numPayloadValueBits,
             numTags: numTags,
+            extraInhabitantCount: extraInhabitantCount,
             tagRegion: tagRegion,
             payloadRegion: calculateRegion(from: payloadValueBitsMask, bitCount: numPayloadValueBits),
             cases: cases
@@ -476,11 +498,19 @@ public enum EnumLayoutCalculator {
             ))
         }
 
+        // The unused values of the extra tag byte(s) are the enum's extra
+        // inhabitants — Enum.cpp: swift_initEnumMetadataMultiPayload computes
+        // `(1 << (numTagBytes * 8)) - numTags` (saturated for a 4-byte tag).
+        let extraInhabitantCount = numTagBytes >= 4
+            ? maximumExtraInhabitantCount
+            : min((1 << (numTagBytes * 8)) - numTags, maximumExtraInhabitantCount)
+
         return LayoutResult(
             strategyDescription: "Tagged Multi-Payload (Extra Tag)",
             bitsNeededForTag: bitsNeeded,
             bitsAvailableForPayload: 0,
             numTags: numTags,
+            extraInhabitantCount: extraInhabitantCount,
             tagRegion: region,
             payloadRegion: nil,
             cases: cases
@@ -688,6 +718,11 @@ public enum EnumLayoutCalculator {
             bitsNeededForTag: extraTagBytes * 8,
             bitsAvailableForPayload: 0,
             numTags: numTags,
+            // The payload's inhabitants not spent on empty cases remain the
+            // enum's own — GenEnum.cpp: SinglePayloadEnumImplStrategy::
+            // getFixedExtraInhabitantCount (payload XI minus the tag values
+            // represented as inhabitants).
+            extraInhabitantCount: max(0, maxExtraInhabitants - numExtraInhabitantCases),
             tagRegion: tagRegion,
             payloadRegion: nil,
             cases: cases
