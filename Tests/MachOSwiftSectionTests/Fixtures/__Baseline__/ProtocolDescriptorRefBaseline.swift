@@ -34,7 +34,7 @@ enum ProtocolDescriptorRefBaseline {
     )
 
     static let liveObjc = LiveObjcEntry(
-    prefixOffset: 0x5fe50,
+    prefixOffset: 0x5ffa8,
     name: "NSObject"
     )
 }

@@ -45,6 +45,42 @@ enum SymbolTestsCore.Enums.SinglePayloadEnumTest {
     case none
     case error
 }
+class SymbolTestsCore.Enums.SinglePayloadBoxClass {
+    var value: Swift.Int
+
+    /* [ Init ] */ SymbolTestsCore.Enums.SinglePayloadBoxClass.__allocating_init(value: Swift.Int) -> SymbolTestsCore.Enums.SinglePayloadBoxClass
+
+    /* Allocator */
+    SymbolTestsCore.Enums.SinglePayloadBoxClass.__allocating_init(value: Swift.Int) -> SymbolTestsCore.Enums.SinglePayloadBoxClass
+
+    /* Deallocator */
+    SymbolTestsCore.Enums.SinglePayloadBoxClass.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.Enums.SinglePayloadBoxClass.init(value: Swift.Int) -> SymbolTestsCore.Enums.SinglePayloadBoxClass
+
+    /* Destructor */
+    SymbolTestsCore.Enums.SinglePayloadBoxClass.deinit
+
+    /* Variable */
+    SymbolTestsCore.Enums.SinglePayloadBoxClass.value.getter : Swift.Int
+    SymbolTestsCore.Enums.SinglePayloadBoxClass.value.setter : Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.Enums.SinglePayloadBoxClass.__allocating_init(value: Swift.Int) -> SymbolTestsCore.Enums.SinglePayloadBoxClass
+}
+struct SymbolTestsCore.Enums.SinglePayloadBoxStruct {
+    var box: SymbolTestsCore.Enums.SinglePayloadBoxClass
+
+    /* Variable */
+    SymbolTestsCore.Enums.SinglePayloadBoxStruct.box.getter : SymbolTestsCore.Enums.SinglePayloadBoxClass
+    SymbolTestsCore.Enums.SinglePayloadBoxStruct.box.setter : SymbolTestsCore.Enums.SinglePayloadBoxClass
+}
+enum SymbolTestsCore.Enums.SinglePayloadOverStructTest {
+    case wrapped(SymbolTestsCore.Enums.SinglePayloadBoxStruct)
+    case first
+    case second
+}
 enum SymbolTestsCore.Enums.IndirectEnumTest {
     indirect case leaf(Swift.Int)
     indirect case node(SymbolTestsCore.Enums.IndirectEnumTest, SymbolTestsCore.Enums.IndirectEnumTest)

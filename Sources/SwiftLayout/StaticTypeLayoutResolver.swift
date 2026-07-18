@@ -473,11 +473,11 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
             elementLayouts.append(try layout(forTypeNode: elementTypeNode, in: originImage))
         }
         // A tuple takes its extra inhabitants from the element with the most
-        // (runtime `swift_getTupleTypeMetadata`); size/stride/alignment fold
-        // through `performBasicLayout` as for any aggregate.
-        let extraInhabitantCount = elementLayouts.map(\.extraInhabitantCount).max() ?? 0
+        // (runtime `swift_getTupleTypeMetadata`), which `BasicLayout.compute`
+        // now derives for every value aggregate; size/stride/alignment fold
+        // through `performBasicLayout` as usual.
         return BasicLayout.compute(startOffset: 0, startAlignmentMask: 0, fieldLayouts: elementLayouts)
-            .asStaticTypeLayout(extraInhabitantCount: extraInhabitantCount)
+            .asStaticTypeLayout()
     }
 
     // MARK: - Shared field reading

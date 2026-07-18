@@ -90,14 +90,20 @@ public enum KnownLayoutTable {
             table[singleBufferContainerName] = .pointerSized
         }
 
-        // `String` / `Character` are a 16-byte `_StringObject`. `Optional<String>`
-        // is also 16 bytes, so the string object exposes spare patterns; a
-        // conservative count of 1 is enough to keep `Optional<String>` at 16.
+        // `String` / `Character` are a 16-byte `_StringObject` whose second word
+        // is a tagged discriminator reserving a vast number of invalid bit
+        // patterns — the runtime reports `MaxNumExtraInhabitants` (0x7FFFFFFF).
+        // A too-small count (the old value of `1`) kept `Optional<String>` at 16
+        // but broke any single-payload enum with *two or more* empty cases over
+        // a `String` payload (`enum { case value(String); case a; case b }`):
+        // only one empty case fit the lone extra inhabitant, spilling the rest
+        // into a spurious tag byte (size 17 instead of 16). Using the runtime's
+        // count keeps every such enum unpadded.
         let stringLayout = StaticTypeLayout(
             size: 16,
             stride: 16,
             alignmentMask: 7,
-            extraInhabitantCount: 1,
+            extraInhabitantCount: 0x7FFF_FFFF,
             isBitwiseTakable: true
         )
         table["Swift.String"] = stringLayout

@@ -12,11 +12,18 @@ public struct AggregateLayout: Sendable, Hashable {
     public let alignmentMask: Int
     /// Whether every field is bitwise-takable.
     public let isBitwiseTakable: Bool
+    /// The value-aggregate extra-inhabitant count: the maximum over the
+    /// fields' extra inhabitants, matching the runtime's value-type rule
+    /// (`swift_initStructMetadata` / `swift_getTupleTypeMetadata`: "use the
+    /// field with the most"). For a **class instance** layout this word is not
+    /// a class *value*'s XI — a class reference's extra inhabitants are supplied
+    /// at the field site (`.pointerSized`), so this value is simply unused
+    /// there.
+    public let extraInhabitantCount: Int
 
-    /// The aggregate viewed as a `StaticTypeLayout`. Extra inhabitants are not
-    /// derived here (a struct/class does not inherit a field's spare patterns
-    /// in general), so the caller supplies them — defaulting to `0`.
-    public func asStaticTypeLayout(extraInhabitantCount: Int = 0) -> StaticTypeLayout {
+    /// The aggregate viewed as a `StaticTypeLayout`, carrying the value-aggregate
+    /// extra-inhabitant count derived in `compute` (the max over fields).
+    public func asStaticTypeLayout() -> StaticTypeLayout {
         StaticTypeLayout(
             size: size,
             stride: stride,
@@ -47,6 +54,7 @@ public enum BasicLayout {
         var offsetAccumulator = startOffset
         var alignmentMask = startAlignmentMask
         var isBitwiseTakable = true
+        var extraInhabitantCount = 0
         var fieldOffsets: [Int] = []
         fieldOffsets.reserveCapacity(fieldLayouts.count)
 
@@ -57,6 +65,9 @@ public enum BasicLayout {
             offsetAccumulator = alignedOffset + fieldLayout.size
             alignmentMask = max(alignmentMask, fieldAlignmentMask)
             isBitwiseTakable = isBitwiseTakable && fieldLayout.isBitwiseTakable
+            // A value aggregate takes its extra inhabitants from the field with
+            // the most (runtime `swift_initStructMetadata` / tuple metadata).
+            extraInhabitantCount = max(extraInhabitantCount, fieldLayout.extraInhabitantCount)
         }
 
         let size = offsetAccumulator
@@ -67,7 +78,8 @@ public enum BasicLayout {
             size: size,
             stride: stride,
             alignmentMask: alignmentMask,
-            isBitwiseTakable: isBitwiseTakable
+            isBitwiseTakable: isBitwiseTakable,
+            extraInhabitantCount: extraInhabitantCount
         )
     }
 }

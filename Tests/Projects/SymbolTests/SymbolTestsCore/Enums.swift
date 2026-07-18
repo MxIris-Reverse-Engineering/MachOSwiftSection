@@ -41,6 +41,32 @@ public enum Enums {
         case error
     }
 
+    /// A class — a single object reference whose extra inhabitants are the
+    /// reserved low addresses.
+    public final class SinglePayloadBoxClass {
+        public var value: Int
+        public init(value: Int) { self.value = value }
+    }
+
+    /// A struct whose only stored property is a class reference. By the runtime
+    /// rule (`swift_initStructMetadata`: "use the field with the most") it
+    /// inherits the reference's extra inhabitants — it is NOT extra-inhabitant-less.
+    public struct SinglePayloadBoxStruct {
+        public var box: SinglePayloadBoxClass
+    }
+
+    /// A single-payload enum over `SinglePayloadBoxStruct` with two empty cases.
+    /// The struct's inherited extra inhabitants absorb both empty cases, so the
+    /// enum stays a single pointer (size 8) — it must NOT gain a tag byte
+    /// (size 9). This is the shape that broke on real SwiftUI types
+    /// (`Text.Style.TextStyleFont` over `Font`) when struct extra inhabitants
+    /// were dropped to zero; it guards the propagation fix.
+    public enum SinglePayloadOverStructTest {
+        case wrapped(SinglePayloadBoxStruct)
+        case first
+        case second
+    }
+
     public indirect enum IndirectEnumTest {
         case leaf(Int)
         case node(IndirectEnumTest, IndirectEnumTest)

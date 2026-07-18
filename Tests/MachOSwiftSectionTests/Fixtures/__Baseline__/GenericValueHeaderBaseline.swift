@@ -11,7 +11,7 @@ enum GenericValueHeaderBaseline {
     }
 
     static let fixedSizeArrayHeader = Entry(
-    offset: 0x41920,
+    offset: 0x41cb4,
     layoutNumValues: 1
     )
 }

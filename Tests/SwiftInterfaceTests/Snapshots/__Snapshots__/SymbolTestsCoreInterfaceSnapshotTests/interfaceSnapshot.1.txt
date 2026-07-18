@@ -222,10 +222,10 @@ enum BuiltinTypeFields {
         // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 254)
         var boolField: Swift.Bool
         // Field offset: 0x8
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         var characterField: Swift.Character
         // Field offset: 0x18
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         var stringField: Swift.String
 
         init(boolField: Swift.Bool, characterField: Swift.Character, stringField: Swift.String)
@@ -338,7 +338,7 @@ enum Classes {
     }
     class StoredPropertiesTest {
         // Field offset: 0x10
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         let constantProperty: Swift.String
         // Field offset: 0x20
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
@@ -347,7 +347,7 @@ enum Classes {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
         weak var weakDelegate: Swift.AnyObject?
         // Field offset: 0x30
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483646)
         lazy var lazyProperty: Swift.String?
 
         init(constantProperty: Swift.String, variableProperty: Swift.Int)
@@ -420,7 +420,7 @@ enum CodableTests {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var identifier: Swift.Int
         // Field offset: 0x8
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         var name: Swift.String
         // Field offset: 0x18
         // Type Layout: (size: 9, stride: 16, alignment: 8, extraInhabitantCount: 0)
@@ -434,7 +434,7 @@ enum CodableTests {
             case hiddenCount
         }
         // Field offset: 0x0
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         var displayName: Swift.String
         // Field offset: 0x10
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
@@ -451,7 +451,7 @@ enum CodableTests {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var identifier: Swift.Int
         // Field offset: 0x18
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         var label: Swift.String
 
         init(identifier: Swift.Int, label: Swift.String)
@@ -474,7 +474,7 @@ enum CodableTests {
         }
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         case withValue(Swift.Int)
-        // Type Layout: (size: 24, stride: 24, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 24, stride: 24, alignment: 8, extraInhabitantCount: 2147483647)
         case withPair(left: Swift.String, right: Swift.Int)
         case empty
     }
@@ -552,7 +552,7 @@ enum Concurrency {
     }
     struct TypedThrowsErrorTest {
         // Field offset: 0x0
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         var message: Swift.String
     }
     struct TypedThrowsFunctionTest {
@@ -573,7 +573,7 @@ enum Concurrency {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var value: Swift.Int
         // Field offset: 0x8
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         var name: Swift.String
     }
 }
@@ -598,7 +598,7 @@ enum CustomLiterals {
     }
     struct StringLiteralTest {
         // Field offset: 0x0
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         let value: Swift.String
 
         init(unicodeScalarLiteral: Swift.String)
@@ -775,7 +775,7 @@ enum DistributedActors {
         // Type Layout: (size: 96, stride: 96, alignment: 16, extraInhabitantCount: 0)
         var $defaultActor: Builtin.DefaultActorStorage
         // Field offset: 0x70
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         let id: Distributed.LocalTestingActorID
         // Field offset: 0x80
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
@@ -803,7 +803,7 @@ enum DistributedActors {
         // Type Layout: (size: 96, stride: 96, alignment: 16, extraInhabitantCount: 0)
         var $defaultActor: Builtin.DefaultActorStorage
         // Field offset: 0x70
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         let id: Distributed.LocalTestingActorID
         // Field offset: 0x80
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
@@ -833,23 +833,23 @@ enum Enums {
         case empty
     }
     enum MultiPayloadEnumTests1 {
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         case string(Swift.String)
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 12)
         case data(Foundation.Data)
         // Type Layout: (size: 20, stride: 20, alignment: 4, extraInhabitantCount: 0)
         case nsNumber(__C.Decimal)
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         case date(Foundation.Date)
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 4096)
         case url(Foundation.URL)
-        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
         case attributedString(Foundation.AttributedString)
     }
     enum MultiPayloadEnumTests2 {
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         case string(Swift.String)
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 12)
         case data(Foundation.Data)
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
         case nsNumber(__C.NSNumber)
@@ -871,10 +871,30 @@ enum Enums {
         case west
     }
     enum SinglePayloadEnumTest {
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         case value(Swift.String)
         case none
         case error
+    }
+    class SinglePayloadBoxClass {
+        // Field offset: 0x10
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var value: Swift.Int
+
+        init(value: Swift.Int)
+
+        deinit
+    }
+    struct SinglePayloadBoxStruct {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
+        var box: SymbolTestsCore.Enums.SinglePayloadBoxClass
+    }
+    enum SinglePayloadOverStructTest {
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4096)
+        case wrapped(SymbolTestsCore.Enums.SinglePayloadBoxStruct)
+        case first
+        case second
     }
     enum IndirectEnumTest {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
@@ -933,7 +953,7 @@ enum Enums {
     enum FunctionReferenceCaseTest {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         case first(Swift.Int)
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         case second(Swift.String)
 
         static func selectFirst() -> (_: Swift.Int) -> SymbolTestsCore.Enums.FunctionReferenceCaseTest
@@ -946,25 +966,25 @@ enum ErrorTypes {
         case unknown
     }
     enum AssociatedValueErrorTest {
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         case withMessage(Swift.String)
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         case withCode(Swift.Int)
-        // Type Layout: (size: 32, stride: 32, alignment: 8, extraInhabitantCount: 4095)
+        // Type Layout: (size: 32, stride: 32, alignment: 8, extraInhabitantCount: 2147483647)
         case withContext(message: Swift.String, code: Swift.Int, underlying: Swift.Error?)
     }
     struct LocalizedErrorTest {
         // Field offset: 0x0
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483646)
         let errorDescription: Swift.String?
         // Field offset: 0x10
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483646)
         let failureReason: Swift.String?
         // Field offset: 0x20
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483646)
         let recoverySuggestion: Swift.String?
         // Field offset: 0x30
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483646)
         let helpAnchor: Swift.String?
 
         init(description: Swift.String, reason: Swift.String, suggestion: Swift.String, helpAnchor: Swift.String)
@@ -988,7 +1008,7 @@ enum ErrorTypes {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         let identifier: Swift.Int
         // Field offset: 0x8
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         let descriptionText: Swift.String
 
         init(identifier: Swift.Int, descriptionText: Swift.String)
@@ -1055,7 +1075,7 @@ enum FieldDescriptorVariants {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var mutableField: Swift.Int
         // Field offset: 0x8
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         let immutableField: Swift.String
         // Field offset: 0x18
         // Type Layout: (size: 9, stride: 16, alignment: 8, extraInhabitantCount: 0)
@@ -1099,7 +1119,7 @@ enum FieldDescriptorVariants {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var concreteInt: Swift.Int
         // Field offset: 0x8
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         var concreteString: Swift.String
         // Field offset: unknown (generic parameter not substituted)
         var genericElement: A
@@ -1372,7 +1392,7 @@ enum GenericFieldLayout {
         // Type Layout: (size: 24, stride: 24, alignment: 8, extraInhabitantCount: 0)
         var intInstance: SymbolTestsCore.GenericFieldLayout.GenericStructNonRequirement<Swift.Int>
         // Field offset: 0x20
-        // Type Layout: (size: 32, stride: 32, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 32, stride: 32, alignment: 8, extraInhabitantCount: 2147483647)
         var stringInstance: SymbolTestsCore.GenericFieldLayout.GenericStructNonRequirement<Swift.String>
         // Field offset: 0x40
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
@@ -1405,7 +1425,7 @@ enum GenericFieldLayout {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var leading: Swift.Int
         // Field offset: 0x8
-        // Type Layout: (size: 24, stride: 24, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 24, stride: 24, alignment: 8, extraInhabitantCount: 2147483647)
         var tuple: (SymbolTestsCore.GenericFieldLayout.Box<Swift.Int>, SymbolTestsCore.GenericFieldLayout.Box<Swift.String>)
         // Field offset: 0x20
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
@@ -1513,7 +1533,7 @@ enum GenericFieldLayout {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var leading: Swift.Int
         // Field offset: 0x8
-        // Type Layout: (size: 11, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 11, stride: 16, alignment: 8, extraInhabitantCount: 253)
         var mixed: SymbolTestsCore.GenericFieldLayout.MixedScalarAndPack<Swift.Int, >
         // Field offset: 0x18
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
@@ -1524,7 +1544,7 @@ enum GenericFieldLayout {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var leading: Swift.Int
         // Field offset: 0x8
-        // Type Layout: (size: 13, stride: 16, alignment: 4, extraInhabitantCount: 0)
+        // Type Layout: (size: 13, stride: 16, alignment: 4, extraInhabitantCount: 254)
         var forwarder: SymbolTestsCore.GenericFieldLayout.VariadicForwarder<>
         // Field offset: 0x18
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
@@ -1591,7 +1611,7 @@ enum GenericFieldLayout {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var leading: Swift.Int
         // Field offset: 0x8
-        // Type Layout: (size: 8, stride: 8, alignment: 4, extraInhabitantCount: 0)
+        // Type Layout: (size: 8, stride: 8, alignment: 4, extraInhabitantCount: 254)
         var innerStruct: SymbolTestsCore.GenericFieldLayout.GenericOuter<Swift.Int>.Inner
         // Field offset: 0x10
         // Type Layout: (size: 3, stride: 4, alignment: 2, extraInhabitantCount: 0)
@@ -1656,7 +1676,7 @@ enum GenericFieldLayout {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var leading: Swift.Int
         // Field offset: 0x8
-        // Type Layout: (size: 9, stride: 16, alignment: 8, extraInhabitantCount: 0)
+        // Type Layout: (size: 9, stride: 16, alignment: 8, extraInhabitantCount: 254)
         var wholeParent: SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Bool>
         // Field offset: 0x18
         // Type Layout: (size: 9, stride: 16, alignment: 8, extraInhabitantCount: 254)
@@ -1665,7 +1685,7 @@ enum GenericFieldLayout {
         // Type Layout: (size: 9, stride: 16, alignment: 8, extraInhabitantCount: 253)
         var optionalContent: SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Bool>.Content?
         // Field offset: 0x34
-        // Type Layout: (size: 5, stride: 8, alignment: 4, extraInhabitantCount: 0)
+        // Type Layout: (size: 5, stride: 8, alignment: 4, extraInhabitantCount: 254)
         var storage: SymbolTestsCore.GenericFieldLayout.ParentArgumentUser<Swift.Int32>.Storage
         // Field offset: 0x3a
         // Type Layout: (size: 3, stride: 4, alignment: 2, extraInhabitantCount: 0)
@@ -1997,7 +2017,7 @@ enum GenericValueFixtures {
 enum Initializers {
     struct CustomInitializerError {
         // Field offset: 0x0
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         let reason: Swift.String
 
         init(reason: Swift.String)
@@ -2007,7 +2027,7 @@ enum Initializers {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         let primaryValue: Swift.Int
         // Field offset: 0x18
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         let secondaryValue: Swift.String
 
         init(primaryValue: Swift.Int)
@@ -2028,7 +2048,7 @@ enum Initializers {
     }
     class RequiredInitializerSubclass: SymbolTestsCore.Initializers.RequiredInitializerTest {
         // Field offset: 0x18
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         let extraValue: Swift.String
 
         override init(value: Swift.Int)
@@ -2089,14 +2109,14 @@ enum KeyPaths {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         var value: Swift.Int
         // Field offset: 0x30
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         var text: Swift.String
 
         init(readOnlyKeyPath: Swift.KeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>, writableKeyPath: Swift.WritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest, Swift.Int>, referenceWritableKeyPath: Swift.ReferenceWritableKeyPath<SymbolTestsCore.KeyPaths.KeyPathReferenceTest, Swift.String>, partialKeyPath: Swift.PartialKeyPath<SymbolTestsCore.KeyPaths.KeyPathHolderTest>, anyKeyPath: Swift.AnyKeyPath, value: Swift.Int, text: Swift.String)
     }
     class KeyPathReferenceTest {
         // Field offset: 0x10
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         var mutableText: Swift.String
         // Field offset: 0x20
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
@@ -2124,7 +2144,7 @@ enum MarkerProtocols {
     }
     class MarkerConformingClassTest {
         // Field offset: 0x10
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         var label: Swift.String
 
         init(label: Swift.String)
@@ -2168,7 +2188,7 @@ enum NestedFunctions {
     struct NestedFunctionHolderTest {
         class LocalClass {
             // Field offset: 0x10
-            // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+            // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
             var label: Swift.String
         }
         func outerWithLocalClass() -> Swift.String
@@ -2250,7 +2270,7 @@ enum Noncopyable {
 enum ObjCClassWrapperFixtures {
     class ObjCBridge: __C.NSObject {
         // Field offset: 0x8
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         var label: Swift.String
 
         @objc init()
@@ -2354,7 +2374,7 @@ enum OptionSetAndRawRepresentable {
     }
     struct StringRawRepresentableTest {
         // Field offset: 0x0
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         let rawValue: Swift.String
     }
     struct IntRawRepresentableTest {
@@ -2642,7 +2662,7 @@ enum StringInterpolations {
     struct CustomStringInterpolationTest {
         struct StringInterpolation {
             // Field offset: 0x0
-            // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+            // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
             var accumulator: Swift.String
 
             init(literalCapacity: Swift.Int, interpolationCount: Swift.Int)
@@ -2654,7 +2674,7 @@ enum StringInterpolations {
             func appendLiteral(_: Swift.String)
         }
         // Field offset: 0x0
-        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
         var storage: Swift.String
 
         init(stringInterpolation: SymbolTestsCore.StringInterpolations.CustomStringInterpolationTest.StringInterpolation)
@@ -2729,13 +2749,13 @@ enum Subscripts {
 enum Tuples {
     struct TupleFieldTest {
         // Field offset: 0x0
-        // Type Layout: (size: 24, stride: 24, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 24, stride: 24, alignment: 8, extraInhabitantCount: 2147483647)
         var namedTuple: (first: Swift.Int, second: Swift.String)
         // Field offset: 0x18
         // Type Layout: (size: 17, stride: 24, alignment: 8, extraInhabitantCount: 254)
         var unnamedTuple: (Swift.Int, Swift.Double, Swift.Bool)
         // Field offset: 0x30
-        // Type Layout: (size: 48, stride: 48, alignment: 8, extraInhabitantCount: 1)
+        // Type Layout: (size: 48, stride: 48, alignment: 8, extraInhabitantCount: 2147483647)
         var nestedTuple: ((Swift.Int, Swift.Int), (Swift.String, Swift.String))
 
         init(namedTuple: (first: Swift.Int, second: Swift.String), unnamedTuple: (Swift.Int, Swift.Double, Swift.Bool), nestedTuple: ((Swift.Int, Swift.Int), (Swift.String, Swift.String)))

@@ -17,7 +17,7 @@ enum AssociatedTypeRecordBaseline {
     }
 
     static let firstRecord = Entry(
-    offset: 0x3ddc0,
+    offset: 0x3e0e0,
     name: "First",
     hasSubstitutedTypeName: true
     )
