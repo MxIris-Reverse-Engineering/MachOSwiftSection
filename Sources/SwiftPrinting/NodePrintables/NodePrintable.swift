@@ -77,6 +77,12 @@ extension NodePrintable {
             target.write("@isolated(any) ", context: .context(for: name, state: .printKeyword))
         case .dynamicSelf:
             target.write("Self", context: .context(for: name, state: .printKeyword))
+        case .integer:
+            // SE-0452 value-generic integer (`Foo<5>`, `where count == 5`),
+            // mirroring the Demangling `NodePrinter` output.
+            target.write("\(name.index ?? 0)")
+        case .negativeInteger:
+            target.write("-\(name.index ?? 0)")
         default:
             return false
         }
