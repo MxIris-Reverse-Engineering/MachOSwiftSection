@@ -401,6 +401,17 @@ extension Target {
         ],
     )
 
+    /// Token-template transformers for rendered output — the `Transformer`
+    /// namespace RuntimeViewer's settings UI edits (Swift comment token
+    /// templates with presets). Lives at the bottom of the graph (no
+    /// dependencies) so the rendering pipeline and RuntimeViewer share one
+    /// definition; RuntimeViewer keeps only the UI (plus, for now, the
+    /// ObjC-side modules — `CType`, `ObjCIvarOffset` — declared there as
+    /// extensions of this namespace).
+    static let SemanticTransformer = Target.target(
+        name: "SemanticTransformer",
+    )
+
     static let SwiftInspection = Target.target(
         name: "SwiftInspection",
         dependencies: [
@@ -410,6 +421,7 @@ extension Target {
             .product(.Demangling),
             .target(.MachOSwiftSection),
             .target(.Utilities),
+            .target(.SemanticTransformer),
         ],
     )
 
@@ -447,6 +459,7 @@ extension Target {
             .product(.Demangling),
             .target(.MachOSwiftSection),
             .target(.Utilities),
+            .target(.SemanticTransformer),
             .target(.SwiftInspection),
             .target(.SwiftLayout),
         ],
@@ -543,6 +556,7 @@ extension Target {
             .product(.Semantic),
             .product(.Demangling),
             .target(.MachOSwiftSection),
+            .target(.SemanticTransformer),
             .target(.SwiftInspection),
             .target(.SwiftDeclarationRendering),
             .target(.Utilities),
@@ -613,6 +627,7 @@ extension Target {
         name: "swift-section",
         dependencies: [
             .target(.SwiftDump),
+            .target(.SemanticTransformer),
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
             .target(.SwiftPrinting),
@@ -759,6 +774,7 @@ extension Target {
             .target(.MachOSwiftSection),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
+            .target(.SemanticTransformer),
             .target(.SwiftInspection),
         ],
         swiftSettings: testSettings,
@@ -940,6 +956,7 @@ let package = Package(
     platforms: [.macOS(.v10_15), .iOS(.v13), .tvOS(.v13), .watchOS(.v6), .visionOS(.v1)],
     products: [
         .library(.MachOSwiftSection),
+        .library(.SemanticTransformer),
         .library(.SwiftInspection),
         .library(.SwiftLayout),
         .library(.SwiftDeclarationRendering),
@@ -968,6 +985,7 @@ let package = Package(
         .MachOFoundation,
         .MachOSwiftSectionC,
         .MachOSwiftSection,
+        .SemanticTransformer,
         .SwiftInspection,
         .SwiftLayout,
         .SwiftDeclarationRendering,
