@@ -14,7 +14,10 @@
 （`getEnumTagCounts`、单 payload XI/overflow 分界、spare-bits tag 位选择、
 三策略的 XI 公式）全部正确；发现并修复了以下五个问题。
 **本轮以 runtime 路径的准确性为第一优先**；静态路径向 runtime 进一步收敛
-（如指针 XI 的精确数值）留作后续。
+（如指针 XI 的精确数值）留作后续——该后续已于同日完成，见
+[StaticLayoutEngine.md](StaticLayoutEngine.md) 的「叶子 XI 精确建模」一节
+（受管指针饱和 0x7FFF_FFFF、unsafe 指针 = 1、weak = 0、unowned = 1、
+thick 函数饱和，`WholeTypeLayoutVsRuntimeTests` 五元组断言）。
 
 ## 修复清单
 
