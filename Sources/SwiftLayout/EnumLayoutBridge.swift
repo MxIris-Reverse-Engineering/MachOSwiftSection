@@ -286,9 +286,7 @@ extension StaticTypeLayoutResolver {
         let layoutResult: EnumLayoutCalculator.LayoutResult
         if payloadCaseCount == 1 {
             let payload = try singlePayloadType(descriptor: descriptor, node: node, in: image, environment: environment)
-            let wholeType = Self.singlePayloadEnumLayout(payload: payload, emptyCaseCount: emptyCaseCount)
             layoutResult = EnumLayoutCalculator.calculateSinglePayload(
-                size: wholeType.size,
                 payloadSize: payload.size,
                 numEmptyCases: emptyCaseCount,
                 numExtraInhabitants: payload.extraInhabitantCount
@@ -378,7 +376,13 @@ extension StaticTypeLayoutResolver {
         } else {
             totalRepresentableValues = 1 << (size * 8)
         }
-        let extraInhabitantCount = max(0, totalRepresentableValues - emptyCaseCount)
+        // NoPayloadEnumImplStrategy::getFixedExtraInhabitantCount saturates at
+        // ValueWitnessFlags::MaxNumExtraInhabitants — relevant for the 4-byte
+        // tag (> 65536 cases), where the raw count exceeds the cap.
+        let extraInhabitantCount = min(
+            max(0, totalRepresentableValues - emptyCaseCount),
+            EnumLayoutCalculator.maximumExtraInhabitantCount
+        )
         return StaticTypeLayout(
             size: size,
             stride: stride,

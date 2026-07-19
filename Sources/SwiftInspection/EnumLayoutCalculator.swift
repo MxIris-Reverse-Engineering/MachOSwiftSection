@@ -51,6 +51,15 @@ public enum EnumLayoutCalculator {
     /// every extra-inhabitant count saturates to.
     public static let maximumExtraInhabitantCount = 0x7FFF_FFFF
 
+    /// The extra-inhabitant count of a native heap-object reference
+    /// (`Builtin.NativeObject` — what an `indirect` enum case stores) on
+    /// 64-bit Darwin: `swift_getHeapObjectExtraInhabitantCount()` returns
+    /// `LeastValidPointerValue >> ObjCReservedLowBits`, and
+    /// `LeastValidPointerValue` is `0x1_0000_0000` (shims/System.h) — above
+    /// `INT_MAX`, so the count saturates to `INT_MAX` on both arm64
+    /// (`ObjCReservedLowBits == 0`) and x86_64 (`== 1`).
+    public static let heapObjectExtraInhabitantCount = 0x7FFF_FFFF
+
     // MARK: - Result Structures
 
     public struct SpareRegion: CustomStringConvertible, Sendable {
@@ -94,8 +103,19 @@ public enum EnumLayoutCalculator {
         public let tagValue: Int
         public let payloadValue: Int
         /// Fixed bytes identifying this case, keyed by byte offset. Interpret
-        /// via ``patternResolution``.
+        /// via ``patternResolution``. Within a byte, only the bits selected by
+        /// ``fixedBitMask(atByteOffset:)`` are fixed; the byte value is zero on
+        /// the unfixed bits.
         public let memoryChanges: [Int: UInt8]
+        /// Per-byte masks of which bits of ``memoryChanges`` are actually
+        /// fixed. A byte offset absent from this dictionary has *all* of its
+        /// bits fixed (mask `0xFF`) — the common case. A partial mask arises
+        /// only for a spare-bits multi-payload *payload* case, whose tag lives
+        /// in the payload's spare bits while the same byte's occupied bits
+        /// hold live payload storage (so declaring the whole byte fixed would
+        /// be wrong — e.g. two `Bool` payloads share byte 0 between the tag
+        /// bits and the payload bit).
+        public let fixedBitMasks: [Int: UInt8]
         public let patternResolution: PatternResolution
         /// A human-readable sentence describing *how* this case is encoded
         /// (which mechanism, with the concrete tag / index values woven in).
@@ -112,6 +132,7 @@ public enum EnumLayoutCalculator {
             tagValue: Int,
             payloadValue: Int,
             memoryChanges: [Int: UInt8],
+            fixedBitMasks: [Int: UInt8] = [:],
             patternResolution: PatternResolution = .exactBytes,
             encodingExplanation: String = ""
         ) {
@@ -122,8 +143,15 @@ public enum EnumLayoutCalculator {
             self.tagValue = tagValue
             self.payloadValue = payloadValue
             self.memoryChanges = memoryChanges
+            self.fixedBitMasks = fixedBitMasks
             self.patternResolution = patternResolution
             self.encodingExplanation = encodingExplanation
+        }
+
+        /// Which bits of the byte at `offset` are fixed. `0xFF` (every bit)
+        /// unless a partial mask was recorded for that byte.
+        public func fixedBitMask(atByteOffset offset: Int) -> UInt8 {
+            fixedBitMasks[offset] ?? 0xFF
         }
 
         public var description: String {
@@ -172,9 +200,12 @@ public enum EnumLayoutCalculator {
                 lines.append("fixed bytes: \(formattedFixedBytes())")
                 for offset in memoryChanges.keys.sorted() {
                     let byteValue = memoryChanges[offset]!
-                    let binaryDigits = String(byteValue, radix: 2)
-                    let paddedBinaryDigits = String(repeating: "0", count: 8 - binaryDigits.count) + binaryDigits
-                    lines.append("    offset 0x\(String(format: "%02X", offset)) = 0x\(String(format: "%02X", byteValue)) (0b\(paddedBinaryDigits))")
+                    let mask = fixedBitMask(atByteOffset: offset)
+                    if mask == 0xFF {
+                        lines.append("    offset 0x\(String(format: "%02X", offset)) = 0x\(String(format: "%02X", byteValue)) (0b\(binaryString(byteValue)))")
+                    } else {
+                        lines.append("    offset 0x\(String(format: "%02X", offset)): fixed bits 0b\(binaryString(mask)) = 0b\(binaryString(byteValue)) (the other bits hold payload storage)")
+                    }
                 }
             }
 
@@ -189,14 +220,19 @@ public enum EnumLayoutCalculator {
         /// The fixed bytes compressed into contiguous runs, little-endian:
         /// `bytes[0x8..<0x10] = 0x1` for a multi-byte run, and
         /// `byte[0x2] = 0x40 (0b01000000)` for a single byte (the binary form
-        /// helps read sub-byte spare-bit tags).
+        /// helps read sub-byte spare-bit tags). A byte with a *partial* fixed
+        /// mask never joins a run and renders as
+        /// `byte[0x0] & 0b11000000 = 0b10000000` — only the masked bits are a
+        /// claim about the value.
         public func formattedFixedBytes() -> String {
             byteRuns().map { run in
                 if run.bytes.count == 1 {
                     let byteValue = run.bytes[0]
-                    let binaryDigits = String(byteValue, radix: 2)
-                    let paddedBinaryDigits = String(repeating: "0", count: 8 - binaryDigits.count) + binaryDigits
-                    return "byte[0x\(String(run.startOffset, radix: 16))] = 0x\(String(byteValue, radix: 16, uppercase: true)) (0b\(paddedBinaryDigits))"
+                    let mask = fixedBitMask(atByteOffset: run.startOffset)
+                    if mask != 0xFF {
+                        return "byte[0x\(String(run.startOffset, radix: 16))] & 0b\(binaryString(mask)) = 0b\(binaryString(byteValue))"
+                    }
+                    return "byte[0x\(String(run.startOffset, radix: 16))] = 0x\(String(byteValue, radix: 16, uppercase: true)) (0b\(binaryString(byteValue)))"
                 } else {
                     var runValue: UInt64 = 0
                     for byteValue in run.bytes.reversed() {
@@ -210,14 +246,18 @@ public enum EnumLayoutCalculator {
         }
 
         /// Splits ``memoryChanges`` into runs of consecutive offsets, capped at
-        /// 8 bytes per run so each renders as one little-endian value.
+        /// 8 bytes per run so each renders as one little-endian value. A byte
+        /// with a partial fixed-bit mask always forms its own single-byte run
+        /// (a little-endian run value would misread its unfixed bits as zero).
         private func byteRuns() -> [(startOffset: Int, bytes: [UInt8])] {
             var runs: [(startOffset: Int, bytes: [UInt8])] = []
             for offset in memoryChanges.keys.sorted() {
                 let byteValue = memoryChanges[offset]!
-                if var lastRun = runs.last,
+                if fixedBitMask(atByteOffset: offset) == 0xFF,
+                   var lastRun = runs.last,
                    lastRun.startOffset + lastRun.bytes.count == offset,
-                   lastRun.bytes.count < 8 {
+                   lastRun.bytes.count < 8,
+                   fixedBitMask(atByteOffset: lastRun.startOffset) == 0xFF {
                     lastRun.bytes.append(byteValue)
                     runs[runs.count - 1] = lastRun
                 } else {
@@ -228,7 +268,8 @@ public enum EnumLayoutCalculator {
         }
 
         /// Replaces this projection's byte pattern with an exactly-resolved one
-        /// (from `RuntimeEnumCaseProjector`).
+        /// (from `RuntimeEnumCaseProjector`). Projected patterns are byte-
+        /// granular plain stores, so any partial bit masks are dropped.
         public func withExactPattern(_ fixedBytes: [Int: UInt8]) -> EnumCaseProjection {
             EnumCaseProjection(
                 caseIndex: caseIndex,
@@ -253,9 +294,15 @@ public enum EnumLayoutCalculator {
                 tagValue: tagValue,
                 payloadValue: payloadValue,
                 memoryChanges: memoryChanges,
+                fixedBitMasks: fixedBitMasks,
                 patternResolution: patternResolution,
                 encodingExplanation: encodingExplanation
             )
+        }
+
+        private func binaryString(_ byteValue: UInt8) -> String {
+            let binaryDigits = String(byteValue, radix: 2)
+            return String(repeating: "0", count: 8 - binaryDigits.count) + binaryDigits
         }
     }
 
@@ -311,6 +358,16 @@ public enum EnumLayoutCalculator {
             cases.forEach { output += $0.description }
             output += "=========================="
             return output
+        }
+
+        /// The total byte size this layout implies: the payload area plus any
+        /// extra tag bytes appended after it (a tag region *inside* the
+        /// payload area adds nothing). Callers that know the enum's true size
+        /// (its value-witness table) should cross-check against this and treat
+        /// a mismatch as "the inputs were wrong — do not present this layout".
+        public func impliedTotalSize(payloadAreaSize: Int) -> Int {
+            guard let tagRegion, tagRegion.range.lowerBound >= payloadAreaSize else { return payloadAreaSize }
+            return tagRegion.range.upperBound
         }
 
         /// Attaches the source-level case names read from the enum's field
@@ -433,38 +490,32 @@ public enum EnumLayoutCalculator {
         payloadValueBitsMask.invert()
         let numPayloadValueBits = payloadValueBitsMask.countSetBits()
 
-        // Build a display mask for meaningful payload bits (only for visualization).
-        let bitsRequiredForEmptyCases = max(bitsRequired(toRepresent: numEmptyCases), 1)
-        var meaningfulPayloadMask = BitMask(sizeInBytes: payloadSize)
-        meaningfulPayloadMask.makeZero()
-
-        var currentMeaningfulBits = 0
-        for i in 0 ..< payloadSize {
-            let byte = payloadValueBitsMask[byteAt: i]
-            if byte == 0 { continue }
-            var newByte: UInt8 = 0
-            for b in 0 ..< 8 {
-                if (byte & (1 << b)) != 0 {
-                    if currentMeaningfulBits < bitsRequiredForEmptyCases {
-                        newByte |= (1 << b)
-                        currentMeaningfulBits += 1
-                    }
-                }
-            }
-            meaningfulPayloadMask[byteAt: i] = newByte
-        }
-
         var cases: [EnumCaseProjection] = []
 
         // A. Payload Cases: tag = caseIndex
         // GenEnum.cpp: storePayloadTag scatters lower bits into PayloadTagBits,
-        // upper bits go into extra tag bytes.
+        // upper bits go into extra tag bytes. Every *spare* bit of the payload
+        // is fixed for a payload case — the selected tag bits carry the
+        // scattered tag and the unselected spare bits are zero (a spare bit is
+        // by definition never set by a valid payload representation) — while
+        // the occupied bits hold live payload storage. The per-byte
+        // fixed-bit mask is therefore the common spare-bit mask, so a byte
+        // shared between tag bits and payload bits is never over-claimed.
         for i in 0 ..< numPayloadCases {
             let tagValue = i
             let spareTagValue = (numPayloadTagBits >= 64) ? tagValue : tagValue & ((1 << numPayloadTagBits) - 1)
             let scatteredTagBytes = payloadTagBitsMask.scatterBits(value: spareTagValue)
 
-            var memoryChanges = extractChanges(from: scatteredTagBytes, showMask: payloadTagBitsMask)
+            var memoryChanges: [Int: UInt8] = [:]
+            var fixedBitMasks: [Int: UInt8] = [:]
+            for byteIndex in 0 ..< payloadSize {
+                let spareMaskByte = commonSpareBits[byteAt: byteIndex]
+                guard spareMaskByte != 0 else { continue }
+                memoryChanges[byteIndex] = scatteredTagBytes[byteIndex]
+                if spareMaskByte != 0xFF {
+                    fixedBitMasks[byteIndex] = spareMaskByte
+                }
+            }
 
             // Write extra tag bytes (upper bits of tag after payload area)
             if extraTagByteCount > 0 {
@@ -486,6 +537,7 @@ public enum EnumLayoutCalculator {
                 tagValue: tagValue,
                 payloadValue: 0,
                 memoryChanges: memoryChanges,
+                fixedBitMasks: fixedBitMasks,
                 encodingExplanation: payloadCaseExplanation
             )
             cases.append(`case`)
@@ -521,20 +573,19 @@ public enum EnumLayoutCalculator {
                 }
 
                 // Scatter lower bits of tag into spare bits, tagIndex into occupied bits.
+                // GenEnum.cpp: getEmptyCasePayload builds the payload from a
+                // zero APInt, so *every* payload bit is fixed for an empty
+                // case — the selected spare bits carry the tag, the occupied
+                // bits carry the empty-case value, and everything else is
+                // zero. Record the whole payload area.
                 let spareTagValue = (numPayloadTagBits >= 64) ? finalTag : finalTag & ((1 << numPayloadTagBits) - 1)
                 let scatteredTagBytes = payloadTagBitsMask.scatterBits(value: spareTagValue)
                 let scatteredPayloadBytes = payloadValueBitsMask.scatterBits(value: payloadValue)
 
-                var combinedBytes = [UInt8](repeating: 0, count: payloadSize)
+                var memoryChanges: [Int: UInt8] = [:]
                 for byteIndex in 0 ..< payloadSize {
-                    combinedBytes[byteIndex] = scatteredTagBytes[byteIndex] | scatteredPayloadBytes[byteIndex]
+                    memoryChanges[byteIndex] = scatteredTagBytes[byteIndex] | scatteredPayloadBytes[byteIndex]
                 }
-
-                var memoryChanges = extractChangesForEmptyCase(
-                    data: combinedBytes,
-                    tagMask: payloadTagBitsMask,
-                    meaningfulPayloadMask: meaningfulPayloadMask
-                )
 
                 // Write extra tag bytes (upper bits of tag after payload area)
                 if extraTagByteCount > 0 {
@@ -639,28 +690,6 @@ public enum EnumLayoutCalculator {
             bytes: [UInt8](repeating: 0xFF, count: numTagBytes)
         )
 
-        // Build a display mask for meaningful payload bytes for empty cases.
-        var meaningfulPayloadMask = BitMask(sizeInBytes: payloadSize)
-        meaningfulPayloadMask.makeZero()
-
-        if numEmptyCases > 0 {
-            if payloadSize >= 4 {
-                // Determine how many bits are actually needed for the max empty index
-                let bitsForEmptyCases = max(bitsRequired(toRepresent: numEmptyCases), 1)
-
-                var remainingBits = bitsForEmptyCases
-                for i in 0 ..< payloadSize {
-                    if remainingBits <= 0 { break }
-                    let bitsInByte = min(remainingBits, 8)
-                    meaningfulPayloadMask[byteAt: i] = UInt8((1 << bitsInByte) - 1)
-                    remainingBits -= 8
-                }
-            } else {
-                // Small payload: all bits are used/meaningful as it wraps around tags
-                meaningfulPayloadMask.invert()
-            }
-        }
-
         var cases: [EnumCaseProjection] = []
         let totalCases = numPayloadCases + numEmptyCases
 
@@ -700,14 +729,16 @@ public enum EnumLayoutCalculator {
                 remainingTagValue >>= 8
             }
 
-            // 2. Write payload bytes (only for empty cases)
+            // 2. Write payload bytes (only for empty cases). The runtime's
+            // `storeMultiPayloadValue` zero-extends the empty-case value
+            // across the *entire* payload area (`storeEnumElement`), and
+            // `loadMultiPayloadValue` reads it back to discriminate — so every
+            // payload byte is a fixed part of an empty case's pattern,
+            // including the zero-extension bytes.
             if caseIndex >= numPayloadCases {
                 var remainingPayloadValue = payloadValue
                 for byteIndex in 0 ..< payloadSize {
-                    let byteValue = UInt8(remainingPayloadValue & 0xFF)
-                    if meaningfulPayloadMask[byteAt: byteIndex] != 0 {
-                        memoryChanges[byteIndex] = byteValue
-                    }
+                    memoryChanges[byteIndex] = UInt8(remainingPayloadValue & 0xFF)
                     remainingPayloadValue >>= 8
                 }
             }
@@ -717,7 +748,7 @@ public enum EnumLayoutCalculator {
             let payloadAreaEnd = String(payloadSize, radix: 16)
             let explanation = isPayloadCase
                 ? "tag byte(s) after the payload area = \(tagValue); bytes[0x0..<0x\(payloadAreaEnd)] hold this payload's value"
-                : "tag byte(s) after the payload area = \(tagValue); the payload area holds empty-case value \(payloadValue)"
+                : "tag byte(s) after the payload area = \(tagValue); the payload area holds empty-case value \(payloadValue) zero-extended across bytes[0x0..<0x\(payloadAreaEnd)]"
 
             cases.append(EnumCaseProjection(
                 caseIndex: caseIndex,
@@ -779,16 +810,15 @@ public enum EnumLayoutCalculator {
     //   - TypeLowering.cpp: SinglePayloadEnumTypeInfo::projectEnumValue
 
     /// - Parameters:
-    ///   - size: Total size of the enum in bytes (payload + any extra tag bytes).
     ///   - payloadSize: Size of the payload area in bytes.
     ///   - numEmptyCases: Number of empty (no-payload) cases.
     ///   - numExtraInhabitants: The payload type's extra-inhabitant count, read
     ///     from its value-witness table (runtime path) or computed by the
     ///     static layout engine. `nil` means the count is unknown; the layout
-    ///     then conservatively assumes every empty case overflows into extra
-    ///     tag bytes.
+    ///     then assumes every empty case overflows into extra tag bytes —
+    ///     callers should cross-check ``LayoutResult/impliedTotalSize(payloadAreaSize:)``
+    ///     against the enum's true size and discard a mismatching layout.
     public static func calculateSinglePayload(
-        size: Int,
         payloadSize: Int,
         numEmptyCases: Int,
         numExtraInhabitants: Int? = nil
@@ -816,9 +846,6 @@ public enum EnumLayoutCalculator {
                 payloadCases: 1
             )
             extraTagBytes = tagCounts.numTagBytes
-        } else if size > payloadSize {
-            // Physical padding exists even if no extra tag is logically needed.
-            extraTagBytes = size - payloadSize
         }
 
         let numTags = 1 + numEmptyCases
@@ -999,29 +1026,4 @@ public enum EnumLayoutCalculator {
         return SpareRegion(range: range, bitCount: bitCount, bytes: bytes)
     }
 
-    private static func extractChanges(from data: [UInt8], showMask: BitMask) -> [Int: UInt8] {
-        var changes: [Int: UInt8] = [:]
-        for i in 0 ..< data.count {
-            if showMask[byteAt: i] != 0 {
-                changes[i] = data[i]
-            }
-        }
-        return changes
-    }
-
-    private static func extractChangesForEmptyCase(
-        data: [UInt8],
-        tagMask: BitMask,
-        meaningfulPayloadMask: BitMask
-    ) -> [Int: UInt8] {
-        var changes: [Int: UInt8] = [:]
-
-        for i in 0 ..< data.count {
-            if tagMask[byteAt: i] != 0 || meaningfulPayloadMask[byteAt: i] != 0 {
-                changes[i] = data[i]
-            }
-        }
-
-        return changes
-    }
 }

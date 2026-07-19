@@ -62,7 +62,6 @@ final class MultiPayloadEnumTests: MachOImageTests {
             var payloadCases: UInt32 = 0
             var payloadSize: UInt64 = 0
             var optionalSize = 0
-            let enumTypeLayout = try enumMetadata.asFullMetadata().valueWitnesses.resolve().typeLayout
             defer {
                 if enumDescriptor.isMultiPayload {
                     if let multiPayloadEnumDescriptor = multiPayloadEnumDescriptorByMangledName[typeName], multiPayloadEnumDescriptor.usesPayloadSpareBits,
@@ -75,13 +74,13 @@ final class MultiPayloadEnumTests: MachOImageTests {
                             // `Optional<MPE>` wraps the enum as a single payload;
                             // the enum's own leftover extra inhabitants (unused
                             // tag values) absorb the `nil` case.
-                            Calculator.calculateSinglePayload(size: optionalSize, payloadSize: payloadSize.cast(), numEmptyCases: 1, numExtraInhabitants: multiPayloadResult.extraInhabitantCount).print()
+                            Calculator.calculateSinglePayload(payloadSize: payloadSize.cast(), numEmptyCases: 1, numExtraInhabitants: multiPayloadResult.extraInhabitantCount).print()
                         }
                     } else {
                         Calculator.calculateTaggedMultiPayload(payloadSize: payloadSize.cast(), numPayloadCases: payloadCases.cast(), numEmptyCases: emptyCases.cast()).print()
                     }
                 } else if enumDescriptor.isSinglePayload {
-                    Calculator.calculateSinglePayload(size: enumTypeLayout.size.cast(), payloadSize: payloadSize.cast(), numEmptyCases: emptyCases.cast()).print()
+                    Calculator.calculateSinglePayload(payloadSize: payloadSize.cast(), numEmptyCases: emptyCases.cast()).print()
                 }
                 print("---------------------")
             }

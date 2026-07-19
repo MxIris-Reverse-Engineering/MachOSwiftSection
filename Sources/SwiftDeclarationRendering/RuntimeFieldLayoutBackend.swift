@@ -549,8 +549,19 @@ struct RuntimeFieldLayoutBackend {
                 layoutResult = EnumLayoutCalculator.calculateTaggedMultiPayload(payloadSize: payloadSize.cast(), numPayloadCases: numberOfPayloadCases.cast(), numEmptyCases: numberOfEmptyCases.cast())
             }
         } else if enumValue.isSinglePayload, let typeLayout = enumTypeLayout {
+            let enumSize: Int = typeLayout.size.cast()
             let payloadXI = try enumPayloadExtraInhabitantCount(enumValue.descriptor, in: machOImage)
-            layoutResult = EnumLayoutCalculator.calculateSinglePayload(size: typeLayout.size.cast(), payloadSize: payloadSize.cast(), numEmptyCases: numberOfEmptyCases.cast(), numExtraInhabitants: payloadXI)
+                ?? Self.inferredSinglePayloadExtraInhabitantCount(
+                    enumSize: enumSize,
+                    payloadSize: payloadSize.cast(),
+                    emptyCaseCount: numberOfEmptyCases.cast(),
+                    enumExtraInhabitantCount: typeLayout.extraInhabitantCount.cast()
+                )
+            // Without the payload's extra-inhabitant count the XI/overflow
+            // split is unknowable and any layout we produced would be a guess
+            // presented as fact — degrade to "no layout" instead.
+            guard let payloadXI else { return nil }
+            layoutResult = EnumLayoutCalculator.calculateSinglePayload(payloadSize: payloadSize.cast(), numEmptyCases: numberOfEmptyCases.cast(), numExtraInhabitants: payloadXI)
             // The formula knows only how many extra inhabitants the payload
             // has, not which bytes they occupy (that is a per-payload-type
             // detail: a class reference's low invalid addresses, `String`'s
@@ -566,10 +577,40 @@ struct RuntimeFieldLayoutBackend {
         } else {
             return nil
         }
+        // Cross-check against the authoritative value-witness size: the
+        // formulas run on *derived* inputs (payload size from resolving each
+        // payload type, spare bytes from `__swift5_mpenum`), and a resolution
+        // gap would otherwise surface as a confidently-wrong layout — tag
+        // regions past the end of the value, cases described by a mechanism
+        // the enum does not use. When the check cannot run (no metadata for a
+        // multi-payload enum) the formula output stands on descriptor data
+        // alone, which does not depend on per-payload resolution succeeding.
+        if let typeLayout = enumTypeLayout {
+            let impliedSize = layoutResult.impliedTotalSize(payloadAreaSize: payloadSize.cast())
+            guard impliedSize == typeLayout.size.cast() else { return nil }
+        }
         if let declaredCaseNames = declaredEnumCaseNames(of: enumValue.descriptor, in: machOImage) {
             layoutResult = layoutResult.attachingDeclaredCaseNames(declaredCaseNames)
         }
         return layoutResult
+    }
+
+    /// Recovers the payload's extra-inhabitant count from the enum's *own*
+    /// value-witness layout when the payload type itself could not be resolved.
+    /// When the enum is payload-sized (no extra tag bytes were appended) the
+    /// runtime computed `enumXI = payloadXI - emptyCases`
+    /// (`swift_initEnumMetadataSinglePayload`), so
+    /// `payloadXI = enumXI + emptyCases` — exact, not a guess. In the overflow
+    /// layout (`enumSize > payloadSize`) the enum's XI count is always zero
+    /// and the payload's count cannot be recovered, so callers must degrade.
+    static func inferredSinglePayloadExtraInhabitantCount(
+        enumSize: Int,
+        payloadSize: Int,
+        emptyCaseCount: Int,
+        enumExtraInhabitantCount: Int
+    ) -> Int? {
+        guard enumSize == payloadSize else { return nil }
+        return min(enumExtraInhabitantCount + emptyCaseCount, EnumLayoutCalculator.maximumExtraInhabitantCount)
     }
 
     /// The enum metadata's absolute in-process address. A non-generic enum's
@@ -674,7 +715,12 @@ struct RuntimeFieldLayoutBackend {
         guard !records.isEmpty else { return nil }
         for record in records {
             if record.flags.contains(.isIndirectCase) {
-                return nil
+                // An indirect case stores a `Builtin.NativeObject` box
+                // reference regardless of its declared payload type, so the
+                // payload's extra inhabitants are the heap-object ones (empty
+                // cases ride the small invalid pointer values — the enum stays
+                // payload-sized with no extra tag bytes).
+                return EnumLayoutCalculator.heapObjectExtraInhabitantCount
             }
             let mangledTypeName = try record.mangledTypeName(in: machOImage)
             guard !mangledTypeName.isEmpty else { continue }
