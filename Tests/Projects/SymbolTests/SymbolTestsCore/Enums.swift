@@ -72,6 +72,18 @@ public enum Enums {
         case node(IndirectEnumTest, IndirectEnumTest)
     }
 
+    /// An `indirect` **single-payload** enum with empty cases: the payload is
+    /// a `Builtin.NativeObject` box reference, so the empty cases ride the
+    /// heap pointer's extra inhabitants (`leaf` = null, `sentinel` = pointer
+    /// value 1) and the enum stays pointer-sized — it must NOT be described
+    /// as an overflow layout with an extra tag byte, which is what treating
+    /// an indirect payload as extra-inhabitant-less used to produce.
+    public indirect enum IndirectSinglePayloadEnumTest {
+        case node(IndirectSinglePayloadEnumTest)
+        case leaf
+        case sentinel
+    }
+
     public enum PartialIndirectEnumTest {
         case leaf(Int)
         indirect case node(PartialIndirectEnumTest, PartialIndirectEnumTest)

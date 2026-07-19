@@ -85,6 +85,11 @@ enum SymbolTestsCore.Enums.IndirectEnumTest {
     indirect case leaf(Swift.Int)
     indirect case node(SymbolTestsCore.Enums.IndirectEnumTest, SymbolTestsCore.Enums.IndirectEnumTest)
 }
+enum SymbolTestsCore.Enums.IndirectSinglePayloadEnumTest {
+    indirect case node(SymbolTestsCore.Enums.IndirectSinglePayloadEnumTest)
+    case leaf
+    case sentinel
+}
 enum SymbolTestsCore.Enums.PartialIndirectEnumTest {
     case leaf(Swift.Int)
     indirect case node(SymbolTestsCore.Enums.PartialIndirectEnumTest, SymbolTestsCore.Enums.PartialIndirectEnumTest)

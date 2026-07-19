@@ -902,6 +902,12 @@ enum Enums {
         // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 126)
         indirect case node(SymbolTestsCore.Enums.IndirectEnumTest, SymbolTestsCore.Enums.IndirectEnumTest)
     }
+    enum IndirectSinglePayloadEnumTest {
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 4094)
+        indirect case node(SymbolTestsCore.Enums.IndirectSinglePayloadEnumTest)
+        case leaf
+        case sentinel
+    }
     enum PartialIndirectEnumTest {
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
         case leaf(Swift.Int)

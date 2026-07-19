@@ -22,6 +22,14 @@ enum MP_Ref_3P_5E {
     case e0; case e1; case e2; case e3; case e4
 }
 
+// --- Strategy 1b: Multi-Payload Spare Bits with sub-byte payload bits ---
+//
+// Two `Bool` payloads share byte 0 between the spare-bit tag (bits 6-7 hold
+// the tag; bits 1-5 are unused spare bits fixed to zero) and the live payload
+// bit (bit 0). The tag byte is NOT wholly fixed for a payload case — the
+// regression that used to over-claim `byte[0x0] = 0x00` for `a(true)` (0x01).
+enum MP_Bool_2P_1E { case a(Bool); case b(Bool); case e0 }
+
 // --- Strategy 2: Tagged Multi-Payload (integer payloads, no spare bits) ---
 
 enum TMP_U8_2P_0E { case a(UInt8); case b(UInt8) }
@@ -247,7 +255,7 @@ struct EnumLayoutVerificationTests {
         let xi = try Int(Metadata.createInProcess(SP_U8_1E.self).typeLayout().extraInhabitantCount)
 
         let result = Calculator.calculateSinglePayload(
-            size: enumSize, payloadSize: payloadSize, numEmptyCases: 1, numExtraInhabitants: xi
+            payloadSize: payloadSize, numEmptyCases: 1, numExtraInhabitants: xi
         )
 
         verifyEmptyCaseOrZeroPayload(bytes: readBytes(SP_U8_1E.payload(0)), projection: result.cases[0], label: "payload(0)")
@@ -261,7 +269,7 @@ struct EnumLayoutVerificationTests {
         let xi = try Int(Metadata.createInProcess(SP_U8_3E.self).typeLayout().extraInhabitantCount)
 
         let result = Calculator.calculateSinglePayload(
-            size: enumSize, payloadSize: payloadSize, numEmptyCases: 3, numExtraInhabitants: xi
+            payloadSize: payloadSize, numEmptyCases: 3, numExtraInhabitants: xi
         )
 
         verifyEmptyCaseOrZeroPayload(bytes: readBytes(SP_U8_3E.payload(0)), projection: result.cases[0], label: "payload(0)")
@@ -277,7 +285,7 @@ struct EnumLayoutVerificationTests {
         let xi = try Int(Metadata.createInProcess(SP_U16_1E.self).typeLayout().extraInhabitantCount)
 
         let result = Calculator.calculateSinglePayload(
-            size: enumSize, payloadSize: payloadSize, numEmptyCases: 1, numExtraInhabitants: xi
+            payloadSize: payloadSize, numEmptyCases: 1, numExtraInhabitants: xi
         )
 
         verifyEmptyCaseOrZeroPayload(bytes: readBytes(SP_U16_1E.payload(0)), projection: result.cases[0], label: "payload(0)")
@@ -291,7 +299,7 @@ struct EnumLayoutVerificationTests {
         let xi = try Int(Metadata.createInProcess(SP_U16_3E.self).typeLayout().extraInhabitantCount)
 
         let result = Calculator.calculateSinglePayload(
-            size: enumSize, payloadSize: payloadSize, numEmptyCases: 3, numExtraInhabitants: xi
+            payloadSize: payloadSize, numEmptyCases: 3, numExtraInhabitants: xi
         )
 
         verifyEmptyCaseOrZeroPayload(bytes: readBytes(SP_U16_3E.payload(0)), projection: result.cases[0], label: "payload(0)")
@@ -307,7 +315,7 @@ struct EnumLayoutVerificationTests {
         let xi = try Int(Metadata.createInProcess(SP_U32_1E.self).typeLayout().extraInhabitantCount)
 
         let result = Calculator.calculateSinglePayload(
-            size: enumSize, payloadSize: payloadSize, numEmptyCases: 1, numExtraInhabitants: xi
+            payloadSize: payloadSize, numEmptyCases: 1, numExtraInhabitants: xi
         )
 
         verifyEmptyCaseOrZeroPayload(bytes: readBytes(SP_U32_1E.payload(0)), projection: result.cases[0], label: "payload(0)")
@@ -321,7 +329,7 @@ struct EnumLayoutVerificationTests {
         let xi = try Int(Metadata.createInProcess(SP_U32_5E.self).typeLayout().extraInhabitantCount)
 
         let result = Calculator.calculateSinglePayload(
-            size: enumSize, payloadSize: payloadSize, numEmptyCases: 5, numExtraInhabitants: xi
+            payloadSize: payloadSize, numEmptyCases: 5, numExtraInhabitants: xi
         )
 
         verifyEmptyCaseOrZeroPayload(bytes: readBytes(SP_U32_5E.payload(0)), projection: result.cases[0], label: "payload(0)")
@@ -337,7 +345,7 @@ struct EnumLayoutVerificationTests {
         let xi = try Int(Metadata.createInProcess(SP_U64_1E.self).typeLayout().extraInhabitantCount)
 
         let result = Calculator.calculateSinglePayload(
-            size: enumSize, payloadSize: payloadSize, numEmptyCases: 1, numExtraInhabitants: xi
+            payloadSize: payloadSize, numEmptyCases: 1, numExtraInhabitants: xi
         )
 
         verifyEmptyCaseOrZeroPayload(bytes: readBytes(SP_U64_1E.payload(0)), projection: result.cases[0], label: "payload(0)")
@@ -351,7 +359,7 @@ struct EnumLayoutVerificationTests {
         let xi = try Int(Metadata.createInProcess(SP_U64_3E.self).typeLayout().extraInhabitantCount)
 
         let result = Calculator.calculateSinglePayload(
-            size: enumSize, payloadSize: payloadSize, numEmptyCases: 3, numExtraInhabitants: xi
+            payloadSize: payloadSize, numEmptyCases: 3, numExtraInhabitants: xi
         )
 
         verifyEmptyCaseOrZeroPayload(bytes: readBytes(SP_U64_3E.payload(0)), projection: result.cases[0], label: "payload(0)")
@@ -378,7 +386,7 @@ struct EnumLayoutVerificationTests {
         #expect(enumSize == payloadSize, "No extra tag bytes needed when XI suffice")
 
         let result = Calculator.calculateSinglePayload(
-            size: enumSize, payloadSize: payloadSize, numEmptyCases: 1, numExtraInhabitants: xi
+            payloadSize: payloadSize, numEmptyCases: 1, numExtraInhabitants: xi
         )
 
         #expect(result.cases.count == 2, "Expected 1 payload + 1 empty case")
@@ -400,7 +408,7 @@ struct EnumLayoutVerificationTests {
         #expect(enumSize == payloadSize, "No extra tag bytes needed when XI suffice")
 
         let result = Calculator.calculateSinglePayload(
-            size: enumSize, payloadSize: payloadSize, numEmptyCases: 3, numExtraInhabitants: xi
+            payloadSize: payloadSize, numEmptyCases: 3, numExtraInhabitants: xi
         )
 
         #expect(result.cases.count == 4, "Expected 1 payload + 3 empty cases")
@@ -425,7 +433,7 @@ struct EnumLayoutVerificationTests {
         #expect(enumSize > payloadSize, "Overflow requires extra tag bytes")
 
         let result = Calculator.calculateSinglePayload(
-            size: enumSize, payloadSize: payloadSize, numEmptyCases: 1, numExtraInhabitants: payloadXI
+            payloadSize: payloadSize, numEmptyCases: 1, numExtraInhabitants: payloadXI
         )
 
         #expect(result.cases.count == 2)
@@ -443,7 +451,7 @@ struct EnumLayoutVerificationTests {
         #expect(payloadXI == 0, "Optional<UInt8> should have 0 XI")
 
         let result = Calculator.calculateSinglePayload(
-            size: enumSize, payloadSize: payloadSize, numEmptyCases: 3, numExtraInhabitants: payloadXI
+            payloadSize: payloadSize, numEmptyCases: 3, numExtraInhabitants: payloadXI
         )
 
         #expect(result.cases.count == 4)
@@ -464,7 +472,7 @@ struct EnumLayoutVerificationTests {
         #expect(enumSize == payloadSize, "No extra tag bytes when XI suffice")
 
         let result = Calculator.calculateSinglePayload(
-            size: enumSize, payloadSize: payloadSize, numEmptyCases: 2, numExtraInhabitants: xi
+            payloadSize: payloadSize, numEmptyCases: 2, numExtraInhabitants: xi
         )
 
         #expect(result.cases.count == 3, "Expected 1 payload + 2 empty cases")
@@ -579,6 +587,162 @@ struct EnumLayoutVerificationTests {
         for (i, emptyCase) in emptyCases.enumerated() {
             verifyEmptyCaseOrZeroPayload(bytes: readBytes(emptyCase), projection: result.cases[3 + i], label: "e\(i)")
         }
+    }
+
+    // MARK: - Fixed-Bit-Mask Fidelity (spare-bits payload cases)
+
+    @Test("MP_Bool_2P_1E: payload case fixed bits hold across payload values; the payload bit is never claimed")
+    func spareBitsPayloadCaseBitMaskFidelity() throws {
+        let ptr = unsafeBitCast(MP_Bool_2P_1E.self, to: UnsafeRawPointer.self)
+        let machO = try #require(MachOImage.image(for: ptr))
+        let info = try #require(try findMultiPayloadDescriptor(typeName: "MP_Bool_2P_1E", in: machO))
+        try #require(info.usesSpare, "Expected spare bits strategy")
+
+        let payloadSize = MemoryLayout<Bool>.size
+        let result = Calculator.calculateMultiPayload(
+            payloadSize: payloadSize, spareBytes: info.spareBytes, spareBytesOffset: info.spareBytesOffset,
+            numPayloadCases: 2, numEmptyCases: 1
+        )
+
+        // The tag byte is shared with payload storage, so the payload cases
+        // must carry a *partial* fixed-bit mask — and the payload bit (bit 0)
+        // must not be part of it.
+        for payloadCase in result.cases.prefix(2) {
+            let mask = payloadCase.fixedBitMask(atByteOffset: 0)
+            #expect(mask != 0xFF, "\(payloadCase.caseName): whole-byte claim would misdescribe live payload bits")
+            #expect(mask & 0x01 == 0, "\(payloadCase.caseName): bit 0 holds the Bool payload and is not fixed")
+        }
+
+        // Every declared fixed bit must hold for BOTH payload values — the
+        // definition of "fixed". This is the regression for the former
+        // whole-byte over-claim (`a(true)` is 0x01, not 0x00).
+        let valuePairs: [(Int, [MP_Bool_2P_1E])] = [
+            (0, [.a(false), .a(true)]),
+            (1, [.b(false), .b(true)]),
+        ]
+        for (caseIndex, values) in valuePairs {
+            let projection = result.cases[caseIndex]
+            for value in values {
+                let bytes = readBytes(value)
+                for (offset, declaredByte) in projection.memoryChanges {
+                    let mask = projection.fixedBitMask(atByteOffset: offset)
+                    #expect(
+                        bytes[offset] & mask == declaredByte & mask,
+                        "\(projection.caseName): declared fixed bits (mask \(String(format: "0x%02X", mask))) must hold for every payload value"
+                    )
+                }
+            }
+        }
+
+        // The empty case fixes every payload bit (tag + empty-case value +
+        // zeroed remainder) — full mask, full byte, matches the real value.
+        let emptyProjection = result.cases[2]
+        #expect(emptyProjection.fixedBitMask(atByteOffset: 0) == 0xFF)
+        verifyEmptyCaseOrZeroPayload(bytes: readBytes(MP_Bool_2P_1E.e0), projection: emptyProjection, label: "e0")
+
+        // The rendered description scopes the claim to the fixed bits instead
+        // of asserting a whole-byte value.
+        let payloadCaseDescription = result.cases[0].description
+        #expect(payloadCaseDescription.contains("& 0b"), "summary masks the claim: got \(payloadCaseDescription)")
+        #expect(payloadCaseDescription.contains("fixed bits 0b"), "detail line names the fixed bits: got \(payloadCaseDescription)")
+        #expect(!payloadCaseDescription.contains("byte[0x0] = 0x"), "no whole-byte claim for a partially-fixed byte: got \(payloadCaseDescription)")
+    }
+
+    // MARK: - Empty-Case Discriminator Completeness
+
+    /// An empty case's fixed bytes must cover the *entire* discriminator
+    /// region the runtime writes and reads back: every payload byte (the
+    /// value is zero-extended across the whole area / scattered from a zero
+    /// APInt) plus any extra tag bytes. A gap here means a reader would treat
+    /// a discriminating byte as "don't care".
+    private func verifyEmptyCaseCoversWholePayloadArea(
+        _ result: Calculator.LayoutResult,
+        payloadSize: Int,
+        label: String,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) {
+        for projection in result.cases where !projection.isPayloadCase {
+            for offset in 0 ..< payloadSize {
+                #expect(
+                    projection.memoryChanges[offset] != nil,
+                    "\(label) [\(projection.caseName)]: payload byte \(offset) is part of the discriminator and must be declared",
+                    sourceLocation: sourceLocation
+                )
+                #expect(
+                    projection.fixedBitMask(atByteOffset: offset) == 0xFF,
+                    "\(label) [\(projection.caseName)]: every payload bit is fixed for an empty case",
+                    sourceLocation: sourceLocation
+                )
+            }
+            if let tagRegion = result.tagRegion, tagRegion.range.lowerBound >= payloadSize {
+                for offset in tagRegion.range {
+                    #expect(
+                        projection.memoryChanges[offset] != nil,
+                        "\(label) [\(projection.caseName)]: extra tag byte \(offset) must be declared",
+                        sourceLocation: sourceLocation
+                    )
+                }
+            }
+        }
+    }
+
+    @Test("Empty cases declare the whole discriminator region (tagged, payloadSize >= 4)")
+    func taggedEmptyCaseCompleteness() {
+        // TMP_U64_2P_3E.e0 is 00×8 + tag 02 — bytes 1..7 are the
+        // zero-extension `storeEnumElement` writes and `loadEnumElement`
+        // reads back; they used to be silently omitted.
+        let result = Calculator.calculateTaggedMultiPayload(payloadSize: 8, numPayloadCases: 2, numEmptyCases: 3)
+        verifyEmptyCaseCoversWholePayloadArea(result, payloadSize: 8, label: "TMP_U64_2P_3E")
+
+        let bytes_e0 = readBytes(TMP_U64_2P_3E.e0)
+        let projection_e0 = result.cases[2]
+        for offset in 0 ..< 8 {
+            #expect(projection_e0.memoryChanges[offset] == bytes_e0[offset], "byte \(offset) of e0")
+        }
+    }
+
+    @Test("Empty cases declare the whole discriminator region (spare bits)")
+    func spareBitsEmptyCaseCompleteness() throws {
+        let ptr = unsafeBitCast(MP_Ref_2P_3E.self, to: UnsafeRawPointer.self)
+        let machO = try #require(MachOImage.image(for: ptr))
+        let info = try #require(try findMultiPayloadDescriptor(typeName: "MP_Ref_2P_3E", in: machO))
+        try #require(info.usesSpare)
+
+        let payloadSize = MemoryLayout<AnyObject>.size
+        let result = Calculator.calculateMultiPayload(
+            payloadSize: payloadSize, spareBytes: info.spareBytes, spareBytesOffset: info.spareBytesOffset,
+            numPayloadCases: 2, numEmptyCases: 3
+        )
+        verifyEmptyCaseCoversWholePayloadArea(result, payloadSize: payloadSize, label: "MP_Ref_2P_3E")
+    }
+
+    // MARK: - Implied Total Size vs MemoryLayout
+
+    @Test("impliedTotalSize matches MemoryLayout for every strategy")
+    func impliedTotalSizeMatchesMemoryLayout() throws {
+        // Tagged multi-payload.
+        #expect(Calculator.calculateTaggedMultiPayload(payloadSize: 1, numPayloadCases: 2, numEmptyCases: 3)
+            .impliedTotalSize(payloadAreaSize: 1) == MemoryLayout<TMP_U8_2P_3E>.size)
+        #expect(Calculator.calculateTaggedMultiPayload(payloadSize: 8, numPayloadCases: 2, numEmptyCases: 3)
+            .impliedTotalSize(payloadAreaSize: 8) == MemoryLayout<TMP_U64_2P_3E>.size)
+
+        // Single payload: overflow appends tag bytes, XI stays payload-sized.
+        let overflowXI = try Int(Metadata.createInProcess(SP_U8_3E.self).typeLayout().extraInhabitantCount)
+        #expect(Calculator.calculateSinglePayload(payloadSize: 1, numEmptyCases: 3, numExtraInhabitants: overflowXI)
+            .impliedTotalSize(payloadAreaSize: 1) == MemoryLayout<SP_U8_3E>.size)
+        #expect(Calculator.calculateSinglePayload(payloadSize: 1, numEmptyCases: 3, numExtraInhabitants: 254)
+            .impliedTotalSize(payloadAreaSize: 1) == MemoryLayout<SP_Bool_3E>.size)
+        #expect(Calculator.calculateSinglePayload(payloadSize: 8, numEmptyCases: 2, numExtraInhabitants: 0x7FFF_FFFF)
+            .impliedTotalSize(payloadAreaSize: 8) == MemoryLayout<SP_Ref_2E>.size)
+
+        // Spare-bits multi-payload: the tag lives inside the payload area.
+        let ptr = unsafeBitCast(MP_Ref_2P_3E.self, to: UnsafeRawPointer.self)
+        let machO = try #require(MachOImage.image(for: ptr))
+        let info = try #require(try findMultiPayloadDescriptor(typeName: "MP_Ref_2P_3E", in: machO))
+        #expect(Calculator.calculateMultiPayload(
+            payloadSize: 8, spareBytes: info.spareBytes, spareBytesOffset: info.spareBytesOffset,
+            numPayloadCases: 2, numEmptyCases: 3
+        ).impliedTotalSize(payloadAreaSize: 8) == MemoryLayout<MP_Ref_2P_3E>.size)
     }
 
     // MARK: - getEnumTagCounts Verification

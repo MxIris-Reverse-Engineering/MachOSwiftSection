@@ -57,6 +57,18 @@ private enum ProjectorSinglePayloadOverflow {
     case overflowed
 }
 
+/// An `indirect` single-payload enum: the payload is a `Builtin.NativeObject`
+/// box reference with heap-object extra inhabitants, so the empty cases ride
+/// the small invalid pointer values (`leaf` = 0, `sentinel` = 1) and the enum
+/// stays pointer-sized with **no** extra tag byte — the layout the backend
+/// used to misdescribe as overflow when it treated an indirect payload as
+/// having zero extra inhabitants.
+private indirect enum ProjectorIndirectSinglePayload {
+    case node(ProjectorIndirectSinglePayload)
+    case leaf
+    case sentinel
+}
+
 // MARK: - Tests
 
 @Suite("RuntimeEnumCaseProjector", .enabled(if: MemoryLayout<UnsafeRawPointer>.size == 8))
@@ -167,11 +179,42 @@ struct RuntimeEnumCaseProjectorTests {
         #expect(patterns[1].fixedBytes[2] == 1, "overflow case sets the extra tag byte")
     }
 
+    @Test("Indirect single-payload: empty cases are heap-pointer extra inhabitants, not overflow")
+    func indirectSinglePayloadRidesHeapPointerExtraInhabitants() throws {
+        // Ground truth first: the enum is pointer-sized (no extra tag byte).
+        #expect(MemoryLayout<ProjectorIndirectSinglePayload>.size == 8)
+
+        let patterns = try projectedPatterns(of: ProjectorIndirectSinglePayload.self, payloadCaseCount: 1, caseCount: 3)
+        #expect(patterns.count == 3)
+
+        expectPatternMatches(patterns[1], actualValue: ProjectorIndirectSinglePayload.leaf, label: "leaf")
+        expectPatternMatches(patterns[2], actualValue: ProjectorIndirectSinglePayload.sentinel, label: "sentinel")
+
+        // Extra inhabitant #0 of the box reference is the null pointer (all
+        // zero bytes); #1 is pointer value 1.
+        #expect(!patterns[1].fixedBytes.isEmpty)
+        #expect(patterns[1].fixedBytes.values.allSatisfy { $0 == 0 })
+        #expect(patterns[2].fixedBytes[0] == 1)
+
+        // The formula fed with the heap-object XI count agrees structurally:
+        // XI cases, no overflow, no tag region, payload-sized.
+        let formulaResult = EnumLayoutCalculator.calculateSinglePayload(
+            payloadSize: 8,
+            numEmptyCases: 2,
+            numExtraInhabitants: EnumLayoutCalculator.heapObjectExtraInhabitantCount
+        )
+        #expect(formulaResult.tagRegion == nil, "no extra tag bytes in the XI layout")
+        #expect(formulaResult.impliedTotalSize(payloadAreaSize: 8) == MemoryLayout<ProjectorIndirectSinglePayload>.size)
+        for (emptyIndex, emptyCase) in formulaResult.cases.dropFirst().enumerated() {
+            #expect(emptyCase.patternResolution == .unresolvedExtraInhabitant(extraInhabitantIndex: emptyIndex))
+            #expect(emptyCase.tagValue == 0, "XI cases use no overflow tag")
+        }
+    }
+
     @Test("Empty-case patterns round-trip through the calculator overlay")
     func calculatorOverlayCarriesExactPatterns() throws {
         let patterns = try projectedPatterns(of: ProjectorSinglePayloadOverStruct.self, payloadCaseCount: 1, caseCount: 3)
         let formulaResult = EnumLayoutCalculator.calculateSinglePayload(
-            size: MemoryLayout<ProjectorSinglePayloadOverStruct>.size,
             payloadSize: MemoryLayout<ProjectorStructPayload>.size,
             numEmptyCases: 2,
             numExtraInhabitants: 2
