@@ -4,8 +4,11 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
+import SemanticTransformer
 import SwiftDeclarationRendering
 import Semantic
+
+extension Transformer.SwiftEnumLayout.Preset: ExpressibleByArgument {}
 
 struct DumpCommand: AsyncParsableCommand, Sendable {
     private enum TopLevelContext {
@@ -75,6 +78,9 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
     @Flag(help: "Generate enum layout (strategy/per-case/spare-bit) comments, computed statically via SwiftLayout")
     var emitEnumLayout: Bool = false
 
+    @Option(help: "The comment style for --emit-enum-layout: detailed (default; byte masks), explained (bit ranges in plain words), standard (no per-byte lines), or compact (one line per case).")
+    var enumLayoutStyle: Transformer.SwiftEnumLayout.Preset = .detailed
+
     @Flag(help: "Expand nested struct fields with their absolute offsets (implies --emit-field-offsets)")
     var emitExpandedFieldOffsets: Bool = false
 
@@ -93,6 +99,13 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
         dumpConfiguration.printTypeLayout = emitTypeLayout
         dumpConfiguration.printEnumLayout = emitEnumLayout
         dumpConfiguration.printExpandedFieldOffsets = emitExpandedFieldOffsets
+        // `.detailed` is the built-in default rendering; leaving the
+        // transformer slots empty keeps that path byte-for-byte identical.
+        if enumLayoutStyle != .detailed {
+            var transformers = Transformer.SwiftConfiguration()
+            transformers.swiftEnumLayout = enumLayoutStyle.module
+            dumpConfiguration.applyTransformers(transformers)
+        }
 
         // The static (offline) field-layout path needs a SwiftLayout-backed
         // provider; build it once per session when any layout comment is

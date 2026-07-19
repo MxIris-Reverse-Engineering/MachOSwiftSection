@@ -1,4 +1,5 @@
 import Foundation
+import SemanticTransformer
 
 public enum EnumLayoutCalculator {
     // MARK: - ABI: Tag Count Calculation (swift/ABI/Enum.h: getEnumTagCounts)
@@ -159,8 +160,9 @@ public enum EnumLayoutCalculator {
         }
 
         /// The detailed default rendering — deliberately information-rich,
-        /// since consumers with narrower needs can supply an
-        /// `enumLayoutCaseTransformer` and pick the fields they want:
+        /// since consumers with narrower needs can pick a preset
+        /// (`Transformer.SwiftEnumLayout.Preset`) or supply an
+        /// `enumLayoutCaseTransformer`:
         ///
         /// ```
         /// Case 1 (0x01) `implicit` — empty case #0
@@ -170,51 +172,11 @@ public enum EnumLayoutCalculator {
         ///     offset 0x09 = 0x00 (0b00000000)
         ///     …
         /// ```
+        ///
+        /// Implemented as the `.detailed` template so the built-in rendering
+        /// and the template mechanism cannot drift apart.
         public func description(indent: Int, prefix: String = "") -> String {
-            let indentString = String(repeating: "    ", count: indent)
-            var lines: [String] = []
-
-            var header = "Case \(caseIndex) (\(String(format: "0x%02X", caseIndex)))"
-            if let declaredName {
-                header += " `\(declaredName)`"
-            }
-            header += " — \(caseName)"
-            lines.append(header)
-
-            if !encodingExplanation.isEmpty {
-                lines.append("encoding: \(encodingExplanation)")
-            }
-            if case .unresolvedExtraInhabitant = patternResolution {
-                lines.append("note: the exact bytes depend on the payload type's extra-inhabitant scheme and were not resolved offline (the in-process runtime path resolves them)")
-            }
-
-            if memoryChanges.isEmpty {
-                if case .unresolvedExtraInhabitant = patternResolution {
-                    lines.append("fixed bytes: not computed")
-                } else if isPayloadCase {
-                    lines.append("fixed bytes: none — any pattern no empty case claims selects this case")
-                } else {
-                    lines.append("fixed bytes: none recorded")
-                }
-            } else {
-                lines.append("fixed bytes: \(formattedFixedBytes())")
-                for offset in memoryChanges.keys.sorted() {
-                    let byteValue = memoryChanges[offset]!
-                    let mask = fixedBitMask(atByteOffset: offset)
-                    if mask == 0xFF {
-                        lines.append("    offset 0x\(String(format: "%02X", offset)) = 0x\(String(format: "%02X", byteValue)) (0b\(binaryString(byteValue)))")
-                    } else {
-                        lines.append("    offset 0x\(String(format: "%02X", offset)): fixed bits 0b\(binaryString(mask)) = 0b\(binaryString(byteValue)) (the other bits hold payload storage)")
-                    }
-                }
-            }
-
-            var output = ""
-            for (lineIndex, line) in lines.enumerated() {
-                let continuationIndent = lineIndex == 0 ? "" : "  "
-                output += "\(indentString)\(prefix) \(continuationIndent)\(line)\n"
-            }
-            return output
+            description(indent: indent, prefix: prefix, template: .detailed)
         }
 
         /// The fixed bytes compressed into contiguous runs, little-endian:
