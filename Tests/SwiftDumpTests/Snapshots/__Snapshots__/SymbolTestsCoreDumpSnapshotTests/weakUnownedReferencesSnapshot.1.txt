@@ -170,3 +170,33 @@ class SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest {
     method descriptor for SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.strongReference.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
     method descriptor for SymbolTestsCore.WeakUnownedReferences.MixedReferenceHolderTest.strongReference.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
 }
+struct SymbolTestsCore.WeakUnownedReferences.WeakReferenceStructTest {
+    weak var object: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+
+    /* Allocator */
+    SymbolTestsCore.WeakUnownedReferences.WeakReferenceStructTest.init(object: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?) -> SymbolTestsCore.WeakUnownedReferences.WeakReferenceStructTest
+
+    /* Variable */
+    SymbolTestsCore.WeakUnownedReferences.WeakReferenceStructTest.object.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    SymbolTestsCore.WeakUnownedReferences.WeakReferenceStructTest.object.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+}
+struct SymbolTestsCore.WeakUnownedReferences.UnownedReferenceStructTest {
+    unowned var object: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+
+    /* Allocator */
+    SymbolTestsCore.WeakUnownedReferences.UnownedReferenceStructTest.init(object: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest) -> SymbolTestsCore.WeakUnownedReferences.UnownedReferenceStructTest
+
+    /* Variable */
+    SymbolTestsCore.WeakUnownedReferences.UnownedReferenceStructTest.object.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+    SymbolTestsCore.WeakUnownedReferences.UnownedReferenceStructTest.object.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest
+}
+enum SymbolTestsCore.WeakUnownedReferences.EnumOverWeakReferenceStructTest {
+    case payload(SymbolTestsCore.WeakUnownedReferences.WeakReferenceStructTest)
+    case first
+    case second
+}
+enum SymbolTestsCore.WeakUnownedReferences.EnumOverUnownedReferenceStructTest {
+    case payload(SymbolTestsCore.WeakUnownedReferences.UnownedReferenceStructTest)
+    case first
+    case second
+}

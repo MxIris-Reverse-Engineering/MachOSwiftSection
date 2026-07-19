@@ -11,7 +11,7 @@ enum ResilientWitnessesHeaderBaseline {
     }
 
     static let firstHeader = Entry(
-    offset: 0x33594,
+    offset: 0x34254,
     layoutNumWitnesses: 1
     )
 }

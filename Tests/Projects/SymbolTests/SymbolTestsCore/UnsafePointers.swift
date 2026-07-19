@@ -47,4 +47,28 @@ public enum UnsafePointers {
             self.autoreleasing = autoreleasing
         }
     }
+
+    /// A raw pointer reserves only null, so of these two empty cases only one
+    /// fits the payload's single extra inhabitant — the enum must grow a tag
+    /// byte (size 9, stride 16), unlike a class-reference payload which would
+    /// absorb both and stay 8.
+    public enum EnumOverUnsafeRawPointerTest {
+        case pointer(UnsafeRawPointer)
+        case first
+        case second
+    }
+
+    /// Pins the *offset* consequence of the enum above: the trailing marker
+    /// must land at offset 16 (after the 9-byte enum rounds up to its 8-byte
+    /// alignment), which only happens when the pointer's extra-inhabitant
+    /// count is exactly 1.
+    public struct EnumOverUnsafeRawPointerFieldTest {
+        public var pointerEnum: EnumOverUnsafeRawPointerTest
+        public var trailingMarker: Int8
+
+        public init(pointerEnum: EnumOverUnsafeRawPointerTest, trailingMarker: Int8) {
+            self.pointerEnum = pointerEnum
+            self.trailingMarker = trailingMarker
+        }
+    }
 }

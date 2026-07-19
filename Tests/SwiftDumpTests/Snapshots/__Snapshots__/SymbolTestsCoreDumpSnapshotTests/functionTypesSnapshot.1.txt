@@ -23,6 +23,19 @@ struct SymbolTestsCore.FunctionTypes.FunctionFieldTest {
     SymbolTestsCore.FunctionTypes.FunctionFieldTest.simpleFunction.getter : (Swift.Int) -> Swift.Int
     SymbolTestsCore.FunctionTypes.FunctionFieldTest.simpleFunction.setter : (Swift.Int) -> Swift.Int
 }
+struct SymbolTestsCore.FunctionTypes.OptionalFunctionFieldTest {
+    var callback: ((Swift.Int) -> Swift.Int)?
+    var trailingMarker: Swift.Int8
+
+    /* Allocator */
+    SymbolTestsCore.FunctionTypes.OptionalFunctionFieldTest.init(callback: ((Swift.Int) -> Swift.Int)?, trailingMarker: Swift.Int8) -> SymbolTestsCore.FunctionTypes.OptionalFunctionFieldTest
+
+    /* Variable */
+    SymbolTestsCore.FunctionTypes.OptionalFunctionFieldTest.callback.getter : ((Swift.Int) -> Swift.Int)?
+    SymbolTestsCore.FunctionTypes.OptionalFunctionFieldTest.callback.setter : ((Swift.Int) -> Swift.Int)?
+    SymbolTestsCore.FunctionTypes.OptionalFunctionFieldTest.trailingMarker.getter : Swift.Int8
+    SymbolTestsCore.FunctionTypes.OptionalFunctionFieldTest.trailingMarker.setter : Swift.Int8
+}
 struct SymbolTestsCore.FunctionTypes.HigherOrderFunctionTest {
     /* Function */
     SymbolTestsCore.FunctionTypes.HigherOrderFunctionTest.acceptFunctionReturningFunction((Swift.Int) -> (Swift.Double) -> Swift.String) -> Swift.String

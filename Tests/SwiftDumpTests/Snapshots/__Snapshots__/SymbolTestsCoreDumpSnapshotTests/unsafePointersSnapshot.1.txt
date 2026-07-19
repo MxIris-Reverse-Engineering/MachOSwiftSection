@@ -52,3 +52,21 @@ struct SymbolTestsCore.UnsafePointers.AutoreleasingPointerFieldTest {
     SymbolTestsCore.UnsafePointers.AutoreleasingPointerFieldTest.autoreleasing.getter : Swift.AutoreleasingUnsafeMutablePointer<Swift.AnyObject?>
     SymbolTestsCore.UnsafePointers.AutoreleasingPointerFieldTest.autoreleasing.setter : Swift.AutoreleasingUnsafeMutablePointer<Swift.AnyObject?>
 }
+enum SymbolTestsCore.UnsafePointers.EnumOverUnsafeRawPointerTest {
+    case pointer(Swift.UnsafeRawPointer)
+    case first
+    case second
+}
+struct SymbolTestsCore.UnsafePointers.EnumOverUnsafeRawPointerFieldTest {
+    var pointerEnum: SymbolTestsCore.UnsafePointers.EnumOverUnsafeRawPointerTest
+    var trailingMarker: Swift.Int8
+
+    /* Allocator */
+    SymbolTestsCore.UnsafePointers.EnumOverUnsafeRawPointerFieldTest.init(pointerEnum: SymbolTestsCore.UnsafePointers.EnumOverUnsafeRawPointerTest, trailingMarker: Swift.Int8) -> SymbolTestsCore.UnsafePointers.EnumOverUnsafeRawPointerFieldTest
+
+    /* Variable */
+    SymbolTestsCore.UnsafePointers.EnumOverUnsafeRawPointerFieldTest.pointerEnum.getter : SymbolTestsCore.UnsafePointers.EnumOverUnsafeRawPointerTest
+    SymbolTestsCore.UnsafePointers.EnumOverUnsafeRawPointerFieldTest.pointerEnum.setter : SymbolTestsCore.UnsafePointers.EnumOverUnsafeRawPointerTest
+    SymbolTestsCore.UnsafePointers.EnumOverUnsafeRawPointerFieldTest.trailingMarker.getter : Swift.Int8
+    SymbolTestsCore.UnsafePointers.EnumOverUnsafeRawPointerFieldTest.trailingMarker.setter : Swift.Int8
+}

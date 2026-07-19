@@ -23,6 +23,21 @@ public enum FunctionTypes {
         }
     }
 
+    /// An optional thick function must stay 16 bytes (the function-pointer
+    /// word carries the saturated extra-inhabitant count, so `.none` costs no
+    /// tag byte) and the trailing marker must land at offset 16 — the shape
+    /// that regresses to offset 17/size 24 if the thick function's extra
+    /// inhabitants are dropped to zero.
+    public struct OptionalFunctionFieldTest {
+        public var callback: ((Int) -> Int)?
+        public var trailingMarker: Int8
+
+        public init(callback: ((Int) -> Int)?, trailingMarker: Int8) {
+            self.callback = callback
+            self.trailingMarker = trailingMarker
+        }
+    }
+
     public struct HigherOrderFunctionTest {
         public func acceptFunctionReturningFunction(_ producer: @escaping (Int) -> (Double) -> String) -> String {
             producer(0)(0.0)

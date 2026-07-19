@@ -976,12 +976,12 @@ struct SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct {
     var trailingMarker: Swift.Int8
 
     /* Variable */
-    SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.optionalValueKind.getter : Swift.Int64.Type?
-    SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.optionalValueKind.setter : Swift.Int64.Type?
     SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.trailingMarker.getter : Swift.Int8
     SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.trailingMarker.setter : Swift.Int8
     SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.leadingMarker.getter : Swift.Int8
     SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.leadingMarker.setter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.optionalValueKind.getter : Swift.Int64.Type?
+    SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.optionalValueKind.setter : Swift.Int64.Type?
     SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.classKind.getter : SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass.Type
     SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.classKind.setter : SymbolTestsCore.GenericFieldLayout.LayoutAncestorClass.Type
     SymbolTestsCore.GenericFieldLayout.ConcreteMetatypeFieldStruct.valueKind.getter : Swift.Int64.Type
