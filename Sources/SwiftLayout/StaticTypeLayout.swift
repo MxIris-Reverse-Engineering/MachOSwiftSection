@@ -55,14 +55,93 @@ public struct StaticTypeLayout: Sendable, Hashable {
 }
 
 extension StaticTypeLayout {
-    /// A single machine pointer / class reference: 8 bytes, 8-byte aligned,
-    /// with the runtime's standard 0x1000 pointer extra inhabitants (the low
-    /// addresses reserved as invalid).
+    /// A single managed-pointer word — a class/heap-object reference, a
+    /// metadata pointer (thick metatype, existential metadata word), a
+    /// function pointer, an Objective-C block or `Unmanaged`/`unowned(unsafe)`
+    /// reference: 8 bytes, 8-byte aligned, with the exact runtime
+    /// extra-inhabitant count. On 64-bit Darwin every pointer below
+    /// `LeastValidPointerValue` (0x1_0000_0000, the reserved low 4 GiB) is
+    /// invalid, so the raw count saturates at
+    /// `ValueWitnessFlags::MaxNumExtraInhabitants` (0x7FFF_FFFF) — the
+    /// runtime's `getHeapObjectExtraInhabitantCount` (`KnownMetadata.cpp`) and
+    /// IRGen's `ExtraInhabitants.cpp` agree, and the same saturated count was
+    /// measured from live value-witness tables for function pointers, blocks,
+    /// and metatype/existential metadata words alike.
     public static let pointerSized = StaticTypeLayout(
         size: 8,
         stride: 8,
         alignmentMask: 7,
-        extraInhabitantCount: 0x1000,
+        extraInhabitantCount: 0x7FFF_FFFF,
+        isBitwiseTakable: true
+    )
+
+    /// A raw/typed *unsafe* pointer (`UnsafeRawPointer`, `UnsafePointer<T>`,
+    /// `OpaquePointer`, `AutoreleasingUnsafeMutablePointer`, `CVaListPointer`,
+    /// `Builtin.RawPointer`): one word whose **only** invalid representation is
+    /// null — unlike a managed reference, it may legally hold any other bit
+    /// pattern (a C pointer can point into the low 4 GiB). IRGen's
+    /// `PointerInfo` nullable-only lowering and the stdlib's
+    /// `Builtin.RawPointer` witness table both report exactly 1 extra
+    /// inhabitant, which is why `Optional<Optional<UnsafeRawPointer>>` is 9
+    /// bytes while `Optional<Optional<AnyObject>>` stays 8.
+    public static let rawPointer = StaticTypeLayout(
+        size: 8,
+        stride: 8,
+        alignmentMask: 7,
+        extraInhabitantCount: 1,
+        isBitwiseTakable: true
+    )
+
+    /// A `weak` reference's storage word: no extra inhabitants (a weak
+    /// reference legally becomes null when the referent dies, so null cannot
+    /// encode an enum tag) and **not** bitwise-takable (moving it must update
+    /// the side-table registration — `swift_weakTakeInit`). Matches
+    /// RemoteInspection `TypeLowering.cpp` (`ReferenceKind::Weak`:
+    /// `numExtraInhabitants = 0; bitwiseTakable = false`) and the live
+    /// value-witness tables of weak-containing aggregates.
+    public static let weakReference = StaticTypeLayout(
+        size: 8,
+        stride: 8,
+        alignmentMask: 7,
+        extraInhabitantCount: 0,
+        isBitwiseTakable: false
+    )
+
+    /// An `unowned` (safe) reference's storage word: exactly **1** extra
+    /// inhabitant. With Objective-C interop the compiler must stay
+    /// conservative about the referent's refcounting, so
+    /// `IRGenModule::getReferenceStorageExtraInhabitantCount`
+    /// (`GenHeap.cpp`) falls through to "pointer semantics, therefore null is
+    /// the only extra inhabitant allowed" — measured: an enum with two empty
+    /// cases over an unowned-containing struct grows a tag byte (size 9).
+    /// Note RemoteInspection's `TypeLowering.cpp` instead claims unowned
+    /// shares the underlying reference's count — that contradicts both IRGen
+    /// and the live value-witness tables on Darwin, so the engine follows the
+    /// runtime. (An unknown-refcounting `unowned` is additionally not
+    /// bitwise-takable; the engine cannot always see the referent's ancestry,
+    /// so it models the native, takable case — a flag-only divergence that
+    /// never moves an offset.)
+    public static let unownedReference = StaticTypeLayout(
+        size: 8,
+        stride: 8,
+        alignmentMask: 7,
+        extraInhabitantCount: 1,
+        isBitwiseTakable: true
+    )
+
+    /// A thick Swift function value (`@escaping`/default convention): a
+    /// (function pointer, context pointer) pair. Extra inhabitants come from
+    /// the function-pointer word (`ThickFunctionBox` in `KnownMetadata.cpp`
+    /// takes `FunctionPointerBox::numExtraInhabitants`), which saturates at
+    /// 0x7FFF_FFFF on 64-bit Darwin like every managed pointer — so
+    /// `Optional<() -> Void>` stays 16 bytes. Bitwise-takable: moving the pair
+    /// transfers the context's ownership without any fixup (only `weak`
+    /// storage pins its address).
+    public static let thickFunction = StaticTypeLayout(
+        size: 16,
+        stride: 16,
+        alignmentMask: 7,
+        extraInhabitantCount: 0x7FFF_FFFF,
         isBitwiseTakable: true
     )
 

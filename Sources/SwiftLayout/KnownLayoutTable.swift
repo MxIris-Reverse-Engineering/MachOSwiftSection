@@ -8,10 +8,13 @@
 /// is independent of their generic arguments and must NOT be derived by
 /// expanding their internal storage fields.
 ///
-/// Extra-inhabitant counts are filled in where they are known and stable; a
-/// value of `0` means "no spare patterns assumed", which is always safe for
-/// field-offset accumulation (it only over-estimates the size of an enclosing
-/// single-payload enum, never a struct field offset).
+/// Extra-inhabitant counts are the **exact** runtime values (verified against
+/// live value-witness tables and the IRGen/runtime sources): an unsafe pointer
+/// reserves only null (1), a managed buffer reference saturates at
+/// `MaxNumExtraInhabitants` (0x7FFF_FFFF on 64-bit Darwin), and integers have
+/// none. Exactness matters beyond display — a single-payload enum's size
+/// depends on whether its empty cases fit the payload's extra inhabitants, so
+/// an under- or over-estimate here moves real field offsets.
 public enum KnownLayoutTable {
     /// Returns the frozen layout for a fully-qualified type name such as
     /// `"Swift.Int"`, or `nil` if the type is not a known fixed-layout
@@ -53,7 +56,9 @@ public enum KnownLayoutTable {
         // Boolean.
         table["Swift.Bool"] = .bool
 
-        // Raw / typed single pointers and opaque pointers — one machine word.
+        // Raw / typed single pointers and opaque pointers — one machine word
+        // whose only invalid representation is null (`Optional<Optional<…>>`
+        // of any of these is 9 bytes, unlike a managed reference's 8).
         for singlePointerName in [
             "Swift.UnsafeRawPointer",
             "Swift.UnsafeMutableRawPointer",
@@ -61,10 +66,16 @@ public enum KnownLayoutTable {
             "Swift.UnsafePointer",
             "Swift.UnsafeMutablePointer",
             "Swift.AutoreleasingUnsafeMutablePointer",
-            "Swift.Unmanaged",
+            "Swift.CVaListPointer",
         ] {
-            table[singlePointerName] = .pointerSized
+            table[singlePointerName] = .rawPointer
         }
+
+        // `Unmanaged` is `unowned(unsafe)` storage: a bare reference that
+        // still carries the full saturated heap-object extra-inhabitant count
+        // (IRGen `UNCHECKED_REF_STORAGE`: "static types have the same spare
+        // bits as managed heap objects").
+        table["Swift.Unmanaged"] = .pointerSized
 
         // Buffer pointers are a (base pointer, count) pair — two words.
         let bufferPointerLayout = StaticTypeLayout(
@@ -79,8 +90,10 @@ public enum KnownLayoutTable {
             table[bufferPointerName] = bufferPointerLayout
         }
 
-        // Standard-library reference-backed containers: a single buffer pointer
-        // regardless of element type. Must be matched before field recursion.
+        // Standard-library reference-backed containers: a single managed
+        // buffer reference regardless of element type (with the saturated
+        // heap-object extra-inhabitant count). Must be matched before field
+        // recursion.
         for singleBufferContainerName in [
             "Swift.Array",
             "Swift.ContiguousArray",

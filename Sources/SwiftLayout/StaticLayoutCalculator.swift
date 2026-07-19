@@ -231,6 +231,7 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
         var offsetAccumulator = startOffset
         var alignmentMask = startAlignmentMask
         var isBitwiseTakable = true
+        var extraInhabitantCount = 0
         var entries: [FieldLayoutEntry] = []
         entries.reserveCapacity(records.count)
         var accumulatorIsTrustworthy = true
@@ -277,6 +278,9 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
                 offsetAccumulator = alignedOffset + fieldLayout.size
                 alignmentMask = max(alignmentMask, fieldAlignmentMask)
                 isBitwiseTakable = isBitwiseTakable && fieldLayout.isBitwiseTakable
+                // Value-aggregate rule: extra inhabitants come from the field
+                // with the most (`swift_initStructMetadata`).
+                extraInhabitantCount = max(extraInhabitantCount, fieldLayout.extraInhabitantCount)
             } catch let LayoutResolutionError.unknown(reason) {
                 accumulatorIsTrustworthy = false
                 entries.append(FieldLayoutEntry(
@@ -296,7 +300,7 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
             size: size,
             stride: stride,
             alignment: alignmentMask + 1,
-            extraInhabitantCount: 0
+            extraInhabitantCount: extraInhabitantCount
         )
     }
 }

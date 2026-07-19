@@ -184,8 +184,10 @@ extension StaticTypeLayoutResolver {
     // MARK: - Containers
 
     /// An existential container of `wordCount` machine words: 8-byte aligned,
-    /// with the metadata/object word providing the standard pointer extra
-    /// inhabitants (so `Optional<any …>` stays the same size).
+    /// with the metadata/object word providing the saturated managed-pointer
+    /// extra-inhabitant count (0x7FFF_FFFF on 64-bit Darwin — measured
+    /// identically for opaque, class-bound, `Error`, and existential-metatype
+    /// containers), so `Optional<any …>` stays the same size.
     private static func existentialContainer(wordCount: Int) -> StaticTypeLayout {
         let size = 8 * wordCount
         return StaticTypeLayout(

@@ -62,19 +62,30 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
             return try tupleLayout(forNode: node, in: originImage)
         case .functionType:
             // A thick function value is a (function pointer, context pointer)
-            // pair: two words, not bitwise-takable (the context is retained).
-            return StaticTypeLayout(size: 16, stride: 16, alignmentMask: 7, extraInhabitantCount: 0, isBitwiseTakable: false)
+            // pair; its extra inhabitants come from the function-pointer word
+            // (saturated on 64-bit Darwin), so `Optional<() -> Void>` stays 16
+            // bytes instead of spilling into a tag byte.
+            return .thickFunction
         case .cFunctionPointer, .objCBlock, .escapingObjCBlock:
             // A C function pointer (`@convention(c)`/`@convention(thin)`) and an
             // Objective-C block (`@convention(block)`) are a single word — unlike
             // the thick Swift `.functionType` (function + context = 16 bytes).
-            // Modelled as one pointer; a block's reference-counted nature is not
-            // reflected in `isBitwiseTakable`, but size/stride/alignment — all
-            // field-offset computation needs — are exact.
+            // Both carry the saturated managed-pointer extra-inhabitant count
+            // (code addresses share the reserved low 4 GiB; a block is an ObjC
+            // object reference).
             return .pointerSized
-        case .weak, .unowned, .unmanaged:
-            // Reference-storage qualifiers wrap a class reference; the storage
-            // itself is one machine word.
+        case .weak:
+            // `weak` storage: one word, zero extra inhabitants (null is a legal
+            // live value), not bitwise-takable (side-table registration).
+            return .weakReference
+        case .unowned:
+            // `unowned` (safe) storage: one word with exactly one extra
+            // inhabitant (null) — the ObjC-interop-conservative IRGen lowering.
+            return .unownedReference
+        case .unmanaged:
+            // `unowned(unsafe)` storage: a bare pointer with "the same spare
+            // bits as managed heap objects" (IRGen `UNCHECKED_REF_STORAGE`) —
+            // the full saturated heap-reference count.
             return .pointerSized
         case .metatype:
             return try metatypeLayout(forNode: node)
@@ -149,12 +160,18 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
     private static func builtinPrimitiveLayout(forName builtinName: String) -> StaticTypeLayout? {
         switch builtinName {
         case "Builtin.NativeObject",
-             "Builtin.RawPointer",
-             "Builtin.RawUnsafeContinuation",
              "Builtin.BridgeObject",
-             "Builtin.UnknownObject",
-             "Builtin.Word":
+             "Builtin.UnknownObject":
+            // Managed references: the saturated heap-object count.
             return .pointerSized
+        case "Builtin.RawPointer",
+             "Builtin.RawUnsafeContinuation":
+            // Raw pointers: null is the only invalid representation.
+            return .rawPointer
+        case "Builtin.Word":
+            // A pointer-*sized* integer, not a pointer: every bit pattern is a
+            // valid value, so no extra inhabitants.
+            return .fixedWidthScalar(byteCount: 8)
         case "Builtin.Int1", "Builtin.Int8":
             return .fixedWidthScalar(byteCount: 1)
         case "Builtin.Int16":

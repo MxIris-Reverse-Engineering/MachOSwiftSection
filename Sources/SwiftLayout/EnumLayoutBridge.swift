@@ -370,19 +370,29 @@ extension StaticTypeLayoutResolver {
         }
         let alignmentMask = max(0, size - 1)
         let stride = max(1, size)
-        let totalRepresentableValues: Int
-        if size == 0 {
-            totalRepresentableValues = 1
+        let extraInhabitantCount: Int
+        if emptyCaseCount == 0 {
+            // An uninhabited enum (zero cases — `Never`, or a caseless
+            // namespace enum) is a `SingletonEnumImplStrategy` with no
+            // singleton: `getFixedExtraInhabitantCount` returns 0 (GenEnum.cpp;
+            // the runtime value-witness table agrees), not the `2^0 − 0 = 1`
+            // the tag formula below would produce.
+            extraInhabitantCount = 0
         } else {
-            totalRepresentableValues = 1 << (size * 8)
+            let totalRepresentableValues: Int
+            if size == 0 {
+                totalRepresentableValues = 1
+            } else {
+                totalRepresentableValues = 1 << (size * 8)
+            }
+            // NoPayloadEnumImplStrategy::getFixedExtraInhabitantCount saturates
+            // at ValueWitnessFlags::MaxNumExtraInhabitants — relevant for the
+            // 4-byte tag (> 65536 cases), where the raw count exceeds the cap.
+            extraInhabitantCount = min(
+                max(0, totalRepresentableValues - emptyCaseCount),
+                EnumLayoutCalculator.maximumExtraInhabitantCount
+            )
         }
-        // NoPayloadEnumImplStrategy::getFixedExtraInhabitantCount saturates at
-        // ValueWitnessFlags::MaxNumExtraInhabitants — relevant for the 4-byte
-        // tag (> 65536 cases), where the raw count exceeds the cap.
-        let extraInhabitantCount = min(
-            max(0, totalRepresentableValues - emptyCaseCount),
-            EnumLayoutCalculator.maximumExtraInhabitantCount
-        )
         return StaticTypeLayout(
             size: size,
             stride: stride,
