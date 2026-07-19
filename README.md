@@ -191,6 +191,10 @@ swift-section dump --emit-expanded-field-offsets /path/to/binary
 
 # Enum layout (strategy / per-case / spare bits)
 swift-section dump --emit-enum-layout /path/to/binary
+
+# Enum layout with a different comment style — detailed (default), explained
+# (bit ranges in plain words), standard (no per-byte lines), or compact
+swift-section dump --emit-enum-layout --enum-layout-style explained /path/to/binary
 ```
 
 These offsets are computed statically by the `SwiftLayout` engine — no runtime,
