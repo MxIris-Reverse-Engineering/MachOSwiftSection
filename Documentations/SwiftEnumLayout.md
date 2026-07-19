@@ -303,6 +303,25 @@ Two special relatives:
 
 Exactly one payload case, `N` empty cases. This is `Optional`'s strategy and the most common in real binaries.
 
+The encoding has a strict two-level priority:
+
+```
+1. Extra inhabitants (XI)  — invalid payload bit patterns, inside the payload area, zero cost
+2. Overflow                — extra tag bytes appended after the payload area
+```
+
+Memory shape:
+
+```
+XI-only form (enough inhabitants):     Overflow form (inhabitants ran out):
+┌───────────────────────────┐          ┌───────────────────────────┬─────────────────┐
+│   payload area (P bytes)  │          │   payload area (P bytes)  │ extra tag bytes │
+│   payload value or        │          │   payload value or        │ (0 = "valid     │
+│   XI pattern              │          │   overflow index          │  payload / XI") │
+└───────────────────────────┘          └───────────────────────────┴─────────────────┘
+size = P                               size = P + numTagBytes
+```
+
 #### 2.5.1 The size decision
 
 The runtime's metadata instantiation states it exactly ([`stdlib/public/runtime/Enum.cpp:138-146`](https://github.com/swiftlang/swift/blob/swift-6.3.3-RELEASE/stdlib/public/runtime/Enum.cpp#L138-L146)):
@@ -334,6 +353,7 @@ An extra inhabitant is a full-width bit pattern the payload type never produces.
 | Thick functions (`() -> Void`) | `0x7FFF_FFFF` on the code-pointer word | invalid function addresses |
 | `Int`, `UInt8`, `Double`, … | 0 | — |
 | `weak` references | 0 | — |
+| `Optional<UInt8>` | 0 — **not 254!** | an overflowed single-payload enum keeps only its payload's leftover XI (`UInt8` has none); the unused values in its tag byte are deliberately not offered (see 3.1) |
 | Another enum | its leftover XI | that enum's unused tag encodings |
 
 The heap-reference count is worth deriving once, because it recurs everywhere. [`include/swift/Runtime/Metadata.h:925-939`](https://github.com/swiftlang/swift/blob/swift-6.3.3-RELEASE/include/swift/Runtime/Metadata.h#L925-L939):
@@ -384,6 +404,17 @@ Int??   // 10 bytes  (each layer appends a byte)
 Int???  // 11 bytes
 ```
 
+**Where these numbers live: the value witness table (VWT).** Every type's runtime metadata carries a VWT with four layout fields:
+
+| Field | Meaning |
+|---|---|
+| `size` | the value's meaningful extent in bytes |
+| `stride` | `size` rounded up to alignment — the distance between array elements |
+| `flags` | alignment, bitwise-takability, "has enum witnesses", … |
+| `extraInhabitantCount` | how many XI patterns the type still offers |
+
+The count an enum consumes is read from the **payload type's** VWT. The enum's own VWT then publishes the *remainder* — which is exactly what the next enum layer wrapping it will read. `ThreeBools` above reads 254 from `Bool`'s VWT, spends 2, and publishes 252 in its own.
+
 #### 2.5.3 Case encoding
 
 The single-payload store/load logic lives in `storeEnumTagSinglePayloadImpl` / `getEnumTagSinglePayloadImpl` ([`stdlib/public/runtime/EnumImpl.h:141-190`](https://github.com/swiftlang/swift/blob/swift-6.3.3-RELEASE/stdlib/public/runtime/EnumImpl.h#L141-L190) / [`EnumImpl.h:102-139`](https://github.com/swiftlang/swift/blob/swift-6.3.3-RELEASE/stdlib/public/runtime/EnumImpl.h#L102-L139)). Cases are numbered payload = 0, then empty cases 1…N. Three encodings:
@@ -406,6 +437,24 @@ if (payloadSize >= 4) {
 }
 ```
 
+All three encodings in one pseudocode summary — the XI-first split is what makes a *hybrid* layout when both mechanisms are active:
+
+```
+numXICases       = min(numEmptyCases, payloadXI)      // these empty cases become XI patterns
+numOverflowCases = numEmptyCases − numXICases         // these need the extra tag bytes
+extraTagBytes    = numOverflowCases == 0 ? 0
+                 : getEnumTagCounts(payloadSize, numOverflowCases, 1).numTagBytes
+
+// overflow case number overflowIndex (0-based):
+if payloadSize >= 4:
+    tagValue     = 1
+    payloadValue = overflowIndex
+else:
+    payloadBits  = payloadSize * 8
+    tagValue     = 1 + (overflowIndex >> payloadBits)
+    payloadValue = overflowIndex & ((1 << payloadBits) − 1)
+```
+
 Verified against a small-payload overflow enum:
 
 ```swift
@@ -415,8 +464,9 @@ enum SP_U8 {
     case e1
     case e2
 }
-// UInt8 has 0 XI, so all three empty cases overflow.
-// size=2:  [payload byte | tag byte]
+// Trace: payloadXI = 0 → numXICases = 0, numOverflowCases = 3
+//        getEnumTagCounts(1, 3, 1): casesPerTag = 2^8 = 256 → numTags = 2 → 1 tag byte
+//        size = 1 + 1 = 2:  [payload byte | tag byte]
 // .p(0x2A) = [2a | 00]
 // .e0      = [00 | 01]     caseIndex 0 → tag 1, payload 0
 // .e1      = [01 | 01]     caseIndex 1 → tag 1, payload 1
@@ -438,7 +488,35 @@ Two or more payload cases whose types leave common **spare bits** — bits that 
 
 The canonical source is pointers. On arm64 Darwin, a Swift heap reference's spare-bit mask is `0xF000_0000_0000_0007` ([`shims/System.h:166`](https://github.com/swiftlang/swift/blob/swift-6.3.3-RELEASE/stdlib/public/SwiftShims/swift/shims/System.h#L166)): the top nibble (no meaningful address space there) plus the low 3 bits (heap objects are at least 8-byte aligned). References that may hold Objective-C objects give up the top bit — the ObjC tagged-pointer bit ([`shims/System.h:170`](https://github.com/swiftlang/swift/blob/swift-6.3.3-RELEASE/stdlib/public/SwiftShims/swift/shims/System.h#L170)) — but references to Swift-native classes keep all 7. Other sources: `Bool` contributes bits 1–7, and a nested enum's unused tag encodings can surface as spare bits too.
 
-#### 2.6.2 The layout algorithm
+#### 2.6.2 Warm-up: the scatter operation
+
+The word "scatter" appears everywhere below. `scatterBits(mask, value)` deposits `value`'s bits into the mask's set positions — the lowest bit of `value` goes into the lowest set bit of the mask, and so on upward:
+
+```
+mask = 0b1000_0001            (bit 0 and bit 7 are set)
+
+store value 3 (0b11):  bit 0 of value → bit 0 = 1
+                       bit 1 of value → bit 7 = 1
+                       result = 0b1000_0001
+
+store value 2 (0b10):  bit 0 of value → bit 0 = 0
+                       bit 1 of value → bit 7 = 1
+                       result = 0b1000_0000
+```
+
+A payload case scatters its tag into the selected spare bits. An empty case additionally scatters its index into the occupied bits, and the two results are ORed together.
+
+#### 2.6.3 The layout algorithm
+
+The memory shape being built:
+
+```
+┌────────────────────────────────────────┬─────────────────┐
+│  payload area (largest payload)        │ extra tag bytes │
+│  [spare bits → tag] [occupied → data]  │ (only if spare  │
+│                                        │  bits run out)  │
+└────────────────────────────────────────┴─────────────────┘
+```
 
 `MultiPayloadEnumImplStrategy::completeFixedLayout` ([`GenEnum.cpp:7152-7304`](https://github.com/swiftlang/swift/blob/swift-6.3.3-RELEASE/lib/IRGen/GenEnum.cpp#L7152-L7304)) proceeds:
 
@@ -459,7 +537,16 @@ The canonical source is pointers. On arm64 Darwin, a Swift heap reference's spar
    numTagBits = ceil(log2(numTags))
    ```
 
-4. **Place the tag.** If `numTagBits` fit in the common spare bits, select that many spare bits **starting from the most significant** (`GenEnum.cpp:7286-7302`) — these become `PayloadTagBits`. Otherwise use *all* spare bits and append `numTagBits − spareBitCount` extra tag bits, rounded up to whole bytes (the hybrid form, `GenEnum.cpp:7232-7247`).
+4. **Place the tag.** If `numTagBits` fit in the common spare bits, select that many spare bits **starting from the most significant** (`GenEnum.cpp:7286-7302`) — these become `PayloadTagBits`. Otherwise use *all* spare bits and append `numTagBits − spareBitCount` extra tag bits, rounded up to whole bytes (the hybrid form, `GenEnum.cpp:7232-7247`):
+
+   ```
+   if numTagBits <= commonSpareBitCount:
+       PayloadTagBits = keepMostSignificant(CommonSpareBits, numTagBits)
+       extraTagBytes  = 0
+   else:
+       PayloadTagBits = CommonSpareBits              // use every spare bit
+       extraTagBytes  = ceil((numTagBits − commonSpareBitCount) / 8)
+   ```
 
 5. **Encode.** For a **payload case**, the tag value is *scattered* into the selected tag bits (low tag bit goes to the lowest selected bit); the occupied bits carry the live payload. For an **empty case**, tag and empty-case index are scattered into a **zero** payload — `getEmptyCasePayload` ([`GenEnum.cpp:4063-4073`](https://github.com/swiftlang/swift/blob/swift-6.3.3-RELEASE/lib/IRGen/GenEnum.cpp#L4063-L4073)):
 
@@ -470,7 +557,17 @@ The canonical source is pointers. On arm64 Darwin, a Swift heap reference's spar
 
    Because the base is a zero `APInt`, **every payload bit of an empty case is fixed** — spare bits carry the tag, occupied bits carry the index, and everything else is zero.
 
-#### 2.6.3 Worked example: two class payloads
+   In formula form:
+
+   ```
+   payload case:  memory = scatterBits(PayloadTagBits, tag) | live payload bits
+                  extra tag bytes (if any) = tag >> numPayloadTagBits
+   empty case:    memory = scatterBits(PayloadTagBits, tag) | scatterBits(occupiedBits, index)
+                  with   tag   = numPayloadCases + (emptyIndex >> occupiedBitCount)   // one shared tag once occupiedBits ≥ 32
+                         index = emptyIndex & ((1 << occupiedBitCount) − 1)
+   ```
+
+#### 2.6.4 Worked example: two class payloads
 
 ```swift
 final class Renderer {
@@ -492,6 +589,7 @@ enum Backend {
 - CommonSpareBits = `0xF000_0000_0000_0007` (7 bits; Swift-native class references).
 - Occupied bits = 57 ≥ 32, so all empty cases share one tag → numTags = 3.
 - numTagBits = 2 → selected from the most significant spare bits: **bits 63, 62**.
+- The tag fits entirely inside the spare bits — no extra tag bytes, size stays 8.
 - Encodings (verified — the byte-7 values below are real):
 
 ```
@@ -503,7 +601,7 @@ enum Backend {
 
 Note `.disabled`'s index lands on **bit 3** — the lowest *occupied* bit, since bits 0–2 are spare. Scatter operations address positions within their mask, not absolute bit positions.
 
-#### 2.6.4 Worked example: sub-byte spare bits
+#### 2.6.5 Worked example: sub-byte spare bits
 
 Spare bits do not require pointers:
 
@@ -528,7 +626,7 @@ enum BoolPair {
 
 This example is why byte-granular layout descriptions are wrong for spare-bits enums: byte 0 of case `a` is **not** "always `0x00`" — only bits 7–1 are fixed, bit 0 belongs to the payload. Tooling must track per-bit masks ([Part 3.3](#33-bit-level-anatomy-of-the-spare-bits-layout)).
 
-#### 2.6.5 The enum's own extra inhabitants
+#### 2.6.6 The enum's own extra inhabitants
 
 Unused tag encodings become the enum's XI — `MultiPayloadEnumImplStrategy::getFixedExtraInhabitantCount` ([`GenEnum.cpp:5843-5852`](https://github.com/swiftlang/swift/blob/swift-6.3.3-RELEASE/lib/IRGen/GenEnum.cpp#L5843-L5852)):
 
@@ -562,6 +660,16 @@ When payloads share no spare bits — or the layout must be reproducible by the 
 
 #### 2.7.2 The layout
 
+Memory shape:
+
+```
+┌────────────────────────────────────────┬─────────────────┐
+│  payload area (P = largest payload)    │  tag (T bytes)  │
+│  payload value, or empty-case index    │                 │
+└────────────────────────────────────────┴─────────────────┘
+size = P + T
+```
+
 From `swift_initEnumMetadataMultiPayload`:
 
 ```
@@ -577,6 +685,19 @@ XI   = min(XI, MaxNumExtraInhabitants)
 
 `swift_storeEnumTagMultiPayload` ([`Enum.cpp:677-701`](https://github.com/swiftlang/swift/blob/swift-6.3.3-RELEASE/stdlib/public/runtime/Enum.cpp#L677-L701)): a payload case stores its case index in the tag bytes and uses the payload area freely. An empty case stores `numPayloads + (emptyIndex >> payloadBits)` in the tag bytes and **zero-extends the low bits of `emptyIndex` across the whole payload area** — `storeMultiPayloadValue` delegates to `storeEnumElement` ([`EnumImpl.h:27-62`](https://github.com/swiftlang/swift/blob/swift-6.3.3-RELEASE/stdlib/public/runtime/EnumImpl.h#L27-L62)), whose `memset(&dst[4], 0, size - 4)` zeroes everything past the stored word. Every payload byte of an empty case is therefore fixed — the read side (`swift_getEnumCaseMultiPayload`, `Enum.cpp:704-725`) loads it back to discriminate.
 
+In formula form:
+
+```
+payload case:  tag bytes    = caseIndex
+               payload area = the payload value (free-form)
+empty case:    if payloadSize >= 4:
+                   tag bytes    = numPayloadCases
+                   payload area = emptyIndex, zero-extended across all P bytes
+               else:
+                   tag bytes    = numPayloadCases + (emptyIndex >> payloadBits)
+                   payload area = emptyIndex & ((1 << payloadBits) − 1)
+```
+
 Verified:
 
 ```swift
@@ -585,7 +706,9 @@ enum TwoU32 {
     case b(UInt32)
     case e0
 }
-// size 5
+// Trace: payloadSize = 4, payloadCases = 2, emptyCases = 1
+//        getEnumTagCounts(4, 1, 2): payloadSize ≥ 4 → numTags = 2 + 1 = 3 → 1 tag byte
+//        size = 4 + 1 = 5
 // .a(1000) = [e8 03 00 00 | 00]
 // .b(0)    = [00 00 00 00 | 01]
 // .e0      = [00 00 00 00 | 02]      whole payload area zeroed
@@ -628,6 +751,18 @@ No tag bytes, ever — there are two billion inhabitants to spend. (Getting this
 ### 2.9 Byte order
 
 All tag values, empty-case indexes, and multi-byte fixed patterns are stored **little-endian** on Apple platforms (the `storeEnumElement` / `loadEnumElement` helpers handle the general case). A 2-byte tag value `0x0102` appears in memory as `[02 01]`.
+
+### 2.10 The three strategies side by side
+
+| | Multi-payload spare-bits | Tagged multi-payload | Single-payload |
+|---|---|---|---|
+| Payload cases | ≥ 2, fixed layout, common spare bits exist | ≥ 2 — no common spare bits, or generic/resilient | exactly 1 |
+| Tag location | selected spare bits inside the payload area (+ extra tag bytes only if they run out) | extra tag bytes after the payload area | XI patterns inside the payload area; extra tag bytes once XI run out |
+| Size overhead | usually 0 | numTagBytes (1/2/4) | 0 while XI last, then numTagBytes |
+| Empty-case encoding | tag → spare bits, index → occupied bits, every other bit 0 | tag bytes = tag; payload area = index, zero-extended | the payload's XI pattern #k; or tag bytes + index |
+| Enum's own XI | `2^tagBits − numTags`, patterns counting down from all-ones | `2^(8·numTagBytes) − numTags`, tag bytes counting down from `0xFF` | the payload's leftover XI only — appended tag bytes contribute nothing |
+| Typical payloads | class references, nested enums with headroom | integers, mixed payloads, any generic enum | anything (this is `Optional`) |
+| Source entry point | `GenEnum.cpp` `MultiPayloadEnumImplStrategy` | `Enum.cpp` `swift_initEnumMetadataMultiPayload` | `EnumImpl.h` `storeEnumTagSinglePayloadImpl` |
 
 ---
 
@@ -681,7 +816,7 @@ Observations:
 
 ### 3.3 Bit-level anatomy of the spare-bits layout
 
-The scatter operation is the heart. `scatterBits(mask, value)` deposits `value`'s bits into the mask's set positions, lowest-to-lowest:
+The scatter operation (introduced in 2.6.2) is the heart of this layout. Here it is again on `BoolPair`'s real tag bits:
 
 ```
 mask  = 0b1100_0000  (BoolPair's two tag bits: 7 and 6)
@@ -740,7 +875,7 @@ This project implements the ABI twice, for two different trust models.
 
 Used when the enum's metadata is loaded in-process (`MachOImage`). Pipeline (in `RuntimeFieldLayoutBackend` + `SwiftInspection`):
 
-1. **Formulas first.** `EnumLayoutCalculator` (in `Sources/SwiftInspection/EnumLayoutCalculator.swift`) is a line-audited port of the algorithms in Part 2 — `calculateSinglePayload`, `calculateMultiPayload` (spare bits, from the `__swift5_mpenum` mask), `calculateTaggedMultiPayload`. It produces per-case projections including per-byte **fixed-bit masks** (3.3) and per-strategy XI counts (2.6.5, 2.7.4).
+1. **Formulas first.** `EnumLayoutCalculator` (in `Sources/SwiftInspection/EnumLayoutCalculator.swift`) is a line-audited port of the algorithms in Part 2 — `calculateSinglePayload`, `calculateMultiPayload` (spare bits, from the `__swift5_mpenum` mask), `calculateTaggedMultiPayload`. It produces per-case projections including per-byte **fixed-bit masks** (3.3) and per-strategy XI counts (2.6.6, 2.7.4).
 2. **Payload XI from the real VWT.** The payload's XI count is read from its live value witness table. An `indirect` payload is special-cased to the heap-object count `0x7FFF_FFFF` (2.5.2). If the payload type cannot be resolved, the count is *inverted* from the enum's own VWT: for a payload-sized layout, `payloadXI = enumXI + emptyCases` exactly reverses the runtime's subtraction (2.5.1) — and for an overflow layout it is not invertible, so the layout is dropped rather than guessed.
 3. **Exact patterns from the witnesses.** `RuntimeEnumCaseProjector` (`Sources/SwiftInspection/RuntimeEnumCaseProjector.swift`) resolves XI patterns (3.4) by *running* the enum's own `destructiveInjectEnumTag` witness twice per case — once into an all-`0x00` buffer, once into all-`0xFF` — and keeping the bytes both runs agree on: those were deterministically written. Empty cases must round-trip through `getEnumTag`, or the projection is rejected. (The dual-baseline trick is valid precisely because single-payload injection *stores* patterns; a spare-bits injection ORs, so that strategy takes its patterns from the mask instead.)
 4. **Cross-check against ground truth.** The assembled layout's implied total size must equal the enum VWT's size, or the layout is discarded — derived inputs (payload sizes, spare masks) can be subtly wrong, and a confident wrong answer is worse than none.
@@ -759,7 +894,7 @@ Used for `MachOFile` (no process). `EnumLayoutBridge` (`Sources/SwiftLayout/Enum
 Distilled from auditing this project's implementation line-by-line against the sources above — each of these was either a real bug found here or a trap the sources themselves warn about:
 
 1. **`indirect` single-payload enums are XI layouts, not overflow layouts.** The payload is a box pointer with `0x7FFF_FFFF` inhabitants. Deriving "0 XI" from an unresolvable payload type produces out-of-bounds tag regions and self-contradictory dumps (2.8).
-2. **Empty cases fix the *entire* payload area.** Tagged: zero-extension (`storeEnumElement`'s `memset`); spare-bits: zero-`APInt` scatter. Recording only `ceil(log2(N))` bits invites "the other bytes are arbitrary" misreads (2.6.2, 2.7.3).
+2. **Empty cases fix the *entire* payload area.** Tagged: zero-extension (`storeEnumElement`'s `memset`); spare-bits: zero-`APInt` scatter. Recording only `ceil(log2(N))` bits invites "the other bytes are arbitrary" misreads (2.6.3, 2.7.3).
 3. **Spare-bits payload cases must be described per-bit, not per-byte.** A byte can host tag bits *and* live payload bits simultaneously (`BoolPair`, 3.3).
 4. **Saturation applies twice.** Heap-reference XI saturates at `INT_MAX` (`Metadata.h:925`), and every strategy's XI formula caps at `MaxNumExtraInhabitants` (`MetadataValues.h:183`). Approximating either (a hardcoded 4096, an uncapped `1 << bits`) mis-sizes real enums.
 5. **The small-payload threshold is 4 bytes, not pointer size** — in `getEnumTagCounts`, in overflow factoring, in the runtime's load window (2.3, 3.2).
