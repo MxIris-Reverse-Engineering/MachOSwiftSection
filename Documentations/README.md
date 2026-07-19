@@ -6,10 +6,15 @@ Documentation is split by audience.
 
 Public, reference-style documentation. Bilingual (English + 中文).
 
-- **[Swift Enum Memory Layout Internals](SwiftEnumLayout.md)** — a deep dive into how the
-  Swift runtime lays out enums in memory: single-payload, multi-payload, spare-bit / tag
-  strategies, extra inhabitants. General reference, not tied to this project's internals.
-  - 中文版：**[Swift Enum 内存布局内部机制](SwiftEnumLayout_zh.md)**
+- **[Swift Enum Memory Layout — From First Principles to Mastery](SwiftEnumLayout.md)** —
+  a three-part guide to how Swift lays out enums in memory. Part 1 is a practical guide
+  (size prediction, cheat sheet, reading `swift-section --emit-enum-layout` output);
+  Part 2 derives the three layout strategies (single-payload / spare-bits / tagged, extra
+  inhabitants, exact case encodings) with probe-verified byte dumps; Part 3 dissects the
+  implementation across the Swift sources (all citations pinned to `swift-6.3.3-RELEASE`
+  with file:line links) and explains how this project's runtime and static engines
+  implement the same ABI. General reference — useful beyond this project.
+  - 中文版：**[Swift Enum 内存布局 —— 从入门到精通](SwiftEnumLayout_zh.md)**
 
 This is the only documentation aimed at an outside audience. Everything under
 [`Internal/`](Internal/) is maintainer-facing.
