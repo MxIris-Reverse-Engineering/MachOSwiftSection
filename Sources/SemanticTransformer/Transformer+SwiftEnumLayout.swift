@@ -105,6 +105,10 @@ extension Transformer.SwiftEnumLayout {
         /// Per-case header + encoding sentence + one-line fixed-byte summary;
         /// no per-byte detail lines.
         case standard
+        /// One line per case with the fixed-byte summary inline after the
+        /// header — ``Case 1 `implicit` (empty case #0): bytes[0x8..<0x10] =
+        /// 0x1`` — and a short strategy line; no per-byte detail lines.
+        case inline
         /// One line per case, one short strategy line; no byte information.
         case compact
 
@@ -114,6 +118,7 @@ extension Transformer.SwiftEnumLayout {
             case .detailed: .detailed
             case .explained: .explained
             case .standard: .standard
+            case .inline: .inline
             case .compact: .compact
             }
         }
@@ -143,6 +148,16 @@ extension Transformer.SwiftEnumLayout {
         template: Templates.caseBreakdown,
         caseTemplate: CaseTemplates.summaryOnly,
         memoryOffsetTemplate: MemoryOffsetTemplates.libraryDefault
+    )
+
+    /// One line per case with the fixed-byte summary inline; short strategy
+    /// line; no per-byte detail lines.
+    public static let inline = Transformer.SwiftEnumLayout(
+        isEnabled: true,
+        template: Templates.strategyOnly,
+        caseTemplate: CaseTemplates.inlineSummary,
+        memoryOffsetTemplate: MemoryOffsetTemplates.libraryDefault,
+        appendsOmittedDetails: false
     )
 
     /// One line per case, one short strategy line.
@@ -307,6 +322,22 @@ extension Transformer.SwiftEnumLayout {
             }
             return "fixed bytes: \(fixedBytesSummary)"
         }
+
+        /// A colon-friendly inline byte summary for single-line templates
+        /// (`${fixedBytesPhrase}`): the run-compressed fixed bytes when known
+        /// (`bytes[0x8..<0x10] = 0x1`), an honest fallback otherwise.
+        public var fixedBytesPhrase: String {
+            if memoryChanges.isEmpty {
+                if isPatternUnresolved {
+                    return "fixed bytes not resolved offline"
+                }
+                if isPayloadCase {
+                    return "no fixed bytes — holds the payload; any pattern no empty case claims selects it"
+                }
+                return "no fixed bytes recorded"
+            }
+            return fixedBytesSummary
+        }
     }
 }
 
@@ -386,6 +417,7 @@ extension Transformer.SwiftEnumLayout {
         )
         rendered = rendered.replacingOccurrences(of: CaseToken.fixedBytesSummary.placeholder, with: input.fixedBytesSummary)
         rendered = rendered.replacingOccurrences(of: CaseToken.fixedBytesLine.placeholder, with: input.fixedBytesLine)
+        rendered = rendered.replacingOccurrences(of: CaseToken.fixedBytesPhrase.placeholder, with: input.fixedBytesPhrase)
         rendered = rendered.replacingOccurrences(of: CaseToken.memoryChangeCount.placeholder, with: formatNumeric(input.memoryChanges.count))
         if rendered.contains(CaseToken.memoryChangesDetail.placeholder) {
             rendered = rendered.replacingOccurrences(
@@ -404,7 +436,7 @@ extension Transformer.SwiftEnumLayout {
                !containsCase(.patternNote), !containsCase(.patternNoteLine) {
                 lines += "\nnote: \(input.patternNote)"
             }
-            if !containsCase(.fixedBytesSummary), !containsCase(.fixedBytesLine), !containsCase(.memoryChangesDetail) {
+            if !containsCase(.fixedBytesSummary), !containsCase(.fixedBytesLine), !containsCase(.fixedBytesPhrase), !containsCase(.memoryChangesDetail) {
                 lines += "\n" + input.fixedBytesLine
                 let detail = memoryChangesDetail(for: input)
                 if !detail.isEmpty {
@@ -621,6 +653,11 @@ extension Transformer.SwiftEnumLayout {
         /// `fixed bytes: …` — always meaningful (falls back to the built-in
         /// "none …" wordings when the case fixes no bytes).
         case fixedBytesLine
+        /// A colon-friendly inline byte summary: the run-compressed fixed
+        /// bytes when known (`bytes[0x8..<0x10] = 0x1`), otherwise an honest
+        /// fallback ("no fixed bytes — holds the payload; …" / "fixed bytes
+        /// not resolved offline" / "no fixed bytes recorded").
+        case fixedBytesPhrase
         case memoryChangeCount
         /// One line per fixed byte, rendered through the memory-offset
         /// template and indented by four spaces; empty when none.
@@ -648,6 +685,7 @@ extension Transformer.SwiftEnumLayout {
             case .patternNoteLine: "Pattern Note Line (Conditional)"
             case .fixedBytesSummary: "Fixed Bytes Summary"
             case .fixedBytesLine: "Fixed Bytes Line"
+            case .fixedBytesPhrase: "Fixed Bytes Phrase (Inline)"
             case .memoryChangeCount: "Memory Change Count"
             case .memoryChangesDetail: "Memory Changes Detail"
             }
@@ -781,6 +819,10 @@ extension Transformer.SwiftEnumLayout {
         /// One line per case: "[0x01] `caseName` — payload case, tag 1"
         public static let compactLine = "[${caseHex}] `${declaredName}` — ${caseType}, tag ${tagValue}"
 
+        /// One line per case with the byte summary inline:
+        /// "Case 1 `implicit` (empty case #0): bytes[0x8..<0x10] = 0x1"
+        public static let inlineSummary = "Case ${caseIndex} `${declaredName}` (${caseName}): ${fixedBytesPhrase}"
+
         /// The pre-0.13 style: "Case 0 (0x00) - payload case:\nTag: 0"
         public static let classic = "Case ${caseIndex} (${caseHex}) - ${caseName}:\nTag: ${tagValue}"
 
@@ -809,6 +851,7 @@ extension Transformer.SwiftEnumLayout {
             ("Standard", standard),
             ("Summary Only", summaryOnly),
             ("Compact Line", compactLine),
+            ("Inline Summary", inlineSummary),
             ("Classic", classic),
             ("Verbose", verbose),
             ("Index Only", indexOnly),

@@ -78,7 +78,7 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
     @Flag(help: "Generate enum layout (strategy/per-case/spare-bit) comments, computed statically via SwiftLayout")
     var emitEnumLayout: Bool = false
 
-    @Option(help: "The comment style for --emit-enum-layout: detailed (default; byte masks), explained (bit ranges in plain words), standard (no per-byte lines), or compact (one line per case).")
+    @Option(help: "The comment style for --emit-enum-layout: detailed (default; byte masks), explained (bit ranges in plain words), standard (no per-byte lines), inline (one line per case with the byte summary), or compact (one line per case).")
     var enumLayoutStyle: Transformer.SwiftEnumLayout.Preset = .detailed
 
     @Flag(help: "Expand nested struct fields with their absolute offsets (implies --emit-field-offsets)")

@@ -128,6 +128,46 @@ struct EnumLayoutCommentTemplateTests {
         )
     }
 
+    @Test func inlinePresetRendersByteSummaryAfterTheHeader() {
+        // Exact bytes: the run-compressed summary lands inline after the colon.
+        #expect(
+            Transformer.SwiftEnumLayout.inline.renderCaseComment(for: Self.emptyCase)
+                == "Case 2 `none` (empty case #0): bytes[0x8..<0xa] = 0x1"
+        )
+        // Spare-bits payload case: the mask-scoped summary, still one line.
+        #expect(
+            Transformer.SwiftEnumLayout.inline.renderCaseComment(for: Self.sparBitsPayloadCase)
+                == "Case 1 `foregroundKeyColor` (payload case #1): byte[0x0] & 0b00000111 = 0b00000000, byte[0x7] & 0b11110000 = 0b01000000"
+        )
+        #expect(
+            Transformer.SwiftEnumLayout.inline.renderStrategyComment(for: Self.layoutResult)
+                == "Multi-Payload (Spare Bits)"
+        )
+    }
+
+    @Test func inlinePresetFallsBackHonestlyWhenBytesAreUnknown() {
+        // Offline unresolved extra-inhabitant pattern: no fabricated bytes,
+        // and no auto-appended note (the preset opts out).
+        #expect(
+            Transformer.SwiftEnumLayout.inline.renderCaseComment(for: Self.unresolvedCase)
+                == "Case 3 `sentinel` (empty case #1): fixed bytes not resolved offline"
+        )
+        // Single-payload payload case: the selection-rule wording.
+        let bareCase = EnumLayoutCalculator.EnumCaseProjection(
+            caseIndex: 0,
+            caseName: "payload case",
+            declaredName: "explicit",
+            isPayloadCase: true,
+            tagValue: 0,
+            payloadValue: 0,
+            memoryChanges: [:]
+        )
+        #expect(
+            Transformer.SwiftEnumLayout.inline.renderCaseComment(for: bareCase)
+                == "Case 0 `explicit` (payload case): no fixed bytes — holds the payload; any pattern no empty case claims selects it"
+        )
+    }
+
     // MARK: - Conditional line-tokens
 
     @Test func emptyConditionalLinesAreDropped() {
