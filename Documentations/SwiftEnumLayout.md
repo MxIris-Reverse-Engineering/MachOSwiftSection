@@ -151,6 +151,7 @@ swift-section dump --emit-enum-layout /path/to/binary
 # or, with progressively terser comment styles:
 swift-section dump --emit-enum-layout --enum-layout-style explained ...
 swift-section dump --emit-enum-layout --enum-layout-style standard ...
+swift-section dump --emit-enum-layout --enum-layout-style inline ...
 swift-section dump --emit-enum-layout --enum-layout-style compact ...
 ```
 
@@ -934,13 +935,14 @@ In this repository:
 
 ## Appendix: Comment rendering — templates and presets
 
-The comments `swift-section dump --emit-enum-layout` (and the library renderers) emit are driven by a token template, `Transformer.SwiftEnumLayout` (in the `SemanticTransformer` module). Three template levels mirror the comment structure — the type-level strategy line, the per-case block, and the per-fixed-byte line — with `${token}` placeholders (the same names RuntimeViewerCore's transformer UI uses). Four presets ship built in, selectable on the CLI via `--enum-layout-style`:
+The comments `swift-section dump --emit-enum-layout` (and the library renderers) emit are driven by a token template, `Transformer.SwiftEnumLayout` (in the `SemanticTransformer` module). Three template levels mirror the comment structure — the type-level strategy line, the per-case block, and the per-fixed-byte line — with `${token}` placeholders (the same names RuntimeViewerCore's transformer UI uses). Five presets ship built in, selectable on the CLI via `--enum-layout-style`:
 
 | Preset | Per-byte lines | Style |
 |---|---|---|
 | `detailed` (default) | yes | The full built-in rendering; partially-fixed bytes use binary masks (`fixed bits 0b11110000 = 0b01000000`) |
 | `explained` | yes | Same information, but partially-fixed bytes are narrated as bit ranges: `bits 7-4 are always 0100; the other bits (3-0) hold payload data` |
 | `standard` | no | Case header + encoding sentence + one-line fixed-byte summary |
-| `compact` | no | One line per case: `` [0x01] `caseName` — payload case, tag 1 `` |
+| `inline` | no | One line per case with the byte summary inline: `` Case 1 `implicit` (empty case #0): bytes[0x8..<0x10] = 0x1 `` |
+| `compact` | no | One line per case, no byte information: `` [0x01] `caseName` — payload case, tag 1 `` |
 
 Library users call `applyTransformers(_:)` on `DeclarationRenderConfiguration` or `SwiftDeclarationPrintConfiguration` with a `Transformer.SwiftConfiguration` whose `swiftEnumLayout` is a preset (`Transformer.SwiftEnumLayout.Preset`) or a custom module; the same mechanism covers the field-offset / type-layout / member-address / vtable-offset comment templates. The `detailed` preset is guaranteed identical to the built-in default rendering by unit test, so the default output never drifts.

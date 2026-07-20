@@ -24,7 +24,9 @@ transformer 包一层模板重渲染。用户定案：**模板机制整体搬进
     size/stride/alignment/XI 但不知道 VWT flags，缺失 token 渲染为 `"unknown"`）
   - `SwiftEnumLayout`（三层模板：策略行 / 逐 case 块 / 逐字节行；吸收了前一轮
     `EnumLayoutCommentTemplate` 的引擎——line-token 条件行 + 空行丢弃 +
-    `fixedBitsPhrase` 位区间叙述 + 4 个预设 detailed/explained/standard/compact）
+    `fixedBitsPhrase` 位区间叙述 + 5 个预设 detailed/explained/standard/inline/
+    compact。`inline` 为迁移后按用户反馈追加：每 case 一行、字节摘要经冒号友好的
+    `${fixedBytesPhrase}` token 内联在头部之后，无逐字节行）
 - **ObjC 侧暂留 RV**（用户指示）：`CType`（C 原语替换，依赖 `Semantic` 的
   `SemanticString`）、`ObjCIvarOffset`、`ObjCConfiguration` 与聚合持久化
   `Configuration` 保留在 RuntimeViewerCore，以「扩展库侧 `Transformer`
