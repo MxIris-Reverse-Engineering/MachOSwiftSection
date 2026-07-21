@@ -22,10 +22,27 @@ public struct ABIDiffer: Sendable {
         diff(old: snapshot(of: old), new: snapshot(of: new))
     }
 
+    /// Diff two persisted baselines, carrying each document's provenance onto
+    /// the result so reports can name the binaries they describe.
+    public func diff(old: ABISnapshotDocument, new: ABISnapshotDocument) -> ABIDiff {
+        diff(
+            old: old.snapshot,
+            new: new.snapshot,
+            oldProvenance: old.provenance,
+            newProvenance: new.provenance
+        )
+    }
+
     /// Diff two frozen snapshots. Pure value-data computation — no model, no
     /// Mach-O — so it is fully unit-testable and runs against persisted
-    /// baselines.
-    public func diff(old: ABISnapshot, new: ABISnapshot) -> ABIDiff {
+    /// baselines. The optional provenances are stamped onto the result verbatim
+    /// (they never affect the comparison).
+    public func diff(
+        old: ABISnapshot,
+        new: ABISnapshot,
+        oldProvenance: ABIProvenance? = nil,
+        newProvenance: ABIProvenance? = nil
+    ) -> ABIDiff {
         ABIDiff(
             types: diffContainerSnapshots(old.types, new.types),
             protocols: diffContainerSnapshots(old.protocols, new.protocols),
@@ -34,7 +51,9 @@ public struct ABIDiffer: Sendable {
             typeAliasExtensions: diffContainerSnapshots(old.typeAliasExtensions, new.typeAliasExtensions),
             conformanceExtensions: diffContainerSnapshots(old.conformanceExtensions, new.conformanceExtensions),
             globalVariables: diffMembers(old: old.globalVariables, new: new.globalVariables),
-            globalFunctions: diffMembers(old: old.globalFunctions, new: new.globalFunctions)
+            globalFunctions: diffMembers(old: old.globalFunctions, new: new.globalFunctions),
+            oldProvenance: oldProvenance,
+            newProvenance: newProvenance
         )
     }
 
@@ -248,8 +267,8 @@ public struct ABIDiffer: Sendable {
         new: [Element],
         identity: (Element) -> ABIKey
     ) -> (removed: [Element], added: [Element], common: [(old: Element, new: Element)]) {
-        let oldByKey = keyed(old, by: identity)
-        let newByKey = keyed(new, by: identity)
+        let oldByKey = keyedFirstWins(old, by: identity)
+        let newByKey = keyedFirstWins(new, by: identity)
 
         var removed: [Element] = []
         var added: [Element] = []
@@ -267,32 +286,6 @@ public struct ABIDiffer: Sendable {
         }
 
         return (removed, added, common)
-    }
-
-    /// Index a sequence by a derived key.
-    ///
-    /// Known limitation: on a key collision this keeps the first element and
-    /// drops the rest, which can hide a removal (a breaking change classified as
-    /// compatible). Within one container a collision is essentially impossible —
-    /// legitimate overloads have distinct mangled keys, and fields / cases /
-    /// associated types are name-namespaced. The one realistic case is the
-    /// merged extension bucket: two conditional extensions (`where T: P` vs
-    /// `where T: Q`) each declaring a member whose mangling does not encode the
-    /// `where` clause collide once their members are flattened into one bucket.
-    /// Surfacing it properly needs a diagnostics channel on `ABIDiff` (which the
-    /// result type does not have today), so the drop is currently silent.
-    /// TODO(P2): surface colliding keys on the result instead of dropping.
-    /// See `Documentations/Internal/ABIDiffDesignAndLimitations.md`.
-    private func keyed<Element>(_ elements: [Element], by key: (Element) -> ABIKey) -> [ABIKey: Element] {
-        var result: [ABIKey: Element] = [:]
-        result.reserveCapacity(elements.count)
-        for element in elements {
-            let elementKey = key(element)
-            if result[elementKey] == nil {
-                result[elementKey] = element
-            }
-        }
-        return result
     }
 
     /// Deterministic ordering by key string then status, so repeated runs over

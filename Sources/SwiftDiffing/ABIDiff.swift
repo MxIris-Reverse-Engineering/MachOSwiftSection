@@ -131,7 +131,11 @@ public struct ABIDiff: Sendable, Codable, Equatable {
     public let conformanceExtensions: [ContainerChange]
     public let globalVariables: [MemberChange]
     public let globalFunctions: [MemberChange]
-    // TODO(P2): provenance header (old/new binary identity + version) for reports
+    /// Where the old side came from, when known. Descriptive metadata for
+    /// reports only — never part of the diff computation or of `isEmpty`.
+    public let oldProvenance: ABIProvenance?
+    /// Where the new side came from, when known.
+    public let newProvenance: ABIProvenance?
 
     public init(
         types: [ContainerChange] = [],
@@ -141,7 +145,9 @@ public struct ABIDiff: Sendable, Codable, Equatable {
         typeAliasExtensions: [ContainerChange] = [],
         conformanceExtensions: [ContainerChange] = [],
         globalVariables: [MemberChange] = [],
-        globalFunctions: [MemberChange] = []
+        globalFunctions: [MemberChange] = [],
+        oldProvenance: ABIProvenance? = nil,
+        newProvenance: ABIProvenance? = nil
     ) {
         self.types = types
         self.protocols = protocols
@@ -151,6 +157,8 @@ public struct ABIDiff: Sendable, Codable, Equatable {
         self.conformanceExtensions = conformanceExtensions
         self.globalVariables = globalVariables
         self.globalFunctions = globalFunctions
+        self.oldProvenance = oldProvenance
+        self.newProvenance = newProvenance
     }
 
     public var isEmpty: Bool {
