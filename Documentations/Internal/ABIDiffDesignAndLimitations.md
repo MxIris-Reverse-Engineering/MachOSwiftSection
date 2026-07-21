@@ -5,7 +5,10 @@
 > 二进制里，而非实现取巧。代码中每条局限都对应一个 `TODO(P2)` 注释。
 >
 > 配套文档：注释化接口渲染见 [`DiffableInterfacePlan.md`](DiffableInterfacePlan.md)
-> （两者共用同一套 `ABIKey` 匹配，互不依赖）。
+> （两者共用同一套 `ABIKey` 匹配，互不依赖）；N ≥ 2 个版本的 lineage 追踪
+> （`ABIEvolution`）与 snapshot 持久化（`ABISnapshotDocument` 版本头 +
+> provenance + CLI `snapshot` / `evolution` 命令）见
+> [`ABIEvolutionDesign.md`](ABIEvolutionDesign.md)。
 
 ## 概述
 
@@ -118,7 +121,8 @@ removal**（breaking 被误判为 compatible）。单个容器内碰撞基本不
 各声明一个成员、而 mangling 未编码 `where` 子句，合并进同一 bucket 后撞键。
 
 正经修复需要在 `ABIDiff` 上加一条**诊断通道**（结果类型目前没有），故当前丢弃是
-静默的。见 `keyed` 的 `TODO(P2)`。
+静默的。见 `Keying.swift` 中 `keyedFirstWins` 的 `TODO(P2)`（evolution 的 N 路
+矩阵与双侧 diff 共用这同一个索引函数，碰撞语义一致）。
 
 ### 4. resilience-aware 的字段顺序 / flags 未折入
 
@@ -145,6 +149,6 @@ associated-type witness 因 name 访问器 Mach-O-bound，暂无法 Mach-O-free 
 |---|---|
 | 1. frozen 不可恢复 | `Compatibility.swift`（enum doc + `isBackwardCompatible`） |
 | 2. ABIKey 跨侧不对称 | `ABIKey.swift` `make(for:)` |
-| 3. keyed 碰撞丢弃 | `ABIDiffer.swift` `keyed` |
+| 3. keyed 碰撞丢弃 | `Keying.swift` `keyedFirstWins` |
 | 4. 字段顺序 / flags | `MemberRecord.swift` `make(_ field:)` |
 | 5. per-conformance 归属 | `ABIDiffer.swift` `extensionBucketSnapshots` / `memberRecords(of: ProtocolDefinition)` |

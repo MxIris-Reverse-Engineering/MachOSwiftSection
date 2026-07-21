@@ -150,7 +150,7 @@ You can get the swift-section CLI tool in three ways:
 
 ### Usage
 
-The swift-section CLI tool provides two main subcommands: `dump`, and `interface`.
+The swift-section CLI tool provides five subcommands: `dump`, `interface`, `diff`, `snapshot`, and `evolution`.
 
 > [!IMPORTANT]
 > As of 0.10.0, when the input is a fat / universal binary you must pass `--architecture <arch>`. The tool no longer picks a default slice silently.
@@ -251,6 +251,52 @@ swift-section interface --uses-system-dyld-shared-cache --cache-image-name Swift
 
 # Dump from specific dyld shared cache
 swift-section interface --dyld-shared-cache --cache-image-path /path/to/cache /path/to/dyld_shared_cache
+```
+
+#### diff - Compare the ABI of Two Versions
+
+Diff the Swift ABI of two versions of the same module at the **binary** level — field retypes, enum-case tag renumbering, accessor changes, added/removed conformances — details a `.swiftinterface` diff cannot see.
+
+```bash
+# Change-list report with a breaking/backward-compatible verdict
+swift-section diff old/Foo.framework/Foo new/Foo.framework/Foo
+
+# Either side may be a persisted baseline produced by `snapshot`
+swift-section diff baseline.json new/Foo.framework/Foo
+
+# Machine-readable output / CI gating
+swift-section diff old.dylib new.dylib --json
+swift-section diff old.dylib new.dylib --summary-only --fail-on-breaking
+
+# Full interface annotated with +/- diff markers (needs two binaries)
+swift-section diff old.dylib new.dylib --interface --format unified
+```
+
+#### snapshot - Persist an ABI Baseline
+
+Index a binary once and freeze its ABI into a versioned JSON baseline; later diffs and evolution runs can consume the JSON without the original binary.
+
+```bash
+swift-section snapshot /path/to/binary --label 1.0 -o baseline-1.0.json
+
+# From a dyld shared cache image
+swift-section snapshot --dyld-shared-cache -n SwiftUICore /path/to/dyld_shared_cache --label 26.0 -o swiftuicore-26.0.json
+```
+
+#### evolution - Track ABI Across Many Versions
+
+Track one module's ABI across an ordered series of versions (oldest first) and report each declaration's lifeline: introduced / modified / removed / re-added, with a per-transition additive-or-breaking verdict. Inputs mix freely between binaries, dyld shared caches, and `snapshot` baselines.
+
+```bash
+# Three OS versions of the same framework, one report
+swift-section evolution 17.0.json 18.0.json /path/to/Foo-26.0.dylib --labels 17.0,18.0,26.0
+
+# Across dyld shared caches (extracts the same image from each cache)
+swift-section evolution --dyld-shared-cache -n SwiftUICore cache-17 cache-18 cache-26
+
+# Summary or JSON, and CI gating on any breaking transition
+swift-section evolution v1.json v2.json v3.json --summary-only --fail-on-breaking
+swift-section evolution v1.json v2.json v3.json --json
 ```
 
 ## Running Tests
