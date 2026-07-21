@@ -1,8 +1,17 @@
-# SemanticTransformer 迁移 —— Transformer 模板机制从 RuntimeViewerCore 搬入库侧
+# OutputTransformer 迁移 —— Transformer 模板机制从 RuntimeViewerCore 搬入库侧
 
 日期：2026-07-19
 状态：已完成（范围修订：ObjC 侧模块按用户指示暂留 RV）
-影响模块：新增 `SemanticTransformer`；`SwiftInspection`、`SwiftDeclarationRendering`、`SwiftPrinting`、`swift-section`；RuntimeViewerCore 已同步（Swift 侧删模板改 re-export、接线缩为一次 `applyTransformers` 调用；ObjC 侧模块保留在 RV）
+影响模块：新增 `OutputTransformer`；`SwiftInspection`、`SwiftDeclarationRendering`、`SwiftPrinting`、`swift-section`；RuntimeViewerCore 已同步（Swift 侧删模板改 re-export、接线缩为一次 `applyTransformers` 调用；ObjC 侧模块保留在 RV）
+
+> **更名记录（2026-07-21）**：该模块迁入时名为 `SemanticTransformer`，后更名为
+> `OutputTransformer` ——旧名中的 "Semantic" 与本仓库既有的 `Semantic` 模块
+> （`SemanticString` 语义着色）无关却易被误认为相关；新名取自模块自身的定位
+> "output-transformer modules"，且语言中立（将来 ObjC 侧模块迁入亦成立）。
+> `Transformer` 命名空间、各类型名与 Codable 持久化 key 均未改动；下游
+> RuntimeViewerCore 升级本包时需把 `@_exported import SemanticTransformer`
+> 同步改为 `@_exported import OutputTransformer`。下文正文中的模块名已统一
+> 替换为新名。
 
 ## 动机
 
@@ -15,7 +24,7 @@ transformer 包一层模板重渲染。用户定案：**模板机制整体搬进
 
 ## 架构
 
-- **新 target `SemanticTransformer`**（零依赖，位于依赖图底部）：
+- **新 target `OutputTransformer`**（零依赖，位于依赖图底部）：
   `Transformer` 命名空间 + `Module` 协议 + **Swift 侧 5 个模块** +
   `SwiftConfiguration` 聚合。模块清单：
   - `SwiftFieldOffset`、`SwiftMemberAddress`、`SwiftVTableOffset`
@@ -71,7 +80,7 @@ transformer 包一层模板重渲染。用户定案：**模板机制整体搬进
 ## RuntimeViewerCore 侧
 
 - `Transformer/` 目录收缩为三个文件：`Transformer.swift`（`@_exported import
-  SemanticTransformer` shim + RV 本地的 `ObjCConfiguration` / 聚合
+  OutputTransformer` shim + RV 本地的 `ObjCConfiguration` / 聚合
   `Configuration` 扩展）、`Transformer+CType.swift`、
   `Transformer+ObjCIvarOffset.swift` —— RV 全工作区（设置 UI 的
   `Templates.all`/`Token.displayName`/`CType.Presets` 引用）零改动编译。

@@ -1,5 +1,5 @@
 import Foundation
-import SemanticTransformer
+import OutputTransformer
 import SwiftDeclarationRendering
 
 extension SwiftDeclarationPrintConfiguration {

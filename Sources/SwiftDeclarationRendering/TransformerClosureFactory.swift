@@ -1,6 +1,6 @@
 import Foundation
 import Semantic
-import SemanticTransformer
+import OutputTransformer
 import MachOSwiftSection
 @_spi(Internals) import SwiftInspection
 

@@ -935,7 +935,7 @@ In this repository:
 
 ## Appendix: Comment rendering — templates and presets
 
-The comments `swift-section dump --emit-enum-layout` (and the library renderers) emit are driven by a token template, `Transformer.SwiftEnumLayout` (in the `SemanticTransformer` module). Three template levels mirror the comment structure — the type-level strategy line, the per-case block, and the per-fixed-byte line — with `${token}` placeholders (the same names RuntimeViewerCore's transformer UI uses). Five presets ship built in, selectable on the CLI via `--enum-layout-style`:
+The comments `swift-section dump --emit-enum-layout` (and the library renderers) emit are driven by a token template, `Transformer.SwiftEnumLayout` (in the `OutputTransformer` module). Three template levels mirror the comment structure — the type-level strategy line, the per-case block, and the per-fixed-byte line — with `${token}` placeholders (the same names RuntimeViewerCore's transformer UI uses). Five presets ship built in, selectable on the CLI via `--enum-layout-style`:
 
 | Preset | Per-byte lines | Style |
 |---|---|---|

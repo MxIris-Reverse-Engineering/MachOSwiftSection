@@ -1,5 +1,5 @@
 import Foundation
-import SemanticTransformer
+import OutputTransformer
 
 public enum EnumLayoutCalculator {
     // MARK: - ABI: Tag Count Calculation (swift/ABI/Enum.h: getEnumTagCounts)

@@ -1,5 +1,5 @@
 import Foundation
-import SemanticTransformer
+import OutputTransformer
 
 /// Bridges `EnumLayoutCalculator`'s projection types into the
 /// `Transformer.SwiftEnumLayout` token-template engine, so a template renders

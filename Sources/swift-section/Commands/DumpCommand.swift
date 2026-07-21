@@ -4,7 +4,7 @@ import MachOKit
 import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
-import SemanticTransformer
+import OutputTransformer
 import SwiftDeclarationRendering
 import Semantic
 
