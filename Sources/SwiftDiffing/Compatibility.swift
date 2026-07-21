@@ -81,3 +81,42 @@ extension ABIDiff {
         !hasBreakingChange
     }
 }
+
+extension ABIEvolution {
+    /// The verdict for each adjacent transition on the axis (`versions.count -
+    /// 1` entries; entry `i` covers `versions[i] → versions[i+1]`). A
+    /// transition is breaking iff any lineage carries a removed/modified event
+    /// there. The same `@frozen` caveat as ``Compatibility`` applies.
+    public var transitionCompatibilities: [Compatibility] {
+        var breakingTransitions = Set<Int>()
+        for lineage in allContainerLineages {
+            for event in lineage.events where event.status.compatibility == .breaking {
+                breakingTransitions.insert(event.versionIndex)
+            }
+            for memberLineage in lineage.memberLineages {
+                for event in memberLineage.events where event.status.compatibility == .breaking {
+                    breakingTransitions.insert(event.versionIndex)
+                }
+            }
+        }
+        for lineage in allGlobalLineages {
+            for event in lineage.events where event.status.compatibility == .breaking {
+                breakingTransitions.insert(event.versionIndex)
+            }
+        }
+        return (1 ..< versions.count).map {
+            breakingTransitions.contains($0) ? .breaking : .additive
+        }
+    }
+
+    /// `true` when at least one transition on the axis is ABI-breaking.
+    public var hasBreakingChange: Bool {
+        transitionCompatibilities.contains(.breaking)
+    }
+
+    /// The `versionIndex` of the earliest breaking transition (the version the
+    /// break landed in), or `nil` when the whole axis is additive.
+    public var firstBreakingVersionIndex: Int? {
+        transitionCompatibilities.firstIndex(of: .breaking).map { $0 + 1 }
+    }
+}
