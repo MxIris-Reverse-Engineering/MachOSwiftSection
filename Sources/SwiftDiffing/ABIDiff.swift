@@ -32,7 +32,11 @@ public enum MemberKind: Sendable, Codable, Equatable {
     case `deinit`
     case enumCase
     case field
+    /// A protocol's associated-type *requirement* (its existence shapes the
+    /// witness table).
     case associatedType
+    /// A conformance's associated-type *witness* (which type was bound).
+    case associatedTypeWitness
     // TODO(P2): protocolRequirement (stripped/unresolved witness-table slots —
     // keyed on pwtOffset + flags; needs MachOSwiftSection's ProtocolRequirement).
 }

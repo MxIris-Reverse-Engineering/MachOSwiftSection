@@ -16,11 +16,16 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     /// `ABIDiffer.extensionBucketKey(for:)`).
     ///
     /// History:
+    /// - 3: extension containers split per (target, protocol, where clause,
+    ///   retroactive) — new `extbucket:` key scheme with `proto:`/`where:`/
+    ///   `retro:` dimensions, `ContainerSnapshot` gains the structured
+    ///   attribution fields, and conformance containers carry
+    ///   `assocwitness:` member records.
     /// - 2: enum-case payload keys fold in the `indirect` flag
     ///   (`tag:N|indirect|…`), so a version-1 baseline would silently miss
     ///   that transition.
     /// - 1: initial versioned format.
-    public static let currentFormatVersion = 2
+    public static let currentFormatVersion = 3
 
     public let formatVersion: Int
     public var provenance: ABIProvenance?

@@ -84,10 +84,10 @@ public struct ABIDiffer: Sendable {
                 name: { $0.protocolName.name(using: .default) },
                 members: { self.memberRecords(of: $0) }
             ),
-            typeExtensions: extensionBucketSnapshots(module.typeExtensionDefinitions, .typeExtension),
-            protocolExtensions: extensionBucketSnapshots(module.protocolExtensionDefinitions, .protocolExtension),
-            typeAliasExtensions: extensionBucketSnapshots(module.typeAliasExtensionDefinitions, .typeAliasExtension),
-            conformanceExtensions: extensionBucketSnapshots(module.conformanceExtensionDefinitions, .conformanceExtension),
+            typeExtensions: extensionContainerSnapshots(module.typeExtensionDefinitions, .typeExtension),
+            protocolExtensions: extensionContainerSnapshots(module.protocolExtensionDefinitions, .protocolExtension),
+            typeAliasExtensions: extensionContainerSnapshots(module.typeAliasExtensionDefinitions, .typeAliasExtension),
+            conformanceExtensions: extensionContainerSnapshots(module.conformanceExtensionDefinitions, .conformanceExtension),
             globalVariables: module.globalVariableDefinitions.map(MemberRecord.make),
             globalFunctions: module.globalFunctionDefinitions.map(MemberRecord.make)
         )
@@ -107,26 +107,42 @@ public struct ABIDiffer: Sendable {
     /// *many* `ExtensionDefinition`s — the indexer splits a type's
     /// conformances, conditional blocks, and synthetic nested-type blocks into
     /// separate definitions filed under one name. We freeze one
-    /// `ContainerSnapshot` per `ExtensionName`, **merging the member records
-    /// across every definition in the bucket**: the extension boundary itself
-    /// is not exported, only the members (and the witness members of
-    /// conformances) are. Merging makes adding/removing a whole conformance
-    /// visible and avoids the silent-drop collisions that per-definition keying
-    /// suffered when two definitions on one target shared an identity.
-    ///
-    /// TODO(P2): per-conformance / per-`where`-block attribution — needs the
-    /// indexer to plumb the resolved protocol name onto each definition.
-    private func extensionBucketSnapshots(
+    /// `ContainerSnapshot` per **(target, protocol, where clause,
+    /// retroactive)** sub-group, merging member records only within a
+    /// sub-group. A conformance appearing or disappearing is therefore a
+    /// clean container-level change, a `where`-clause change flips the
+    /// container's identity (removed+added, per `ContainerChange`'s
+    /// identity doctrine), and two conditional blocks never share a member
+    /// keying scope — the one realistic key-collision source is gone
+    /// structurally (the diagnostics channel stays as a backstop).
+    private func extensionContainerSnapshots(
         _ buckets: OrderedDictionary<ExtensionName, [ExtensionDefinition]>,
         _ containerKind: ContainerKind
     ) -> [ContainerSnapshot] {
-        buckets.map { name, definitions in
-            ContainerSnapshot(
-                key: extensionBucketKey(name),
-                name: name.name(using: .default),
-                kind: containerKind,
-                members: definitions.flatMap { self.memberRecords(of: $0) }
-            )
+        buckets.flatMap { name, definitions -> [ContainerSnapshot] in
+            var groupedDefinitions: OrderedDictionary<ABIKey, [ExtensionDefinition]> = [:]
+            for definition in definitions {
+                groupedDefinitions[Self.extensionContainerKey(for: name, of: definition), default: []].append(definition)
+            }
+            return groupedDefinitions.map { containerKey, groupDefinitions in
+                // Same key ⇒ same (protocol, where, retroactive) components by
+                // construction, so any group member can describe the group.
+                let representative = groupDefinitions[0]
+                let protocolText = representative.conformingProtocolName?.name(using: .default)
+                let whereText = representative.genericSignature?.print(using: .default)
+                var displayName = name.name(using: .default)
+                if let protocolText { displayName += ": " + protocolText }
+                if let whereText { displayName += " " + whereText }
+                if representative.isRetroactive { displayName += " (retroactive)" }
+                return ContainerSnapshot(
+                    key: containerKey,
+                    name: displayName,
+                    kind: containerKind,
+                    conformedProtocolName: protocolText,
+                    whereClauseText: whereText,
+                    members: groupDefinitions.flatMap { self.memberRecords(of: $0) }
+                )
+            }
         }
     }
 
@@ -160,19 +176,36 @@ public struct ABIDiffer: Sendable {
         return sorted(changes, key: \.key, status: \.status)
     }
 
-    /// Identity for an extension bucket: the target node plus an explicit kind
-    /// token, so `extension`s on a struct vs a class of the same name (or the
-    /// four extension kinds) stay distinct.
-    private func extensionBucketKey(_ name: ExtensionName) -> ABIKey {
-        Self.extensionBucketKey(for: name)
+    /// Identity for one extension container: target + kind token + the
+    /// conformed protocol + the `where`-clause fingerprint + the retroactive
+    /// flag. Exposed so the diffable-interface renderer can match extension
+    /// containers across the two binaries with the exact key the differ uses
+    /// (one source of truth — no drift between the verdict and the annotated
+    /// interface).
+    ///
+    /// The protocol and `where` fingerprints ride the remangle-preferred
+    /// `ABIKey` path, so they inherit the same cross-toolchain caveat as every
+    /// other key (limitation 2 in the design doc).
+    public static func extensionContainerKey(for name: ExtensionName, of definition: ExtensionDefinition) -> ABIKey {
+        extensionContainerKey(
+            kindToken: extensionKindToken(name.kind),
+            targetSortKey: ABIKey.makeUnwrappingType(for: name.node).sortKey,
+            protocolSortKey: definition.conformingProtocolName.map { ABIKey.makeUnwrappingType(for: $0.node).sortKey },
+            whereSortKey: definition.genericSignature.map { ABIKey.make(for: $0).sortKey },
+            isRetroactive: definition.isRetroactive
+        )
     }
 
-    /// The same bucket identity, exposed so the diffable-interface renderer can
-    /// match extension buckets across the two binaries with the exact key the
-    /// differ uses (one source of truth — no drift between the verdict and the
-    /// annotated interface).
-    public static func extensionBucketKey(for name: ExtensionName) -> ABIKey {
-        .printed("extbucket:\(extensionKindToken(name.kind))|\(ABIKey.makeUnwrappingType(for: name.node).sortKey)")
+    /// The pure composition seam behind ``extensionContainerKey(for:of:)`` —
+    /// unit-testable without a Mach-O-built definition.
+    static func extensionContainerKey(
+        kindToken: String,
+        targetSortKey: String,
+        protocolSortKey: String?,
+        whereSortKey: String?,
+        isRetroactive: Bool
+    ) -> ABIKey {
+        .printed("extbucket:\(kindToken)|\(targetSortKey)|proto:\(protocolSortKey ?? "-")|where:\(whereSortKey ?? "-")|retro:\(isRetroactive ? "1" : "0")")
     }
 
     /// Stable token per extension kind — an explicit switch rather than
@@ -233,12 +266,16 @@ public struct ABIDiffer: Sendable {
         return records
     }
 
-    /// An extension contributes only its shared members for now. TODO(P2):
-    /// conformance-extension associated-type witnesses — `associatedTypes` is
-    /// `[MachOSwiftSection.AssociatedType]` whose name accessors are Mach-O-
-    /// bound, so it cannot be projected Mach-O-free here.
+    /// An extension contributes its shared members plus its associated-type
+    /// **witnesses** — frozen into `AssociatedTypeWitnessProjection` at index
+    /// time precisely because the raw `AssociatedType` records' name accessors
+    /// are Mach-O-bound and cannot be resolved here.
     func memberRecords(of definition: ExtensionDefinition) -> [MemberRecord] {
-        sharedMemberRecords(of: definition)
+        var records = sharedMemberRecords(of: definition)
+        records.append(contentsOf: definition.resolvedAssociatedTypeWitnesses.map {
+            MemberRecord.makeAssociatedTypeWitness(name: $0.name, substitutedTypeText: $0.substitutedTypeText)
+        })
+        return records
     }
 
     // MARK: - Member level (test seam)

@@ -203,42 +203,77 @@ public final class SwiftDiffableInterfaceRenderer<
 
     // MARK: - Extensions
     //
-    // Extensions are diffed and rendered at the `ExtensionName` bucket level —
-    // members across every `ExtensionDefinition` filed under one target are
-    // merged, matching how `ABIDiffer` keys them. The header is the synthesized
-    // `extension <Target>` (no per-conformance `: Protocol` clause yet, since the
-    // bucket merges multiple conformances). TODO(P2): per-conformance attribution
-    // so the annotated headers carry the `: Protocol` clause and `where` blocks.
+    // Extensions are diffed and rendered per **container** — one
+    // (target, protocol, where clause, retroactive) sub-group of an
+    // `ExtensionName` bucket, matched with the exact key the differ uses
+    // (`ABIDiffer.extensionContainerKey(for:of:)`, one source of truth). The
+    // header carries the `: Protocol` clause and the `where` block, so an
+    // added/removed conformance renders as its own annotated `extension`.
+
+    private typealias ExtensionContainer = (key: ABIKey, name: ExtensionName, definitions: [ExtensionDefinition])
 
     private func renderExtensionBucketsUnits(
         old: OrderedDictionary<ExtensionName, [ExtensionDefinition]>,
         new: OrderedDictionary<ExtensionName, [ExtensionDefinition]>
     ) async -> [[DiffLine]] {
-        let oldBuckets = old.map { (name: $0.key, definitions: $0.value) }
-        let newBuckets = new.map { (name: $0.key, definitions: $0.value) }
+        let oldContainers = extensionContainers(of: old)
+        let newContainers = extensionContainers(of: new)
         var units: [[DiffLine]] = []
-        for pair in matchByKey(oldBuckets, newBuckets, key: { ABIDiffer.extensionBucketKey(for: $0.name) }) {
+        for pair in matchByKey(oldContainers, newContainers, key: { $0.key }) {
             let lines = await renderExtensionBucket(old: pair.old, new: pair.new, level: 1)
             if !lines.isEmpty { units.append(lines) }
         }
         return units
     }
 
+    /// Splits every `ExtensionName` bucket into its per-conformance /
+    /// per-`where`-block containers, preserving first-seen order.
+    private func extensionContainers(
+        of buckets: OrderedDictionary<ExtensionName, [ExtensionDefinition]>
+    ) -> [ExtensionContainer] {
+        var containers: [ExtensionContainer] = []
+        for (name, definitions) in buckets {
+            var containerIndexByKey: [ABIKey: Int] = [:]
+            for definition in definitions {
+                let containerKey = ABIDiffer.extensionContainerKey(for: name, of: definition)
+                if let containerIndex = containerIndexByKey[containerKey] {
+                    containers[containerIndex].definitions.append(definition)
+                } else {
+                    containerIndexByKey[containerKey] = containers.count
+                    containers.append((containerKey, name, [definition]))
+                }
+            }
+        }
+        return containers
+    }
+
     private func renderExtensionBucket(
-        old: (name: ExtensionName, definitions: [ExtensionDefinition])?,
-        new: (name: ExtensionName, definitions: [ExtensionDefinition])?,
+        old: ExtensionContainer?,
+        new: ExtensionContainer?,
         level: Int
     ) async -> [DiffLine] {
         guard old != nil || new != nil else { return [] }
         let marker: DiffMarker = old == nil ? .added : (new == nil ? .removed : .unchanged)
 
-        let extensionName = new?.name ?? old?.name
+        let container = new ?? old
         let header: SemanticString
-        if let extensionName {
+        if let container {
+            // Same key ⇒ same (protocol, where) on both sides, so either
+            // side's representative describes the container.
+            let representative = container.definitions.first
             header = SemanticString {
                 Keyword(.extension)
                 Space()
-                extensionName.print()
+                container.name.print()
+                if let protocolName = representative?.conformingProtocolName {
+                    Standard(":")
+                    Space()
+                    protocolName.node.printSemantic(using: .default)
+                }
+                if let genericSignature = representative?.genericSignature {
+                    Space()
+                    genericSignature.printSemantic(using: .default)
+                }
             }
         } else {
             header = SemanticString()

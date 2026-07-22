@@ -48,18 +48,41 @@ public struct ABISnapshot: Codable, Equatable, Sendable {
     }
 }
 
-/// One frozen container (type / protocol / extension bucket): its identity key,
-/// reporting name, kind, and the projected member records the differ compares.
+/// One frozen container (type / protocol / extension sub-bucket): its identity
+/// key, reporting name, kind, and the projected member records the differ
+/// compares.
+///
+/// Extension containers are keyed per **(target, protocol, where clause,
+/// retroactive)** — one conformance / conditional block per container — so a
+/// conformance appearing or disappearing is a container-level change and two
+/// conditional blocks never share a member keying scope. The structured
+/// `conformedProtocolName` / `whereClauseText` fields carry the attribution
+/// for reporting (the display `name` already embeds them).
 public struct ContainerSnapshot: Codable, Equatable, Sendable {
     public var key: ABIKey
     public var name: String
     public var kind: ContainerKind
+    /// The conformed protocol's qualified name; extension containers of a
+    /// conformance only.
+    public var conformedProtocolName: String?
+    /// The conditional-conformance / constrained-extension `where` clause,
+    /// printed; `nil` for unconstrained containers.
+    public var whereClauseText: String?
     public var members: [MemberRecord]
 
-    public init(key: ABIKey, name: String, kind: ContainerKind, members: [MemberRecord]) {
+    public init(
+        key: ABIKey,
+        name: String,
+        kind: ContainerKind,
+        conformedProtocolName: String? = nil,
+        whereClauseText: String? = nil,
+        members: [MemberRecord]
+    ) {
         self.key = key
         self.name = name
         self.kind = kind
+        self.conformedProtocolName = conformedProtocolName
+        self.whereClauseText = whereClauseText
         self.members = members
     }
 }

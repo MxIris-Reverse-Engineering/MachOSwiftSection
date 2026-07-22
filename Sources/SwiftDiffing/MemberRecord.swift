@@ -141,6 +141,21 @@ extension MemberRecord {
         )
     }
 
+    /// A conformance's associated-type **witness** (which type got bound to the
+    /// requirement), from the index-time-frozen projection. Distinct namespace
+    /// from `associatedType:` — that is the requirement's existence on the
+    /// protocol, this is the binding on the conforming type. The witness type
+    /// is folded into the payload, so re-binding the same name reports
+    /// `.modified`.
+    public static func makeAssociatedTypeWitness(name: String, substitutedTypeText: String) -> MemberRecord {
+        MemberRecord(
+            identityKey: .printed("assocwitness:" + name),
+            payloadKey: .printed("assocwitness:" + name + "|" + substitutedTypeText),
+            kind: .associatedTypeWitness,
+            signature: "typealias " + name + " = " + substitutedTypeText
+        )
+    }
+
     /// A stable, order-independent fingerprint of a member's accessor kinds.
     private static func accessorTag(_ accessors: [Accessor]) -> String {
         accessors.map { accessorKindToken($0.kind) }.sorted().joined(separator: ",")
