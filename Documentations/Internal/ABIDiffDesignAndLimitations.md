@@ -119,6 +119,14 @@ demangle 树（例如不同 toolchain 构建），且一棵能 remangle、另一
 故文档化而非绕过：一个与 remangle 成败无关的身份需要重做键，且会损失别处精度，
 不划算。见 `ABIKey.swift` 的 `make(for:)` 注释。
 
+**行为不变，但已可观测**：回退键现携带自识别前缀 `unmangled:`（键格局变更之一，
+formatVersion 4），`ABISnapshot.remangleFallbacks()` 扫描全部键位面（容器键、
+组合 `extbucket:` 键内嵌成分、成员 identity/payload 键），结果以
+`ABIDiff.diagnostics`（逐侧）与 `ABIEvolution.remangleFallbacksByVersion`
+（逐版本）上浮，两个 reporter 各渲染一段 Warnings——提示读者该声明的
+removed+added 可能是跨 toolchain 的身份翻转假象。见
+[`ProtocolRequirementProjection.md`](ProtocolRequirementProjection.md) §3。
+
 ### 3. `keyed` 碰撞：结构性消解 + 诊断兜底（已解决）
 
 `keyedFirstWins`（`Keying.swift`，双侧 diff 与 evolution 的 N 路矩阵共用）在
@@ -159,12 +167,28 @@ associated type / witness 各有命名空间）。
 （`assocwitness:` 命名空间）。设计与语义后果见
 [`PerConformanceAttribution.md`](PerConformanceAttribution.md)。
 
+### 6. ~~stripped protocol requirement（PWT slot）不参与 diff~~（已解决）+ 新局限：符号化状态不对称
+
+协议容器现投影 `strippedSymbolicRequirements`：每个符号被 strip 的 requirement
+以 `pwtslot:<offset>` 为身份、flags 指纹（kind / isInstance / isAsync /
+hasDefaultImplementation）为 payload 进入成员 diff（`MemberKind
+.protocolRequirement`，formatVersion 4）。协议**增删 witness-table slot**、或
+同一 slot 的 flags 变化由此可见；表中段插入导致后续 slot 平移，如实级联为
+removed+added。设计、键格局与取舍见
+[`ProtocolRequirementProjection.md`](ProtocolRequirementProjection.md)。
+
+随之新增一条**文档化局限**：stripped 与否取决于两侧二进制的符号表状态，不是
+ABI 事实。同一协议一侧带符号、一侧被 strip 时，diff 会报"解析成员 removed +
+pwtslot added"的假差异——无名可匹配，无廉价对策；比较双方应处于相近的 strip
+状态。
+
 ## 局限 → 代码位置对照
 
 | 局限 | 状态 / 位置 |
 |---|---|
 | 1. frozen 不可恢复 | 本质局限。`Compatibility.swift`（enum doc + `isBackwardCompatible`） |
-| 2. ABIKey 跨侧不对称 | 本质局限（窄）。`ABIKey.swift` `make(for:)`；extension 子键的 protocol/where 指纹同样继承此风险 |
+| 2. ABIKey 跨侧不对称 | 本质局限（窄），**已可观测**（`unmangled:` 前缀 + `remangleFallbacks()` 诊断）。`ABIKey.swift` `make(for:)` + `ABIDiagnostics.swift`；extension 子键的 protocol/where 指纹同样继承此风险 |
 | 3. keyed 碰撞 | **已解决**（拆分消解 + 诊断兜底）。`Keying.swift` + `ABIDiagnostics.swift` |
 | 4. 字段顺序 / flags | enum case `indirect` **已修**；resilient/frozen 感知的字段顺序敏感性仍开放。`MemberRecord.swift` |
-| 5. per-conformance 归属 | **已解决**。`ABIDiffer.swift` `extensionContainerSnapshots` + [`PerConformanceAttribution.md`](PerConformanceAttribution.md)；protocol 侧 `strippedSymbolicRequirements` 投影仍开放（`memberRecords(of: ProtocolDefinition)` 的 TODO(P2)） |
+| 5. per-conformance 归属 | **已解决**。`ABIDiffer.swift` `extensionContainerSnapshots` + [`PerConformanceAttribution.md`](PerConformanceAttribution.md) |
+| 6. stripped requirement 投影 | **已解决**（`pwtslot:` 命名空间）。`MemberRecord.makeProtocolRequirement` + `memberRecords(of: ProtocolDefinition)` + [`ProtocolRequirementProjection.md`](ProtocolRequirementProjection.md)；符号化状态不对称为新的文档化局限 |

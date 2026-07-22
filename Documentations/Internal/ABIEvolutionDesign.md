@@ -248,6 +248,16 @@ diff 的 verdict 交叉核对行。
   evolution 侧改动。
 - 注释接口的时间线版（每行标注 introduced-in）。
 
+## 首轮落地后的增量（第四批）
+
+- **stripped protocol requirement（PWT slot）投影（已落地）**：协议容器新增
+  `pwtslot:<offset>` 成员记录（flags 指纹入 payload），evolution **零改动**获得
+  slot 级 lineage。key scheme 变更 ⇒ `currentFormatVersion` bump 到 4。设计见
+  [`ProtocolRequirementProjection.md`](ProtocolRequirementProjection.md)。
+- **remangle 回退审计（已落地）**：回退键自识别（`unmangled:` 前缀，同一次
+  formatVersion bump 搭车），`ABIEvolution.remangleFallbacksByVersion` 与
+  `keyCollisionsByVersion` 同构上浮，reporter 增第二段 Warnings。
+
 ## 首轮落地后的增量（第三批）
 
 - **per-conformance / per-`where`-block 归属（已落地）**：extension 容器按

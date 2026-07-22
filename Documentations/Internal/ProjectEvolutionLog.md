@@ -230,6 +230,34 @@
   [ABIDiffDesignAndLimitations.md](ABIDiffDesignAndLimitations.md)（局限 3/5 收口）、
   TaskReports [2026-07-22-per-conformance-attribution-and-docs-program.md](TaskReports/2026-07-22-per-conformance-attribution-and-docs-program.md)。
 
+## 17. Protocol requirement（PWT slot）投影 + remangle 回退审计
+
+- **时间**：2026-07-22（未随版本发布，将入 `0.14.0`）
+- **动机**：消化 SwiftDiffing 挂账的两个 TODO(P2)。① 协议容器只比较可解析成员，
+  符号被 strip 的 requirement（OS 框架常态）完全不可见——协议增删 witness-table
+  slot 这一真 ABI 事件被静默吞掉；② `ABIKey` 的 remangle 回退键与刻意命名空间键
+  无法区分，跨 toolchain 身份翻转风险不可观测。
+- **落地**：
+  - `StrippedSymbolicRequirement` 在 SwiftDeclaration 上暴露 Mach-O-free 事实门面
+    （`kindToken` 显式 switch / `isInstance` / `isAsync` / `hasDefaultImplementation`），
+    SwiftDiffing 维持「只依赖 SwiftDeclaration + Demangling」的模块契约；
+  - `MemberKind.protocolRequirement` + `MemberRecord.makeProtocolRequirement`
+    （身份 `pwtslot:<offset>`、payload 折入 flags 指纹）；中段插入如实级联
+    removed+added；
+  - remangle 回退键改为自识别前缀 `unmangled:`，`ABISnapshot.remangleFallbacks()`
+    扫描全部键位面，经 `ABIDiff.diagnostics` / `ABIEvolution.remangleFallbacksByVersion`
+    + 双 reporter Warnings 上浮；
+  - 两项键格局变更共用一次 formatVersion bump（3 → 4）；计时测试
+    `differentKeysParallelViaAsyncLet` 预算再放宽（0.5× → 0.75× serial ceiling）。
+- **关键决策**：stripped slot 身份取 PWT offset（printer 既有词汇、自描述；级联
+  有界且方向诚实）；**不**把已解析 requirement 的 offset 折入 payload（resilient
+  协议运行时按 requirement descriptor 匹配，重排非破坏，折入即假阳性源）；新收录
+  「符号化状态不对称」为文档化局限（stripped 与否是符号表状态而非 ABI 事实）。
+- **文档**：[ProtocolRequirementProjection.md](ProtocolRequirementProjection.md)、
+  [ABIDiffDesignAndLimitations.md](ABIDiffDesignAndLimitations.md)（局限 2 可观测化、
+  局限 6 新增并收口）、TaskReports
+  [2026-07-22-protocol-requirement-projection.md](TaskReports/2026-07-22-protocol-requirement-projection.md)。
+
 ---
 
 ## 维护约定
