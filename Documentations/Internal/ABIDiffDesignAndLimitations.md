@@ -112,17 +112,21 @@ demangle 树（例如不同 toolchain 构建），且一棵能 remangle、另一
 故文档化而非绕过：一个与 remangle 成败无关的身份需要重做键，且会损失别处精度，
 不划算。见 `ABIKey.swift` 的 `make(for:)` 注释。
 
-### 3. `keyed` 碰撞静默丢弃
+### 3. `keyed` 碰撞：first-wins 保留，但已通过诊断通道上浮（已缓解）
 
-`keyed`（`ABIDiffer.swift`）在键碰撞时保留首个、丢弃其余，**可能掩盖一次
-removal**（breaking 被误判为 compatible）。单个容器内碰撞基本不可能（合法重载有
-不同 mangled 键，field / case / associated type 各有命名空间）。唯一现实场景是
-**合并后的 extension bucket**：两个条件 extension（`where T: P` vs `where T: Q`）
-各声明一个成员、而 mangling 未编码 `where` 子句，合并进同一 bucket 后撞键。
+`keyedFirstWins`（`Keying.swift`，双侧 diff 与 evolution 的 N 路矩阵共用）在
+键碰撞时仍保留首个、丢弃其余——被丢弃的记录**未参与比较**，理论上可能掩盖一次
+removal。单个容器内碰撞基本不可能（合法重载有不同 mangled 键，field / case /
+associated type 各有命名空间）。唯一现实场景是**合并后的 extension bucket**：
+两个条件 extension（`where T: P` vs `where T: Q`）各声明一个成员、而 mangling
+未编码 `where` 子句，合并进同一 bucket 后撞键。
 
-正经修复需要在 `ABIDiff` 上加一条**诊断通道**（结果类型目前没有），故当前丢弃是
-静默的。见 `Keying.swift` 中 `keyedFirstWins` 的 `TODO(P2)`（evolution 的 N 路
-矩阵与双侧 diff 共用这同一个索引函数，碰撞语义一致）。
+**丢弃不再是静默的**：`ABISnapshot.keyCollisions()`（`ABIDiagnostics.swift`）
+按同一 first-wins 规则独立扫描每个 keying 作用域（容器轴、容器成员、globals），
+结果以 `ABIDiff.diagnostics`（`ABIDiffDiagnostics`，逐侧）与
+`ABIEvolution.keyCollisionsByVersion`（逐版本、与版本轴对齐）上浮，两个
+reporter 各渲染一段 Warnings（空 diff 也照常告警）。何时把碰撞成员**分开比较**
+（需要 per-conformance 归属，见局限 5）仍是后续项。
 
 ### 4. resilience-aware 的字段顺序 / flags 未折入
 
@@ -131,10 +135,13 @@ removal**（breaking 被误判为 compatible）。单个容器内碰撞基本不
   用 `makeCase(_:tag:)` 单独处理。）
 - 显式 `FieldFlags` 未折入 `payloadKey`。但 ABI 相关的 reference-storage
   （`weak` / `unowned`）本就体现在字段类型上（模型由 `typeNode.contains(.weak)`
-  派生该 flag），已被 payload 折入的 `typeNode` 捕获，无需单独处理。真正的残留
-  缺口是 **enum case 切换 `indirect`**：`makeCase` 按 `tag` + payload 类型建键、
-  未含 `indirect` flag，故同名同 tag 同类型时该变化不可见。见 `MemberRecord.swift`
-  的 `make(_ field:)` / `makeCase(_:tag:)`。
+  派生该 flag），已被 payload 折入的 `typeNode` 捕获，无需单独处理。
+- ~~残留缺口：enum case 切换 `indirect`~~（**已修**）：`makeCase` 现把
+  `indirect` flag 折入 payload key（`tag:N|indirect|…`）与签名
+  （`indirect case x`），同名同 tag 同类型下的 `indirect` 切换报 `.modified`。
+  这是 key scheme 变更，`ABISnapshotDocument.currentFormatVersion` 随之 bump 到
+  2——版本 1 的 baseline 会被显式拒绝（这正是版本头存在的目的）。见
+  `MemberRecord.swift` 的 `make(_ field:)` / `makeCase(_:tag:)`。
 
 ### 5. 每 conformance / per-`where`-block 归属未做
 
@@ -149,6 +156,6 @@ associated-type witness 因 name 访问器 Mach-O-bound，暂无法 Mach-O-free 
 |---|---|
 | 1. frozen 不可恢复 | `Compatibility.swift`（enum doc + `isBackwardCompatible`） |
 | 2. ABIKey 跨侧不对称 | `ABIKey.swift` `make(for:)` |
-| 3. keyed 碰撞丢弃 | `Keying.swift` `keyedFirstWins` |
-| 4. 字段顺序 / flags | `MemberRecord.swift` `make(_ field:)` |
+| 3. keyed 碰撞（已上浮为诊断） | `Keying.swift` `keyedFirstWins` + `ABIDiagnostics.swift` |
+| 4. 字段顺序（indirect 已修） | `MemberRecord.swift` `make(_ field:)` / `makeCase(_:tag:)` |
 | 5. per-conformance 归属 | `ABIDiffer.swift` `extensionBucketSnapshots` / `memberRecords(of: ProtocolDefinition)` |

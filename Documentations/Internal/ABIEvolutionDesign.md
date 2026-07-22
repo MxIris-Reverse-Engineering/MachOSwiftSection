@@ -231,10 +231,21 @@ swift-section evolution <path>... \
 8. **兼容性推广**：逐转换 additive/breaking 与 `firstBreakingTransitionIndex`。
 9. **reporter**：小型 evolution 的整段文本断言（确定性输出）。
 
-## 后续项（不在本次范围）
+## 后续项（不在首轮范围）
 
 - rename / re-sign 启发式关联（同容器内 add+remove 配对提示）。
 - 全量矩阵视图（含未变化 API 的 API × 版本表）。
-- per-conformance 归属、`keyed` 碰撞诊断通道等 diff 侧挂账 —— evolution 会
-  自动受益，无需 evolution 侧改动。
+- per-conformance 归属等 diff 侧挂账 —— evolution 会自动受益，无需
+  evolution 侧改动。
 - 注释接口的时间线版（每行标注 introduced-in）。
+
+## 首轮落地后的增量（第二批）
+
+- **`keyed` 碰撞诊断通道（已落地）**：`ABISnapshot.keyCollisions()` 独立扫描
+  每个 keying 作用域，`ABIDiff.diagnostics`（逐侧）与
+  `ABIEvolution.keyCollisionsByVersion`（逐版本）上浮结果，两个 reporter 渲染
+  Warnings 段。first-wins 比较行为不变，丢弃不再静默。
+- **enum case `indirect` 折入 payload key（已落地）**：同名同 tag 同类型的
+  `indirect` 切换现在报 `.modified`。key scheme 变更 ⇒
+  `currentFormatVersion` bump 到 2，版本 1 baseline 显式失效（版本头首次按
+  设计发挥作用）。
