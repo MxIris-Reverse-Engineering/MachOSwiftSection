@@ -11,7 +11,7 @@ import MachOFixtureSupport
 @Suite(.serialized)
 final class DyldCacheDumpTests: DyldCacheTests, DumpableTests, @unchecked Sendable {
     
-    override class var cachePath: DyldSharedCachePath { .issueCase }
+    override class var cachePath: DyldSharedCachePath { .current }
     
     override class var cacheImageName: MachOImageName { .SnippetUI }
     
