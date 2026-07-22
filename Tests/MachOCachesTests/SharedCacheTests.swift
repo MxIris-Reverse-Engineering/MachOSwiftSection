@@ -270,9 +270,13 @@ struct SharedCacheResolveSwiftConcurrencyTests {
         #expect(results == [1, 2, 3, 4])
         // Four builds run in parallel ⇒ wall-clock ≈ one build. Same budget
         // idiom as the TaskGroup variant: only verifies we are not fully
-        // serial, with headroom for a loaded machine.
+        // serial (≥ 1.6s), with headroom for a loaded machine. 0.75 rather
+        // than the TaskGroup variant's 0.5 because detached tasks acquire
+        // pool threads later under a saturated full-suite run — 0.5 left only
+        // ~2× headroom over scheduler noise and still flaked (0.845s
+        // observed against the 0.8s budget).
         let serialCeiling = 4 * perBuildSeconds
-        let parallelBudget = serialCeiling * 0.5
+        let parallelBudget = serialCeiling * 0.75
         #expect(elapsedSeconds < parallelBudget,
                 "elapsed=\(elapsedSeconds)s should be well below serial=\(serialCeiling)s")
     }
