@@ -14,7 +14,13 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     /// Bump on any change to the snapshot schema **or** to the `MemberRecord` /
     /// extension-bucket key scheme (see `MemberRecord` and
     /// `ABIDiffer.extensionBucketKey(for:)`).
-    public static let currentFormatVersion = 1
+    ///
+    /// History:
+    /// - 2: enum-case payload keys fold in the `indirect` flag
+    ///   (`tag:N|indirect|…`), so a version-1 baseline would silently miss
+    ///   that transition.
+    /// - 1: initial versioned format.
+    public static let currentFormatVersion = 2
 
     public let formatVersion: Int
     public var provenance: ABIProvenance?

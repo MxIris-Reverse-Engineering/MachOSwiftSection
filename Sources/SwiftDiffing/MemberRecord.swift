@@ -106,13 +106,18 @@ extension MemberRecord {
     /// renumbers tags, which is unconditionally an ABI break, so the affected
     /// cases report `.modified`; appending a case leaves existing tags intact
     /// and only the new case reports `.added`.
+    ///
+    /// The `indirect` flag is folded in too: toggling it flips the payload
+    /// between inline storage and a boxed heap reference — an ABI break the
+    /// tag + type alone cannot see (same name, same tag, same payload type).
     public static func makeCase(_ field: FieldDefinition, tag: Int) -> MemberRecord {
         let payloadText = field.typeNode.print(using: .default)
+        let isIndirect = field.flags.contains(.isIndirectCase)
         return MemberRecord(
             identityKey: .printed("case:" + field.name),
-            payloadKey: .printed("tag:\(tag)|" + payloadText),
+            payloadKey: .printed("tag:\(tag)|" + (isIndirect ? "indirect|" : "") + payloadText),
             kind: .enumCase,
-            signature: "case " + field.name
+            signature: (isIndirect ? "indirect case " : "case ") + field.name
         )
     }
 

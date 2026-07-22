@@ -200,6 +200,18 @@ struct ABIDifferProjectionTests {
         #expect(changes.first?.kind == .enumCase)
     }
 
+    @Test("toggling indirect on an enum case diffs as .modified even with the same tag and payload type")
+    func enumCaseIndirectToggleIsModified() {
+        let inlineCase = MemberRecord.makeCase(field("boxed", type: "Int"), tag: 0)
+        let indirectField = FieldDefinition(name: "boxed", typeNode: nominalType("Int"), flags: [.isIndirectCase])
+        let indirectCase = MemberRecord.makeCase(indirectField, tag: 0)
+        #expect(indirectCase.signature == "indirect case boxed")
+        let changes = ABIDiffer().diffMembers(old: [inlineCase], new: [indirectCase])
+        #expect(changes.count == 1)
+        #expect(changes.first?.status == .modified)
+        #expect(changes.first?.kind == .enumCase)
+    }
+
     @Test("a deinit appearing on the new side diffs as .added")
     func deinitPresence() {
         let changes = ABIDiffer().diffMembers(old: [], new: [MemberRecord.makeDeinit()])
