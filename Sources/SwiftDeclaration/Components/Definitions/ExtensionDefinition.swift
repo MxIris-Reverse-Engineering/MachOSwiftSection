@@ -15,7 +15,18 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
 
     public let protocolConformance: ProtocolConformance?
 
+    /// The conformed protocol, resolved to a Mach-O-free name at index time.
+    /// Non-nil only for conformance extensions; the target's typealias-only
+    /// blocks and member extensions carry `nil`. This is what lets the
+    /// Mach-O-free diff layer attribute changes to a specific conformance.
+    public let conformingProtocolName: ProtocolName?
+
     public package(set) var associatedTypes: [AssociatedType]
+
+    /// The associated-type witnesses of `associatedTypes`, resolved into pure
+    /// value data at index time (their `AssociatedTypeRecord` accessors are
+    /// Mach-O-bound, so the snapshot layer cannot resolve them later).
+    public package(set) var resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection]
 
     public package(set) var types: [TypeDefinition] = []
 
@@ -49,11 +60,33 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
         !variables.isEmpty || !functions.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !allocators.isEmpty || !constructors.isEmpty || !staticSubscripts.isEmpty || !subscripts.isEmpty
     }
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(extensionName: ExtensionName, genericSignature: Node?, protocolConformance: ProtocolConformance?, associatedTypes: [AssociatedType] = [], in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(extensionName: ExtensionName, genericSignature: Node?, protocolConformance: ProtocolConformance?, conformingProtocolName: ProtocolName? = nil, associatedTypes: [AssociatedType] = [], resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = [], in machO: MachO) throws {
         self.extensionName = extensionName
         self.genericSignature = genericSignature
         self.protocolConformance = protocolConformance
+        self.conformingProtocolName = conformingProtocolName
         self.associatedTypes = associatedTypes
+        self.resolvedAssociatedTypeWitnesses = resolvedAssociatedTypeWitnesses
+    }
+
+    /// Mach-O-free initializer for pure-value construction (tests, tooling).
+    /// Carries no `ProtocolConformance` — only the frozen attribution fields.
+    package init(extensionName: ExtensionName, genericSignature: Node?, conformingProtocolName: ProtocolName? = nil, resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = []) {
+        self.extensionName = extensionName
+        self.genericSignature = genericSignature
+        self.protocolConformance = nil
+        self.conformingProtocolName = conformingProtocolName
+        self.associatedTypes = []
+        self.resolvedAssociatedTypeWitnesses = resolvedAssociatedTypeWitnesses
+    }
+
+    /// Folds another definition's associated types (and their frozen witness
+    /// projections) into this one — the indexer's typealias-only merge path.
+    package func absorbAssociatedTypes(of other: ExtensionDefinition) {
+        associatedTypes.append(contentsOf: other.associatedTypes)
+        for projection in other.resolvedAssociatedTypeWitnesses where !resolvedAssociatedTypeWitnesses.contains(projection) {
+            resolvedAssociatedTypeWitnesses.append(projection)
+        }
     }
 
     package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {

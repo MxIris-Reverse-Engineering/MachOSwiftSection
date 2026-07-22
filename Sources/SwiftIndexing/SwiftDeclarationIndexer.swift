@@ -545,7 +545,8 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                         }
                     }
 
-                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO), protocolConformance: protocolConformance, associatedTypes: associatedType.map { [$0] } ?? [], in: machO)
+                    let conformanceAssociatedTypes = associatedType.map { [$0] } ?? []
+                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO), protocolConformance: protocolConformance, conformingProtocolName: protocolName, associatedTypes: conformanceAssociatedTypes, resolvedAssociatedTypeWitnesses: resolvedWitnessProjections(of: conformanceAssociatedTypes), in: machO)
                     extensionDefinition.isRetroactive = protocolConformance.flags.isRetroactive
                     conformanceExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                     extensionCount += 1
@@ -559,7 +560,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         }
         for (remainingTypeName, remainingAssociatedTypeByProtocolName) in associatedTypesByTypeNameCopy {
             for (_, remainingAssociatedType) in remainingAssociatedTypeByProtocolName {
-                let extensionDefinition = try ExtensionDefinition(extensionName: remainingTypeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedTypes: [remainingAssociatedType], in: machO)
+                let extensionDefinition = try ExtensionDefinition(extensionName: remainingTypeName.extensionName, genericSignature: nil, protocolConformance: nil, associatedTypes: [remainingAssociatedType], resolvedAssociatedTypeWitnesses: resolvedWitnessProjections(of: [remainingAssociatedType]), in: machO)
                 conformanceExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
             }
         }
@@ -583,7 +584,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     && extensionDefinition.protocols.isEmpty
                 if isTypealiasOnly {
                     if let existing = primaryTypealiasOnly {
-                        existing.associatedTypes.append(contentsOf: extensionDefinition.associatedTypes)
+                        existing.absorbAssociatedTypes(of: extensionDefinition)
                     } else {
                         primaryTypealiasOnly = extensionDefinition
                         preservedExtensions.append(extensionDefinition)
@@ -605,6 +606,26 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         }
 
         eventDispatcher.dispatch(.conformanceIndexingCompleted(result: SwiftIndexEvents.ConformanceIndexingResult(conformedTypes: protocolConformancesByTypeName.count, associatedTypeCount: associatedTypesByTypeName.count, extensionCount: extensionCount, failedConformances: failedConformances, failedAssociatedTypes: failedAssociatedTypes, failedExtensions: failedExtensions)))
+    }
+
+    /// Freezes associated-type witness records into Mach-O-free projections
+    /// while the Mach-O is still in hand — the record accessors cannot be
+    /// resolved later by the snapshot layer. An unresolvable record is skipped
+    /// (same tolerance as the printers' record collection).
+    private func resolvedWitnessProjections(of associatedTypes: [AssociatedType]) -> [AssociatedTypeWitnessProjection] {
+        var seenNames: Set<String> = []
+        var projections: [AssociatedTypeWitnessProjection] = []
+        for associatedType in associatedTypes {
+            for record in associatedType.records {
+                guard let recordName = try? record.name(in: machO),
+                      let mangledTypeName = try? record.substitutedTypeName(in: machO),
+                      let typeNode = try? MetadataReader.demangleType(for: mangledTypeName, in: machO)
+                else { continue }
+                guard seenNames.insert(recordName).inserted else { continue }
+                projections.append(AssociatedTypeWitnessProjection(name: recordName, substitutedTypeText: typeNode.print(using: .default)))
+            }
+        }
+        return projections
     }
 
     private func indexExtensions() async throws {
