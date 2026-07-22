@@ -260,6 +260,44 @@
 
 ---
 
+## 18. 默认实现感知的 ABI 兼容性判定
+
+- **时间**：2026-07-22（未随版本发布，将入 `0.14.0`）
+- **动机**：`Compatibility` 的均匀启发式「新增即 additive」在协议 requirement 上与
+  Swift library evolution 的官方规则相悖——**给协议追加一个没有默认实现的 requirement
+  是破坏性变更**（既有 conformance 缺 witness，resilient 实例化后调用即 trap）。此前
+  diff 对协议新增 requirement 一律报 backward-compatible，`--fail-on-breaking` 的 CI
+  门在这类真破坏上静默放行，是核心结论最后一处「自信地出错」。上一批已把 stripped slot
+  的 `hasDefaultImplementation` 备进 payload，本批将其升为结构化事实并折进 verdict，
+  对**已解析** requirement 同样生效。
+- **落地**：
+  - `ProtocolDefinition.defaultedRequirementPWTOffsets`：`index(in:)` 的 requirement
+    循环里对**每个** requirement（无论符号可否解析）读 `layout.defaultImplementation.isValid`
+    ——纯相对指针运算、不需要符号表，故 stripped 侧与符号侧同样精确；
+  - `MemberRecord.hasDefaultImplementation: Bool?`（**不**参与 identity/payload key，
+    仅 verdict 元数据）：stripped slot 直取描述符位，已解析成员经纯函数
+    `requirementDefaultImplementationFlag(slotOffsets:defaultedOffsets:)` 关联 PWT
+    offset——所有 slot 均默认才为 `true`（`var { get set }` 只有 getter 默认 ⇒ `false`），
+    任一 offset 缺失 ⇒ `nil`（诚实降级回 status 规则）；
+  - `MemberChange` / `LineageEvent` 新增 `compatibilityOverride: Compatibility?`，
+    `compatibility` 改为 `compatibilityOverride ?? status.compatibility`；override 由
+    `MemberRecord.compatibilityOverride(old:new:)` 一条纯规则计算、双侧 differ 与 evolution
+    builder 共享（N = 2 时两路结论自动一致），`ABIEvolution.transitionCompatibilities`
+    随之改走精化后的 verdict；
+  - formatVersion 4 → 5：键格局与 v4 相同，仅增 verdict 元数据；仍按「一版本一 schema」
+    契约 bump——否则旧 baseline 会把 requirement 追加静默降级回 status 规则。
+- **关键决策**：flag 的语义定为「**resilient default witness 存在**」而非「源码写了默认
+  实现」（落地实测确认，比 spec 初稿更精确）——编译器只为 resilient 协议（public +
+  library-evolution 模块）生成 default witness table，非 resilient 协议恒读 `false`；
+  而这恰是**正确的** verdict 输入，因其既有 conformance 的 witness table 编译期定长，
+  追加 requirement 无论有无源码默认都必然破坏。已解析 requirement 的 default flip 不入
+  payload key（不产生事件）——不丢信息，默认实现函数本身就是 protocol-extension 容器里的
+  成员增删，已在该轴如实呈现；stripped slot 的 `default:1→0` 维持 status 规则的 breaking
+  （依赖默认实现的既有 conformance 将 trap）。
+- **文档**：[DefaultImplementationAwareCompatibility.md](DefaultImplementationAwareCompatibility.md)。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
