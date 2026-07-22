@@ -101,6 +101,17 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
 
     public package(set) var strippedSymbolicRequirements: [StrippedSymbolicRequirement] = []
 
+    /// The PWT offsets of every requirement (resolved or stripped) that
+    /// carries a **resilient default witness** — read from the descriptor's
+    /// relative pointer (pure arithmetic, no symbol table), so the fact is
+    /// exact even when the default's own symbol is stripped. The compiler
+    /// emits default witnesses only for resilient protocols (public,
+    /// library-evolution module); a non-resilient protocol's requirements
+    /// never appear here even with source-level defaults. Correlates with the
+    /// `offset` stored on resolved members' definitions/accessors; consumed
+    /// by SwiftDiffing's default-implementation-aware compatibility verdict.
+    public package(set) var defaultedRequirementPWTOffsets: Set<Int> = []
+
     public package(set) var orderedMembers: [OrderedMember] = []
 
     public private(set) var isIndexed: Bool = false
@@ -139,6 +150,9 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
 
         for requirement in `protocol`.requirements {
             offsetOfPWT.offset(of: StoredPointer.self)
+            if requirement.layout.defaultImplementation.isValid {
+                defaultedRequirementPWTOffsets.insert(offsetOfPWT)
+            }
             guard let symbols = try await Symbols.resolve(from: requirement.offset, in: machO), let symbol = try? _symbol(for: symbols, visitedNodes: requirementVisitedNodes) else {
                 strippedSymbolicRequirements.append(.init(requirement: requirement, pwtOffset: offsetOfPWT))
                 continue
