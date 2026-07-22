@@ -420,6 +420,7 @@ extension Target {
             .product(.Semantic),
             .product(.Demangling),
             .target(.MachOSwiftSection),
+            .target(.MachOSwiftSectionC),
             .target(.Utilities),
             .target(.OutputTransformer),
         ],

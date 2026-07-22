@@ -1,5 +1,8 @@
 import Foundation
 import MachOSwiftSection
+#if _ptrauth(_arm64e)
+import MachOSwiftSectionC
+#endif
 
 /// Materializes an enum's per-case memory patterns by driving the enum's own
 /// value witnesses over live in-process metadata.
@@ -83,13 +86,6 @@ public enum RuntimeEnumCaseProjector {
         payloadCaseCount: Int,
         caseCount: Int
     ) -> [CasePattern]? {
-        #if _ptrauth(_arm64e)
-        // Value-witness function pointers are PAC-signed on arm64e; calling
-        // them through a plain `@convention(c)` cast would fault. Current
-        // hosts run this in arm64/x86_64 processes — on an arm64e host the
-        // caller keeps its formula-derived patterns.
-        return nil
-        #else
         guard caseCount > 0, payloadCaseCount >= 0, payloadCaseCount <= caseCount else { return nil }
 
         // The value-witness table pointer sits one word before the metadata
@@ -108,6 +104,21 @@ public enum RuntimeEnumCaseProjector {
         guard size > 0, size <= enumSizeSanityLimit else { return nil }
         let alignment = Int(requiredWitnesses.flags.alignment)
 
+        #if _ptrauth(_arm64e)
+        // The enum witnesses are PAC-signed in the table (IA key, address
+        // diversity, per-slot discriminators), and the clang importer skips
+        // ptrauth-qualified members — so the calls go through the
+        // `MachOSwiftSectionC` stubs, whose `EnumValueWitnessTable` declares
+        // each slot with its `__ptrauth_swift_value_witness_function_pointer`
+        // qualifier: the signature is auth-verified at the call, exactly as
+        // the runtime itself invokes these witnesses.
+        let getEnumTag: (UnsafeRawPointer, UnsafeRawPointer) -> UInt32 = { instance, metadata in
+            swift_section_vwt_getEnumTag(tablePointer, instance, metadata)
+        }
+        let destructiveInjectEnumTag: (UnsafeMutableRawPointer, UInt32, UnsafeRawPointer) -> Void = { instance, tag, metadata in
+            swift_section_vwt_destructiveInjectEnumTag(tablePointer, instance, tag, metadata)
+        }
+        #else
         typealias GetEnumTagWitness = @convention(c) (UnsafeRawPointer, UnsafeRawPointer) -> UInt32
         typealias DestructiveInjectEnumTagWitness = @convention(c) (UnsafeMutableRawPointer, UInt32, UnsafeRawPointer) -> Void
 
@@ -120,6 +131,7 @@ public enum RuntimeEnumCaseProjector {
             tablePointer.load(fromByteOffset: enumWitnessesOffset + 2 * MemoryLayout<UnsafeRawPointer>.size, as: UnsafeRawPointer.self),
             to: DestructiveInjectEnumTagWitness.self
         )
+        #endif
 
         let zeroBaseline = UnsafeMutableRawPointer.allocate(byteCount: size, alignment: alignment)
         let onesBaseline = UnsafeMutableRawPointer.allocate(byteCount: size, alignment: alignment)
@@ -156,6 +168,5 @@ public enum RuntimeEnumCaseProjector {
         }
 
         return casePatterns
-        #endif
     }
 }
