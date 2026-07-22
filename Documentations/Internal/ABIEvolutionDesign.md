@@ -231,6 +231,15 @@ swift-section evolution <path>... \
 8. **兼容性推广**：逐转换 additive/breaking 与 `firstBreakingTransitionIndex`。
 9. **reporter**：小型 evolution 的整段文本断言（确定性输出）。
 
+另有**维护者手检集成套件** `Tests/IntegrationTests/SwiftDiffing/ABIEvolutionTests.swift`
+（遵循 IntegrationTests 约定：只打印/写文件、无断言、agent 不运行）：
+`ABIEvolutionTestSuite.DyldCacheTests` 对三份 macOS dyld cache（15.5 → 26.5.1 →
+27.0-beta.1）提取同一 image（AppKit）跑完整 pipeline——逐版本索引 → 冻结 →
+**经持久化 JSON 往返**（codec + 版本头在真实数据上过一遍）→ lineage 矩阵 →
+timeline 报告（`-Evolution.txt` / `-Evolution.json` 落盘）；
+`SwiftUICoreTests`（iOS 18.5 → 26.5 模拟器运行时）覆盖 N == 2 情形并打印与双侧
+diff 的 verdict 交叉核对行。
+
 ## 后续项（不在首轮范围）
 
 - rename / re-sign 启发式关联（同容器内 add+remove 配对提示）。
