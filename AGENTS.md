@@ -10,6 +10,15 @@ All project documentation lives in the `Documentations/` directory, split by aud
 
 Name doc files in **PascalCase** with the `.md` extension (e.g. `Internal/SwiftModularizationMigration.md`, `Internal/ReadingContextAbstraction.md`). When asked to "write a doc", default to `Documentations/Internal/` with a PascalCase name — only put it at the top level if it is genuinely a public, externally-facing reference (and then keep it English/bilingual). Do not scatter docs next to source files. When adding or moving a doc, update `Documentations/README.md`.
 
+**Documentation is a first-class deliverable.** Every non-trivial batch of work MUST ship with its documentation in the same push, following this division of labor:
+
+1. **Design doc first** (`Documentations/Internal/<PascalCase>.md`) — written *before* implementation for any substantive feature/refactor; records motivation, decisions, trade-offs, and limitations.
+2. **[ProjectEvolutionLog.md](Documentations/Internal/ProjectEvolutionLog.md)** — the chronological ledger of the library's evolution (one section per work arc). Append/update a section at the end of every non-trivial batch: period, motivation, key decisions, landed modules, doc links, version range.
+3. **Task report** (`Internal/TaskReports/YYYY-MM-DD-<slug>.md`, Chinese) — the per-task retrospective: problem / research / final plan / actual execution / verification / divergence.
+4. **Changelog** (`Changelogs/<version>.md`, English) — per release, when `Version.swift` is bumped and tagged (the bump contract in `Version.swift`'s header).
+
+Keeping AGENTS.md's architecture section and `Documentations/README.md`'s index in sync with the code remains part of the same discipline.
+
 ## Build and Test Commands
 
 ```bash

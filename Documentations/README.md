@@ -24,8 +24,17 @@ This is the only documentation aimed at an outside audience. Everything under
 Design notes, migration guides, refactor write-ups, and per-task reports for contributors to
 this repository. Not part of the public documentation surface (mixed Chinese / English).
 
+**Start here for history:** [ProjectEvolutionLog.md](Internal/ProjectEvolutionLog.md) is the
+chronological ledger of the library's own evolution — one section per work arc (period,
+motivation, key decisions, landed modules, doc links, version range), maintained on every
+non-trivial batch. Related repo-root surfaces (not under `Documentations/`):
+[`Roadmaps/`](../Roadmaps/) holds forward-looking specs and review-finding backlogs, and
+[`Changelogs/`](../Changelogs/) holds the user-facing per-release notes (one file per tag,
+required by `Version.swift`'s bump contract).
+
 | Doc | What it covers |
 |---|---|
+| [ProjectEvolutionLog.md](Internal/ProjectEvolutionLog.md) | 编年演进账本：15 个工作弧（Foundation 解析 → demangler → 模块化 → SwiftLayout → SwiftDiffing/ABI evolution …）的时间段/动机/关键决策/落地文档/版本对应，含每批次必须追加的维护约定。 |
 | [SwiftModularizationMigration.md](Internal/SwiftModularizationMigration.md) | The `SwiftInterface` monolith → layered peer modules refactor; where everything moved. |
 | [FieldMetadataRenderingMigration.md](Internal/FieldMetadataRenderingMigration.md) | Extracting metadata-derived field rendering into `SwiftDeclarationRendering` (single source for dumper + printer). |
 | [FieldLayoutRendererReaderSpecialization.md](Internal/FieldLayoutRendererReaderSpecialization.md) | Splitting `FieldLayoutRenderer` into a generic facade dispatching to two reader-specialized implementations: the `MachOImage` runtime path (in-process metadata) and the `MachOFile` static path (offline field offsets / type layouts / expanded tree / enum layouts via `SwiftLayout`). Covers the `self as?` dispatch, the `StaticFieldLayoutProvider` injection seam (built once per session), the new SwiftLayout convenience APIs, graceful degradation, and the `typeLayoutTransformer`/tuple limitations. |
