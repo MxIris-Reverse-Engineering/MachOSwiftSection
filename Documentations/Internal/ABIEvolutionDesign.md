@@ -239,6 +239,14 @@ swift-section evolution <path>... \
   evolution 侧改动。
 - 注释接口的时间线版（每行标注 introduced-in）。
 
+## 首轮落地后的增量（第三批）
+
+- **per-conformance / per-`where`-block 归属（已落地）**：extension 容器按
+  (target, protocol, where 指纹, retroactive) 拆分，evolution **零改动**自动获得
+  per-conformance lineage（一个 conformance 的出现/消失就是一条容器 lineage）。
+  key scheme 变更 ⇒ `currentFormatVersion` bump 到 3。设计见
+  [`PerConformanceAttribution.md`](PerConformanceAttribution.md)。
+
 ## 首轮落地后的增量（第二批）
 
 - **`keyed` 碰撞诊断通道（已落地）**：`ABISnapshot.keyCollisions()` 独立扫描

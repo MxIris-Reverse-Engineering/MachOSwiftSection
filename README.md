@@ -255,7 +255,7 @@ swift-section interface --dyld-shared-cache --cache-image-path /path/to/cache /p
 
 #### diff - Compare the ABI of Two Versions
 
-Diff the Swift ABI of two versions of the same module at the **binary** level — field retypes, enum-case tag renumbering, accessor changes, added/removed conformances — details a `.swiftinterface` diff cannot see.
+Diff the Swift ABI of two versions of the same module at the **binary** level — field retypes, enum-case tag renumbering, accessor changes, added/removed conformances — details a `.swiftinterface` diff cannot see. Extension changes are attributed **per conformance / per conditional block** (`Target: Protocol where …`), so adding or dropping a single conformance reads as one container-level change.
 
 ```bash
 # Change-list report with a breaking/backward-compatible verdict

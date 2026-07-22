@@ -204,6 +204,32 @@
   [2026-07-21-abi-evolution-and-snapshot-persistence.md](TaskReports/2026-07-21-abi-evolution-and-snapshot-persistence.md)、
   [2026-07-22-key-collision-diagnostics-and-indirect-case.md](TaskReports/2026-07-22-key-collision-diagnostics-and-indirect-case.md)。
 
+## 16. 文档第一公民 + per-conformance 归属
+
+- **时间**：2026-07-22（未随版本发布，将入 `0.14.0`）
+- **动机**：两条线合一。① 文档升级为第一交付物：建立本演进账本并回填 15 个 epoch、
+  补齐近期 task report 缺口与 `0.13.0` changelog、把「每批次必附文档」写进
+  AGENTS.md 纪律。② 关闭 SwiftDiffing 局限 5：extension 变更只能归到
+  `ExtensionName` 总账（归因不了、条件变更不可见、witness 不参与 diff、
+  键碰撞唯一现实来源）。
+- **落地**：
+  - 文档：本文（ProjectEvolutionLog）、TaskReports ×2 回填、`Changelogs/0.13.0.md`、
+    AGENTS.md 文档纪律 + `Documentations/README.md` 索引扩展。
+  - 归属：索引期把 protocol 名与 witness 投影冻结成纯值钉在
+    `ExtensionDefinition` 上（`conformingProtocolName` /
+    `resolvedAssociatedTypeWitnesses`）；快照按 (target, protocol, where 指纹,
+    retroactive) 拆容器（key scheme v3）；conformance 增删 = 容器级事件、
+    where/`@retroactive` 变更 = 身份翻转、witness 换绑 = `.modified`
+    （`assocwitness:` 命名空间）；键碰撞源结构性消解（诊断通道保留兜底）；
+    diffable renderer 的 header 携带 `: Protocol` 与 where 子句；evolution
+    零改动获得 per-conformance lineage。
+- **关键决策**：拆容器而非挂归因标签（新 conformance 成为干净的容器级事件、
+  碰撞随作用域拆分自然消失）；演进记录选编年 ledger 而非 evolution-proposal
+  体系（与产品功能 `swift-section evolution` 撞名、且提案是前瞻性的）。
+- **文档**：[PerConformanceAttribution.md](PerConformanceAttribution.md)、
+  [ABIDiffDesignAndLimitations.md](ABIDiffDesignAndLimitations.md)（局限 3/5 收口）、
+  TaskReports [2026-07-22-per-conformance-attribution-and-docs-program.md](TaskReports/2026-07-22-per-conformance-attribution-and-docs-program.md)。
+
 ---
 
 ## 维护约定
