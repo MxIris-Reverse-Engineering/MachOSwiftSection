@@ -31,19 +31,37 @@ public struct ABIEvolutionReporter: Sendable {
             sections.append("No ABI changes across the axis.")
         }
         if let keyCollisionsByVersion = evolution.keyCollisionsByVersion {
-            sections.append(warningsSection(keyCollisionsByVersion, evolution))
+            sections.append(collisionWarningsSection(keyCollisionsByVersion, evolution))
+        }
+        if let remangleFallbacksByVersion = evolution.remangleFallbacksByVersion {
+            sections.append(remangleFallbackWarningsSection(remangleFallbacksByVersion, evolution))
         }
         return sections.joined(separator: "\n\n")
     }
 
     /// Identity-key collisions per version, surfaced so a lineage is never
     /// quietly weaker than reported (a dropped record was not compared there).
-    private func warningsSection(_ keyCollisionsByVersion: [[ABIKeyCollision]], _ evolution: ABIEvolution) -> String {
+    private func collisionWarningsSection(_ keyCollisionsByVersion: [[ABIKeyCollision]], _ evolution: ABIEvolution) -> String {
         var lines = ["Warnings — identity-key collisions (first record kept, later ones not compared):"]
         for (versionIndex, collisions) in keyCollisionsByVersion.enumerated() {
             for collision in collisions {
                 let scope = collision.containerName.map { "\($0) · " } ?? ""
                 lines.append("  \(evolution.versions[versionIndex].label) · \(scope)dropped: \(collision.droppedSignatures.joined(separator: ", "))")
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// Remangle-fallback keys per version — a key that is print-derived rather
+    /// than remangled can flip identity across toolchains, so its lineage's
+    /// removed+added stories deserve a skeptical read (see
+    /// `ABIRemangleFallback`).
+    private func remangleFallbackWarningsSection(_ remangleFallbacksByVersion: [[ABIRemangleFallback]], _ evolution: ABIEvolution) -> String {
+        var lines = ["Warnings — remangle-fallback keys (print-derived identity; removed+added may be an identity flip across toolchains):"]
+        for (versionIndex, fallbacks) in remangleFallbacksByVersion.enumerated() {
+            for fallback in fallbacks {
+                let scope = fallback.containerName.map { "\($0) · " } ?? ""
+                lines.append("  \(evolution.versions[versionIndex].label) · \(scope)\(fallback.signature)")
             }
         }
         return lines.joined(separator: "\n")

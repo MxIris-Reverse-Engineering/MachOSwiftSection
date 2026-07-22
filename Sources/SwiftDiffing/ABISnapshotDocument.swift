@@ -16,6 +16,11 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     /// `ABIDiffer.extensionBucketKey(for:)`).
     ///
     /// History:
+    /// - 4: protocol containers carry stripped witness-table slots
+    ///   (`pwtslot:` member records — an older baseline would misreport every
+    ///   slot as added), and remangle-fallback keys became self-identifying
+    ///   (`unmangled:` prefix — the prefix is part of the identity, so mixed
+    ///   versions would mismatch every fallback key).
     /// - 3: extension containers split per (target, protocol, where clause,
     ///   retroactive) — new `extbucket:` key scheme with `proto:`/`where:`/
     ///   `retro:` dimensions, `ContainerSnapshot` gains the structured
@@ -25,7 +30,7 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     ///   (`tag:N|indirect|…`), so a version-1 baseline would silently miss
     ///   that transition.
     /// - 1: initial versioned format.
-    public static let currentFormatVersion = 3
+    public static let currentFormatVersion = 4
 
     public let formatVersion: Int
     public var provenance: ABIProvenance?

@@ -37,8 +37,9 @@ public enum MemberKind: Sendable, Codable, Equatable {
     case associatedType
     /// A conformance's associated-type *witness* (which type was bound).
     case associatedTypeWitness
-    // TODO(P2): protocolRequirement (stripped/unresolved witness-table slots —
-    // keyed on pwtOffset + flags; needs MachOSwiftSection's ProtocolRequirement).
+    /// A protocol requirement whose symbol was stripped — visible only as a
+    /// witness-table slot (keyed on its PWT offset, flags in the payload).
+    case protocolRequirement
 }
 
 /// Which container a `ContainerChange` describes — keeps types, protocols and

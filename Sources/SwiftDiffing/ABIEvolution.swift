@@ -120,6 +120,12 @@ public struct ABIEvolution: Sendable, Codable, Equatable {
     /// version's transitions can be quietly weaker than reported — the
     /// reporters surface these as warnings.
     public let keyCollisionsByVersion: [[ABIKeyCollision]]?
+    /// Remangle-fallback keys per version (aligned with `versions`), `nil`
+    /// when no version has any. A fallback key is deterministic but
+    /// remangle-success-dependent, so a cross-toolchain axis can flip an
+    /// identity `.mangled`↔`.printed` — the reporters surface these as
+    /// warnings (see `ABIRemangleFallback`).
+    public let remangleFallbacksByVersion: [[ABIRemangleFallback]]?
 
     public init(
         versions: [ABIVersionDescriptor],
@@ -131,7 +137,8 @@ public struct ABIEvolution: Sendable, Codable, Equatable {
         conformanceExtensions: [ContainerLineage] = [],
         globalVariables: [MemberLineage] = [],
         globalFunctions: [MemberLineage] = [],
-        keyCollisionsByVersion: [[ABIKeyCollision]]? = nil
+        keyCollisionsByVersion: [[ABIKeyCollision]]? = nil,
+        remangleFallbacksByVersion: [[ABIRemangleFallback]]? = nil
     ) {
         self.versions = versions
         self.types = types
@@ -143,6 +150,7 @@ public struct ABIEvolution: Sendable, Codable, Equatable {
         self.globalVariables = globalVariables
         self.globalFunctions = globalFunctions
         self.keyCollisionsByVersion = keyCollisionsByVersion
+        self.remangleFallbacksByVersion = remangleFallbacksByVersion
     }
 
     public var allContainerLineages: [ContainerLineage] {

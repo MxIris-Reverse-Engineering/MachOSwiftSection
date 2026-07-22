@@ -43,11 +43,13 @@ public struct ABIDiffer: Sendable {
         oldProvenance: ABIProvenance? = nil,
         newProvenance: ABIProvenance? = nil
     ) -> ABIDiff {
-        let oldSideKeyCollisions = old.keyCollisions()
-        let newSideKeyCollisions = new.keyCollisions()
-        let diagnostics = (oldSideKeyCollisions.isEmpty && newSideKeyCollisions.isEmpty)
-            ? nil
-            : ABIDiffDiagnostics(oldSideKeyCollisions: oldSideKeyCollisions, newSideKeyCollisions: newSideKeyCollisions)
+        let candidateDiagnostics = ABIDiffDiagnostics(
+            oldSideKeyCollisions: old.keyCollisions(),
+            newSideKeyCollisions: new.keyCollisions(),
+            oldSideRemangleFallbacks: old.remangleFallbacks(),
+            newSideRemangleFallbacks: new.remangleFallbacks()
+        )
+        let diagnostics = candidateDiagnostics.isEmpty ? nil : candidateDiagnostics
         return ABIDiff(
             types: diffContainerSnapshots(old.types, new.types),
             protocols: diffContainerSnapshots(old.protocols, new.protocols),
@@ -256,13 +258,25 @@ public struct ABIDiffer: Sendable {
         return records
     }
 
-    /// A protocol adds its associated-type requirements on top of the shared
-    /// members. TODO(P2): project `strippedSymbolicRequirements` (unresolved
-    /// witness-table slots) — keyed on pwtOffset + flags; needs the
-    /// MachOSwiftSection `ProtocolRequirement` type.
+    /// A protocol adds its associated-type requirements and its
+    /// symbol-stripped witness-table slots on top of the shared members, so a
+    /// PWT-shape change is visible even when every requirement symbol is
+    /// stripped (the OS-framework norm). The stripped facts are Mach-O-free
+    /// accessors on `StrippedSymbolicRequirement` — populated by
+    /// `ProtocolDefinition.index(in:)`, which every snapshot producer runs
+    /// before freezing.
     func memberRecords(of definition: ProtocolDefinition) -> [MemberRecord] {
         var records = sharedMemberRecords(of: definition)
         records.append(contentsOf: definition.associatedTypes.map(MemberRecord.makeAssociatedType))
+        records.append(contentsOf: definition.strippedSymbolicRequirements.map {
+            MemberRecord.makeProtocolRequirement(
+                pwtOffset: $0.pwtOffset,
+                kindToken: $0.kindToken,
+                isInstance: $0.isInstance,
+                isAsync: $0.isAsync,
+                hasDefaultImplementation: $0.hasDefaultImplementation
+            )
+        })
         return records
     }
 

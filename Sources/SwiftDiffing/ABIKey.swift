@@ -41,10 +41,12 @@ public enum ABIKey: Hashable, Sendable, Codable {
     /// toolchains) and one tree remangles while the other throws, the identity
     /// flips `.mangled`↔`.printed` and the declaration surfaces as removed+added
     /// rather than modified. Narrow — it needs the rare throw path on exactly one
-    /// side — and a structural tree difference usually *is* a real change, so it
-    /// is documented rather than worked around. TODO(P2): a remangle-success-
-    /// independent identity would require reworking the key and is not worth the
-    /// precision loss. See `Documentations/Internal/ABIDiffDesignAndLimitations.md`.
+    /// side — and a structural tree difference usually *is* a real change, so the
+    /// behavior stands; what changed is observability: fallback keys carry the
+    /// `unmangled:` prefix, `ABISnapshot.remangleFallbacks()` collects them, and
+    /// the reporters surface them as warnings. (A remangle-success-independent
+    /// identity would rework the key for a precision loss — still not worth it.)
+    /// See `Documentations/Internal/ABIDiffDesignAndLimitations.md`.
     public static func make(for node: Node) -> ABIKey {
         // `canMangle` is literally `(try? mangleAsString) != nil`, so a single
         // `try?` decides the branch and remangles exactly once.
@@ -77,10 +79,26 @@ public enum ABIKey: Hashable, Sendable, Codable {
         node.kind == .type ? (node.children.first ?? node) : node
     }
 
-    /// The injective fallback rendering: root kind + a print that retains
-    /// bound-generic arguments (`.default` is
+    /// The prefix every remangle-fallback key starts with. Self-identifying so
+    /// `ABISnapshot.remangleFallbacks()` can audit where the fallback fired —
+    /// the colon keeps it collision-free against Swift identifiers, and the
+    /// deliberate `.printed` namespaces (`field:`, `case:`, `pwtslot:`, …)
+    /// never produce it.
+    public static let remangleFallbackPrefix = "unmangled:"
+
+    /// Whether this key came from the remangle-fallback path (or, for composed
+    /// container keys, embeds a component that did).
+    public var isRemangleFallback: Bool {
+        switch self {
+        case .mangled: return false
+        case .printed(let value): return value.contains(Self.remangleFallbackPrefix)
+        }
+    }
+
+    /// The injective fallback rendering: the self-identifying prefix + root
+    /// kind + a print that retains bound-generic arguments (`.default` is
     /// `.default` without `.removeBoundGeneric`).
     private static func fallbackString(for node: Node) -> String {
-        "\(node.kind):\(node.print(using: .default))"
+        "\(remangleFallbackPrefix)\(node.kind):\(node.print(using: .default))"
     }
 }

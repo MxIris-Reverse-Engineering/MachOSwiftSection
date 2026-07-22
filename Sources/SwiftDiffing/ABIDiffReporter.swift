@@ -27,14 +27,28 @@ public struct ABIDiffReporter: Sendable {
         return report
     }
 
-    /// Identity-key collisions surfaced so the verdict is never quietly weaker
-    /// than it looks: a dropped record was not compared, so it can hide a
-    /// change (see `ABIKeyCollision`).
+    /// Diagnostics surfaced so the verdict is never quietly weaker than it
+    /// looks: a collision-dropped record was not compared (see
+    /// `ABIKeyCollision`), and a remangle-fallback key can flip identity
+    /// across toolchains (see `ABIRemangleFallback`).
     private func warningsSection(_ diagnostics: ABIDiffDiagnostics) -> String {
-        var lines = ["Warnings — identity-key collisions (first record kept, later ones not compared):"]
-        for (sideName, collisions) in [("old", diagnostics.oldSideKeyCollisions), ("new", diagnostics.newSideKeyCollisions)] {
-            for collision in collisions {
-                lines.append("  \(sideName) · \(collisionLine(collision))")
+        var lines: [String] = []
+        if !diagnostics.oldSideKeyCollisions.isEmpty || !diagnostics.newSideKeyCollisions.isEmpty {
+            lines.append("Warnings — identity-key collisions (first record kept, later ones not compared):")
+            for (sideName, collisions) in [("old", diagnostics.oldSideKeyCollisions), ("new", diagnostics.newSideKeyCollisions)] {
+                for collision in collisions {
+                    lines.append("  \(sideName) · \(collisionLine(collision))")
+                }
+            }
+        }
+        if !diagnostics.oldSideRemangleFallbacks.isEmpty || !diagnostics.newSideRemangleFallbacks.isEmpty {
+            if !lines.isEmpty { lines.append("") }
+            lines.append("Warnings — remangle-fallback keys (print-derived identity; removed+added may be an identity flip across toolchains):")
+            for (sideName, fallbacks) in [("old", diagnostics.oldSideRemangleFallbacks), ("new", diagnostics.newSideRemangleFallbacks)] {
+                for fallback in fallbacks {
+                    let scope = fallback.containerName.map { "\($0) · " } ?? ""
+                    lines.append("  \(sideName) · \(scope)\(fallback.signature)")
+                }
             }
         }
         return lines.joined(separator: "\n")

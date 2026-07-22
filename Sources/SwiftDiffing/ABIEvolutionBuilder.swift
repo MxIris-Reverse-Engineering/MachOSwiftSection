@@ -36,6 +36,7 @@ public struct ABIEvolutionBuilder: Sendable {
             throw ABIEvolutionError.labelCountMismatch(labelCount: versions.count, versionCount: snapshots.count)
         }
         let keyCollisionsByVersion = snapshots.map { $0.keyCollisions() }
+        let remangleFallbacksByVersion = snapshots.map { $0.remangleFallbacks() }
         return ABIEvolution(
             versions: versions,
             types: containerLineages(snapshots.map(\.types)),
@@ -46,7 +47,8 @@ public struct ABIEvolutionBuilder: Sendable {
             conformanceExtensions: containerLineages(snapshots.map(\.conformanceExtensions)),
             globalVariables: memberLineages(perVersionMembers: snapshots.map(\.globalVariables)),
             globalFunctions: memberLineages(perVersionMembers: snapshots.map(\.globalFunctions)),
-            keyCollisionsByVersion: keyCollisionsByVersion.allSatisfy(\.isEmpty) ? nil : keyCollisionsByVersion
+            keyCollisionsByVersion: keyCollisionsByVersion.allSatisfy(\.isEmpty) ? nil : keyCollisionsByVersion,
+            remangleFallbacksByVersion: remangleFallbacksByVersion.allSatisfy(\.isEmpty) ? nil : remangleFallbacksByVersion
         )
     }
 

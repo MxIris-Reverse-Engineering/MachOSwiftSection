@@ -156,6 +156,36 @@ extension MemberRecord {
         )
     }
 
+    /// A protocol requirement whose symbol was stripped — the witness-table
+    /// slot is the only remaining identity, so the record keys on the PWT
+    /// offset (in its own `pwtslot:` namespace) and folds the requirement
+    /// flags into the payload: a slot changing kind / instance-ness /
+    /// async-ness / default-implementation presence at the same offset reports
+    /// `.modified`, while inserting a requirement mid-table shifts every later
+    /// slot's offset and honestly cascades as removed+added (the witness-table
+    /// layout did change wholesale).
+    ///
+    /// Caveat: stripped-ness is a *symbolication* state, not an ABI fact — the
+    /// same requirement appears as a resolved member on a symbol-rich build
+    /// and as a `pwtslot:` record on a stripped one, so comparing binaries in
+    /// different strip states reports a spurious member swap. See
+    /// `Documentations/Internal/ProtocolRequirementProjection.md`.
+    public static func makeProtocolRequirement(
+        pwtOffset: Int,
+        kindToken: String,
+        isInstance: Bool,
+        isAsync: Bool,
+        hasDefaultImplementation: Bool
+    ) -> MemberRecord {
+        func bit(_ value: Bool) -> String { value ? "1" : "0" }
+        return MemberRecord(
+            identityKey: .printed("pwtslot:\(pwtOffset)"),
+            payloadKey: .printed("pwtslot:\(pwtOffset)|\(kindToken)|instance:\(bit(isInstance))|async:\(bit(isAsync))|default:\(bit(hasDefaultImplementation))"),
+            kind: .protocolRequirement,
+            signature: "stripped requirement at PWT offset \(pwtOffset) — Kind: \(kindToken), isAsync: \(isAsync), isInstance: \(isInstance), hasDefaultImplementation: \(hasDefaultImplementation)"
+        )
+    }
+
     /// A stable, order-independent fingerprint of a member's accessor kinds.
     private static func accessorTag(_ accessors: [Accessor]) -> String {
         accessors.map { accessorKindToken($0.kind) }.sorted().joined(separator: ",")
