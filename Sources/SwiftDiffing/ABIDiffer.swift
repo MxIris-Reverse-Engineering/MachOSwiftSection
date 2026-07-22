@@ -43,7 +43,12 @@ public struct ABIDiffer: Sendable {
         oldProvenance: ABIProvenance? = nil,
         newProvenance: ABIProvenance? = nil
     ) -> ABIDiff {
-        ABIDiff(
+        let oldSideKeyCollisions = old.keyCollisions()
+        let newSideKeyCollisions = new.keyCollisions()
+        let diagnostics = (oldSideKeyCollisions.isEmpty && newSideKeyCollisions.isEmpty)
+            ? nil
+            : ABIDiffDiagnostics(oldSideKeyCollisions: oldSideKeyCollisions, newSideKeyCollisions: newSideKeyCollisions)
+        return ABIDiff(
             types: diffContainerSnapshots(old.types, new.types),
             protocols: diffContainerSnapshots(old.protocols, new.protocols),
             typeExtensions: diffContainerSnapshots(old.typeExtensions, new.typeExtensions),
@@ -53,7 +58,8 @@ public struct ABIDiffer: Sendable {
             globalVariables: diffMembers(old: old.globalVariables, new: new.globalVariables),
             globalFunctions: diffMembers(old: old.globalFunctions, new: new.globalFunctions),
             oldProvenance: oldProvenance,
-            newProvenance: newProvenance
+            newProvenance: newProvenance,
+            diagnostics: diagnostics
         )
     }
 

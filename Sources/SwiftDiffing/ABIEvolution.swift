@@ -114,6 +114,12 @@ public struct ABIEvolution: Sendable, Codable, Equatable {
     public let conformanceExtensions: [ContainerLineage]
     public let globalVariables: [MemberLineage]
     public let globalFunctions: [MemberLineage]
+    /// Identity-key collisions per version (one entry per version on the
+    /// axis, aligned with `versions`), `nil` when no version has any. A
+    /// collision means first-wins keying dropped a record there, so that
+    /// version's transitions can be quietly weaker than reported — the
+    /// reporters surface these as warnings.
+    public let keyCollisionsByVersion: [[ABIKeyCollision]]?
 
     public init(
         versions: [ABIVersionDescriptor],
@@ -124,7 +130,8 @@ public struct ABIEvolution: Sendable, Codable, Equatable {
         typeAliasExtensions: [ContainerLineage] = [],
         conformanceExtensions: [ContainerLineage] = [],
         globalVariables: [MemberLineage] = [],
-        globalFunctions: [MemberLineage] = []
+        globalFunctions: [MemberLineage] = [],
+        keyCollisionsByVersion: [[ABIKeyCollision]]? = nil
     ) {
         self.versions = versions
         self.types = types
@@ -135,6 +142,7 @@ public struct ABIEvolution: Sendable, Codable, Equatable {
         self.conformanceExtensions = conformanceExtensions
         self.globalVariables = globalVariables
         self.globalFunctions = globalFunctions
+        self.keyCollisionsByVersion = keyCollisionsByVersion
     }
 
     public var allContainerLineages: [ContainerLineage] {

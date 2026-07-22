@@ -136,6 +136,10 @@ public struct ABIDiff: Sendable, Codable, Equatable {
     public let oldProvenance: ABIProvenance?
     /// Where the new side came from, when known.
     public let newProvenance: ABIProvenance?
+    /// What the comparison had to resolve silently (identity-key collisions),
+    /// `nil` when nothing. Not part of `isEmpty` — a clean diff with
+    /// collisions still warns, because a dropped record can hide a change.
+    public let diagnostics: ABIDiffDiagnostics?
 
     public init(
         types: [ContainerChange] = [],
@@ -147,7 +151,8 @@ public struct ABIDiff: Sendable, Codable, Equatable {
         globalVariables: [MemberChange] = [],
         globalFunctions: [MemberChange] = [],
         oldProvenance: ABIProvenance? = nil,
-        newProvenance: ABIProvenance? = nil
+        newProvenance: ABIProvenance? = nil,
+        diagnostics: ABIDiffDiagnostics? = nil
     ) {
         self.types = types
         self.protocols = protocols
@@ -159,6 +164,7 @@ public struct ABIDiff: Sendable, Codable, Equatable {
         self.globalFunctions = globalFunctions
         self.oldProvenance = oldProvenance
         self.newProvenance = newProvenance
+        self.diagnostics = diagnostics
     }
 
     public var isEmpty: Bool {

@@ -20,7 +20,29 @@ public struct ABIDiffReporter: Sendable {
         appendMemberSection(&sections, "Global variables", diff.globalVariables)
         appendMemberSection(&sections, "Global functions", diff.globalFunctions)
 
-        return sections.isEmpty ? "No ABI changes." : sections.joined(separator: "\n\n")
+        var report = sections.isEmpty ? "No ABI changes." : sections.joined(separator: "\n\n")
+        if let diagnostics = diff.diagnostics, !diagnostics.isEmpty {
+            report += "\n\n" + warningsSection(diagnostics)
+        }
+        return report
+    }
+
+    /// Identity-key collisions surfaced so the verdict is never quietly weaker
+    /// than it looks: a dropped record was not compared, so it can hide a
+    /// change (see `ABIKeyCollision`).
+    private func warningsSection(_ diagnostics: ABIDiffDiagnostics) -> String {
+        var lines = ["Warnings — identity-key collisions (first record kept, later ones not compared):"]
+        for (sideName, collisions) in [("old", diagnostics.oldSideKeyCollisions), ("new", diagnostics.newSideKeyCollisions)] {
+            for collision in collisions {
+                lines.append("  \(sideName) · \(collisionLine(collision))")
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private func collisionLine(_ collision: ABIKeyCollision) -> String {
+        let scope = collision.containerName.map { "\($0) · " } ?? ""
+        return scope + "dropped: " + collision.droppedSignatures.joined(separator: ", ")
     }
 
     // MARK: - Sections
