@@ -16,6 +16,10 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     /// `ABIDiffer.extensionBucketKey(for:)`).
     ///
     /// History:
+    /// - 5: `MemberRecord` gains the optional `hasDefaultImplementation`
+    ///   verdict metadata (key scheme unchanged from v4 — the bump keeps
+    ///   "one version, one schema" unambiguous; an older baseline would
+    ///   silently degrade requirement-addition verdicts to the status rule).
     /// - 4: protocol containers carry stripped witness-table slots
     ///   (`pwtslot:` member records — an older baseline would misreport every
     ///   slot as added), and remangle-fallback keys became self-identifying
@@ -30,7 +34,7 @@ public struct ABISnapshotDocument: Sendable, Codable, Equatable {
     ///   (`tag:N|indirect|…`), so a version-1 baseline would silently miss
     ///   that transition.
     /// - 1: initial versioned format.
-    public static let currentFormatVersion = 4
+    public static let currentFormatVersion = 5
 
     public let formatVersion: Int
     public var provenance: ABIProvenance?

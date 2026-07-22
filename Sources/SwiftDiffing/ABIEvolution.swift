@@ -25,12 +25,18 @@ public struct LineageEvent: Sendable, Codable, Equatable {
     public let oldSignature: String?
     /// Human-readable rendering on the post-transition side, when present.
     public let newSignature: String?
+    /// Record-level verdict refinement, same rule as
+    /// `MemberChange.compatibilityOverride` (shared via
+    /// `MemberRecord.compatibilityOverride(old:new:)`); `nil` means the plain
+    /// status rule applies. Always `nil` on container-level events.
+    public let compatibilityOverride: Compatibility?
 
-    public init(versionIndex: Int, status: ChangeStatus, oldSignature: String? = nil, newSignature: String? = nil) {
+    public init(versionIndex: Int, status: ChangeStatus, oldSignature: String? = nil, newSignature: String? = nil, compatibilityOverride: Compatibility? = nil) {
         self.versionIndex = versionIndex
         self.status = status
         self.oldSignature = oldSignature
         self.newSignature = newSignature
+        self.compatibilityOverride = compatibilityOverride
     }
 }
 

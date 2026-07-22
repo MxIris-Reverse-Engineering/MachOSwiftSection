@@ -111,15 +111,16 @@ public struct ABIEvolutionBuilder: Sendable {
                 let newRecord = perVersion[versionIndex]
                 switch (oldRecord, newRecord) {
                 case (nil, let newRecord?):
-                    events.append(LineageEvent(versionIndex: versionIndex, status: .added, newSignature: newRecord.signature))
+                    events.append(LineageEvent(versionIndex: versionIndex, status: .added, newSignature: newRecord.signature, compatibilityOverride: MemberRecord.compatibilityOverride(old: nil, new: newRecord)))
                 case (let oldRecord?, nil):
-                    events.append(LineageEvent(versionIndex: versionIndex, status: .removed, oldSignature: oldRecord.signature))
+                    events.append(LineageEvent(versionIndex: versionIndex, status: .removed, oldSignature: oldRecord.signature, compatibilityOverride: MemberRecord.compatibilityOverride(old: oldRecord, new: nil)))
                 case (let oldRecord?, let newRecord?) where oldRecord.payloadKey != newRecord.payloadKey:
                     events.append(LineageEvent(
                         versionIndex: versionIndex,
                         status: .modified,
                         oldSignature: oldRecord.signature,
-                        newSignature: newRecord.signature
+                        newSignature: newRecord.signature,
+                        compatibilityOverride: MemberRecord.compatibilityOverride(old: oldRecord, new: newRecord)
                     ))
                 default:
                     break

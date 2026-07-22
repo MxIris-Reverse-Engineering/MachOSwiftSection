@@ -19,12 +19,42 @@ public struct MemberRecord: Sendable, Codable, Equatable {
     public let kind: MemberKind
     /// Human-readable rendering, surfaced on `MemberChange`.
     public let signature: String
+    /// Whether this protocol requirement carries a **resilient default
+    /// witness** (the descriptor's `defaultImplementation` pointer) — verdict
+    /// metadata only, never part of the keys. `nil` for anything that is not
+    /// a protocol requirement (or when the slot correlation is unavailable),
+    /// which degrades the verdict to the plain status rule. Exact for both
+    /// stripped slots (descriptor flag) and resolved members (PWT-offset
+    /// correlation against
+    /// `ProtocolDefinition.defaultedRequirementPWTOffsets`).
+    ///
+    /// Note the semantic is deliberately the ABI fact, not "the source has a
+    /// default": the compiler emits default witnesses only for **resilient**
+    /// protocols (public, library-evolution module). A non-resilient
+    /// protocol reads `false` even when a source-level default exists — and
+    /// that is the correct verdict input, because its old conformances'
+    /// witness tables are fixed at compile time and a new requirement breaks
+    /// them regardless of any default.
+    public let hasDefaultImplementation: Bool?
 
-    public init(identityKey: ABIKey, payloadKey: ABIKey, kind: MemberKind, signature: String) {
+    public init(identityKey: ABIKey, payloadKey: ABIKey, kind: MemberKind, signature: String, hasDefaultImplementation: Bool? = nil) {
         self.identityKey = identityKey
         self.payloadKey = payloadKey
         self.kind = kind
         self.signature = signature
+        self.hasDefaultImplementation = hasDefaultImplementation
+    }
+
+    /// A copy with the default-implementation fact attached — used by the
+    /// protocol member projection, where every member is a requirement.
+    func withHasDefaultImplementation(_ hasDefaultImplementation: Bool?) -> MemberRecord {
+        MemberRecord(
+            identityKey: identityKey,
+            payloadKey: payloadKey,
+            kind: kind,
+            signature: signature,
+            hasDefaultImplementation: hasDefaultImplementation
+        )
     }
 }
 
@@ -182,8 +212,52 @@ extension MemberRecord {
             identityKey: .printed("pwtslot:\(pwtOffset)"),
             payloadKey: .printed("pwtslot:\(pwtOffset)|\(kindToken)|instance:\(bit(isInstance))|async:\(bit(isAsync))|default:\(bit(hasDefaultImplementation))"),
             kind: .protocolRequirement,
-            signature: "stripped requirement at PWT offset \(pwtOffset) — Kind: \(kindToken), isAsync: \(isAsync), isInstance: \(isInstance), hasDefaultImplementation: \(hasDefaultImplementation)"
+            signature: "stripped requirement at PWT offset \(pwtOffset) — Kind: \(kindToken), isAsync: \(isAsync), isInstance: \(isInstance), hasDefaultImplementation: \(hasDefaultImplementation)",
+            hasDefaultImplementation: hasDefaultImplementation
         )
+    }
+
+    // MARK: - Compatibility refinement
+
+    /// The record-level compatibility refinement shared by the two-sided
+    /// differ and the evolution builder (one rule, so N == 2 verdicts cannot
+    /// disagree). `nil` means "no refinement — use the status rule".
+    ///
+    /// - A protocol requirement **added without a resilient default witness**
+    ///   is breaking (existing conformances lack the witness; Swift library
+    ///   evolution permits requirement additions only with a default — and a
+    ///   non-resilient protocol's compiled conformances break on any
+    ///   addition, which the always-`false` descriptor bit reports
+    ///   correctly). Added with a default — or with no fact available —
+    ///   stays additive.
+    /// - A stripped slot whose only payload change is **gaining** its default
+    ///   implementation (`default:` 0 → 1, everything else equal) is
+    ///   additive; losing it keeps the breaking status rule (conformances
+    ///   relying on the default would trap).
+    static func compatibilityOverride(old: MemberRecord?, new: MemberRecord?) -> Compatibility? {
+        switch (old, new) {
+        case (nil, let newRecord?):
+            return newRecord.hasDefaultImplementation == false ? .breaking : nil
+        case (let oldRecord?, let newRecord?):
+            guard oldRecord.kind == .protocolRequirement, newRecord.kind == .protocolRequirement,
+                  oldRecord.hasDefaultImplementation == false, newRecord.hasDefaultImplementation == true,
+                  payloadIgnoringDefaultImplementation(oldRecord) == payloadIgnoringDefaultImplementation(newRecord)
+            else { return nil }
+            return .additive
+        default:
+            return nil
+        }
+    }
+
+    /// A stripped slot's payload with the trailing `|default:<bit>` component
+    /// removed, so "only the default bit changed" is decidable. The suffix is
+    /// composed by `makeProtocolRequirement`, which keeps it last.
+    private static func payloadIgnoringDefaultImplementation(_ record: MemberRecord) -> String {
+        let payloadText = record.payloadKey.sortKey
+        for suffix in ["|default:0", "|default:1"] where payloadText.hasSuffix(suffix) {
+            return String(payloadText.dropLast(suffix.count))
+        }
+        return payloadText
     }
 
     /// A stable, order-independent fingerprint of a member's accessor kinds.

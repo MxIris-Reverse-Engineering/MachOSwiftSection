@@ -2,7 +2,13 @@
 ///
 /// Heuristic: a new declaration is `.additive` (callers built against the old
 /// ABI keep working), anything removed or re-signed is `.breaking`; a modified
-/// container is breaking iff any of its member changes is breaking.
+/// container is breaking iff any of its member changes is breaking. One
+/// record-level refinement layers on top (`compatibilityOverride`, computed by
+/// `MemberRecord.compatibilityOverride(old:new:)`): a protocol requirement
+/// added **without** a default implementation is breaking (existing
+/// conformances lack the witness — Swift library evolution permits requirement
+/// additions only with a default), and a stripped slot whose only change is
+/// gaining its default implementation is additive.
 ///
 /// Known limitation — `@frozen` is not recoverable from the binary, so the
 /// verdict treats *every* type as resilient. Whether appending a stored field
@@ -34,8 +40,15 @@ extension ChangeStatus {
 }
 
 extension MemberChange {
-    /// Whether this member-level change keeps the old ABI working.
-    public var compatibility: Compatibility { status.compatibility }
+    /// Whether this member-level change keeps the old ABI working: the
+    /// record-level refinement when present, else the status rule.
+    public var compatibility: Compatibility { compatibilityOverride ?? status.compatibility }
+}
+
+extension LineageEvent {
+    /// Whether this transition keeps the old ABI working: the record-level
+    /// refinement when present, else the status rule.
+    public var compatibility: Compatibility { compatibilityOverride ?? status.compatibility }
 }
 
 extension ContainerChange {
@@ -90,17 +103,17 @@ extension ABIEvolution {
     public var transitionCompatibilities: [Compatibility] {
         var breakingTransitions = Set<Int>()
         for lineage in allContainerLineages {
-            for event in lineage.events where event.status.compatibility == .breaking {
+            for event in lineage.events where event.compatibility == .breaking {
                 breakingTransitions.insert(event.versionIndex)
             }
             for memberLineage in lineage.memberLineages {
-                for event in memberLineage.events where event.status.compatibility == .breaking {
+                for event in memberLineage.events where event.compatibility == .breaking {
                     breakingTransitions.insert(event.versionIndex)
                 }
             }
         }
         for lineage in allGlobalLineages {
-            for event in lineage.events where event.status.compatibility == .breaking {
+            for event in lineage.events where event.compatibility == .breaking {
                 breakingTransitions.insert(event.versionIndex)
             }
         }

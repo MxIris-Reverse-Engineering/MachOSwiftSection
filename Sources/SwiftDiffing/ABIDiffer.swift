@@ -265,8 +265,29 @@ public struct ABIDiffer: Sendable {
     /// accessors on `StrippedSymbolicRequirement` — populated by
     /// `ProtocolDefinition.index(in:)`, which every snapshot producer runs
     /// before freezing.
+    ///
+    /// Every resolved member here is a requirement, so it also carries the
+    /// default-implementation fact for the verdict: its PWT slot offsets
+    /// (one per accessor for variables/subscripts) are correlated against the
+    /// descriptor-exact `defaultedRequirementPWTOffsets` — all slots defaulted
+    /// ⇒ `true`, any slot not ⇒ `false`, any offset missing ⇒ `nil` (verdict
+    /// degrades to the status rule). Deliberately built per-collection rather
+    /// than via `sharedMemberRecords`, which serves types/extensions where the
+    /// fact does not apply.
     func memberRecords(of definition: ProtocolDefinition) -> [MemberRecord] {
-        var records = sharedMemberRecords(of: definition)
+        let defaultedOffsets = definition.defaultedRequirementPWTOffsets
+        func flag(_ slotOffsets: [Int?]) -> Bool? {
+            Self.requirementDefaultImplementationFlag(slotOffsets: slotOffsets, defaultedOffsets: defaultedOffsets)
+        }
+        var records: [MemberRecord] = []
+        records.append(contentsOf: definition.variables.map { MemberRecord.make($0).withHasDefaultImplementation(flag($0.accessors.map(\.offset))) })
+        records.append(contentsOf: definition.staticVariables.map { MemberRecord.make($0).withHasDefaultImplementation(flag($0.accessors.map(\.offset))) })
+        records.append(contentsOf: definition.functions.map { MemberRecord.make($0).withHasDefaultImplementation(flag([$0.offset])) })
+        records.append(contentsOf: definition.staticFunctions.map { MemberRecord.make($0).withHasDefaultImplementation(flag([$0.offset])) })
+        records.append(contentsOf: definition.subscripts.map { MemberRecord.make($0).withHasDefaultImplementation(flag($0.accessors.map(\.offset))) })
+        records.append(contentsOf: definition.staticSubscripts.map { MemberRecord.make($0).withHasDefaultImplementation(flag($0.accessors.map(\.offset))) })
+        records.append(contentsOf: definition.allocators.map { MemberRecord.make($0).withHasDefaultImplementation(flag([$0.offset])) })
+        records.append(contentsOf: definition.constructors.map { MemberRecord.make($0).withHasDefaultImplementation(flag([$0.offset])) })
         records.append(contentsOf: definition.associatedTypes.map(MemberRecord.makeAssociatedType))
         records.append(contentsOf: definition.strippedSymbolicRequirements.map {
             MemberRecord.makeProtocolRequirement(
@@ -278,6 +299,16 @@ public struct ABIDiffer: Sendable {
             )
         })
         return records
+    }
+
+    /// Whether a resolved requirement (all of whose witness-table slots are
+    /// `slotOffsets` — one per accessor for variables/subscripts) carries a
+    /// default implementation: all slots defaulted ⇒ `true`, any slot not ⇒
+    /// `false`, any offset unavailable ⇒ `nil` (fact unknown).
+    static func requirementDefaultImplementationFlag(slotOffsets: [Int?], defaultedOffsets: Set<Int>) -> Bool? {
+        let concreteOffsets = slotOffsets.compactMap { $0 }
+        guard !concreteOffsets.isEmpty, concreteOffsets.count == slotOffsets.count else { return nil }
+        return concreteOffsets.allSatisfy { defaultedOffsets.contains($0) }
     }
 
     /// An extension contributes its shared members plus its associated-type
@@ -302,13 +333,13 @@ public struct ABIDiffer: Sendable {
 
         var changes: [MemberChange] = []
         changes.append(contentsOf: matched.removed.map {
-            MemberChange(key: $0.identityKey, kind: $0.kind, status: .removed, oldSignature: $0.signature, newSignature: nil)
+            MemberChange(key: $0.identityKey, kind: $0.kind, status: .removed, oldSignature: $0.signature, newSignature: nil, compatibilityOverride: MemberRecord.compatibilityOverride(old: $0, new: nil))
         })
         changes.append(contentsOf: matched.added.map {
-            MemberChange(key: $0.identityKey, kind: $0.kind, status: .added, oldSignature: nil, newSignature: $0.signature)
+            MemberChange(key: $0.identityKey, kind: $0.kind, status: .added, oldSignature: nil, newSignature: $0.signature, compatibilityOverride: MemberRecord.compatibilityOverride(old: nil, new: $0))
         })
         for (oldRecord, newRecord) in matched.common where oldRecord.payloadKey != newRecord.payloadKey {
-            changes.append(MemberChange(key: newRecord.identityKey, kind: newRecord.kind, status: .modified, oldSignature: oldRecord.signature, newSignature: newRecord.signature))
+            changes.append(MemberChange(key: newRecord.identityKey, kind: newRecord.kind, status: .modified, oldSignature: oldRecord.signature, newSignature: newRecord.signature, compatibilityOverride: MemberRecord.compatibilityOverride(old: oldRecord, new: newRecord)))
         }
         return sorted(changes, key: \.key, status: \.status)
     }

@@ -70,19 +70,27 @@ public struct MemberChange: Sendable, Codable, Equatable {
     public let oldSignature: String?
     /// Human-readable rendering of the new member, when present.
     public let newSignature: String?
+    /// Set when record-level facts refine the status-derived verdict — e.g. a
+    /// defaultless protocol-requirement addition is breaking, a stripped slot
+    /// gaining its default implementation is additive (see
+    /// `MemberRecord.compatibilityOverride(old:new:)`). `nil` means the plain
+    /// status rule applies.
+    public let compatibilityOverride: Compatibility?
 
     public init(
         key: ABIKey,
         kind: MemberKind,
         status: ChangeStatus,
         oldSignature: String?,
-        newSignature: String?
+        newSignature: String?,
+        compatibilityOverride: Compatibility? = nil
     ) {
         self.key = key
         self.kind = kind
         self.status = status
         self.oldSignature = oldSignature
         self.newSignature = newSignature
+        self.compatibilityOverride = compatibilityOverride
     }
 }
 
