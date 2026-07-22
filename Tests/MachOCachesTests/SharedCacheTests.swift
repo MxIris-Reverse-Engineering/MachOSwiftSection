@@ -233,7 +233,12 @@ struct SharedCacheResolveSwiftConcurrencyTests {
     /// `async let` form works the same as `TaskGroup` for distinct keys.
     @Test func differentKeysParallelViaAsyncLet() async {
         let cache = TestCache()
-        let perBuildSeconds: Double = 0.10
+        // 0.40s per build keeps the parallel budget (half the 1.6s serial
+        // ceiling, matching the TaskGroup variant above) far enough above
+        // scheduler noise that a fully-loaded parallel test run cannot push a
+        // genuinely-parallel result over it — 0.10s builds with a fixed 0.30s
+        // budget flaked exactly that way.
+        let perBuildSeconds: Double = 0.40
 
         let start = ContinuousClock.now
         async let a = Task.detached {
@@ -263,9 +268,13 @@ struct SharedCacheResolveSwiftConcurrencyTests {
             + Double(elapsed.components.attoseconds) / 1e18
 
         #expect(results == [1, 2, 3, 4])
-        // Four 100ms builds run in parallel ⇒ wall-clock ≈ one build, well
-        // below the serial ceiling of 4 × 100ms = 400ms.
-        #expect(elapsedSeconds < 0.30)
+        // Four builds run in parallel ⇒ wall-clock ≈ one build. Same budget
+        // idiom as the TaskGroup variant: only verifies we are not fully
+        // serial, with headroom for a loaded machine.
+        let serialCeiling = 4 * perBuildSeconds
+        let parallelBudget = serialCeiling * 0.5
+        #expect(elapsedSeconds < parallelBudget,
+                "elapsed=\(elapsedSeconds)s should be well below serial=\(serialCeiling)s")
     }
 
     /// Reentrancy from inside a Task body: a build for one key spawns a
