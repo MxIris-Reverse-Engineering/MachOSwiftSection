@@ -78,8 +78,11 @@ package enum LineStyle {
   ptrauth 限定符的成员，故 Swift 侧必须经 stub）。统一走 stub 使 host 测试套件日常覆盖
   同一调用路径（stub 参数顺序、C 结构体布局与表内存布局的一致性），测试覆盖不到的只剩
   ptrauth auth 指令本身。初版曾用 `#if _ptrauth(_arm64e)` 整体降级返回 nil，2026-07-22
-  起改为经 stub 全平台可用；auth 行为目前只有交叉编译级验证（本机用户态跑不了 arm64e
-  进程），运行时确认待真实 arm64e 宿主（RuntimeViewer 注入系统进程场景）。
+  起改为经 stub 全平台可用；auth 行为也已运行时验证（2026-07-23）：在开启
+  `-arm64e_preview_abi` boot-arg 的宿主上，`swift test --triple arm64e-apple-macosx
+  --skip IntegrationTests` 全量 1253 个测试以 arm64e 进程跑通——投影器测试真实驱动了
+  PAC 签名 witness 的 auth 调用，per-slot discriminator 常量（auth 错会直接 fault）
+  一并得到确认。
 
 ### 2. `EnumLayoutCalculator` 模型与渲染重构
 
