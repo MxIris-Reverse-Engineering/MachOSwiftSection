@@ -16,7 +16,13 @@ extension BoundGenericNodePrintable {
              .boundGenericProtocol,
              .boundGenericOtherNominalType,
              .boundGenericTypeAlias:
+            // Barrier scope: angle brackets, commas, and sugar punctuation
+            // written by the bound-generic printer belong to no type
+            // reference; the base type and each argument push their own
+            // scopes when they recurse through the nominal cases.
+            target.pushTypeReferenceScope(nil)
             await printBoundGeneric(name)
+            target.popTypeReferenceScope()
             return true
         default:
             return false

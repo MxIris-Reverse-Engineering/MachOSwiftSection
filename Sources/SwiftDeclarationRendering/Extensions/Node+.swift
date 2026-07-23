@@ -3,6 +3,17 @@ import Demangling
 import Semantic
 
 extension SemanticString: @retroactive NodePrinterTarget {
+    public mutating func pushTypeReferenceScope(_ node: Node?) {
+        // A failed remangle degrades to a nil (barrier) scope: the span's
+        // tokens carry no identity rather than inheriting the enclosing
+        // type's, which would mislabel them.
+        pushIdentifierScope(node.flatMap { try? mangleAsString($0) })
+    }
+
+    public mutating func popTypeReferenceScope() {
+        popIdentifierScope()
+    }
+
     public mutating func write(_ content: String, context: NodePrintContext?) {
         guard let context else {
             write(content)

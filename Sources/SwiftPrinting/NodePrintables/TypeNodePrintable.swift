@@ -23,7 +23,12 @@ extension TypeNodePrintable {
              .class,
              .protocol,
              .typeAlias:
+            // The full qualified-name print (module, dots, identifier) for
+            // this nominal reference runs inside one scope so the target can
+            // group the writes into a single span keyed by `name`.
+            target.pushTypeReferenceScope(name)
             await printType(name)
+            target.popTypeReferenceScope()
         case .tuple:
             await printTuple(name)
         case .protocolList:
