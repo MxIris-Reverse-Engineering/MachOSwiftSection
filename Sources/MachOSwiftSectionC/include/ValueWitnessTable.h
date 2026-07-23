@@ -32,12 +32,20 @@
 #ifndef VALUE_WITNESS_TABLE_H
 #define VALUE_WITNESS_TABLE_H
 
-#if defined(__arm64e__)
-
 #include <stddef.h>
-#include <ptrauth.h>
 
+// On arm64e the value-witness function pointers are PAC-signed in the table
+// (IA key, address diversity, one discriminator per slot), so each member
+// carries its ptrauth qualifier and clang auth-verifies the pointer at the
+// call. Elsewhere the qualifier compiles away and the stubs are plain
+// indirect calls — kept on every platform so the host test suite exercises
+// the same stub path (argument order, struct layout) the arm64e build uses.
+#if defined(__arm64e__)
+#include <ptrauth.h>
 #define VWT_FP(key) __ptrauth_swift_value_witness_function_pointer(key)
+#else
+#define VWT_FP(key)
+#endif
 
 // VWT
 
@@ -98,7 +106,5 @@ unsigned swift_section_vwt_getEnumTag(const void *, const void *, const void *);
 void swift_section_vwt_destructiveProjectEnumData(const void *, void *, const void *);
 void swift_section_vwt_destructiveInjectEnumTag(const void *, void *, unsigned,
                                        const void *);
-
-#endif // defined(__arm64e__)
 
 #endif /* VALUE_WITNESS_TABLE_H */

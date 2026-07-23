@@ -70,14 +70,16 @@ package enum LineStyle {
   `__swift5_mpenum` 的 mask 精确得出，无需投影。
 - arm64e（ptrauth）上 VWT 函数指针带签名（IA key + address diversity + 每 slot 独立
   discriminator，如 `getEnumTag` = `0xa3b5`、`destructiveInjectEnumTag` = `0xb2e4`），直接
-  `@convention(c)` 调用会 fault：经 `MachOSwiftSectionC` 的 `swift_section_vwt_getEnumTag` /
-  `swift_section_vwt_destructiveInjectEnumTag` stub 调用——其 `EnumValueWitnessTable` C 结构体
-  成员带 `__ptrauth_swift_value_witness_function_pointer` 限定符，clang 在调用点自动 auth
-  验签（与 runtime 自身调用 witness 的方式一致，被篡改的指针会 fault 而非被执行；clang
-  importer 不导入带 ptrauth 限定符的成员，故 Swift 侧必须经 stub）。非 arm64e 保持
-  `unsafeBitCast` 直调路径（stub 仅在 `__arm64e__` 下编译）。初版曾用
-  `#if _ptrauth(_arm64e)` 整体降级返回 nil，2026-07-22 起改为经 stub 全平台可用；arm64e
-  路径目前只有交叉编译级验证（本机用户态跑不了 arm64e 进程）。
+  `@convention(c)` 调用会 fault：witness 调用**全平台统一**经 `MachOSwiftSectionC` 的
+  `swift_section_vwt_getEnumTag` / `swift_section_vwt_destructiveInjectEnumTag` stub——其
+  `EnumValueWitnessTable` C 结构体成员带 `__ptrauth_swift_value_witness_function_pointer`
+  限定符（非 arm64e 下 `VWT_FP` 宏展开为空），clang 在调用点自动 auth 验签（与 runtime
+  自身调用 witness 的方式一致，被篡改的指针会 fault 而非被执行；clang importer 不导入带
+  ptrauth 限定符的成员，故 Swift 侧必须经 stub）。统一走 stub 使 host 测试套件日常覆盖
+  同一调用路径（stub 参数顺序、C 结构体布局与表内存布局的一致性），测试覆盖不到的只剩
+  ptrauth auth 指令本身。初版曾用 `#if _ptrauth(_arm64e)` 整体降级返回 nil，2026-07-22
+  起改为经 stub 全平台可用；auth 行为目前只有交叉编译级验证（本机用户态跑不了 arm64e
+  进程），运行时确认待真实 arm64e 宿主（RuntimeViewer 注入系统进程场景）。
 
 ### 2. `EnumLayoutCalculator` 模型与渲染重构
 

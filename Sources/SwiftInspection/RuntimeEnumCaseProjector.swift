@@ -1,8 +1,6 @@
 import Foundation
 import MachOSwiftSection
-#if _ptrauth(_arm64e)
 import MachOSwiftSectionC
-#endif
 
 /// Materializes an enum's per-case memory patterns by driving the enum's own
 /// value witnesses over live in-process metadata.
@@ -104,35 +102,15 @@ public enum RuntimeEnumCaseProjector {
         guard size > 0, size <= enumSizeSanityLimit else { return nil }
         let alignment = Int(requiredWitnesses.flags.alignment)
 
-        #if _ptrauth(_arm64e)
-        // The enum witnesses are PAC-signed in the table (IA key, address
-        // diversity, per-slot discriminators), and the clang importer skips
-        // ptrauth-qualified members — so the calls go through the
-        // `MachOSwiftSectionC` stubs, whose `EnumValueWitnessTable` declares
-        // each slot with its `__ptrauth_swift_value_witness_function_pointer`
-        // qualifier: the signature is auth-verified at the call, exactly as
-        // the runtime itself invokes these witnesses.
-        let getEnumTag: (UnsafeRawPointer, UnsafeRawPointer) -> UInt32 = { instance, metadata in
-            swift_section_vwt_getEnumTag(tablePointer, instance, metadata)
-        }
-        let destructiveInjectEnumTag: (UnsafeMutableRawPointer, UInt32, UnsafeRawPointer) -> Void = { instance, tag, metadata in
-            swift_section_vwt_destructiveInjectEnumTag(tablePointer, instance, tag, metadata)
-        }
-        #else
-        typealias GetEnumTagWitness = @convention(c) (UnsafeRawPointer, UnsafeRawPointer) -> UInt32
-        typealias DestructiveInjectEnumTagWitness = @convention(c) (UnsafeMutableRawPointer, UInt32, UnsafeRawPointer) -> Void
-
-        let enumWitnessesOffset = MemoryLayout<ValueWitnessTable.Layout>.size
-        let getEnumTag = unsafeBitCast(
-            tablePointer.load(fromByteOffset: enumWitnessesOffset, as: UnsafeRawPointer.self),
-            to: GetEnumTagWitness.self
-        )
-        let destructiveInjectEnumTag = unsafeBitCast(
-            tablePointer.load(fromByteOffset: enumWitnessesOffset + 2 * MemoryLayout<UnsafeRawPointer>.size, as: UnsafeRawPointer.self),
-            to: DestructiveInjectEnumTagWitness.self
-        )
-        #endif
-
+        // The witnesses are invoked through the `MachOSwiftSectionC` stubs on
+        // every platform: on arm64e they are PAC-signed in the table (IA key,
+        // address diversity, per-slot discriminators) and the clang importer
+        // skips ptrauth-qualified members, so the stubs' `EnumValueWitnessTable`
+        // declares each slot with its
+        // `__ptrauth_swift_value_witness_function_pointer` qualifier and the
+        // pointer is auth-verified at the call — exactly as the runtime itself
+        // invokes these witnesses. Elsewhere the qualifier compiles away, so
+        // the host test suite exercises the same stub path.
         let zeroBaseline = UnsafeMutableRawPointer.allocate(byteCount: size, alignment: alignment)
         let onesBaseline = UnsafeMutableRawPointer.allocate(byteCount: size, alignment: alignment)
         defer {
@@ -147,13 +125,13 @@ public enum RuntimeEnumCaseProjector {
             zeroBaseline.initializeMemory(as: UInt8.self, repeating: 0x00, count: size)
             onesBaseline.initializeMemory(as: UInt8.self, repeating: 0xFF, count: size)
 
-            destructiveInjectEnumTag(zeroBaseline, UInt32(caseIndex), enumMetadataPointer)
-            destructiveInjectEnumTag(onesBaseline, UInt32(caseIndex), enumMetadataPointer)
+            swift_section_vwt_destructiveInjectEnumTag(tablePointer, zeroBaseline, UInt32(caseIndex), enumMetadataPointer)
+            swift_section_vwt_destructiveInjectEnumTag(tablePointer, onesBaseline, UInt32(caseIndex), enumMetadataPointer)
 
             // An empty case's discriminator is fully determined by what the
             // witness just wrote, so the tag must read back exactly.
             if caseIndex >= payloadCaseCount {
-                guard getEnumTag(zeroBaseline, enumMetadataPointer) == UInt32(caseIndex) else { return nil }
+                guard swift_section_vwt_getEnumTag(tablePointer, zeroBaseline, enumMetadataPointer) == UInt32(caseIndex) else { return nil }
             }
 
             var fixedBytes: [Int: UInt8] = [:]

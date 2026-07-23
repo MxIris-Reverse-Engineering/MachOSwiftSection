@@ -29,8 +29,6 @@
 //  SOFTWARE.
 //
 
-#if defined(__arm64e__)
-
 #include "ValueWitnessTable.h"
 
 // VWT functions.
@@ -105,5 +103,3 @@ void swift_section_vwt_destructiveInjectEnumTag(const void *ptr, void *instance,
   const EnumValueWitnessTable *vwt = (const EnumValueWitnessTable *)ptr;
   return vwt->destructiveInjectEnumTag(instance, tag, metadata);
 }
-
-#endif // defined(__arm64e__)
