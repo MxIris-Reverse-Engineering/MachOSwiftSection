@@ -47,7 +47,7 @@ public enum ABIKey: Hashable, Sendable, Codable {
     /// the reporters surface them as warnings. (A remangle-success-independent
     /// identity would rework the key for a precision loss — still not worth it.)
     /// See `Documentations/Internal/ABIDiffDesignAndLimitations.md`.
-    public static func make(for node: Node) -> ABIKey {
+    public static func make(for node: some DemanglingNode) -> ABIKey {
         // `canMangle` is literally `(try? mangleAsString) != nil`, so a single
         // `try?` decides the branch and remangles exactly once.
         if let mangled = try? mangleAsString(node) {
@@ -60,7 +60,7 @@ public enum ABIKey: Hashable, Sendable, Codable {
     /// (`TypeName.node`, `ProtocolName.node`) and field type nodes
     /// (`FieldDefinition.typeNode`). The `.type` wrapper is stripped first
     /// because `mangleAsString` rejects some `.type`-rooted trees.
-    public static func makeUnwrappingType(for node: Node) -> ABIKey {
+    public static func makeUnwrappingType(for node: some DemanglingNode) -> ABIKey {
         make(for: unwrapType(node))
     }
 
@@ -75,7 +75,7 @@ public enum ABIKey: Hashable, Sendable, Codable {
 
     /// Strip a single `.type` envelope so the inner nominal node can remangle.
     /// A no-op when the node is not `.type`-rooted.
-    static func unwrapType(_ node: Node) -> Node {
+    static func unwrapType<SomeNode: DemanglingNode>(_ node: SomeNode) -> SomeNode {
         node.kind == .type ? (node.children.first ?? node) : node
     }
 
@@ -98,7 +98,7 @@ public enum ABIKey: Hashable, Sendable, Codable {
     /// The injective fallback rendering: the self-identifying prefix + root
     /// kind + a print that retains bound-generic arguments (`.default` is
     /// `.default` without `.removeBoundGeneric`).
-    private static func fallbackString(for node: Node) -> String {
+    private static func fallbackString(for node: some DemanglingNode) -> String {
         "\(remangleFallbackPrefix)\(node.kind):\(node.print(using: .default))"
     }
 }

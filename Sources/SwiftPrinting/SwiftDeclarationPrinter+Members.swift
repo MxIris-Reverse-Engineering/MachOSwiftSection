@@ -39,7 +39,7 @@ extension SwiftDeclarationPrinter {
         MemberDeclaration(field.name)
         Standard(":")
         Space()
-        try await printThrowingType(substitutedTypeNode ?? field.typeNode, isProtocol: false, level: level)
+        try await printThrowingType(substitutedTypeNode ?? field.typeNode.materialize(), isProtocol: false, level: level)
     }
 
     /// Renders a single enum case (`case name`, `case name(Payload)`, or
@@ -62,7 +62,7 @@ extension SwiftDeclarationPrinter {
             MemberDeclaration(field.name)
         }
 
-        let payloadTypeNode = substitutedTypeNode ?? field.typeNode
+        let payloadTypeNode = substitutedTypeNode ?? field.typeNode.materialize()
         let payload = await printType(payloadTypeNode, isProtocol: false, level: level)
         let payloadText = payload.string
         if !payloadText.isEmpty, payloadText != "()" {
@@ -105,7 +105,7 @@ extension SwiftDeclarationPrinter {
         MemberDeclaration(field.name)
 
         if field.flags.contains(.hasMangledTypeName) {
-            let payloadTypeNode = substitutedTypeNode ?? field.typeNode
+            let payloadTypeNode = substitutedTypeNode ?? field.typeNode.materialize()
             let payload = try await printThrowingType(payloadTypeNode, isProtocol: false, level: level)
             if !payload.string.isEmpty {
                 if payloadTypeNode.firstChild?.isKind(of: .tuple) ?? false {

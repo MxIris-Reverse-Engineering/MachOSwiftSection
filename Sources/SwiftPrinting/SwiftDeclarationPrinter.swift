@@ -274,7 +274,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
                     Space()
                 }
 
-                try await printThrowingType(node, isProtocol: extensionDefinition.extensionName.isProtocol, level: level)
+                try await printThrowingType(node.materialize(), isProtocol: extensionDefinition.extensionName.isProtocol, level: level)
 
                 if index < nodes.count - 1 {
                     Standard(",")
@@ -451,7 +451,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
             Space()
         }
         var printer = VariableNodePrinter(isStored: variable.isStored, isOverride: variable.isOverride, isClassMember: variable.isClassMember, hasSetter: variable.hasSetter, indentation: level, delegate: self)
-        try await printer.printRoot(variable.node)
+        try await printer.printRoot(variable.node.materialize())
     }
 
     @SemanticStringBuilder
@@ -461,7 +461,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
             Space()
         }
         var printer = FunctionNodePrinter(isOverride: function.isOverride, isClassMember: function.isClassMember, delegate: self)
-        try await printer.printRoot(function.node)
+        try await printer.printRoot(function.node.materialize())
     }
 
     @SemanticStringBuilder
@@ -471,7 +471,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
             Space()
         }
         var printer = SubscriptNodePrinter(isOverride: `subscript`.isOverride, isClassMember: `subscript`.isClassMember, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
-        try await printer.printRoot(`subscript`.node)
+        try await printer.printRoot(`subscript`.node.materialize())
     }
 
     @SemanticStringBuilder

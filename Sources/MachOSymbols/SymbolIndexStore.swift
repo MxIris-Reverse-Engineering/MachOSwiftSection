@@ -640,6 +640,20 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         }.reduce(into: []) { $0 += $1 }
     }
 
+    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, node: NodeReference, in machO: MachO) -> [DemangledSymbol] {
+        // Same lookup as the `Node` overload, for callers holding a
+        // store-backed reference — possibly minted into a different store
+        // than the index's own (for example a `TypeName` mini store):
+        // same-store keys match in O(1) via index equality, cross-store
+        // keys by a structural walk over the handful of bucket entries.
+        guard let storage = storage(in: machO) else { return [] }
+        return kinds.map { kind -> [DemangledSymbol] in
+            guard let rowsByTypeNodeIndex = storage.memberSymbolRowsByKind[kind]?[name] else { return [] }
+            guard let matched = rowsByTypeNodeIndex.elements.first(where: { storage.nodeStore.reference(at: $0.key).structurallyEquals(node) }) else { return [] }
+            return storage.demangledSymbols(atRows: matched.value)
+        }.reduce(into: []) { $0 += $1 }
+    }
+
     public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., excluding names: borrowing Set<String>, in machO: MachO) -> OrderedDictionary<NodeReference, OrderedDictionary<MemberKind, [DemangledSymbol]>> {
         guard let storage = storage(in: machO) else { return [:] }
         var result: OrderedDictionary<NodeReference, OrderedDictionary<MemberKind, [DemangledSymbol]>> = [:]
