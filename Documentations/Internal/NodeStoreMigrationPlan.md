@@ -223,3 +223,13 @@ RuntimeViewer 与 MachOSwiftSection 的内存主项在 `MachOSymbols/SymbolIndex
 - **5a**：声明层全部换持 `NodeReference`。上游新增 `NodeReference(interning:)`、跨 store `structurallyEquals(_ other: NodeReference)`、`structuralHash(into:)`；`memberSymbols(of:for:node:)` 增加 `NodeReference` 重载。成员定义直持主 store 引用（构建期 4 处 `materialize()` 删除）；extension 成员路径的 `ExtensionName`/`genericSignature` 直用主 store 键（原每键物化删除）；metadata 派生树以 mini store 承接，`TypeDefinition.index(in:)` 的字段树按类型批量共享一个 store。`Name` 类型自定义结构语义 `Hashable` 与 wire 兼容 `Codable`。打印边界暂留 5 处显式 `materialize()` 桥（`SwiftDeclarationPrinter` 3 处 printer 入口 + where 子句 + `leafNameNode`×2），5b 泛型化时消除；`NodeReference.printSemantic`（零物化富文本）已就位并接管 `SwiftDiffableInterfaceRenderer`。
 - **验收**：MachOSwiftSection 98 tests / 15 suites 全绿（interface 快照逐字节一致、fixture、diffing、substitution、attribute inference）；swift-demangling 定向 44/7 全绿 + 全量复跑。
 - **事故记录 — 测试语料符号无效 + xcsift 假绿**：`DemanglingTests` corpus 中的 `$s7SwiftUI4TextV_10FoundationE9formatterAcA…` 自引入（5788472，NodeStore 之前）就是**无效符号**（系统 `swift-demangle` 同样拒绝，`TextV` 后多一个 `_`），理应一直红。此前未暴露是因为 `swift test 2>&1 | xcsift; echo $?` 捕获的是 **xcsift 的退出码**而非 `swift test` 的，多轮「全绿」不可信。已替换为真实生成的同复杂度符号 `$s11ExampleBase0A4TextV0A6AddonsE9formatter7subjectAcA0A5StyleV_xtcSyRzlufC`（跨模块 extension + `SyRzl` 约束 + `ufC`），并对三个测试文件的全部 mangled 字面量过系统 demangler 校验。**教训：管道给 xcsift 时用 `${pipestatus[1]}` 取真实退出码，或验收时直接看原生输出。**
+
+### Stage 5b 范围调整 — 全量泛型化缩水为 5b-lite（2026-07-24，实施期决策）
+
+原方案把 SwiftPrinting 的异步富文本引擎（`NodePrintable` 协议栈 ~1,600 行）全量泛型化到 `DemanglingNode`。实施 5a 后重估：
+
+- **收益已在 5a 兑现**：原方案预期靠 5b 消除的「打印路径常驻物化」实际上被 5a 的直持 `NodeReference` 消掉了——打印入口的 `materialize()` 只剩**瞬态**分配（单声明签名树、微秒级、打印完即释放），常驻内存零贡献。
+- **成本高于预估**：摸底发现引擎内有 5 处「合成 `Node` 再打印」的模式（`.static` 包装、labelList 插入/合成），泛型 `SomeNode` 下无法表达（合成结果是 `Node`，塞不回 `SomeNode` 递归），需要逐处重写为非合成形态，回归面大。
+- **5b-lite 实际落地**：`DemanglingNode.printSemantic`（协议扩展，零物化富文本，任意表示）；`DemangleResolver.resolve(for: some DemanglingNode)`（`.options` 零物化直印，`.builder` 保持公开 `Node` 闭包签名、仅该路径物化）；SwiftDump dumpers 的 6 处 `resolve(for: X.materialize())` 直传 `NodeReference`——高频瞬态物化点清零。
+- **保留的显式物化桥**（低频/瞬态，全量泛型化的剩余标的，暂不做）：`SwiftDeclarationPrinter` 3 处 printer 入口 + where 子句子节点 + `leafNameNode` ×2 + `SwiftPrinting+Headers`/`ClassDumper` 的 thunk 构树点 + RV 特化构树 2 处。
+- **重启条件**：若后续 profiling 显示 interface 全量导出（swift-section `InterfaceCommand` 之类批量场景）的瞬态树分配成为吞吐瓶颈，再按原方案泛型化（届时合成点重写方案：labelList 合成改计数循环，`.static` 包装改 printer 状态位）。
