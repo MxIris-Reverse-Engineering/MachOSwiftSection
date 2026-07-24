@@ -146,7 +146,7 @@ package struct StructDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                     Indent(level: 1)
 
-                    try await demangleResolver.resolve(for: symbol.demangledNode)
+                    try await demangleResolver.resolve(for: symbol.demangledNode.materialize())
 
                     if offset.isEnd {
                         BreakLine()

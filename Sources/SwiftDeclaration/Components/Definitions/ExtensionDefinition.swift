@@ -94,15 +94,15 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
 
         guard let protocolConformance, !protocolConformance.resilientWitnesses.isEmpty else { return }
 
-        func _symbol(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<Node> = []) throws -> DemangledSymbol? {
+        func _symbol(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<NodeReference> = []) throws -> DemangledSymbol? {
             for symbol in symbols {
-                if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolConformanceNode = node.first(of: .protocolConformance), let symbolTypeName = protocolConformanceNode.children.first?.print(using: .interfaceTypeBuilderOnly), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.storage(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(node) {
+                if let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO), let protocolConformanceNode = node.first(of: .protocolConformance), let symbolTypeName = protocolConformanceNode.children.first?.print(using: .interfaceTypeBuilderOnly), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.storage(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(node) {
                     return .init(symbol: symbol, demangledNode: node)
                 }
             }
             return nil
         }
-        var visitedNodes: OrderedSet<Node> = []
+        var visitedNodes: OrderedSet<NodeReference> = []
         var memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbolWithOffset]> = [:]
 
         for resilientWitness in protocolConformance.resilientWitnesses {
@@ -112,7 +112,7 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
             } else if let requirement = try resilientWitness.requirement(in: machO) {
                 switch requirement {
                 case .symbol(let symbol):
-                    if let demangledNode = try? MetadataReader.demangleSymbol(for: symbol, in: machO) {
+                    if let demangledNode = MetadataReader.demangleSymbolReference(for: symbol, in: machO) {
                         addSymbol(.init(.init(symbol: symbol, demangledNode: demangledNode)), memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
                     }
                 case .element(let element):
