@@ -37,6 +37,19 @@ public enum DemangleResolver: Sendable {
         }
     }
 
+    /// Representation-generic overload: `.options` prints straight from the
+    /// node's own representation (zero materialization for store-backed
+    /// references), while `.builder` keeps its public `Node` closure
+    /// signature and materializes only on that path.
+    public func resolve(for node: some DemanglingNode) async throws -> SemanticString {
+        switch self {
+        case .options(let options):
+            return node.printSemantic(using: options)
+        case .builder(let builder):
+            return try await builder(node.materializedNode)
+        }
+    }
+
     public func modify(_ modifier: (DemangleResolver) -> DemangleResolver) -> DemangleResolver {
         modifier(self)
     }

@@ -334,7 +334,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                     Indent(level: 1)
 
-                    try await demangleResolver.resolve(for: symbol.demangledNode.materialize())
+                    try await demangleResolver.resolve(for: symbol.demangledNode)
 
                     if offset.isEnd {
                         BreakLine()
@@ -360,7 +360,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                     Indent(level: 1)
 
-                    try await demangleResolver.resolve(for: symbol.demangledNode.materialize())
+                    try await demangleResolver.resolve(for: symbol.demangledNode)
 
                     if offset.isEnd {
                         BreakLine()
