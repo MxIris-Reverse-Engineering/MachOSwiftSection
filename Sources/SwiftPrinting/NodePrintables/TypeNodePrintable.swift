@@ -82,11 +82,24 @@ extension TypeNodePrintable {
             if context.kind == .module {
                 let siblingIdentifier = name.children.at(1)?.text
                 await printModule(context, siblingIdentifier: siblingIdentifier)
+                // The module→type dot stays inside this leaf's scope so a
+                // fully-qualified top-level name (`AppKit.MenuItem`) selects
+                // as one span.
+                if target.count != currentPos {
+                    target.write(".")
+                }
             } else {
                 _ = await printName(context, asPrefixContext: true)
-            }
-            if target.count != currentPos {
-                target.write(".")
+                // A nested type's separator dot joins two independently
+                // navigable spans (the parent type vs this leaf), so it
+                // belongs to neither — emit it under a barrier, otherwise it
+                // fuses onto this leaf's span (`.Locator`) and gets selected
+                // with it.
+                if target.count != currentPos {
+                    target.pushTypeReferenceScope(nil)
+                    target.write(".")
+                    target.popTypeReferenceScope()
+                }
             }
         }
 
