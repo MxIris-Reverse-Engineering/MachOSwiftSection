@@ -1,6 +1,6 @@
 # NodeStore 迁移计划（SymbolIndexStore → arena 存储）
 
-- **状态**: Completed（Stage 0–4 全部落地，见文末「实施记录」）
+- **状态**: Stage 0–4 Completed（见「实施记录」）；Stage 5 提案待批准（见文末「Stage 5 提案」）
 - **日期**: 2026-07-24
 - **最后更新**: 2026-07-24
 - **分支**: `feature/node-store-migration`（worktree `.claude/worktrees/node-store-migration`，Demangling 经主检出 `.claude/worktrees/swift-demangling` 处的**真实 git worktree**（swift-demangling `feature/node-store`）以路径依赖解析——原先的符号链接方案因目标 worktree 被外部清理导致 SwiftPM manifest 缓存把解析钉回 remote，已改为本仓库领地内的 worktree）
@@ -152,3 +152,66 @@ RuntimeViewer 与 MachOSwiftSection 的内存主项在 `MachOSymbols/SymbolIndex
 - 构建耗时的下降来自：populate 转换 pass 删除、每符号双份 `Symbol` 构造与 existential 装箱消失、索引累积只搬 4B 行号。
 - 构建期增量从 302 MB 收敛到 68 MB：双索引瞬态窗口消除 + Symbol 复本/existential 盒清零是主贡献；残余 68 MB 为 NodeStore + 表 + 索引 + malloc 未归还页。
 - 验收测试：`SymbolTestsCore` 快照 60/60 逐字节一致 + `SymbolIndexStoreFixtureTests` 10/10 + `SharedCacheTests` 全绿（**79 tests / 5 suites passed**，Stage 3 代码 + 本地 feature 分支解析口径复跑确认）。
+
+## Stage 5 提案 — 声明层零物化（Definition/富文本打印迁移到 `NodeReference`）
+
+- **状态**: 提案，待批准
+- **日期**: 2026-07-24
+- **动机**: Stage 0–4 落地后 RuntimeViewer 实测 `Node` 实例 1,091,575 → 336,095、进程内存 628.5 MB → 478.6 MB。布局侧已无肉可挖（实测：`Payload` 枚举 17 B（最大 case 16 B + 判别位无空位可藏）、`kind` 2 B、对象头 16 B → 实例 41 B → malloc 桶 48 B；手工位压缩到 32 B 桶收益仅 ~5.4 MB 且需放弃安全枚举，不做）。剩余 33.6 万实例的**来源**才是下一刀。
+
+### 剩余 `Node` 的来源盘点（2026-07-24 调研）
+
+1. **Definition/Name 值类型长期持有物化树**（主项）：`VariableDefinition.node`、`FunctionDefinition.node`、`SubscriptDefinition.node`、`FieldDefinition.typeNode`、`ExtensionDefinition.genericSignature`、`TypeName.node`、`ProtocolName.node`、`ExtensionName.node`（`DefinitionName` 协议要求 `var node: Node`）。`DefinitionBuilder` 与 `SwiftDeclarationIndexer` 在构建处逐一 `.materialize()`——store 里本来就有的共享子树被展开成独立 class 树，随声明缓存驻留。
+2. **仍走 interning `demangleAsNode` 的散点**：`MetadataReader`（symbolic reference 密集）、`RuntimeFieldLayoutBackend`、`TypedDumper`、`ClassHierarchyDumper`、`Symbol.demangledNode`。这些把规范树**永久钉进全局 `NodeCache.shared`**，镜像关闭也不回收。
+3. **打印桥接物化**：`SwiftDump` 各 dumper 的 `demangleResolver.resolve(for: node.materialize())`（瞬态，但高频）。
+
+### 前置（5·0）— swift-demangling 侧小改
+
+`DemanglingPrinter` 富 target 走 store 时唯一的语义缺口在 `NodePrinter.swift:198`：`target.pushTypeReferenceScope(name as? Node)` 对 `NodeReference` 恒传 `nil`，富 target 的 type-reference 身份作用域（`SemanticString` 用它 remangle 出 identifier scope）丢失。修法：
+
+- `NodePrinterTarget.pushTypeReferenceScope(_ node: Node?)` → `pushTypeReferenceScope(_ node: @autoclosure () -> Node?)`；引擎侧传 `name.materializedNode`。
+- `@autoclosure` 保证 String target（默认空实现，从不求值）**零成本**——现有 store 零物化打印路径不回退；只有 `SemanticString` 实现真正求值，物化只发生在 nominal 引用节点（子树小，且紧接的 `mangleAsString` 本来就要整棵遍历）。
+- 协议签名变更破坏外部 conformance：已知 conformance 仅 `SemanticString`（MachOSwiftSection 内，我方可控）与库内默认实现，同步改。
+- 守护测试：store 路径 String target 打印全程零 `Node` 分配（现有字节一致快照 + 新增分配哨兵）。
+
+### 5a — SwiftDeclaration 值类型换持 `NodeReference`
+
+- 上列全部 `Node` 存储属性 → `NodeReference`（`DefinitionName` 协议要求同步改）；`OverrideSymbolMatcher` 等取 `typeNode: Node` 参数的内部接口跟随。
+- `DefinitionBuilder` / `SwiftDeclarationIndexer` 删除全部构建期 `.materialize()`——sweep 手里本来就是 `NodeReference`。
+- `NodeReference` 自带对 `NodeStore` 的强引用（16 B 值：store ref + index），生命周期自洽：声明活着 → store 活着；镜像声明缓存整体淘汰 → store 随之整体回收（正是本计划的回收模型）。
+- RuntimeViewer 适配面（feature/node-store-adoption 分支）：`mangleAsString(typeName.node)` 类调用点经既有 `mangleAsString(some DemanglingNode)` 泛型桥**无感**；少数构树点（`wrappedAsType(base.typeName.node)`、`nodesByParameter` 字典等）显式 `.materialize()` 或改存 `NodeReference`。已确认 RV 未使用 `DemangleResolver.builder`。
+
+### 5b — SwiftPrinting 富文本引擎泛型化（工作量主体）
+
+- `NodePrintable` 协议族（`NodePrintable` / `InterfaceNodePrintable` / `TypeNodePrintable` / `FunctionTypeNodePrintable` / `BoundGenericNodePrintable` / `DependentGenericNodePrintable`）+ 4 个具体 printer（Variable/Function/Subscript/Type）：具体 `Node` → `associatedtype SomeNode: DemanglingNode`，模式照抄上游 `DemanglingPrinter` 的泛型化。
+- `printCache: [ObjectIdentifier: Target]`（DAG 记忆化）→ 泛型 memo key：SwiftPrinting 本地协议（`Node` → `ObjectIdentifier(self)`；`NodeReference` → 自身，O(1) `Hashable`）。store 里子树共享以共享 index 存在，memo 命中率不变。
+- `DemangleResolver` 增加 `resolve(for: some DemanglingNode)`：`.options` 走 `DemanglingPrinter<SemanticString, SomeNode>` 零物化；`.builder` 维持公开的 `(Node) async throws -> SemanticString` 闭包签名、内部 `materializedNode` 桥（公开 API 不破坏，物化只剩这一条路径）。
+- `NodeReference.printSemantic(using:)`（经 `@_spi(Internals) DemanglingPrinter`，落在 SwiftDeclarationRendering）。
+- `SwiftDump` dumpers：`symbol.demangledNode.materialize()` → 直接传 `NodeReference`。
+
+### 5c — 散点 `demangleAsNode` 去钉扎（`NodeCache` 停止增长）
+
+- 来源盘点第 2 类调用点全部改走 transient 解码（`demangleAsNodeTransient` 已 `@_spi(Internals)` 导出）：树仍是 `Node` 的场合不再钉进全局 cache，随消费方释放。
+- 需要长期持有的 metadata 派生树（field type、runtime generic signature 等，不经 symbol store）：`SwiftDeclarationIndexer` 每次索引 pass 维护一个**辅助 `NodeStoreBuilder`**，transient 树经既有 `builder.intern(_ node: Node)` 灌入，pass 结束 `freeze()`，声明持有辅助 store 的 `NodeReference`。辅助 store 与主 symbol store 不共享去重（frozen store 不可再写），文本/子树少量重复可接受（metadata 树规模远小于符号全集）。
+- 注意 `NodeStoreBuilder` 是 `~Copyable` 非线程安全：intern 段必须收敛在 indexer 的单线程/单 actor 执行段内（现有 sweep 已满足，需在改动中保持）。
+
+### 验收
+
+- 既有三件套全绿且逐字节一致：`SymbolTestsCore` interface 快照 60/60（该快照走 SwiftInterface → SwiftPrinting 富文本引擎 → 字符串投影，恰好兜住 5b 的文本回归）+ `SymbolIndexStoreFixtureTests` + `SharedCacheTests`。
+- **补语义 token 抽查**：字符串投影盖不住 `pushTypeReferenceScope` 的身份作用域（只影响 token 元数据不影响文本）——对若干典型声明断言 `SemanticString` 的 identifier scope 序列与 `Node` 路径一致。
+- 同口径内存复测：目标 `Node` 常驻 336k → < 5 万（残余应只剩 `.builder` 桥瞬态与 RV 显式物化点）；`NodeCache` 增长维持 0/0 且**存量不再随浏览增长**；进程 footprint 复测记录。
+
+### 风险与缓解
+
+| 风险 | 缓解 |
+|---|---|
+| `pushTypeReferenceScope` 签名变更是 swift-demangling 公开协议破坏性改动 | 已知 conformance 全部在我方两仓内；`@autoclosure` 方案在 String 路径零求值，配分配哨兵测试守住零物化不回退 |
+| 5b 泛型化触及 ~11 文件的 async mutating printer，回归面大 | interface 快照逐字节兜底 + 语义 token 抽查；分 PR：5·0+5c（小）→ 5a（中）→ 5b（大）→ RV 适配（中），每步独立可验收 |
+| `Node` 结构性 `Hashable` 误用作 memo key 导致性能回退 | memo key 协议显式区分：`Node` 用 `ObjectIdentifier`，`NodeReference` 用值本身；review checklist 明确禁止直接 `hash` 泛型节点 |
+| 辅助 store 与主 store 文本重复 | 规模评估后可接受；如实测超预期，后续可让 indexer 直接在辅助 builder 上 `demangle(_:)`（省掉 transient `Node` 中转） |
+| RV 侧 `typeName.node` 类型变化波及面 | `mangleAsString` 泛型桥无感；其余调用点编译期暴露，逐点 `.materialize()`；RV 在独立 adoption 分支，可整体验证后合入 |
+
+### 预期收益
+
+- `Node` 常驻实例 336k → 数万以内；按 ~70 B/节点全口径（实例 48 B + `.text` String 堆存储 + `manyChildren` 数组缓冲）估算回收 **15–20 MB**，且 `NodeCache` 永久钉扎清零后，长时间浏览不再单调增长。
+- 声明持树成本从 48 B/节点 class 树降为辅助/主 store 的 ~12–14 B/节点 arena + 16 B/根句柄。
