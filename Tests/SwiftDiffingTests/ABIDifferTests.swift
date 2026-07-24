@@ -98,7 +98,7 @@ struct ABIDifferProjectionTests {
             node: node,
             name: name,
             kind: kind,
-            symbol: DemangledSymbol(symbol: Symbol(offset: 0, name: "$s_\(name)"), demangledNode: node),
+            symbol: DemangledSymbol(symbol: Symbol(offset: 0, name: "$s_\(name)"), demangledNode: makeNodeReference(node)),
             isGlobalOrStatic: false,
             methodDescriptor: nil,
             offset: nil,
@@ -121,7 +121,7 @@ struct ABIDifferProjectionTests {
         let node = Node.create(kind: .identifier, text: name)
         return Accessor(
             kind: kind,
-            symbol: DemangledSymbol(symbol: Symbol(offset: 0, name: "$s_acc_\(name)"), demangledNode: node),
+            symbol: DemangledSymbol(symbol: Symbol(offset: 0, name: "$s_acc_\(name)"), demangledNode: makeNodeReference(node)),
             methodDescriptor: nil,
             offset: nil,
             vtableOffset: nil
@@ -262,7 +262,7 @@ struct ABIDifferClassificationTests {
             node: node,
             name: name,
             kind: .function,
-            symbol: DemangledSymbol(symbol: Symbol(offset: 0, name: "$s_\(name)"), demangledNode: node),
+            symbol: DemangledSymbol(symbol: Symbol(offset: 0, name: "$s_\(name)"), demangledNode: makeNodeReference(node)),
             isGlobalOrStatic: false,
             methodDescriptor: nil,
             offset: nil,
@@ -517,4 +517,10 @@ struct CompatibilityTests {
         #expect(ABIDiff().isBackwardCompatible)
         #expect(!ABIDiff().hasBreakingChange)
     }
+}
+
+private func makeNodeReference(_ node: Node) -> NodeReference {
+    var nodeStoreBuilder = NodeStoreBuilder()
+    let nodeIndex = nodeStoreBuilder.intern(node)
+    return nodeStoreBuilder.freeze().reference(at: nodeIndex)
 }

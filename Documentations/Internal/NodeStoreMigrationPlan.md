@@ -1,8 +1,10 @@
 # NodeStore 迁移计划（SymbolIndexStore → arena 存储）
 
-- **状态**: Draft
+- **状态**: In Progress（Stage 0–2 已落地，见文末「实施记录」）
 - **日期**: 2026-07-24
-- **前置**: swift-demangling `feature/node-store` 分支合入 `main`（本包以路径依赖解析 `../swift-demangling` 的 main）
+- **最后更新**: 2026-07-24
+- **分支**: `feature/node-store-migration`（worktree `.claude/worktrees/node-store-migration`，Demangling 经 `.claude/worktrees/swift-demangling` 符号链接解析到 swift-demangling 的 `feature/node-store` worktree）
+- **前置**: swift-demangling `feature/node-store` 分支合入 `main`（本包以路径依赖解析 `../swift-demangling` 的 main）；开发期先经上述符号链接直连该分支
 - **上游依据**: swift-demangling `evolution/0001-node-store-arena.md`（Phase 1–3 已落地并验收）
 
 ## 背景与动机
@@ -83,3 +85,44 @@ RuntimeViewer 与 MachOSwiftSection 的内存主项在 `MachOSymbols/SymbolIndex
 - 上游 `Remangler` 的无构造泛型引擎（上游已决策保持 Node 引擎 + 物化桥）；
 - store 序列化 / mmap 符号数据库（proposal 0001 Phase 4，另行立项）；
 - `NodeCache` 本身的行为变更（迁移后其增长压力自然消失）。
+
+## 实施记录
+
+### Stage 0 — 基线（2026-07-24，本机 SwiftUI image，debug 构建，`SymbolIndexStoreBaselineTests`）
+
+| 指标 | 旧管线（main @ 7f7fe48） |
+|---|---|
+| 构建耗时 | 28.6s（独占）/ 36.2s（并行负载下） |
+| 构建期 `phys_footprint` 增量 | 266–272 MB |
+| 释放 `Storage` + `malloc_zone_pressure_relief` 后 | 残留 ~92 MB（回收 180 MB / 272 MB） |
+| `NodeCache` 增长 | +19,345 叶、+559,976 子树——**进程级永驻，跨镜像累积，无法随镜像淘汰回收** |
+| 索引条目 | demangled 202,603；member 17,049；methodDescriptor 2,209；global 82；offset 表 170,919；opaque 2,115；typeInfo 4,191 |
+
+### Stage 1 + Stage 2（消费端）落地（2026-07-24，同口径复测）
+
+| 指标 | 迁移后（NodeStore） | 对比 |
+|---|---|---|
+| 构建耗时 | 30.7s（并行负载下） | **快于同负载旧管线 36.2s（-15%）**，独占口径 +8%（28.6 → 31.0s），远优于 <2× 预算 |
+| 构建期 `phys_footprint` 增量 | 302 MB | +30 MB（pending→populate 转换期两套索引共存的瞬态峰值，Stage 3 可收） |
+| 释放 `Storage` 后 | 残留 ~66 MB（回收 236 MB / 302 MB） | **稳态残留低 26 MB，且残留全为 malloc 未归还页——无任何逻辑驻留** |
+| `NodeCache` 增长 | **0 叶、0 子树** | 泄漏归零；`Storage` 释放即整镜像回收 |
+| `NodeStore` 本体 | 7 MB / 579,291 唯一节点（12.7 B/节点） | 对比旧版 interned class 树 ~12.9 MB + 全局缓存表 |
+| 索引条目 | 与基线逐项一致 | 语义保真 |
+
+### 实施要点（与原方案的偏差）
+
+1. **分类跑在瞬态树上，而非 `NodeReference` 上**：`NodeStoreBuilder` 无读访问且 `freeze()` 后不可再 intern（typeNode wrapper 必须在构建期造），故构建循环为「`demangleAsNodeTransient`（`@_spi(Internals)` 新导出）→ 分类逻辑在瞬态 `Node` 树上原样运行 → `builder.intern` 入 arena」；索引先以 `NodeIndex` 形态收集（`PendingStorage`），`freeze()` 后一次性转换为 `NodeReference` 形态（`Storage.populate`）。分类代码（`processMemberSymbol` 族）几乎零改动。
+2. **查询 API 公共签名保持 `Node` 入参**：`memberSymbols(of:for:node:)` / `opaqueTypeDescriptorSymbol(for:)` 的实参来自 MetadataReader 的 canonical 树（Explore 调用点审计确认），键则是 store 内 `NodeReference`。上游新增 `NodeReference.structurallyEquals(_ node: Node)`（零物化跨表示结构相等，text 走字节比较 + String 兜底），查询在 name 桶内线性匹配（桶内键极少）。
+3. **迟到符号统一收敛为 `NodeReference`**：冻结 store 不可插入，迟到符号（build 扫描外，如 resilient witness 的显式 requirement symbol）经 per-symbol mini `NodeStoreBuilder` demangle+freeze，late cache 存 `[Symbol: NodeReference]`；`demangledNode(for:)` 保持 `Node?` 返回（materialize 桥），十余个下游调用点零改动，新增 `demangledNodeReference(for:)` / `MetadataReader.demangleSymbolReference` 供 matcher 零物化路径。
+4. **消费端（原 Stage 2 主体已一并落地）**：matchers（Override/Protocol/Extension/ProtocolConformance）切 `demangleSymbolReference` + `OrderedSet<NodeReference>`（visited 集 O(1) 哈希）；`DefinitionBuilder` 的 dedup / methodDescriptor / vtable lookup 键换 `NodeReference`（hash-consing 令键比较 O(树) → O(1)）；renderer 边界（`demangleResolver.resolve`、`Definition` 模型 `node` 字段、`ExtensionName`）按计划物化。`isGlobal`/`isAccessor`/`hasAccessor`/`accessorKind`/`isStoredVariable` 泛型化到 `DemanglingNode`（`where Self: Sequence<Self>`）。
+5. **上游配套（swift-demangling `feature/node-store`）**：`@_spi(Internals) demangleAsNodeTransient`、`NodeReference.structurallyEquals(_:)`（+3 测试）、`NodeReference: CustomStringConvertible`（物化桥，调试用）、`isKind(of:)` / `children.second` 上收到 `DemanglingNode` 协议扩展（删除 `Node` 具体副本）。
+6. **已知残留（Stage 3 候选）**：构建瞬态峰值 +30 MB（pending/最终两套索引在转换期共存，可改为逐字典迁移消峰）；`symbolsByOffset` / `Symbol` 复本压缩即原 Stage 3 范围。
+7. **测试环境备注**：`SwiftInterfaceBuilderTests` / `SwiftDiffableInterfaceBuilderTests` / `XcodeMachOFileDumpTests` 依赖本机 Xcode fixture glob（`XcodeMachOFileName.swift:456`），在未改动的 main 上同样 fatal——预先存在的环境问题，与迁移无关，验收时以 `--skip` 排除。
+
+### 验收与测试策略调整（2026-07-24）
+
+按用户决定，`IntegrationTests` 整体退出验收路径（其中依赖 `/Applications/Xcode-26.4.0.app` 硬编码路径的三个 suite 在本机因 Xcode 已升级至 26.5.0 而 glob 失败并 `fatalError` 崩进程——该问题在未改动的 main 上同样存在，属测试基建债，不在本迁移范围内修复）。验收改为「快照对比 + fixture 单元测试」：
+
+1. **快照以 main 为基准逐字节对比**：先在 main（`7f7fe48`，旧管线）上运行 `SymbolTestsCoreInterfaceSnapshotTests` + `SymbolTestsCoreDumpSnapshotTests`（60 个快照测试）确认已提交基准与 main 输出一致；再在迁移 worktree 上运行同一套快照测试——**60/60 逐字节一致**。fixture 为自建 `SymbolTestsCore.framework`（无外部 Xcode 依赖；worktree 经符号链接复用主检出 `Tests/Projects/SymbolTests/DerivedData` 的构建产物）。
+2. **启用 `MachOSymbolsTests` target**（Package.swift 中原已定义但被注释）并新增 `SymbolIndexStoreFixtureTests`（8 个用例）：build 管线 cache-free 不变量（叶身份断言——所有测试 target 共享单进程，全局 `NodeCache` 计数断言天然竞态，改用「transient demangle 两次得到结构相等但 `!==` 的叶实例」这一并发免疫口径；进程级零增长量测留在手动运行的 `SymbolIndexStoreBaselineTests`）、全符号零物化打印与 `demangleAsNode` 管线逐字节对齐、`memberSymbols(of:for:node:)` 对每个 `NodeReference` 键桶经 `structurallyEquals` 命中、`symbols(of:)`/`typeInfo`/`opaqueTypeDescriptorSymbol` 与 storage 桶一致、`demangledNode`/`demangledNodeReference` 互证、迟到符号 mini store 回退与缓存稳定性。
+3. **修复 `SharedCache` 并发时序 flake**：`concurrentCallsForDifferentKeysRunInParallel` 原以墙钟阈值断言并行（CPU 饱和即假失败），改为确定性并行证据——所有 build 经信号量互相等待进入闭包，若 resolve 对不同 key 串行（锁跨 build）则死锁，由宽松超时转为失败而非挂死。

@@ -776,6 +776,7 @@ extension Target {
             .target(.MachOSymbols),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
+            .product(.Demangling),
         ],
         swiftSettings: testSettings,
     )
@@ -1062,7 +1063,7 @@ let package = Package(
         .RegenerateBaselinesPlugin,
 
         // Testing
-//        .MachOSymbolsTests,
+        .MachOSymbolsTests,
         .MachOSwiftSectionTests,
         .MachOCachesTests,
         .SwiftInspectionTests,

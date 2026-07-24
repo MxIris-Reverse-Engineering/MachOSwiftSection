@@ -92,7 +92,7 @@ package struct ProtocolConformanceDumper<MachO: FieldLayoutRenderable>: Conforme
                 Space()
                 Standard("{")
 
-                var visitedNodes: OrderedSet<Node> = []
+                var visitedNodes: OrderedSet<NodeReference> = []
 
                 for resilientWitness in dumped.resilientWitnesses {
                     BreakLine()
@@ -105,7 +105,7 @@ package struct ProtocolConformanceDumper<MachO: FieldLayoutRenderable>: Conforme
 
                     if let symbols = try resilientWitness.implementationSymbols(in: machO), let node = Self.demangledSymbol(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes, in: machO)?.demangledNode {
                         _ = visitedNodes.append(node)
-                        try await demangleResolver.resolve(for: node)
+                        try await demangleResolver.resolve(for: node.materialize())
                     } else if let requirement = try resilientWitness.requirement(in: machO) {
 
                         switch requirement {
@@ -114,10 +114,10 @@ package struct ProtocolConformanceDumper<MachO: FieldLayoutRenderable>: Conforme
                         case .element(let element):
                             if let symbols = try await Symbols.resolve(from: element.offset, in: machO), let node = Self.demangledSymbol(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes, in: machO)?.demangledNode {
                                 _ = visitedNodes.append(node)
-                                try await demangleResolver.resolve(for: node)
+                                try await demangleResolver.resolve(for: node.materialize())
                             } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machO), let node = Self.demangledSymbol(for: defaultImplementationSymbols, typeName: typeNameString, visitedNodes: visitedNodes, in: machO)?.demangledNode {
                                 _ = visitedNodes.append(node)
-                                try await demangleResolver.resolve(for: node)
+                                try await demangleResolver.resolve(for: node.materialize())
                             } else if !element.defaultImplementation.isNull {
                                 FunctionDeclaration(machO.addressString(forOffset: element.defaultImplementation.resolveDirectOffset(from: element.offset(of: \.defaultImplementation))).insertSubFunctionPrefix)
                             } else if !resilientWitness.implementation.isNull {
@@ -180,9 +180,9 @@ package struct ProtocolConformanceDumper<MachO: FieldLayoutRenderable>: Conforme
         return nil
     }
     
-    package static func demangledSymbol(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<Node> = [], in machO: MachO) -> DemangledSymbol? {
+    package static func demangledSymbol(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<NodeReference> = [], in machO: MachO) -> DemangledSymbol? {
         for symbol in symbols {
-            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let targetNode = node.first(of: .protocolConformance), let symbolTypeName = targetNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.storage(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(node) {
+            if let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO), let targetNode = node.first(of: .protocolConformance), let symbolTypeName = targetNode.children.at(0)?.print(using: .interfaceType), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.storage(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(node) {
                 return .init(symbol: symbol, demangledNode: node)
             }
         }

@@ -10,7 +10,7 @@ import SwiftStdlibToolbox
 @_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
 
-extension Node {
+extension DemanglingNode where Self: Sequence<Self> {
     package var accessorKind: AccessorKind {
         guard let node = first(of: .getter, .setter, .modifyAccessor, .readAccessor) else { return .none }
         switch node.kind {
