@@ -656,14 +656,15 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         var failedExtensions = 0
 
         for (node, memberSymbols) in memberSymbolsByName {
-            let name = await node.print(using: .interfaceTypeBuilderOnly)
+            let name = node.print(using: .interfaceTypeBuilderOnly)
+            let materializedExtensionTargetNode = node.materialize()
             guard let typeInfo = symbolIndexStore.typeInfo(for: name, in: machO) else {
                 eventDispatcher.dispatch(.extensionTargetNotFound(targetName: name))
                 continue
             }
 
             func extensionDefinition(of kind: ExtensionKind, for memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>, genericSignature: Node?) throws -> ExtensionDefinition {
-                let extensionDefinition = try ExtensionDefinition(extensionName: .init(node: node, kind: kind), genericSignature: genericSignature, protocolConformance: nil, in: machO)
+                let extensionDefinition = try ExtensionDefinition(extensionName: .init(node: materializedExtensionTargetNode, kind: kind), genericSignature: genericSignature, protocolConformance: nil, in: machO)
                 var memberCount = 0
 
                 for (kind, memberSymbols) in memberSymbolsByKind {
@@ -707,7 +708,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                 return extensionDefinition
             }
 
-            var memberSymbolsByGenericSignature: OrderedDictionary<Node, OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>> = [:]
+            var memberSymbolsByGenericSignature: OrderedDictionary<NodeReference, OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]>> = [:]
             var memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbol]> = [:]
 
             for (kind, memberSymbols) in memberSymbols {
@@ -722,10 +723,10 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
 
             do {
                 if let typeKind = typeInfo.kind.typeKind {
-                    let extensionName = ExtensionName(node: node, kind: .type(typeKind))
+                    let extensionName = ExtensionName(node: materializedExtensionTargetNode, kind: .type(typeKind))
 
                     for (node, memberSymbolsByKind) in memberSymbolsByGenericSignature {
-                        try typeExtensionDefinitions[extensionName, default: []].append(extensionDefinition(of: .type(typeKind), for: memberSymbolsByKind, genericSignature: node))
+                        try typeExtensionDefinitions[extensionName, default: []].append(extensionDefinition(of: .type(typeKind), for: memberSymbolsByKind, genericSignature: node.materialize()))
                         typeExtensionCount += 1
                     }
                     if !memberSymbolsByKind.isEmpty {
@@ -734,10 +735,10 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     }
 
                 } else if typeInfo.kind == .protocol {
-                    let extensionName = ExtensionName(node: node, kind: .protocol)
+                    let extensionName = ExtensionName(node: materializedExtensionTargetNode, kind: .protocol)
 
                     for (node, memberSymbolsByKind) in memberSymbolsByGenericSignature {
-                        try protocolExtensionDefinitions[extensionName, default: []].append(extensionDefinition(of: .protocol, for: memberSymbolsByKind, genericSignature: node))
+                        try protocolExtensionDefinitions[extensionName, default: []].append(extensionDefinition(of: .protocol, for: memberSymbolsByKind, genericSignature: node.materialize()))
                         protocolExtensionCount += 1
                     }
                     if !memberSymbolsByKind.isEmpty {
@@ -745,10 +746,10 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                         protocolExtensionCount += 1
                     }
                 } else {
-                    let extensionName = ExtensionName(node: node, kind: .typeAlias)
+                    let extensionName = ExtensionName(node: materializedExtensionTargetNode, kind: .typeAlias)
 
                     for (node, memberSymbolsByKind) in memberSymbolsByGenericSignature {
-                        try typeAliasExtensionDefinitions[extensionName, default: []].append(extensionDefinition(of: .typeAlias, for: memberSymbolsByKind, genericSignature: node))
+                        try typeAliasExtensionDefinitions[extensionName, default: []].append(extensionDefinition(of: .typeAlias, for: memberSymbolsByKind, genericSignature: node.materialize()))
                         typeAliasExtensionCount += 1
                     }
                     if !memberSymbolsByKind.isEmpty {

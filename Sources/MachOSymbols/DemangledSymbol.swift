@@ -4,9 +4,9 @@ import Demangling
 public struct DemangledSymbol: Sendable {
     public let symbol: Symbol
 
-    public let demangledNode: Node
+    public let demangledNode: NodeReference
 
-    public init(symbol: Symbol, demangledNode: Node) {
+    public init(symbol: Symbol, demangledNode: NodeReference) {
         self.symbol = symbol
         self.demangledNode = demangledNode
     }
@@ -15,7 +15,7 @@ public struct DemangledSymbol: Sendable {
         return symbol[keyPath: keyPath]
     }
 
-    public subscript<Value>(dynamicMember keyPath: KeyPath<Node, Value>) -> Value {
+    public subscript<Value>(dynamicMember keyPath: KeyPath<NodeReference, Value>) -> Value {
         return demangledNode[keyPath: keyPath]
     }
 }
