@@ -1,9 +1,9 @@
-# SymbolStore 迁移计划（SymbolIndexStore → arena 存储）
+# NodeStore 迁移计划（SymbolIndexStore → arena 存储）
 
 - **状态**: Draft
 - **日期**: 2026-07-24
-- **前置**: swift-demangling `feature/symbol-store` 分支合入 `main`（本包以路径依赖解析 `../swift-demangling` 的 main）
-- **上游依据**: swift-demangling `evolution/0001-symbol-store-arena.md`（Phase 1–3 已落地并验收）
+- **前置**: swift-demangling `feature/node-store` 分支合入 `main`（本包以路径依赖解析 `../swift-demangling` 的 main）
+- **上游依据**: swift-demangling `evolution/0001-node-store-arena.md`（Phase 1–3 已落地并验收）
 
 ## 背景与动机
 
@@ -14,7 +14,7 @@ RuntimeViewer 与 MachOSwiftSection 的内存主项在 `MachOSymbols/SymbolIndex
 
 上游 swift-demangling 已交付（proposal 0001）：
 
-- `SymbolStore` / `SymbolStoreBuilder`（12B/节点 arena、hash-consing、open-addressing intern 表、**cache-free** 批量 `demangle(_:)`——不再向全局 `NodeCache` 泄漏任何东西）；
+- `NodeStore` / `NodeStoreBuilder`（12B/节点 arena、hash-consing、open-addressing intern 表、**cache-free** 批量 `demangle(_:)`——不再向全局 `NodeCache` 泄漏任何东西）；
 - `NodeReference`（16B 值句柄，O(1) `==`/`hash`）：`kind`/`text`/`index`/`children`/`Sequence`(preorder)/`first(of:)`/`identifier`/`textUTF8` 全部镜像 `Node`；
 - 零物化消费：`reference.print(using:)`（与 Node 路径逐字节一致）、`TypeDecoder.decodeMangledType(node: NodeReference)`；
 - 桥接消费：`mangleAsString(some DemanglingNode)`、`materialize()`（按索引 memo，保留 DAG 共享）；
@@ -33,7 +33,7 @@ RuntimeViewer 与 MachOSwiftSection 的内存主项在 `MachOSymbols/SymbolIndex
 
 ### Stage 1 — `SymbolIndexStore.Storage` 核心迁移（主体工作）
 
-1. `Storage` 每 MachO 持有一个冻结的 `symbolStore: SymbolStore`。
+1. `Storage` 每 MachO 持有一个冻结的 `nodeStore: NodeStore`。
 2. `DemangledSymbol.demangledNode: Node` → `NodeReference`（包内 API；`@_spi(ForSymbolViewer)` 消费者 RuntimeViewer 需同步适配，见「影响面」）。
 3. `demangledNodeBySymbol: [Symbol: Node]` → `[Symbol: NodeReference]`。
 4. `MemberSymbols` 内层 `OrderedDictionary<Node, [IndexedSymbol]>` 与 `opaqueTypeDescriptorSymbolByNode` 的键 → `NodeReference`：结构哈希 O(树) 变 O(1)（store 内索引相等 ⇔ 结构相等），构建与查询双收益。
