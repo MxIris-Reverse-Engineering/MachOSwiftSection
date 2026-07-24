@@ -627,7 +627,7 @@ extension GenericSpecializer {
         for requirement in requirements {
             guard case .baseClass(let demangledNode, _) = requirement else { continue }
             let typeNode = demangledNode.first(of: .type) ?? demangledNode
-            return TypeName(node: typeNode, kind: .class)
+            return TypeName(node: NodeReference(interning: typeNode), kind: .class)
         }
         return nil
     }
@@ -1973,7 +1973,7 @@ extension GenericSpecializer where MachO == MachOImage {
         step: AssociatedPathInfo.Step,
         allProtocolDefinitions: OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolDefinition>>
     ) throws -> Metadata {
-        let stepProtocolName = ProtocolName(node: step.protocolNode)
+        let stepProtocolName = ProtocolName(node: NodeReference(interning: step.protocolNode))
         guard let entry = allProtocolDefinitions[stepProtocolName] else {
             throw AssociatedTypeResolutionError.missingAssociatedTypeRefMachOAndProtocol(protocolTypeNode: step.protocolNode)
         }

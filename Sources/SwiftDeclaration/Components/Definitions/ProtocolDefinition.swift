@@ -124,7 +124,7 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(`protocol`: MachOSwiftSection.`Protocol`, in machO: MachO) throws {
         self.protocol = `protocol`
         let node = try MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO)
-        self.protocolName = ProtocolName(node: node)
+        self.protocolName = ProtocolName(node: NodeReference(interning: node))
     }
 
     package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {

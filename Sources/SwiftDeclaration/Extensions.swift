@@ -43,7 +43,7 @@ extension ProtocolConformance {
                 } else {
                     return nil
                 }
-                return TypeName(node: node, kind: kind)
+                return TypeName(node: NodeReference(interning: node), kind: kind)
 
             case .element(let element):
                 return try element.typeContextDescriptorWrapper?.typeName(in: machO)
@@ -54,7 +54,7 @@ extension ProtocolConformance {
         case .directObjCClassName,
              .indirectObjCClass:
             guard let node = try typeNode(in: machO) else { return nil }
-            return TypeName(node: node, kind: .class)
+            return TypeName(node: NodeReference(interning: node), kind: .class)
         }
     }
     
@@ -77,7 +77,7 @@ extension ProtocolConformance {
                 } else {
                     return nil
                 }
-                return TypeName(node: node, kind: kind)
+                return TypeName(node: NodeReference(interning: node), kind: kind)
             case .element(let element):
                 return try element.typeContextDescriptorWrapper?.typeName()
             case nil:
@@ -86,18 +86,18 @@ extension ProtocolConformance {
         case .directObjCClassName,
              .indirectObjCClass:
             guard let node = try typeNode() else { return nil }
-            return TypeName(node: node, kind: .class)
+            return TypeName(node: NodeReference(interning: node), kind: .class)
         }
     }
 
     package func protocolName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolName? {
         guard let node = try protocolNode(in: machO) else { return nil }
-        return ProtocolName(node: node)
+        return ProtocolName(node: NodeReference(interning: node))
     }
     
     package func protocolName() throws -> ProtocolName? {
         guard let node = try protocolNode() else { return nil }
-        return ProtocolName(node: node)
+        return ProtocolName(node: NodeReference(interning: node))
     }
 }
 
@@ -114,7 +114,7 @@ extension AssociatedType {
         } else {
             return nil
         }
-        return TypeName(node: node, kind: kind)
+        return TypeName(node: NodeReference(interning: node), kind: kind)
     }
     
     package func typeName() throws -> TypeName? {
@@ -129,15 +129,15 @@ extension AssociatedType {
         } else {
             return nil
         }
-        return TypeName(node: node, kind: kind)
+        return TypeName(node: NodeReference(interning: node), kind: kind)
     }
 
     package func protocolName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolName {
-        try ProtocolName(node: MetadataReader.demangleType(for: protocolTypeName, in: machO))
+        ProtocolName(node: NodeReference(interning: try MetadataReader.demangleType(for: protocolTypeName, in: machO)))
     }
     
     package func protocolName() throws -> ProtocolName {
-        try ProtocolName(node: MetadataReader.demangleType(for: protocolTypeName))
+        ProtocolName(node: NodeReference(interning: try MetadataReader.demangleType(for: protocolTypeName)))
     }
 }
 
@@ -153,11 +153,11 @@ extension MachOSwiftSection.`Protocol` {
 
 extension ProtocolDescriptor {
     package func protocolName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ProtocolName {
-        try ProtocolName(node: MetadataReader.demangleContext(for: .protocol(self), in: machO))
+        ProtocolName(node: NodeReference(interning: try MetadataReader.demangleContext(for: .protocol(self), in: machO)))
     }
     
     package func protocolName() throws -> ProtocolName {
-        try ProtocolName(node: MetadataReader.demangleContext(for: .protocol(self)))
+        ProtocolName(node: NodeReference(interning: try MetadataReader.demangleContext(for: .protocol(self))))
     }
 }
 
@@ -184,11 +184,11 @@ extension TypeContextDescriptorWrapper {
     }
 
     package func typeName(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> TypeName {
-        return try TypeName(node: MetadataReader.demangleContext(for: .type(self), in: machO), kind: kind)
+        return TypeName(node: NodeReference(interning: try MetadataReader.demangleContext(for: .type(self), in: machO)), kind: kind)
     }
     
     package func typeName() throws -> TypeName {
-        return try TypeName(node: MetadataReader.demangleContext(for: .type(self)), kind: kind)
+        return TypeName(node: NodeReference(interning: try MetadataReader.demangleContext(for: .type(self))), kind: kind)
     }
 }
 

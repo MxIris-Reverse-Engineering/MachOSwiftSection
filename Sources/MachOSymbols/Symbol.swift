@@ -2,7 +2,7 @@ import MachOKit
 import MachOReading
 import MachOResolving
 import MachOExtensions
-import Demangling
+@_spi(Internals) import Demangling
 import FoundationToolbox
 
 public struct Symbol: AsyncResolvable, SymbolProtocol, Hashable, Sendable {
@@ -80,7 +80,7 @@ public protocol SymbolProtocol {
 extension MachOSymbols.SymbolProtocol {
     public var demangledNode: Node {
         get throws {
-            try demangleAsNode(name)
+            try demangleAsNodeTransient(name)
         }
     }
 }
