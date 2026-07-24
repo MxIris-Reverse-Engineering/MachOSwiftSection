@@ -47,7 +47,7 @@ package extension SwiftDeclarationPrinter {
             for: typeDefinition.type,
             displayParentName: displayParentName,
             level: level,
-            leafNameNode: leafNameNode(of: typeDefinition.typeName.node),
+            leafNameNode: leafNameNode(of: typeDefinition.typeName.node.materialize()),
             specializedMetadata: typeDefinition.isSpecialized ? typeDefinition.metadata : nil
         )
     }
@@ -64,7 +64,7 @@ package extension SwiftDeclarationPrinter {
         try await renderProtocolDeclarationHeader(
             for: protocolDefinition.protocol,
             displayParentName: displayParentName,
-            leafNameNode: leafNameNode(of: protocolDefinition.protocolName.node)
+            leafNameNode: leafNameNode(of: protocolDefinition.protocolName.node.materialize())
         )
     }
 

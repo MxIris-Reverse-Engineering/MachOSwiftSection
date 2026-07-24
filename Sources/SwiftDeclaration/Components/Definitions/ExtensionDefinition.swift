@@ -11,7 +11,7 @@ import SwiftStdlibToolbox
 public final class ExtensionDefinition: Definition, MutableDefinition {
     public let extensionName: ExtensionName
 
-    public let genericSignature: Node?
+    public let genericSignature: NodeReference?
 
     public let protocolConformance: ProtocolConformance?
 
@@ -60,7 +60,7 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
         !variables.isEmpty || !functions.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !allocators.isEmpty || !constructors.isEmpty || !staticSubscripts.isEmpty || !subscripts.isEmpty
     }
 
-    public init<MachO: MachOSwiftSectionRepresentableWithCache>(extensionName: ExtensionName, genericSignature: Node?, protocolConformance: ProtocolConformance?, conformingProtocolName: ProtocolName? = nil, associatedTypes: [AssociatedType] = [], resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = [], in machO: MachO) throws {
+    public init<MachO: MachOSwiftSectionRepresentableWithCache>(extensionName: ExtensionName, genericSignature: NodeReference?, protocolConformance: ProtocolConformance?, conformingProtocolName: ProtocolName? = nil, associatedTypes: [AssociatedType] = [], resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = [], in machO: MachO) throws {
         self.extensionName = extensionName
         self.genericSignature = genericSignature
         self.protocolConformance = protocolConformance
@@ -71,7 +71,7 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
 
     /// Mach-O-free initializer for pure-value construction (tests, tooling).
     /// Carries no `ProtocolConformance` — only the frozen attribution fields.
-    package init(extensionName: ExtensionName, genericSignature: Node?, conformingProtocolName: ProtocolName? = nil, resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = []) {
+    package init(extensionName: ExtensionName, genericSignature: NodeReference?, conformingProtocolName: ProtocolName? = nil, resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = []) {
         self.extensionName = extensionName
         self.genericSignature = genericSignature
         self.protocolConformance = nil

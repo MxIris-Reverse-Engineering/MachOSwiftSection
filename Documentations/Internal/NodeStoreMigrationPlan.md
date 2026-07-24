@@ -215,3 +215,11 @@ RuntimeViewer 与 MachOSwiftSection 的内存主项在 `MachOSymbols/SymbolIndex
 
 - `Node` 常驻实例 336k → 数万以内；按 ~70 B/节点全口径（实例 48 B + `.text` String 堆存储 + `manyChildren` 数组缓冲）估算回收 **15–20 MB**，且 `NodeCache` 永久钉扎清零后，长时间浏览不再单调增长。
 - 声明持树成本从 48 B/节点 class 树降为辅助/主 store 的 ~12–14 B/节点 arena + 16 B/根句柄。
+
+### Stage 5·0 + 5c + 5a 落地（2026-07-24）
+
+- **5·0（上游）**：`NodePrinterTarget.pushTypeReferenceScope` 改为 `@autoclosure () -> Node?`，引擎侧传 `materializedNode`——String target 从不求值（store 纯文本路径保持零物化），`SemanticString` 惰性求值拿到完整作用域身份。新增 `NodePrinterScopeTests`（双表示作用域序列一致性）。`demangleAsNodeTransient` 增加 `symbolicReferenceResolver` 参数；新增 `@_spi(Internals) Node.createTransient` 工厂族。
+- **5c**：`MetadataReader`（28 处 `create` + 5 处解码）、`RuntimeFieldLayoutBackend`、`TypedDumper`、`ClassHierarchyDumper`、`Symbol.demangledNode`、`ResolvedTypeReference+`、`GenericContext+Dump` 的无界构造/解码全部转 transient——`NodeCache` 停止随浏览增长。有界单例（`firstGenericParamType`、AnyObject 约束）保留 interning。
+- **5a**：声明层全部换持 `NodeReference`。上游新增 `NodeReference(interning:)`、跨 store `structurallyEquals(_ other: NodeReference)`、`structuralHash(into:)`；`memberSymbols(of:for:node:)` 增加 `NodeReference` 重载。成员定义直持主 store 引用（构建期 4 处 `materialize()` 删除）；extension 成员路径的 `ExtensionName`/`genericSignature` 直用主 store 键（原每键物化删除）；metadata 派生树以 mini store 承接，`TypeDefinition.index(in:)` 的字段树按类型批量共享一个 store。`Name` 类型自定义结构语义 `Hashable` 与 wire 兼容 `Codable`。打印边界暂留 5 处显式 `materialize()` 桥（`SwiftDeclarationPrinter` 3 处 printer 入口 + where 子句 + `leafNameNode`×2），5b 泛型化时消除；`NodeReference.printSemantic`（零物化富文本）已就位并接管 `SwiftDiffableInterfaceRenderer`。
+- **验收**：MachOSwiftSection 98 tests / 15 suites 全绿（interface 快照逐字节一致、fixture、diffing、substitution、attribute inference）；swift-demangling 定向 44/7 全绿 + 全量复跑。
+- **事故记录 — 测试语料符号无效 + xcsift 假绿**：`DemanglingTests` corpus 中的 `$s7SwiftUI4TextV_10FoundationE9formatterAcA…` 自引入（5788472，NodeStore 之前）就是**无效符号**（系统 `swift-demangle` 同样拒绝，`TextV` 后多一个 `_`），理应一直红。此前未暴露是因为 `swift test 2>&1 | xcsift; echo $?` 捕获的是 **xcsift 的退出码**而非 `swift test` 的，多轮「全绿」不可信。已替换为真实生成的同复杂度符号 `$s11ExampleBase0A4TextV0A6AddonsE9formatter7subjectAcA0A5StyleV_xtcSyRzlufC`（跨模块 extension + `SyRzl` 约束 + `ufC`），并对三个测试文件的全部 mangled 字面量过系统 demangler 校验。**教训：管道给 xcsift 时用 `${pipestatus[1]}` 取真实退出码，或验收时直接看原生输出。**
