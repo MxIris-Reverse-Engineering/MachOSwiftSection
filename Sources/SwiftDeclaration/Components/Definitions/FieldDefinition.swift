@@ -20,6 +20,6 @@ public struct FieldFlags: OptionSet, Sendable {
 @MemberwiseInit(.public)
 public struct FieldDefinition: Sendable {
     public let name: String
-    public let typeNode: Node
+    public let typeNode: NodeReference
     public let flags: FieldFlags
 }

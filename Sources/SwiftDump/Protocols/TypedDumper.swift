@@ -3,7 +3,7 @@ import FoundationToolbox
 import Semantic
 import MachOSwiftSection
 import MachOKit
-import Demangling
+@_spi(Internals) import Demangling
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 
@@ -241,7 +241,7 @@ extension TypedDumper {
         // so callers stay on the unbound representation.
         guard #available(macOS 11, iOS 14, tvOS 14, watchOS 7, *) else { return nil }
         guard let resolvedMangledString = _mangledTypeName(metatype) else { return nil }
-        return try? demangleAsNode(resolvedMangledString, isType: true)
+        return try? demangleAsNodeTransient(resolvedMangledString, isType: true)
     }
 
     /// Render the bound generic dumped name so that the type's qualified

@@ -322,9 +322,9 @@ extension TypeDefinition {
     ) -> TypeName {
         let unboundTypeNode: Node
         if unboundTypeName.node.kind == .type {
-            unboundTypeNode = unboundTypeName.node
+            unboundTypeNode = unboundTypeName.node.materialize()
         } else {
-            unboundTypeNode = Node.create(kind: .type, children: [unboundTypeName.node])
+            unboundTypeNode = Node.create(kind: .type, children: [unboundTypeName.node.materialize()])
         }
 
         let normalizedArgumentNodes: [Node] = typeArgumentNodes.map { argumentNode in
@@ -346,7 +346,7 @@ extension TypeDefinition {
         let boundNode = Node.create(kind: boundKind, children: [unboundTypeNode, typeList])
         let wrappedNode = Node.create(kind: .type, children: [boundNode])
 
-        return TypeName(node: wrappedNode, kind: unboundTypeName.kind)
+        return TypeName(node: NodeReference(interning: wrappedNode), kind: unboundTypeName.kind)
     }
 
     private func validateSpecialization(metadata: MetadataWrapper, in machO: MachOImage) throws {

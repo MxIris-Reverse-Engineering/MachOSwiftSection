@@ -16,7 +16,7 @@ struct TypeAttributeInferrerTests {
     func detectPropertyWrapperFromField() {
         let typeNode = Node.create(kind: .type)
         let fields = [
-            FieldDefinition(name: "wrappedValue", typeNode: typeNode, flags: FieldFlags()),
+            FieldDefinition(name: "wrappedValue", typeNode: NodeReference(interning: typeNode), flags: FieldFlags()),
         ]
         #expect(TypeAttributeInferrer.hasWrappedValueMember(fields: fields, variables: []))
     }
@@ -43,7 +43,7 @@ struct TypeAttributeInferrerTests {
         )
         let variables = [
             VariableDefinition(
-                node: variableNode,
+                node: NodeReference(interning: variableNode),
                 name: "wrappedValue",
                 accessors: [dummyAccessor],
                 isGlobalOrStatic: false
@@ -56,8 +56,8 @@ struct TypeAttributeInferrerTests {
     func detectPropertyWrapperAbsent() {
         let typeNode = Node.create(kind: .type)
         let fields = [
-            FieldDefinition(name: "value", typeNode: typeNode, flags: FieldFlags()),
-            FieldDefinition(name: "projectedValue", typeNode: typeNode, flags: FieldFlags()),
+            FieldDefinition(name: "value", typeNode: NodeReference(interning: typeNode), flags: FieldFlags()),
+            FieldDefinition(name: "projectedValue", typeNode: NodeReference(interning: typeNode), flags: FieldFlags()),
         ]
         #expect(!TypeAttributeInferrer.hasWrappedValueMember(fields: fields, variables: []))
     }
@@ -106,7 +106,7 @@ struct TypeAttributeInferrerTests {
     func detectDynamicMemberLookup() {
         let subscriptNode = makeDynamicMemberSubscriptNode()
         let subscriptDefinitions = [
-            SubscriptDefinition(node: subscriptNode, accessors: [], isStatic: false),
+            SubscriptDefinition(node: NodeReference(interning: subscriptNode), accessors: [], isStatic: false),
         ]
         #expect(TypeAttributeInferrer.hasDynamicMemberSubscript(subscripts: subscriptDefinitions, staticSubscripts: []))
     }
@@ -115,7 +115,7 @@ struct TypeAttributeInferrerTests {
     func detectDynamicMemberLookupFromStaticSubscript() {
         let subscriptNode = makeDynamicMemberSubscriptNode()
         let staticSubscriptDefinitions = [
-            SubscriptDefinition(node: subscriptNode, accessors: [], isStatic: true),
+            SubscriptDefinition(node: NodeReference(interning: subscriptNode), accessors: [], isStatic: true),
         ]
         #expect(TypeAttributeInferrer.hasDynamicMemberSubscript(subscripts: [], staticSubscripts: staticSubscriptDefinitions))
     }
@@ -132,7 +132,7 @@ struct TypeAttributeInferrerTests {
         let getterNode = Node.create(kind: .getter, child: subscriptNode)
         let globalNode = Node.create(kind: .global, child: getterNode)
         let subscriptDefinitions = [
-            SubscriptDefinition(node: globalNode, accessors: [], isStatic: false),
+            SubscriptDefinition(node: NodeReference(interning: globalNode), accessors: [], isStatic: false),
         ]
         #expect(!TypeAttributeInferrer.hasDynamicMemberSubscript(subscripts: subscriptDefinitions, staticSubscripts: []))
     }
@@ -152,7 +152,7 @@ struct TypeAttributeInferrerTests {
         let getterNode = Node.create(kind: .getter, child: subscriptNode)
         let globalNode = Node.create(kind: .global, child: getterNode)
         let subscriptDefinitions = [
-            SubscriptDefinition(node: globalNode, accessors: [], isStatic: false),
+            SubscriptDefinition(node: NodeReference(interning: globalNode), accessors: [], isStatic: false),
         ]
         #expect(!TypeAttributeInferrer.hasDynamicMemberSubscript(subscripts: subscriptDefinitions, staticSubscripts: []))
     }
@@ -221,7 +221,7 @@ struct TypeAttributeInferrerTests {
         // A type that is both @propertyWrapper and has dynamicallyCall
         let typeNode = Node.create(kind: .type)
         let fields = [
-            FieldDefinition(name: "wrappedValue", typeNode: typeNode, flags: FieldFlags()),
+            FieldDefinition(name: "wrappedValue", typeNode: NodeReference(interning: typeNode), flags: FieldFlags()),
         ]
         let functions = [
             makeMockFunctionDefinition(name: "dynamicallyCall"),
@@ -247,7 +247,7 @@ private func makeMockFunctionDefinition(name: String) -> FunctionDefinition {
         demangledNode: nodeStoreBuilder.freeze().reference(at: functionNodeIndex)
     )
     return FunctionDefinition(
-        node: functionNode,
+        node: NodeReference(interning: functionNode),
         name: name,
         kind: .function,
         symbol: dummySymbol,

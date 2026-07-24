@@ -3,7 +3,7 @@ import Demangling
 
 @MemberwiseInit(.public)
 public struct SubscriptDefinition: Sendable, AccessorRepresentable {
-    public let node: Node
+    public let node: NodeReference
     public let accessors: [Accessor]
     public let isStatic: Bool
     public var attributes: [SwiftAttribute] = []

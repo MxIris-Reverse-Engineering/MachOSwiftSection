@@ -95,7 +95,7 @@ struct ABIDifferProjectionTests {
     private func function(_ name: String, kind: FunctionKind = .function) -> FunctionDefinition {
         let node = functionNode(name)
         return FunctionDefinition(
-            node: node,
+            node: makeNodeReference(node),
             name: name,
             kind: kind,
             symbol: DemangledSymbol(symbol: Symbol(offset: 0, name: "$s_\(name)"), demangledNode: makeNodeReference(node)),
@@ -114,7 +114,7 @@ struct ABIDifferProjectionTests {
     }
 
     private func field(_ name: String, type: String) -> FieldDefinition {
-        FieldDefinition(name: name, typeNode: nominalType(type), flags: FieldFlags())
+        FieldDefinition(name: name, typeNode: makeNodeReference(nominalType(type)), flags: FieldFlags())
     }
 
     private func accessor(_ kind: AccessorKind, _ name: String) -> Accessor {
@@ -130,7 +130,7 @@ struct ABIDifferProjectionTests {
 
     private func variable(_ name: String, accessors: [AccessorKind]) -> VariableDefinition {
         VariableDefinition(
-            node: functionNode(name),
+            node: makeNodeReference(functionNode(name)),
             name: name,
             accessors: accessors.map { accessor($0, name) },
             isGlobalOrStatic: false
@@ -203,7 +203,7 @@ struct ABIDifferProjectionTests {
     @Test("toggling indirect on an enum case diffs as .modified even with the same tag and payload type")
     func enumCaseIndirectToggleIsModified() {
         let inlineCase = MemberRecord.makeCase(field("boxed", type: "Int"), tag: 0)
-        let indirectField = FieldDefinition(name: "boxed", typeNode: nominalType("Int"), flags: [.isIndirectCase])
+        let indirectField = FieldDefinition(name: "boxed", typeNode: makeNodeReference(nominalType("Int")), flags: [.isIndirectCase])
         let indirectCase = MemberRecord.makeCase(indirectField, tag: 0)
         #expect(indirectCase.signature == "indirect case boxed")
         let changes = ABIDiffer().diffMembers(old: [inlineCase], new: [indirectCase])
@@ -259,7 +259,7 @@ struct ABIDifferClassificationTests {
     private func function(_ name: String) -> FunctionDefinition {
         let node = functionNode(name)
         return FunctionDefinition(
-            node: node,
+            node: makeNodeReference(node),
             name: name,
             kind: .function,
             symbol: DemangledSymbol(symbol: Symbol(offset: 0, name: "$s_\(name)"), demangledNode: makeNodeReference(node)),
@@ -271,7 +271,7 @@ struct ABIDifferClassificationTests {
     }
 
     private func variable(_ name: String) -> VariableDefinition {
-        VariableDefinition(node: functionNode(name), name: name, accessors: [], isGlobalOrStatic: false)
+        VariableDefinition(node: makeNodeReference(functionNode(name)), name: name, accessors: [], isGlobalOrStatic: false)
     }
 
     @Test("associated type: same name is unchanged, a rename is add+remove")

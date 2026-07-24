@@ -2,7 +2,7 @@ import Foundation
 import Demangling
 
 public protocol DefinitionName {
-    var node: Node { get }
+    var node: NodeReference { get }
 }
 
 extension DefinitionName {

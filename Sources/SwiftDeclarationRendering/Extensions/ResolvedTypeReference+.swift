@@ -1,6 +1,6 @@
 import MachOKit
 import MachOSwiftSection
-import Demangling
+@_spi(Internals) import Demangling
 @_spi(Internals) import SwiftInspection
 
 extension ResolvedTypeReference {
@@ -19,10 +19,10 @@ extension ResolvedTypeReference {
             }
         case .directObjCClassName(let objcClassName):
             guard let objcClassName, !objcClassName.isEmpty else { return nil }
-            return Node.create(kind: .type, children: [
-                Node.create(kind: .class, children: [
-                    .create(kind: .module, text: objcModule),
-                    .create(kind: .identifier, text: objcClassName),
+            return Node.createTransient(kind: .type, children: [
+                Node.createTransient(kind: .class, children: [
+                    .createTransient(kind: .module, text: objcModule),
+                    .createTransient(kind: .identifier, text: objcClassName),
                 ])
             ])
         case .indirectObjCClass(let objcClass):
@@ -53,10 +53,10 @@ extension ResolvedTypeReference {
             }
         case .directObjCClassName(let objcClassName):
             guard let objcClassName, !objcClassName.isEmpty else { return nil }
-            return Node.create(kind: .type, children: [
-                Node.create(kind: .class, children: [
-                    .create(kind: .module, text: objcModule),
-                    .create(kind: .identifier, text: objcClassName),
+            return Node.createTransient(kind: .type, children: [
+                Node.createTransient(kind: .class, children: [
+                    .createTransient(kind: .module, text: objcModule),
+                    .createTransient(kind: .identifier, text: objcClassName),
                 ])
             ])
         case .indirectObjCClass(let objcClass):

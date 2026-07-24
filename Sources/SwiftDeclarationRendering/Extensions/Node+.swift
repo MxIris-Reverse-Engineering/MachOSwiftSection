@@ -1,13 +1,13 @@
 import Foundation
-import Demangling
+@_spi(Internals) import Demangling
 import Semantic
 
 extension SemanticString: @retroactive NodePrinterTarget {
-    public mutating func pushTypeReferenceScope(_ node: Node?) {
+    public mutating func pushTypeReferenceScope(_ node: @autoclosure () -> Node?) {
         // A failed remangle degrades to a nil (barrier) scope: the span's
         // tokens carry no identity rather than inheriting the enclosing
         // type's, which would mislabel them.
-        pushIdentifierScope(node.flatMap { try? mangleAsString($0) })
+        pushIdentifierScope(node().flatMap { try? mangleAsString($0) })
     }
 
     public mutating func popTypeReferenceScope() {
@@ -55,6 +55,19 @@ extension Node {
     public func printSemantic(using options: DemangleOptions = .default) -> SemanticString {
         var printer = NodePrinter<SemanticString>(options: options)
         return printer.printRoot(self)
+    }
+}
+
+extension NodeReference {
+    /// Zero-materialization semantic print of a store-backed subtree,
+    /// through the same generic engine as `Node.printSemantic` (the
+    /// type-reference identity scopes materialize just the nominal
+    /// reference nodes on demand, via the engine's lazy scope hook).
+    public func printSemantic(using options: DemangleOptions = .default) -> SemanticString {
+        StackSafeExecutor.execute {
+            var printer = DemanglingPrinter<SemanticString, NodeReference>(options: options)
+            return printer.printRoot(self)
+        }
     }
 }
 

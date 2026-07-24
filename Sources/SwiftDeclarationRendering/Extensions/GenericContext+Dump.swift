@@ -2,7 +2,7 @@ import Semantic
 import MachOKit
 import MachOSwiftSection
 import Utilities
-import Demangling
+@_spi(Internals) import Demangling
 @_spi(Internals) import SwiftInspection
 
 package func genericParameterName(depth: Int, index: Int) throws -> String {
@@ -307,11 +307,11 @@ extension GenericRequirementDescriptor {
                 switch element {
                 case .objc(let objc):
                     let objcName = try objc.mangledName(in: machO).rawString
-                    let node = Node.create(kind: .global, children: [
-                        Node.create(kind: .type, children: [
-                            Node.create(kind: .protocol, children: [
-                                .create(kind: .module, text: objcModule),
-                                .create(kind: .identifier, text: objcName),
+                    let node = Node.createTransient(kind: .global, children: [
+                        Node.createTransient(kind: .type, children: [
+                            Node.createTransient(kind: .protocol, children: [
+                                .createTransient(kind: .module, text: objcModule),
+                                .createTransient(kind: .identifier, text: objcName),
                             ])
                         ])
                     ])
@@ -410,11 +410,11 @@ extension GenericRequirementDescriptor {
                 switch element {
                 case .objc(let objc):
                     let objcName = try objc.mangledName(in: machO).rawString
-                    let node = Node.create(kind: .global, children: [
-                        Node.create(kind: .type, children: [
-                            Node.create(kind: .protocol, children: [
-                                .create(kind: .module, text: objcModule),
-                                .create(kind: .identifier, text: objcName),
+                    let node = Node.createTransient(kind: .global, children: [
+                        Node.createTransient(kind: .type, children: [
+                            Node.createTransient(kind: .protocol, children: [
+                                .createTransient(kind: .module, text: objcModule),
+                                .createTransient(kind: .identifier, text: objcName),
                             ])
                         ])
                     ])

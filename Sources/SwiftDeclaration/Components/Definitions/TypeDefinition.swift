@@ -155,10 +155,14 @@ public final class TypeDefinition: Definition {
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
-        var fields: [FieldDefinition] = []
         let typeContextDescriptor = try required(type.contextDescriptorWrapper.typeContextDescriptor)
         let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machO)
         let records = try fieldDescriptor.records(in: machO)
+        // All field type trees of one type share a single store, so common
+        // subtrees (module references, stdlib types) deduplicate instead of
+        // paying a per-field mini store.
+        var fieldNodeStoreBuilder = NodeStoreBuilder()
+        var pendingFields: [(name: String, typeNodeIndex: NodeStore.NodeIndex, flags: FieldFlags)] = []
         for record in records {
             let typeNode = try record.demangledTypeNode(in: machO)
             let name = try record.fieldName(in: machO)
@@ -183,11 +187,13 @@ public final class TypeDefinition: Definition {
             if record.flags.contains(.isArtificial) {
                 fieldFlags.insert(.isArtificial)
             }
-            let field = FieldDefinition(name: name.stripLazyPrefix, typeNode: typeNode, flags: fieldFlags)
-            fields.append(field)
+            pendingFields.append((name: name.stripLazyPrefix, typeNodeIndex: fieldNodeStoreBuilder.intern(typeNode), flags: fieldFlags))
         }
+        let fieldNodeStore = fieldNodeStoreBuilder.freeze()
 
-        self.fields = fields
+        self.fields = pendingFields.map { pendingField in
+            FieldDefinition(name: pendingField.name, typeNode: fieldNodeStore.reference(at: pendingField.typeNodeIndex), flags: pendingField.flags)
+        }
 
         let fieldNames = Set(fields.map(\.name))
 
@@ -459,7 +465,7 @@ public final class TypeDefinition: Definition {
         // node exists (which means the function either takes no parameters
         // or takes exclusively unnamed parameters — the demangler does not
         // always emit an explicit labelList for the all-unnamed case).
-        func labels(of node: Node) -> [String] {
+        func labels(of node: NodeReference) -> [String] {
             guard let list = node.first(of: .labelList) else { return [] }
             return list.children.map { child in
                 if child.kind == .firstElementMarker { return "_" }

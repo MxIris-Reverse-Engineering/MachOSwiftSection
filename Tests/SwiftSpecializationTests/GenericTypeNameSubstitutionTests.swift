@@ -36,7 +36,7 @@ struct GenericTypeNameSubstitutionHelperTests {
 
     @Test("struct kind produces boundGenericStructure node")
     func structKindWraps() throws {
-        let unbound = TypeName(node: makeStructureTypeNode(name: "Box"), kind: .struct)
+        let unbound = TypeName(node: NodeReference(interning: makeStructureTypeNode(name: "Box")), kind: .struct)
         let argument = makeStructureTypeNode(name: "Int")
 
         let result = TypeDefinition.boundGenericTypeName(
@@ -47,7 +47,7 @@ struct GenericTypeNameSubstitutionHelperTests {
         #expect(result.kind == .struct)
         #expect(result.node.kind == .type)
 
-        let firstChild = try #require(result.node.firstChild)
+        let firstChild = try #require(result.node.children.first)
         #expect(firstChild.kind == .boundGenericStructure)
         #expect(firstChild.children.count == 2)
         #expect(firstChild.children[0].kind == .type)
@@ -60,7 +60,7 @@ struct GenericTypeNameSubstitutionHelperTests {
         let identifierNode = Node.create(kind: .identifier, contents: .text("Container"))
         let classNode = Node.create(kind: .class, children: [moduleNode, identifierNode])
         let unbound = TypeName(
-            node: Node.create(kind: .type, children: [classNode]),
+            node: NodeReference(interning: Node.create(kind: .type, children: [classNode])),
             kind: .class
         )
 
@@ -69,7 +69,7 @@ struct GenericTypeNameSubstitutionHelperTests {
             typeArgumentNodes: [makeStructureTypeNode(name: "String")]
         )
 
-        let firstChild = try #require(result.node.firstChild)
+        let firstChild = try #require(result.node.children.first)
         #expect(firstChild.kind == .boundGenericClass)
         #expect(result.kind == .class)
     }
@@ -80,7 +80,7 @@ struct GenericTypeNameSubstitutionHelperTests {
         let identifierNode = Node.create(kind: .identifier, contents: .text("Either"))
         let enumNode = Node.create(kind: .enum, children: [moduleNode, identifierNode])
         let unbound = TypeName(
-            node: Node.create(kind: .type, children: [enumNode]),
+            node: NodeReference(interning: Node.create(kind: .type, children: [enumNode])),
             kind: .enum
         )
 
@@ -92,14 +92,14 @@ struct GenericTypeNameSubstitutionHelperTests {
             ]
         )
 
-        let firstChild = try #require(result.node.firstChild)
+        let firstChild = try #require(result.node.children.first)
         #expect(firstChild.kind == .boundGenericEnum)
         #expect(result.kind == .enum)
     }
 
     @Test("typeList contains every argument in order")
     func typeListPositionalOrder() throws {
-        let unbound = TypeName(node: makeStructureTypeNode(name: "Triple"), kind: .struct)
+        let unbound = TypeName(node: NodeReference(interning: makeStructureTypeNode(name: "Triple")), kind: .struct)
         let argA = makeStructureTypeNode(name: "Int")
         let argB = makeStructureTypeNode(name: "String")
         let argC = makeStructureTypeNode(name: "Bool")
@@ -109,7 +109,7 @@ struct GenericTypeNameSubstitutionHelperTests {
             typeArgumentNodes: [argA, argB, argC]
         )
 
-        let typeList = try #require(result.node.firstChild?.children[1])
+        let typeList = try #require(result.node.children.first?.children[1])
         #expect(typeList.kind == .typeList)
         #expect(typeList.children.count == 3)
         for child in typeList.children {
@@ -120,23 +120,23 @@ struct GenericTypeNameSubstitutionHelperTests {
     @Test("bare structure unbound (no .type wrap) is auto-wrapped")
     func unboundAutoWrap() throws {
         let bareUnbound = makeBareStructureNode(name: "Box")
-        let unbound = TypeName(node: bareUnbound, kind: .struct)
+        let unbound = TypeName(node: NodeReference(interning: bareUnbound), kind: .struct)
 
         let result = TypeDefinition.boundGenericTypeName(
             unboundTypeName: unbound,
             typeArgumentNodes: [makeStructureTypeNode(name: "Int")]
         )
 
-        let firstChild = try #require(result.node.firstChild)
+        let firstChild = try #require(result.node.children.first)
         let unboundChild = firstChild.children[0]
         #expect(unboundChild.kind == .type)
-        let inner = try #require(unboundChild.firstChild)
+        let inner = try #require(unboundChild.children.first)
         #expect(inner.kind == .structure)
     }
 
     @Test("bare structure argument (no .type wrap) is auto-wrapped")
     func argumentAutoWrap() throws {
-        let unbound = TypeName(node: makeStructureTypeNode(name: "Box"), kind: .struct)
+        let unbound = TypeName(node: NodeReference(interning: makeStructureTypeNode(name: "Box")), kind: .struct)
         let bareArgument = makeBareStructureNode(name: "Int")
 
         let result = TypeDefinition.boundGenericTypeName(
@@ -144,17 +144,17 @@ struct GenericTypeNameSubstitutionHelperTests {
             typeArgumentNodes: [bareArgument]
         )
 
-        let typeList = try #require(result.node.firstChild?.children[1])
+        let typeList = try #require(result.node.children.first?.children[1])
         let firstArgument = typeList.children[0]
         #expect(firstArgument.kind == .type)
-        let inner = try #require(firstArgument.firstChild)
+        let inner = try #require(firstArgument.children.first)
         #expect(inner.kind == .structure)
     }
 
     @Test(".type-wrapped input is not double-wrapped")
     func noDoubleWrap() throws {
         let unboundTypeNode = makeStructureTypeNode(name: "Box")
-        let unbound = TypeName(node: unboundTypeNode, kind: .struct)
+        let unbound = TypeName(node: NodeReference(interning: unboundTypeNode), kind: .struct)
         let argumentTypeNode = makeStructureTypeNode(name: "Int")
 
         let result = TypeDefinition.boundGenericTypeName(
@@ -162,23 +162,24 @@ struct GenericTypeNameSubstitutionHelperTests {
             typeArgumentNodes: [argumentTypeNode]
         )
 
-        let firstChild = try #require(result.node.firstChild)
-        // Identity check: helper reuses the original `.type`-wrapped node
-        // rather than wrapping it again into `Type → Type → Structure`.
-        #expect(firstChild.children[0] === unboundTypeNode)
+        let firstChild = try #require(result.node.children.first)
+        // Structural check: the helper must not wrap the already
+        // `.type`-wrapped node again into `Type → Type → Structure` — a
+        // double wrap would break structural equality with the input.
+        #expect(firstChild.children[0].structurallyEquals(unboundTypeNode))
         let typeList = firstChild.children[1]
-        #expect(typeList.children[0] === argumentTypeNode)
+        #expect(typeList.children[0].structurallyEquals(argumentTypeNode))
     }
 
     @Test("empty argument list still produces a structurally valid tree")
     func emptyArgumentList() throws {
-        let unbound = TypeName(node: makeStructureTypeNode(name: "Box"), kind: .struct)
+        let unbound = TypeName(node: NodeReference(interning: makeStructureTypeNode(name: "Box")), kind: .struct)
         let result = TypeDefinition.boundGenericTypeName(
             unboundTypeName: unbound,
             typeArgumentNodes: []
         )
 
-        let firstChild = try #require(result.node.firstChild)
+        let firstChild = try #require(result.node.children.first)
         #expect(firstChild.kind == .boundGenericStructure)
         let typeList = firstChild.children[1]
         #expect(typeList.kind == .typeList)
@@ -249,7 +250,7 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
         // Top-level shape: `Type → BoundGenericStructure(...)`.
         #expect(specialized.typeName.kind == .struct)
         #expect(specialized.typeName.node.kind == .type)
-        let firstChild = try #require(specialized.typeName.node.firstChild)
+        let firstChild = try #require(specialized.typeName.node.children.first)
         #expect(firstChild.kind == .boundGenericStructure)
         #expect(firstChild.children.count == 2)
         #expect(firstChild.children[1].kind == .typeList)
@@ -314,7 +315,7 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
             in: machO
         )
 
-        let firstChild = try #require(specialized.typeName.node.firstChild)
+        let firstChild = try #require(specialized.typeName.node.children.first)
         #expect(firstChild.kind != .boundGenericStructure)
         #expect(firstChild.kind == .structure)
     }

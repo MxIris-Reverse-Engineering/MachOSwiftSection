@@ -5,7 +5,7 @@ import Utilities
 
 @MemberwiseInit(.public)
 public struct FunctionDefinition: Sendable {
-    public let node: Node
+    public let node: NodeReference
     public let name: String
     public let kind: FunctionKind
     public let symbol: DemangledSymbol

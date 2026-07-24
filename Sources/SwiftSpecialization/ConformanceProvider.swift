@@ -211,7 +211,7 @@ extension IndexerConformanceProvider: ConformanceProvider {
             guard let superNode = superNode.first(of: .type) else {
                 continue
             }
-            let superTypeName = TypeName(node: superNode, kind: .class)
+            let superTypeName = TypeName(node: NodeReference(interning: superNode), kind: .class)
             map[superTypeName.name, default: []].append(childTypeName)
         }
 
