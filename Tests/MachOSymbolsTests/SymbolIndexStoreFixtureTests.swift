@@ -10,11 +10,11 @@ import MachOFixtureSupport
 /// `SymbolTestsCore` framework (self-built fixture, no external Xcode
 /// dependency). Complements the heavyweight integration/baseline tests:
 /// these assert the NodeStore-backed pipeline's invariants — cache-free
-/// building, byte-identical printing versus the `Node` pipeline, and the
-/// `structurallyEquals` bridge behind every `Node`-taking query API.
+/// building, byte-identical printing versus the `Node` pipeline, the
+/// `structurallyEquals` bridge behind every `Node`-taking query API, and
+/// the Stage 3 flat-symbol-table row indirection.
 ///
-/// Serialized: the NodeCache-growth test snapshots process-global counters,
-/// and several tests share the cached per-file storage.
+/// Serialized: several tests share the cached per-file storage.
 @Suite(.serialized)
 final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .SymbolTestsCore }
@@ -41,9 +41,10 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
     /// `SymbolIndexStoreBaselineTests`.)
     @Test func buildPipelineStaysOffGlobalNodeCache() throws {
         let builtStorage = try #require(SymbolIndexStore.shared.buildStorage(for: machOFile))
-        #expect(!builtStorage.demangledNodeBySymbol.isEmpty)
+        #expect(!builtStorage.symbolTable.isEmpty)
 
-        let sampleSymbolName = try #require(builtStorage.demangledNodeBySymbol.keys.first?.name)
+        let sampleRow = try #require(builtStorage.rootNodeIndexByTableRow.firstIndex(where: { $0 != nil }))
+        let sampleSymbolName = builtStorage.symbolTable[sampleRow].name
         let firstTransientTree = try demangleAsNodeTransient(sampleSymbolName)
         let secondTransientTree = try demangleAsNodeTransient(sampleSymbolName)
         let firstLeaf = try #require(firstTransientTree.first { $0.children.isEmpty })
@@ -56,8 +57,11 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
     /// the classic `demangleAsNode` + `Node.print` pipeline.
     @Test func printedSymbolsMatchNodePipeline() throws {
         let storage = try storage
+        var checkedCount = 0
         var mismatchCount = 0
-        for (symbol, reference) in storage.demangledNodeBySymbol {
+        for (row, symbol) in storage.symbolTable.enumerated() {
+            guard let rootNodeIndex = storage.rootNodeIndexByTableRow[row] else { continue }
+            let reference = storage.nodeStore.reference(at: rootNodeIndex)
             let expected = try demangleAsNode(symbol.name, internsSubtrees: false).print(using: .default)
             if reference.print(using: .default) != expected {
                 mismatchCount += 1
@@ -65,25 +69,56 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
                     Issue.record("Store print mismatch for \(symbol.name)")
                 }
             }
+            checkedCount += 1
         }
         #expect(mismatchCount == 0)
-        #expect(!storage.demangledNodeBySymbol.isEmpty)
+        #expect(checkedCount > 0)
+    }
+
+    // MARK: - Flat symbol table (Stage 3)
+
+    /// The whole point of the Stage 3 compaction: vended values stay small.
+    /// `Symbol` drops the 40-byte `nlist` existential; `DemangledSymbol`
+    /// stores a shared-table row instead of an inline `Symbol` copy.
+    @Test func compactValueLayouts() {
+        #expect(MemoryLayout<Symbol>.stride <= 32)
+        #expect(MemoryLayout<DemangledSymbol>.stride <= 32)
+    }
+
+    /// Raw and cache-adjusted offset keys share one canonical table row, so
+    /// `symbols(for:in:)` must rebuild each `Symbol` with the queried offset
+    /// (matching the old per-offset-copy behavior byte for byte).
+    @Test func offsetQueriesRebuildSymbolsWithQueriedOffset() throws {
+        let storage = try storage
+        #expect(!storage.symbolRowsByOffset.isEmpty)
+        var checkedOffsetCount = 0
+        for (offset, rows) in storage.symbolRowsByOffset {
+            guard checkedOffsetCount < 500 else { break }
+            let queried = try #require(SymbolIndexStore.shared.symbols(for: offset, in: machOFile))
+            #expect(queried.count == rows.count)
+            #expect(queried.allSatisfy { $0.offset == offset })
+            for (queriedSymbol, row) in zip(queried, rows) {
+                #expect(queriedSymbol.name == storage.symbolTable[Int(row)].name)
+            }
+            checkedOffsetCount += 1
+        }
+        #expect(checkedOffsetCount > 0)
     }
 
     // MARK: - Query APIs
 
     /// `memberSymbols(of:for:node:)` takes an externally demangled `Node` and
-    /// must find the `NodeReference`-keyed bucket via `structurallyEquals`.
+    /// must find the node-index-keyed bucket via `structurallyEquals`.
     /// Exercise it for every bucket the index actually built.
     @Test func memberQueryByNodeFindsEveryBucket() throws {
         let storage = try storage
         var checkedBucketCount = 0
-        for (memberKind, memberSymbols) in storage.memberSymbolsByKind {
-            for (typeName, symbolsByTypeNode) in memberSymbols {
-                for (typeNodeReference, expectedSymbols) in symbolsByTypeNode {
-                    let externalNode = typeNodeReference.materialize()
+        for (memberKind, memberRows) in storage.memberSymbolRowsByKind {
+            for (typeName, rowsByTypeNodeIndex) in memberRows {
+                for (typeNodeIndex, expectedRows) in rowsByTypeNodeIndex {
+                    let externalNode = storage.nodeStore.reference(at: typeNodeIndex).materialize()
                     let queried = SymbolIndexStore.shared.memberSymbols(of: memberKind, for: typeName, node: externalNode, in: machOFile)
-                    #expect(queried.count == expectedSymbols.count, "bucket \(memberKind) / \(typeName)")
+                    #expect(queried.count == expectedRows.count, "bucket \(memberKind) / \(typeName)")
                     checkedBucketCount += 1
                 }
             }
@@ -93,10 +128,10 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
 
     @Test func symbolKindQueriesMatchStorageBuckets() throws {
         let storage = try storage
-        #expect(!storage.symbolsByKind.isEmpty)
-        for (kind, expectedSymbols) in storage.symbolsByKind {
+        #expect(!storage.symbolRowsByKind.isEmpty)
+        for (kind, expectedRows) in storage.symbolRowsByKind {
             let queried = SymbolIndexStore.shared.symbols(of: kind, in: machOFile)
-            #expect(queried.count == expectedSymbols.count)
+            #expect(queried.count == expectedRows.count)
             #expect(queried.allSatisfy { $0.demangledNode.children.first?.kind == kind })
         }
     }
@@ -112,9 +147,10 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
 
     @Test func opaqueDescriptorQueryFindsEveryReferenceKey() throws {
         let storage = try storage
-        for (keyReference, expectedSymbol) in storage.opaqueTypeDescriptorSymbolByNode {
+        for (nodeIndex, expectedRow) in storage.opaqueTypeDescriptorSymbolRowByNodeIndex {
+            let keyReference = storage.nodeStore.reference(at: nodeIndex)
             let queried = try #require(SymbolIndexStore.shared.opaqueTypeDescriptorSymbol(for: keyReference.materialize(), in: machOFile))
-            #expect(queried.symbol == expectedSymbol.symbol)
+            #expect(queried.symbol == storage.symbolTable[Int(expectedRow)])
         }
     }
 
@@ -123,8 +159,10 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
     @Test func demangledNodeAndReferenceAgree() throws {
         let storage = try storage
         var checkedCount = 0
-        for (symbol, reference) in storage.demangledNodeBySymbol {
+        for (row, symbol) in storage.symbolTable.enumerated() {
             guard checkedCount < 200 else { break }
+            guard let rootNodeIndex = storage.rootNodeIndexByTableRow[row] else { continue }
+            let reference = storage.nodeStore.reference(at: rootNodeIndex)
             let materialized = try #require(SymbolIndexStore.shared.demangledNode(for: symbol, in: machOFile))
             #expect(reference.structurallyEquals(materialized))
             let referenceAgain = try #require(SymbolIndexStore.shared.demangledNodeReference(for: symbol, in: machOFile))

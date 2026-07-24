@@ -5,17 +5,21 @@ import MachOExtensions
 import Demangling
 import FoundationToolbox
 
-public struct Symbol: AsyncResolvable, SymbolProtocol, Hashable {
+public struct Symbol: AsyncResolvable, SymbolProtocol, Hashable, Sendable {
     public let offset: Int
 
     public let name: String
 
-    public let nlist: (any NlistProtocol)?
+    /// Whether the symbol-table entry was flagged as an undefined external
+    /// import (`N_EXT` with `N_UNDF` type). Extracted from the `nlist` entry
+    /// at collection time; the entry itself is not retained (a 40-byte
+    /// existential per symbol copy that nothing else consumed).
+    public let isExternal: Bool
 
-    public init(offset: Int, name: String, nlist: (any NlistProtocol)? = nil) {
+    public init(offset: Int, name: String, isExternal: Bool = false) {
         self.offset = offset
         self.name = name
-        self.nlist = nlist
+        self.isExternal = isExternal
     }
 
     public static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) throws -> Self {
@@ -84,7 +88,7 @@ extension MachOSymbols.SymbolProtocol {
 
 extension MachOKit.SymbolProtocol {
     fileprivate var asCurrentSymbol: MachOSymbols.Symbol {
-        .init(offset: offset, name: name, nlist: nlist)
+        .init(offset: offset, name: name, isExternal: nlist.isExternal)
     }
 }
 
