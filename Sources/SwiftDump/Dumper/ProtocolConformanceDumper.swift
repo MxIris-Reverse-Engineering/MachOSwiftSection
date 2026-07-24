@@ -105,7 +105,7 @@ package struct ProtocolConformanceDumper<MachO: FieldLayoutRenderable>: Conforme
 
                     if let symbols = try resilientWitness.implementationSymbols(in: machO), let node = Self.demangledSymbol(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes, in: machO)?.demangledNode {
                         _ = visitedNodes.append(node)
-                        try await demangleResolver.resolve(for: node.materialize())
+                        try await demangleResolver.resolve(for: node)
                     } else if let requirement = try resilientWitness.requirement(in: machO) {
 
                         switch requirement {
@@ -114,10 +114,10 @@ package struct ProtocolConformanceDumper<MachO: FieldLayoutRenderable>: Conforme
                         case .element(let element):
                             if let symbols = try await Symbols.resolve(from: element.offset, in: machO), let node = Self.demangledSymbol(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes, in: machO)?.demangledNode {
                                 _ = visitedNodes.append(node)
-                                try await demangleResolver.resolve(for: node.materialize())
+                                try await demangleResolver.resolve(for: node)
                             } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machO), let node = Self.demangledSymbol(for: defaultImplementationSymbols, typeName: typeNameString, visitedNodes: visitedNodes, in: machO)?.demangledNode {
                                 _ = visitedNodes.append(node)
-                                try await demangleResolver.resolve(for: node.materialize())
+                                try await demangleResolver.resolve(for: node)
                             } else if !element.defaultImplementation.isNull {
                                 FunctionDeclaration(machO.addressString(forOffset: element.defaultImplementation.resolveDirectOffset(from: element.offset(of: \.defaultImplementation))).insertSubFunctionPrefix)
                             } else if !resilientWitness.implementation.isNull {

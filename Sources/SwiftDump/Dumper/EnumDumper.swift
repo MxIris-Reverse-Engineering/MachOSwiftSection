@@ -153,7 +153,7 @@ package struct EnumDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                     Indent(level: 1)
 
-                    try await demangleResolver.resolve(for: symbol.demangledNode.materialize())
+                    try await demangleResolver.resolve(for: symbol.demangledNode)
 
                     if offset.isEnd {
                         BreakLine()

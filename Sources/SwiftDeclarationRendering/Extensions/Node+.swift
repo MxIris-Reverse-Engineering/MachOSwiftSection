@@ -58,14 +58,14 @@ extension Node {
     }
 }
 
-extension NodeReference {
-    /// Zero-materialization semantic print of a store-backed subtree,
-    /// through the same generic engine as `Node.printSemantic` (the
-    /// type-reference identity scopes materialize just the nominal
-    /// reference nodes on demand, via the engine's lazy scope hook).
+extension DemanglingNode {
+    /// Zero-materialization semantic print through the same generic engine
+    /// as `Node.printSemantic` — for store-backed nodes the type-reference
+    /// identity scopes materialize just the nominal reference subtrees on
+    /// demand, via the engine's lazy scope hook.
     public func printSemantic(using options: DemangleOptions = .default) -> SemanticString {
         StackSafeExecutor.execute {
-            var printer = DemanglingPrinter<SemanticString, NodeReference>(options: options)
+            var printer = DemanglingPrinter<SemanticString, Self>(options: options)
             return printer.printRoot(self)
         }
     }
