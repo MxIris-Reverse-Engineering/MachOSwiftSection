@@ -92,32 +92,39 @@ struct SharedCacheResolveTests {
     @Test func concurrentCallsForDifferentKeysRunInParallel() {
         let cache = TestCache()
         let keyCount = 8
-        let perBuildSeconds: Double = 0.20
 
-        let allDone = DispatchSemaphore(value: 0)
-        let start = ContinuousClock.now
+        // Deterministic parallelism proof instead of a wall-clock heuristic
+        // (which flaked under CPU saturation): every build blocks until all
+        // `keyCount` builds have entered their closure. If `resolve`
+        // serialized distinct keys — e.g. by holding the cache lock across
+        // the build — the first build would wait forever for peers that can
+        // never start, and the generous timeout below turns that into a
+        // failure rather than a hang.
+        let enteredBuild = DispatchSemaphore(value: 0)
+        let proceedWithBuild = DispatchSemaphore(value: 0)
+        let buildFinished = DispatchSemaphore(value: 0)
+
+        DispatchQueue.global().async {
+            for _ in 0 ..< keyCount { enteredBuild.wait() }
+            for _ in 0 ..< keyCount { proceedWithBuild.signal() }
+        }
+
         for index in 0 ..< keyCount {
             DispatchQueue.global().async {
                 _ = cache.resolve(key: AnyHashable(index)) {
-                    Thread.sleep(forTimeInterval: perBuildSeconds)
+                    enteredBuild.signal()
+                    proceedWithBuild.wait()
                     return index
                 }
-                allDone.signal()
+                buildFinished.signal()
             }
         }
-        for _ in 0 ..< keyCount { allDone.wait() }
-        let elapsed = (ContinuousClock.now - start)
-        let elapsedSeconds = Double(elapsed.components.seconds)
-            + Double(elapsed.components.attoseconds) / 1e18
 
-        // Allow generous slack for CI variance — the contract is "wall-clock
-        // is closer to one build than to N builds", not a precise multiplier.
-        // Serial would be ~keyCount * perBuildSeconds; we cap at half of
-        // that, which is still >2× the parallel ideal.
-        let serialCeiling = Double(keyCount) * perBuildSeconds
-        let parallelBudget = serialCeiling * 0.5
-        #expect(elapsedSeconds < parallelBudget,
-                "elapsed=\(elapsedSeconds)s should be well below serial=\(serialCeiling)s")
+        var timedOut = false
+        for _ in 0 ..< keyCount where !timedOut {
+            timedOut = buildFinished.wait(timeout: .now() + 30) == .timedOut
+        }
+        #expect(!timedOut, "builds for distinct keys did not run concurrently")
     }
 
     /// Cache hits stay reentrant: a build for key A may itself call

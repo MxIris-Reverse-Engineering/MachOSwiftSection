@@ -199,6 +199,8 @@ let node = try demangleAsNode("$sSiD")  // Returns Node tree
 let string = node.print(using: .default) // "Swift.Int"
 ```
 
+**Symbol indexing (NodeStore-backed)**: `SymbolIndexStore.Storage` no longer retains `Node` class trees. The build sweep demangles each symbol cache-free onto a transient tree (`@_spi(Internals) demangleAsNodeTransient`), classifies on that tree, and interns it into a per-image `NodeStoreBuilder`; after `freeze()` the indexes hold 16-byte `NodeReference` handles (`DemangledSymbol.demangledNode: NodeReference`). Nothing touches the global `NodeCache`, and dropping a `Storage` releases the whole per-image footprint. Query APIs taking an externally demangled `Node` (`memberSymbols(of:for:node:)`, `opaqueTypeDescriptorSymbol(for:)`) match keys via `NodeReference.structurallyEquals(_:)`; renderer boundaries (`demangleResolver.resolve`, `Definition` models) call `materialize()`. Late symbols outside the build sweep get per-symbol mini stores (`demangledNodeReference(for:)` / `MetadataReader.demangleSymbolReference(for:in:)`). See `Documentations/Internal/NodeStoreMigrationPlan.md`.
+
 ## Test Environment
 
 Tests use `MACHO_SWIFT_SECTION_SILENT_TEST=1` to suppress verbose output.

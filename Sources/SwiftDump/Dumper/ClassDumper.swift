@@ -87,9 +87,9 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                 let rootNode = thunkSymbol.demangledNode
                 guard let functionNode = rootNode.children.first(where: { $0.kind != .distributedThunk }) else { continue }
                 guard let contextNode = functionNode.children.first else { continue }
-                let thunkTypeName = Node.create(kind: .type, child: contextNode).print(using: .interfaceTypeBuilderOnly)
+                let thunkTypeName = Node.create(kind: .type, child: contextNode.materialize()).print(using: .interfaceTypeBuilderOnly)
                 guard thunkTypeName == currentTypeName else { continue }
-                nodes.insert(functionNode)
+                nodes.insert(functionNode.materialize())
             }
 
             return nodes
@@ -334,7 +334,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                     Indent(level: 1)
 
-                    try await demangleResolver.resolve(for: symbol.demangledNode)
+                    try await demangleResolver.resolve(for: symbol.demangledNode.materialize())
 
                     if offset.isEnd {
                         BreakLine()
@@ -360,7 +360,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                     Indent(level: 1)
 
-                    try await demangleResolver.resolve(for: symbol.demangledNode)
+                    try await demangleResolver.resolve(for: symbol.demangledNode.materialize())
 
                     if offset.isEnd {
                         BreakLine()
@@ -454,16 +454,6 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
         for symbol in symbols {
             if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let classNode = node.first(of: .class), await classNode.print(using: .interfaceType) == currentInterfaceName, !visitedNodes.contains(node) {
                 return node
-            }
-        }
-        return nil
-    }
-
-    
-    package static func demangledSymbol(for symbols: Symbols, typeNode: Node, visitedNodes: borrowing OrderedSet<Node> = [], in machO: MachO) -> DemangledSymbol? {
-        for symbol in symbols {
-            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let classNode = node.first(of: .class), classNode == typeNode.first(of: .class), !visitedNodes.contains(node) {
-                return .init(symbol: symbol, demangledNode: node)
             }
         }
         return nil

@@ -15,13 +15,14 @@ import OrderedCollections
 package func demangledOverrideSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(
     for symbols: Symbols,
     typeNode: Node,
-    visitedNodes: borrowing OrderedSet<Node> = [],
+    visitedNodes: borrowing OrderedSet<NodeReference> = [],
     in machO: MachO
 ) -> DemangledSymbol? {
+    guard let typeClassNode = typeNode.first(of: .class) else { return nil }
     for symbol in symbols {
-        if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO),
+        if let node = SymbolIndexStore.shared.demangledNodeReference(for: symbol, in: machO),
            let classNode = node.first(of: .class),
-           classNode == typeNode.first(of: .class),
+           classNode.structurallyEquals(typeClassNode),
            !visitedNodes.contains(node) {
             return .init(symbol: symbol, demangledNode: node)
         }

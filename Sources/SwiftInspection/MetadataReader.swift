@@ -37,6 +37,14 @@ extension MetadataReader {
         return SymbolIndexStore.shared.demangledNode(for: symbol, in: machO)
     }
 
+    /// Store-backed variant of `demangleSymbol(for:in:)`: returns a
+    /// `NodeReference` into the image's frozen node store (or a per-symbol
+    /// mini store for symbols outside the build sweep) without materializing
+    /// a `Node` tree.
+    public static func demangleSymbolReference<MachO: MachOSwiftSectionRepresentableWithCache>(for symbol: Symbol, in machO: MachO) -> NodeReference? {
+        return SymbolIndexStore.shared.demangledNodeReference(for: symbol, in: machO)
+    }
+
     public static func demangleContext<MachO: MachOSwiftSectionRepresentableWithCache>(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
         if isCacheEnabled {
             return try MetadataReaderCache.shared.demangleContext(for: context, in: machO)

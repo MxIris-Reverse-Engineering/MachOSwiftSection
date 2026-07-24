@@ -220,7 +220,7 @@ final class NodePrinterIntegrationTests: DyldCacheTests, @unchecked Sendable {
         var failCount = 0
 
         for demangledSymbol in demangledSymbols.prefix(20) {
-            let node = demangledSymbol.demangledNode
+            let node = demangledSymbol.demangledNode.materialize()
             do {
                 var printer = FunctionNodePrinter(isOverride: false)
                 guard let firstChild = node.children.first else { continue }
@@ -271,7 +271,7 @@ final class NodePrinterIntegrationTests: DyldCacheTests, @unchecked Sendable {
         var successCount = 0
 
         for demangledSymbol in demangledSymbols.prefix(10) {
-            let node = demangledSymbol.demangledNode
+            let node = demangledSymbol.demangledNode.materialize()
             do {
                 var printer = SubscriptNodePrinter(isOverride: false, hasSetter: false, indentation: 1)
                 let result = try await printer.printRoot(node).string

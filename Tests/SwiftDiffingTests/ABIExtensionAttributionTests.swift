@@ -49,7 +49,7 @@ struct ABIExtensionAttributionTests {
             node: node,
             name: name,
             kind: .function,
-            symbol: DemangledSymbol(symbol: Symbol(offset: 0, name: "$s_\(name)"), demangledNode: node),
+            symbol: DemangledSymbol(symbol: Symbol(offset: 0, name: "$s_\(name)"), demangledNode: makeNodeReference(node)),
             isGlobalOrStatic: false,
             methodDescriptor: nil,
             offset: nil,
@@ -181,4 +181,10 @@ struct ABIExtensionAttributionTests {
         primary.definition.absorbAssociatedTypes(of: secondary.definition)
         #expect(primary.definition.resolvedAssociatedTypeWitnesses.map(\.name) == ["Element", "Index"])
     }
+}
+
+private func makeNodeReference(_ node: Node) -> NodeReference {
+    var nodeStoreBuilder = NodeStoreBuilder()
+    let nodeIndex = nodeStoreBuilder.intern(node)
+    return nodeStoreBuilder.freeze().reference(at: nodeIndex)
 }

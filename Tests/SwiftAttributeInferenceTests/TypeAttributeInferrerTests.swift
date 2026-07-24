@@ -28,9 +28,11 @@ struct TypeAttributeInferrerTests {
             Node.create(kind: .identifier, text: "wrappedValue"),
             Node.create(kind: .type),
         ])
+        var nodeStoreBuilder = NodeStoreBuilder()
+        let variableNodeIndex = nodeStoreBuilder.intern(variableNode)
         let dummySymbol = DemangledSymbol(
             symbol: Symbol(offset: 0, name: "$s_wrappedValue"),
-            demangledNode: variableNode
+            demangledNode: nodeStoreBuilder.freeze().reference(at: variableNodeIndex)
         )
         let dummyAccessor = Accessor(
             kind: .getter,
@@ -238,9 +240,11 @@ private func makeMockFunctionDefinition(name: String) -> FunctionDefinition {
         Node.create(kind: .identifier, text: name),
         Node.create(kind: .type),
     ])
+    var nodeStoreBuilder = NodeStoreBuilder()
+    let functionNodeIndex = nodeStoreBuilder.intern(functionNode)
     let dummySymbol = DemangledSymbol(
         symbol: Symbol(offset: 0, name: "$s_\(name)"),
-        demangledNode: functionNode
+        demangledNode: nodeStoreBuilder.freeze().reference(at: functionNodeIndex)
     )
     return FunctionDefinition(
         node: functionNode,

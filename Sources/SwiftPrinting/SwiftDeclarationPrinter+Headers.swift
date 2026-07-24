@@ -139,7 +139,7 @@ extension SwiftDeclarationPrinter {
             let rootNode = thunkSymbol.demangledNode
             guard let functionNode = rootNode.children.first(where: { $0.kind != .distributedThunk }) else { continue }
             guard let contextNode = functionNode.children.first else { continue }
-            let thunkTypeName = Node.create(kind: .type, child: contextNode).print(using: .interfaceTypeBuilderOnly)
+            let thunkTypeName = Node.create(kind: .type, child: contextNode.materialize()).print(using: .interfaceTypeBuilderOnly)
             if thunkTypeName == currentTypeName {
                 return true
             }

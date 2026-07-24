@@ -7,8 +7,8 @@ package enum DefinitionBuilder {
     package static func variables(
         for demangledSymbols: [DemangledSymbolWithOffset],
         fieldNames: borrowing Set<String> = [],
-        methodDescriptorLookup: [Node: MethodDescriptorWrapper] = [:],
-        vtableOffsetLookup: [Node: Int] = [:],
+        methodDescriptorLookup: [NodeReference: MethodDescriptorWrapper] = [:],
+        vtableOffsetLookup: [NodeReference: Int] = [:],
         implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:],
         implOffsetVTableSlotLookup: [Int: Int] = [:],
         isGlobalOrStatic: Bool
@@ -30,7 +30,7 @@ package enum DefinitionBuilder {
             guard !fieldNames.contains(name) else { continue }
             let nodes = accessors.map(\.symbol.demangledNode)
             guard let node = nodes.first(where: { $0.contains(.getter) || !$0.hasAccessor }) else { continue }
-            var variableDefinition = VariableDefinition(node: node, name: name, accessors: accessors, isGlobalOrStatic: isGlobalOrStatic)
+            var variableDefinition = VariableDefinition(node: node.materialize(), name: name, accessors: accessors, isGlobalOrStatic: isGlobalOrStatic)
             if accessors.contains(where: { $0.methodDescriptor?.method?.layout.flags.isDynamic ?? false }) {
                 variableDefinition.attributes.append(.dynamic)
             }
@@ -41,8 +41,8 @@ package enum DefinitionBuilder {
 
     package static func subscripts(
         for demangledSymbols: [DemangledSymbolWithOffset],
-        methodDescriptorLookup: [Node: MethodDescriptorWrapper] = [:],
-        vtableOffsetLookup: [Node: Int] = [:],
+        methodDescriptorLookup: [NodeReference: MethodDescriptorWrapper] = [:],
+        vtableOffsetLookup: [NodeReference: Int] = [:],
         implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:],
         implOffsetVTableSlotLookup: [Int: Int] = [:],
         isStatic: Bool
@@ -54,7 +54,7 @@ package enum DefinitionBuilder {
         // `Dictionary` iteration order is randomized per process and made the
         // interface output unstable across runs. Insertion order follows the
         // (deterministic) symbol order of `demangledSymbols`.
-        var accessorsByNode: OrderedDictionary<Node, [Accessor]> = [:]
+        var accessorsByNode: OrderedDictionary<NodeReference, [Accessor]> = [:]
         for demangledSymbol in demangledSymbols {
             guard let subscriptNode = demangledSymbol.demangledNode.first(of: .subscript) else { continue }
             let kind = demangledSymbol.accessorKind
@@ -68,7 +68,7 @@ package enum DefinitionBuilder {
         for (_, accessors) in accessorsByNode {
             let nodes = accessors.map(\.symbol.demangledNode)
             guard let node = nodes.first(where: { $0.contains(.getter) }) else { continue }
-            var subscriptDefinition = SubscriptDefinition(node: node, accessors: accessors, isStatic: isStatic)
+            var subscriptDefinition = SubscriptDefinition(node: node.materialize(), accessors: accessors, isStatic: isStatic)
             if accessors.contains(where: { $0.methodDescriptor?.method?.layout.flags.isDynamic ?? false }) {
                 subscriptDefinition.attributes.append(.dynamic)
             }
@@ -79,18 +79,18 @@ package enum DefinitionBuilder {
 
     package static func allocators(
         for demangledSymbols: [DemangledSymbolWithOffset],
-        methodDescriptorLookup: [Node: MethodDescriptorWrapper] = [:],
-        vtableOffsetLookup: [Node: Int] = [:],
+        methodDescriptorLookup: [NodeReference: MethodDescriptorWrapper] = [:],
+        vtableOffsetLookup: [NodeReference: Int] = [:],
         implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:],
         implOffsetVTableSlotLookup: [Int: Int] = [:]
     ) -> [FunctionDefinition] {
         // Same dedup pattern as `functions(...)`: a merged-function thunk shares
         // the canonical `allocator` subtree, so the same init appears twice. Keep
         // the canonical (non-merged) entry when both are present.
-        var canonicalIndexByAllocatorNode: [Node: Int] = [:]
+        var canonicalIndexByAllocatorNode: [NodeReference: Int] = [:]
         // OrderedDictionary so the merged-thunk tail is appended in deterministic
         // (symbol) order — plain `Dictionary` iteration is randomized per process.
-        var pendingMergedByAllocatorNode: OrderedDictionary<Node, DemangledSymbolWithOffset> = [:]
+        var pendingMergedByAllocatorNode: OrderedDictionary<NodeReference, DemangledSymbolWithOffset> = [:]
         var allocators: [FunctionDefinition] = []
         for demangledSymbol in demangledSymbols {
             guard let allocatorNode = demangledSymbol.demangledNode.first(of: .allocator) else { continue }
@@ -113,8 +113,8 @@ package enum DefinitionBuilder {
 
     private static func makeAllocatorDefinition(
         from demangledSymbol: DemangledSymbolWithOffset,
-        methodDescriptorLookup: [Node: MethodDescriptorWrapper],
-        vtableOffsetLookup: [Node: Int],
+        methodDescriptorLookup: [NodeReference: MethodDescriptorWrapper],
+        vtableOffsetLookup: [NodeReference: Int],
         implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper],
         implOffsetVTableSlotLookup: [Int: Int]
     ) -> FunctionDefinition {
@@ -122,7 +122,7 @@ package enum DefinitionBuilder {
         let symbolOffset = demangledSymbol.base.offset
         let descriptor = methodDescriptorLookup[node] ?? implOffsetDescriptorLookup[symbolOffset]
         let vtableOffset = vtableOffsetLookup[node] ?? implOffsetVTableSlotLookup[symbolOffset]
-        var functionDefinition = FunctionDefinition(node: node, name: "", kind: .allocator, symbol: demangledSymbol.base, isGlobalOrStatic: true, methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset)
+        var functionDefinition = FunctionDefinition(node: node.materialize(), name: "", kind: .allocator, symbol: demangledSymbol.base, isGlobalOrStatic: true, methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset)
         if let methodDescriptor = descriptor?.method, methodDescriptor.layout.flags.isDynamic {
             functionDefinition.attributes.append(.dynamic)
         }
@@ -131,8 +131,8 @@ package enum DefinitionBuilder {
 
     package static func functions(
         for demangledSymbols: [DemangledSymbolWithOffset],
-        methodDescriptorLookup: [Node: MethodDescriptorWrapper] = [:],
-        vtableOffsetLookup: [Node: Int] = [:],
+        methodDescriptorLookup: [NodeReference: MethodDescriptorWrapper] = [:],
+        vtableOffsetLookup: [NodeReference: Int] = [:],
         implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:],
         implOffsetVTableSlotLookup: [Int: Int] = [:],
         isGlobalOrStatic: Bool
@@ -142,10 +142,10 @@ package enum DefinitionBuilder {
         // deduping, the same source-level declaration appears twice. Prefer the
         // canonical (non-merged) symbol when both exist; fall back to the merged
         // one when it's the only copy.
-        var canonicalIndexByFunctionNode: [Node: Int] = [:]
+        var canonicalIndexByFunctionNode: [NodeReference: Int] = [:]
         // OrderedDictionary so the merged-thunk tail is appended in deterministic
         // (symbol) order — plain `Dictionary` iteration is randomized per process.
-        var pendingMergedByFunctionNode: OrderedDictionary<Node, DemangledSymbolWithOffset> = [:]
+        var pendingMergedByFunctionNode: OrderedDictionary<NodeReference, DemangledSymbolWithOffset> = [:]
         var functions: [FunctionDefinition] = []
         for demangledSymbol in demangledSymbols {
             guard let functionNode = demangledSymbol.demangledNode.first(of: .function), let name = functionNode.identifier else { continue }
@@ -171,8 +171,8 @@ package enum DefinitionBuilder {
         from demangledSymbol: DemangledSymbolWithOffset,
         name: String,
         isGlobalOrStatic: Bool,
-        methodDescriptorLookup: [Node: MethodDescriptorWrapper],
-        vtableOffsetLookup: [Node: Int],
+        methodDescriptorLookup: [NodeReference: MethodDescriptorWrapper],
+        vtableOffsetLookup: [NodeReference: Int],
         implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper],
         implOffsetVTableSlotLookup: [Int: Int]
     ) -> FunctionDefinition {
@@ -180,7 +180,7 @@ package enum DefinitionBuilder {
         let symbolOffset = demangledSymbol.base.offset
         let descriptor = methodDescriptorLookup[node] ?? implOffsetDescriptorLookup[symbolOffset]
         let vtableOffset = vtableOffsetLookup[node] ?? implOffsetVTableSlotLookup[symbolOffset]
-        var functionDefinition = FunctionDefinition(node: node, name: name, kind: .function, symbol: demangledSymbol.base, isGlobalOrStatic: isGlobalOrStatic, methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset)
+        var functionDefinition = FunctionDefinition(node: node.materialize(), name: name, kind: .function, symbol: demangledSymbol.base, isGlobalOrStatic: isGlobalOrStatic, methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset)
         if let methodDescriptor = descriptor?.method, methodDescriptor.layout.flags.isDynamic {
             functionDefinition.attributes.append(.dynamic)
         }
@@ -188,7 +188,7 @@ package enum DefinitionBuilder {
     }
 }
 
-extension Node {
+extension DemanglingNode where Self: Sequence<Self> {
     var isStoredVariable: Bool {
         guard first(of: .variable) != nil else { return false }
         // A stored variable is one not wrapped in an accessor (getter/setter/etc.)

@@ -191,13 +191,13 @@ public final class TypeDefinition: Definition {
 
         let fieldNames = Set(fields.map(\.name))
 
-        var methodDescriptorLookup: [Node: MethodDescriptorWrapper] = [:]
-        var vtableOffsetLookup: [Node: Int] = [:]
+        var methodDescriptorLookup: [NodeReference: MethodDescriptorWrapper] = [:]
+        var vtableOffsetLookup: [NodeReference: Int] = [:]
         // Fallback lookups keyed by implementation file offset (for methods where node-based matching fails)
         var implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:]
         var implOffsetVTableSlotLookup: [Int: Int] = [:]
         if case .class(let cls) = type {
-            var visitedNodes: OrderedSet<Node> = []
+            var visitedNodes: OrderedSet<NodeReference> = []
             let typeNode = try MetadataReader.demangleContext(for: .type(.class(cls.descriptor)), in: machO)
             let vtableBaseOffset = cls.vTableDescriptorHeader.map { Int($0.layout.vTableOffset) }
 
