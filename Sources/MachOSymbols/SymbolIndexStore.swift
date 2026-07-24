@@ -129,34 +129,45 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         }
     }
 
-    typealias IndexedSymbol = DemangledSymbol
-    typealias AllSymbols = [IndexedSymbol]
-    typealias GlobalSymbols = [IndexedSymbol]
-    typealias MemberSymbols = OrderedDictionary<String, OrderedDictionary<NodeReference, [IndexedSymbol]>>
-    typealias OpaqueTypeDescriptorSymbol = IndexedSymbol
-
     public final class Storage: @unchecked Sendable {
+        typealias MemberSymbolRows = OrderedDictionary<String, OrderedDictionary<NodeStore.NodeIndex, [UInt32]>>
+
         /// The frozen arena holding every demangled node of this image.
         /// All `NodeReference` values vended by this storage point into it.
         let nodeStore: NodeStore
 
-        private(set) var typeInfoByName: [String: TypeInfo] = [:]
+        /// Flat symbol table (Stage 3): one row per unique symbol name,
+        /// holding the canonical (cache-adjusted) offset. Every index below
+        /// stores 4-byte row indices into this table instead of inline
+        /// `Symbol` copies, and vended `DemangledSymbol` values share this
+        /// array's buffer.
+        let symbolTable: [Symbol]
 
-        private(set) var globalSymbolsByKind: OrderedDictionary<GlobalKind, GlobalSymbols> = [:]
+        /// Parallel to `symbolTable`: the row's demangled root node, or
+        /// `nil` for names the demangler rejected (those still occupy a row
+        /// because `symbolRowsByOffset` references them).
+        let rootNodeIndexByTableRow: [NodeStore.NodeIndex?]
 
-        private(set) var opaqueTypeDescriptorSymbolByNode: OrderedDictionary<NodeReference, OpaqueTypeDescriptorSymbol> = [:]
+        /// Name → table row. Keys share string storage with `symbolTable`.
+        let tableRowByName: [String: UInt32]
 
-        private(set) var memberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
+        let typeInfoByName: [String: TypeInfo]
 
-        private(set) var methodDescriptorMemberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
+        let globalSymbolRowsByKind: OrderedDictionary<GlobalKind, [UInt32]>
 
-        private(set) var protocolWitnessMemberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
+        let opaqueTypeDescriptorSymbolRowByNodeIndex: OrderedDictionary<NodeStore.NodeIndex, UInt32>
 
-        private(set) var symbolsByKind: OrderedDictionary<Node.Kind, AllSymbols> = [:]
+        let memberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows>
 
-        private(set) var symbolsByOffset: OrderedDictionary<Int, [Symbol]> = [:]
+        let methodDescriptorMemberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows>
 
-        private(set) var demangledNodeBySymbol: [Symbol: NodeReference] = [:]
+        let protocolWitnessMemberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows>
+
+        let symbolRowsByKind: OrderedDictionary<Node.Kind, [UInt32]>
+
+        let symbolRowsByOffset: OrderedDictionary<Int, [UInt32]>
+
+        let thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: [ThunkAttributeMember]]]
 
         /// Symbols demangled after the store was frozen (rare path: lookups
         /// for symbols that were not part of the build sweep). The frozen
@@ -166,91 +177,88 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         @Mutex
         private(set) var lateDemangledNodeBySymbol: [Symbol: NodeReference] = [:]
 
-        private(set) var thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: [ThunkAttributeMember]]] = [:]
-
-        fileprivate init(nodeStore: NodeStore) {
+        fileprivate init(
+            nodeStore: NodeStore,
+            symbolTable: [Symbol],
+            rootNodeIndexByTableRow: [NodeStore.NodeIndex?],
+            tableRowByName: [String: UInt32],
+            symbolRowsByOffset: OrderedDictionary<Int, [UInt32]>,
+            rowIndexes: consuming RowIndexes
+        ) {
             self.nodeStore = nodeStore
+            self.symbolTable = symbolTable
+            self.rootNodeIndexByTableRow = rootNodeIndexByTableRow
+            self.tableRowByName = tableRowByName
+            self.symbolRowsByOffset = symbolRowsByOffset
+            self.typeInfoByName = rowIndexes.typeInfoByName
+            self.globalSymbolRowsByKind = rowIndexes.globalSymbolRowsByKind
+            self.opaqueTypeDescriptorSymbolRowByNodeIndex = rowIndexes.opaqueTypeDescriptorSymbolRowByNodeIndex
+            self.memberSymbolRowsByKind = rowIndexes.memberSymbolRowsByKind
+            self.methodDescriptorMemberSymbolRowsByKind = rowIndexes.methodDescriptorMemberSymbolRowsByKind
+            self.protocolWitnessMemberSymbolRowsByKind = rowIndexes.protocolWitnessMemberSymbolRowsByKind
+            self.symbolRowsByKind = rowIndexes.symbolRowsByKind
+            self.thunkAttributeMembersByKindAndTypeName = rowIndexes.thunkAttributeMembersByKindAndTypeName
         }
 
         fileprivate func setLateDemangledNode(_ demangledNode: NodeReference?, for symbol: Symbol) {
             lateDemangledNodeBySymbol[symbol] = demangledNode
         }
 
-        /// One-shot population after `freeze()`: converts the build-time
-        /// `NodeIndex`-keyed scratch into `NodeReference`-based indexes.
-        fileprivate func populate(from pending: PendingStorage, symbolsByOffset: OrderedDictionary<Int, [Symbol]>) {
-            func demangledSymbol(_ pendingSymbol: PendingDemangledSymbol) -> DemangledSymbol {
-                DemangledSymbol(symbol: pendingSymbol.symbol, demangledNode: nodeStore.reference(at: pendingSymbol.rootNodeIndex))
-            }
-            func memberSymbols(_ pendingMemberSymbols: PendingStorage.MemberSymbols) -> MemberSymbols {
-                var converted: MemberSymbols = [:]
-                for (typeName, symbolsByTypeNodeIndex) in pendingMemberSymbols {
-                    var convertedByTypeNode: OrderedDictionary<NodeReference, [IndexedSymbol]> = [:]
-                    for (typeNodeIndex, pendingSymbols) in symbolsByTypeNodeIndex {
-                        convertedByTypeNode[nodeStore.reference(at: typeNodeIndex)] = pendingSymbols.map(demangledSymbol)
-                    }
-                    converted[typeName] = convertedByTypeNode
-                }
-                return converted
-            }
+        // MARK: Row materialization
 
-            typeInfoByName = pending.typeInfoByName
-            globalSymbolsByKind = pending.globalSymbolsByKind.mapValues { $0.map(demangledSymbol) }
-            opaqueTypeDescriptorSymbolByNode = .init(uniqueKeysWithValues: pending.opaqueTypeDescriptorSymbolByNodeIndex.map { (nodeStore.reference(at: $0.key), demangledSymbol($0.value)) })
-            memberSymbolsByKind = pending.memberSymbolsByKind.mapValues(memberSymbols)
-            methodDescriptorMemberSymbolsByKind = pending.methodDescriptorMemberSymbolsByKind.mapValues(memberSymbols)
-            protocolWitnessMemberSymbolsByKind = pending.protocolWitnessMemberSymbolsByKind.mapValues(memberSymbols)
-            symbolsByKind = pending.symbolsByKind.mapValues { $0.map(demangledSymbol) }
-            demangledNodeBySymbol = pending.demangledNodeIndexBySymbol.mapValues { nodeStore.reference(at: $0) }
-            thunkAttributeMembersByKindAndTypeName = pending.thunkAttributeMembersByKindAndTypeName
-            self.symbolsByOffset = symbolsByOffset
+        /// Rebuilds the `Symbol` for an offset-table row using the queried
+        /// offset: raw and cache-adjusted keys share one canonical row, so
+        /// the row's stored offset is not necessarily the queried one.
+        fileprivate func symbol(atRow row: UInt32, offset queriedOffset: Int) -> Symbol {
+            let canonicalSymbol = symbolTable[Int(row)]
+            return Symbol(offset: queriedOffset, name: canonicalSymbol.name, isExternal: canonicalSymbol.isExternal)
+        }
+
+        func demangledSymbol(atRow row: UInt32) -> DemangledSymbol? {
+            guard let rootNodeIndex = rootNodeIndexByTableRow[Int(row)] else { return nil }
+            return DemangledSymbol(symbolTable: symbolTable, symbolTableRow: row, demangledNode: nodeStore.reference(at: rootNodeIndex))
+        }
+
+        func demangledSymbols(atRows rows: [UInt32]) -> [DemangledSymbol] {
+            rows.compactMap { demangledSymbol(atRow: $0) }
         }
     }
 
-    /// A `(symbol, root node index)` pair collected while the builder is still
-    /// mutable; becomes a `DemangledSymbol` once the store is frozen.
-    fileprivate struct PendingDemangledSymbol: Sendable {
-        let symbol: Symbol
-        let rootNodeIndex: NodeStore.NodeIndex
-    }
-
-    /// Build-time scratch mirroring `Storage`'s indexes with `NodeIndex` keys
-    /// and `PendingDemangledSymbol` entries. Lives only for the duration of
-    /// `buildStorageImpl`; converted via `Storage.populate(from:symbolsByOffset:)`.
-    fileprivate struct PendingStorage {
-        typealias MemberSymbols = OrderedDictionary<String, OrderedDictionary<NodeStore.NodeIndex, [PendingDemangledSymbol]>>
-
+    /// Build-time accumulator holding the row-index form of `Storage`'s
+    /// classification indexes. `Storage.init` moves these dictionaries in
+    /// unchanged — there is no post-freeze conversion pass, so the former
+    /// pending→populate double-index transient peak is gone (Stage 3).
+    fileprivate struct RowIndexes {
         var typeInfoByName: [String: TypeInfo] = [:]
-        var globalSymbolsByKind: OrderedDictionary<GlobalKind, [PendingDemangledSymbol]> = [:]
-        var opaqueTypeDescriptorSymbolByNodeIndex: OrderedDictionary<NodeStore.NodeIndex, PendingDemangledSymbol> = [:]
-        var memberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
-        var methodDescriptorMemberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
-        var protocolWitnessMemberSymbolsByKind: OrderedDictionary<MemberKind, MemberSymbols> = [:]
-        var symbolsByKind: OrderedDictionary<Node.Kind, [PendingDemangledSymbol]> = [:]
-        var demangledNodeIndexBySymbol: [Symbol: NodeStore.NodeIndex] = [:]
+        var globalSymbolRowsByKind: OrderedDictionary<GlobalKind, [UInt32]> = [:]
+        var opaqueTypeDescriptorSymbolRowByNodeIndex: OrderedDictionary<NodeStore.NodeIndex, UInt32> = [:]
+        var memberSymbolRowsByKind: OrderedDictionary<MemberKind, Storage.MemberSymbolRows> = [:]
+        var methodDescriptorMemberSymbolRowsByKind: OrderedDictionary<MemberKind, Storage.MemberSymbolRows> = [:]
+        var protocolWitnessMemberSymbolRowsByKind: OrderedDictionary<MemberKind, Storage.MemberSymbolRows> = [:]
+        var symbolRowsByKind: OrderedDictionary<Node.Kind, [UInt32]> = [:]
         var thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: [ThunkAttributeMember]]] = [:]
 
-        mutating func appendSymbol(_ pendingSymbol: PendingDemangledSymbol, for kind: Node.Kind) {
-            symbolsByKind[kind, default: []].append(pendingSymbol)
+        mutating func appendSymbolRow(_ symbolTableRow: UInt32, for kind: Node.Kind) {
+            symbolRowsByKind[kind, default: []].append(symbolTableRow)
         }
 
         mutating func setMemberSymbols(for result: ProcessMemberSymbolResult) {
-            memberSymbolsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNodeIndex, default: []].append(result.pendingSymbol)
+            memberSymbolRowsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNodeIndex, default: []].append(result.symbolTableRow)
             typeInfoByName[result.typeName] = result.typeInfo
         }
 
         mutating func setMethodDescriptorMemberSymbols(for result: ProcessMemberSymbolResult) {
-            methodDescriptorMemberSymbolsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNodeIndex, default: []].append(result.pendingSymbol)
+            methodDescriptorMemberSymbolRowsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNodeIndex, default: []].append(result.symbolTableRow)
             typeInfoByName[result.typeName] = result.typeInfo
         }
 
         mutating func setProtocolWitnessMemberSymbols(for result: ProcessMemberSymbolResult) {
-            protocolWitnessMemberSymbolsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNodeIndex, default: []].append(result.pendingSymbol)
+            protocolWitnessMemberSymbolRowsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNodeIndex, default: []].append(result.symbolTableRow)
             typeInfoByName[result.typeName] = result.typeInfo
         }
 
         mutating func setGlobalSymbols(for result: ProcessGlobalSymbolResult) {
-            globalSymbolsByKind[result.kind, default: []].append(result.pendingSymbol)
+            globalSymbolRowsByKind[result.kind, default: []].append(result.symbolTableRow)
         }
 
         mutating func appendThunkAttributeMember(_ member: ThunkAttributeMember, forKind thunkKind: Node.Kind, typeName: String) {
@@ -272,29 +280,48 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         for machO: MachO,
         progressContinuation: AsyncStream<Progress>.Continuation?
     ) -> Storage? {
-        var cachedSymbols: Set<String> = []
-        var symbolByName: OrderedDictionary<String, Symbol> = [:]
-        var symbolsByOffset: OrderedDictionary<Int, [Symbol]> = [:]
+        var symbolTable: [Symbol] = []
+        var tableRowByName: [String: UInt32] = [:]
+        var symbolRowsByOffset: OrderedDictionary<Int, [UInt32]> = [:]
+
+        // Raw and cache-adjusted offset keys share one canonical row; a
+        // duplicate name updates the existing row in place (last-wins, like
+        // the former name-keyed collection pass).
+        func canonicalRow(for canonicalSymbol: Symbol) -> UInt32 {
+            if let existingRow = tableRowByName[canonicalSymbol.name] {
+                symbolTable[Int(existingRow)] = canonicalSymbol
+                return existingRow
+            }
+            let newRow = UInt32(symbolTable.count)
+            symbolTable.append(canonicalSymbol)
+            tableRowByName[canonicalSymbol.name] = newRow
+            return newRow
+        }
 
         for symbol in machO.symbols where symbol.name.isSwiftSymbol && !symbol.nlist.isExternal {
-            var offset = symbol.offset
-            symbolsByOffset[offset, default: []].append(.init(offset: offset, name: symbol.name, nlist: symbol.nlist))
-            if let cache = machO.cache, offset >= 0, machO is MachOFile {
-                offset -= cache.mainCacheHeader.sharedRegionStart.cast()
-                symbolsByOffset[offset, default: []].append(.init(offset: offset, name: symbol.name, nlist: symbol.nlist))
+            let rawOffset = symbol.offset
+            var canonicalOffset = rawOffset
+            var hasAdjustedOffset = false
+            if let cache = machO.cache, rawOffset >= 0, machO is MachOFile {
+                canonicalOffset = rawOffset - cache.mainCacheHeader.sharedRegionStart.cast()
+                hasAdjustedOffset = true
             }
-            symbolByName[symbol.name] = .init(offset: offset, name: symbol.name, nlist: symbol.nlist)
-            cachedSymbols.insert(symbol.name)
+            let row = canonicalRow(for: .init(offset: canonicalOffset, name: symbol.name, isExternal: symbol.nlist.isExternal))
+            symbolRowsByOffset[rawOffset, default: []].append(row)
+            if hasAdjustedOffset {
+                symbolRowsByOffset[canonicalOffset, default: []].append(row)
+            }
         }
 
         for exportedSymbol in machO.exportedSymbols where exportedSymbol.name.isSwiftSymbol {
-            if var offset = exportedSymbol.offset, symbolByName[exportedSymbol.name] == nil {
-                symbolsByOffset[offset, default: []].append(.init(offset: offset, name: exportedSymbol.name))
+            if let rawOffset = exportedSymbol.offset, tableRowByName[exportedSymbol.name] == nil {
+                var canonicalOffset = rawOffset
                 if machO is MachOFile {
-                    offset += machO.startOffset
+                    canonicalOffset += machO.startOffset
                 }
-                symbolsByOffset[offset, default: []].append(.init(offset: offset, name: exportedSymbol.name))
-                symbolByName[exportedSymbol.name] = .init(offset: offset, name: exportedSymbol.name)
+                let row = canonicalRow(for: .init(offset: canonicalOffset, name: exportedSymbol.name))
+                symbolRowsByOffset[rawOffset, default: []].append(row)
+                symbolRowsByOffset[canonicalOffset, default: []].append(row)
             }
         }
 
@@ -302,74 +329,76 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         // transient tree, classify on that tree, and intern the result into
         // the arena builder. Nothing touches the global `NodeCache` and no
         // class trees outlive the loop iteration (NodeStore migration plan,
-        // Stage 1). The former concurrentMap pipeline kept every class tree
-        // alive simultaneously and leaked all of them into `NodeCache.shared`.
-        let symbolArray = Array(symbolByName.values)
-        let totalSymbolCount = symbolArray.count
+        // Stage 1). Indexes accumulate directly in their final row-index
+        // form (Stage 3), so `freeze()` is followed by a plain move into
+        // `Storage`, not a conversion pass.
+        let totalSymbolCount = symbolTable.count
 
         var builder = NodeStoreBuilder()
-        var pending = PendingStorage()
-        pending.demangledNodeIndexBySymbol.reserveCapacity(totalSymbolCount)
+        var rootNodeIndexByTableRow = [NodeStore.NodeIndex?](repeating: nil, count: totalSymbolCount)
+        var rowIndexes = RowIndexes()
 
-        for symbolIndex in 0..<totalSymbolCount {
-            if symbolIndex % 500 == 0 {
-                progressContinuation?.yield(Progress(currentCount: symbolIndex, totalCount: totalSymbolCount))
+        for row in 0..<totalSymbolCount {
+            if row % 500 == 0 {
+                progressContinuation?.yield(Progress(currentCount: row, totalCount: totalSymbolCount))
             }
 
-            let symbol = symbolArray[symbolIndex]
+            let symbol = symbolTable[row]
             guard let rootNode = try? demangleAsNodeTransient(symbol.name) else { continue }
-            let rootNodeIndex = builder.intern(rootNode)
-            let pendingSymbol = PendingDemangledSymbol(symbol: symbol, rootNodeIndex: rootNodeIndex)
-
-            pending.demangledNodeIndexBySymbol[symbol] = rootNodeIndex
+            let symbolTableRow = UInt32(row)
+            rootNodeIndexByTableRow[row] = builder.intern(rootNode)
 
             guard rootNode.isKind(of: .global), let node = rootNode.children.first else { continue }
 
-            pending.appendSymbol(pendingSymbol, for: node.kind)
+            rowIndexes.appendSymbolRow(symbolTableRow, for: node.kind)
 
             if node.kind == .objCAttribute || node.kind == .nonObjCAttribute {
                 if let extracted = processThunkAttributeSymbol(thunkKind: node.kind, rootNode: rootNode) {
-                    pending.appendThunkAttributeMember(extracted.member, forKind: node.kind, typeName: extracted.typeName)
+                    rowIndexes.appendThunkAttributeMember(extracted.member, forKind: node.kind, typeName: extracted.typeName)
                 }
                 continue
             }
 
             if rootNode.isGlobal {
                 if !symbol.isExternal {
-                    if let result = processGlobalSymbol(pendingSymbol, node: node) {
-                        pending.setGlobalSymbols(for: result)
+                    if let result = processGlobalSymbol(symbolTableRow, node: node) {
+                        rowIndexes.setGlobalSymbols(for: result)
                     }
                 }
             } else {
                 if node.kind == .methodDescriptor, let firstChild = node.children.first {
-                    if let result = processMemberSymbol(pendingSymbol, node: firstChild, builder: &builder) {
-                        pending.setMethodDescriptorMemberSymbols(for: result)
+                    if let result = processMemberSymbol(symbolTableRow, node: firstChild, builder: &builder) {
+                        rowIndexes.setMethodDescriptorMemberSymbols(for: result)
                     }
                 } else if node.kind == .protocolWitness, let firstChild = node.children.first {
-                    if let result = processMemberSymbol(pendingSymbol, node: firstChild, builder: &builder) {
-                        pending.setProtocolWitnessMemberSymbols(for: result)
+                    if let result = processMemberSymbol(symbolTableRow, node: firstChild, builder: &builder) {
+                        rowIndexes.setProtocolWitnessMemberSymbols(for: result)
                     }
                 } else if node.kind == .mergedFunction, let secondChild = rootNode.children.second {
-                    if let result = processMemberSymbol(pendingSymbol, node: secondChild, builder: &builder) {
-                        pending.setMemberSymbols(for: result)
+                    if let result = processMemberSymbol(symbolTableRow, node: secondChild, builder: &builder) {
+                        rowIndexes.setMemberSymbols(for: result)
                     }
                 } else if node.kind == .opaqueTypeDescriptor, let firstChild = node.children.first, firstChild.kind == .opaqueReturnTypeOf, let memberSymbol = firstChild.children.first {
                     if symbol.offset > 0 {
-                        pending.opaqueTypeDescriptorSymbolByNodeIndex[builder.intern(memberSymbol)] = pendingSymbol
+                        rowIndexes.opaqueTypeDescriptorSymbolRowByNodeIndex[builder.intern(memberSymbol)] = symbolTableRow
                     }
                 } else {
-                    if let result = processMemberSymbol(pendingSymbol, node: node, builder: &builder) {
-                        pending.setMemberSymbols(for: result)
+                    if let result = processMemberSymbol(symbolTableRow, node: node, builder: &builder) {
+                        rowIndexes.setMemberSymbols(for: result)
                     }
                 }
             }
         }
         progressContinuation?.yield(Progress(currentCount: totalSymbolCount, totalCount: totalSymbolCount))
 
-        let storage = Storage(nodeStore: builder.freeze())
-        storage.populate(from: pending, symbolsByOffset: symbolsByOffset)
-
-        return storage
+        return Storage(
+            nodeStore: builder.freeze(),
+            symbolTable: symbolTable,
+            rootNodeIndexByTableRow: rootNodeIndexByTableRow,
+            tableRowByName: tableRowByName,
+            symbolRowsByOffset: symbolRowsByOffset,
+            rowIndexes: rowIndexes
+        )
     }
 
     fileprivate struct ProcessMemberSymbolResult: Sendable {
@@ -377,19 +406,19 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         let typeName: String
         let typeNodeIndex: NodeStore.NodeIndex
         let typeInfo: TypeInfo
-        let pendingSymbol: PendingDemangledSymbol
+        let symbolTableRow: UInt32
     }
 
-    private func processMemberSymbol(_ pendingSymbol: PendingDemangledSymbol, node: Node, builder: inout NodeStoreBuilder) -> ProcessMemberSymbolResult? {
+    private func processMemberSymbol(_ symbolTableRow: UInt32, node: Node, builder: inout NodeStoreBuilder) -> ProcessMemberSymbolResult? {
         if node.kind == .static, let firstChild = node.children.first, firstChild.kind.isMember {
-            return processMemberSymbol(pendingSymbol, node: firstChild, traits: [.isStatic], builder: &builder)
+            return processMemberSymbol(symbolTableRow, node: firstChild, traits: [.isStatic], builder: &builder)
         } else if node.kind.isMember {
-            return processMemberSymbol(pendingSymbol, node: node, traits: [], builder: &builder)
+            return processMemberSymbol(symbolTableRow, node: node, traits: [], builder: &builder)
         }
         return nil
     }
 
-    private func processMemberSymbol(_ pendingSymbol: PendingDemangledSymbol, node: Node, traits: MemberKind.Traits, builder: inout NodeStoreBuilder) -> ProcessMemberSymbolResult? {
+    private func processMemberSymbol(_ symbolTableRow: UInt32, node: Node, traits: MemberKind.Traits, builder: inout NodeStoreBuilder) -> ProcessMemberSymbolResult? {
         var traits = traits
         let node = node
         switch node.kind {
@@ -399,27 +428,27 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
                 traits.insert(.inExtension)
                 first = type
             }
-            return processMemberSymbol(pendingSymbol, node: first, memberKind: .allocator(inExtension: traits.contains(.inExtension)), builder: &builder)
+            return processMemberSymbol(symbolTableRow, node: first, memberKind: .allocator(inExtension: traits.contains(.inExtension)), builder: &builder)
         case .deallocator:
             guard let first = node.children.first else { return nil }
-            return processMemberSymbol(pendingSymbol, node: first, memberKind: .deallocator, builder: &builder)
+            return processMemberSymbol(symbolTableRow, node: first, memberKind: .deallocator, builder: &builder)
         case .constructor:
             guard var first = node.children.first else { return nil }
             if first.kind == .extension, let type = first.children.at(1) {
                 traits.insert(.inExtension)
                 first = type
             }
-            return processMemberSymbol(pendingSymbol, node: first, memberKind: .constructor(inExtension: traits.contains(.inExtension)), builder: &builder)
+            return processMemberSymbol(symbolTableRow, node: first, memberKind: .constructor(inExtension: traits.contains(.inExtension)), builder: &builder)
         case .destructor:
             guard let first = node.children.first else { return nil }
-            return processMemberSymbol(pendingSymbol, node: first, memberKind: .destructor, builder: &builder)
+            return processMemberSymbol(symbolTableRow, node: first, memberKind: .destructor, builder: &builder)
         case .function:
             guard var first = node.children.first else { return nil }
             if first.kind == .extension, let type = first.children.at(1) {
                 traits.insert(.inExtension)
                 first = type
             }
-            return processMemberSymbol(pendingSymbol, node: first, memberKind: .function(inExtension: traits.contains(.inExtension), isStatic: traits.contains(.isStatic)), builder: &builder)
+            return processMemberSymbol(symbolTableRow, node: first, memberKind: .function(inExtension: traits.contains(.inExtension), isStatic: traits.contains(.isStatic)), builder: &builder)
         case .variable:
             // Stored variable reached directly (not through getter/setter)
             traits.insert(.isStorage)
@@ -429,7 +458,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
                 first = type
             }
             if let first {
-                return processMemberSymbol(pendingSymbol, node: first, memberKind: .variable(inExtension: traits.contains(.inExtension), isStatic: traits.contains(.isStatic), isStorage: traits.contains(.isStorage)), builder: &builder)
+                return processMemberSymbol(symbolTableRow, node: first, memberKind: .variable(inExtension: traits.contains(.inExtension), isStatic: traits.contains(.isStatic), isStorage: traits.contains(.isStorage)), builder: &builder)
             }
         case .getter,
              .setter:
@@ -438,13 +467,13 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
                     traits.insert(.inExtension)
                     first = type
                 }
-                return processMemberSymbol(pendingSymbol, node: first, memberKind: .variable(inExtension: traits.contains(.inExtension), isStatic: traits.contains(.isStatic), isStorage: traits.contains(.isStorage)), builder: &builder)
+                return processMemberSymbol(symbolTableRow, node: first, memberKind: .variable(inExtension: traits.contains(.inExtension), isStatic: traits.contains(.isStatic), isStorage: traits.contains(.isStorage)), builder: &builder)
             } else if let subscriptNode = node.children.first, subscriptNode.kind == .subscript, var first = subscriptNode.children.first {
                 if first.kind == .extension, let type = first.children.at(1) {
                     traits.insert(.inExtension)
                     first = type
                 }
-                return processMemberSymbol(pendingSymbol, node: first, memberKind: .subscript(inExtension: traits.contains(.inExtension), isStatic: traits.contains(.isStatic)), builder: &builder)
+                return processMemberSymbol(symbolTableRow, node: first, memberKind: .subscript(inExtension: traits.contains(.inExtension), isStatic: traits.contains(.isStatic)), builder: &builder)
             }
         default:
             break
@@ -452,14 +481,14 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         return nil
     }
 
-    private func processMemberSymbol(_ pendingSymbol: PendingDemangledSymbol, node: Node, memberKind: MemberKind, builder: inout NodeStoreBuilder) -> ProcessMemberSymbolResult? {
+    private func processMemberSymbol(_ symbolTableRow: UInt32, node: Node, memberKind: MemberKind, builder: inout NodeStoreBuilder) -> ProcessMemberSymbolResult? {
         if let typeKind = node.kind.typeKind {
             // The transient `.type` wrapper exists only for printing; the
             // arena-resident wrapper is built directly from the interned
             // context node's index, so no class tree survives this call.
             let typeName = Node.create(kind: .type, child: node).print(using: .interfaceTypeBuilderOnly)
             let typeNodeIndex = builder.intern(kind: .type, children: [builder.intern(node)])
-            return .init(memberKind: memberKind, typeName: typeName, typeNodeIndex: typeNodeIndex, typeInfo: .init(name: typeName, kind: typeKind), pendingSymbol: pendingSymbol)
+            return .init(memberKind: memberKind, typeName: typeName, typeNodeIndex: typeNodeIndex, typeInfo: .init(name: typeName, kind: typeKind), symbolTableRow: symbolTableRow)
         }
         return nil
     }
@@ -527,21 +556,21 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
     fileprivate struct ProcessGlobalSymbolResult: Sendable {
         let kind: GlobalKind
-        let pendingSymbol: PendingDemangledSymbol
+        let symbolTableRow: UInt32
     }
 
-    private func processGlobalSymbol(_ pendingSymbol: PendingDemangledSymbol, node: Node) -> ProcessGlobalSymbolResult? {
+    private func processGlobalSymbol(_ symbolTableRow: UInt32, node: Node) -> ProcessGlobalSymbolResult? {
         switch node.kind {
         case .function:
-            return .init(kind: .function, pendingSymbol: pendingSymbol)
+            return .init(kind: .function, symbolTableRow: symbolTableRow)
         case .variable:
             // When we reach .variable directly (not through getter/setter),
             // this is a stored variable declaration
-            return .init(kind: .variable(isStorage: true), pendingSymbol: pendingSymbol)
+            return .init(kind: .variable(isStorage: true), symbolTableRow: symbolTableRow)
         case .getter,
              .setter:
             if let variableNode = node.children.first, variableNode.kind == .variable {
-                return processGlobalSymbol(pendingSymbol, node: variableNode)
+                return processGlobalSymbol(symbolTableRow, node: variableNode)
             }
         default:
             break
@@ -550,19 +579,13 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     }
 
     public func allSymbols<MachO: MachORepresentableWithCache>(in machO: MachO) -> [DemangledSymbol] {
-        if let symbols = storage(in: machO)?.symbolsByKind.values.flatMap({ $0 }) {
-            return symbols
-        } else {
-            return []
-        }
+        guard let storage = storage(in: machO) else { return [] }
+        return storage.symbolRowsByKind.values.flatMap { storage.demangledSymbols(atRows: $0) }
     }
 
     public func symbolsByKind<MachO: MachORepresentableWithCache>(in machO: MachO) -> OrderedDictionary<Node.Kind, [DemangledSymbol]> {
-        if let symbols = storage(in: machO)?.symbolsByKind {
-            return symbols.mapValues { $0 }
-        } else {
-            return [:]
-        }
+        guard let storage = storage(in: machO) else { return [:] }
+        return storage.symbolRowsByKind.mapValues { storage.demangledSymbols(atRows: $0) }
     }
 
     public func typeInfo<MachO: MachORepresentableWithCache>(for name: String, in machO: MachO) -> TypeInfo? {
@@ -570,7 +593,8 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     }
 
     public func symbols<MachO: MachORepresentableWithCache>(of kinds: Node.Kind..., in machO: MachO) -> [DemangledSymbol] {
-        return kinds.map { storage(in: machO)?.symbolsByKind[$0] ?? [] }.reduce(into: []) { $0 += $1 }
+        guard let storage = storage(in: machO) else { return [] }
+        return kinds.map { storage.demangledSymbols(atRows: storage.symbolRowsByKind[$0] ?? []) }.reduce(into: []) { $0 += $1 }
     }
 
     /// Returns the pre-extracted thunk-attribute members whose parent type
@@ -586,32 +610,44 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     }
 
     public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
-        return kinds.map { storage(in: machO)?.memberSymbolsByKind[$0]?.values.flatMap { $0.values.flatMap { $0 } } ?? [] }.reduce(into: []) { $0 += $1 }
+        guard let storage = storage(in: machO) else { return [] }
+        return kinds.map { kind -> [DemangledSymbol] in
+            guard let memberRows = storage.memberSymbolRowsByKind[kind] else { return [] }
+            return memberRows.values.flatMap { rowsByTypeNodeIndex in
+                rowsByTypeNodeIndex.values.flatMap { storage.demangledSymbols(atRows: $0) }
+            }
+        }.reduce(into: []) { $0 += $1 }
     }
 
     public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) -> [DemangledSymbol] {
-        return kinds.map { storage(in: machO)?.memberSymbolsByKind[$0]?[name]?.values.flatMap { $0 } ?? [] }.reduce(into: []) { $0 += $1 }
+        guard let storage = storage(in: machO) else { return [] }
+        return kinds.map { kind -> [DemangledSymbol] in
+            guard let rowsByTypeNodeIndex = storage.memberSymbolRowsByKind[kind]?[name] else { return [] }
+            return rowsByTypeNodeIndex.values.flatMap { storage.demangledSymbols(atRows: $0) }
+        }.reduce(into: []) { $0 += $1 }
     }
 
     public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, node: Node, in machO: MachO) -> [DemangledSymbol] {
         // Callers hold an externally demangled `Node` (MetadataReader context
-        // demangling), while keys are `NodeReference`s into the frozen store.
+        // demangling), while keys are node indexes into the frozen store.
         // The type-name bucket holds at most a handful of type nodes, so a
         // structural walk per key is cheap.
+        guard let storage = storage(in: machO) else { return [] }
         return kinds.map { kind -> [DemangledSymbol] in
-            guard let symbolsByTypeNode = storage(in: machO)?.memberSymbolsByKind[kind]?[name] else { return [] }
-            return symbolsByTypeNode.elements.first(where: { $0.key.structurallyEquals(node) })?.value ?? []
+            guard let rowsByTypeNodeIndex = storage.memberSymbolRowsByKind[kind]?[name] else { return [] }
+            guard let matched = rowsByTypeNodeIndex.elements.first(where: { storage.nodeStore.reference(at: $0.key).structurallyEquals(node) }) else { return [] }
+            return storage.demangledSymbols(atRows: matched.value)
         }.reduce(into: []) { $0 += $1 }
     }
 
     public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., excluding names: borrowing Set<String>, in machO: MachO) -> OrderedDictionary<NodeReference, OrderedDictionary<MemberKind, [DemangledSymbol]>> {
-        let filtered: OrderedDictionary<MemberKind, MemberSymbols> = kinds.reduce(into: [:]) { $0[$1] = storage(in: machO)?.memberSymbolsByKind[$1]?.filter { !names.contains($0.key) } ?? [:] }
-
+        guard let storage = storage(in: machO) else { return [:] }
         var result: OrderedDictionary<NodeReference, OrderedDictionary<MemberKind, [DemangledSymbol]>> = [:]
-        for (kind, memberSymbols) in filtered {
-            for (_, symbols) in memberSymbols {
-                for (node, symbols) in symbols {
-                    result[node, default: [:]][kind, default: []].append(contentsOf: symbols)
+        for kind in kinds {
+            guard let memberRows = storage.memberSymbolRowsByKind[kind] else { continue }
+            for (typeName, rowsByTypeNodeIndex) in memberRows where !names.contains(typeName) {
+                for (typeNodeIndex, rows) in rowsByTypeNodeIndex {
+                    result[storage.nodeStore.reference(at: typeNodeIndex), default: [:]][kind, default: []].append(contentsOf: storage.demangledSymbols(atRows: rows))
                 }
             }
         }
@@ -619,29 +655,54 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     }
 
     public func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
-        return kinds.map { storage(in: machO)?.methodDescriptorMemberSymbolsByKind[$0]?.values.flatMap { $0.values.flatMap { $0 } } ?? [] }.reduce(into: []) { $0 += $1 }
+        guard let storage = storage(in: machO) else { return [] }
+        return kinds.map { kind -> [DemangledSymbol] in
+            guard let memberRows = storage.methodDescriptorMemberSymbolRowsByKind[kind] else { return [] }
+            return memberRows.values.flatMap { rowsByTypeNodeIndex in
+                rowsByTypeNodeIndex.values.flatMap { storage.demangledSymbols(atRows: $0) }
+            }
+        }.reduce(into: []) { $0 += $1 }
     }
 
     public func methodDescriptorMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) -> [DemangledSymbol] {
-        return kinds.map { storage(in: machO)?.methodDescriptorMemberSymbolsByKind[$0]?[name]?.values.flatMap { $0 } ?? [] }.reduce(into: []) { $0 += $1 }
+        guard let storage = storage(in: machO) else { return [] }
+        return kinds.map { kind -> [DemangledSymbol] in
+            guard let rowsByTypeNodeIndex = storage.methodDescriptorMemberSymbolRowsByKind[kind]?[name] else { return [] }
+            return rowsByTypeNodeIndex.values.flatMap { storage.demangledSymbols(atRows: $0) }
+        }.reduce(into: []) { $0 += $1 }
     }
 
     public func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., in machO: MachO) -> [DemangledSymbol] {
-        return kinds.map { storage(in: machO)?.protocolWitnessMemberSymbolsByKind[$0]?.values.flatMap { $0.values.flatMap { $0 } } ?? [] }.reduce(into: []) { $0 += $1 }
+        guard let storage = storage(in: machO) else { return [] }
+        return kinds.map { kind -> [DemangledSymbol] in
+            guard let memberRows = storage.protocolWitnessMemberSymbolRowsByKind[kind] else { return [] }
+            return memberRows.values.flatMap { rowsByTypeNodeIndex in
+                rowsByTypeNodeIndex.values.flatMap { storage.demangledSymbols(atRows: $0) }
+            }
+        }.reduce(into: []) { $0 += $1 }
     }
 
     public func protocolWitnessMemberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., for name: String, in machO: MachO) -> [DemangledSymbol] {
-        return kinds.map { storage(in: machO)?.protocolWitnessMemberSymbolsByKind[$0]?[name]?.values.flatMap { $0 } ?? [] }.reduce(into: []) { $0 += $1 }
+        guard let storage = storage(in: machO) else { return [] }
+        return kinds.map { kind -> [DemangledSymbol] in
+            guard let rowsByTypeNodeIndex = storage.protocolWitnessMemberSymbolRowsByKind[kind]?[name] else { return [] }
+            return rowsByTypeNodeIndex.values.flatMap { storage.demangledSymbols(atRows: $0) }
+        }.reduce(into: []) { $0 += $1 }
     }
 
     public func globalSymbols<MachO: MachORepresentableWithCache>(of kinds: GlobalKind..., in machO: MachO) -> [DemangledSymbol] {
-        return kinds.map { storage(in: machO)?.globalSymbolsByKind[$0] ?? [] }.reduce(into: []) { $0 += $1 }
+        guard let storage = storage(in: machO) else { return [] }
+        return kinds.map { storage.demangledSymbols(atRows: storage.globalSymbolRowsByKind[$0] ?? []) }.reduce(into: []) { $0 += $1 }
     }
 
     public func allOpaqueTypeDescriptorSymbols<MachO: MachORepresentableWithCache>(in machO: MachO) -> OrderedDictionary<NodeReference, DemangledSymbol>? {
-        return storage(in: machO)?.opaqueTypeDescriptorSymbolByNode.mapValues {
-            return $0
+        guard let storage = storage(in: machO) else { return nil }
+        var result: OrderedDictionary<NodeReference, DemangledSymbol> = [:]
+        for (nodeIndex, row) in storage.opaqueTypeDescriptorSymbolRowByNodeIndex {
+            guard let demangledSymbol = storage.demangledSymbol(atRow: row) else { continue }
+            result[storage.nodeStore.reference(at: nodeIndex)] = demangledSymbol
         }
+        return result
     }
 
     public func opaqueTypeDescriptorSymbol<MachO: MachORepresentableWithCache>(for node: Node, in machO: MachO) -> DemangledSymbol? {
@@ -649,15 +710,14 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         // frozen store. Structural comparison early-outs on the first
         // mismatching kind, so the linear scan stays cheap relative to the
         // printing work that triggers it.
-        return storage(in: machO)?.opaqueTypeDescriptorSymbolByNode.elements.first(where: { $0.key.structurallyEquals(node) })?.value
+        guard let storage = storage(in: machO) else { return nil }
+        guard let matched = storage.opaqueTypeDescriptorSymbolRowByNodeIndex.elements.first(where: { storage.nodeStore.reference(at: $0.key).structurallyEquals(node) }) else { return nil }
+        return storage.demangledSymbol(atRow: matched.value)
     }
 
     package func symbols<MachO: MachORepresentableWithCache>(for offset: Int, in machO: MachO) -> Symbols? {
-        if let symbols = storage(in: machO)?.symbolsByOffset[offset], !symbols.isEmpty {
-            return .init(offset: offset, symbols: symbols)
-        } else {
-            return nil
-        }
+        guard let storage = storage(in: machO), let rows = storage.symbolRowsByOffset[offset], !rows.isEmpty else { return nil }
+        return .init(offset: offset, symbols: rows.map { storage.symbol(atRow: $0, offset: offset) })
     }
 
     /// Store-backed handle for a symbol's demangled tree. Hits the frozen
@@ -666,8 +726,10 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     /// every caller receives a uniform `NodeReference`.
     package func demangledNodeReference<MachO: MachORepresentableWithCache>(for symbol: Symbol, in machO: MachO) -> NodeReference? {
         guard let cacheStorage = storage(in: machO) else { return nil }
-        if let reference = cacheStorage.demangledNodeBySymbol[symbol] {
-            return reference
+        if let row = cacheStorage.tableRowByName[symbol.name],
+           cacheStorage.symbolTable[Int(row)].offset == symbol.offset,
+           let rootNodeIndex = cacheStorage.rootNodeIndexByTableRow[Int(row)] {
+            return cacheStorage.nodeStore.reference(at: rootNodeIndex)
         }
         if let reference = cacheStorage.lateDemangledNodeBySymbol[symbol] {
             return reference
@@ -778,12 +840,6 @@ extension DemanglingNode {
 extension DemanglingNode where Self: Sequence<Self> {
     package var hasAccessor: Bool {
         return contains { $0.isAccessor }
-    }
-}
-
-extension Symbol {
-    package var isExternal: Bool {
-        nlist?.isExternal ?? false
     }
 }
 

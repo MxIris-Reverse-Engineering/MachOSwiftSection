@@ -1,9 +1,9 @@
 # NodeStore 迁移计划（SymbolIndexStore → arena 存储）
 
-- **状态**: In Progress（Stage 0–2 已落地，见文末「实施记录」）
+- **状态**: Completed（Stage 0–4 全部落地，见文末「实施记录」）
 - **日期**: 2026-07-24
 - **最后更新**: 2026-07-24
-- **分支**: `feature/node-store-migration`（worktree `.claude/worktrees/node-store-migration`，Demangling 经 `.claude/worktrees/swift-demangling` 符号链接解析到 swift-demangling 的 `feature/node-store` worktree）
+- **分支**: `feature/node-store-migration`（worktree `.claude/worktrees/node-store-migration`，Demangling 经主检出 `.claude/worktrees/swift-demangling` 处的**真实 git worktree**（swift-demangling `feature/node-store`）以路径依赖解析——原先的符号链接方案因目标 worktree 被外部清理导致 SwiftPM manifest 缓存把解析钉回 remote，已改为本仓库领地内的 worktree）
 - **前置**: swift-demangling `feature/node-store` 分支合入 `main`（本包以路径依赖解析 `../swift-demangling` 的 main）；开发期先经上述符号链接直连该分支
 - **上游依据**: swift-demangling `evolution/0001-node-store-arena.md`（Phase 1–3 已落地并验收）
 
@@ -126,3 +126,29 @@ RuntimeViewer 与 MachOSwiftSection 的内存主项在 `MachOSymbols/SymbolIndex
 1. **快照以 main 为基准逐字节对比**：先在 main（`7f7fe48`，旧管线）上运行 `SymbolTestsCoreInterfaceSnapshotTests` + `SymbolTestsCoreDumpSnapshotTests`（60 个快照测试）确认已提交基准与 main 输出一致；再在迁移 worktree 上运行同一套快照测试——**60/60 逐字节一致**。fixture 为自建 `SymbolTestsCore.framework`（无外部 Xcode 依赖；worktree 经符号链接复用主检出 `Tests/Projects/SymbolTests/DerivedData` 的构建产物）。
 2. **启用 `MachOSymbolsTests` target**（Package.swift 中原已定义但被注释）并新增 `SymbolIndexStoreFixtureTests`（8 个用例）：build 管线 cache-free 不变量（叶身份断言——所有测试 target 共享单进程，全局 `NodeCache` 计数断言天然竞态，改用「transient demangle 两次得到结构相等但 `!==` 的叶实例」这一并发免疫口径；进程级零增长量测留在手动运行的 `SymbolIndexStoreBaselineTests`）、全符号零物化打印与 `demangleAsNode` 管线逐字节对齐、`memberSymbols(of:for:node:)` 对每个 `NodeReference` 键桶经 `structurallyEquals` 命中、`symbols(of:)`/`typeInfo`/`opaqueTypeDescriptorSymbol` 与 storage 桶一致、`demangledNode`/`demangledNodeReference` 互证、迟到符号 mini store 回退与缓存稳定性。
 3. **修复 `SharedCache` 并发时序 flake**：`concurrentCallsForDifferentKeysRunInParallel` 原以墙钟阈值断言并行（CPU 饱和即假失败），改为确定性并行证据——所有 build 经信号量互相等待进入闭包，若 resolve 对不同 key 串行（锁跨 build）则死锁，由宽松超时转为失败而非挂死。
+
+### Stage 3 — Symbol 表压缩落地（2026-07-24）
+
+1. **`Symbol` 去掉 `nlist` existential**：`(any NlistProtocol)?` 存储属性（40B existential 容器/份）删除。审计确认其唯一实际消费者是采集期的 undefined-external 过滤（`N_EXT + N_UNDF`），且该过滤发生在 MachOKit 符号上、早于 `Symbol` 构造——存进 `Symbol` 后即为纯死重。压缩为采集期提取的 `isExternal: Bool` 存储位；`Symbol` 显式 `Sendable`，stride 64B → **32B**。公共 init 由 `init(offset:name:nlist:)` 改为 `init(offset:name:isExternal:)`（RuntimeViewer 源码审计确认无 `.nlist` / `DemangledSymbol` 直接消费者，仅经 `.symbol.name` / `.addressString` 取值）。
+2. **平铺符号表**：`Storage.symbolTable: [Symbol]` 每唯一符号名一行（存 canonical 即 cache-adjusted 偏移）；`tableRowByName: [String: UInt32]`（键与表行共享字符串存储）；`rootNodeIndexByTableRow: [NodeIndex?]` 平行数组承接原 `demangledNodeBySymbol` 的值侧。全部索引（`symbolRowsByKind` / member×3 / global / opaque / `symbolRowsByOffset`）改存 4B `UInt32` 行号；member/opaque 键从 16B `NodeReference` 改为 4B `NodeStore.NodeIndex`（出口按需 `nodeStore.reference(at:)` 重建）。**双 offset 键共用同一行**——每符号双份 `Symbol` 复本消除；`symbols(for:in:)` 出口按查询键重建 `Symbol(offset: queriedOffset, ...)`，与旧的 per-key 复本语义逐字节一致。
+3. **`DemangledSymbol` 压缩为 32B**：`(symbolTable: [Symbol]（共享缓冲，8B 指针）, symbolTableRow: UInt32, demangledNode: NodeReference)`；`symbol` 变为计算属性，`@dynamicMemberLookup` 转发不变。公共 `init(symbol:demangledNode:)` 保留为单行表兼容路径（测试与 `ExtensionDefinition` 的显式构造点）。索引出口从行号现场构造值，原先每条索引条目 ~80B 内联 `Symbol`+`NodeReference` 复本全部消失。
+4. **pending→populate 双索引窗口整个消除**：构建期分类索引直接以最终行号形态累积（`RowIndexes`），`freeze()` 后 `Storage.init` 纯移动字典——原 `PendingStorage`→`populate()` 转换pass（Stage 1 记录的 +30 MB 瞬态峰值来源）删除。`Storage` 全部索引字段现为 `let`（仅 late-symbol cache 为 `@Mutex var`）。
+5. **`demangledNodeReference(for:)` 查找重写**：从 `[Symbol: NodeReference]` 字典命中改为 `tableRowByName[name]` + canonical offset 校验 + 平行数组取根——与旧 `(offset, name)` 键哈希语义严格等价（offset 不匹配 / demangle 失败仍落 late mini-store 路径）。
+6. **测试同步**：`SymbolIndexStoreFixtureTests` 适配行号布局并新增 2 用例——`compactValueLayouts`（`Symbol` / `DemangledSymbol` stride ≤ 32B 的紧凑性不变量）与 `offsetQueriesRebuildSymbolsWithQueriedOffset`（双键共行后出口 offset 重建语义，逐 offset 键对账行数与名称）；`SymbolIndexStoreBaselineTests` 改读新字段并输出 `symbolTable` 行数/stride。
+7. **过程备注（环境）**：布局变更后 SwiftPM 增量构建未能把 `MachOSymbols` 的 struct 布局变化传播到全部依赖模块（先是陈旧目标文件的 linker 错，touch 后链接通过但运行期在 `Symbol.init` 内按旧布局 outlined destroy 直接 SIGSEGV）——`swift package clean` 全量重建后消失。此类跨模块布局变更建议直接 clean 构建。
+
+### Stage 4 — 最终验收与复测（2026-07-24，SwiftUI image，debug，独占口径同 Stage 0）
+
+| 指标 | Stage 0 旧管线 | Stage 1+2 | Stage 3 |
+|---|---|---|---|
+| 构建耗时（独占） | 28.6s | 31.0s | **24.5s（快于旧管线 14%）** |
+| 构建期 `phys_footprint` 增量 | 266–272 MB | 302 MB | **68 MB** |
+| 释放 `Storage` + pressure relief 后 | 残留 ~92 MB | 残留 ~66 MB | **残留 49 MB**（回收 38 MB / 68 MB 增量） |
+| `NodeCache` 增长 | +19,345 叶 / +559,976 子树 | 0 / 0 | 0 / 0 |
+| `NodeStore` 本体 | — | 7 MB / 579,291 唯一节点 | 7 MB / 579,291（与 Stage 1 完全一致，语义保真旁证） |
+| Symbol 侧驻留 | nlist 盒 + 双份条目 + 索引内联复本（数十 MB 级） | 同旧形态 | `symbolTable` 202,603 行 × 32 B ≈ 6.2 MB + 共享字符串 + 各索引 4B 行号 |
+| 索引条目 | 基线 | 逐项一致 | 逐项一致（demangled 202,603；member 17,049；methodDescriptor 2,209；global 82；offset 表 170,919；opaque 2,115；typeInfo 4,191） |
+
+- 构建耗时的下降来自：populate 转换 pass 删除、每符号双份 `Symbol` 构造与 existential 装箱消失、索引累积只搬 4B 行号。
+- 构建期增量从 302 MB 收敛到 68 MB：双索引瞬态窗口消除 + Symbol 复本/existential 盒清零是主贡献；残余 68 MB 为 NodeStore + 表 + 索引 + malloc 未归还页。
+- 验收测试：`SymbolTestsCore` 快照 60/60 逐字节一致 + `SymbolIndexStoreFixtureTests` 10/10 + `SharedCacheTests` 全绿（**79 tests / 5 suites passed**，Stage 3 代码 + 本地 feature 分支解析口径复跑确认）。

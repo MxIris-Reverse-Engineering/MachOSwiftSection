@@ -35,36 +35,37 @@ final class SymbolIndexStoreBaselineTests: MachOImageTests {
         do {
         let storage = try #require(builtStorage)
 
-        let demangledSymbolCount = storage.demangledNodeBySymbol.count
-        let symbolsByKindEntryCount = storage.symbolsByKind.values.reduce(0) { $0 + $1.count }
-        let memberEntryCount = storage.memberSymbolsByKind.values.reduce(0) { partialResult, memberSymbols in
-            partialResult + memberSymbols.values.reduce(0) { $0 + $1.values.reduce(0) { $0 + $1.count } }
+        let symbolTableRowCount = storage.symbolTable.count
+        let demangledSymbolCount = storage.rootNodeIndexByTableRow.count(where: { $0 != nil })
+        let symbolsByKindEntryCount = storage.symbolRowsByKind.values.reduce(0) { $0 + $1.count }
+        let memberEntryCount = storage.memberSymbolRowsByKind.values.reduce(0) { partialResult, memberRows in
+            partialResult + memberRows.values.reduce(0) { $0 + $1.values.reduce(0) { $0 + $1.count } }
         }
-        let methodDescriptorEntryCount = storage.methodDescriptorMemberSymbolsByKind.values.reduce(0) { partialResult, memberSymbols in
-            partialResult + memberSymbols.values.reduce(0) { $0 + $1.values.reduce(0) { $0 + $1.count } }
+        let methodDescriptorEntryCount = storage.methodDescriptorMemberSymbolRowsByKind.values.reduce(0) { partialResult, memberRows in
+            partialResult + memberRows.values.reduce(0) { $0 + $1.values.reduce(0) { $0 + $1.count } }
         }
-        let protocolWitnessEntryCount = storage.protocolWitnessMemberSymbolsByKind.values.reduce(0) { partialResult, memberSymbols in
-            partialResult + memberSymbols.values.reduce(0) { $0 + $1.values.reduce(0) { $0 + $1.count } }
+        let protocolWitnessEntryCount = storage.protocolWitnessMemberSymbolRowsByKind.values.reduce(0) { partialResult, memberRows in
+            partialResult + memberRows.values.reduce(0) { $0 + $1.values.reduce(0) { $0 + $1.count } }
         }
-        let globalEntryCount = storage.globalSymbolsByKind.values.reduce(0) { $0 + $1.count }
+        let globalEntryCount = storage.globalSymbolRowsByKind.values.reduce(0) { $0 + $1.count }
 
         let nodeStoreBytes = storage.nodeStore.storageByteCount
         let nodeStoreNodeCount = storage.nodeStore.nodeCount
 
-        print("====== NodeStore migration Stage 0 baseline (\(Self.imageName)) ======")
+        print("====== NodeStore migration baseline metrics (\(Self.imageName)) ======")
         print("build time                         : \(buildDuration)")
         print("phys_footprint delta               : \((footprintAfter - footprintBefore) / 1_048_576) MB (\(footprintBefore / 1_048_576) -> \(footprintAfter / 1_048_576))")
         print("NodeCache leaf delta               : \(leafCacheCountAfter - leafCacheCountBefore) (\(leafCacheCountBefore) -> \(leafCacheCountAfter))")
         print("NodeCache subtree delta            : \(subtreeCacheCountAfter - subtreeCacheCountBefore) (\(subtreeCacheCountBefore) -> \(subtreeCacheCountAfter))")
         print("nodeStore storage                  : \(nodeStoreBytes / 1_048_576) MB (\(nodeStoreNodeCount) unique nodes)")
-        print("demangledNodeBySymbol entries      : \(demangledSymbolCount)")
+        print("symbolTable rows                   : \(symbolTableRowCount) (stride \(MemoryLayout<Symbol>.stride) B, demangled \(demangledSymbolCount))")
         print("symbolsByKind entries              : \(symbolsByKindEntryCount)")
         print("memberSymbols entries              : \(memberEntryCount)")
         print("methodDescriptorMember entries     : \(methodDescriptorEntryCount)")
         print("protocolWitnessMember entries      : \(protocolWitnessEntryCount)")
         print("globalSymbols entries              : \(globalEntryCount)")
-        print("symbolsByOffset entries            : \(storage.symbolsByOffset.count)")
-        print("opaqueTypeDescriptor entries       : \(storage.opaqueTypeDescriptorSymbolByNode.count)")
+        print("symbolsByOffset entries            : \(storage.symbolRowsByOffset.count)")
+        print("opaqueTypeDescriptor entries       : \(storage.opaqueTypeDescriptorSymbolRowByNodeIndex.count)")
         print("typeInfoByName entries             : \(storage.typeInfoByName.count)")
         print("=====================================================================")
 
