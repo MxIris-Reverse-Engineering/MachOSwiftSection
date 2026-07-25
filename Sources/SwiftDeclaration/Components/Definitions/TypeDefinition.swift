@@ -200,8 +200,8 @@ public final class TypeDefinition: Definition {
 
         let fieldNames = Set(fields.map(\.name))
 
-        var methodDescriptorLookup: [NodeReference: MethodDescriptorWrapper] = [:]
-        var vtableOffsetLookup: [NodeReference: Int] = [:]
+        var methodDescriptorLookup: [StructuralNodeReferenceKey: MethodDescriptorWrapper] = [:]
+        var vtableOffsetLookup: [StructuralNodeReferenceKey: Int] = [:]
         // Fallback lookups keyed by implementation file offset (for methods where node-based matching fails)
         var implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:]
         var implOffsetVTableSlotLookup: [Int: Int] = [:]
@@ -245,9 +245,9 @@ public final class TypeDefinition: Definition {
                 guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode
                 visitedNodes.append(node)
-                methodDescriptorLookup[node] = .method(descriptor)
+                methodDescriptorLookup[StructuralNodeReferenceKey(node)] = .method(descriptor)
                 if let vtableBaseOffset {
-                    vtableOffsetLookup[node] = vtableBaseOffset + index
+                    vtableOffsetLookup[StructuralNodeReferenceKey(node)] = vtableBaseOffset + index
                 }
             }
             var parentVTableCache = ParentClassVTableCache()
@@ -257,10 +257,10 @@ public final class TypeDefinition: Definition {
                 guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode
                 visitedNodes.append(node)
-                methodDescriptorLookup[node] = .methodOverride(descriptor)
+                methodDescriptorLookup[StructuralNodeReferenceKey(node)] = .methodOverride(descriptor)
 
                 if let vtableSlot = try? parentVTableCache.slotIndex(for: descriptor, in: machO) {
-                    vtableOffsetLookup[node] = vtableSlot
+                    vtableOffsetLookup[StructuralNodeReferenceKey(node)] = vtableSlot
                 }
             }
             for descriptor in cls.methodDefaultOverrideDescriptors {
@@ -268,7 +268,7 @@ public final class TypeDefinition: Definition {
                 guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode
                 visitedNodes.append(node)
-                methodDescriptorLookup[node] = .methodDefaultOverride(descriptor)
+                methodDescriptorLookup[StructuralNodeReferenceKey(node)] = .methodDefaultOverride(descriptor)
             }
         }
 

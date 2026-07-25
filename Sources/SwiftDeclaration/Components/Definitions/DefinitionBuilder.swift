@@ -7,8 +7,8 @@ package enum DefinitionBuilder {
     package static func variables(
         for demangledSymbols: [DemangledSymbolWithOffset],
         fieldNames: borrowing Set<String> = [],
-        methodDescriptorLookup: [NodeReference: MethodDescriptorWrapper] = [:],
-        vtableOffsetLookup: [NodeReference: Int] = [:],
+        methodDescriptorLookup: [StructuralNodeReferenceKey: MethodDescriptorWrapper] = [:],
+        vtableOffsetLookup: [StructuralNodeReferenceKey: Int] = [:],
         implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:],
         implOffsetVTableSlotLookup: [Int: Int] = [:],
         isGlobalOrStatic: Bool
@@ -21,8 +21,8 @@ package enum DefinitionBuilder {
             let kind = demangledSymbol.accessorKind
             let node = demangledSymbol.demangledNode
             let symbolOffset = demangledSymbol.base.offset
-            let descriptor = methodDescriptorLookup[node] ?? implOffsetDescriptorLookup[symbolOffset]
-            let vtableOffset = vtableOffsetLookup[node] ?? implOffsetVTableSlotLookup[symbolOffset]
+            let descriptor = methodDescriptorLookup[StructuralNodeReferenceKey(node)] ?? implOffsetDescriptorLookup[symbolOffset]
+            let vtableOffset = vtableOffsetLookup[StructuralNodeReferenceKey(node)] ?? implOffsetVTableSlotLookup[symbolOffset]
             accessorsByName[name, default: []].append(.init(kind: kind, symbol: demangledSymbol.base, methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset))
         }
 
@@ -41,8 +41,8 @@ package enum DefinitionBuilder {
 
     package static func subscripts(
         for demangledSymbols: [DemangledSymbolWithOffset],
-        methodDescriptorLookup: [NodeReference: MethodDescriptorWrapper] = [:],
-        vtableOffsetLookup: [NodeReference: Int] = [:],
+        methodDescriptorLookup: [StructuralNodeReferenceKey: MethodDescriptorWrapper] = [:],
+        vtableOffsetLookup: [StructuralNodeReferenceKey: Int] = [:],
         implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:],
         implOffsetVTableSlotLookup: [Int: Int] = [:],
         isStatic: Bool
@@ -60,8 +60,8 @@ package enum DefinitionBuilder {
             let kind = demangledSymbol.accessorKind
             let node = demangledSymbol.demangledNode
             let symbolOffset = demangledSymbol.base.offset
-            let descriptor = methodDescriptorLookup[node] ?? implOffsetDescriptorLookup[symbolOffset]
-            let vtableOffset = vtableOffsetLookup[node] ?? implOffsetVTableSlotLookup[symbolOffset]
+            let descriptor = methodDescriptorLookup[StructuralNodeReferenceKey(node)] ?? implOffsetDescriptorLookup[symbolOffset]
+            let vtableOffset = vtableOffsetLookup[StructuralNodeReferenceKey(node)] ?? implOffsetVTableSlotLookup[symbolOffset]
             accessorsByNode[subscriptNode, default: []].append(.init(kind: kind, symbol: demangledSymbol.base, methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset))
         }
 
@@ -79,8 +79,8 @@ package enum DefinitionBuilder {
 
     package static func allocators(
         for demangledSymbols: [DemangledSymbolWithOffset],
-        methodDescriptorLookup: [NodeReference: MethodDescriptorWrapper] = [:],
-        vtableOffsetLookup: [NodeReference: Int] = [:],
+        methodDescriptorLookup: [StructuralNodeReferenceKey: MethodDescriptorWrapper] = [:],
+        vtableOffsetLookup: [StructuralNodeReferenceKey: Int] = [:],
         implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:],
         implOffsetVTableSlotLookup: [Int: Int] = [:]
     ) -> [FunctionDefinition] {
@@ -113,15 +113,15 @@ package enum DefinitionBuilder {
 
     private static func makeAllocatorDefinition(
         from demangledSymbol: DemangledSymbolWithOffset,
-        methodDescriptorLookup: [NodeReference: MethodDescriptorWrapper],
-        vtableOffsetLookup: [NodeReference: Int],
+        methodDescriptorLookup: [StructuralNodeReferenceKey: MethodDescriptorWrapper],
+        vtableOffsetLookup: [StructuralNodeReferenceKey: Int],
         implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper],
         implOffsetVTableSlotLookup: [Int: Int]
     ) -> FunctionDefinition {
         let node = demangledSymbol.demangledNode
         let symbolOffset = demangledSymbol.base.offset
-        let descriptor = methodDescriptorLookup[node] ?? implOffsetDescriptorLookup[symbolOffset]
-        let vtableOffset = vtableOffsetLookup[node] ?? implOffsetVTableSlotLookup[symbolOffset]
+        let descriptor = methodDescriptorLookup[StructuralNodeReferenceKey(node)] ?? implOffsetDescriptorLookup[symbolOffset]
+        let vtableOffset = vtableOffsetLookup[StructuralNodeReferenceKey(node)] ?? implOffsetVTableSlotLookup[symbolOffset]
         var functionDefinition = FunctionDefinition(node: node, name: "", kind: .allocator, symbol: demangledSymbol.base, isGlobalOrStatic: true, methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset)
         if let methodDescriptor = descriptor?.method, methodDescriptor.layout.flags.isDynamic {
             functionDefinition.attributes.append(.dynamic)
@@ -131,8 +131,8 @@ package enum DefinitionBuilder {
 
     package static func functions(
         for demangledSymbols: [DemangledSymbolWithOffset],
-        methodDescriptorLookup: [NodeReference: MethodDescriptorWrapper] = [:],
-        vtableOffsetLookup: [NodeReference: Int] = [:],
+        methodDescriptorLookup: [StructuralNodeReferenceKey: MethodDescriptorWrapper] = [:],
+        vtableOffsetLookup: [StructuralNodeReferenceKey: Int] = [:],
         implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:],
         implOffsetVTableSlotLookup: [Int: Int] = [:],
         isGlobalOrStatic: Bool
@@ -171,15 +171,15 @@ package enum DefinitionBuilder {
         from demangledSymbol: DemangledSymbolWithOffset,
         name: String,
         isGlobalOrStatic: Bool,
-        methodDescriptorLookup: [NodeReference: MethodDescriptorWrapper],
-        vtableOffsetLookup: [NodeReference: Int],
+        methodDescriptorLookup: [StructuralNodeReferenceKey: MethodDescriptorWrapper],
+        vtableOffsetLookup: [StructuralNodeReferenceKey: Int],
         implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper],
         implOffsetVTableSlotLookup: [Int: Int]
     ) -> FunctionDefinition {
         let node = demangledSymbol.demangledNode
         let symbolOffset = demangledSymbol.base.offset
-        let descriptor = methodDescriptorLookup[node] ?? implOffsetDescriptorLookup[symbolOffset]
-        let vtableOffset = vtableOffsetLookup[node] ?? implOffsetVTableSlotLookup[symbolOffset]
+        let descriptor = methodDescriptorLookup[StructuralNodeReferenceKey(node)] ?? implOffsetDescriptorLookup[symbolOffset]
+        let vtableOffset = vtableOffsetLookup[StructuralNodeReferenceKey(node)] ?? implOffsetVTableSlotLookup[symbolOffset]
         var functionDefinition = FunctionDefinition(node: node, name: name, kind: .function, symbol: demangledSymbol.base, isGlobalOrStatic: isGlobalOrStatic, methodDescriptor: descriptor, offset: demangledSymbol.offset, vtableOffset: vtableOffset)
         if let methodDescriptor = descriptor?.method, methodDescriptor.layout.flags.isDynamic {
             functionDefinition.attributes.append(.dynamic)
