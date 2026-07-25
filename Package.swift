@@ -774,6 +774,7 @@ extension Target {
         name: "MachOCachesTests",
         dependencies: [
             .target(.MachOCaches),
+            .target(.MachOExtensions),
         ],
         swiftSettings: testSettings,
     )
