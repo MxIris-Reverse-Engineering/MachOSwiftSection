@@ -1,8 +1,8 @@
 # NodeStore 迁移计划（SymbolIndexStore → arena 存储）
 
-- **状态**: Stage 0–4 Completed（见「实施记录」）；Stage 5 提案待批准（见文末「Stage 5 提案」）
+- **状态**: Stage 0–4 Completed（见「实施记录」）；Stage 5 已落地；Stage 5 回归修复见文末「Stage 5a 回归修复」
 - **日期**: 2026-07-24
-- **最后更新**: 2026-07-24
+- **最后更新**: 2026-07-25
 - **分支**: `feature/node-store-migration`（worktree `.claude/worktrees/node-store-migration`，Demangling 经主检出 `.claude/worktrees/swift-demangling` 处的**真实 git worktree**（swift-demangling `feature/node-store`）以路径依赖解析——原先的符号链接方案因目标 worktree 被外部清理导致 SwiftPM manifest 缓存把解析钉回 remote，已改为本仓库领地内的 worktree）
 - **前置**: swift-demangling `feature/node-store` 分支合入 `main`（本包以路径依赖解析 `../swift-demangling` 的 main）；开发期先经上述符号链接直连该分支
 - **上游依据**: swift-demangling `evolution/0001-node-store-arena.md`（Phase 1–3 已落地并验收）
@@ -233,3 +233,15 @@ RuntimeViewer 与 MachOSwiftSection 的内存主项在 `MachOSymbols/SymbolIndex
 - **5b-lite 实际落地**：`DemanglingNode.printSemantic`（协议扩展，零物化富文本，任意表示）；`DemangleResolver.resolve(for: some DemanglingNode)`（`.options` 零物化直印，`.builder` 保持公开 `Node` 闭包签名、仅该路径物化）；SwiftDump dumpers 的 6 处 `resolve(for: X.materialize())` 直传 `NodeReference`——高频瞬态物化点清零。
 - **保留的显式物化桥**（低频/瞬态，全量泛型化的剩余标的，暂不做）：`SwiftDeclarationPrinter` 3 处 printer 入口 + where 子句子节点 + `leafNameNode` ×2 + `SwiftPrinting+Headers`/`ClassDumper` 的 thunk 构树点 + RV 特化构树 2 处。
 - **重启条件**：若后续 profiling 显示 interface 全量导出（swift-section `InterfaceCommand` 之类批量场景）的瞬态树分配成为吞吐瓶颈，再按原方案泛型化（届时合成点重写方案：labelList 合成改计数循环，`.static` 包装改 printer 状态位）。
+
+### Stage 5a 回归修复 — override/vtable 查询字典漏用结构相等键（2026-07-25）
+
+**症状**：offline `interface`（`MachOFile` 路径）对 iOS 18.5 模拟器 `SwiftData.framework` 的 `Schema.Attribute` 丢失全部 `override` 关键字与配套 `// VTable offset:` 注释（main 5 个 → 迁移分支 0 个）。范围极窄且数据相关：iOS 26.5 的**同一个类**正常（5→5），SwiftUI/SwiftUICore 数百个 override 全部一致。两侧构建内均确定性。用 main worktree 对 6 个模拟器二进制（SwiftUI/SwiftUICore/SwiftData × iOS 18.5/26.5）× {dump, interface, 全 `--emit-*` 变体} 共 18 份整文件快照 A/B diff 抓到（16/18 逐字节一致，仅此 2 份差异）。
+
+**根因**：Stage 5a 把 `TypeDefinition.index(in:)` 的 `methodDescriptorLookup` / `vtableOffsetLookup` 从 `[Node: …]`（结构相等键）换成了裸 `[NodeReference: …]`。`NodeReference` 的固有 `Hashable`/`==` 是 **store-identity**（`(store, index)`），不是结构相等。这两个字典的**键**来自 override 描述符的实现符号——`SymbolIndexStore.demangledNodeReference(for:)` 对落在 build sweep 之外的符号会新建 **per-symbol mini store**——而**查询**用的是成员符号（来自 `memberSymbols`，主 store）。两者结构相等但 store 不同 ⇒ 查表 miss ⇒ override/vtable 一起丢。iOS 18.5 那批 override 实现符号恰好落到 mini store，26.5 的都在主 store，故只有前者复现。这正是 `Name` 类型当初改结构语义 `Hashable` 所规避的同一陷阱，但这两个裸字典漏改了。次因放大：`TypeDefinition.index` 的 offset 兜底表（`implOffsetDescriptorLookup`/`implOffsetVTableSlotLookup`）**只从 `methodDescriptors` 建**，`methodOverrideDescriptors`/`methodDefaultOverrideDescriptors` 没进兜底表，所以 override 方法只有 `NodeReference` 这一条路，一 miss 即彻底丢。
+
+**修复**：新增 `StructuralNodeReferenceKey`（`package`，`SwiftDeclaration`，照 `Name` 类型用 `structurallyEquals` + `structuralHash`），把 `methodDescriptorLookup` / `vtableOffsetLookup` 的键类型改为它，插入端（`TypeDefinition.index` 5 处）与查询端（`DefinitionBuilder` 4 处）统一包装。仅动这对跨 store 的查询字典；分组/去重用的其余 `NodeReference` 键容器（`accessorsByNode`、`canonicalIndexBy*Node`、`pendingMergedBy*Node`、`visitedNodes`）都在单 `memberSymbols` 批次内使用（同一 hash-consed store，结构相等即 index 相等），安全，不动。
+
+**验收**：全量 1263 tests / 242 suites 全绿（含直接覆盖此功能的 `outputContainsOverrideKeyword` / `outputContainsVTableOffsetComments`），外加新增的 `StructuralNodeReferenceKeyTests` 4 用例（其中 `structuralKeyDictionaryHitsAcrossStores` 精确复刻生产形态：裸 `NodeReference` 字典 miss、结构键 hit）。修复后**三种读取来源的快照对 main 全部逐字节一致**——MachOFile 38/38（iOS 15.5 / 16.4 / 17.5 / 18.5 / 26.5 / 27.0b1 / 27.0b2 的可用三件套，含全注释变体）、DyldCache 18/18（macOS 宿主 cache + iOS 27.0b3 / b4 模拟器 cache）、MachOImage 6/6（宿主三件套 in-process）。基线快照与复现 harness 固化在 `MachOSwiftSection-Baselines/main-27726bc/`（62 份 + SHA256 清单），后续迭代以此为准；详见 `Documentations/Internal/TaskReports/2026-07-25-node-store-override-regression-and-baselines.md`。
+
+**附带发现（既存缺陷，非本次迁移引入）**：`DyldCache.machOFile(by: .name(_:))` 的匹配是 `imagePath.lastPathComponent.deletingPathExtension == name`，而 cache 内叶名不唯一——iOS 27 同时存在 `/System/Library/Frameworks/SwiftUI.framework/SwiftUI` 与 `/System/Library/AccessibilityBundles/SwiftUI.axbundle/SwiftUI`，`swift-section --dyld-shared-cache -n SwiftUI` 会静默选中先枚举到的 axbundle（无 Swift 元数据 → dump 0 字节、interface 只剩 4 行 import，且不报错）。基线 harness 已全面改用 `-p` 安装路径。修复方向（未实施）：优先匹配 `.framework/`，或多命中时报歧义错误。
