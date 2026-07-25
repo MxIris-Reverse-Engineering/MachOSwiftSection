@@ -177,6 +177,21 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         allStorageCache = AllStorageCache()
     }
 
+    /// Detaches a previously registered sub-indexer by identity, the inverse of
+    /// `addSubIndexer(_:)`. No-op when it was never registered.
+    ///
+    /// Registration is what keeps a per-image indexer — and therefore its whole
+    /// declaration graph, including the `NodeStore` its definitions reference —
+    /// alive for as long as the aggregate lives. Dropping the last reference
+    /// lets the sub-indexer deinit, which in turn evicts its `SymbolIndexStore`
+    /// entry (see this type's `deinit`), so per-image memory is actually
+    /// reclaimed. Callers that hold the indexer rather than its position should
+    /// prefer this over the index-based overload.
+    public func removeSubIndexer(_ subIndexer: SwiftDeclarationIndexer<MachO>) {
+        guard let index = subIndexers.firstIndex(where: { $0 === subIndexer }) else { return }
+        removeSubIndexer(at: index)
+    }
+
     public func prepare() async throws {
         if isPrepared { return }
         
