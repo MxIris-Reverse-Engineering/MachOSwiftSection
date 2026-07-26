@@ -60,47 +60,63 @@ extension DyldCacheImageSearchMode {
 }
 
 extension DyldCacheImageSearchMode {
-    /// The best-ranked image of `machOFiles`, or `nil` when none matches.
-    ///
-    /// Stops at the first `bestMatchRank` hit, so the common case (an exact
-    /// path, or a name whose framework binary is present) costs no more than
-    /// the previous first-match-wins scan. Ties keep the earliest image, so the
-    /// result stays deterministic for a given cache.
-    fileprivate func bestMatch(in machOFiles: some Sequence<MachOFile>) -> MachOFile? {
-        var bestMatch: (rank: Int, machOFile: MachOFile)?
+    /// Running best match while a search walks one or more caches.
+    fileprivate typealias RankedMatch = (rank: Int, machOFile: MachOFile)
+
+    /// Folds `machOFiles` into `rankedMatch`, returning `true` once an image
+    /// scores `bestMatchRank` — nothing later can beat it, so the caller can
+    /// stop. Ties keep the earliest image, so the result stays deterministic.
+    fileprivate func accumulateBestMatch(in machOFiles: some Sequence<MachOFile>, into rankedMatch: inout RankedMatch?) -> Bool {
         for machOFile in machOFiles {
             guard let rank = matchRank(forImagePath: machOFile.imagePath) else { continue }
+            guard rank < (rankedMatch?.rank ?? Int.max) else { continue }
+            rankedMatch = (rank, machOFile)
             if rank == Self.bestMatchRank {
-                return machOFile
-            }
-            if rank < (bestMatch?.rank ?? Int.max) {
-                bestMatch = (rank, machOFile)
+                return true
             }
         }
-        return bestMatch?.machOFile
+        return false
+    }
+
+    /// The best-ranked image of `machOFiles`, or `nil` when none matches.
+    fileprivate func bestMatch(in machOFiles: some Sequence<MachOFile>) -> MachOFile? {
+        var rankedMatch: RankedMatch?
+        _ = accumulateBestMatch(in: machOFiles, into: &rankedMatch)
+        return rankedMatch?.machOFile
     }
 }
 
 extension DyldCache {
     package func machOFile(by mode: DyldCacheImageSearchMode) -> MachOFile? {
-        if let found = mode.bestMatch(in: machOFiles()) {
-            return found
+        // `machOFiles()` only yields the images mapped in *this* cache file, so
+        // a split cache spreads same-leaf-name images across several of them —
+        // the SwiftUI accessibility bundle can sit in the file scanned first
+        // while the canonical framework binary sits in a subcache. Ranking has
+        // to span every cache file before choosing, otherwise a low-ranked hit
+        // here shadows the framework binary over there and reproduces the very
+        // empty-dump-with-exit-zero bug the ranking was introduced to fix.
+        // Only a `bestMatchRank` hit is allowed to stop the scan early.
+        var rankedMatch: DyldCacheImageSearchMode.RankedMatch?
+
+        if mode.accumulateBestMatch(in: machOFiles(), into: &rankedMatch) {
+            return rankedMatch?.machOFile
         }
 
-        guard let mainCache else { return nil }
+        guard let mainCache else { return rankedMatch?.machOFile }
 
-        if let found = mode.bestMatch(in: mainCache.machOFiles()) {
-            return found
+        if mode.accumulateBestMatch(in: mainCache.machOFiles(), into: &rankedMatch) {
+            return rankedMatch?.machOFile
         }
 
         if let subCaches {
             for subCacheEntry in subCaches {
-                if let subCache = try? subCacheEntry.subcache(for: mainCache), let found = mode.bestMatch(in: subCache.machOFiles()) {
-                    return found
+                guard let subCache = try? subCacheEntry.subcache(for: mainCache) else { continue }
+                if mode.accumulateBestMatch(in: subCache.machOFiles(), into: &rankedMatch) {
+                    return rankedMatch?.machOFile
                 }
             }
         }
-        return nil
+        return rankedMatch?.machOFile
     }
 }
 
