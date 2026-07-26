@@ -21,6 +21,14 @@ public struct DemangledSymbol: Sendable {
 
     /// Wraps a standalone symbol in a single-row table. `SymbolIndexStore`
     /// vends values through the shared-table initializer instead.
+    ///
+    /// The one-element array is a deliberate trade, not an oversight: storing
+    /// the `Symbol` inline instead (a two-case payload enum) would avoid this
+    /// allocation, but `Symbol` is itself 32 bytes, so every `DemangledSymbol`
+    /// — including the hundreds of thousands vended through the shared table —
+    /// would grow past the 32-byte budget `compactValueLayouts` pins. Paying a
+    /// small allocation on the rarer standalone path is cheaper than widening
+    /// the common one.
     public init(symbol: Symbol, demangledNode: NodeReference) {
         self.symbolTable = [symbol]
         self.symbolTableRow = 0
