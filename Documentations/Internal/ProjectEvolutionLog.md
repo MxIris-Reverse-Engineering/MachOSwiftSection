@@ -298,6 +298,37 @@
 
 ---
 
+## 19. 引用存储（weak/unowned）对 existential 的宽度修复
+
+- **时间**：2026-07-26（未随版本发布，将入 `0.14.0`）
+- **动机**：用户实报 `SwiftUI.StyledTextResponder` 的字段偏移与反汇编不符。追查确认真值
+  是反汇编的 `0x128` 而引擎算 `0x120`——**`weak`/`unowned`/`unowned(unsafe)` 的宽度被
+  无条件建模为单字**，而修饰符只作用在对象引用字上：referent 若是 class-bound existential，
+  见证表字照样在字段里（`weak var x: (any P)?` = 16 字节、`any P & Q` = 24，而 `AnyObject`
+  与 `@objc` 协议 existential 不带 Swift 见证表 = 8）。因 `ViewResponder` 这类基类持有
+  `weak var host: (any ViewGraphDelegate)?`，误差沿继承链放大到**全部子类的全部字段**。
+- **落地**：
+  - `StaticTypeLayoutResolver` 新增 `ReferenceStorageKind` + `referenceStorageLayout`：剥掉
+    `Optional` 包装后按 referent 分派，existential 复用既有 `existentialLayout` 取容器宽度，
+    普通类引用 / 类约束泛型参数维持单字；协议解析不到时抛 `unknown` 降级而非猜宽度；
+  - XI 与 bitwise-takable **按「字」拆开**：引用字贡献修饰符自身的 XI（weak 0 / unowned 1 /
+    unowned(unsafe) 饱和），见证表字贡献饱和值，容器取 max；takable 改由 referent 决定——
+    existential 引用计数未知，`unowned`(safe) 走 unknown-refcounting 表示 ⇒ **非 takable**
+    （初版按修饰符建模为 takable，被 VWT 对照测试当场抓出后改正）；
+  - fixture 新增 6 个引用存储 × existential 的 struct + 一对基类/子类，`WholeTypeLayoutVsRuntimeTests`
+    加 7 组参数化宽度 pin（各自与 runtime VWT 五元组交叉验证）与类级偏移 pin。
+- **关键决策**：宽度不可猜——解析不到协议就降级。宽度错会**静默**推移其后所有字段（且沿
+  继承链放大），比一个 `unknown` 注释危险得多。另记一条方法论：本 bug 曾被 struct XI 传播
+  缺陷**反向抵消**（`data: A?` 多吃一个 tag 字节、对齐后多 8，正好补上基类少的 8），使
+  `childSubgraph` 起的偏移碰巧正确——**只看某一个字段对不对不足以判断引擎正确**，必须逐
+  字段对齐真值。
+- **顺带发现（未修）**：嵌套声明的 `@objc` 协议其旧式 ObjC 名带父上下文
+  （`_TtPO<module><parent><name>_`），`ObjCProtocolIndex` 只解析两段式故解析不到。
+- **文档**：[StaticLayoutEngine.md](StaticLayoutEngine.md)「引用存储不坍缩 existential」、
+  [TaskReports/2026-07-26-reference-storage-existential-width.md](TaskReports/2026-07-26-reference-storage-existential-width.md)。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
