@@ -249,3 +249,27 @@ RuntimeViewer 与 MachOSwiftSection 的内存主项在 `MachOSymbols/SymbolIndex
 修复：`DyldCacheImageSearchMode` 增加 `matchRank(forImagePath:)`，把「命中」从布尔改为**分级**——`<name>.framework` 内的规范二进制（含 macOS 的 `Versions/A/`）为最佳级 0，`.dylib` 为 1，其它同叶名负载（`.axbundle`/`.bundle`/…）为 2；`bestMatch(in:)` 取最佳级并在遇到 0 级时立即短路，故常见路径的开销与原 first-match 相同，`.path` 精确匹配恒为 0 级、行为完全不变。平局保留最早者，结果对给定 cache 确定。
 
 验收：`DyldCacheImageSearchTests` 6 个用例（纯路径运算，不需磁盘 cache）；端到端 `-n SwiftUI` 由 0 字节变为 9,131,212 字节且与 `-p` 生成的基线**逐字节一致**，`-n SwiftUICore` / `-n SwiftData` / macOS 宿主 cache 全部无回归。
+
+### 审查修复批次 — mini store 增殖的根因与跨 store 键的收口（2026-07-26）
+
+对分支全量 diff 跑代码审查后的修复。核心结论是**多条症状同源**：`demangledNodeReference` 的命中条件里多了一个 offset 判等，让整条 dyld shared cache 路径退化到 per-symbol mini store，而 mini store 增殖又让下游一批裸 `NodeReference` 键静默失效。逐条：
+
+1. **`demangledNodeReference` 去掉 offset 判等**。建表时 dyld cache 的行存的是 canonical（`rawOffset - sharedRegionStart`）offset，而 `symbols(for:in:)` 是拿**查询时传入的** offset 重建 `Symbol` 的，两边天然不同 ⇒ 判等必然失败 ⇒ 整个镜像每个符号都新建一个 mini store。这个条件在语义上本就多余：demangle 结果只是名字的函数，`tableRowByName` 一名一行、重名后写覆盖，offset 比较只能否决合法命中、无法消歧。**同一 offset 对应多个符号是正常情形**（它们名字不同），按名字查各自命中各自的行，不受影响。late cache 的键同理从 `Symbol` 改为 `String`。
+
+2. **late demangle 收进单一临界区**。原实现是 check-then-act：两个线程同时 miss 会各自 freeze 一个 mini store，同一个符号返回**两个不同 store** 的引用，下游任何结构去重都变成 run-to-run 抛硬币。改为 `lateDemangledNode(forName:)`，查+建+存在同一个锁内完成。
+
+3. **`StructuralNodeReferenceKey` 下沉到 `MachOSymbols`**，并覆盖**全部**跨 store 集合——上一批只改了 override/vtable 那对字典，判断「其余容器都在单批次内使用」是**错的**：`Definition+.setDefinitions` 喂给 `DefinitionBuilder` 的符号里混有走 `MetadataReader.demangleSymbolReference`（mini store）的分支。现已改：`accessorsByNode`（否则 subscript 的 getter/setter 分进两桶，只有 setter 的那桶被 `contains(.getter)` 丢弃）、`canonicalIndexByFunctionNode` / `canonicalIndexByAllocatorNode`（否则 merged thunk 与其规范符号对不上，同一 `func`/`init` 输出两遍），以及五处 `visitedNodes` 的 `OrderedSet`（否则同一实现符号被两个 witness 重复认领）。
+
+4. **dyld cache 选图排序跨 cache 生效**。上一批加的排名是**逐 cache 文件分别排序、第一个有任何匹配的 cache 直接返回**，于是 axbundle 在先扫的 cache、framework 在 subcache 时依然选中 axbundle——正是该修复本想消除的情形。改为跨全部 cache 文件累积排名（`accumulateBestMatch(in:into:)`），只在拿到最高级时早退；`mainCache` 为 nil 时也返回已累积的最佳而非 nil。
+
+5. **同一行不重复入桶**。exported symbol 分支在 canonical 与 raw offset 相等时（`MachOImage`，或 `startOffset == 0` 的文件）把同一行 append 两次，使每个 `for symbol in symbols` 循环把该符号跑两遍。两个分支统一走 `registerRow`，按「canonical ≠ raw 才写第二个键」判断。
+
+6. **opaque 描述符查找恢复 O(1)**。`opaqueTypeDescriptorSymbol(for:)` 原是对全局桶做线性扫 + 逐项结构遍历，而调用频次是「每个打印出的 `some` 返回类型一次」，在 SwiftUI 上两个量级都是千级 ⇒ 乘积。改为构建期按 `DemanglingNode.identifier` 分桶（该属性对 `Node` 与 `NodeReference` 是同一份协议实现，结构相等必然同桶），桶内再结构比较。
+
+7. **`printSemantic` 栈保护统一**。`Node` 的具体重载没有 `StackSafeExecutor` 包裹而泛型版有，且具体重载优先级更高 ⇒ 所有 `Node` 调用方实际走的是没保护那条。上游 `NodePrinter<Target>` 本身就是 `DemanglingPrinter<Target, Node>` 的薄包装，输出等价，故直接删掉具体重载。
+
+**驳回一条**：审查建议把 `DemangledSymbol` 的单元素数组换成内联 `Symbol` 的双 case 枚举以省掉分配，并称「仍在 32 字节内」。实测不成立——`Symbol` 自身 32 字节，换枚举后整个值涨到 48 字节，`compactValueLayouts` 直接失败；而经共享表下发的值有数十万份。取舍已写进该初始化器的文档注释。
+
+**显式不改一条**：`ClassDumper.distributedFunctionNodes` 每个 actor 类算两遍且逐 thunk materialize。消除需要给一个 `Sendable` 值类型加可变引用缓存，而该路径只在使用 distributed actor 的二进制里执行（本项目日常面对的框架里为零）；查询侧拿的是 `Node`，集合改结构键反而要为每个方法 intern 一个 mini store。判断为不值得。
+
+**验收**：`swift package clean` 后全量 **1273 tests / 244 suites 全绿**；对冻结基线 `main-27726bc` 的三源整文件快照对比**全部逐字节一致**（File 38/38、DyldCache 18/18、Image 6/6，共 62 份）。快照 harness 一律用 `-p` 选 cache 镜像、而 `-p` 恒为最高排名，故另对 iOS 27.0 beta 3 模拟器 cache 补跑 `-n {SwiftUI, SwiftUICore, SwiftData}`，三者与对应 `-p` 输出逐字节一致（9,131,212 / 8,191,268 / 271,114 字节）——这才是第 4 项真正的覆盖。（改完 `Storage` 字段后增量构建再次出现运行期 SIGSEGV，clean 重建后消失——与 Stage 3 记录的现象相同。）
