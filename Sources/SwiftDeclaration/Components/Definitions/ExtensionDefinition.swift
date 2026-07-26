@@ -94,20 +94,23 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
 
         guard let protocolConformance, !protocolConformance.resilientWitnesses.isEmpty else { return }
 
-        func _symbol(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<NodeReference> = []) throws -> DemangledSymbol? {
+        // Structurally keyed: `demangleSymbolReference` returns references from
+        // different stores, and store-identity equality would let the same
+        // implementation symbol be claimed by two witnesses.
+        func _symbol(for symbols: Symbols, typeName: String, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = []) throws -> DemangledSymbol? {
             for symbol in symbols {
-                if let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO), let protocolConformanceNode = node.first(of: .protocolConformance), let symbolTypeName = protocolConformanceNode.children.first?.print(using: .interfaceTypeBuilderOnly), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.storage(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(node) {
+                if let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO), let protocolConformanceNode = node.first(of: .protocolConformance), let symbolTypeName = protocolConformanceNode.children.first?.print(using: .interfaceTypeBuilderOnly), symbolTypeName == typeName || PrimitiveTypeMappingCache.shared.storage(in: machO)?.primitiveType(for: typeName) == symbolTypeName, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
                     return .init(symbol: symbol, demangledNode: node)
                 }
             }
             return nil
         }
-        var visitedNodes: OrderedSet<NodeReference> = []
+        var visitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
         var memberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbolWithOffset]> = [:]
 
         for resilientWitness in protocolConformance.resilientWitnesses {
             if let symbols = try resilientWitness.implementationSymbols(in: machO), let symbol = try _symbol(for: symbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
-                _ = visitedNodes.append(symbol.demangledNode)
+                _ = visitedNodes.append(StructuralNodeReferenceKey(symbol.demangledNode))
                 addSymbol(.init(symbol), memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
             } else if let requirement = try resilientWitness.requirement(in: machO) {
                 switch requirement {
@@ -117,10 +120,10 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
                     }
                 case .element(let element):
                     if let symbols = try await Symbols.resolve(from: element.offset, in: machO), let symbol = try _symbol(for: symbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
-                        _ = visitedNodes.append(symbol.demangledNode)
+                        _ = visitedNodes.append(StructuralNodeReferenceKey(symbol.demangledNode))
                         addSymbol(.init(symbol), memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
                     } else if let defaultImplementationSymbols = try element.defaultImplementationSymbols(in: machO), let symbol = try _symbol(for: defaultImplementationSymbols, typeName: extensionName.name, visitedNodes: visitedNodes) {
-                        _ = visitedNodes.append(symbol.demangledNode)
+                        _ = visitedNodes.append(StructuralNodeReferenceKey(symbol.demangledNode))
                         addSymbol(.init(symbol), memberSymbolsByKind: &memberSymbolsByKind, inExtension: true)
                     } else if !element.defaultImplementation.isNull {
                         missingSymbolWitnesses.append(resilientWitness)
