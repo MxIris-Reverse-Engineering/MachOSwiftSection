@@ -206,7 +206,7 @@ public final class TypeDefinition: Definition {
         var implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:]
         var implOffsetVTableSlotLookup: [Int: Int] = [:]
         if case .class(let cls) = type {
-            var visitedNodes: OrderedSet<NodeReference> = []
+            var visitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
             let typeNode = try MetadataReader.demangleContext(for: .type(.class(cls.descriptor)), in: machO)
             let vtableBaseOffset = cls.vTableDescriptorHeader.map { Int($0.layout.vTableOffset) }
 
@@ -244,7 +244,7 @@ public final class TypeDefinition: Definition {
                 guard let symbols = try descriptor.implementationSymbols(in: machO) else { continue }
                 guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode
-                visitedNodes.append(node)
+                visitedNodes.append(StructuralNodeReferenceKey(node))
                 methodDescriptorLookup[StructuralNodeReferenceKey(node)] = .method(descriptor)
                 if let vtableBaseOffset {
                     vtableOffsetLookup[StructuralNodeReferenceKey(node)] = vtableBaseOffset + index
@@ -256,7 +256,7 @@ public final class TypeDefinition: Definition {
                 guard let symbols = try descriptor.implementationSymbols(in: machO) else { continue }
                 guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode
-                visitedNodes.append(node)
+                visitedNodes.append(StructuralNodeReferenceKey(node))
                 methodDescriptorLookup[StructuralNodeReferenceKey(node)] = .methodOverride(descriptor)
 
                 if let vtableSlot = try? parentVTableCache.slotIndex(for: descriptor, in: machO) {
@@ -267,7 +267,7 @@ public final class TypeDefinition: Definition {
                 guard let symbols = try descriptor.implementationSymbols(in: machO) else { continue }
                 guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode
-                visitedNodes.append(node)
+                visitedNodes.append(StructuralNodeReferenceKey(node))
                 methodDescriptorLookup[StructuralNodeReferenceKey(node)] = .methodDefaultOverride(descriptor)
             }
         }

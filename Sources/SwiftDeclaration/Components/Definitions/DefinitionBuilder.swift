@@ -54,9 +54,16 @@ package enum DefinitionBuilder {
         // `Dictionary` iteration order is randomized per process and made the
         // interface output unstable across runs. Insertion order follows the
         // (deterministic) symbol order of `demangledSymbols`.
-        var accessorsByNode: OrderedDictionary<NodeReference, [Accessor]> = [:]
+        //
+        // Keyed structurally, not by bare `NodeReference`: these symbols do not
+        // all come from one store (a resilient witness or protocol requirement
+        // arrives through `MetadataReader.demangleSymbolReference`, i.e. a mini
+        // store), and store-identity keys would file a subscript's getter and
+        // setter into two separate buckets — the setter-only bucket then loses
+        // the `contains(.getter)` test below and the accessor disappears.
+        var accessorsByNode: OrderedDictionary<StructuralNodeReferenceKey, [Accessor]> = [:]
         for demangledSymbol in demangledSymbols {
-            guard let subscriptNode = demangledSymbol.demangledNode.first(of: .subscript) else { continue }
+            guard let subscriptNode = demangledSymbol.demangledNode.first(of: .subscript).map(StructuralNodeReferenceKey.init) else { continue }
             let kind = demangledSymbol.accessorKind
             let node = demangledSymbol.demangledNode
             let symbolOffset = demangledSymbol.base.offset
@@ -86,14 +93,16 @@ package enum DefinitionBuilder {
     ) -> [FunctionDefinition] {
         // Same dedup pattern as `functions(...)`: a merged-function thunk shares
         // the canonical `allocator` subtree, so the same init appears twice. Keep
-        // the canonical (non-merged) entry when both are present.
-        var canonicalIndexByAllocatorNode: [NodeReference: Int] = [:]
+        // the canonical (non-merged) entry when both are present. Structural keys
+        // for the same reason as `subscripts(...)`: the thunk and its canonical
+        // symbol need not have been demangled into the same store.
+        var canonicalIndexByAllocatorNode: [StructuralNodeReferenceKey: Int] = [:]
         // OrderedDictionary so the merged-thunk tail is appended in deterministic
         // (symbol) order — plain `Dictionary` iteration is randomized per process.
-        var pendingMergedByAllocatorNode: OrderedDictionary<NodeReference, DemangledSymbolWithOffset> = [:]
+        var pendingMergedByAllocatorNode: OrderedDictionary<StructuralNodeReferenceKey, DemangledSymbolWithOffset> = [:]
         var allocators: [FunctionDefinition] = []
         for demangledSymbol in demangledSymbols {
-            guard let allocatorNode = demangledSymbol.demangledNode.first(of: .allocator) else { continue }
+            guard let allocatorNode = demangledSymbol.demangledNode.first(of: .allocator).map(StructuralNodeReferenceKey.init) else { continue }
             let isMergedThunk = demangledSymbol.base.demangledNode.children.first?.kind == .mergedFunction
             if isMergedThunk {
                 if canonicalIndexByAllocatorNode[allocatorNode] == nil, pendingMergedByAllocatorNode[allocatorNode] == nil {
@@ -142,13 +151,15 @@ package enum DefinitionBuilder {
         // deduping, the same source-level declaration appears twice. Prefer the
         // canonical (non-merged) symbol when both exist; fall back to the merged
         // one when it's the only copy.
-        var canonicalIndexByFunctionNode: [NodeReference: Int] = [:]
+        // Structural keys for the same reason as `subscripts(...)`: the thunk and
+        // its canonical symbol need not have been demangled into the same store.
+        var canonicalIndexByFunctionNode: [StructuralNodeReferenceKey: Int] = [:]
         // OrderedDictionary so the merged-thunk tail is appended in deterministic
         // (symbol) order — plain `Dictionary` iteration is randomized per process.
-        var pendingMergedByFunctionNode: OrderedDictionary<NodeReference, DemangledSymbolWithOffset> = [:]
+        var pendingMergedByFunctionNode: OrderedDictionary<StructuralNodeReferenceKey, DemangledSymbolWithOffset> = [:]
         var functions: [FunctionDefinition] = []
         for demangledSymbol in demangledSymbols {
-            guard let functionNode = demangledSymbol.demangledNode.first(of: .function), let name = functionNode.identifier else { continue }
+            guard let functionNode = demangledSymbol.demangledNode.first(of: .function).map(StructuralNodeReferenceKey.init), let name = functionNode.reference.identifier else { continue }
             let isMergedThunk = demangledSymbol.base.demangledNode.children.first?.kind == .mergedFunction
             if isMergedThunk {
                 if canonicalIndexByFunctionNode[functionNode] == nil, pendingMergedByFunctionNode[functionNode] == nil {
@@ -161,7 +172,7 @@ package enum DefinitionBuilder {
             functions.append(makeFunctionDefinition(from: demangledSymbol, name: name, isGlobalOrStatic: isGlobalOrStatic, methodDescriptorLookup: methodDescriptorLookup, vtableOffsetLookup: vtableOffsetLookup, implOffsetDescriptorLookup: implOffsetDescriptorLookup, implOffsetVTableSlotLookup: implOffsetVTableSlotLookup))
         }
         for (functionNode, mergedSymbol) in pendingMergedByFunctionNode where canonicalIndexByFunctionNode[functionNode] == nil {
-            guard let name = functionNode.identifier else { continue }
+            guard let name = functionNode.reference.identifier else { continue }
             functions.append(makeFunctionDefinition(from: mergedSymbol, name: name, isGlobalOrStatic: isGlobalOrStatic, methodDescriptorLookup: methodDescriptorLookup, vtableOffsetLookup: vtableOffsetLookup, implOffsetDescriptorLookup: implOffsetDescriptorLookup, implOffsetVTableSlotLookup: implOffsetVTableSlotLookup))
         }
         return functions

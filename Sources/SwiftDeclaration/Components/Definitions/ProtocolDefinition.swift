@@ -130,9 +130,12 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
     package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
         guard !isIndexed else { return }
         let name = protocolName.name
-        func _symbol(for symbols: Symbols, visitedNodes: borrowing OrderedSet<NodeReference> = []) throws -> DemangledSymbol? {
+        // Structurally keyed: `demangleSymbolReference` returns references from
+        // different stores, and store-identity equality would let the same
+        // implementation symbol be claimed by two requirements.
+        func _symbol(for symbols: Symbols, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = []) throws -> DemangledSymbol? {
             for symbol in symbols {
-                if let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), protocolNode.print(using: .interfaceTypeBuilderOnly) == name, !visitedNodes.contains(node) {
+                if let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), protocolNode.print(using: .interfaceTypeBuilderOnly) == name, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
                     return .init(symbol: symbol, demangledNode: node)
                 }
             }
@@ -143,8 +146,8 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
         var requirementMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbolWithOffset]> = [:]
         var defaultImplementationMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbolWithOffset]> = [:]
 
-        var requirementVisitedNodes: OrderedSet<NodeReference> = []
-        var defaultImplementationVisitedNodes: OrderedSet<NodeReference> = []
+        var requirementVisitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
+        var defaultImplementationVisitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
 
         var offsetOfPWT = 0
 
@@ -157,10 +160,10 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
                 strippedSymbolicRequirements.append(.init(requirement: requirement, pwtOffset: offsetOfPWT))
                 continue
             }
-            requirementVisitedNodes.append(symbol.demangledNode)
+            requirementVisitedNodes.append(StructuralNodeReferenceKey(symbol.demangledNode))
             addSymbol(.init(base: symbol, offset: offsetOfPWT), memberSymbolsByKind: &requirementMemberSymbolsByKind, inExtension: false)
             if let symbols = try requirement.defaultImplementationSymbols(in: machO), let defaultImplementationSymbol = try _symbol(for: symbols, visitedNodes: defaultImplementationVisitedNodes) {
-                defaultImplementationVisitedNodes.append(defaultImplementationSymbol.demangledNode)
+                defaultImplementationVisitedNodes.append(StructuralNodeReferenceKey(defaultImplementationSymbol.demangledNode))
                 addSymbol(.init(base: defaultImplementationSymbol, offset: offsetOfPWT), memberSymbolsByKind: &defaultImplementationMemberSymbolsByKind, inExtension: true)
             }
         }
