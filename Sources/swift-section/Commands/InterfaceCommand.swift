@@ -17,6 +17,9 @@ struct InterfaceCommand: AsyncParsableCommand {
     @OptionGroup
     var machOOptions: MachOOptionGroup
 
+    @OptionGroup(title: "Comment Templates")
+    var transformerOptions: TransformerOptionGroup
+
     @Option(name: .shortAndLong, help: "The output path for the dump. If not specified, the output will be printed to the console.", completion: .file())
     var outputPath: String?
 
@@ -38,6 +41,12 @@ struct InterfaceCommand: AsyncParsableCommand {
     @Flag(help: "Expand nested struct fields with their absolute offsets (implies --emit-offset-comments)")
     var emitExpandedFieldOffsets: Bool = false
 
+    @Flag(help: "Generate type layout (size/stride/alignment) comments, computed statically via SwiftLayout")
+    var emitTypeLayout: Bool = false
+
+    @Flag(help: "Generate enum layout (strategy/per-case/spare-bit) comments, computed statically via SwiftLayout")
+    var emitEnumLayout: Bool = false
+
     @Flag(help: "Sort members by binary layout offset instead of grouping by category")
     var sortMembersByOffset: Bool = false
 
@@ -49,18 +58,28 @@ struct InterfaceCommand: AsyncParsableCommand {
 
         let effectiveEmitOffsetComments = emitOffsetComments || emitExpandedFieldOffsets
 
+        var printConfiguration = SwiftDeclarationPrintConfiguration(
+            printStrippedSymbolicItem: true,
+            printFieldOffset: effectiveEmitOffsetComments,
+            printExpandedFieldOffsets: emitExpandedFieldOffsets,
+            printMemberAddress: emitMemberAddresses,
+            printVTableOffset: emitVtableOffsets,
+            memberSortOrder: sortMembersByOffset ? .byOffset : .byCategory,
+            printTypeLayout: emitTypeLayout,
+            printEnumLayout: emitEnumLayout
+        )
+
+        // Without any template option the slots stay empty, keeping the
+        // built-in rendering byte-for-byte identical.
+        if let transformers = try transformerOptions.buildTransformerConfiguration() {
+            printConfiguration.applyTransformersEnablingCommentKinds(transformers)
+        }
+
         let configuration = SwiftInterfaceBuilderConfiguration(
             indexConfiguration: .init(
                 showCImportedTypes: showCImportedTypes
             ),
-            printConfiguration: .init(
-                printStrippedSymbolicItem: true,
-                printFieldOffset: effectiveEmitOffsetComments,
-                printExpandedFieldOffsets: emitExpandedFieldOffsets,
-                printMemberAddress: emitMemberAddresses,
-                printVTableOffset: emitVtableOffsets,
-                memberSortOrder: sortMembersByOffset ? .byOffset : .byCategory
-            )
+            printConfiguration: printConfiguration
         )
 
         let builder = try SwiftInterfaceBuilder(configuration: configuration, eventHandlers: [ConsoleEventHandler()], in: machOFile)

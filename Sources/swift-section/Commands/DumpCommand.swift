@@ -8,8 +8,6 @@ import OutputTransformer
 import SwiftDeclarationRendering
 import Semantic
 
-extension Transformer.SwiftEnumLayout.Preset: ExpressibleByArgument {}
-
 struct DumpCommand: AsyncParsableCommand, Sendable {
     private enum TopLevelContext {
         case type(TypeContextWrapper)
@@ -51,6 +49,9 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
     @OptionGroup
     var demangleOptions: DemangleOptionGroup
 
+    @OptionGroup(title: "Comment Templates")
+    var transformerOptions: TransformerOptionGroup
+
     @Option(name: .shortAndLong, help: "The output path for the dump. If not specified, the output will be printed to the console.", completion: .file())
     var outputPath: String?
 
@@ -78,9 +79,6 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
     @Flag(help: "Generate enum layout (strategy/per-case/spare-bit) comments, computed statically via SwiftLayout")
     var emitEnumLayout: Bool = false
 
-    @Option(help: "The comment style for --emit-enum-layout: detailed (default; byte masks), explained (bit ranges in plain words), standard (no per-byte lines), inline (one line per case with the byte summary), or compact (one line per case).")
-    var enumLayoutStyle: Transformer.SwiftEnumLayout.Preset = .detailed
-
     @Flag(help: "Expand nested struct fields with their absolute offsets (implies --emit-field-offsets)")
     var emitExpandedFieldOffsets: Bool = false
 
@@ -99,12 +97,10 @@ struct DumpCommand: AsyncParsableCommand, Sendable {
         dumpConfiguration.printTypeLayout = emitTypeLayout
         dumpConfiguration.printEnumLayout = emitEnumLayout
         dumpConfiguration.printExpandedFieldOffsets = emitExpandedFieldOffsets
-        // `.detailed` is the built-in default rendering; leaving the
-        // transformer slots empty keeps that path byte-for-byte identical.
-        if enumLayoutStyle != .detailed {
-            var transformers = Transformer.SwiftConfiguration()
-            transformers.swiftEnumLayout = enumLayoutStyle.module
-            dumpConfiguration.applyTransformers(transformers)
+        // Without any template option the slots stay empty, keeping the
+        // built-in rendering byte-for-byte identical.
+        if let transformers = try transformerOptions.buildTransformerConfiguration() {
+            dumpConfiguration.applyTransformersEnablingCommentKinds(transformers)
         }
 
         // The static (offline) field-layout path needs a SwiftLayout-backed
