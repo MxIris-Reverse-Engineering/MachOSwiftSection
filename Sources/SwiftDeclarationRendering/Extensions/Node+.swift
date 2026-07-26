@@ -51,18 +51,19 @@ extension SemanticString: @retroactive NodePrinterTarget {
     }
 }
 
-extension Node {
-    public func printSemantic(using options: DemangleOptions = .default) -> SemanticString {
-        var printer = NodePrinter<SemanticString>(options: options)
-        return printer.printRoot(self)
-    }
-}
-
 extension DemanglingNode {
-    /// Zero-materialization semantic print through the same generic engine
-    /// as `Node.printSemantic` — for store-backed nodes the type-reference
-    /// identity scopes materialize just the nominal reference subtrees on
-    /// demand, via the engine's lazy scope hook.
+    /// Zero-materialization semantic print. For store-backed nodes the
+    /// type-reference identity scopes materialize just the nominal reference
+    /// subtrees on demand, via the engine's lazy scope hook.
+    ///
+    /// This is the only `printSemantic`, deliberately: a concrete `Node`
+    /// overload used to sit alongside it and — being the better overload for
+    /// every `Node` caller — shadowed this one while running
+    /// `NodePrinter<SemanticString>` (itself a thin wrapper over the same
+    /// `DemanglingPrinter<Target, Node>` engine) *outside* `StackSafeExecutor`.
+    /// A deeply nested generic symbol printed through a `Node` could therefore
+    /// overflow the stack where the identical `NodeReference` call would not,
+    /// and every other print entry point in `Demangling` is stack-guarded.
     public func printSemantic(using options: DemangleOptions = .default) -> SemanticString {
         StackSafeExecutor.execute {
             var printer = DemanglingPrinter<SemanticString, Self>(options: options)
