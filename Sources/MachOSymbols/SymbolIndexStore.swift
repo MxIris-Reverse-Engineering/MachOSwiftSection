@@ -157,6 +157,27 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
         let opaqueTypeDescriptorSymbolRowByNodeIndex: OrderedDictionary<NodeStore.NodeIndex, UInt32>
 
+        /// One opaque-type-descriptor entry: the member node's index in the
+        /// frozen arena plus the symbol table row it was recorded for.
+        struct OpaqueTypeDescriptorEntry {
+            let memberNodeIndex: NodeStore.NodeIndex
+            let symbolTableRow: UInt32
+        }
+
+        /// The same entries as `opaqueTypeDescriptorSymbolRowByNodeIndex`,
+        /// bucketed by the member's declaration identifier.
+        ///
+        /// `opaqueTypeDescriptorSymbol(for:)` is queried with a node the
+        /// caller demangled while printing — a different store — so node-index
+        /// equality cannot answer it and the ordered dictionary would have to
+        /// be walked in full, once per printed `some`-returning declaration
+        /// (O(descriptors × prints), and both counts run into the thousands in
+        /// a framework like SwiftUI). `DemanglingNode.identifier` is a pure
+        /// function of the subtree, so structurally equal nodes always land in
+        /// the same bucket and the structural comparison is narrowed to
+        /// same-named candidates — normally exactly one.
+        let opaqueTypeDescriptorEntriesByMemberIdentifier: [String: [OpaqueTypeDescriptorEntry]]
+
         let memberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows>
 
         let methodDescriptorMemberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows>
@@ -170,12 +191,15 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         let thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: [ThunkAttributeMember]]]
 
         /// Symbols demangled after the store was frozen (rare path: lookups
-        /// for symbols that were not part of the build sweep). The frozen
-        /// arena cannot grow, so each late symbol gets a per-symbol mini
-        /// store; the volume is small and every consumer keeps receiving a
-        /// uniform `NodeReference`.
+        /// for names that were not part of the build sweep). The frozen arena
+        /// cannot grow, so each late name gets a mini store; the volume is
+        /// small and every consumer keeps receiving a uniform `NodeReference`.
+        ///
+        /// Keyed by name, like `tableRowByName`: a demangled tree is a pure
+        /// function of the symbol name, so two symbols at different offsets
+        /// sharing a name share a tree.
         @Mutex
-        private(set) var lateDemangledNodeBySymbol: [Symbol: NodeReference] = [:]
+        private var lateDemangledNodeByName: [String: NodeReference] = [:]
 
         fileprivate init(
             nodeStore: NodeStore,
@@ -193,6 +217,12 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             self.typeInfoByName = rowIndexes.typeInfoByName
             self.globalSymbolRowsByKind = rowIndexes.globalSymbolRowsByKind
             self.opaqueTypeDescriptorSymbolRowByNodeIndex = rowIndexes.opaqueTypeDescriptorSymbolRowByNodeIndex
+            var opaqueTypeDescriptorEntriesByMemberIdentifier: [String: [OpaqueTypeDescriptorEntry]] = [:]
+            for (memberNodeIndex, symbolTableRow) in rowIndexes.opaqueTypeDescriptorSymbolRowByNodeIndex {
+                let memberIdentifier = nodeStore.reference(at: memberNodeIndex).identifier ?? ""
+                opaqueTypeDescriptorEntriesByMemberIdentifier[memberIdentifier, default: []].append(.init(memberNodeIndex: memberNodeIndex, symbolTableRow: symbolTableRow))
+            }
+            self.opaqueTypeDescriptorEntriesByMemberIdentifier = opaqueTypeDescriptorEntriesByMemberIdentifier
             self.memberSymbolRowsByKind = rowIndexes.memberSymbolRowsByKind
             self.methodDescriptorMemberSymbolRowsByKind = rowIndexes.methodDescriptorMemberSymbolRowsByKind
             self.protocolWitnessMemberSymbolRowsByKind = rowIndexes.protocolWitnessMemberSymbolRowsByKind
@@ -200,8 +230,27 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             self.thunkAttributeMembersByKindAndTypeName = rowIndexes.thunkAttributeMembersByKindAndTypeName
         }
 
-        fileprivate func setLateDemangledNode(_ demangledNode: NodeReference?, for symbol: Symbol) {
-            lateDemangledNodeBySymbol[symbol] = demangledNode
+        /// Atomic get-or-demangle for a name outside the build sweep.
+        ///
+        /// Lookup and insert share one critical section: as a check-then-act
+        /// pair, two threads missing concurrently would each freeze their own
+        /// mini store and hand back references into *different* stores for one
+        /// name, which then compare unequal under `NodeReference`'s
+        /// store-identity `Hashable` — turning any downstream dedup into a
+        /// run-to-run coin flip. Demangling one name inside the lock is cheap
+        /// and this path is rare by construction.
+        ///
+        /// A name the demangler rejects is not cached, so a later call retries
+        /// rather than being stuck on the failure.
+        fileprivate func lateDemangledNode(forName name: String) -> NodeReference? {
+            _lateDemangledNodeByName.withLockUnchecked { cache in
+                if let cached = cache[name] { return cached }
+                var lateBuilder = NodeStoreBuilder()
+                guard let nodeIndex = try? lateBuilder.demangle(name) else { return nil }
+                let reference = lateBuilder.freeze().reference(at: nodeIndex)
+                cache[name] = reference
+                return reference
+            }
         }
 
         // MARK: Row materialization
@@ -298,19 +347,27 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             return newRow
         }
 
+        // One offset legitimately maps to several rows — distinct symbol names
+        // can share an address — so the bucket stays a list. The *same* row
+        // must not be listed twice though, or every `for symbol in symbols`
+        // loop visits it twice. Raw and canonical offsets coincide whenever
+        // there is nothing to adjust (a `MachOImage`, or a file at offset 0),
+        // which is exactly when the second append would be a duplicate.
+        func registerRow(_ row: UInt32, rawOffset: Int, canonicalOffset: Int) {
+            symbolRowsByOffset[rawOffset, default: []].append(row)
+            if canonicalOffset != rawOffset {
+                symbolRowsByOffset[canonicalOffset, default: []].append(row)
+            }
+        }
+
         for symbol in machO.symbols where symbol.name.isSwiftSymbol && !symbol.nlist.isExternal {
             let rawOffset = symbol.offset
             var canonicalOffset = rawOffset
-            var hasAdjustedOffset = false
             if let cache = machO.cache, rawOffset >= 0, machO is MachOFile {
                 canonicalOffset = rawOffset - cache.mainCacheHeader.sharedRegionStart.cast()
-                hasAdjustedOffset = true
             }
             let row = canonicalRow(for: .init(offset: canonicalOffset, name: symbol.name, isExternal: symbol.nlist.isExternal))
-            symbolRowsByOffset[rawOffset, default: []].append(row)
-            if hasAdjustedOffset {
-                symbolRowsByOffset[canonicalOffset, default: []].append(row)
-            }
+            registerRow(row, rawOffset: rawOffset, canonicalOffset: canonicalOffset)
         }
 
         for exportedSymbol in machO.exportedSymbols where exportedSymbol.name.isSwiftSymbol {
@@ -320,8 +377,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
                     canonicalOffset += machO.startOffset
                 }
                 let row = canonicalRow(for: .init(offset: canonicalOffset, name: exportedSymbol.name))
-                symbolRowsByOffset[rawOffset, default: []].append(row)
-                symbolRowsByOffset[canonicalOffset, default: []].append(row)
+                registerRow(row, rawOffset: rawOffset, canonicalOffset: canonicalOffset)
             }
         }
 
@@ -721,12 +777,14 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
     public func opaqueTypeDescriptorSymbol<MachO: MachORepresentableWithCache>(for node: Node, in machO: MachO) -> DemangledSymbol? {
         // The caller's `node` was demangled during printing; keys live in the
-        // frozen store. Structural comparison early-outs on the first
-        // mismatching kind, so the linear scan stays cheap relative to the
-        // printing work that triggers it.
+        // frozen store, so the match has to be structural. Bucketing on the
+        // member identifier keeps that to a handful of candidates instead of
+        // every opaque-type descriptor in the image (see
+        // `opaqueTypeDescriptorEntriesByMemberIdentifier`).
         guard let storage = storage(in: machO) else { return nil }
-        guard let matched = storage.opaqueTypeDescriptorSymbolRowByNodeIndex.elements.first(where: { storage.nodeStore.reference(at: $0.key).structurallyEquals(node) }) else { return nil }
-        return storage.demangledSymbol(atRow: matched.value)
+        guard let candidates = storage.opaqueTypeDescriptorEntriesByMemberIdentifier[node.identifier ?? ""] else { return nil }
+        guard let matched = candidates.first(where: { storage.nodeStore.reference(at: $0.memberNodeIndex).structurallyEquals(node) }) else { return nil }
+        return storage.demangledSymbol(atRow: matched.symbolTableRow)
     }
 
     package func symbols<MachO: MachORepresentableWithCache>(for offset: Int, in machO: MachO) -> Symbols? {
@@ -740,19 +798,24 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     /// every caller receives a uniform `NodeReference`.
     package func demangledNodeReference<MachO: MachORepresentableWithCache>(for symbol: Symbol, in machO: MachO) -> NodeReference? {
         guard let cacheStorage = storage(in: machO) else { return nil }
+        // Matched on name alone. A demangled tree is a pure function of the
+        // symbol name and the flat table already holds one row per unique
+        // name, so the row's own offset carries no extra information here —
+        // whereas comparing it against the queried symbol's offset can only
+        // ever reject an otherwise valid hit. It used to do exactly that for
+        // a whole image: rows store the *canonical* (cache-adjusted) offset
+        // while `symbols(for:in:)` stamps each vended `Symbol` with the offset
+        // it was queried by, so on the dyld-cache path every symbol missed and
+        // fell through to the per-symbol mini store below — the same
+        // cross-store split `StructuralNodeReferenceKey` exists to absorb.
+        //
+        // Several symbols sharing one offset is normal (they differ by name)
+        // and is unaffected: each name resolves to its own row.
         if let row = cacheStorage.tableRowByName[symbol.name],
-           cacheStorage.symbolTable[Int(row)].offset == symbol.offset,
            let rootNodeIndex = cacheStorage.rootNodeIndexByTableRow[Int(row)] {
             return cacheStorage.nodeStore.reference(at: rootNodeIndex)
         }
-        if let reference = cacheStorage.lateDemangledNodeBySymbol[symbol] {
-            return reference
-        }
-        var lateBuilder = NodeStoreBuilder()
-        guard let nodeIndex = try? lateBuilder.demangle(symbol.name) else { return nil }
-        let reference = lateBuilder.freeze().reference(at: nodeIndex)
-        cacheStorage.setLateDemangledNode(reference, for: symbol)
-        return reference
+        return cacheStorage.lateDemangledNode(forName: symbol.name)
     }
 
     package func demangledNode<MachO: MachORepresentableWithCache>(for symbol: Symbol, in machO: MachO) -> Node? {
