@@ -75,18 +75,20 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
             // object reference).
             return .pointerSized
         case .weak:
-            // `weak` storage: one word, zero extra inhabitants (null is a legal
-            // live value), not bitwise-takable (side-table registration).
-            return .weakReference
+            // `weak` storage: the referent's reference representation, whose
+            // reference word has zero extra inhabitants (null is a legal live
+            // value) and is not bitwise-takable (side-table registration).
+            return try referenceStorageLayout(forNode: node, storage: .weak, in: originImage)
         case .unowned:
-            // `unowned` (safe) storage: one word with exactly one extra
-            // inhabitant (null) — the ObjC-interop-conservative IRGen lowering.
-            return .unownedReference
+            // `unowned` (safe) storage: the reference word carries exactly one
+            // extra inhabitant (null) — the ObjC-interop-conservative IRGen
+            // lowering.
+            return try referenceStorageLayout(forNode: node, storage: .unownedSafe, in: originImage)
         case .unmanaged:
             // `unowned(unsafe)` storage: a bare pointer with "the same spare
             // bits as managed heap objects" (IRGen `UNCHECKED_REF_STORAGE`) —
             // the full saturated heap-reference count.
-            return .pointerSized
+            return try referenceStorageLayout(forNode: node, storage: .unmanaged, in: originImage)
         case .metatype:
             return try metatypeLayout(forNode: node)
         case .protocolList, .protocolListWithAnyObject, .protocolListWithClass:
@@ -142,6 +144,118 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         default:
             throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "metatype(\(instance.kind))"))
         }
+    }
+
+    // MARK: - Reference storage (weak / unowned / unowned(unsafe))
+
+    /// Which reference-storage qualifier a field carries. The qualifier only
+    /// changes the **reference word** — its extra inhabitants and whether the
+    /// storage can be moved bitwise; every other word of the referent's
+    /// representation (an existential's witness tables) stays an ordinary
+    /// pointer.
+    private enum ReferenceStorageKind {
+        case weak
+        case unownedSafe
+        case unmanaged
+
+        /// The layout of the single reference word under this qualifier.
+        var referenceWordLayout: StaticTypeLayout {
+            switch self {
+            case .weak: .weakReference
+            case .unownedSafe: .unownedReference
+            case .unmanaged: .pointerSized
+            }
+        }
+
+        /// Whether storage under this qualifier is bitwise-takable when the
+        /// referent's refcounting is **unknown** — which every existential
+        /// referent is, since it may hold an Objective-C object. `unowned`
+        /// (safe) then lowers to the unknown-refcounting representation, whose
+        /// move must go through the runtime (IRGen
+        /// `UnknownUnownedReferenceStorageTypeInfo`), unlike the native form
+        /// the single-class case gets. `weak` is never takable; an
+        /// `unowned(unsafe)` bare pointer always is (it does no refcounting at
+        /// all).
+        var isBitwiseTakableOverUnknownRefcounting: Bool {
+            switch self {
+            case .weak, .unownedSafe: false
+            case .unmanaged: true
+            }
+        }
+    }
+
+    /// The layout of a `weak` / `unowned` / `unowned(unsafe)` field.
+    ///
+    /// The qualifier does not shrink the referent to one word: a **class-bound
+    /// existential** referent (`weak var delegate: (any SomeProtocol)?`) keeps
+    /// its full container — one object word plus one word per Swift witness
+    /// table — because the qualifier applies to the object word only. So
+    /// `weak var x: (any P)?` is 16 bytes, `any P & Q` 24, while `AnyObject`
+    /// and an `@objc`-protocol existential (neither carries a Swift witness
+    /// table) stay at 8. Measured against live metadata for all four shapes.
+    ///
+    /// Extra inhabitants follow the same split: the reference word contributes
+    /// the qualifier's count (`weak` 0, `unowned` 1, `unowned(unsafe)`
+    /// saturated) and each witness-table word the saturated pointer count, with
+    /// the container taking the maximum — so a multi-word `weak` existential
+    /// still has extra inhabitants (`Optional` of it does not grow), while a
+    /// single-word one has none.
+    ///
+    /// Bitwise-takability, in contrast, is decided by the *referent*: an
+    /// existential may hold an Objective-C object, so its refcounting is
+    /// unknown and `unowned` (safe) storage over it is **not** takable — unlike
+    /// `unowned` over a single Swift class, which gets the native takable form.
+    ///
+    /// An existential referent whose witness-table count cannot be determined
+    /// (an unresolvable protocol) propagates `unknown` rather than guessing a
+    /// width, since a wrong width silently shifts every following field.
+    private func referenceStorageLayout(
+        forNode node: Node,
+        storage: ReferenceStorageKind,
+        in originImage: ImageReference<MachO>
+    ) throws -> StaticTypeLayout {
+        let referenceWord = storage.referenceWordLayout
+        guard let referent = referentType(of: node) else { return referenceWord }
+        let containerSize: Int
+        switch referent.kind {
+        case .protocolList, .protocolListWithAnyObject, .protocolListWithClass:
+            containerSize = try existentialLayout(forNode: referent, in: originImage).size
+        case .symbolicExtendedExistentialType:
+            containerSize = try extendedExistentialLayout(forNode: referent, in: originImage).size
+        default:
+            // A plain class reference, a class-bound generic parameter, or a
+            // dependent member: one word, exactly the qualifier's own layout.
+            return referenceWord
+        }
+        // Only the leading word is the reference; any trailing witness-table
+        // word is an ordinary pointer and supplies the saturated count.
+        let hasWitnessTableWords = containerSize > referenceWord.size
+        return StaticTypeLayout(
+            size: containerSize,
+            stride: max(1, containerSize),
+            alignmentMask: referenceWord.alignmentMask,
+            extraInhabitantCount: hasWitnessTableWords
+                ? max(referenceWord.extraInhabitantCount, StaticTypeLayout.pointerSized.extraInhabitantCount)
+                : referenceWord.extraInhabitantCount,
+            isBitwiseTakable: storage.isBitwiseTakableOverUnknownRefcounting
+        )
+    }
+
+    /// The referent type of a reference-storage node, with the `Optional`
+    /// wrapper stripped, so `weak var x: (any P)?` and `unowned var x: any P`
+    /// both reach the bare existential node.
+    private func referentType(of node: Node) -> Node? {
+        guard let child = node.firstChild else { return nil }
+        let referent = unwrappedType(child)
+        guard
+            referent.kind == .boundGenericEnum,
+            NodeTypeNaming.nominalQualifiedName(of: referent) == "Swift.Optional",
+            let typeList = referent.first(of: .typeList),
+            let payloadType = typeList.first(of: .type)
+        else {
+            return referent
+        }
+        return unwrappedType(payloadType)
     }
 
     // MARK: - Builtin
