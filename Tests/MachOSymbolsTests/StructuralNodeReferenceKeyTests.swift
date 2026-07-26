@@ -1,4 +1,4 @@
-@testable import SwiftDeclaration
+import MachOSymbols
 import Demangling
 import Testing
 
@@ -7,11 +7,13 @@ import Testing
 /// `TypeDefinition.index` keys `methodDescriptorLookup` / `vtableOffsetLookup`
 /// from override descriptors' implementation symbols, which
 /// `SymbolIndexStore.demangledNodeReference(for:)` can hand back from a
-/// per-symbol *mini* store, while the member side looks them up with
-/// references from the shared image store. `NodeReference`'s intrinsic
-/// `Hashable` is store-identity based, so a bare-`NodeReference` key silently
-/// dropped the `override` keyword and the vtable-offset comment for those
-/// symbols. `StructuralNodeReferenceKey` restores structural matching.
+/// mini store, while the member side looks them up with references from the
+/// shared image store. `NodeReference`'s intrinsic `Hashable` is store-identity
+/// based, so a bare-`NodeReference` key silently dropped the `override` keyword
+/// and the vtable-offset comment for those symbols.
+/// `StructuralNodeReferenceKey` restores structural matching; the same wrapper
+/// now also keys `DefinitionBuilder`'s accessor / merged-thunk dedup and every
+/// `visitedNodes` set in the declaration and dump layers.
 ///
 /// `NodeReference(interning:)` mints a fresh private store per call, so
 /// interning the same tree twice is exactly the "structurally equal, different
