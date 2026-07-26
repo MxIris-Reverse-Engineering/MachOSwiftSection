@@ -259,4 +259,61 @@ final class WholeTypeLayoutVsRuntimeTests: MachOSwiftSectionFixtureTests, @unche
         #expect(enumLayout.size == 9, "the second empty case must spill past the single extra inhabitant, got size \(enumLayout.size)")
         try expectRuntimeAgreement(enumLayout, for: enumDescriptor)
     }
+
+    /// Reference storage does **not** shrink a class-bound existential to one
+    /// word: the qualifier applies to the object word only, so the witness
+    /// tables stay. `weak var x: (any P)?` is two words, a two-protocol
+    /// composition three, while `AnyObject` and an `@objc`-protocol existential
+    /// (neither carries a Swift witness table) remain one.
+    ///
+    /// This is the shape that mis-sized SwiftUICore's `ViewResponder`
+    /// (`weak var host: (any ViewGraphDelegate)?`): modelling every reference
+    /// storage as a single word made the base class 8 bytes too small and
+    /// shifted every field of every subclass.
+    @MainActor
+    @Test(arguments: [
+        ("WeakExistentialStructTest", 16),
+        ("WeakCompositionExistentialStructTest", 24),
+        ("WeakAnyObjectStructTest", 8),
+        ("WeakObjCExistentialStructTest", 8),
+        ("UnownedExistentialStructTest", 16),
+        ("UnownedObjCExistentialStructTest", 8),
+        ("UnmanagedExistentialStructTest", 16),
+    ])
+    func referenceStorageOverExistentialKeepsWitnessTableWords(
+        typeName: String,
+        expectedSize: Int
+    ) async throws {
+        guard let descriptor = try fixtureTypeDescriptor(named: "SymbolTestsCore.WeakUnownedReferences.\(typeName)") else { return }
+        let calculator = try StaticLayoutCalculator(machO: machOImage)
+        let staticLayout = try calculator.typeLayout(forDescriptor: descriptor)
+        #expect(
+            staticLayout.size == expectedSize,
+            "\(typeName) must be \(expectedSize) bytes, got \(staticLayout.size)"
+        )
+        try expectRuntimeAgreement(staticLayout, for: descriptor)
+    }
+
+    /// The class-level consequence: a `weak` existential's second word must be
+    /// accounted for in the field offsets that follow it — and in the instance
+    /// size a subclass starts from.
+    @MainActor
+    @Test func weakExistentialFieldShiftsFollowingClassFieldsAndSubclass() async throws {
+        let calculator = try StaticLayoutCalculator(machO: machOImage)
+        guard let holderDescriptor = try fixtureTypeDescriptor(named: "SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest") else { return }
+        // Root class header is 16 bytes: the two-word weak existential occupies
+        // 0x10..0x20, the single-word weak reference 0x20, the Int 0x28.
+        let holderFields = try calculator.fieldLayout(of: holderDescriptor)
+        #expect(
+            holderFields.fields.map(\.offset) == [16, 32, 40],
+            "expected [16, 32, 40], got \(holderFields.fields.map(\.offset))"
+        )
+
+        guard let subclassDescriptor = try fixtureTypeDescriptor(named: "SymbolTestsCore.WeakUnownedReferences.WeakExistentialSubclassTest") else { return }
+        let subclassFields = try calculator.fieldLayout(of: subclassDescriptor)
+        #expect(
+            subclassFields.fields.map(\.offset) == [48],
+            "subclass must start after the base class's 48-byte instance, got \(subclassFields.fields.map(\.offset))"
+        )
+    }
 }

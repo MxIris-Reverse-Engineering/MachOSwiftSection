@@ -10,6 +10,6 @@ enum ProtocolBaseRequirementBaseline {
     }
 
     static let witnessTableTest = Entry(
-    offset: 0x43cd8
+    offset: 0x45598
     )
 }

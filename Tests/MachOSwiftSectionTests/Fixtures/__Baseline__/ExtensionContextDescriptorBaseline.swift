@@ -11,7 +11,7 @@ enum ExtensionContextDescriptorBaseline {
     }
 
     static let firstExtension = Entry(
-    offset: 0x426d0,
+    offset: 0x43f90,
     layoutFlagsRawValue: 0xc1
     )
 }

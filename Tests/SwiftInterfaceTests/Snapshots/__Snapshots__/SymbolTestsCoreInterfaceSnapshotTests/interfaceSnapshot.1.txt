@@ -2977,6 +2977,87 @@ enum WeakUnownedReferences {
         case first
         case second
     }
+    struct WeakExistentialStructTest {
+        // Field offset: 0x0
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
+        weak var delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest?
+
+        init(delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest?)
+    }
+    struct WeakCompositionExistentialStructTest {
+        // Field offset: 0x0
+        // Type Layout: (size: 24, stride: 24, alignment: 8, extraInhabitantCount: 2147483647)
+        weak var delegate: (SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest & SymbolTestsCore.WeakUnownedReferences.SecondaryDelegateTest)?
+
+        init(delegate: (SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest & SymbolTestsCore.WeakUnownedReferences.SecondaryDelegateTest)?)
+    }
+    struct WeakAnyObjectStructTest {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        weak var object: Swift.AnyObject?
+
+        init(object: Swift.AnyObject?)
+    }
+    struct WeakObjCExistentialStructTest {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        weak var delegate: SymbolTestsCore.WeakUnownedObjCDelegateTest?
+
+        init(delegate: SymbolTestsCore.WeakUnownedObjCDelegateTest?)
+    }
+    struct UnownedObjCExistentialStructTest {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 1)
+        unowned var delegate: SymbolTestsCore.WeakUnownedObjCDelegateTest
+
+        init(delegate: SymbolTestsCore.WeakUnownedObjCDelegateTest)
+    }
+    struct UnownedExistentialStructTest {
+        // Field offset: 0x0
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
+        unowned var delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest
+
+        init(delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest)
+    }
+    struct UnmanagedExistentialStructTest {
+        // Field offset: 0x0
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
+        unowned(unsafe) var delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest
+
+        init(delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest)
+    }
+    class WeakExistentialHolderTest {
+        // Field offset: 0x10
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
+        weak var delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest?
+        // Field offset: 0x20
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        weak var parent: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+        // Field offset: 0x28
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var marker: Swift.Int
+
+        init()
+
+        deinit
+    }
+    class WeakExistentialSubclassTest: SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest {
+        // Field offset: 0x30
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var trailing: Swift.Int
+
+        override init()
+
+        deinit
+    }
+    protocol ReferenceDelegateTest: AnyObject {
+        func notify()
+    }
+    protocol SecondaryDelegateTest: AnyObject {
+        var isReady: Swift.Bool {
+            get
+        }
+    }
 }
 
 protocol DescriptorBackedSwiftProtocol {

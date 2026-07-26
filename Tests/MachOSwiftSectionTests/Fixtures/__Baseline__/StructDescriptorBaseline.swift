@@ -13,14 +13,14 @@ enum StructDescriptorBaseline {
     }
 
     static let structTest = Entry(
-    offset: 0x4429c,
+    offset: 0x45b5c,
     layoutNumFields: 0,
     layoutFieldOffsetVector: 2,
     layoutFlagsRawValue: 0x51
     )
 
     static let genericStructNonRequirement = Entry(
-    offset: 0x41888,
+    offset: 0x43148,
     layoutNumFields: 3,
     layoutFieldOffsetVector: 3,
     layoutFlagsRawValue: 0xd1

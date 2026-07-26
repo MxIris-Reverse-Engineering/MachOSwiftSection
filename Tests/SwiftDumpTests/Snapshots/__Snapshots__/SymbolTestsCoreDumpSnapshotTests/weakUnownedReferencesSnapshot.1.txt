@@ -200,3 +200,160 @@ enum SymbolTestsCore.WeakUnownedReferences.EnumOverUnownedReferenceStructTest {
     case first
     case second
 }
+struct SymbolTestsCore.WeakUnownedReferences.WeakExistentialStructTest {
+    weak var delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest?
+
+    /* Allocator */
+    SymbolTestsCore.WeakUnownedReferences.WeakExistentialStructTest.init(delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest?) -> SymbolTestsCore.WeakUnownedReferences.WeakExistentialStructTest
+
+    /* Variable */
+    SymbolTestsCore.WeakUnownedReferences.WeakExistentialStructTest.delegate.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest?
+    SymbolTestsCore.WeakUnownedReferences.WeakExistentialStructTest.delegate.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest?
+}
+struct SymbolTestsCore.WeakUnownedReferences.WeakCompositionExistentialStructTest {
+    weak var delegate: (SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest & SymbolTestsCore.WeakUnownedReferences.SecondaryDelegateTest)?
+
+    /* Allocator */
+    SymbolTestsCore.WeakUnownedReferences.WeakCompositionExistentialStructTest.init(delegate: (SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest & SymbolTestsCore.WeakUnownedReferences.SecondaryDelegateTest)?) -> SymbolTestsCore.WeakUnownedReferences.WeakCompositionExistentialStructTest
+
+    /* Variable */
+    SymbolTestsCore.WeakUnownedReferences.WeakCompositionExistentialStructTest.delegate.getter : (SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest & SymbolTestsCore.WeakUnownedReferences.SecondaryDelegateTest)?
+    SymbolTestsCore.WeakUnownedReferences.WeakCompositionExistentialStructTest.delegate.setter : (SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest & SymbolTestsCore.WeakUnownedReferences.SecondaryDelegateTest)?
+}
+struct SymbolTestsCore.WeakUnownedReferences.WeakAnyObjectStructTest {
+    weak var object: Swift.AnyObject?
+
+    /* Allocator */
+    merged SymbolTestsCore.WeakUnownedReferences.WeakAnyObjectStructTest.init(object: Swift.AnyObject?) -> SymbolTestsCore.WeakUnownedReferences.WeakAnyObjectStructTest
+    SymbolTestsCore.WeakUnownedReferences.WeakAnyObjectStructTest.init(object: Swift.AnyObject?) -> SymbolTestsCore.WeakUnownedReferences.WeakAnyObjectStructTest
+
+    /* Variable */
+    SymbolTestsCore.WeakUnownedReferences.WeakAnyObjectStructTest.object.getter : Swift.AnyObject?
+    SymbolTestsCore.WeakUnownedReferences.WeakAnyObjectStructTest.object.setter : Swift.AnyObject?
+}
+struct SymbolTestsCore.WeakUnownedReferences.WeakObjCExistentialStructTest {
+    weak var delegate: SymbolTestsCore.WeakUnownedObjCDelegateTest?
+
+    /* Allocator */
+    SymbolTestsCore.WeakUnownedReferences.WeakObjCExistentialStructTest.init(delegate: SymbolTestsCore.WeakUnownedObjCDelegateTest?) -> SymbolTestsCore.WeakUnownedReferences.WeakObjCExistentialStructTest
+
+    /* Variable */
+    SymbolTestsCore.WeakUnownedReferences.WeakObjCExistentialStructTest.delegate.getter : SymbolTestsCore.WeakUnownedObjCDelegateTest?
+    SymbolTestsCore.WeakUnownedReferences.WeakObjCExistentialStructTest.delegate.setter : SymbolTestsCore.WeakUnownedObjCDelegateTest?
+}
+struct SymbolTestsCore.WeakUnownedReferences.UnownedObjCExistentialStructTest {
+    unowned var delegate: SymbolTestsCore.WeakUnownedObjCDelegateTest
+
+    /* Allocator */
+    SymbolTestsCore.WeakUnownedReferences.UnownedObjCExistentialStructTest.init(delegate: SymbolTestsCore.WeakUnownedObjCDelegateTest) -> SymbolTestsCore.WeakUnownedReferences.UnownedObjCExistentialStructTest
+
+    /* Variable */
+    SymbolTestsCore.WeakUnownedReferences.UnownedObjCExistentialStructTest.delegate.getter : SymbolTestsCore.WeakUnownedObjCDelegateTest
+    SymbolTestsCore.WeakUnownedReferences.UnownedObjCExistentialStructTest.delegate.setter : SymbolTestsCore.WeakUnownedObjCDelegateTest
+}
+struct SymbolTestsCore.WeakUnownedReferences.UnownedExistentialStructTest {
+    unowned var delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest
+
+    /* Allocator */
+    SymbolTestsCore.WeakUnownedReferences.UnownedExistentialStructTest.init(delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest) -> SymbolTestsCore.WeakUnownedReferences.UnownedExistentialStructTest
+
+    /* Variable */
+    SymbolTestsCore.WeakUnownedReferences.UnownedExistentialStructTest.delegate.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest
+    SymbolTestsCore.WeakUnownedReferences.UnownedExistentialStructTest.delegate.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest
+}
+struct SymbolTestsCore.WeakUnownedReferences.UnmanagedExistentialStructTest {
+    unowned(unsafe) var delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest
+
+    /* Allocator */
+    SymbolTestsCore.WeakUnownedReferences.UnmanagedExistentialStructTest.init(delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest) -> SymbolTestsCore.WeakUnownedReferences.UnmanagedExistentialStructTest
+
+    /* Variable */
+    SymbolTestsCore.WeakUnownedReferences.UnmanagedExistentialStructTest.delegate.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest
+    SymbolTestsCore.WeakUnownedReferences.UnmanagedExistentialStructTest.delegate.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest
+}
+class SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest {
+    weak var delegate: SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest?
+    weak var parent: SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    var marker: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.delegate.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest?
+    /* [Setter] */ SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.delegate.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest?
+    /* [Modify] */ SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.delegate.modify : SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest?
+    /* [Getter] */ SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.parent.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    /* [Setter] */ SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.parent.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    /* [Modify] */ SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.parent.modify : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    /* [Getter] */ SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.marker.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.marker.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.marker.modify : Swift.Int
+    /* [ Init ] */ SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.__allocating_init() -> SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest
+
+    /* Allocator */
+    SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.__allocating_init() -> SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest
+
+    /* Deallocator */
+    merged SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.__deallocating_deinit
+    SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.init() -> SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest
+
+    /* Destructor */
+    SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.delegate.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest?
+    SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.delegate.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest?
+    SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.parent.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.parent.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.marker.getter : Swift.Int
+    SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.marker.setter : Swift.Int
+
+    /* [Method] Allocator */
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.__allocating_init() -> SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.delegate.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest?
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.delegate.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest?
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.parent.getter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.parent.setter : SymbolTestsCore.WeakUnownedReferences.ReferenceTargetTest?
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.marker.getter : Swift.Int
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest.marker.setter : Swift.Int
+}
+class SymbolTestsCore.WeakUnownedReferences.WeakExistentialSubclassTest: SymbolTestsCore.WeakUnownedReferences.WeakExistentialHolderTest {
+    var trailing: Swift.Int
+
+    /* [Getter] */ SymbolTestsCore.WeakUnownedReferences.WeakExistentialSubclassTest.trailing.getter : Swift.Int
+    /* [Setter] */ SymbolTestsCore.WeakUnownedReferences.WeakExistentialSubclassTest.trailing.setter : Swift.Int
+    /* [Modify] */ SymbolTestsCore.WeakUnownedReferences.WeakExistentialSubclassTest.trailing.modify : Swift.Int
+
+    /* [ Init ] */ override SymbolTestsCore.WeakUnownedReferences.WeakExistentialSubclassTest.__allocating_init() -> SymbolTestsCore.WeakUnownedReferences.WeakExistentialSubclassTest
+
+    /* Allocator */
+    SymbolTestsCore.WeakUnownedReferences.WeakExistentialSubclassTest.__allocating_init() -> SymbolTestsCore.WeakUnownedReferences.WeakExistentialSubclassTest
+
+    /* Deallocator */
+    SymbolTestsCore.WeakUnownedReferences.WeakExistentialSubclassTest.__deallocating_deinit
+
+    /* Constructor */
+    SymbolTestsCore.WeakUnownedReferences.WeakExistentialSubclassTest.init() -> SymbolTestsCore.WeakUnownedReferences.WeakExistentialSubclassTest
+
+    /* Destructor */
+    SymbolTestsCore.WeakUnownedReferences.WeakExistentialSubclassTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.WeakUnownedReferences.WeakExistentialSubclassTest.trailing.getter : Swift.Int
+    SymbolTestsCore.WeakUnownedReferences.WeakExistentialSubclassTest.trailing.setter : Swift.Int
+
+    /* [Method] Variable */
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.WeakExistentialSubclassTest.trailing.getter : Swift.Int
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.WeakExistentialSubclassTest.trailing.setter : Swift.Int
+}
+
+// MARK: - Protocols
+
+protocol SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest: AnyObject {
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.ReferenceDelegateTest.notify() -> ()
+}
+protocol SymbolTestsCore.WeakUnownedReferences.SecondaryDelegateTest: AnyObject {
+    method descriptor for SymbolTestsCore.WeakUnownedReferences.SecondaryDelegateTest.isReady.getter : Swift.Bool
+}

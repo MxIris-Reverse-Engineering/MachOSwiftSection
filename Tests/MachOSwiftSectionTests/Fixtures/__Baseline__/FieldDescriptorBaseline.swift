@@ -20,7 +20,7 @@ enum FieldDescriptorBaseline {
     }
 
     static let genericStructNonRequirement = Entry(
-    offset: 0x45ea0,
+    offset: 0x4795c,
     kindRawValue: 0x0,
     layoutNumFields: 3,
     layoutFieldRecordSize: 12,
@@ -29,7 +29,7 @@ enum FieldDescriptorBaseline {
     )
 
     static let structTest = Entry(
-    offset: 0x476fc,
+    offset: 0x491b8,
     kindRawValue: 0x0,
     layoutNumFields: 0,
     layoutFieldRecordSize: 12,
