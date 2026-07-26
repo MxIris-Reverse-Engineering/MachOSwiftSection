@@ -881,6 +881,18 @@ extension Target {
         swiftSettings: testSettings,
     )
 
+    static let SwiftSectionCommandTests = Target.testTarget(
+        name: "SwiftSectionCommandTests",
+        dependencies: [
+            .target(.swift_section),
+            .target(.OutputTransformer),
+            .target(.SwiftDeclarationRendering),
+            .target(.SwiftPrinting),
+            .product(name: "ArgumentParser", package: "swift-argument-parser"),
+        ],
+        swiftSettings: testSettings,
+    )
+
     static let SwiftIndexingTests = Target.testTarget(
         name: "SwiftIndexingTests",
         dependencies: [
@@ -1023,6 +1035,7 @@ let package = Package(
         .SwiftDeclarationRenderingTests,
         .SwiftAttributeInferenceTests,
         .SwiftDiffingTests,
+        .SwiftSectionCommandTests,
         .SwiftIndexingTests,
         .SwiftSpecializationTests,
         .SwiftInterfaceTests,
