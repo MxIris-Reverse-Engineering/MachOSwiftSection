@@ -329,6 +329,45 @@
 
 ---
 
+## 20. 注释模板的命令行入口
+
+- **时间**：2026-07-26
+- **动机**：`OutputTransformer` 把 RuntimeViewer 的注释模板机制搬进库里之后，模板、token、
+  预设、`applyTransformers` 接线全部齐备，但命令行只开了 `dump --enum-layout-style`
+  一个五选一的口子，且 `interface` 完全没接 transformer。库支持的自定义能力，CLI 用户
+  一点也用不上——既不能传自己的模板，也不能复用 RuntimeViewer 里已调好的配置。这一批
+  纯补 CLI 表面，库侧不动。
+- **落地**：
+  - `TransformerOptionGroup`（`dump` / `interface` / `transformer config` 共享）提供三层，
+    后层覆盖前层：`--transformer-config <json>`（直接解码 `Transformer.SwiftConfiguration`，
+    与 RuntimeViewer 持久化格式同构，可原样复用）→ `--enum-layout-style <preset>`（整模块
+    预设）→ 逐模块模板/进制选项（五个模块共 8 个模板槽位）；
+  - 模板值二义消解：含 `${` 当字面模板，否则按内置模板名查（大小写/空格/连字符/下划线
+    不敏感），**查不到报错而不是退化成字面模板**——不含 token 的字面模板本身没有意义，
+    不值得为它牺牲 `--field-offset-template rnge` 这类拼写错误的可发现性；
+  - `transformer` 子命令补发现性：`tokens`（每个模块可用的 `${token}`，enum layout 按
+    策略行/case/固定字节三段分列）、`templates`（内置命名模板及展开）、`config`（把一组
+    选项冻结成 JSON，复用同一个参数组）；
+  - `interface` 补齐 `--emit-type-layout` / `--emit-enum-layout`（打印配置本就有这两个字段、
+    静态 provider 也按需自建，只是 CLI 从没暴露）并接上 `applyTransformers`；
+  - 新增 `SwiftSectionCommandTests`（`@testable import swift_section`，本仓首个 CLI 测试
+    target）14 项：模板名解析、三层优先级、隐式启用、配置文件往返与错误路径。
+- **关键决策**：**`isEnabled` 驱动 emit 开关**——最终配置里启用的模块自动打开它渲染的
+  那类注释。此前 `--enum-layout-style compact` 不配 `--emit-enum-layout` 完全没有输出，
+  用户看不出哪里错了；改后传模板即可见效果。反向不成立：`--emit-field-offsets` 不启用
+  模板模块，仍走库内置渲染（内置渲染是 `detailed` 预设的字节级等价物且有单元测试保证，
+  无谓换成模板路径只会引入行为漂移风险）。不传任何模板选项时配置构建返回 `nil`，调用方
+  完全不碰渲染配置，默认输出逐字节不变。
+- **未做**：其余四个模块没有做预设枚举（它们的命名模板清单是设置界面用的展示清单，塞进
+  `--help` 会淹没其他选项，按名字取用足够）；模板里的未知 `${token}` 不校验（与库侧
+  `replacingOccurrences` 行为一致，CLI 单独校验会与库分叉）；ObjC 侧模块仍在
+  RuntimeViewerCore，喂完整 RV 配置时其键被忽略而非报错。
+- **文档**：[CLITransformerTemplateInterface.md](CLITransformerTemplateInterface.md)、
+  [TaskReports/2026-07-26-cli-transformer-template-interface.md](TaskReports/2026-07-26-cli-transformer-template-interface.md)、
+  README 的 `transformer` 一节。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

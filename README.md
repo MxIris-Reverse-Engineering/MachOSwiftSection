@@ -150,7 +150,7 @@ You can get the swift-section CLI tool in three ways:
 
 ### Usage
 
-The swift-section CLI tool provides five subcommands: `dump`, `interface`, `diff`, `snapshot`, and `evolution`.
+The swift-section CLI tool provides six subcommands: `dump`, `interface`, `diff`, `snapshot`, `evolution`, and `transformer`.
 
 > [!IMPORTANT]
 > As of 0.10.0, when the input is a fat / universal binary you must pass `--architecture <arch>`. The tool no longer picks a default slice silently.
@@ -195,8 +195,12 @@ swift-section dump --emit-enum-layout /path/to/binary
 # Enum layout with a different comment style — detailed (default), explained
 # (bit ranges in plain words), standard (no per-byte lines), inline (one line
 # per case with the byte summary), or compact
-swift-section dump --emit-enum-layout --enum-layout-style explained /path/to/binary
+swift-section dump --enum-layout-style explained /path/to/binary
 ```
+
+Every comment kind above can also be reformatted with your own template — see
+[transformer](#transformer---customize-comment-formats). Passing a template
+option implies the matching `--emit-…` flag.
 
 These offsets are computed statically by the `SwiftLayout` engine — no runtime,
 no metadata accessor, no loading the binary into a process — so they work on any
@@ -242,6 +246,20 @@ swift-section interface --output-path interface.swiftinterface /path/to/binary
 # Use specific architecture (required for fat binaries)
 swift-section interface --architecture arm64 /path/to/binary
 ```
+
+**Static memory-layout comments:**
+
+```bash
+# Field offsets (and PWT offsets) on the generated interface
+swift-section interface --emit-offset-comments /path/to/binary
+
+# Per-field type layout (size / stride / alignment) and enum layout
+swift-section interface --emit-type-layout --emit-enum-layout /path/to/binary
+```
+
+These use the same static `SwiftLayout` engine as `dump`, and accept the same
+comment-template options — see
+[transformer](#transformer---customize-comment-formats).
 
 **Working with dyld shared cache:**
 
@@ -297,6 +315,63 @@ swift-section evolution --dyld-shared-cache -n SwiftUICore cache-17 cache-18 cac
 # Summary or JSON, and CI gating on any breaking transition
 swift-section evolution v1.json v2.json v3.json --summary-only --fail-on-breaking
 swift-section evolution v1.json v2.json v3.json --json
+```
+
+#### transformer - Customize Comment Formats
+
+The memory-layout comments `dump` and `interface` emit are rendered from token
+templates. Each of the five comment kinds — field offset, vtable offset, member
+address, type layout, enum layout — has its own template, its own `${token}`
+placeholders, and a set of built-in templates you can name. This subcommand
+lists them and builds reusable configurations; the template options themselves
+are accepted directly by `dump` and `interface`.
+
+```bash
+# What can a template say?
+swift-section transformer tokens                        # every module
+swift-section transformer tokens --module enum-layout   # one module
+
+# Built-in templates — their names are accepted by the template options
+swift-section transformer templates --module field-offset
+```
+
+**Using a template.** Pass either a built-in template name or a literal
+template containing `${token}` placeholders. A name that matches nothing is an
+error rather than a silently constant comment.
+
+```bash
+# Built-in template by name: "// 0x0 ..< 0x10"
+swift-section dump --field-offset-template range /path/to/binary
+
+# Literal template: "// @0x0"
+swift-section dump --field-offset-template '@${startOffset}' /path/to/binary
+
+# Enum layout is three templates: strategy line, per case, per fixed byte
+swift-section dump \
+    --enum-layout-template strategyOnly \
+    --enum-layout-case-template inlineSummary \
+    /path/to/binary
+```
+
+Passing any template option enables the comment kind it formats, so no separate
+`--emit-…` flag is needed. Numbers can be switched between hexadecimal and
+decimal per module (`--field-offset-hex` / `--no-field-offset-hex`, and so on).
+
+**Reusable configurations.** A whole set of templates can be frozen into a JSON
+file and replayed with `--transformer-config`. The file format is the one
+RuntimeViewer persists, so a configuration tuned in its settings UI works here
+unchanged.
+
+```bash
+# Freeze a command line into a file
+swift-section transformer config \
+    --field-offset-template range \
+    --enum-layout-style compact \
+    --output-path comments.json
+
+# Replay it
+swift-section dump --transformer-config comments.json /path/to/binary
+swift-section interface --transformer-config comments.json /path/to/binary
 ```
 
 ## Running Tests
