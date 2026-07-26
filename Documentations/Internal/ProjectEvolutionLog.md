@@ -184,7 +184,7 @@
 
 ## 15. ABI Evolution：多版本演化追踪 + snapshot 持久化 + 诊断通道
 
-- **时间**：2026-07-21 → 2026-07-22（未随版本发布，将入 `0.14.0`）
+- **时间**：2026-07-21 → 2026-07-22（发布于 `0.14.0`）
 - **动机**：把双侧 diff 推广到 N ≥ 2 个有序版本——每个声明的生命线（introduced / modified /
   removed / re-added）；同时补齐 baseline 持久化（N 次索引是瓶颈，演化计算是毫秒级）。
 - **落地**：
@@ -206,7 +206,7 @@
 
 ## 16. 文档第一公民 + per-conformance 归属
 
-- **时间**：2026-07-22（未随版本发布，将入 `0.14.0`）
+- **时间**：2026-07-22（发布于 `0.14.0`）
 - **动机**：两条线合一。① 文档升级为第一交付物：建立本演进账本并回填 15 个 epoch、
   补齐近期 task report 缺口与 `0.13.0` changelog、把「每批次必附文档」写进
   AGENTS.md 纪律。② 关闭 SwiftDiffing 局限 5：extension 变更只能归到
@@ -232,7 +232,7 @@
 
 ## 17. Protocol requirement（PWT slot）投影 + remangle 回退审计
 
-- **时间**：2026-07-22（未随版本发布，将入 `0.14.0`）
+- **时间**：2026-07-22（发布于 `0.14.0`）
 - **动机**：消化 SwiftDiffing 挂账的两个 TODO(P2)。① 协议容器只比较可解析成员，
   符号被 strip 的 requirement（OS 框架常态）完全不可见——协议增删 witness-table
   slot 这一真 ABI 事件被静默吞掉；② `ABIKey` 的 remangle 回退键与刻意命名空间键
@@ -262,7 +262,7 @@
 
 ## 18. 默认实现感知的 ABI 兼容性判定
 
-- **时间**：2026-07-22（未随版本发布，将入 `0.14.0`）
+- **时间**：2026-07-22（发布于 `0.14.0`）
 - **动机**：`Compatibility` 的均匀启发式「新增即 additive」在协议 requirement 上与
   Swift library evolution 的官方规则相悖——**给协议追加一个没有默认实现的 requirement
   是破坏性变更**（既有 conformance 缺 witness，resilient 实例化后调用即 trap）。此前
@@ -300,7 +300,7 @@
 
 ## 19. 引用存储（weak/unowned）对 existential 的宽度修复
 
-- **时间**：2026-07-26（未随版本发布，将入 `0.14.0`）
+- **时间**：2026-07-26（发布于 `0.14.0`）
 - **动机**：用户实报 `SwiftUI.StyledTextResponder` 的字段偏移与反汇编不符。追查确认真值
   是反汇编的 `0x128` 而引擎算 `0x120`——**`weak`/`unowned`/`unowned(unsafe)` 的宽度被
   无条件建模为单字**，而修饰符只作用在对象引用字上：referent 若是 class-bound existential，
