@@ -103,9 +103,22 @@ struct SharedCacheResolveTests {
         let enteredBuild = DispatchSemaphore(value: 0)
         let proceedWithBuild = DispatchSemaphore(value: 0)
         let buildFinished = DispatchSemaphore(value: 0)
+        let everyBuildEntered = OSAllocatedUnfairLock(initialState: true)
 
+        // The coordinator waits for every build to enter its closure, then
+        // releases them all at once. Its wait is *timed*, and it signals
+        // `proceedWithBuild` even after timing out: an untimed wait would park
+        // every build inside `resolve` for the rest of the process on failure,
+        // stranding libdispatch threads and leaving those keys permanently
+        // in-flight — a later test resolving them would then deadlock instead
+        // of seeing this test's clean failure.
         DispatchQueue.global().async {
-            for _ in 0 ..< keyCount { enteredBuild.wait() }
+            for _ in 0 ..< keyCount {
+                guard enteredBuild.wait(timeout: .now() + 30) == .success else {
+                    everyBuildEntered.withLock { $0 = false }
+                    break
+                }
+            }
             for _ in 0 ..< keyCount { proceedWithBuild.signal() }
         }
 
@@ -124,7 +137,8 @@ struct SharedCacheResolveTests {
         for _ in 0 ..< keyCount where !timedOut {
             timedOut = buildFinished.wait(timeout: .now() + 30) == .timedOut
         }
-        #expect(!timedOut, "builds for distinct keys did not run concurrently")
+        #expect(!timedOut, "builds for distinct keys did not finish")
+        #expect(everyBuildEntered.withLock { $0 }, "builds for distinct keys did not run concurrently: some build never entered its closure while the others were inside theirs")
     }
 
     /// Cache hits stay reentrant: a build for key A may itself call
