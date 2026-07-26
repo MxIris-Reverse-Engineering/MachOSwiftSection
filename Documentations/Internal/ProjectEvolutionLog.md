@@ -298,7 +298,59 @@
 
 ---
 
-## 19. 引用存储（weak/unowned）对 existential 的宽度修复
+## 19. NodeStore 迁移：符号索引与声明模型换用 arena 存储
+
+- **时间**：2026-07-24 — 2026-07-26（未随版本发布，将入 `0.14.0`）
+- **动机**：`SymbolIndexStore` 为每个符号保留 demangle 出来的 `Node` **类**树，且这些树
+  经全局 `NodeCache` 做 hash-consing。两件事叠加的后果是：单镜像常驻内存以数十 MB 计，
+  而 `NodeCache` 是**进程级永驻**的——浏览过的镜像即使 `Storage` 被淘汰，其节点仍留在全局
+  缓存里累积，无上界。RuntimeViewer 长时间浏览必然膨胀。基线量测（SwiftUI，debug）：构建期
+  `phys_footprint` +266–272 MB，释放 `Storage` 后仍残留 ~92 MB，`NodeCache` 净增 55.9 万子树。
+- **落地**（详见 [NodeStoreMigrationPlan.md](NodeStoreMigrationPlan.md) 的分期实施记录）：
+  - **Stage 1–2**：`Storage` 改持 `NodeStore` arena（每节点 12 B 扁平缓冲，`freeze()` 后
+    不可变故天然 `Sendable` 免锁）。构建扫描改为「`demangleAsNodeTransient` 造瞬态树 →
+    分类逻辑原样跑在瞬态树上 → `builder.intern` 入 arena」，全程不碰 `NodeCache`；
+    消费端 matcher 与 `DefinitionBuilder` 换持 `NodeReference`。
+  - **Stage 3–4**：符号表压缩。`Symbol` 去掉 `nlist` existential（64 B → 32 B），
+    平铺 `symbolTable` 每唯一名一行、所有索引改存 4 B 行号、`DemangledSymbol` 压到 32 B，
+    pending→populate 的双索引瞬态窗口整个删除。构建期增量 272 MB → **68 MB**，
+    构建耗时反而快于旧管线 14%。
+  - **Stage 5a/5c**：声明模型的 `node` 字段换持 `NodeReference`；`MetadataReader` 等散点
+    改用 transient demangling，全局 `NodeCache` 不再随浏览增长。
+  - **审查修复批次**（2026-07-26）：`demangledNodeReference` 的 offset 判等去除（见下）、
+    dyld cache 选图排序跨 cache 生效、`StructuralNodeReferenceKey` 下沉到 `MachOSymbols`
+    并覆盖全部跨 store 集合、opaque 描述符查找恢复 O(1)、同一行重复入桶修复、
+    `printSemantic` 栈保护统一。
+- **关键决策与取舍**：
+  - **分类跑在瞬态树上而非 `NodeReference` 上**：`NodeStoreBuilder` 无读访问、`freeze()`
+    后不可再 intern，硬要在 arena 上分类需要重写全部分类代码；瞬态树方案让
+    `processMemberSymbol` 族几乎零改动。
+  - **查询 API 保留 `Node` 入参**：实参来自 `MetadataReader` 的树，键在 store 内，
+    靠新增的 `NodeReference.structurallyEquals(_:)` 做零物化跨表示比较。
+  - **`NodeReference` 的固有 `Hashable` 是 store identity**，这是本迁移最大的隐蔽陷阱。
+    结构相等但来自不同 store 的两个键既不相等也不同哈希，于是任何跨 store 的字典/集合
+    都会**静默失效**——不报错、不崩溃，只是少一个 `override` 关键字、少半个 subscript、
+    多一份重复成员。`StructuralNodeReferenceKey` 是统一解药，规则已写进 AGENTS.md。
+  - **`demangledNodeReference` 不比 offset**：demangle 结果只是名字的函数，而行存的是
+    canonical（cache 校正后）offset、查询方带的是查询时的 offset，比较只会否决合法命中。
+    dyld cache 路径下曾因此**整镜像**退化到 per-symbol mini store，既是性能问题也是上面
+    那类跨 store 失效的主要来源。同一 offset 对应多个符号是正常情形（它们名字不同），
+    按名字查各自命中各自的行，不受影响。
+  - **`DemangledSymbol` 的单元素数组保留**：审查建议改成内联 `Symbol` 的双 case 枚举以省掉
+    这次分配，实测会把每个值从 32 B 撑到 48 B——而经共享表下发的值有数十万份，得不偿失。
+    结论连同 `compactValueLayouts` 的约束写进了该初始化器的文档注释。
+- **验收**：`SymbolTestsCore` 快照 60/60 逐字节一致；全量单元测试 1273 tests / 244 suites
+  全绿；对冻结基线 `main-27726bc` 跑三源（File / DyldCache / Image）整文件快照对比。
+  RuntimeViewer 实测同负载下 `Node` 实例 110 万 → 18.4 万、进程内存 842 MB → 434 MB。
+- **文档**：[NodeStoreMigrationPlan.md](NodeStoreMigrationPlan.md)、
+  [DeclarationModelMemoryFootprint.md](DeclarationModelMemoryFootprint.md)、TaskReports
+  [2026-07-25-node-store-override-regression-and-baselines.md](TaskReports/2026-07-25-node-store-override-regression-and-baselines.md)、
+  [2026-07-25-dyld-cache-image-selection-and-rv-index-lifecycle.md](TaskReports/2026-07-25-dyld-cache-image-selection-and-rv-index-lifecycle.md)、
+  [2026-07-26-node-store-review-fixes.md](TaskReports/2026-07-26-node-store-review-fixes.md)。
+
+---
+
+## 20. 引用存储（weak/unowned）对 existential 的宽度修复
 
 - **时间**：2026-07-26（发布于 `0.14.0`）
 - **动机**：用户实报 `SwiftUI.StyledTextResponder` 的字段偏移与反汇编不符。追查确认真值
