@@ -187,9 +187,20 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
     /// entry (see this type's `deinit`), so per-image memory is actually
     /// reclaimed. Callers that hold the indexer rather than its position should
     /// prefer this over the index-based overload.
+    ///
+    /// The search and the removal share one critical section: looking the
+    /// position up through the property's getter and then removing it through
+    /// `removeSubIndexer(at:)` would take the lock twice, and a concurrent
+    /// removal in between would either detach the wrong sub-indexer or trap on
+    /// an out-of-range index.
     public func removeSubIndexer(_ subIndexer: SwiftDeclarationIndexer<MachO>) {
-        guard let index = subIndexers.firstIndex(where: { $0 === subIndexer }) else { return }
-        removeSubIndexer(at: index)
+        let didRemoveSubIndexer = _subIndexers.withLock { registeredSubIndexers in
+            guard let index = registeredSubIndexers.firstIndex(where: { $0 === subIndexer }) else { return false }
+            registeredSubIndexers.remove(at: index)
+            return true
+        }
+        guard didRemoveSubIndexer else { return }
+        allStorageCache = AllStorageCache()
     }
 
     public func prepare() async throws {
