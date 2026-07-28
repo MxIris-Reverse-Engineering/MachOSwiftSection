@@ -20,6 +20,13 @@ extension DyldCacheImageSearchMode {
     /// image the caller meant". Reaching it lets the search stop early.
     package static let bestMatchRank = 0
 
+    /// Path component naming the macOS support root that holds the Mac
+    /// Catalyst build of an iOS framework. Everything under it is
+    /// framework-shaped and shares its leaf name with the native framework.
+    /// Typed as `Substring` to match the split path components it is compared
+    /// against, so the lookup needs no per-call bridging.
+    private static let catalystSupportRootDirectoryName: Substring = "iOSSupport"
+
     /// How well `imagePath` satisfies this search mode — lower is better,
     /// `nil` means "not a match at all".
     ///
@@ -46,15 +53,23 @@ extension DyldCacheImageSearchMode {
             // version directory (macOS: `SwiftUI.framework/Versions/A/SwiftUI`).
             let enclosingDirectories = imagePath.split(separator: "/").dropLast()
             if enclosingDirectories.contains("\(name).framework") {
-                return Self.bestMatchRank
+                // A macOS cache also carries the Mac Catalyst build of the same
+                // framework under `/System/iOSSupport`, framework-shaped and
+                // with the same leaf name — 74 frameworks collide this way on
+                // macOS 26 (SwiftUI, ARKit, AVKit, GameKit, HealthKit, …).
+                // Both are real dylibs so neither can be rejected, but `-n
+                // <name>` means the native one; ranking the support root just
+                // below it stops the answer from depending on which cache file
+                // the enumeration happened to reach first.
+                return enclosingDirectories.contains(Self.catalystSupportRootDirectoryName) ? 1 : Self.bestMatchRank
             }
             // A plain dylib is still a real library, just not framework-shaped.
             if leafName.hasSuffix(".dylib") {
-                return 1
+                return 2
             }
             // Anything else wearing the same leaf name: bundles (`.axbundle`,
             // `.bundle`, `.appex`, …) and other non-library payloads.
-            return 2
+            return 3
         }
     }
 }
@@ -98,20 +113,39 @@ extension DyldCache {
         // Only a `bestMatchRank` hit is allowed to stop the scan early.
         var rankedMatch: DyldCacheImageSearchMode.RankedMatch?
 
-        if mode.accumulateBestMatch(in: machOFiles(), into: &rankedMatch) {
+        // Each cache file is scanned at most once. `mainCache` returns `self`
+        // when `self` *is* the main cache, and the sub-cache array lists the
+        // file the caller opened directly whenever that file is a sub-cache —
+        // without this both would be enumerated twice, and a name that never
+        // reaches `bestMatchRank` (a plain `.dylib`) pays for the whole
+        // duplicated walk before returning.
+        var scannedCacheURLs: Set<URL> = []
+
+        func scanReachedBestMatch(in cache: DyldCache) -> Bool {
+            guard scannedCacheURLs.insert(cache.url).inserted else { return false }
+            return mode.accumulateBestMatch(in: cache.machOFiles(), into: &rankedMatch)
+        }
+
+        if scanReachedBestMatch(in: self) {
             return rankedMatch?.machOFile
         }
 
         guard let mainCache else { return rankedMatch?.machOFile }
 
-        if mode.accumulateBestMatch(in: mainCache.machOFiles(), into: &rankedMatch) {
+        if scanReachedBestMatch(in: mainCache) {
             return rankedMatch?.machOFile
         }
 
-        if let subCaches {
+        // The sub-cache array lives in the *main* cache header only: a
+        // sub-cache header reports a count of zero. Reading `self.subCaches`
+        // therefore found nothing whenever the caller opened a sub-cache
+        // directly (`--dyld-shared-cache …/dyld_shared_cache_arm64e.03`),
+        // silently skipping every sibling — so an image mapped in another
+        // sub-cache came back `nil`, or lost to a worse-ranked namesake.
+        if let subCaches = mainCache.subCaches {
             for subCacheEntry in subCaches {
                 guard let subCache = try? subCacheEntry.subcache(for: mainCache) else { continue }
-                if mode.accumulateBestMatch(in: subCache.machOFiles(), into: &rankedMatch) {
+                if scanReachedBestMatch(in: subCache) {
                     return rankedMatch?.machOFile
                 }
             }

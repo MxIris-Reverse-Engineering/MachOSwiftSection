@@ -18,6 +18,7 @@ struct DyldCacheImageSearchTests {
     private let iOSFrameworkPath = "/System/Library/Frameworks/SwiftUI.framework/SwiftUI"
     private let macOSFrameworkPath = "/System/Library/Frameworks/SwiftUI.framework/Versions/A/SwiftUI"
     private let accessibilityBundlePath = "/System/Library/AccessibilityBundles/SwiftUI.axbundle/SwiftUI"
+    private let catalystFrameworkPath = "/System/iOSSupport/System/Library/Frameworks/SwiftUI.framework/SwiftUI"
 
     private let bestRank = DyldCacheImageSearchMode.bestMatchRank
 
@@ -46,6 +47,46 @@ struct DyldCacheImageSearchTests {
         let bundleRank = try #require(bundleMode.matchRank(forImagePath: accessibilityBundlePath))
         #expect(dylibRank > bestRank)
         #expect(dylibRank < bundleRank)
+    }
+
+    /// A macOS cache also carries the Mac Catalyst build of the same framework
+    /// under `/System/iOSSupport` — framework-shaped, same leaf name, a real
+    /// dylib. 74 frameworks collide this way on macOS 26 (SwiftUI, ARKit,
+    /// AVKit, GameKit, HealthKit, …).
+    ///
+    /// Both used to score `bestMatchRank`, and `accumulateBestMatch` returns at
+    /// the *first* image reaching that rank, so `-n SwiftUI` resolved to
+    /// whichever the cache happened to enumerate first — the same
+    /// order-dependence the ranking was introduced to remove, just moved from
+    /// bundle-versus-framework to Catalyst-versus-native. Only the native
+    /// framework may reach `bestMatchRank`.
+    @Test func catalystVariantMatchesButNeverScoresBestRank() throws {
+        let mode = DyldCacheImageSearchMode.name("SwiftUI")
+        let catalystRank = try #require(mode.matchRank(forImagePath: catalystFrameworkPath))
+        #expect(catalystRank > bestRank)
+        #expect(mode.matchRank(forImagePath: iOSFrameworkPath) == bestRank)
+        #expect(mode.matchRank(forImagePath: macOSFrameworkPath) == bestRank)
+    }
+
+    /// The Catalyst variant is a real framework binary, so it still outranks a
+    /// plain dylib and a bundle wearing the same leaf name — it loses only to
+    /// the native framework.
+    @Test func catalystVariantOutranksDylibAndBundle() throws {
+        let mode = DyldCacheImageSearchMode.name("SwiftUI")
+        let catalystRank = try #require(mode.matchRank(forImagePath: catalystFrameworkPath))
+        let bundleRank = try #require(mode.matchRank(forImagePath: accessibilityBundlePath))
+        let dylibRank = try #require(
+            DyldCacheImageSearchMode.name("libswiftCore").matchRank(forImagePath: "/usr/lib/swift/libswiftCore.dylib")
+        )
+        #expect(catalystRank < dylibRank)
+        #expect(dylibRank < bundleRank)
+    }
+
+    /// `/System/iOSSupport` demotes only a framework that has a native twin to
+    /// lose to; the support root must not make a path stop matching.
+    @Test func catalystVariantIsStillAMatch() {
+        let mode = DyldCacheImageSearchMode.name("SwiftUI")
+        #expect(mode.matchRank(forImagePath: catalystFrameworkPath) != nil)
     }
 
     @Test func nonMatchingLeafNameIsNotAMatch() {
