@@ -60,15 +60,22 @@ extension DemanglingNode {
     /// overload used to sit alongside it and — being the better overload for
     /// every `Node` caller — shadowed this one while running
     /// `NodePrinter<SemanticString>` (itself a thin wrapper over the same
-    /// `DemanglingPrinter<Target, Node>` engine) *outside* `StackSafeExecutor`.
+    /// `DemanglingPrinter<Target, Node>` engine) with no stack guard at all.
     /// A deeply nested generic symbol printed through a `Node` could therefore
-    /// overflow the stack where the identical `NodeReference` call would not,
-    /// and every other print entry point in `Demangling` is stack-guarded.
+    /// overflow the stack where the identical `NodeReference` call would not.
+    ///
+    /// The guard is the engine's own `print(_:options:)` rather than a
+    /// `StackSafeExecutor.execute` wrapper around `printRoot`. `execute` has to
+    /// assume the worst about every input, so on a 512KB stack — which is what
+    /// every Swift Concurrency cooperative worker and every libdispatch worker
+    /// gets — it hands *every* call to a large-stack worker and blocks the
+    /// caller on a semaphore until that worker returns. `print(_:options:)`
+    /// runs the recursion inline against a stack floor and pays for a worker
+    /// only for a tree that actually reaches it. Every `printSemantic` call
+    /// site sits on a printing hot path, so the difference is one
+    /// dispatch-and-block per printed declaration.
     public func printSemantic(using options: DemangleOptions = .default) -> SemanticString {
-        StackSafeExecutor.execute {
-            var printer = DemanglingPrinter<SemanticString, Self>(options: options)
-            return printer.printRoot(self)
-        }
+        DemanglingPrinter<SemanticString, Self>.print(self, options: options)
     }
 }
 

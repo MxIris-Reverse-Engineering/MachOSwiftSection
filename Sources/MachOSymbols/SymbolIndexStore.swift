@@ -350,13 +350,30 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         // One offset legitimately maps to several rows — distinct symbol names
         // can share an address — so the bucket stays a list. The *same* row
         // must not be listed twice though, or every `for symbol in symbols`
-        // loop visits it twice. Raw and canonical offsets coincide whenever
-        // there is nothing to adjust (a `MachOImage`, or a file at offset 0),
-        // which is exactly when the second append would be a duplicate.
+        // loop visits it twice.
+        //
+        // A row repeats for two independent reasons, so the bucket itself has
+        // to be consulted rather than just the two offsets:
+        //
+        // - Raw and canonical offsets coincide whenever there is nothing to
+        //   adjust (a `MachOImage`, or a file at offset 0), which makes the
+        //   second append a duplicate of the first.
+        // - Two symbol-table entries carrying the *same name* at the same
+        //   address — aliases and weak definitions do occur in a symtab —
+        //   fold onto one canonical row, so the second entry re-registers a
+        //   row the first already put in that bucket.
+        //
+        // Buckets hold one or two rows in practice, so scanning one is
+        // cheaper than the per-offset set it would take to avoid the scan.
+        func appendRowIfAbsent(_ row: UInt32, atOffset offset: Int) {
+            guard symbolRowsByOffset[offset]?.contains(row) != true else { return }
+            symbolRowsByOffset[offset, default: []].append(row)
+        }
+
         func registerRow(_ row: UInt32, rawOffset: Int, canonicalOffset: Int) {
-            symbolRowsByOffset[rawOffset, default: []].append(row)
+            appendRowIfAbsent(row, atOffset: rawOffset)
             if canonicalOffset != rawOffset {
-                symbolRowsByOffset[canonicalOffset, default: []].append(row)
+                appendRowIfAbsent(row, atOffset: canonicalOffset)
             }
         }
 
