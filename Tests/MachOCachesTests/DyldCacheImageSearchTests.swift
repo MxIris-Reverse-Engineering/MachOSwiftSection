@@ -20,6 +20,11 @@ struct DyldCacheImageSearchTests {
     private let accessibilityBundlePath = "/System/Library/AccessibilityBundles/SwiftUI.axbundle/SwiftUI"
     private let catalystFrameworkPath = "/System/iOSSupport/System/Library/Frameworks/SwiftUI.framework/SwiftUI"
 
+    // Both of these exist on macOS 26. Neither sits inside a
+    // `libGLVMPlugin.framework`, so both classify as plain dylibs.
+    private let nativePluginDylibPath = "/System/Library/Frameworks/OpenGL.framework/Versions/A/Libraries/libGLVMPlugin.dylib"
+    private let catalystPluginDylibPath = "/System/iOSSupport/System/Library/Frameworks/OpenGLES.framework/Versions/A/Libraries/libGLVMPlugin.dylib"
+
     private let bestRank = DyldCacheImageSearchMode.bestMatchRank
 
     // MARK: - Name lookup ranking
@@ -87,6 +92,37 @@ struct DyldCacheImageSearchTests {
     @Test func catalystVariantIsStillAMatch() {
         let mode = DyldCacheImageSearchMode.name("SwiftUI")
         #expect(mode.matchRank(forImagePath: catalystFrameworkPath) != nil)
+    }
+
+    /// The support-root demotion has to apply to **every** path shape, not just
+    /// to framework-shaped ones.
+    ///
+    /// `libGLVMPlugin.dylib` ships natively under `OpenGL.framework` and as a
+    /// Mac Catalyst build under `iOSSupport/…/OpenGLES.framework`. Neither is
+    /// inside a `libGLVMPlugin.framework`, so both classify as plain dylibs —
+    /// and while the demotion lived inside the framework branch they tied,
+    /// putting `-n libGLVMPlugin` back at the mercy of enumeration order.
+    @Test func catalystPlainDylibLosesToItsNativeNamesake() throws {
+        let mode = DyldCacheImageSearchMode.name("libGLVMPlugin")
+        let nativeRank = try #require(mode.matchRank(forImagePath: nativePluginDylibPath))
+        let catalystRank = try #require(mode.matchRank(forImagePath: catalystPluginDylibPath))
+        #expect(nativeRank < catalystRank)
+    }
+
+    /// The penalty is a tiebreak *within* a shape, never a reclassification: a
+    /// demoted Catalyst build still beats every worse shape. Otherwise a native
+    /// `.axbundle` — the metadata-less payload that started all of this — could
+    /// outrank a Catalyst framework binary.
+    @Test func supportRootPenaltyNeverCrossesAShapeBoundary() throws {
+        let frameworkMode = DyldCacheImageSearchMode.name("SwiftUI")
+        let catalystFrameworkRank = try #require(frameworkMode.matchRank(forImagePath: catalystFrameworkPath))
+        let nativeBundleRank = try #require(frameworkMode.matchRank(forImagePath: accessibilityBundlePath))
+        #expect(catalystFrameworkRank < nativeBundleRank)
+
+        let dylibMode = DyldCacheImageSearchMode.name("libGLVMPlugin")
+        let catalystDylibRank = try #require(dylibMode.matchRank(forImagePath: catalystPluginDylibPath))
+        #expect(catalystFrameworkRank < catalystDylibRank)
+        #expect(catalystDylibRank < nativeBundleRank)
     }
 
     @Test func nonMatchingLeafNameIsNotAMatch() {

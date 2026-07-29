@@ -2,15 +2,17 @@
 
 本文记录 `feature/node-store-migration` 分支上**已确认但尚未修复**的问题，供后续按优先级处理。每条注明成因、影响面、以及"该在哪里修"（有几条的正确修复位置在上游 `swift-demangling`，不在本仓库）。
 
-产生方式：2026-07-28 对该分支做了两轮代码审查 + 一轮结论复核。第一轮的复核记录见 [TaskReports/2026-07-28-review-verification-and-fixes.md](TaskReports/2026-07-28-review-verification-and-fixes.md)，其中三条已在本分支修掉（`printSemantic` 换用引擎预算入口、`registerRow` 按桶去重、dyld 缓存镜像选择的 Catalyst 平局与子缓存遍历）。本文只列**仍然打开**的。
+产生方式：2026-07-28 对该分支做了两轮代码审查 + 一轮结论复核。第一轮的复核记录见 [TaskReports/2026-07-28-review-verification-and-fixes.md](TaskReports/2026-07-28-review-verification-and-fixes.md)，其中三条已修（`printSemantic` 换用引擎预算入口、`registerRow` 去重、dyld 缓存镜像选择的 Catalyst 平局与子缓存遍历）；第二轮又指出前述修复自身的两处缺口，已于 2026-07-29 补完，见 [TaskReports/2026-07-29-catalyst-rank-and-row-dedup-followup.md](TaskReports/2026-07-29-catalyst-rank-and-row-dedup-followup.md)。
+
+第一节记录那两条已闭环的缺口（保留成因以备回溯），**第二节起才是仍然打开的**。
 
 ---
 
-## 一、上一轮修复自身的缺口
+## 一、上一轮修复自身的缺口（已于 2026-07-29 修复）
 
-这两条是 2026-07-28 那批修复引入或未覆盖的，优先级最高——它们让已经宣称修好的问题只修了一部分。
+这两条是 2026-07-28 那批修复引入或未覆盖的，让已经宣称修好的问题只修了一部分，因此优先处理。两条都已修完并有测试，保留在此以记录成因。
 
-### 1. Catalyst 降级只覆盖了 framework 形态，plain dylib 仍然平局
+### 1. ~~Catalyst 降级只覆盖了 framework 形态，plain dylib 仍然平局~~ ✅
 
 `DyldCache+.swift` 的 `matchRank` 把 `/System/iOSSupport` 的判断写在了 `<name>.framework` 分支**内部**。一个既不在 `<name>.framework` 下、叶名又以 `.dylib` 结尾的镜像走不到那个判断，于是原生与 Catalyst 两份同名 dylib 双双落在 2 级，胜负重新取决于缓存文件的枚举顺序——正是这次排序机制要根除的那类不确定性。
 
@@ -23,17 +25,31 @@
 
 `-n libGLVMPlugin` 对两者都返回 2 级。另有 `/System/iOSSupport/usr/lib/swift/libswift{QuickLook,HomeKit,PencilKit}.dylib` 一组，目前**没有**原生同名物，属于"将来会踩"而非当下已坏。
 
-**正确修法**：把支持根的判断提成一次性的**惩罚项**，在形态分类**之前**施加，而不是塞进某个分支里。例如先算形态基准分（framework 0 / dylib 1 / 其他 2），再对 `/System/iOSSupport` 下的结果统一加一档。这样任何形态的 Catalyst 变体都稳定劣于同形态的原生物。
+**修复方式**：拆成两步打分。先按路径形态定基准分（framework 0 / dylib 1 / 其他 2），乘以 `rankStepsPerPathShape`（2）拉开间距；再对 `/System/iOSSupport` 下的**任何形态**统一加 `catalystSupportRootPenalty`（1）。得到的全序是：
 
-**修复位置**：本仓库 `Sources/MachOExtensions/DyldCache+.swift`。
+| 排名 | 含义 |
+| --- | --- |
+| 0 | 原生 canonical framework（唯一能拿 `bestMatchRank` 的，提前退出因此仍然成立） |
+| 1 | Catalyst framework |
+| 2 | 原生 plain dylib |
+| 3 | Catalyst plain dylib |
+| 4 | 原生 bundle / 其他 |
+| 5 | Catalyst bundle / 其他 |
 
-### 2. `appendRowIfAbsent` 是线性扫描，桶变大就退化成 O(n²)
+留出间距是关键：惩罚项永远不会把某个形态顶到下一个形态的分位上，所以"降级只是同形态内的平局裁决、不是重新归类"。否则一个没有 Swift 元数据的原生 `.axbundle` 就能压过 Catalyst 的 framework 二进制——那正是整套排序最初要解决的问题。
+
+**新增测试**：`catalystPlainDylibLosesToItsNativeNamesake`、`supportRootPenaltyNeverCrossesAShapeBoundary`。
+
+### 2. ~~`appendRowIfAbsent` 是线性扫描，桶变大就退化成 O(n²)~~ ✅
 
 `registerRow` 的去重改成了 `symbolRowsByOffset[offset]?.contains(row)`，对桶做线性扫描。注释里断言"桶实际上只有一两行"，但没有任何东西保证这一点——不同符号名合法地共享同一地址（桶之所以是数组就是因为这个），而退化偏移（0，或 stripped / dyld 缓存镜像里被大量别名的地址）可以攒到上千行。那样每次登记都是 O(桶大小)，整趟采集变成 O(n²)。
 
-**正确修法**：重复只来自两个已枚举的成因，不需要通用去重。可以只记住每个偏移最近一次追加的行，或者仅在 `canonicalOffset == rawOffset` 时配合一个按名字的已见集合来挡。
+**修复方式**：两个重复成因各自用 O(1) 判据挡掉，完全不扫桶。
 
-**修复位置**：本仓库 `Sources/MachOSymbols/SymbolIndexStore.swift`。
+- 原始偏移与规范偏移相同 → 比较两个偏移即可（本来就有）。
+- 同名同址的两条符号表条目折叠到同一行 → **只有本来就存在的行才可能在桶里**。新行的索引取自 `symbolTable.count`，严格大于此前发出的所有行号，所以任何桶都不可能装着它。于是 `canonicalRow` 改为返回 `(row, isNewRow)`，`registerRow` 只在 `isNewRow == false` 时才检查。
+
+真正会扫桶的只剩"同一个名字重复出现"这一种情况，而重名条目本身就罕见；上千个不同名字堆在同一偏移的退化场景——也就是原本会导致 O(n²) 的那个——现在一次都不扫。导出符号那趟循环有 `tableRowByName[...] == nil` 前置条件，必然是新行，因此彻底不进检查。
 
 ---
 
