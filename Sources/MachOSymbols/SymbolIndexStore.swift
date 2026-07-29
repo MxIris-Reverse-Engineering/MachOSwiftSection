@@ -333,18 +333,21 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         var tableRowByName: [String: UInt32] = [:]
         var symbolRowsByOffset: OrderedDictionary<Int, [UInt32]> = [:]
 
-        // Raw and cache-adjusted offset keys share one canonical row; a
-        // duplicate name updates the existing row in place (last-wins, like
-        // the former name-keyed collection pass).
-        func canonicalRow(for canonicalSymbol: Symbol) -> UInt32 {
+        /// The table row a symbol belongs to, plus whether this call created it.
+        ///
+        /// Raw and cache-adjusted offset keys share one canonical row; a
+        /// duplicate name updates the existing row in place (last-wins, like
+        /// the former name-keyed collection pass). `isNewRow` is what lets
+        /// `registerRow` skip its duplicate check — see there.
+        func canonicalRow(for canonicalSymbol: Symbol) -> (row: UInt32, isNewRow: Bool) {
             if let existingRow = tableRowByName[canonicalSymbol.name] {
                 symbolTable[Int(existingRow)] = canonicalSymbol
-                return existingRow
+                return (existingRow, false)
             }
             let newRow = UInt32(symbolTable.count)
             symbolTable.append(canonicalSymbol)
             tableRowByName[canonicalSymbol.name] = newRow
-            return newRow
+            return (newRow, true)
         }
 
         // One offset legitimately maps to several rows — distinct symbol names
@@ -352,28 +355,39 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         // must not be listed twice though, or every `for symbol in symbols`
         // loop visits it twice.
         //
-        // A row repeats for two independent reasons, so the bucket itself has
-        // to be consulted rather than just the two offsets:
+        // A row repeats for two independent reasons, and each is headed off
+        // without scanning the bucket:
         //
         // - Raw and canonical offsets coincide whenever there is nothing to
-        //   adjust (a `MachOImage`, or a file at offset 0), which makes the
-        //   second append a duplicate of the first.
+        //   adjust (a `MachOImage`, or a file at offset 0), which would make
+        //   the second append a duplicate of the first. Comparing the two
+        //   offsets settles it.
         // - Two symbol-table entries carrying the *same name* at the same
         //   address — aliases and weak definitions do occur in a symtab —
         //   fold onto one canonical row, so the second entry re-registers a
-        //   row the first already put in that bucket.
+        //   row the first already put in that bucket. Only a row that already
+        //   existed can be in a bucket at all: a freshly minted row index is
+        //   `symbolTable.count`, strictly greater than every row issued so
+        //   far, so no bucket can hold it. Checking `isNewRow` therefore
+        //   settles this one too.
         //
-        // Buckets hold one or two rows in practice, so scanning one is
-        // cheaper than the per-offset set it would take to avoid the scan.
-        func appendRowIfAbsent(_ row: UInt32, atOffset offset: Int) {
-            guard symbolRowsByOffset[offset]?.contains(row) != true else { return }
+        // Scanning the bucket instead would be O(bucket) on every symbol,
+        // which is fine while buckets stay short but goes quadratic on a
+        // degenerate address — offset 0, or a heavily aliased address in a
+        // stripped or dyld-cache image — where thousands of distinct names
+        // pile onto one offset. Those piles are exactly the case that must
+        // stay cheap, and under `isNewRow` they never get scanned at all.
+        func appendRow(_ row: UInt32, atOffset offset: Int, mayAlreadyBeListed: Bool) {
+            if mayAlreadyBeListed, symbolRowsByOffset[offset]?.contains(row) == true {
+                return
+            }
             symbolRowsByOffset[offset, default: []].append(row)
         }
 
-        func registerRow(_ row: UInt32, rawOffset: Int, canonicalOffset: Int) {
-            appendRowIfAbsent(row, atOffset: rawOffset)
+        func registerRow(_ row: UInt32, rawOffset: Int, canonicalOffset: Int, isNewRow: Bool) {
+            appendRow(row, atOffset: rawOffset, mayAlreadyBeListed: !isNewRow)
             if canonicalOffset != rawOffset {
-                appendRowIfAbsent(row, atOffset: canonicalOffset)
+                appendRow(row, atOffset: canonicalOffset, mayAlreadyBeListed: !isNewRow)
             }
         }
 
@@ -383,8 +397,8 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             if let cache = machO.cache, rawOffset >= 0, machO is MachOFile {
                 canonicalOffset = rawOffset - cache.mainCacheHeader.sharedRegionStart.cast()
             }
-            let row = canonicalRow(for: .init(offset: canonicalOffset, name: symbol.name, isExternal: symbol.nlist.isExternal))
-            registerRow(row, rawOffset: rawOffset, canonicalOffset: canonicalOffset)
+            let (row, isNewRow) = canonicalRow(for: .init(offset: canonicalOffset, name: symbol.name, isExternal: symbol.nlist.isExternal))
+            registerRow(row, rawOffset: rawOffset, canonicalOffset: canonicalOffset, isNewRow: isNewRow)
         }
 
         for exportedSymbol in machO.exportedSymbols where exportedSymbol.name.isSwiftSymbol {
@@ -393,8 +407,11 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
                 if machO is MachOFile {
                     canonicalOffset += machO.startOffset
                 }
-                let row = canonicalRow(for: .init(offset: canonicalOffset, name: exportedSymbol.name))
-                registerRow(row, rawOffset: rawOffset, canonicalOffset: canonicalOffset)
+                // The `tableRowByName` guard above means this name has no row
+                // yet, so `canonicalRow` always mints one and the duplicate
+                // check is never needed here.
+                let (row, isNewRow) = canonicalRow(for: .init(offset: canonicalOffset, name: exportedSymbol.name))
+                registerRow(row, rawOffset: rawOffset, canonicalOffset: canonicalOffset, isNewRow: isNewRow)
             }
         }
 

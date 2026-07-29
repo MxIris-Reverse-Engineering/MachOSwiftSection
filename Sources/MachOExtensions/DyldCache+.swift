@@ -21,11 +21,28 @@ extension DyldCacheImageSearchMode {
     package static let bestMatchRank = 0
 
     /// Path component naming the macOS support root that holds the Mac
-    /// Catalyst build of an iOS framework. Everything under it is
-    /// framework-shaped and shares its leaf name with the native framework.
+    /// Catalyst build of an iOS library. Everything under it shares its leaf
+    /// name with the native build.
     /// Typed as `Substring` to match the split path components it is compared
     /// against, so the lookup needs no per-call bridging.
     private static let catalystSupportRootDirectoryName: Substring = "iOSSupport"
+
+    /// Rank steps each path shape occupies, leaving a free slot between two
+    /// shapes so the support-root penalty can never push one shape onto the
+    /// next shape's rank.
+    private static let rankStepsPerPathShape = 2
+
+    /// Penalty added to any image found under the Mac Catalyst support root.
+    ///
+    /// It is applied *after* shape classification and to every shape, so a
+    /// Catalyst build always loses to the native build of the same shape while
+    /// still outranking every worse shape. Confining it to one shape is what
+    /// the first version of this got wrong: written inside the framework
+    /// branch, it left two same-named plain dylibs tied — `libGLVMPlugin.dylib`
+    /// ships both natively under `OpenGL.framework` and as a Catalyst build
+    /// under `iOSSupport/…/OpenGLES.framework` — so the winner was once again
+    /// whichever cache file happened to be enumerated first.
+    private static let catalystSupportRootPenalty = 1
 
     /// How well `imagePath` satisfies this search mode — lower is better,
     /// `nil` means "not a match at all".
@@ -48,28 +65,39 @@ extension DyldCacheImageSearchMode {
         case .name(let name):
             let leafName = imagePath.lastPathComponent
             guard leafName.deletingPathExtension == name else { return nil }
-            // The canonical framework binary lives inside a `<name>.framework`
-            // directory — directly (iOS: `SwiftUI.framework/SwiftUI`) or under a
-            // version directory (macOS: `SwiftUI.framework/Versions/A/SwiftUI`).
             let enclosingDirectories = imagePath.split(separator: "/").dropLast()
+
+            // Shape first: how library-like is this path, ignoring where in the
+            // filesystem it sits.
+            let pathShapeRank: Int
             if enclosingDirectories.contains("\(name).framework") {
-                // A macOS cache also carries the Mac Catalyst build of the same
-                // framework under `/System/iOSSupport`, framework-shaped and
-                // with the same leaf name — 74 frameworks collide this way on
-                // macOS 26 (SwiftUI, ARKit, AVKit, GameKit, HealthKit, …).
-                // Both are real dylibs so neither can be rejected, but `-n
-                // <name>` means the native one; ranking the support root just
-                // below it stops the answer from depending on which cache file
-                // the enumeration happened to reach first.
-                return enclosingDirectories.contains(Self.catalystSupportRootDirectoryName) ? 1 : Self.bestMatchRank
+                // The canonical framework binary lives inside a
+                // `<name>.framework` directory — directly (iOS:
+                // `SwiftUI.framework/SwiftUI`) or under a version directory
+                // (macOS: `SwiftUI.framework/Versions/A/SwiftUI`).
+                pathShapeRank = 0
+            } else if leafName.hasSuffix(".dylib") {
+                // A plain dylib is still a real library, just not
+                // framework-shaped.
+                pathShapeRank = 1
+            } else {
+                // Anything else wearing the same leaf name: bundles
+                // (`.axbundle`, `.bundle`, `.appex`, …) and other non-library
+                // payloads.
+                pathShapeRank = 2
             }
-            // A plain dylib is still a real library, just not framework-shaped.
-            if leafName.hasSuffix(".dylib") {
-                return 2
-            }
-            // Anything else wearing the same leaf name: bundles (`.axbundle`,
-            // `.bundle`, `.appex`, …) and other non-library payloads.
-            return 3
+
+            // Then location: a macOS cache carries Mac Catalyst builds of iOS
+            // libraries under `/System/iOSSupport`, sharing their leaf name with
+            // the native build — 74 frameworks collide this way on macOS 26
+            // (SwiftUI, ARKit, AVKit, GameKit, HealthKit, …), and the same holds
+            // for plain dylibs. Both are real dylibs so neither can be rejected,
+            // but `-n <name>` means the native one. Demoting by a step keeps
+            // `bestMatchRank` reachable only by a native canonical framework,
+            // which is what makes the accumulator's early exit sound.
+            let isUnderCatalystSupportRoot = enclosingDirectories.contains(Self.catalystSupportRootDirectoryName)
+            return pathShapeRank * Self.rankStepsPerPathShape
+                + (isUnderCatalystSupportRoot ? Self.catalystSupportRootPenalty : 0)
         }
     }
 }
