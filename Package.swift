@@ -213,13 +213,7 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-demangling",
-            // Pinned below 0.5.0: that release reshaped `NodePrinterTarget`
-            // (`write(_:context:)` / `pushTypeReferenceScope(_:)` take
-            // `@autoclosure` parameters and lost their default implementations)
-            // and dropped `Node: Codable`. The adoption lives on
-            // feature/node-store-migration; until it lands, an open upper bound
-            // silently floats main onto an incompatible demangler.
-            "0.4.5" ..< "0.5.0",
+            branch: "feature/node-store",
         ),
     )
 
