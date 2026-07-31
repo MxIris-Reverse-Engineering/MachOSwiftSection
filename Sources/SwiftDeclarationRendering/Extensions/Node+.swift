@@ -14,8 +14,8 @@ extension SemanticString: @retroactive NodePrinterTarget {
         popIdentifierScope()
     }
 
-    public mutating func write(_ content: String, context: NodePrintContext?) {
-        guard let context else {
+    public mutating func write(_ content: String, context: @autoclosure () -> NodePrintContext?) {
+        guard let context = context() else {
             write(content)
             return
         }
