@@ -3,7 +3,7 @@ import Semantic
 import Demangling
 
 @MemberwiseInit(.public)
-public struct ProtocolName: DefinitionName, Hashable, Sendable, Codable {
+public struct ProtocolName: DefinitionName, Hashable, Sendable {
     public let node: NodeReference
 
     @SemanticStringBuilder
@@ -29,24 +29,5 @@ extension ProtocolName {
 
     public func hash(into hasher: inout Hasher) {
         node.structuralHash(into: &hasher)
-    }
-}
-
-// MARK: - Codable
-
-// Wire-compatible with the historical `node: Node` encoding.
-extension ProtocolName {
-    private enum CodingKeys: String, CodingKey {
-        case node
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.node = NodeReference(interning: try container.decode(Node.self, forKey: .node))
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(node.materialize(), forKey: .node)
     }
 }
