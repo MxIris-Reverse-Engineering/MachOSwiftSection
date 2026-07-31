@@ -368,6 +368,34 @@
 
 ---
 
+## 21. 特化定义的 interface 绑定渲染恢复（leaf 迁移回归修复）
+
+- **时间段**：2026-07-30。
+- **动机**：RuntimeViewer 用户报告——特化节点（如 `RawCodable<NSVerticalDirection>`）的
+  interface 正文仍是 unbound 形式（`struct RawCodable<A> where …` + `var wrappedValue: A`），
+  只有 layout 注释是特化的。回溯定位到 `aa233bc`（leaf 迁移，0.12.0-beta.6 首发）：
+  interface 路径不再实例化 SwiftDump dumper 后，`TypedDumper` 上的整套 metadata 驱动
+  替换机制（`boundDumpedTypeNode` / `fieldDemangledTypeNode`）被绕开；plan 承认了头部
+  退化但误记 "fields still substitute"（`substitutedTypeNode` 方案从未落地），且无测试
+  覆盖。
+- **落地**：`BoundDumpedTypeNameRenderer` 逐字下移到 `SwiftDeclarationRendering`
+  （dump 路径经转发零变化）；新增 `SpecializedMetadataNodeSubstitution`（旧 `TypedDumper`
+  替换成员的 `MetadataWrapper` 版镜像）；`SwiftPrinting` 在 `isSpecialized` 时头部走
+  绑定名渲染 + 跳过泛型签名子句（保留 invertible 标记与 superclass 段），
+  `renderModelFields` 逐字段经 runtime 替换、失败逐字段回退 unbound——与旧 dumper
+  的 best-effort 契约一致。新增端到端测试钉住绑定头部 + 字段替换。
+- **关键决策**：恢复 runtime 驱动方案而非改用静态节点替换——前者是重构前原始行为，且
+  `A.RawValue` 这类 dependent member 由 runtime 按 witness 解析到最终具体类型，静态
+  替换做不到。
+- **文档**：[SpecializedInterfaceBoundRenderingRestoration.md](SpecializedInterfaceBoundRenderingRestoration.md)、
+  [LeafMigrationRegressionAudit.md](LeafMigrationRegressionAudit.md)（对该重构线的
+  三路全面审计：7 项存活问题清单 + 历史断裂记录 + 干净面）、
+  [LeafMigrationPlan.md](LeafMigrationPlan.md)（deviations 补 Superseded/Amended 标注）、
+  [TaskReports/2026-07-30-specialized-interface-bound-rendering.md](TaskReports/2026-07-30-specialized-interface-bound-rendering.md)。
+- **对应版本**：0.14.0 之后未发布区间（回归区间 0.12.0-beta.6 ~ 0.14.0）。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

@@ -120,6 +120,7 @@ The interface generation is split into layered peer modules over a shared `Swift
 **SwiftPrinting** - Renders the `SwiftDeclaration` model as Swift source (depends on `SwiftAttributeInference`)
 - `SwiftDeclarationPrinter`, `TypeNodePrinter`, `FunctionNodePrinter`
 - `SwiftDeclarationPrintConfiguration`, `SwiftDeclarationMemberSortOrder`
+- Specialized definitions (`TypeDefinition.isSpecialized`) render **bound**: the header prints the concrete-argument name (`Box<Int>`, generic-signature clause skipped) via `BoundDumpedTypeNameRenderer`, and each field's type node is substituted through the specialized runtime metadata via `SpecializedMetadataNodeSubstitution` — both live in `SwiftDeclarationRendering` so the dump path (`TypedDumper`, which keeps its own copies/forwarders) stays independent. See [Documentations/Internal/SpecializedInterfaceBoundRenderingRestoration.md](Documentations/Internal/SpecializedInterfaceBoundRenderingRestoration.md).
 
 **SwiftSpecialization** - Runtime generic specialization (see implementation plan below)
 - `GenericSpecializer`, `ConformanceProvider`

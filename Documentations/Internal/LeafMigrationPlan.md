@@ -36,9 +36,18 @@
 >   printed via the interface path renders with an **unbound** header (`Box<A>`, not
 >   `Box<Int>`); fields still substitute. Not exercised by tests; bound-name rendering
 >   stays available on the dump path.
+>   **[Superseded]** This consequence was a real regression, and worse than stated —
+>   fields did NOT substitute either (the planned `FieldDefinition.substitutedTypeNode`
+>   was never implemented; only the layout-comment engine kept substituting). Restored
+>   and pinned by tests: see
+>   [SpecializedInterfaceBoundRenderingRestoration.md](SpecializedInterfaceBoundRenderingRestoration.md).
 > - **Bound-name machinery** (`boundDumped*`, `BoundDumpedTypeNameRenderer`,
 >   `DumperMetadataContext`) and the `Dumper`/`TypedDumper`/`NamedDumper` protocols +
 >   concrete dumpers all **stay in SwiftDump** (kept per the "keep Dumpers" decision).
+>   **[Amended]** `BoundDumpedTypeNameRenderer` later moved down to
+>   `SwiftDeclarationRendering` (verbatim; `resolveBoundDumpedTypeName` still forwards
+>   to it) so the interface path can render bound specialized headers without a
+>   `SwiftDump` dependency — same doc as above.
 >
 > Validated suites (all green): SwiftPrintingTests(18), SwiftInterfaceTests(24),
 > SwiftIndexingTests(30), SwiftAttributeInferenceTests(27), SwiftSpecializationTests(97),
