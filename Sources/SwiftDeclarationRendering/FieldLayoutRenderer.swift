@@ -8,10 +8,23 @@ import Utilities
 @_spi(Internals) import SwiftInspection
 
 /// Maximum recursion depth that the nested expanded-field-offset walk will
-/// descend before bailing out. Mirrors the bound formerly hosted on
-/// `SwiftDump.TypedDumper`; kept in `SwiftDeclarationRendering` so both the
+/// descend before bailing out. Moved from `SwiftDump.TypedDumper` (whose copy
+/// is deleted); kept in `SwiftDeclarationRendering` so both the
 /// raw-descriptor dump path and the model-driven interface path share one
 /// implementation (single source of truth).
+///
+/// Real Swift type nesting rarely exceeds 3-4 layers in practice, so 16 is a
+/// deliberately generous bound that catches runaway recursion (pathological
+/// self-referencing types, mutually-recursive containers) without ever
+/// clipping legitimate nesting. Hitting it is a diagnostic event, not a
+/// normal outcome: the `@Loggable`-generated `logger` on
+/// `RuntimeFieldLayoutBackend` (subsystem `com.machoswiftsection.swift-dump`,
+/// category `TypedDumper.nestedFieldOffsetExpansion` — the pre-split strings,
+/// kept so existing log filters still match) carries the `#log` warning
+/// emitted when the guard trips.
+///
+/// `package`-visible so the regression test that pins this invariant can
+/// read it without `@testable`.
 package let nestedFieldOffsetExpansionDepthLimit = 16
 
 /// The reader-independent state a `FieldLayoutRenderer` carries, passed to the
@@ -63,13 +76,13 @@ public protocol FieldLayoutRenderable: MachOSwiftSectionRepresentableWithCache {
 
     static func renderFieldOffsets(_ state: FieldLayoutRenderState, machO: Self) -> [Int]?
 
-    static func renderStoredFieldComments(_ state: FieldLayoutRenderState, machO: Self, forFieldAtIndex index: Int, mangledTypeName: MangledName, fieldOffsets: [Int]?) async -> SemanticString
+    static func renderStoredFieldComments(_ state: FieldLayoutRenderState, machO: Self, forFieldAtIndex index: Int, mangledTypeName: MangledName, fieldOffsets: [Int]?) async throws -> SemanticString
 
     static func renderEnumLayout(_ state: FieldLayoutRenderState, machO: Self) async -> EnumLayoutCalculator.LayoutResult?
 
     static func renderEnumPrefixComments(_ state: FieldLayoutRenderState, machO: Self, enumLayout: EnumLayoutCalculator.LayoutResult?) async -> SemanticString
 
-    static func renderEnumCaseComments(_ state: FieldLayoutRenderState, machO: Self, forCaseAtIndex index: Int, mangledTypeName: MangledName, enumLayout: EnumLayoutCalculator.LayoutResult?) async -> SemanticString
+    static func renderEnumCaseComments(_ state: FieldLayoutRenderState, machO: Self, forCaseAtIndex index: Int, mangledTypeName: MangledName, enumLayout: EnumLayoutCalculator.LayoutResult?) async throws -> SemanticString
 }
 
 /// Shared renderer for the *metadata-derived* field comments of a nominal type.
@@ -162,8 +175,8 @@ package struct FieldLayoutRenderer<MachO: FieldLayoutRenderable> {
         MachO.renderFieldOffsets(renderState, machO: machO)
     }
 
-    package func storedFieldComments(forFieldAtIndex index: Int, mangledTypeName: MangledName, fieldOffsets: [Int]?) async -> SemanticString {
-        await MachO.renderStoredFieldComments(renderState, machO: machO, forFieldAtIndex: index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
+    package func storedFieldComments(forFieldAtIndex index: Int, mangledTypeName: MangledName, fieldOffsets: [Int]?) async throws -> SemanticString {
+        try await MachO.renderStoredFieldComments(renderState, machO: machO, forFieldAtIndex: index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
     }
 
     package var enumLayout: EnumLayoutCalculator.LayoutResult? {
@@ -174,7 +187,7 @@ package struct FieldLayoutRenderer<MachO: FieldLayoutRenderable> {
         await MachO.renderEnumPrefixComments(renderState, machO: machO, enumLayout: enumLayout)
     }
 
-    package func enumCaseComments(forCaseAtIndex index: Int, mangledTypeName: MangledName, enumLayout: EnumLayoutCalculator.LayoutResult?) async -> SemanticString {
-        await MachO.renderEnumCaseComments(renderState, machO: machO, forCaseAtIndex: index, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
+    package func enumCaseComments(forCaseAtIndex index: Int, mangledTypeName: MangledName, enumLayout: EnumLayoutCalculator.LayoutResult?) async throws -> SemanticString {
+        try await MachO.renderEnumCaseComments(renderState, machO: machO, forCaseAtIndex: index, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
     }
 }

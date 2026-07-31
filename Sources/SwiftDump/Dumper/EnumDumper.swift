@@ -88,7 +88,7 @@ package struct EnumDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                 let mangledTypeName = try fieldRecord.mangledTypeName(in: machO)
 
-                await fieldLayoutRenderer.enumCaseComments(forCaseAtIndex: offset.index, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
+                try await fieldLayoutRenderer.enumCaseComments(forCaseAtIndex: offset.index, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
 
                 Indent(level: configuration.indentation)
 

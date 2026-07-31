@@ -142,7 +142,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
                 }
             }
 
-            await renderModelFields(typeDefinition, level: level)
+            try await renderModelFields(typeDefinition, level: level)
 
             try await printDefinition(typeDefinition, level: level)
         }
@@ -231,8 +231,24 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         Space()
         extensionDefinition.extensionName.print()
 
+        // Pre-leaf-migration `dumpProtocolName` semantics: a `nil` protocol
+        // node collapses to an *empty* name but still emits the clause (the
+        // dangling `extension Foo: @retroactive ` form), while a *thrown*
+        // resolution error drops the whole clause. The post-migration
+        // optional-chain conflated the two, silently suppressing the clause —
+        // including its `@retroactive` / global-actor markers — whenever the
+        // reference was unresolvable.
+        let conformanceProtocolName: SemanticString? = {
+            guard let protocolConformance = extensionDefinition.protocolConformance else { return nil }
+            do {
+                let protocolNode = try protocolConformance.protocolNode(in: machO)
+                return protocolNode?.printSemantic(using: .interfaceTypeBuilderOnly) ?? SemanticString()
+            } catch {
+                return nil
+            }
+        }()
         if let protocolConformance = extensionDefinition.protocolConformance,
-           let protocolName = try? protocolConformance.protocolNode(in: machO)?.printSemantic(using: .interfaceTypeBuilderOnly) {
+           let protocolName = conformanceProtocolName {
             Standard(":")
             Space()
             if extensionDefinition.isRetroactive {

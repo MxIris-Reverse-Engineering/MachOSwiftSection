@@ -4,7 +4,13 @@
 leaf"，首发 0.12.0-beta.6）及其直接配套提交（`ebb04d3` 等）的全面回归审计记录。
 触发背景：该重构线已确认造成过多个用户可见断裂（见「历史断裂记录」），其中特化定义
 绑定渲染回归由 [SpecializedInterfaceBoundRenderingRestoration.md](SpecializedInterfaceBoundRenderingRestoration.md)
-修复；本文记录审计方法、仍存活的问题清单（待逐项决定是否修复）与已核对干净的面。
+修复；本文记录审计方法、问题清单与已核对干净的面。
+
+> **状态更新（2026-07-31）**：下列 7 个问题已全部修复，目标语义为「与重构前
+> （`aa233bc^`）一致」，以跨提交差分 harness + 新增单元测试双重验证。修复内容、
+> 验证方法与收敛数据见
+> [LeafMigrationRegressionFixes.md](LeafMigrationRegressionFixes.md)。
+> 「相邻发现」小节的两处 `245c1c1` 问题不属于本重构线，仍未处理。
 
 ## 方法
 
@@ -18,7 +24,7 @@ leaf"，首发 0.12.0-beta.6）及其直接配套提交（`ebb04d3` 等）的全
 3. 机制搬迁与依赖裁剪（`git show aa233bc --name-status --find-renames` 全量溯源：
    11 个 `R100` 逐字节移动、1 个 `R093`、4 个新抽取）。
 
-## 仍存活的问题（按严重性；均未修复，待决定）
+## 问题清单（按严重性；2026-07-31 已全部修复，原文保留作审计记录）
 
 ### 1. 多 payload 枚举 Enum Layout 注释：错误容忍丢失 + 每枚举线性重扫
 

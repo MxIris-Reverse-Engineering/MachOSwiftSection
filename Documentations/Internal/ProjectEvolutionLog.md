@@ -394,6 +394,35 @@
   [TaskReports/2026-07-30-specialized-interface-bound-rendering.md](TaskReports/2026-07-30-specialized-interface-bound-rendering.md)。
 - **对应版本**：0.14.0 之后未发布区间（回归区间 0.12.0-beta.6 ~ 0.14.0）。
 
+## 22. Leaf 迁移回归的整批修复（错误契约 + 缓存 + 括号统一）
+
+- **时间段**：2026-07-31。
+- **动机**：[LeafMigrationRegressionAudit.md](LeafMigrationRegressionAudit.md) 列出的
+  7 个存活问题一次修完，硬性目标是「重构后的逻辑与重构前（`aa233bc^`）一致」。根因
+  归类：leaf 迁移在 SwiftPrinting 里**重写**（而非搬运）interface 渲染时，①错误处理
+  契约从 `try await` 传播悄悄变成 `try?` 吞错；②配套基础设施（MPE 描述符缓存、深度
+  截断 `#log`）没跟过来；③主路径被改道到 diff 渲染器的宽松原语上（文本判 payload、
+  逐成员吞错），把 diff 契约带进了主路径。
+- **落地**：恢复 `MultiPayloadEnumDescriptorCache`（per-image 部分 map，进
+  `SwiftDeclarationRendering`，dump/interface 共享，坏 descriptor 只降级自己）；
+  `storedFieldComments` / `enumCaseComments` / `renderModelFields` 全链 `throws` 化
+  （幽灵空行与错误路径多余空行随之消失）；新增 `printThrowingEnumCase` 按 mangled
+  name 判 payload（`case a(Void)` 恢复 `case a()`，两路拼写一致）；extension
+  conformance 子句恢复 nil-塌缩/抛错-丢弃的二分语义；深度截断 `#log` 恢复（沿用旧
+  subsystem/category）；SwiftDump 死代码（`mergedRecords` 一族、深度常量死副本）删除，
+  钉值测试改指活值。
+- **验证**：跨提交差分 harness（独立 SPM 包按 `.package(path:)` 分别指向 `aa233bc^`
+  与修复后 worktree，同一二进制 dump+interface 两遍 diff）：edge 语料收敛到 0 diff，
+  fixture plain 仅剩 SE-0452 有意修复的 20 行，注释块存在性 371/371 类型一致。新增
+  `MultiPayloadEnumDescriptorCacheTests` 与 `EnumCaseRenderingParityTests`。
+- **关键决策**：一致性优先于「更好」——审计中两处新行为 arguably 更干净（裸
+  `case a`、静默吞掉悬空 conformance 子句），仍按用户要求恢复旧语义；diff 渲染器
+  自己的原语契约（重构前即如此）保持不动。
+- **文档**：[LeafMigrationRegressionFixes.md](LeafMigrationRegressionFixes.md)、
+  [LeafMigrationRegressionAudit.md](LeafMigrationRegressionAudit.md)（状态标注）、
+  [TaskReports/2026-07-31-leaf-migration-regression-fixes.md](TaskReports/2026-07-31-leaf-migration-regression-fixes.md)。
+- **对应版本**：0.14.0 之后未发布区间（回归区间 0.12.0-beta.6 ~ 0.14.0）。
+
 ---
 
 ## 维护约定
