@@ -39,11 +39,16 @@ package extension SwiftDeclarationPrinter {
             BreakLine()
         }
 
+        // Keep in sync with `printTypeDefinition`: a specialized definition
+        // renders the bound header (`Box<Int>`, no generic-signature clause).
+        // Latent today — the diff builder never walks `specializedChildren` —
+        // but the two header entry points must not diverge.
         try await renderTypeDeclarationHeader(
             for: typeDefinition.type,
             displayParentName: displayParentName,
             level: level,
-            leafNameNode: leafNameNode(of: typeDefinition.typeName.node)
+            leafNameNode: leafNameNode(of: typeDefinition.typeName.node),
+            specializedMetadata: typeDefinition.isSpecialized ? typeDefinition.metadata : nil
         )
     }
 

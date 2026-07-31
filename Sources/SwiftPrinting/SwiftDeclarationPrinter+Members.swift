@@ -20,20 +20,26 @@ extension SwiftDeclarationPrinter {
     /// transparently unwraps `.weak` / `.unowned` / `.unmanaged` reference-
     /// storage wrappers (so the prefix is emitted once, from the keyword, not
     /// twice).
+    ///
+    /// `substitutedTypeNode` overrides the model's `typeNode` for specialized
+    /// definitions: the caller (`renderModelFields`) resolves the field's
+    /// mangled name against the specialized runtime metadata so generic
+    /// parameters print as their bound arguments (`var value: Int`, not
+    /// `var value: A`).
     @SemanticStringBuilder
-    public func printField(_ field: FieldDefinition, level: Int) async -> SemanticString {
+    public func printField(_ field: FieldDefinition, level: Int, substitutedTypeNode: Node? = nil) async -> SemanticString {
         await printCatchedThrowing {
-            try await printThrowingField(field, level: level)
+            try await printThrowingField(field, level: level, substitutedTypeNode: substitutedTypeNode)
         }
     }
 
     @SemanticStringBuilder
-    func printThrowingField(_ field: FieldDefinition, level: Int) async throws -> SemanticString {
+    func printThrowingField(_ field: FieldDefinition, level: Int, substitutedTypeNode: Node? = nil) async throws -> SemanticString {
         fieldDeclarationKeywords(for: field.flags)
         MemberDeclaration(field.name)
         Standard(":")
         Space()
-        try await printThrowingType(field.typeNode, isProtocol: false, level: level)
+        try await printThrowingType(substitutedTypeNode ?? field.typeNode, isProtocol: false, level: level)
     }
 
     /// Renders a single enum case (`case name`, `case name(Payload)`, or
@@ -45,7 +51,7 @@ extension SwiftDeclarationPrinter {
     /// `()` means no payload), not a guess at the demangled node shape, so an
     /// empty case prints as bare `case name` regardless of how its empty type
     /// name demangled.
-    public func printEnumCase(_ field: FieldDefinition, level: Int) async -> SemanticString {
+    public func printEnumCase(_ field: FieldDefinition, level: Int, substitutedTypeNode: Node? = nil) async -> SemanticString {
         var result = SemanticString {
             if field.flags.contains(.isIndirectCase) {
                 Keyword(.indirect)
@@ -56,10 +62,11 @@ extension SwiftDeclarationPrinter {
             MemberDeclaration(field.name)
         }
 
-        let payload = await printType(field.typeNode, isProtocol: false, level: level)
+        let payloadTypeNode = substitutedTypeNode ?? field.typeNode
+        let payload = await printType(payloadTypeNode, isProtocol: false, level: level)
         let payloadText = payload.string
         if !payloadText.isEmpty, payloadText != "()" {
-            if field.typeNode.firstChild?.isKind(of: .tuple) ?? false {
+            if payloadTypeNode.firstChild?.isKind(of: .tuple) ?? false {
                 result.append(payload)
             } else {
                 result.append(SemanticString { Standard("(") })

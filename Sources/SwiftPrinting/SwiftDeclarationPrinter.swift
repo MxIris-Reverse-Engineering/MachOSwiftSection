@@ -121,8 +121,14 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
             BreakLine()
         }
 
+        // Specialized definitions carry the runtime-resolved metadata; the
+        // header renderer uses it to print the bound generic name
+        // (`Box<Int>`, not `Box<A> where …`) — the same substitution the
+        // dump path performs via `TypedDumper.boundDumpedTypeNode()`.
+        let specializedMetadata: MetadataWrapper? = typeDefinition.isSpecialized ? typeDefinition.metadata : nil
+
         try await DeclarationBlock(level: level) {
-            try await renderTypeDeclarationHeader(for: typeDefinition.type, displayParentName: displayParentName, level: level)
+            try await renderTypeDeclarationHeader(for: typeDefinition.type, displayParentName: displayParentName, level: level, specializedMetadata: specializedMetadata)
         } body: {
             for child in typeDefinition.typeChildren {
                 try await NestedDeclaration {

@@ -300,6 +300,34 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
         #expect(reconstructedTypeList.children.count == 2)
     }
 
+    @Test("specialized definition prints a bound header and substituted field types")
+    func printsBoundHeaderAndSubstitutedFieldTypes() async throws {
+        let baseDefinition = try await resolveTypeDefinition(named: "TestUnconstrainedStruct")
+        let specializer = GenericSpecializer(indexer: try await indexer)
+        let request = try specializer.makeRequest(for: baseDefinition.type.typeContextDescriptorWrapper)
+        let result = try specializer.specialize(request, with: ["A": .metatype(Int.self)])
+
+        let specialized = try await baseDefinition.specialize(
+            with: result,
+            typeArgumentNodes: [makeSwiftStdLibTypeNode(name: "Int")],
+            in: machO
+        )
+
+        // The regression this pins: after the SwiftDump leaf migration the
+        // interface printer rendered specialized definitions in the unbound
+        // form (`struct TestUnconstrainedStruct<A> { let a: A }`) because the
+        // model-driven header/field path never consulted the specialized
+        // metadata. The restored behavior matches the dump path: bound name,
+        // no generic-signature clause, fields substituted through the runtime.
+        let printer = SwiftDeclarationPrinter<MachOImage>(in: machO)
+        let printed = try await printer.printTypeDefinition(specialized).string
+
+        #expect(printed.contains("TestUnconstrainedStruct<Swift.Int>"))
+        #expect(printed.contains("let a: Swift.Int"))
+        #expect(!printed.contains("<A>"))
+        #expect(!printed.contains("where"))
+    }
+
     @Test("nil typeArgumentNodes leaves typeName at the unbound form")
     func nilSubstitutionPreservesUnboundTypeName() async throws {
         let baseDefinition = try await resolveTypeDefinition(named: "TestUnconstrainedStruct")

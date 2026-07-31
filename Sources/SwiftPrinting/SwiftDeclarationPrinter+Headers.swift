@@ -21,21 +21,41 @@ import SwiftDeclarationRendering
 extension SwiftDeclarationPrinter {
     /// Renders a type's declaration header (`struct Foo<A> : Bar where …`),
     /// mirroring the matching `StructDumper`/`ClassDumper`/`EnumDumper`
-    /// `declaration` getter in its unbound form.
+    /// `declaration` getter.
+    ///
+    /// With a `specializedMetadata` (a user-driven specialization's
+    /// runtime-resolved metadata), the header renders the *bound* generic
+    /// form instead: the name prints with its concrete type arguments
+    /// (`Box<Int>`) via `BoundDumpedTypeNameRenderer`, and the
+    /// generic-signature clause is skipped — emitting it again would produce
+    /// `Box<Int><A: Hashable>` — while the invertible-protocol marker (and,
+    /// for classes, the superclass segment) is kept. This mirrors the dump
+    /// path's `boundDumpedMetatype()` handling in the `*Dumper.declaration`
+    /// getters. Without it (the default), the clean unbound interface form
+    /// renders straight from the descriptor as before.
     @SemanticStringBuilder
-    package func renderTypeDeclarationHeader(for type: TypeContextWrapper, displayParentName: Bool, level: Int, leafNameNode: Node? = nil) async throws -> SemanticString {
+    package func renderTypeDeclarationHeader(for type: TypeContextWrapper, displayParentName: Bool, level: Int, leafNameNode: Node? = nil, specializedMetadata: MetadataWrapper? = nil) async throws -> SemanticString {
         let resolver = typeDemangleResolver
+        let boundTypeNode: Node? = specializedMetadata.flatMap { SpecializedMetadataNodeSubstitution.boundTypeNode(for: $0) }
         switch type {
         case .struct(let dumped):
             Keyword(.struct)
             Space()
-            try await renderUnboundTypeName(.struct, descriptorWrapper: .type(.struct(dumped.descriptor)), name: dumped.descriptor.name(in: machO), displayParentName: displayParentName, leafNameNode: leafNameNode, resolver: resolver)
-            try await renderGenericSignatureWithInvertibles(genericContext: dumped.genericContext, invertibleProtocolSet: dumped.invertibleProtocolSet, resolver: resolver)
+            if let boundTypeNode {
+                try await BoundDumpedTypeNameRenderer.render(boundTypeNode, using: resolver)
+            } else {
+                try await renderUnboundTypeName(.struct, descriptorWrapper: .type(.struct(dumped.descriptor)), name: dumped.descriptor.name(in: machO), displayParentName: displayParentName, leafNameNode: leafNameNode, resolver: resolver)
+            }
+            try await renderGenericSignatureWithInvertibles(genericContext: boundTypeNode == nil ? dumped.genericContext : nil, invertibleProtocolSet: dumped.invertibleProtocolSet, resolver: resolver)
         case .enum(let dumped):
             Keyword(.enum)
             Space()
-            try await renderUnboundTypeName(.enum, descriptorWrapper: .type(.enum(dumped.descriptor)), name: dumped.descriptor.name(in: machO), displayParentName: displayParentName, leafNameNode: leafNameNode, resolver: resolver)
-            try await renderGenericSignatureWithInvertibles(genericContext: dumped.genericContext, invertibleProtocolSet: dumped.invertibleProtocolSet, resolver: resolver)
+            if let boundTypeNode {
+                try await BoundDumpedTypeNameRenderer.render(boundTypeNode, using: resolver)
+            } else {
+                try await renderUnboundTypeName(.enum, descriptorWrapper: .type(.enum(dumped.descriptor)), name: dumped.descriptor.name(in: machO), displayParentName: displayParentName, leafNameNode: leafNameNode, resolver: resolver)
+            }
+            try await renderGenericSignatureWithInvertibles(genericContext: boundTypeNode == nil ? dumped.genericContext : nil, invertibleProtocolSet: dumped.invertibleProtocolSet, resolver: resolver)
         case .class(let dumped):
             if dumped.descriptor.isActor {
                 if isDistributedActor(dumped) {
@@ -47,9 +67,13 @@ extension SwiftDeclarationPrinter {
                 Keyword(.class)
             }
             Space()
-            try await renderUnboundTypeName(.class, descriptorWrapper: .type(.class(dumped.descriptor)), name: dumped.descriptor.name(in: machO), displayParentName: displayParentName, leafNameNode: leafNameNode, resolver: resolver)
+            if let boundTypeNode {
+                try await BoundDumpedTypeNameRenderer.render(boundTypeNode, using: resolver)
+            } else {
+                try await renderUnboundTypeName(.class, descriptorWrapper: .type(.class(dumped.descriptor)), name: dumped.descriptor.name(in: machO), displayParentName: displayParentName, leafNameNode: leafNameNode, resolver: resolver)
+            }
             let superclass = try await renderClassSuperclass(dumped, resolver: resolver)
-            if let genericContext = dumped.genericContext {
+            if boundTypeNode == nil, let genericContext = dumped.genericContext {
                 try await genericContext.dumpGenericSignature(resolver: resolver, in: machO) {
                     superclass
                 }
@@ -298,6 +322,14 @@ extension SwiftDeclarationPrinter {
         let fieldRecords = (try? typeDefinition.type.contextDescriptorWrapper.typeContextDescriptor?.fieldDescriptor(in: machO).records(in: machO)) ?? []
         let fieldOffsets = isEnum ? nil : fieldLayoutRenderer.fieldOffsets
 
+        // Specialized definitions substitute each field's generic-parameter
+        // references through the runtime metadata (`var value: A` →
+        // `var value: Int`) — the same resolution the dump path performs via
+        // `TypedDumper.fieldDemangledTypeNode(for:)`. Requires an in-process
+        // image; a `nil` result per field falls back to the unbound node.
+        let specializedMetadata: MetadataWrapper? = typeDefinition.isSpecialized ? typeDefinition.metadata : nil
+        let specializedMachOImage: MachOImage? = specializedMetadata == nil ? nil : machO.asMachOImage
+
         let enumLayout = isEnum ? await fieldLayoutRenderer.enumLayout : nil
 
         // Type-level enum prologue (Enum Layout strategy + spare-bit summary),
@@ -319,11 +351,18 @@ extension SwiftDeclarationPrinter {
                     await fieldLayoutRenderer.storedFieldComments(forFieldAtIndex: offset.index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
                 }
             }
+            let substitutedTypeNode: Node? = {
+                guard let specializedMetadata, let specializedMachOImage,
+                      let record = fieldRecords[safe: offset.index],
+                      let mangledTypeName = try? record.mangledTypeName(in: machO)
+                else { return nil }
+                return SpecializedMetadataNodeSubstitution.substitutedFieldTypeNode(for: mangledTypeName, metadata: specializedMetadata, in: specializedMachOImage)
+            }()
             Indent(level: level)
             if isEnum {
-                await printEnumCase(field, level: level)
+                await printEnumCase(field, level: level, substitutedTypeNode: substitutedTypeNode)
             } else {
-                await printField(field, level: level)
+                await printField(field, level: level, substitutedTypeNode: substitutedTypeNode)
             }
             if offset.isEnd {
                 BreakLine()
