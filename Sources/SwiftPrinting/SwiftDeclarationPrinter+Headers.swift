@@ -366,9 +366,10 @@ extension SwiftDeclarationPrinter {
             Indent(level: level)
             if isEnum {
                 // Payload presence follows the field record's mangled type name
-                // — the pre-refactor `EnumDumper` gating — so a `Void` payload
-                // keeps its parentheses and both paths spell the same case.
-                try await printThrowingEnumCase(field, level: level, substitutedTypeNode: substitutedTypeNode, hasPayload: !(mangledTypeName?.isEmpty ?? true))
+                // (the model's `.hasMangledTypeName` flag) — the pre-refactor
+                // `EnumDumper` gating — so a `Void` payload keeps its
+                // parentheses and both paths spell the same case.
+                try await printThrowingEnumCase(field, level: level, substitutedTypeNode: substitutedTypeNode)
             } else {
                 try await printThrowingField(field, level: level, substitutedTypeNode: substitutedTypeNode)
             }

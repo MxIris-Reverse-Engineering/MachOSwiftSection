@@ -38,6 +38,7 @@ harness + 新增单元测试双重钉住。
   case 参与 payload-case 计数，是真 payload case，裸 `case a` 会把它与空 case 混同。
 - diff 渲染器继续用原 `printEnumCase`（按渲染文本 gating、逐成员吞错）——那是它
   重构前就有的独立契约，不属于回归面。
+- **2026-08-02 补充**：mangled-name gating 重新暴露了一个比 leaf 迁移更老的 bug——`SwiftPrinting` 的节点渲染器不认识 kind-9（accessor-function）symbolic reference，payload 渲染为空串后括号包空，输出非法的 `case type()`（迁移前逐字节相同；post-迁移 main 的渲染文本 gating 只是把它遮住了）。同分支已修：`NodePrintable` 补 `.accessorFunctionReference` 兜底文案（与 Demangling `NodePrinter` 一致）、payload gating 改读索引期捕获的 `FieldFlags.hasMangledTypeName`（不再按下标读 record）、`printThrowingEnumCase` 与 `EnumDumper.fields` 加「渲染为空则裸 case」双防护网。机理与后续两层（进程内真解析、离线符号表还原）见 [AccessorFunctionReferenceRendering.md](AccessorFunctionReferenceRendering.md)。
 
 ### 4+7. 错误传播契约恢复（审计 #4、#7）
 

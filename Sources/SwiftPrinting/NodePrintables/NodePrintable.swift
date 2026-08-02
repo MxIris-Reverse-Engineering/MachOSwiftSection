@@ -83,6 +83,17 @@ extension NodePrintable {
             target.write("\(name.index ?? 0)")
         case .negativeInteger:
             target.write("-\(name.index ?? 0)")
+        case .accessorFunctionReference:
+            // Kind-9 symbolic reference: the compiler embedded a pointer to a
+            // metadata accessor thunk instead of a demanglable name (emitted
+            // when the deployment target's runtime demangler predates the
+            // type's mangling, e.g. `~Copyable` generics back-deployed before
+            // macOS 15). Offline this is unresolvable by construction — the
+            // thunk would have to be executed — so mirror the Demangling
+            // `NodePrinter` fallback verbatim; `index` is the thunk's file
+            // offset. Previously unhandled, which rendered the node as an
+            // empty string and produced `case name()` — invalid Swift.
+            target.write("accessor function at \(name.index ?? 0)")
         default:
             return false
         }

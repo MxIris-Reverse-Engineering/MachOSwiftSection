@@ -15,6 +15,11 @@ public struct FieldFlags: OptionSet, Sendable {
     public static let isUnowned = FieldFlags(rawValue: 1 << 4)
     public static let isUnownedUnsafe = FieldFlags(rawValue: 1 << 5)
     public static let isArtificial = FieldFlags(rawValue: 1 << 6)
+    /// The field record carries a non-empty mangled type name. For enum cases
+    /// this is the ABI's payload-case signal (a `Void` payload participates in
+    /// the payload-case count and keeps its parentheses), captured at index
+    /// time so renderers need not re-read the record positionally.
+    public static let hasMangledTypeName = FieldFlags(rawValue: 1 << 7)
 }
 
 @MemberwiseInit(.public)

@@ -421,6 +421,7 @@
 - **文档**：[LeafMigrationRegressionFixes.md](LeafMigrationRegressionFixes.md)、
   [LeafMigrationRegressionAudit.md](LeafMigrationRegressionAudit.md)（状态标注）、
   [TaskReports/2026-07-31-leaf-migration-regression-fixes.md](TaskReports/2026-07-31-leaf-migration-regression-fixes.md)。
+- **补记（2026-08-02，同分支）**：mangled-name gating 重新暴露了一个早于 leaf 迁移的 bug——`SwiftPrinting` 节点渲染器不认识 kind-9（accessor-function）symbolic reference（`~Copyable` 泛型 + 向后部署时编译器嵌 accessor thunk 指针而非类型名），payload 渲染为空串后输出非法的 `case type()`。修复：`NodePrintable` 补兜底文案（与 Demangling `NodePrinter` 逐字一致）、payload gating 改读索引期捕获的 `FieldFlags.hasMangledTypeName`、两路各加「渲染为空则裸 case」防护网；Testing.framework A/B 仅三行变化（两个枚举 case + 一个同源的存储字段悬空冒号 `var _storage: `）且与 dump 拼写逐字一致。机理与后续两层（进程内真解析、离线符号表还原）记录在 [AccessorFunctionReferenceRendering.md](AccessorFunctionReferenceRendering.md)。
 - **对应版本**：0.14.0 之后未发布区间（回归区间 0.12.0-beta.6 ~ 0.14.0）。
 
 ---

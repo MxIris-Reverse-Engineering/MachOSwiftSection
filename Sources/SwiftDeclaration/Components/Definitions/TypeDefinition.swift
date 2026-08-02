@@ -183,6 +183,9 @@ public final class TypeDefinition: Definition {
             if record.flags.contains(.isArtificial) {
                 fieldFlags.insert(.isArtificial)
             }
+            if try !record.mangledTypeName(in: machO).isEmpty {
+                fieldFlags.insert(.hasMangledTypeName)
+            }
             let field = FieldDefinition(name: name.stripLazyPrefix, typeNode: typeNode, flags: fieldFlags)
             fields.append(field)
         }

@@ -82,14 +82,20 @@ extension SwiftDeclarationPrinter {
     /// diff renderer's `printEnumCase` in two restored ways:
     ///
     /// - **Payload gating**: payload presence follows the field record's
-    ///   mangled type name (`hasPayload`), not the rendered payload text — so
-    ///   a `Void` payload prints as `case name()` exactly like the dump path
-    ///   instead of collapsing to a bare `case name`.
+    ///   mangled type name (the model's `.hasMangledTypeName` flag, captured
+    ///   at index time), not the rendered payload text — so a `Void` payload
+    ///   prints as `case name()` exactly like the dump path instead of
+    ///   collapsing to a bare `case name`.
     /// - **Error propagation**: a payload type that fails to print throws to
     ///   the caller (failing the whole type's rendering) instead of being
     ///   swallowed into an empty line.
+    ///
+    /// A payload whose node renders as an *empty string* (a `Node.Kind` the
+    /// interface printers don't cover) degrades to the bare `case name` — the
+    /// parentheses are suppressed rather than emitted around nothing, because
+    /// `case name()` is not valid Swift.
     @SemanticStringBuilder
-    func printThrowingEnumCase(_ field: FieldDefinition, level: Int, substitutedTypeNode: Node? = nil, hasPayload: Bool) async throws -> SemanticString {
+    func printThrowingEnumCase(_ field: FieldDefinition, level: Int, substitutedTypeNode: Node? = nil) async throws -> SemanticString {
         if field.flags.contains(.isIndirectCase) {
             Keyword(.indirect)
             Space()
@@ -98,15 +104,17 @@ extension SwiftDeclarationPrinter {
         Space()
         MemberDeclaration(field.name)
 
-        if hasPayload {
+        if field.flags.contains(.hasMangledTypeName) {
             let payloadTypeNode = substitutedTypeNode ?? field.typeNode
             let payload = try await printThrowingType(payloadTypeNode, isProtocol: false, level: level)
-            if payloadTypeNode.firstChild?.isKind(of: .tuple) ?? false {
-                payload
-            } else {
-                Standard("(")
-                payload
-                Standard(")")
+            if !payload.string.isEmpty {
+                if payloadTypeNode.firstChild?.isKind(of: .tuple) ?? false {
+                    payload
+                } else {
+                    Standard("(")
+                    payload
+                    Standard(")")
+                }
             }
         }
     }
