@@ -16,6 +16,7 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
     /// T5's coverage-invariant test compares this against the filesystem
     /// and fails loudly if they drift. Keep in sync when adding/removing tests.
     static let registeredTestMethodNames: Set<String> = [
+        "accessorFunctionReferencesSnapshot",
         "actorsSnapshot",
         "associatedTypeWitnessPatternsSnapshot",
         "asyncSequenceSnapshot",
@@ -76,6 +77,16 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
         "vTableEntryVariantsSnapshot",
         "weakUnownedReferencesSnapshot",
     ]
+
+    @Test func accessorFunctionReferencesSnapshot() async throws {
+        // Offsets are normalized (`accessor function at <offset>`) because the
+        // referenced thunk's file offset shifts on every fixture rebuild; the
+        // snapshot pins the fallback's *shape* — honest text instead of an
+        // empty render, parentheses around payload cases, bare empty case,
+        // rendering continuing past a kind-9 field.
+        let output = try await collectDump(for: machOFile, inNamespace: "AccessorFunctionReferences")
+        assertSnapshot(of: normalizingAccessorFunctionOffsets(output), as: .lines)
+    }
 
     @Test func actorsSnapshot() async throws {
         let output = try await collectDump(for: machOFile, inNamespace: "Actors")

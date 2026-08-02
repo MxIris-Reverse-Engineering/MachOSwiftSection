@@ -15,7 +15,7 @@ enum ProtocolConformanceDescriptorBaseline {
     }
 
     static let structTestProtocolTest = Entry(
-    offset: 0x3c3c0,
+    offset: 0x3c7a0,
     layoutFlagsRawValue: 0x20000,
     typeReferenceKindRawValue: 0x0,
     hasProtocolDescriptor: true,

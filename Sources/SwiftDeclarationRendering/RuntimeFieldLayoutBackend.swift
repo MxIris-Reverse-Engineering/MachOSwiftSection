@@ -1,4 +1,5 @@
 import Foundation
+import FoundationToolbox
 import Semantic
 import Demangling
 import MachOKit
@@ -24,8 +25,8 @@ extension MachOImage: FieldLayoutRenderable {
         RuntimeFieldLayoutBackend(state, machO: machO).fieldOffsets
     }
 
-    public static func renderStoredFieldComments(_ state: FieldLayoutRenderState, machO: MachOImage, forFieldAtIndex index: Int, mangledTypeName: MangledName, fieldOffsets: [Int]?) async -> SemanticString {
-        await RuntimeFieldLayoutBackend(state, machO: machO).storedFieldComments(forFieldAtIndex: index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
+    public static func renderStoredFieldComments(_ state: FieldLayoutRenderState, machO: MachOImage, forFieldAtIndex index: Int, mangledTypeName: MangledName, fieldOffsets: [Int]?) async throws -> SemanticString {
+        try await RuntimeFieldLayoutBackend(state, machO: machO).storedFieldComments(forFieldAtIndex: index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
     }
 
     public static func renderEnumLayout(_ state: FieldLayoutRenderState, machO: MachOImage) async -> EnumLayoutCalculator.LayoutResult? {
@@ -36,8 +37,8 @@ extension MachOImage: FieldLayoutRenderable {
         await RuntimeFieldLayoutBackend(state, machO: machO).enumPrefixComments(enumLayout: enumLayout)
     }
 
-    public static func renderEnumCaseComments(_ state: FieldLayoutRenderState, machO: MachOImage, forCaseAtIndex index: Int, mangledTypeName: MangledName, enumLayout: EnumLayoutCalculator.LayoutResult?) async -> SemanticString {
-        await RuntimeFieldLayoutBackend(state, machO: machO).enumCaseComments(forCaseAtIndex: index, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
+    public static func renderEnumCaseComments(_ state: FieldLayoutRenderState, machO: MachOImage, forCaseAtIndex index: Int, mangledTypeName: MangledName, enumLayout: EnumLayoutCalculator.LayoutResult?) async throws -> SemanticString {
+        try await RuntimeFieldLayoutBackend(state, machO: machO).enumCaseComments(forCaseAtIndex: index, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
     }
 }
 
@@ -48,6 +49,11 @@ extension MachOImage: FieldLayoutRenderable {
 /// RuntimeViewer). Behaviour is the pre-split implementation, verbatim; the
 /// convenience forwarders below let the method bodies reference `machO` /
 /// `metadata` / `type` / `configuration` / `isGeneric` / `enumValue` unchanged.
+///
+/// The `@Loggable` subsystem/category strings deliberately keep their
+/// pre-split `TypedDumper` values so existing log filters keep matching the
+/// depth-limit diagnostic after the engine's move out of `SwiftDump`.
+@Loggable(.package, subsystem: "com.machoswiftsection.swift-dump", category: "TypedDumper.nestedFieldOffsetExpansion")
 struct RuntimeFieldLayoutBackend {
     let state: FieldLayoutRenderState
     let machO: MachOImage
@@ -95,7 +101,7 @@ struct RuntimeFieldLayoutBackend {
         forFieldAtIndex index: Int,
         mangledTypeName: MangledName,
         fieldOffsets: [Int]?
-    ) async -> SemanticString {
+    ) async throws -> SemanticString {
         if let fieldOffsets, let startOffset = fieldOffsets[safe: index] {
             let endOffset: Int?
             if let nextFieldOffset = fieldOffsets[safe: index + 1] {
@@ -116,7 +122,7 @@ struct RuntimeFieldLayoutBackend {
         if configuration.printTypeLayout,
            let resolvedMetatype = resolveFieldMetatype(for: mangledTypeName, in: machO),
            let resolvedMetadata = try? StructMetadata.createInProcess(resolvedMetatype) {
-            try? await resolvedMetadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
+            try await resolvedMetadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
         }
     }
 
@@ -127,14 +133,14 @@ struct RuntimeFieldLayoutBackend {
         forCaseAtIndex index: Int,
         mangledTypeName: MangledName,
         enumLayout: EnumLayoutCalculator.LayoutResult?
-    ) async -> SemanticString {
+    ) async throws -> SemanticString {
         var isTypeLayoutPrinted = false
 
         if !mangledTypeName.isEmpty,
            configuration.printTypeLayout,
            let resolvedMetatype = resolveFieldMetatype(for: mangledTypeName, in: machO),
            let resolvedMetadata = try? StructMetadata.createInProcess(resolvedMetatype) {
-            try? await resolvedMetadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
+            try await resolvedMetadata.asMetadataWrapper().dumpTypeLayout(using: configuration)
             isTypeLayoutPrinted = true
         }
 
@@ -198,7 +204,7 @@ struct RuntimeFieldLayoutBackend {
     @SemanticStringBuilder
     private func walkNestedExpandedFieldOffsets(of metatype: Any.Type, baseOffset: Int, baseIndentation: Int, ancestors: [Bool], depth: Int = 0) -> SemanticString {
         if depth >= nestedFieldOffsetExpansionDepthLimit {
-            SemanticString()
+            emitNestedFieldOffsetDepthLimitWarning(for: metatype)
         } else if let wrapper = try? StructMetadata.createInProcess(metatype).asMetadataWrapper() {
             switch wrapper {
             case .struct(let metadata):
@@ -210,6 +216,16 @@ struct RuntimeFieldLayoutBackend {
                 SemanticString()
             }
         }
+    }
+
+    /// Plain (non-builder) helper so the result-builder body of
+    /// `walkNestedExpandedFieldOffsets` stays valid — the `#log` macro
+    /// expands to a `Void`-typed closure invocation, which the builder
+    /// accepts via `buildPartialBlock(first: Void)`, but keeping the
+    /// diagnostics out of the builder body avoids surprising callers
+    /// reading the walker.
+    private func emitNestedFieldOffsetDepthLimitWarning(for metatype: Any.Type) {
+        #log(.info, "walkNestedExpandedFieldOffsets reached nested field-offset depth limit \(nestedFieldOffsetExpansionDepthLimit, privacy: .public) — truncating expansion of \(metatype, privacy: .public)")
     }
 
     @SemanticStringBuilder
@@ -541,7 +557,7 @@ struct RuntimeFieldLayoutBackend {
         var layoutResult: EnumLayoutCalculator.LayoutResult
         if enumValue.isMultiPayload {
             let node = try MetadataReader.demangleContext(for: .type(.enum(enumValue.descriptor)), in: machOImage)
-            if let multiPayloadEnumDescriptor = try multiPayloadEnumDescriptor(for: node, in: machOImage), multiPayloadEnumDescriptor.usesPayloadSpareBits {
+            if let multiPayloadEnumDescriptor = MultiPayloadEnumDescriptorCache.shared.multiPayloadEnumDescriptor(for: node, in: machOImage), multiPayloadEnumDescriptor.usesPayloadSpareBits {
                 let spareBytes = try multiPayloadEnumDescriptor.payloadSpareBits(in: machOImage)
                 let spareBytesOffset = try multiPayloadEnumDescriptor.payloadSpareBitMaskByteOffset(in: machOImage)
                 layoutResult = EnumLayoutCalculator.calculateMultiPayload(payloadSize: payloadSize.cast(), spareBytes: spareBytes, spareBytesOffset: spareBytesOffset.cast(), numPayloadCases: numberOfPayloadCases.cast(), numEmptyCases: numberOfEmptyCases.cast())
@@ -665,28 +681,12 @@ struct RuntimeFieldLayoutBackend {
     private func spareBitAnalysis(for enumValue: Enum, in machOImage: MachOImage) -> SpareBitAnalyzer.Analysis? {
         try? {
             let node = try MetadataReader.demangleContext(for: .type(.enum(enumValue.descriptor)), in: machOImage)
-            guard let multiPayloadEnumDescriptor = try multiPayloadEnumDescriptor(for: node, in: machOImage),
+            guard let multiPayloadEnumDescriptor = MultiPayloadEnumDescriptorCache.shared.multiPayloadEnumDescriptor(for: node, in: machOImage),
                   multiPayloadEnumDescriptor.usesPayloadSpareBits else { return nil }
             let spareBytes = try multiPayloadEnumDescriptor.payloadSpareBits(in: machOImage)
             let spareBytesOffset = try multiPayloadEnumDescriptor.payloadSpareBitMaskByteOffset(in: machOImage)
             return SpareBitAnalyzer.analyze(bytes: spareBytes, startOffset: spareBytesOffset.cast())
         }()
-    }
-
-    /// Inline multi-payload-descriptor lookup: matches the target enum's
-    /// demangled type node against the binary's `__swift5_mpenum` descriptors.
-    /// Gated callers only invoke this when layout/spare-bit printing is on, so
-    /// the linear scan is acceptable without the `SharedCache` used by the dump
-    /// path.
-    private func multiPayloadEnumDescriptor(for node: Node, in machOImage: MachOImage) throws -> MultiPayloadEnumDescriptor? {
-        for multiPayloadEnumDescriptor in try machOImage.swift.multiPayloadEnumDescriptors {
-            let mangledTypeName = try multiPayloadEnumDescriptor.mangledTypeName(in: machOImage)
-            let descriptorNode = try MetadataReader.demangleType(for: mangledTypeName, in: machOImage)
-            if descriptorNode == node {
-                return multiPayloadEnumDescriptor
-            }
-        }
-        return nil
     }
 
     private func enumPayloadSize(_ descriptor: EnumDescriptor, in machOImage: MachOImage) throws -> Int {

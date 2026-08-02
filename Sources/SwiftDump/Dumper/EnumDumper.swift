@@ -88,7 +88,7 @@ package struct EnumDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                 let mangledTypeName = try fieldRecord.mangledTypeName(in: machO)
 
-                await fieldLayoutRenderer.enumCaseComments(forCaseAtIndex: offset.index, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
+                try await fieldLayoutRenderer.enumCaseComments(forCaseAtIndex: offset.index, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
 
                 Indent(level: configuration.indentation)
 
@@ -107,12 +107,18 @@ package struct EnumDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                 if !mangledTypeName.isEmpty {
                     let node = try fieldDemangledTypeNode(for: mangledTypeName)
                     let demangledName = try await demangleResolver.resolve(for: node)
-                    if node.firstChild?.isKind(of: .tuple) ?? false {
-                        demangledName
-                    } else {
-                        Standard("(")
-                        demangledName
-                        Standard(")")
+                    // A payload node the resolver renders as an empty string
+                    // (an uncovered `Node.Kind`) degrades to the bare case —
+                    // `case name()` is not valid Swift. Mirrors
+                    // `printThrowingEnumCase` so both paths spell the same.
+                    if !demangledName.string.isEmpty {
+                        if node.firstChild?.isKind(of: .tuple) ?? false {
+                            demangledName
+                        } else {
+                            Standard("(")
+                            demangledName
+                            Standard(")")
+                        }
                     }
                 }
 

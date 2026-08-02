@@ -1,0 +1,47 @@
+// MARK: - Types
+
+enum SymbolTestsCore.AccessorFunctionReferences {}
+struct SymbolTestsCore.AccessorFunctionReferences.NoncopyableResourceTest: ~Swift.Copyable {
+    var fileDescriptor: Swift.Int
+
+    /* Allocator */
+    SymbolTestsCore.AccessorFunctionReferences.NoncopyableResourceTest.init(fileDescriptor: Swift.Int) -> SymbolTestsCore.AccessorFunctionReferences.NoncopyableResourceTest
+
+    /* Deallocator */
+    SymbolTestsCore.AccessorFunctionReferences.NoncopyableResourceTest.deinit
+
+    /* Variable */
+    SymbolTestsCore.AccessorFunctionReferences.NoncopyableResourceTest.fileDescriptor.getter : Swift.Int
+    SymbolTestsCore.AccessorFunctionReferences.NoncopyableResourceTest.fileDescriptor.setter : Swift.Int
+}
+struct SymbolTestsCore.AccessorFunctionReferences.NoncopyableGenericBoxTest<A>: ~Swift.Copyable where A: ~Swift.Copyable {
+    var wrapped: A
+
+    /* Allocator (In Extension) */
+    SymbolTestsCore.AccessorFunctionReferences.NoncopyableGenericBoxTest<>.init(wrapped: A) -> SymbolTestsCore.AccessorFunctionReferences.NoncopyableGenericBoxTest<A>
+
+    /* Variable (In Extension) */
+    SymbolTestsCore.AccessorFunctionReferences.NoncopyableGenericBoxTest<>.wrapped.setter : A
+}
+struct SymbolTestsCore.AccessorFunctionReferences.NoncopyableFieldHolderTest: ~Swift.Copyable {
+    var resource: accessor function at <offset>
+    var boxedInteger: accessor function at <offset>
+    var trailingOrdinaryField: Swift.Int
+
+    /* Allocator */
+    SymbolTestsCore.AccessorFunctionReferences.NoncopyableFieldHolderTest.init(resource: SymbolTestsCore.AccessorFunctionReferences.NoncopyableResourceTest, boxedInteger: SymbolTestsCore.AccessorFunctionReferences.NoncopyableGenericBoxTest<Swift.Int>, trailingOrdinaryField: Swift.Int) -> SymbolTestsCore.AccessorFunctionReferences.NoncopyableFieldHolderTest
+
+    /* Variable */
+    SymbolTestsCore.AccessorFunctionReferences.NoncopyableFieldHolderTest.resource.setter : SymbolTestsCore.AccessorFunctionReferences.NoncopyableResourceTest
+    SymbolTestsCore.AccessorFunctionReferences.NoncopyableFieldHolderTest.boxedInteger.setter : SymbolTestsCore.AccessorFunctionReferences.NoncopyableGenericBoxTest<Swift.Int>
+    SymbolTestsCore.AccessorFunctionReferences.NoncopyableFieldHolderTest.trailingOrdinaryField.getter : Swift.Int
+    SymbolTestsCore.AccessorFunctionReferences.NoncopyableFieldHolderTest.trailingOrdinaryField.setter : Swift.Int
+}
+enum SymbolTestsCore.AccessorFunctionReferences.NoncopyablePayloadEnumTest: ~Swift.Copyable {
+    case holding(accessor function at <offset>)
+    case boxed(accessor function at <offset>)
+    case empty
+
+    /* Function */
+    SymbolTestsCore.AccessorFunctionReferences.NoncopyablePayloadEnumTest.consumeFileDescriptor() -> Swift.Int
+}

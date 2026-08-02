@@ -91,6 +91,20 @@ struct NodePrinterUnitTests {
         #expect(result == expected)
     }
 
+    /// A kind-9 symbolic reference (metadata accessor thunk embedded instead
+    /// of a demanglable name — emitted for back-deployed types whose mangling
+    /// the deployment target's runtime cannot demangle, e.g. `~Copyable`
+    /// generics before macOS 15) must render the same honest fallback the
+    /// Demangling `NodePrinter` produces, not an empty string. The regression
+    /// being pinned: an unhandled kind rendered as "" and enum-case payload
+    /// parentheses closed around nothing (`case type()` — invalid Swift).
+    @Test func typeNodePrinterAccessorFunctionReference() async throws {
+        let node = Node.create(kind: .type, child: .create(kind: .accessorFunctionReference, index: 750396))
+        var printer = TypeNodePrinter()
+        let result = try await printer.printRoot(node).string
+        #expect(result == "accessor function at 750396")
+    }
+
     @Test func typeNodePrinterOptional() async throws {
         let node = try await demangleAsNode("$sSiSg")  // Int?
         var printer = TypeNodePrinter()

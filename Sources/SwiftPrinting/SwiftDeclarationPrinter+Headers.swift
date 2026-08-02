@@ -295,8 +295,14 @@ extension SwiftDeclarationPrinter {
     /// off (the clean interface form) nothing extra is emitted; with them on
     /// (e.g. RuntimeViewer / dump-parity callers) the comments match the
     /// former dumper-delegated output.
+    ///
+    /// Error contract (pre-leaf-migration `dumper.fields` semantics): a field
+    /// whose record read, comment rendering, or type printing fails makes the
+    /// whole type's rendering throw — it does not degrade into a silently
+    /// empty line. The diff renderer keeps its own per-member catch via
+    /// `printField` / `printEnumCase`.
     @SemanticStringBuilder
-    func renderModelFields(_ typeDefinition: TypeDefinition, level: Int) async -> SemanticString {
+    func renderModelFields(_ typeDefinition: TypeDefinition, level: Int) async throws -> SemanticString {
         let isEnum = typeDefinition.typeName.kind == .enum
 
         // Shared metadata-comment renderer (single source of truth with
@@ -319,7 +325,7 @@ extension SwiftDeclarationPrinter {
             staticLayoutDependencyResolution: configuration.staticLayoutDependencyResolution
         )
         let fieldLayoutRenderer = FieldLayoutRenderer(type: typeDefinition.type, metadata: typeDefinition.metadata, machO: machO, configuration: renderConfiguration)
-        let fieldRecords = (try? typeDefinition.type.contextDescriptorWrapper.typeContextDescriptor?.fieldDescriptor(in: machO).records(in: machO)) ?? []
+        let fieldRecords = try typeDefinition.type.contextDescriptorWrapper.typeContextDescriptor?.fieldDescriptor(in: machO).records(in: machO) ?? []
         let fieldOffsets = isEnum ? nil : fieldLayoutRenderer.fieldOffsets
 
         // Specialized definitions substitute each field's generic-parameter
@@ -340,29 +346,32 @@ extension SwiftDeclarationPrinter {
 
         for (offset, field) in typeDefinition.fields.offsetEnumerated() {
             BreakLine()
+            let fieldRecord = fieldRecords[safe: offset.index]
+            let mangledTypeName = try fieldRecord?.mangledTypeName(in: machO)
             // Per-record metadata comments (single source of truth with the
             // `SwiftDump` dumpers): struct/class fields get the offset +
             // type-layout block; enum cases get the type-layout + enum-layout
             // block.
-            if let record = fieldRecords[safe: offset.index], let mangledTypeName = try? record.mangledTypeName(in: machO) {
+            if let mangledTypeName {
                 if isEnum {
-                    await fieldLayoutRenderer.enumCaseComments(forCaseAtIndex: offset.index, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
+                    try await fieldLayoutRenderer.enumCaseComments(forCaseAtIndex: offset.index, mangledTypeName: mangledTypeName, enumLayout: enumLayout)
                 } else {
-                    await fieldLayoutRenderer.storedFieldComments(forFieldAtIndex: offset.index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
+                    try await fieldLayoutRenderer.storedFieldComments(forFieldAtIndex: offset.index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
                 }
             }
             let substitutedTypeNode: Node? = {
-                guard let specializedMetadata, let specializedMachOImage,
-                      let record = fieldRecords[safe: offset.index],
-                      let mangledTypeName = try? record.mangledTypeName(in: machO)
-                else { return nil }
+                guard let specializedMetadata, let specializedMachOImage, let mangledTypeName else { return nil }
                 return SpecializedMetadataNodeSubstitution.substitutedFieldTypeNode(for: mangledTypeName, metadata: specializedMetadata, in: specializedMachOImage)
             }()
             Indent(level: level)
             if isEnum {
-                await printEnumCase(field, level: level, substitutedTypeNode: substitutedTypeNode)
+                // Payload presence follows the field record's mangled type name
+                // (the model's `.hasMangledTypeName` flag) — the pre-refactor
+                // `EnumDumper` gating — so a `Void` payload keeps its
+                // parentheses and both paths spell the same case.
+                try await printThrowingEnumCase(field, level: level, substitutedTypeNode: substitutedTypeNode)
             } else {
-                await printField(field, level: level, substitutedTypeNode: substitutedTypeNode)
+                try await printThrowingField(field, level: level, substitutedTypeNode: substitutedTypeNode)
             }
             if offset.isEnd {
                 BreakLine()

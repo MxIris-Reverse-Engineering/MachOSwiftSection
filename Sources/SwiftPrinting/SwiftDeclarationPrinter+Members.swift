@@ -77,6 +77,48 @@ extension SwiftDeclarationPrinter {
         return result
     }
 
+    /// Renders a single enum case for the **main interface path** with the
+    /// pre-refactor `EnumDumper.fields` contract, which differs from the
+    /// diff renderer's `printEnumCase` in two restored ways:
+    ///
+    /// - **Payload gating**: payload presence follows the field record's
+    ///   mangled type name (the model's `.hasMangledTypeName` flag, captured
+    ///   at index time), not the rendered payload text — so a `Void` payload
+    ///   prints as `case name()` exactly like the dump path instead of
+    ///   collapsing to a bare `case name`.
+    /// - **Error propagation**: a payload type that fails to print throws to
+    ///   the caller (failing the whole type's rendering) instead of being
+    ///   swallowed into an empty line.
+    ///
+    /// A payload whose node renders as an *empty string* (a `Node.Kind` the
+    /// interface printers don't cover) degrades to the bare `case name` — the
+    /// parentheses are suppressed rather than emitted around nothing, because
+    /// `case name()` is not valid Swift.
+    @SemanticStringBuilder
+    func printThrowingEnumCase(_ field: FieldDefinition, level: Int, substitutedTypeNode: Node? = nil) async throws -> SemanticString {
+        if field.flags.contains(.isIndirectCase) {
+            Keyword(.indirect)
+            Space()
+        }
+        Keyword(.case)
+        Space()
+        MemberDeclaration(field.name)
+
+        if field.flags.contains(.hasMangledTypeName) {
+            let payloadTypeNode = substitutedTypeNode ?? field.typeNode
+            let payload = try await printThrowingType(payloadTypeNode, isProtocol: false, level: level)
+            if !payload.string.isEmpty {
+                if payloadTypeNode.firstChild?.isKind(of: .tuple) ?? false {
+                    payload
+                } else {
+                    Standard("(")
+                    payload
+                    Standard(")")
+                }
+            }
+        }
+    }
+
     /// Emits the storage-modifier + mutability-keyword prefix for a stored field
     /// (trailing space included), derived from the model `FieldFlags`. Mirrors
     /// `TypedDumper.fieldDeclarationKeywords` but reads the model flags instead

@@ -147,7 +147,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                 let mangledTypeName = try fieldRecord.mangledTypeName(in: machO)
 
-                await fieldLayoutRenderer.storedFieldComments(forFieldAtIndex: offset.index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
+                try await fieldLayoutRenderer.storedFieldComments(forFieldAtIndex: offset.index, mangledTypeName: mangledTypeName, fieldOffsets: fieldOffsets)
 
                 Indent(level: configuration.indentation)
 

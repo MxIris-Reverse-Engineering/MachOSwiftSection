@@ -121,6 +121,7 @@ The interface generation is split into layered peer modules over a shared `Swift
 - `SwiftDeclarationPrinter`, `TypeNodePrinter`, `FunctionNodePrinter`
 - `SwiftDeclarationPrintConfiguration`, `SwiftDeclarationMemberSortOrder`
 - Specialized definitions (`TypeDefinition.isSpecialized`) render **bound**: the header prints the concrete-argument name (`Box<Int>`, generic-signature clause skipped) via `BoundDumpedTypeNameRenderer`, and each field's type node is substituted through the specialized runtime metadata via `SpecializedMetadataNodeSubstitution` — both live in `SwiftDeclarationRendering` so the dump path (`TypedDumper`, which keeps its own copies/forwarders) stays independent. See [Documentations/Internal/SpecializedInterfaceBoundRenderingRestoration.md](Documentations/Internal/SpecializedInterfaceBoundRenderingRestoration.md).
+- The main interface path's stored-field / enum-case rendering (`renderModelFields` → `printThrowingField` / `printThrowingEnumCase`) carries the **pre-leaf-migration error contract**: record reads, metadata comments, and type printing propagate errors (a failing field fails the whole type), and an enum case's payload presence follows the field record's mangled type name (captured at index time as `FieldFlags.hasMangledTypeName`, so rendering never re-reads the record positionally) — a `Void` payload prints `case a()` exactly like the dump path, while a payload whose node *renders empty* degrades to the bare case in both paths (`case a()` around nothing is invalid Swift; the interface printers also render kind-9 accessor-function symbolic references as the honest `accessor function at <offset>` fallback — see [Documentations/Internal/AccessorFunctionReferenceRendering.md](Documentations/Internal/AccessorFunctionReferenceRendering.md)). The diff renderer's `printField` / `printEnumCase` keep their own per-member-catch, rendered-text-gating contract (that is their original design, needed for standalone `+`/`-` members). The shared comment engine's `FieldLayoutRenderer.storedFieldComments` / `enumCaseComments` are `throws` for the same reason, and multi-payload enum descriptors resolve through `MultiPayloadEnumDescriptorCache` in `SwiftDeclarationRendering` (built once per image as a *partial* map — one bad descriptor only degrades its own enum to the tagged projection). See [Documentations/Internal/LeafMigrationRegressionFixes.md](Documentations/Internal/LeafMigrationRegressionFixes.md).
 
 **SwiftSpecialization** - Runtime generic specialization (see implementation plan below)
 - `GenericSpecializer`, `ConformanceProvider`
@@ -251,6 +252,31 @@ SwiftPM command plugin (`Plugins/RegenerateBaselinesPlugin/`). It builds and
 invokes the `baseline-generator` executable target. From Xcode you can also
 right-click the package → "Regenerate MachOSwiftSection fixture-test ABI
 baselines.".
+
+### Environment-drift checks — do these FIRST when snapshot/baseline tests go red
+
+Two environment drifts produce failures that closely mimic real regressions.
+Rule out both before attributing red tests to a code change:
+
+1. **Stale fixture binary.** `Tests/Projects/SymbolTests/DerivedData/…/SymbolTestsCore`
+   is a gitignored per-machine artifact, while the snapshot `.txt` baselines are
+   versioned. A binary older than the fixture *sources* makes snapshot output
+   drop whole trailing types with no `Error:` lines (it looks like truncation).
+   Diagnose with `strings <binary> | grep -c <TypeName>` for a type added by the
+   latest commits touching `Tests/Projects/SymbolTests/SymbolTestsCore`; fix by
+   rebuilding with the `xcodebuild` command above (pass
+   `-derivedDataPath Tests/Projects/SymbolTests/DerivedData/SymbolTests`).
+   Note the binary is shared machine state — a parallel agent session may have
+   rebuilt it from a different branch's sources.
+2. **Missing local sibling dependencies.** `Package.swift` declares
+   `../MachOKit`, `../MachOObjCSection`, `../swift-demangling`, and
+   `../swift-semantic-string` as *conditional local path* dependencies: they are
+   used when the sibling directory exists, else resolution silently falls back
+   to the remote release. A worktree checked out elsewhere (e.g. a scratchpad)
+   has no siblings and builds against older remote versions — output drifts
+   wholesale (e.g. `T?` printing as `Swift.Optional<T>`), invalidating any
+   cross-commit A/B comparison. For historical-baseline experiments, place or
+   symlink all four siblings next to the worktree first.
 
 ## Work In Progress
 

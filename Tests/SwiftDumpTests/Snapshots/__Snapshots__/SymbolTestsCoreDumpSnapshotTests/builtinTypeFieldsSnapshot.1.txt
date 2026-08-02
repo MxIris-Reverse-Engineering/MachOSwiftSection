@@ -17,16 +17,12 @@ struct SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest {
     SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.init(intField: Swift.Int, int8Field: Swift.Int8, int16Field: Swift.Int16, int32Field: Swift.Int32, int64Field: Swift.Int64, uintField: Swift.UInt, uint8Field: Swift.UInt8, uint16Field: Swift.UInt16, uint32Field: Swift.UInt32, uint64Field: Swift.UInt64) -> SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest
 
     /* Variable */
-    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.intField.getter : Swift.Int
-    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.intField.setter : Swift.Int
     SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.int8Field.getter : Swift.Int8
     SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.int8Field.setter : Swift.Int8
     SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.int16Field.getter : Swift.Int16
     SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.int16Field.setter : Swift.Int16
     SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.int32Field.getter : Swift.Int32
     SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.int32Field.setter : Swift.Int32
-    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.int64Field.getter : Swift.Int64
-    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.int64Field.setter : Swift.Int64
     SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.uintField.getter : Swift.UInt
     SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.uintField.setter : Swift.UInt
     SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.uint8Field.getter : Swift.UInt8
@@ -37,6 +33,10 @@ struct SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest {
     SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.uint32Field.setter : Swift.UInt32
     SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.uint64Field.getter : Swift.UInt64
     SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.uint64Field.setter : Swift.UInt64
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.int64Field.getter : Swift.Int64
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.int64Field.setter : Swift.Int64
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.intField.getter : Swift.Int
+    SymbolTestsCore.BuiltinTypeFields.IntegerTypesTest.intField.setter : Swift.Int
 }
 struct SymbolTestsCore.BuiltinTypeFields.FloatingTypesTest {
     var floatField: Swift.Float

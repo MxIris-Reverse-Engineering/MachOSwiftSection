@@ -154,4 +154,21 @@ public enum Enums {
             FunctionReferenceCaseTest.first
         }
     }
+
+    /// Pins the `Void`-payload parenthesis contract on the offline
+    /// (`MachOFile`) rendering paths. A `Void` payload is a real payload case
+    /// in the ABI — it participates in the payload-case count and its field
+    /// record carries a non-empty mangled type name — so both the dump and
+    /// interface paths must spell it `case unitPayload()`, never collapse it
+    /// to a bare `case unitPayload` (which would make it indistinguishable
+    /// from the genuinely empty case). The leaf migration once broke exactly
+    /// this by gating parentheses on the rendered payload text, where `Void`
+    /// prints as the droppable `()`; the in-process twin of this fixture
+    /// lives in `EnumCaseRenderingParityTests.VoidPayloadRenderingFixtureEnum`.
+    public enum VoidPayloadEnumTest {
+        case unitPayload(Void)
+        indirect case indirectUnitPayload(Void)
+        case intPayload(Int)
+        case plain
+    }
 }

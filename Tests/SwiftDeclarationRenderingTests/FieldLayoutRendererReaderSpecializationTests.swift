@@ -114,7 +114,7 @@ final class FieldLayoutRendererReaderSpecializationTests: MachOSwiftSectionFixtu
             guard let firstRecord = records.first else { continue }
             let mangledTypeName = try firstRecord.mangledTypeName(in: machOFile)
 
-            let comments = await renderer.storedFieldComments(forFieldAtIndex: 0, mangledTypeName: mangledTypeName, fieldOffsets: offsets).string
+            let comments = try await renderer.storedFieldComments(forFieldAtIndex: 0, mangledTypeName: mangledTypeName, fieldOffsets: offsets).string
             #expect(comments.contains("Field offset"), "expected a Field offset comment, got: \(comments)")
             #expect(comments.contains("Type Layout"), "expected a Type Layout comment, got: \(comments)")
             return

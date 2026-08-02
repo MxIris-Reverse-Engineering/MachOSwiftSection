@@ -20,8 +20,8 @@ enum ObjCResilientClassStubInfoBaseline {
     }
 
     static let resilientObjCStubChild = Entry(
-        sourceClassOffset: 0x44d14,
-        offset: 0x44d80,
-        layoutStubRelativeOffset: 127160
+        sourceClassOffset: 0x40cf0,
+        offset: 0x40d5c,
+        layoutStubRelativeOffset: 160100
     )
 }

@@ -7,22 +7,6 @@ import Demangling
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 
-/// Maximum recursion depth that `walkNestedExpandedFieldOffsets` (and its
-/// per-kind helpers) will descend before bailing out. Real Swift type
-/// nesting rarely exceeds 3-4 layers in practice, so 16 is a deliberately
-/// generous bound that catches runaway recursion (pathological
-/// self-referencing types, mutually-recursive containers) without ever
-/// clipping legitimate nesting. Hitting it is a diagnostic event, not a
-/// normal outcome: the `@Loggable`-generated `logger` on `TypedDumper`
-/// (subsystem `com.machoswiftsection.swift-dump`, category
-/// `TypedDumper.nestedFieldOffsetExpansion`) carries the `#log` warning
-/// emitted when the guard trips.
-///
-/// `package`-visible so the regression test that pins this invariant can
-/// read it without `@testable`.
-package let nestedFieldOffsetExpansionDepthLimit = 16
-
-@Loggable(.package, subsystem: "com.machoswiftsection.swift-dump", category: "TypedDumper.nestedFieldOffsetExpansion")
 package protocol TypedDumper: NamedDumper where Dumped: TopLevelType, Dumped.Descriptor: TypeContextDescriptorProtocol {
     associatedtype Metadata: MetadataProtocol
 

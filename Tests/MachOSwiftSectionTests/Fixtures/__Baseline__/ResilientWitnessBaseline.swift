@@ -13,9 +13,9 @@ enum ResilientWitnessBaseline {
     }
 
     static let firstWitness = Entry(
-    offset: 0x357b8,
+    offset: 0x35b84,
     hasRequirement: true,
     hasImplementationSymbols: true,
-    implementationOffset: 0x1a14
+    implementationOffset: 0x21e4
     )
 }

@@ -12,7 +12,7 @@ enum VTableDescriptorHeaderBaseline {
     }
 
     static let classTest = Entry(
-    offset: 0x419f8,
+    offset: 0x3d9b8,
     layoutVTableOffset: 10,
     layoutVTableSize: 9
     )
