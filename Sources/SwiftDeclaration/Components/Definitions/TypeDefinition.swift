@@ -287,8 +287,8 @@ public final class TypeDefinition: Definition {
         // The deallocator drives whether `deinit` is printed at all; the
         // destructor (only present on classes) is exposed as an extra
         // address comment.
-        deallocatorSymbol = symbolIndexStore.memberSymbols(of: .deallocator, for: typeName.name, in: machO).first
-        destructorSymbol = symbolIndexStore.memberSymbols(of: .destructor, for: typeName.name, in: machO).first
+        deallocatorSymbol = symbolIndexStore.memberSymbols(of: .deallocator, for: typeName.name, in: machO).first?.detachedFromSharedTable()
+        destructorSymbol = symbolIndexStore.memberSymbols(of: .destructor, for: typeName.name, in: machO).first?.detachedFromSharedTable()
 
         variables = DefinitionBuilder.variables(
             for: symbolIndexStore.memberSymbols(of: .variable(inExtension: false, isStatic: false, isStorage: false), for: name, node: node, in: machO).map { .init(base: $0, offset: nil) },

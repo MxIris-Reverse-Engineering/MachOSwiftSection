@@ -41,6 +41,35 @@ public struct DemangledSymbol: Sendable {
         self.demangledNode = demangledNode
     }
 
+    /// Copies the referenced row into a standalone one-row table, so this
+    /// value stops retaining the shared per-image buffer.
+    ///
+    /// The shared table is the right trade for the hundreds of thousands of
+    /// values a query vends and then drops — they cost 32 bytes each instead
+    /// of carrying a `Symbol` copy. It is the wrong trade for the handful that
+    /// outlive the query by being stored in the declaration model
+    /// (`Accessor.symbol`, `FunctionDefinition.symbol`,
+    /// `TypeDefinition.deallocatorSymbol` / `destructorSymbol`): a single one
+    /// of those pins the entire table plus every mangled name in it, which is
+    /// what `SwiftDeclarationIndexer.removeSubIndexer(_:)` exists to reclaim.
+    /// Measured on SwiftUI (iOS 18.5): 9,872 stored values referenced 9,506
+    /// distinct rows — 5.1% of a 185,988-row table — so detaching them trades
+    /// roughly 0.6 MB of small allocations for about 19.9 MB of retention.
+    ///
+    /// Call this when storing a value into a long-lived declaration, not on
+    /// the query path.
+    public func detachedFromSharedTable() -> DemangledSymbol {
+        return DemangledSymbol(symbol: symbol, demangledNode: demangledNode)
+    }
+
+    /// Rows in the table backing this value: the whole per-image table for a
+    /// value straight off a query, `1` once ``detachedFromSharedTable()`` has
+    /// copied its row out. Exposed so the retention regression test can tell
+    /// the two apart without reaching into private storage.
+    package var retainedSymbolTableRowCount: Int {
+        return symbolTable.count
+    }
+
     public subscript<Value>(dynamicMember keyPath: KeyPath<Symbol, Value>) -> Value {
         return symbol[keyPath: keyPath]
     }
