@@ -478,6 +478,23 @@
 
 ---
 
+## 23. 审查清单逐条复现，修掉线程跳转与符号表钉住
+
+- **时间段**：2026-08-02。
+- **动机**：[2026-07-31 审查报告](Reviews/2026-07-31-node-store-migration-review.md)留下 17 条待处理项，全部由多智能体审查归并得出，**没有一条做过实测**，且报告自己已经承认对唯一量化过的那条判断错了量级。这一轮的目标不是修完 17 条，而是把每条的真伪与量级钉死，让后续投入落在真问题上；只有性能第一条直接修。
+- **落地**：两处修复 + 一轮全清单实测。
+  - `SymbolIndexStore.buildStorageImpl` 的符号 sweep 包进 `StackSafeExecutor.withLargeStack`（函数体移入 `buildStorageSweep`，外层留薄壳）。`withLargeStack` 的收益是 `(批内调用次数 − 1) × 单次跳转成本`，所以必须包住循环——包住单次调用净收益为零，这也是为什么 `printSemantic` 里**不能**加。
+  - 新增 `DemangledSymbol.detachedFromSharedTable()`，在存入声明模型的六处调用（`DefinitionBuilder` 的四个构造点 + `TypeDefinition` 的 `deallocatorSymbol` / `destructorSymbol`）。查询路径不动：共享 `[Symbol]` 表对「吐几十万个值随即丢弃」仍是正确取舍，问题只在存下来长期存活的那几千个。公开 API 只增不改。
+- **关键决策**：
+  - **打印路径的跳转重新定性为上游刻意交易，不修**。查 `swift-demangling` 历史发现 `0.4.3` 的 `NodePrinter.printRoot` 完全没有栈保护（深树在 512 KB worker 上会崩），`7b86137` 把两个公开打印入口强制过 executor 正是为此，且同批给了 `withLargeStack` 作为摊销手段。报告建议的「恢复内联调用」不可行且不应做。
+  - **detach 选构造点而非改 `init`**。后者要把 `@MemberwiseInit(.public)` 换成手写 init，而那是公开 API，签名写错会让仓库外调用方编译失败；构造点只有六处且有回归测试守护。
+  - **三条判断被实测推翻**：失败名重试的危害在重复计算而非锁争用（8 线程争用 1.97x，无锁路径本身 1.67x）；dyld 全遍历不是退化而是本分支 `7e5dfcc` / `cfe40f8` 正确性修复的代价；`materialize` 占导出总时长仅 0.8%，不构成性能问题。
+- **验证**：`swift test --skip IntegrationTests` 1304 项全绿。关键实测（SwiftUI iOS 18.5，185,988 符号行）：build sweep 10 万符号 1317 ms → 701 ms（1.88x）；符号表钉住从约 21 MB 降到约 2 MB（9,872 个存活值只引用 9,506 行，占表 5.1%）；`memberSymbols` 桶 99.60% 只有 1 个元素，坐实台账第 5 条「机制成立但量级可忽略」。新增回归测试 `SymbolTableRetentionTests`，修复前失败（530 个存储符号全部持有 9,348 行共享表）、修复后通过。
+- **文档**：[TaskReports/2026-08-02-review-reproduction-and-retention-fix.md](TaskReports/2026-08-02-review-reproduction-and-retention-fix.md)、[Reviews/2026-07-31-node-store-migration-review.md](Reviews/2026-07-31-node-store-migration-review.md)（新增第三节实测复现，各条定性按实测更新），`AGENTS.md` 符号索引段落补入「存进声明模型的 `DemangledSymbol` 必须先 detach」硬规则。
+- **对应版本**：0.14.0 之后未发布区间。注意 `Symbol` 删除公开成员（`nlist` 属性、`init(offset:name:nlist:)`）尚未升版本、未写 changelog，发布前必须补。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
