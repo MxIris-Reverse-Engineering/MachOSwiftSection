@@ -16,7 +16,7 @@ jobs:
         # Apple Silicon runners only: MachOFileTests.preferredArchitecture == .arm64.
         # Adding an Intel runner would load a different arch slice and drift snapshots.
         os: [macos-26]
-        xcode-version: ["26.4"]
+        xcode-version: ["26.6"]
         # debug and release run as parallel jobs — sequentially they doubled
         # the wall clock (14m + 21m cold). Release stays in the matrix on
         # purpose: optimizer-sensitive pointer bugs only surface there.
