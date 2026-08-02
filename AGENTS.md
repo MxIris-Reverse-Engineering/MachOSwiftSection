@@ -253,6 +253,31 @@ invokes the `baseline-generator` executable target. From Xcode you can also
 right-click the package → "Regenerate MachOSwiftSection fixture-test ABI
 baselines.".
 
+### Environment-drift checks — do these FIRST when snapshot/baseline tests go red
+
+Two environment drifts produce failures that closely mimic real regressions.
+Rule out both before attributing red tests to a code change:
+
+1. **Stale fixture binary.** `Tests/Projects/SymbolTests/DerivedData/…/SymbolTestsCore`
+   is a gitignored per-machine artifact, while the snapshot `.txt` baselines are
+   versioned. A binary older than the fixture *sources* makes snapshot output
+   drop whole trailing types with no `Error:` lines (it looks like truncation).
+   Diagnose with `strings <binary> | grep -c <TypeName>` for a type added by the
+   latest commits touching `Tests/Projects/SymbolTests/SymbolTestsCore`; fix by
+   rebuilding with the `xcodebuild` command above (pass
+   `-derivedDataPath Tests/Projects/SymbolTests/DerivedData/SymbolTests`).
+   Note the binary is shared machine state — a parallel agent session may have
+   rebuilt it from a different branch's sources.
+2. **Missing local sibling dependencies.** `Package.swift` declares
+   `../MachOKit`, `../MachOObjCSection`, `../swift-demangling`, and
+   `../swift-semantic-string` as *conditional local path* dependencies: they are
+   used when the sibling directory exists, else resolution silently falls back
+   to the remote release. A worktree checked out elsewhere (e.g. a scratchpad)
+   has no siblings and builds against older remote versions — output drifts
+   wholesale (e.g. `T?` printing as `Swift.Optional<T>`), invalidating any
+   cross-commit A/B comparison. For historical-baseline experiments, place or
+   symlink all four siblings next to the worktree first.
+
 ## Work In Progress
 
 ### GenericSpecializer (SwiftSpecialization module)
