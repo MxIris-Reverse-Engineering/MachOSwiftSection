@@ -16,7 +16,11 @@ final class SymbolTestsCoreInterfaceSnapshotTests: MachOFileTests, SnapshotInter
 
     @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
     @Test func interfaceSnapshot() async throws {
+        // The AccessorFunctionReferences fixture namespace renders kind-9
+        // fallbacks whose embedded file offsets shift on every fixture
+        // rebuild; normalize them so this whole-module snapshot stays
+        // rebuild-stable (see `normalizingAccessorFunctionOffsets`).
         let output = try await collectInterfaceString(in: machOFile)
-        assertSnapshot(of: output, as: .lines)
+        assertSnapshot(of: normalizingAccessorFunctionOffsets(output), as: .lines)
     }
 }

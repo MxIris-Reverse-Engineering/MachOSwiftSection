@@ -26,7 +26,13 @@ PR #98 的 max 级 code review 报出：interface 路径对 Xcode 26.5 Testing.f
 - 新单测 `NodePrinterTests.typeNodePrinterAccessorFunctionReference`（合成 kind-9 节点钉兜底文案）；`EnumCaseRenderingParityTests` 全绿（Void payload 括号契约不受影响）。
 - Testing.framework（arm64e）A/B：整文件 interface diff 仅三行变化——两个枚举 case 空括号修复之外，还顺带修出一处评审未发现的存储字段同源问题（`var _storage: ` 悬空冒号 → `var _storage: accessor function at 283740`）。三行均与 dump 路径拼写逐字一致。
 
+## 后续补充（同日）
+
+- **与重构前基线的全量 A/B**：以 `a583aa8`（`47b5961^`）为基线、对齐本地依赖（`USING_LOCAL_DEPENDENCIES=1` + 四个兄弟目录）与同一 fixture 后：dump 两语料 0 diff；interface 差异恰为 kind-9 修复（3 处）+ SE-0452 integer 节点修复（6 处），无未解释差异。期间定位并修复了本机 fixture 二进制过期导致的 8 个快照假失败（环境问题，与任何分支无关），两类环境漂移排查已写入 AGENTS.md。
+- **fixture 覆盖补齐**：`SymbolTestsCore` 新增 `AccessorFunctionReferences` 命名空间（always-noncopyable 字段的 capability-check 路径，部署目标无关），四个形态各就位；`accessorFunctionReferencesSnapshot` + 整模块 interface 快照经 `normalizingAccessorFunctionOffsets` 偏移归一化保持重建稳定；`actors` / `builtinTypeFields` 两份快照因二进制布局平移重录（经核对为纯排序差异）；ABI 字面量基线按 AGENTS 流程重生成（59 文件、102 行对称替换，全部为偏移值）。
+
 ## 偏差与遗留
 
 - `case type(accessor function at 750396)` 仍非合法 Swift——离线诚实标注（与 dump 历史行为一致），可编译性需层 1/层 2。
 - 层 1/层 2 未实施，已连同挂接点、风险评估、验证前置记录在设计文档中。
+- `any (~Copyable & ~Escapable).Type`（组合带 inverse 的 existential metatype）在 fixture 的 macOS 26 部署目标下不触发 kind-9，覆盖它需要低部署目标的独立 target——记录在设计文档，未做。

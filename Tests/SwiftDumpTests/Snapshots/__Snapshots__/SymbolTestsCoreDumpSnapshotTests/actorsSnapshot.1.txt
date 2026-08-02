@@ -147,8 +147,8 @@ class SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest {
     SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest.deinit
 
     /* Function */
-    SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest.isolatedRequirement() -> ()
     SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest.customIsolatedRequirement() -> ()
+    SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest.isolatedRequirement() -> ()
 
     /* [Method] Allocator */
     method descriptor for SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest.__allocating_init() -> SymbolTestsCore.Actors.GlobalActorIsolatedConformanceTest

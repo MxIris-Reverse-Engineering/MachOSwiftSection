@@ -464,6 +464,34 @@ extension SnapshotDumpableTests {
     }
 }
 
+/// Replaces the file offset in kind-9 fallback renderings
+/// (`accessor function at 12345`) with a stable `<offset>` placeholder.
+/// The offset is the referenced metadata-accessor thunk's position in the
+/// binary and shifts with any layout change, so snapshots containing it would
+/// break on every fixture rebuild; the placeholder keeps the *shape* pinned
+/// (honest fallback text, parentheses around payloads, no dangling colons)
+/// while staying rebuild-stable.
+package func normalizingAccessorFunctionOffsets(_ output: String) -> String {
+    // Hand-rolled scan instead of `Regex` — this module deploys below the
+    // macOS 13 floor `Regex` requires.
+    let marker = "accessor function at "
+    var normalized = ""
+    var remainder = Substring(output)
+    while let markerRange = remainder.range(of: marker) {
+        normalized += remainder[..<markerRange.upperBound]
+        var digitsEnd = markerRange.upperBound
+        while digitsEnd < remainder.endIndex, remainder[digitsEnd].isNumber {
+            digitsEnd = remainder.index(after: digitsEnd)
+        }
+        if digitsEnd > markerRange.upperBound {
+            normalized += "<offset>"
+        }
+        remainder = remainder[digitsEnd...]
+    }
+    normalized += remainder
+    return normalized
+}
+
 /// Marker string used to opt a category into the Swift.Never-extensions bucket.
 private let snapshotDumpableNeverExtensionsCategory = "NeverExtensions"
 

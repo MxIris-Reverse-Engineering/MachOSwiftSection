@@ -12,7 +12,7 @@ enum AnonymousContextBaseline {
     }
 
     static let firstAnonymous = Entry(
-    descriptorOffset: 0x41ec0,
+    descriptorOffset: 0x3dd70,
     hasGenericContext: true,
     hasMangledName: false
     )

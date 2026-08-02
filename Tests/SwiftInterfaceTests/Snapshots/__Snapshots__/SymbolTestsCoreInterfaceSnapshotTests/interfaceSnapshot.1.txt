@@ -18,6 +18,39 @@ func globalThrowingFunction() throws -> Swift.String
 func globalAsyncFunction() async -> Swift.Int
 func globalFunction() -> Swift.Int
 
+enum AccessorFunctionReferences {
+    struct NoncopyableResourceTest: ~Swift.Copyable {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var fileDescriptor: Swift.Int
+
+        init(fileDescriptor: Swift.Int)
+
+        deinit
+    }
+    struct NoncopyableGenericBoxTest<A>: ~Swift.Copyable where A: ~Swift.Copyable {
+        // Field offset: unknown (generic parameter not substituted)
+        var wrapped: A
+    }
+    struct NoncopyableFieldHolderTest: ~Swift.Copyable {
+        // Field offset: unknown (unsupported type kind AccessorFunctionReference)
+        var resource: accessor function at <offset>
+        // Field offset: unknown (preceding field unresolved)
+        var boxedInteger: accessor function at <offset>
+        // Field offset: unknown (preceding field unresolved)
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var trailingOrdinaryField: Swift.Int
+
+        init(resource: SymbolTestsCore.AccessorFunctionReferences.NoncopyableResourceTest, boxedInteger: SymbolTestsCore.AccessorFunctionReferences.NoncopyableGenericBoxTest<Swift.Int>, trailingOrdinaryField: Swift.Int)
+    }
+    enum NoncopyablePayloadEnumTest: ~Swift.Copyable {
+        case holding(accessor function at <offset>)
+        case boxed(accessor function at <offset>)
+        case empty
+
+        func consumeFileDescriptor() -> Swift.Int
+    }
+}
 enum Actors {
     actor ActorTest {
         // Field offset: 0x10
@@ -73,8 +106,8 @@ enum Actors {
     class GlobalActorIsolatedConformanceTest {
         init()
 
-        func isolatedRequirement()
         func customIsolatedRequirement()
+        func isolatedRequirement()
 
         deinit
     }
@@ -3101,6 +3134,10 @@ extension SymbolTestsCore.Generics.GenericRequirementTest where A: Swift.RawRepr
     struct RawRepresentableNestedStruct {
         struct NestedStruct {}
     }
+}
+extension SymbolTestsCore.AccessorFunctionReferences.NoncopyableGenericBoxTest where A: ~Swift.Copyable {}
+extension SymbolTestsCore.AccessorFunctionReferences.NoncopyableGenericBoxTest {
+    init(wrapped: A) where A: ~Swift.Copyable
 }
 extension SymbolTestsCore.Generics.GenericRequirementTest where A: Swift.RawRepresentable {
     var rawValue: A {

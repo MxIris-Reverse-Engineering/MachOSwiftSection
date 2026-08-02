@@ -12,7 +12,7 @@ enum ProtocolRequirementBaseline {
     }
 
     static let firstRequirement = Entry(
-    offset: 0x455a0,
+    offset: 0x41450,
     layoutFlagsRawValue: 0x11,
     hasDefaultImplementation: false
     )

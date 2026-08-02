@@ -22,12 +22,12 @@ enum BuiltinTypeDescriptorBaseline {
     }
 
     static let firstBuiltin = Entry(
-    descriptorOffset: 0x4acb0,
-    size: 0x14,
-    alignmentAndFlags: 0x10004,
-    stride: 0x14,
-    numExtraInhabitants: 0x0,
-    alignment: 0x4,
+    descriptorOffset: 0x49384,
+    size: 0x9,
+    alignmentAndFlags: 0x10008,
+    stride: 0x10,
+    numExtraInhabitants: 0xfd,
+    alignment: 0x8,
     isBitwiseTakable: true,
     hasMangledName: true
     )

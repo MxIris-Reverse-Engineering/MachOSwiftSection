@@ -46,5 +46,6 @@ kind-9 的设计意图就是「调函数拿 metadata」，进程内完全可以�
 
 ## 验证
 
+- **fixture 覆盖**（2026-08-02 补）：`SymbolTestsCore` 新增 `AccessorFunctionReferences` 命名空间——利用 kind-9 的第二条触发路径（字段类型 always-noncopyable 时 reflection 走 runtime capability check，**不看部署目标**，所以在 fixture 的 macOS 26 目标下也能发出；第一条「部署目标过旧」路径在该目标下永远不触发，这正是 fixture 此前零覆盖的原因）。覆盖四个形态：普通 noncopyable 字段、bound-generic-with-inverse 字段（`NoncopyableGenericBoxTest<Int>`，即 swift-testing `Attachment<AnyAttachable>` 的形态）、枚举 payload case（历史失败形态 `case holding()`）、kind-9 字段之后的普通尾随字段（钉「渲染继续而非中断」）。快照 `accessorFunctionReferencesSnapshot` 与整模块 interface 快照都经 `normalizingAccessorFunctionOffsets` 把偏移归一为 `<offset>`——thunk 文件偏移每次重建都会漂移，归一化让快照对 fixture 重建保持稳定。注意 `any (~Copyable & ~Escapable).Type` 这类「组合带 inverse」的 existential metatype 在 macOS 26 目标下不走 kind-9（运行时能 demangle），要覆盖它需要低部署目标的独立 target——未做，记录在案。
 - 单测：`NodePrinterTests.typeNodePrinterAccessorFunctionReference`（合成 kind-9 节点，钉兜底文案）；`EnumCaseRenderingParityTests`（Void payload 括号与两路拼写一致，不受影响）。
 - A/B：Testing.framework（arm64e）整文件 interface diff——层 0 前后仅三行变化，全部是修复本身：`indirect case valueAttached()` → `indirect case valueAttached(accessor function at 428216)`、`case type()` → `case type(accessor function at 750396)`，以及一处此前没被发现的**存储字段**同源问题 `var _storage: `（悬空冒号，同样非法）→ `var _storage: accessor function at 283740`（`Attachment` 的 `Allocated<AttachableValue>` 字段）。三行均与 dump 路径拼写逐字一致。
