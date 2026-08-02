@@ -1,4 +1,4 @@
-name: macOS 
+name: macOS
 
 on:
   push:
@@ -17,6 +17,10 @@ jobs:
         # Adding an Intel runner would load a different arch slice and drift snapshots.
         os: [macos-26]
         xcode-version: ["26.4"]
+        # debug and release run as parallel jobs — sequentially they doubled
+        # the wall clock (14m + 21m cold). Release stays in the matrix on
+        # purpose: optimizer-sensitive pointer bugs only surface there.
+        configuration: [debug, release]
     env:
       MACHO_SWIFT_SECTION_SILENT_TEST: 1
       GH_TOKEN: ${{ github.token }}
@@ -80,20 +84,26 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: symboltests-derived-data-logs
+          name: symboltests-derived-data-logs-${{ matrix.configuration }}
           path: Tests/Projects/SymbolTests/DerivedData/Logs
           if-no-files-found: ignore
 
-      - name: Build and run tests in debug mode
-        run: |
-          swift test \
-            -c debug \
-            --build-path .build-test-debug \
-            --filter '\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests|GenericSpecializationTests|MultiPayloadEnumTests|MetadataReaderDemanglingTests)(/|$)'
+      - name: Cache SwiftPM build directory
+        uses: actions/cache@v4
+        with:
+          path: .build-test-${{ matrix.configuration }}
+          # This step runs after `swift package update`, so the key hashes the
+          # post-update Package.resolved: a floated dependency bump rotates
+          # the key, and restore-keys falls back to the newest cache for the
+          # same configuration — an almost-warm build instead of a cold one.
+          key: spm-build-${{ matrix.os }}-${{ matrix.xcode-version }}-${{ matrix.configuration }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            spm-build-${{ matrix.os }}-${{ matrix.xcode-version }}-${{ matrix.configuration }}-
 
-      - name: Build and run tests in release mode
+      - name: Build and run tests (${{ matrix.configuration }})
         run: |
           swift test \
-            -c release \
-            --build-path .build-test-release \
+            -c ${{ matrix.configuration }} \
+            --enable-experimental-prebuilts \
+            --build-path .build-test-${{ matrix.configuration }} \
             --filter '\.(SymbolTestsCoreDumpSnapshotTests|SymbolTestsCoreInterfaceSnapshotTests|SymbolTestsCoreCoverageInvariantTests|STCoreE2ETests|STCoreTests|GenericSpecializationTests|MultiPayloadEnumTests|MetadataReaderDemanglingTests)(/|$)'
