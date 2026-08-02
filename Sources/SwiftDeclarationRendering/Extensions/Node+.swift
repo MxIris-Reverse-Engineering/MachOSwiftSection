@@ -64,16 +64,25 @@ extension DemanglingNode {
     /// A deeply nested generic symbol printed through a `Node` could therefore
     /// overflow the stack where the identical `NodeReference` call would not.
     ///
-    /// The guard is the engine's own `print(_:options:)` rather than a
-    /// `StackSafeExecutor.execute` wrapper around `printRoot`. `execute` has to
-    /// assume the worst about every input, so on a 512KB stack — which is what
-    /// every Swift Concurrency cooperative worker and every libdispatch worker
-    /// gets — it hands *every* call to a large-stack worker and blocks the
-    /// caller on a semaphore until that worker returns. `print(_:options:)`
-    /// runs the recursion inline against a stack floor and pays for a worker
-    /// only for a tree that actually reaches it. Every `printSemantic` call
-    /// site sits on a printing hot path, so the difference is one
-    /// dispatch-and-block per printed declaration.
+    /// The guard is the engine's own `print(_:options:)`, which routes through
+    /// `StackSafeExecutor.executeWithUncheckedSendability` — the same probe
+    /// and the same 2MB floor as `execute`, only without the `Sendable`
+    /// checking a generic `Target` cannot satisfy. An earlier version of this
+    /// comment framed the two as a choice, claiming the engine's entry point
+    /// "runs the recursion inline and pays for a worker only for a tree that
+    /// actually reaches it"; it does not. Darwin gives every thread but the
+    /// main one a 512KB stack, so on a cooperative or libdispatch worker the
+    /// probe never passes and *every* call hops to a large-stack worker and
+    /// blocks on a semaphore — whichever wrapper the engine happens to use.
+    ///
+    /// That cost is upstream's deliberate trade (`swift-demangling` 7b86137):
+    /// before it, the printer recursed unguarded and a deeply nested generic
+    /// really did overflow a 512KB worker. It is paid down at a *batch*
+    /// boundary, never here — a `withLargeStack` around this single call would
+    /// save exactly the one hop it adds. `SymbolIndexStore.buildStorageImpl`
+    /// is where the repo does that, because it owns a loop; the printer's own
+    /// loop lives in `SwiftDeclarationPrinter` and is `async`, which a
+    /// synchronous wrapper cannot enclose.
     public func printSemantic(using options: DemangleOptions = .default) -> SemanticString {
         DemanglingPrinter<SemanticString, Self>.print(self, options: options)
     }

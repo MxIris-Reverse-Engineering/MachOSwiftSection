@@ -325,7 +325,36 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         return buildStorageImpl(for: machO, progressContinuation: nil)
     }
 
+    /// Batch boundary for the sweep's per-symbol demangling.
+    ///
+    /// `demangleAsNodeTransient` — like every `Demangling` entry point —
+    /// probes the *calling* thread's remaining stack and moves the work to an
+    /// 8MB worker when less than 2MB is left, blocking on a semaphore until
+    /// that worker returns. Darwin gives every thread except the main one a
+    /// 512KB stack, so on the Swift Concurrency cooperative worker or
+    /// libdispatch worker a build runs on, that probe never passes: without a
+    /// batch boundary each of a framework's hundreds of thousands of symbols
+    /// pays its own thread round trip.
+    ///
+    /// One hop here puts the whole sweep on an 8MB thread, where the probe
+    /// passes and every demangle inside runs inline — which is exactly what
+    /// `withLargeStack` documents itself for ("indexing every symbol of a
+    /// binary, say"). It is not a second guard: the probe and its 2MB floor
+    /// are unchanged, this only stops the answer from being "no" every time.
+    ///
+    /// Wrapping the sweep's *call sites* instead would be a no-op — a hop that
+    /// covers one demangle saves the one it replaces and nothing else. The
+    /// saving is `(calls - 1)` hops, so the wrapper has to enclose the loop.
     private func buildStorageImpl<MachO: MachORepresentableWithCache>(
+        for machO: MachO,
+        progressContinuation: AsyncStream<Progress>.Continuation?
+    ) -> Storage? {
+        return StackSafeExecutor.withLargeStack {
+            self.buildStorageSweep(for: machO, progressContinuation: progressContinuation)
+        }
+    }
+
+    private func buildStorageSweep<MachO: MachORepresentableWithCache>(
         for machO: MachO,
         progressContinuation: AsyncStream<Progress>.Continuation?
     ) -> Storage? {
