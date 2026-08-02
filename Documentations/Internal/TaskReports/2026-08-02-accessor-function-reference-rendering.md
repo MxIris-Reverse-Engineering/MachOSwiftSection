@@ -30,6 +30,7 @@ PR #98 的 max 级 code review 报出：interface 路径对 Xcode 26.5 Testing.f
 
 - **与重构前基线的全量 A/B**：以 `a583aa8`（`47b5961^`）为基线、对齐本地依赖（`USING_LOCAL_DEPENDENCIES=1` + 四个兄弟目录）与同一 fixture 后：dump 两语料 0 diff；interface 差异恰为 kind-9 修复（3 处）+ SE-0452 integer 节点修复（6 处），无未解释差异。期间定位并修复了本机 fixture 二进制过期导致的 8 个快照假失败（环境问题，与任何分支无关），两类环境漂移排查已写入 AGENTS.md。
 - **fixture 覆盖补齐**：`SymbolTestsCore` 新增 `AccessorFunctionReferences` 命名空间（always-noncopyable 字段的 capability-check 路径，部署目标无关），四个形态各就位；`accessorFunctionReferencesSnapshot` + 整模块 interface 快照经 `normalizingAccessorFunctionOffsets` 偏移归一化保持重建稳定；`actors` / `builtinTypeFields` 两份快照因二进制布局平移重录（经核对为纯排序差异）；ABI 字面量基线按 AGENTS 流程重生成（59 文件、102 行对称替换，全部为偏移值）。
+- **Void payload fixture 覆盖**：`Enums.swift` 新增 `VoidPayloadEnumTest`（`case unitPayload(Void)` + `indirect case indirectUnitPayload(Void)` + Int payload + 裸 case），把审计 #3 的括号契约从「测试二进制 in-process fixture」扩展到离线（`MachOFile`）快照两路——dump/interface 均渲染 `case unitPayload()`；`enums` 与整模块 interface 快照重录（diff 即新类型本身），基线随布局偏移重生成。
 
 ## 偏差与遗留
 

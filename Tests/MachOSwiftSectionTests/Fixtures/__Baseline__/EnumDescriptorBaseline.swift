@@ -23,7 +23,7 @@ enum EnumDescriptorBaseline {
     }
 
     static let noPayloadEnumTest = Entry(
-    offset: 0x3e8fc,
+    offset: 0x3ea0c,
     layoutNumPayloadCasesAndPayloadSizeOffset: 0x0,
     layoutNumEmptyCases: 0x4,
     layoutFlagsRawValue: 0x52,
@@ -40,7 +40,7 @@ enum EnumDescriptorBaseline {
     )
 
     static let singlePayloadEnumTest = Entry(
-    offset: 0x3e918,
+    offset: 0x3ea28,
     layoutNumPayloadCasesAndPayloadSizeOffset: 0x1,
     layoutNumEmptyCases: 0x2,
     layoutFlagsRawValue: 0x52,
@@ -57,7 +57,7 @@ enum EnumDescriptorBaseline {
     )
 
     static let multiPayloadEnumTest = Entry(
-    offset: 0x3e89c,
+    offset: 0x3e9ac,
     layoutNumPayloadCasesAndPayloadSizeOffset: 0x3,
     layoutNumEmptyCases: 0x1,
     layoutFlagsRawValue: 0x52,

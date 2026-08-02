@@ -177,6 +177,12 @@ enum SymbolTestsCore.Enums.FunctionReferenceCaseTest {
     /* Static Function */
     static SymbolTestsCore.Enums.FunctionReferenceCaseTest.selectFirst() -> (Swift.Int) -> SymbolTestsCore.Enums.FunctionReferenceCaseTest
 }
+enum SymbolTestsCore.Enums.VoidPayloadEnumTest {
+    indirect case indirectUnitPayload()
+    case intPayload(Swift.Int)
+    case unitPayload()
+    case plain
+}
 
 // MARK: - Protocol Conformances
 

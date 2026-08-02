@@ -997,6 +997,15 @@ enum Enums {
 
         static func selectFirst() -> (_: Swift.Int) -> SymbolTestsCore.Enums.FunctionReferenceCaseTest
     }
+    enum VoidPayloadEnumTest {
+        // Type Layout: (size: 0, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        indirect case indirectUnitPayload()
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        case intPayload(Swift.Int)
+        // Type Layout: (size: 0, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        case unitPayload()
+        case plain
+    }
 }
 enum ErrorTypes {
     enum SimpleErrorTest {
