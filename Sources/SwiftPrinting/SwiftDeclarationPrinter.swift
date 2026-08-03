@@ -177,9 +177,13 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         }
 
         if protocolDefinition.parent == nil {
-            try await BlockList {
+            // Per-extension catch: a default-implementation extension whose
+            // printing throws drops only itself, not the protocol it trails.
+            await BlockList {
                 for extensionDefinition in protocolDefinition.defaultImplementationExtensions {
-                    try await printExtensionDefinition(extensionDefinition)
+                    await printCatchedThrowing {
+                        try await printExtensionDefinition(extensionDefinition)
+                    }
                 }
             }
         }
