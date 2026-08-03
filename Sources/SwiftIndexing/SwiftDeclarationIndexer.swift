@@ -154,6 +154,10 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             @Dependency(\.symbolIndexStore)
             var symbolIndexStore
             symbolIndexStore.remove(for: machO)
+            // The interned-name bucket shares the symbol store's per-image
+            // lifetime: names minted while this indexer owned the image are
+            // dropped with it, keeping the recycling model intact.
+            InternedNodeReferenceCache.shared.remove(for: machO)
         }
     }
 
@@ -407,12 +411,12 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     guard let extensionTypeNode = try MetadataReader.demangleType(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
                     guard let extensionTypeKind = extensionTypeNode.typeKind else { continue }
 
-                    let extensionTypeName = TypeName(node: NodeReference(interning: extensionTypeNode), kind: extensionTypeKind)
+                    let extensionTypeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: extensionTypeNode, in: machO), kind: extensionTypeKind)
 
                     var genericSignature: NodeReference?
 
                     if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO), !currentRequirements.isEmpty {
-                        genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO).map { NodeReference(interning: $0) }
+                        genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }
                     }
 
                     let extensionDefinition = try ExtensionDefinition(extensionName: extensionTypeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, in: machO)
@@ -425,7 +429,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                 case .symbol(let symbol):
                     guard let type = try MetadataReader.demangleType(for: symbol, in: machO)?.first(of: .type), let kind = type.typeKind else { continue }
-                    let parentTypeName = TypeName(node: NodeReference(interning: type), kind: kind)
+                    let parentTypeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: type, in: machO), kind: kind)
                     let extensionDefinition = try ExtensionDefinition(extensionName: parentTypeName.extensionName, genericSignature: nil, protocolConformance: nil, in: machO)
                     extensionDefinition.types = [typeDefinition]
                     currentStorage.typeExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
@@ -475,10 +479,10 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     } else if let extensionContext = protocolDefinition.extensionContext, let extendedContextMangledName = extensionContext.extendedContextMangledName {
                         guard let typeNode = try MetadataReader.demangleType(for: extendedContextMangledName, in: machO).first(of: .type) else { continue }
                         guard let typeKind = typeNode.typeKind else { continue }
-                        let typeName = TypeName(node: NodeReference(interning: typeNode), kind: typeKind)
+                        let typeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: typeNode, in: machO), kind: typeKind)
                         var genericSignature: NodeReference?
                         if let currentRequirements = extensionContext.genericContext?.uniqueCurrentRequirements(in: machO), !currentRequirements.isEmpty {
-                            genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO).map { NodeReference(interning: $0) }
+                            genericSignature = try MetadataReader.buildGenericSignature(for: currentRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }
                         }
                         let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: genericSignature, protocolConformance: nil, in: machO)
                         extensionDefinition.protocols = [protocolDefinition]
@@ -572,7 +576,7 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
                     }
 
                     let conformanceAssociatedTypes = associatedType.map { [$0] } ?? []
-                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO).map { NodeReference(interning: $0) }, protocolConformance: protocolConformance, conformingProtocolName: protocolName, associatedTypes: conformanceAssociatedTypes, resolvedAssociatedTypeWitnesses: resolvedWitnessProjections(of: conformanceAssociatedTypes), in: machO)
+                    let extensionDefinition = try ExtensionDefinition(extensionName: typeName.extensionName, genericSignature: MetadataReader.buildGenericSignature(for: protocolConformance.conditionalRequirements, in: machO).map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }, protocolConformance: protocolConformance, conformingProtocolName: protocolName, associatedTypes: conformanceAssociatedTypes, resolvedAssociatedTypeWitnesses: resolvedWitnessProjections(of: conformanceAssociatedTypes), in: machO)
                     extensionDefinition.isRetroactive = protocolConformance.flags.isRetroactive
                     conformanceExtensionDefinitions[extensionDefinition.extensionName, default: []].append(extensionDefinition)
                     extensionCount += 1

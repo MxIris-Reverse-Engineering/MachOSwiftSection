@@ -4,6 +4,7 @@ import Foundation
 import MachOSwiftSection
 import MachOKit
 import Demangling
+@_spi(Internals) import MachOSymbols
 import OrderedCollections
 @_spi(Internals) import SwiftInspection
 
@@ -627,7 +628,7 @@ extension GenericSpecializer {
         for requirement in requirements {
             guard case .baseClass(let demangledNode, _) = requirement else { continue }
             let typeNode = demangledNode.first(of: .type) ?? demangledNode
-            return TypeName(node: NodeReference(interning: typeNode), kind: .class)
+            return TypeName(node: InternedNodeReferenceCache.shared.reference(interning: typeNode), kind: .class)
         }
         return nil
     }
@@ -1973,7 +1974,7 @@ extension GenericSpecializer where MachO == MachOImage {
         step: AssociatedPathInfo.Step,
         allProtocolDefinitions: OrderedDictionary<ProtocolName, MachOIndexedValue<MachO, ProtocolDefinition>>
     ) throws -> Metadata {
-        let stepProtocolName = ProtocolName(node: NodeReference(interning: step.protocolNode))
+        let stepProtocolName = ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: step.protocolNode, in: machO))
         guard let entry = allProtocolDefinitions[stepProtocolName] else {
             throw AssociatedTypeResolutionError.missingAssociatedTypeRefMachOAndProtocol(protocolTypeNode: step.protocolNode)
         }
