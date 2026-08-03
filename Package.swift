@@ -212,7 +212,7 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-demangling",
-            branch: "feature/node-store",
+            from: "0.5.0",
         ),
     )
 
