@@ -365,6 +365,7 @@
 - **文档**：[CLITransformerTemplateInterface.md](CLITransformerTemplateInterface.md)、
   [TaskReports/2026-07-26-cli-transformer-template-interface.md](TaskReports/2026-07-26-cli-transformer-template-interface.md)、
   README 的 `transformer` 一节。
+- **对应版本**：0.14.1。
 
 ---
 
@@ -392,7 +393,7 @@
   三路全面审计：7 项存活问题清单 + 历史断裂记录 + 干净面）、
   [LeafMigrationPlan.md](LeafMigrationPlan.md)（deviations 补 Superseded/Amended 标注）、
   [TaskReports/2026-07-30-specialized-interface-bound-rendering.md](TaskReports/2026-07-30-specialized-interface-bound-rendering.md)。
-- **对应版本**：0.14.0 之后未发布区间（回归区间 0.12.0-beta.6 ~ 0.14.0）。
+- **对应版本**：0.14.1（回归区间 0.12.0-beta.6 ~ 0.14.0）。
 
 ## 22. Leaf 迁移回归的整批修复（错误契约 + 缓存 + 括号统一）
 
@@ -422,7 +423,7 @@
   [LeafMigrationRegressionAudit.md](LeafMigrationRegressionAudit.md)（状态标注）、
   [TaskReports/2026-07-31-leaf-migration-regression-fixes.md](TaskReports/2026-07-31-leaf-migration-regression-fixes.md)。
 - **补记（2026-08-02，同分支）**：mangled-name gating 重新暴露了一个早于 leaf 迁移的 bug——`SwiftPrinting` 节点渲染器不认识 kind-9（accessor-function）symbolic reference（`~Copyable` 泛型 + 向后部署时编译器嵌 accessor thunk 指针而非类型名），payload 渲染为空串后输出非法的 `case type()`。修复：`NodePrintable` 补兜底文案（与 Demangling `NodePrinter` 逐字一致）、payload gating 改读索引期捕获的 `FieldFlags.hasMangledTypeName`、两路各加「渲染为空则裸 case」防护网；Testing.framework A/B 仅三行变化（两个枚举 case + 一个同源的存储字段悬空冒号 `var _storage: `）且与 dump 拼写逐字一致。随后与重构前基线（`a583aa8`，对齐本地依赖与同一 fixture）做全量 A/B：dump 两语料 0 diff，interface 差异恰为 kind-9 修复（3 处）+ SE-0452 integer 节点修复（6 处），无未解释差异。fixture 补上 `AccessorFunctionReferences` 命名空间（走 always-noncopyable 字段的 capability-check 路径，部署目标无关），快照经偏移归一化保持重建稳定。机理与后续两层（进程内真解析、离线符号表还原）记录在 [AccessorFunctionReferenceRendering.md](AccessorFunctionReferenceRendering.md)。
-- **对应版本**：0.14.0 之后未发布区间（回归区间 0.12.0-beta.6 ~ 0.14.0）。
+- **对应版本**：0.14.1（回归区间 0.12.0-beta.6 ~ 0.14.0）。
 
 ---
 
