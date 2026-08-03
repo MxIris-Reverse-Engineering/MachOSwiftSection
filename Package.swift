@@ -580,6 +580,7 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
+            .target(.MachOSymbols),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.Utilities),
