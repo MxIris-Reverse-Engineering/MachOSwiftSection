@@ -26,7 +26,7 @@
 
 **状态：已随上游 0.5.0 关闭。** 上游把上限恢复为 768，并在源码注释里记下了原因与禁止再降的约束（"Downstream consumers reported `<<too complex>>` on ordinary SwiftUI and similarly generic-heavy modules under the 512 limit … Do not lower this again without corpus evidence gathered from downstream workloads."）。本仓库随依赖升级到 `from: "0.5.0"` 后自动获得，无需本地改动。
 
-### 2. `indexExtensions` 丢失 `await`，从任务挂起退化为线程阻塞
+### 2. ~~`indexExtensions` 丢失 `await`，从任务挂起退化为线程阻塞~~ ✅ 已修（2026-08-03；先裁决不修，后被新事实推翻——见第三节第 3 条）
 
 `Sources/SwiftIndexing/SwiftDeclarationIndexer.swift:685`。
 
@@ -34,6 +34,8 @@
 - 本分支：`node` 变成 `NodeReference`，而 `NodeReference` / `DemanglingNode` 只暴露同步 `print`，于是 `await` 被静默去掉，改走 `DemanglingPrinter.print` → `runOnLargeStack` → `DispatchSemaphore.wait()`——**阻塞一条协作线程池的线程**。
 
 这个循环对每个 extension target 执行一次，位于 `async` 的索引流程内。`NodeReference` 上不存在 async 版 `print`，所以调用点看不出任何退化痕迹。
+
+机制描述成立（同步版确实阻塞而非挂起）。最初裁决为不修，其后上游把 print 便利方法整体迁到 `DemanglingNode` 协议扩展并补了 async 变体（`f913742`，发布为 **0.5.1**；`Store/DemanglingNode.swift`，挂起 + 大栈线程，对 `NodeReference` 同样生效），「需等上游补 async `print`」的前提当日即失效，一个 `await` 恢复了 main 的挂起语义，已落地。完整经过见第三节第 3 条。
 
 ### 3. `withLargeStack` 包住整趟 sweep，会占住一条线程整块时长
 
@@ -45,7 +47,7 @@
 
 正确形态是第三种：走异步入口（挂起而非阻塞），或使用专用线程。
 
-### 4. `NodeReference(interning:)` 在批量路径上被逐个调用（26 处）
+### 4. ~~`NodeReference(interning:)` 在批量路径上被逐个调用（26 处）~~ ✅ 已修（2026-08-03，`InternedNodeReferenceCache`）
 
 分布：`SwiftDeclaration/Extensions.swift` 14 处、`SwiftIndexing/SwiftDeclarationIndexer.swift` 6 处、`SwiftSpecialization/` 4 处、`SwiftDeclaration/Components/Definitions/ProtocolDefinition.swift` 1 处、`MachOSymbols/StructuralNodeReferenceKey.swift` 1 处。
 
@@ -56,6 +58,8 @@
 修法与 `TypeDefinition.index` 对字段类型树的做法一致——每个镜像共用一个 builder。
 
 > 与 `main` 的关系：`main` 没有这个形态，但有它自己的病（全局 `NodeCache` 只涨不落），而那正是本次迁移要治的。所以这是**代价而非退步**，只是这个代价可以不付。
+
+**修复（2026-08-03）**：批前实测推翻了「共用一个 builder」的原始修法——名字在调用流深处即用即取，freeze 前无法发引用，两阶段重排不可行；改为**结构去重缓存** `InternedNodeReferenceCache`（`Sources/MachOSymbols/`）：`SharedCache` 派生，镜像键 + 进程键（无 `machO` 的 in-process 助手）双入口，桶按 `Node` 结构哈希、命中经 `structurallyEquals` 校验，minting 沿用锁外构造 + 锁内 insert-if-absent。25 处真实调用点（第 26 处是注释）全部改走缓存；`SwiftDeclarationIndexer` 的 per-image 清理与内存压力驱逐都接上。fixture 实测：745 个驻留名字引用中 730 个 mini store 降到 **471**（= 472 个结构唯一树，去重完全），驻留字节 84,795 → 57,752（−32%）；重复名共享 store 后 `store ===` 快路径开始生效。真实框架上 conformance 扇出（180 处 `conformingProtocolName` 对少数协议名）会放大收益。快照套件逐字节不变。
 
 ### 5. `buildPipelineStaysOffGlobalNodeCache` 的断言本身不成立
 
@@ -85,9 +89,11 @@
 
 （上一轮第 5 条讲的是 `:133` 缺少提前退出导致全遍历，与本条不是同一个缺陷。）
 
-### 8. `ClassDumper.distributedFunctionNodes` 未记忆化，每个 actor 类求值两次
+### 8. `ClassDumper.distributedFunctionNodes` 未记忆化，每个 actor 类求值两次 —— 部分处理（2026-08-03）
 
 `Sources/SwiftDump/Dumper/ClassDumper.swift:77` 是一个 `private var … : Set<Node>` 计算属性，在 `:101`（`try? distributedFunctionNodes) ?? []).isEmpty == false`）和 `:192`（`let distributedFunctionNodes = (try? self.distributedFunctionNodes) ?? []`）各求值一次。每次都重建整个 thunk 符号数组，并为每个 thunk materialize 两棵树。
+
+**处理（2026-08-03）**：集合改存 `StructuralNodeReferenceKey`（引用形态直接入键），每 thunk 少一次树 materialize；成员循环的探测端（`isDistributedMethod`）改用引用形态的函数节点，同批随 dump 路径引用化落地。**双求值本身保留**：`ClassDumper` 是 struct，属性有 `guard isActor` 提前返回（非 actor 类零成本），`body` 内已提前收敛为局部变量——剩余成本只落在真 actor 类上、每类两次且每次比之前便宜，不值得为它引入引用盒。
 
 ## 二、本轮已闭环
 
@@ -132,6 +138,24 @@
 
 - `memberSymbols(of:excluding:in:)` 包内唯一调用点是 `SwiftDeclarationIndexer.swift:663`，在 `:684` 只做 `for (node, memberSymbols) in memberSymbolsByName` 遍历，全程无下标查询；且返回字典的键全部出自同一个 `storage.nodeStore`，同 store 内下标相等本就是正确的去重语义。
 - `allOpaqueTypeDescriptorSymbols(in:)` 在 `Sources/` 与 `Tests/` 中**零调用点**。
+
+### 3. ~~`indexExtensions` 丢失 `await`（同步 print 阻塞协作线程）—— 不修~~ —— 裁决被推翻，已修（2026-08-03 当日）
+
+对应本文第一节第 2 条。**裁定：不修**（维护者裁决，2026-08-03）。**同日推翻**：裁决对 0.5.0 而言前提无误（0.5.0 的 async `print` 确实只在 `Node` 上），但上游随即把 print 便利方法整体迁到 `DemanglingNode` 协议扩展并补 async 变体（`f913742` "move the print conveniences to DemanglingNode and add an async variant"，同日发布为 **0.5.1**："Suspends the calling task instead of blocking a cooperative worker"）——对 `NodeReference` 直接可用，无需 materialize。依赖已升至 `from: "0.5.1"`，修复即恢复 `await node.print(...)` 一处（`SwiftDeclarationIndexer.swift`），语义回到 main 的任务挂起。注意 0.5.1 同时**删除了** `Node` / `NodeReference` 上的具体同步 `print`，async 上下文里编译器会强制 `await`（本仓库另有三处 dump 路径 print 随引用化一并加了 `await`）。下面保留原始裁决全文供回溯。
+
+维护者最初的理由是「之前改过，改成 `await` 进协作线程池就只有 512KB 栈了」。核实结论：**该事故真实存在过，但其成因上游已修，不能再作为不修的理由**；不修的成立理由是下面的影响面判断。
+
+历史核实（`git log` 追溯）：
+
+- 512KB 爆栈是 0.4.3 时代的真问题——当时打印/demangle 路径没有任何栈保护，async 化后递归直接跑在协作线程的 512KB 栈上。上游 `95dd741`（"add stack-safe execution and async API overloads"）的提交信息原话：*"Cooperative pool workers default to 512KB stacks on Darwin, which the recursive demangler/remangler can blow on deeply nested generic types."*
+- 但**同一个提交**就是修复：async 重载的设计是「挂起调用方 + 把递归丢到 8MB 大栈线程」——*"async overloads that suspend via a continuation instead of blocking a cooperative worker"*。0.5.0 的 `executeAsync` 实现核实过：当前线程栈够则内联；不够（协作线程必然不够）则提交给大栈线程池并用 continuation 挂起，池满则退化为专用线程。递归**从不**落在 512KB 栈上。`main` 上 `47b5961` 写的 `await node.print(...)` 用的正是这个安全入口。
+
+因此同步版与 `await` 版走的是**同一套大栈机制，谁都不会爆栈**；唯一差异是等结果时调用线程「阻塞在信号量上」还是「挂起让出」。这从头到尾是并发吞吐问题，不是正确性问题。**留档警示：后续不要把本条的不修理由复述成「`await` 会跑在 512KB 栈上」**——那是 0.4.5 之前的旧行为，写进理由会误导后人。
+
+不修的实际理由（影响面）：
+
+- 损失只在**并行索引多个镜像**时显现（N 条协作线程被占住）；单镜像顺序索引时，阻塞一条线程 ≈ 顺序执行，没有可省的墙钟时间，且每次 print 很短。
+- 修起来并不干净：循环里的 `node` 是 `NodeReference`，0.5.0 的 async `print` 只在 `Node` 上有。一行修法 `await node.materialize().print(...)` 要为每个 extension target 多建一棵树（恰是迁移要消灭的动作）；干净修法需要上游给 `NodeReference` / `DemanglingNode` 补 async 重载。若将来上游补了，此条可以一行改回，届时再顺手做。
 
 ## 四、更正
 
@@ -181,18 +205,20 @@
 
 ## 六、待处理清单增量
 
-上一轮第四节的 17 条清单继续有效（除本文第三节裁决为不修的两条、第二节闭环的一条外）。本轮在其上新增：
+上一轮第四节的 17 条清单继续有效（除本文第三节裁决为不修的三条、第二节闭环的一条外）。本轮在其上新增：
 
 **建议合并前修**
 
-1. `indexExtensions` 丢失 `await`（第一节第 2 条）——一行改动能否恢复取决于 `NodeReference` 是否补 async `print`；若上游不补，需在渲染循环层面另作安排。
+1. ~~`indexExtensions` 丢失 `await`（第一节第 2 条）~~——**已修**（2026-08-03；先裁决不修，后上游 0.5.1 把 async `print` 落到 `DemanglingNode` 上，一行恢复 `await`，见第三节第 3 条）。
 
 **可排期**
 
 2. `withLargeStack` 占住整条线程（第一节第 3 条）——与上一轮第 1、2 条同属"线程跳转形态"课题，宜合并设计。
-3. 26 处 `NodeReference(interning:)` 改为每镜像共用 builder（第一节第 4 条）。
+3. ~~26 处 `NodeReference(interning:)` 改为每镜像共用 builder（第一节第 4 条）~~——**已修**（2026-08-03，`InternedNodeReferenceCache` 结构去重缓存，见第一节第 4 条的修复记录）。
 4. dyld `:73` 判定锚定到直接父目录（第一节第 7 条）——**这条是正确性问题（非确定性），优先级高于同文件 `:133` 的性能问题**。
-5. `distributedFunctionNodes` 记忆化（第一节第 8 条）。
+5. ~~`distributedFunctionNodes` 记忆化（第一节第 8 条）~~——**部分处理**（2026-08-03，引用键化省掉每 thunk materialize；双求值保留，成本已收窄到真 actor 类，见第一节第 8 条）。
+
+另注（2026-08-03 性能批次对上一轮清单的影响）：上一轮四.3（失败名不缓存 + 持锁重试）与四.4 / 台账第 9 条（`lateDemangledNode` 持锁 demangle）**已修**；四.16 / 台账第 10 条（`ProtocolConformanceDumper` materialize 分支）**已修**，并连同 dump 路径其余四处 `demangleSymbol` 调用点一并引用化（四.7 的热调用方随之清零）；四.6（打印器每成员 materialize）**裁决为暂不修**——实测其占打印墙钟仅 **1.18%**（fixture 全量导出，1313 次共 32.6 ms），而根治需要把 1700 行打印栈泛型化到 `DemanglingNode` 并重设计 3 处节点合成（`.static` 包装、labelList），投入产出不成比例；若未来在大镜像上剖析出不同占比可重开。
 
 **测试**
 
