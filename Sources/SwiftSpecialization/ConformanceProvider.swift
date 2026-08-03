@@ -4,6 +4,7 @@ import Foundation
 import MachOSwiftSection
 import OrderedCollections
 import Demangling
+@_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
 
 // MARK: - ConformanceProvider Protocol
@@ -211,7 +212,7 @@ extension IndexerConformanceProvider: ConformanceProvider {
             guard let superNode = superNode.first(of: .type) else {
                 continue
             }
-            let superTypeName = TypeName(node: NodeReference(interning: superNode), kind: .class)
+            let superTypeName = TypeName(node: InternedNodeReferenceCache.shared.reference(interning: superNode, in: entry.machO), kind: .class)
             map[superTypeName.name, default: []].append(childTypeName)
         }
 

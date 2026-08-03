@@ -3,6 +3,7 @@ import SwiftDeclaration
 import MachOSwiftSection
 import MachOKit
 import Demangling
+@_spi(Internals) import MachOSymbols
 import FoundationToolbox
 import AssociatedObject
 @_spi(Internals) import SwiftInspection
@@ -346,7 +347,7 @@ extension TypeDefinition {
         let boundNode = Node.create(kind: boundKind, children: [unboundTypeNode, typeList])
         let wrappedNode = Node.create(kind: .type, children: [boundNode])
 
-        return TypeName(node: NodeReference(interning: wrappedNode), kind: unboundTypeName.kind)
+        return TypeName(node: InternedNodeReferenceCache.shared.reference(interning: wrappedNode), kind: unboundTypeName.kind)
     }
 
     private func validateSpecialization(metadata: MetadataWrapper, in machO: MachOImage) throws {
