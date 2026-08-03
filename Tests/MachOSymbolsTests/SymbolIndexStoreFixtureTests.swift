@@ -189,4 +189,69 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
         let materialized = try #require(SymbolIndexStore.shared.demangledNode(for: lateSymbol, in: machOFile))
         #expect(reference.structurallyEquals(materialized))
     }
+
+    /// A late name the demangler rejects caches its rejection: the verdict
+    /// slot exists and holds `nil`, so repeat queries answer from the cache
+    /// instead of re-paying the demangle (previously every query on a
+    /// rejected name re-entered the demangler).
+    @Test func rejectedLateNameCachesItsFailure() throws {
+        let storage = try storage
+        let bogusSymbol = Symbol(offset: -1, name: "$s999999999999")
+        #expect(storage.tableRowByName[bogusSymbol.name] == nil)
+
+        #expect(SymbolIndexStore.shared.demangledNodeReference(for: bogusSymbol, in: machOFile) == nil)
+        let verdict = try #require(storage.lateDemangleVerdictForTesting(forName: bogusSymbol.name))
+        #expect(verdict == nil)
+
+        #expect(SymbolIndexStore.shared.demangledNodeReference(for: bogusSymbol, in: machOFile) == nil)
+    }
+
+    /// A name the build sweep covered answers from the table verdict — hit
+    /// or rejection — without ever minting a late mini store. Guarded via
+    /// the late cache: now that rejections are cached too, a regression that
+    /// re-routes table-covered names through the late path would leave a
+    /// verdict slot behind and fail this test.
+    @Test func tableCoveredNameNeverEntersLateCache() throws {
+        let storage = try storage
+
+        let demangledRow = try #require(storage.rootNodeIndexByTableRow.firstIndex(where: { $0 != nil }))
+        let demangledSymbol = storage.symbolTable[demangledRow]
+        _ = try #require(SymbolIndexStore.shared.demangledNodeReference(for: demangledSymbol, in: machOFile))
+        #expect(storage.lateDemangleVerdictForTesting(forName: demangledSymbol.name) == nil)
+
+        if let rejectedRow = storage.rootNodeIndexByTableRow.firstIndex(where: { $0 == nil }) {
+            let rejectedSymbol = storage.symbolTable[rejectedRow]
+            #expect(SymbolIndexStore.shared.demangledNodeReference(for: rejectedSymbol, in: machOFile) == nil)
+            #expect(storage.lateDemangleVerdictForTesting(forName: rejectedSymbol.name) == nil)
+        }
+    }
+
+    /// Concurrent first-time queries for one late name must agree on a single
+    /// store: insert-if-absent hands every caller the winner's reference
+    /// (store-identity `==`), never references into different mini stores.
+    /// This pins the one-store-per-name guarantee the former
+    /// demangle-inside-the-lock design existed for, now that the demangle
+    /// runs outside the critical section.
+    @Test func concurrentLateQueriesShareOneStore() async throws {
+        _ = try storage
+
+        let lateSymbol = Symbol(offset: -1, name: "$s7SwiftUI4TextV")
+        let references = await withTaskGroup(of: NodeReference?.self) { group in
+            for _ in 0 ..< 16 {
+                group.addTask { [machOFile] in
+                    SymbolIndexStore.shared.demangledNodeReference(for: lateSymbol, in: machOFile)
+                }
+            }
+            var collected: [NodeReference?] = []
+            for await reference in group {
+                collected.append(reference)
+            }
+            return collected
+        }
+
+        let winner = try #require(references.first ?? nil)
+        for reference in references {
+            #expect(reference == winner)
+        }
+    }
 }
