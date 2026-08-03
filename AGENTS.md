@@ -46,7 +46,9 @@ swift run swift-section transformer tokens
 
 Requires Swift 6.2+ / Xcode 26.0+.
 
-**Test suite convention:** `Tests/IntegrationTests/` is for the maintainer's manual inspection only — it prints results with no assertions or preconditions. Agents must not run it (use `--skip IntegrationTests` when running the full suite). All other `*Tests` targets have proper assertions and required preconditions, and are safe to run.
+**Test suite convention:** `Tests/IntegrationTests/` is for the maintainer's manual inspection only — it prints results with no assertions or preconditions. Agents must not run it (use `--skip IntegrationTests` when running the full suite). All other `*Tests` targets have proper assertions and required preconditions, and are safe to run. Sole exception: `RenderingVerificationTests` as the MachOImage leg of the rendering A/B verification below.
+
+**Rendering A/B verification (mandatory after any large refactor):** any refactor touching demangling, printing, indexing, or the reader stack must pass `Scripts/run-rendering-ab-verification.py <baseline-checkout> <candidate-checkout>` — byte-identical dump + interface output over real system frameworks (SwiftUI/SwiftUICore/SwiftData/Combine/ActivityKit/WidgetKit) through all three reader paths: archived dyld caches (falls back to the current system's cache when absent), simulator-runtime Mach-O files (falls back to whatever runtimes are installed), and in-process MachOImage via `RenderingVerificationTests`. Procedure, fallback rules, and known pitfalls: [Documentations/Internal/SystemFrameworkRenderingVerification.md](Documentations/Internal/SystemFrameworkRenderingVerification.md).
 
 ## Architecture Overview
 
