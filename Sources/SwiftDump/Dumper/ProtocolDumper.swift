@@ -5,6 +5,7 @@ import Semantic
 import Utilities
 import Demangling
 import OrderedCollections
+@_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 
@@ -91,7 +92,7 @@ package struct ProtocolDumper<MachO: FieldLayoutRenderable>: NamedDumper {
 
             try await associatedTypes
 
-            var defaultImplementations: OrderedSet<Node> = []
+            var defaultImplementations: OrderedSet<StructuralNodeReferenceKey> = []
 
             for (offset, requirement) in dumped.requirements.offsetEnumerated() {
                 BreakLine()
@@ -103,7 +104,7 @@ package struct ProtocolDumper<MachO: FieldLayoutRenderable>: NamedDumper {
                 }
 
                 if let symbols = try requirement.defaultImplementationSymbols(in: machO), let defaultImplementation = try await validNode(for: symbols, visitedNode: defaultImplementations) {
-                    _ = defaultImplementations.append(defaultImplementation)
+                    _ = defaultImplementations.append(StructuralNodeReferenceKey(defaultImplementation))
                 }
 
                 if offset.isEnd {
@@ -120,7 +121,7 @@ package struct ProtocolDumper<MachO: FieldLayoutRenderable>: NamedDumper {
 
                 BreakLine()
                 Indent(level: configuration.indentation)
-                try await demangleResolver.resolve(for: defaultImplementation)
+                try await demangleResolver.resolve(for: defaultImplementation.reference)
 
                 if offset.isEnd {
                     BreakLine()
@@ -145,10 +146,10 @@ package struct ProtocolDumper<MachO: FieldLayoutRenderable>: NamedDumper {
         }
     }
 
-    private func validNode(for symbols: Symbols, visitedNode: borrowing OrderedSet<Node> = []) async throws -> Node? {
+    private func validNode(for symbols: Symbols, visitedNode: borrowing OrderedSet<StructuralNodeReferenceKey> = []) async throws -> NodeReference? {
         let currentInterfaceName = try await _name(using: .options(.interfaceType)).string
         for symbol in symbols {
-            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), await protocolNode.print(using: .interfaceType) == currentInterfaceName, !visitedNode.contains(node) {
+            if let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO), let protocolNode = node.first(of: .protocol), await protocolNode.print(using: .interfaceType) == currentInterfaceName, !visitedNode.contains(StructuralNodeReferenceKey(node)) {
                 return node
             }
         }
