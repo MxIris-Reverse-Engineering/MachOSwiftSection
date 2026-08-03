@@ -698,6 +698,19 @@
 
 ---
 
+## 25. 系统框架渲染 A/B 验证：78 对零差异 + 流程固化
+
+- **时间段**：2026-08-03（紧接第 24 节的性能批次）。
+- **动机**：性能批次落地后，用真实 OS 框架对 `feature/node-store-migration` 做全面的输出对等验证——fixture 快照覆盖构造形态，但覆盖不了 10 万行级输出规模、iOS 15 时代的历史 metadata 与三种 reader 路径的全量组合；维护者随后要求把这套测试固化为「大重构必跑」的流程。
+- **落地**：
+  - **验证结果**：main ↔ feature 双侧 release CLI + `RenderingVerificationTests` harness，SwiftUI / SwiftUICore / SwiftData / Combine / ActivityKit / WidgetKit 六框架，三部分共 **78 对输出全部逐字节一致**——DyldCache（macOS 26.5.2 + 15.5 归档 cache，24 对）、MachOFile（iOS 15.5 / 18.5 / 26.5 模拟器 runtime，30 对）、MachOImage（当前系统 in-process + 当前 cache 文件，全选项，24 对）。附带 fixture（SymbolTestsCore）smoke 亦一致。
+  - **流程固化**：新增 [`Scripts/run-rendering-ab-verification.py`](../../Scripts/run-rendering-ab-verification.py)（自动构建双侧、三部分渲染、逐对 diff、差异非零退出；归档 cache 缺失回退当前系统 cache，指定模拟器缺失回退现有 runtime）与流程文档 [SystemFrameworkRenderingVerification.md](SystemFrameworkRenderingVerification.md)；AGENTS.md 增设「大重构后必跑」规则，并把 `RenderingVerificationTests` 登记为 IntegrationTests 禁跑规则的唯一例外。
+- **关键决策**：cache 镜像一律 `-p` 全路径（iOSSupport 副本消歧）；模拟器一律 `-a arm64`（15.5/18.5 为 fat 二进制）；MachOImage 双侧必须同一次开机会话（memberAddress 依赖 per-boot cache slide）；interface 输出走 `-o` 使时间戳日志与被比对内容分离。
+- **关联文档**：[SystemFrameworkRenderingVerification.md](SystemFrameworkRenderingVerification.md)、[TaskReports/2026-08-03-system-framework-rendering-ab.md](TaskReports/2026-08-03-system-framework-rendering-ab.md)。
+- **对应版本**：0.14.0 之后未发布区间（`feature/node-store-migration` 分支）。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
