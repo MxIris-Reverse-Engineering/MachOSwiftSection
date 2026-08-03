@@ -108,7 +108,6 @@ extension MachOFile {
 
     public func resolveBind(fileOffset: Int) -> String? {
         guard !isLoadedFromDyldCache else { return nil }
-        guard let fixup = dyldChainedFixups else { return nil }
 
         let offset: UInt64 = numericCast(fileOffset)
 
@@ -116,10 +115,89 @@ extension MachOFile {
             return cached
         }
 
-        guard let resolved = resolveBind(at: offset) else { return nil }
-        let result = fixup.symbolName(for: resolved.0.info.nameOffset)
-        _resolveBindCache[offset] = result
+        let result: String?
+        if let fixup = dyldChainedFixups {
+            guard let resolved = resolveBind(at: offset) else { return nil }
+            result = fixup.symbolName(for: resolved.0.info.nameOffset)
+        } else {
+            // Legacy binaries (deployment target < macOS 12 / iOS 16, e.g.
+            // the iOS 15.5 simulator frameworks) carry no chained fixups;
+            // their bind slots are described only by the LC_DYLD_INFO(_ONLY)
+            // opcode streams.
+            result = dyldInfoBindSymbolNamesByFileOffset[offset]
+        }
+        if let result {
+            _resolveBindCache[offset] = result
+        }
         return result
+    }
+
+    @AssociatedObject(.retain(.nonatomic))
+    private var _dyldInfoBindSymbolNamesByFileOffset: [UInt64: String]? = nil
+
+    private var dyldInfoBindSymbolNamesByFileOffset: [UInt64: String] {
+        if let indexed = _dyldInfoBindSymbolNamesByFileOffset {
+            return indexed
+        }
+        let indexed = makeDyldInfoBindSymbolNamesByFileOffset()
+        _dyldInfoBindSymbolNamesByFileOffset = indexed
+        return indexed
+    }
+
+    // Interprets the LC_DYLD_INFO(_ONLY) bind opcode streams (the dyld
+    // state machine over segment index / segment offset / symbol name) into
+    // a file-offset → symbol-name index, so `resolveBind(fileOffset:)` can
+    // answer for pre-chained-fixups binaries exactly like it does for
+    // chained ones.
+    private func makeDyldInfoBindSymbolNamesByFileOffset() -> [UInt64: String] {
+        guard is64Bit else { return [:] }
+        let segmentFileOffsets = segments.map { UInt64($0.fileOffset) }
+        let pointerSize: UInt = 8
+        var symbolNamesByFileOffset: [UInt64: String] = [:]
+        for operations in [bindOperations, weakBindOperations].compactMap({ $0 }) {
+            var segmentIndex = 0
+            var segmentOffset: UInt = 0
+            var symbolName: String?
+            func recordCurrentSlot() {
+                guard segmentFileOffsets.indices.contains(segmentIndex), let symbolName else { return }
+                symbolNamesByFileOffset[segmentFileOffsets[segmentIndex] &+ UInt64(segmentOffset)] = symbolName
+            }
+            operationLoop: for operation in operations {
+                switch operation {
+                case .set_symbol_trailing_flags_imm(_, let symbol):
+                    symbolName = symbol
+                case .set_segment_and_offset_uleb(let segment, let offset):
+                    segmentIndex = Int(segment)
+                    segmentOffset = offset
+                case .add_addr_uleb(let offset):
+                    // Negative deltas arrive as two's-complement ulebs; the
+                    // wrapping addition reproduces dyld's pointer arithmetic.
+                    segmentOffset &+= offset
+                case .do_bind:
+                    recordCurrentSlot()
+                    segmentOffset &+= pointerSize
+                case .do_bind_add_addr_uleb(let offset):
+                    recordCurrentSlot()
+                    segmentOffset &+= pointerSize &+ offset
+                case .do_bind_add_addr_imm_scaled(let scale):
+                    recordCurrentSlot()
+                    segmentOffset &+= pointerSize &+ scale &* pointerSize
+                case .do_bind_uleb_times_skipping_uleb(let count, let skip):
+                    for _ in 0 ..< count {
+                        recordCurrentSlot()
+                        segmentOffset &+= pointerSize &+ skip
+                    }
+                case .threaded:
+                    // The arm64e pre-chained threaded format encodes slot
+                    // targets differently; indexing it here would claim
+                    // wrong offsets.
+                    break operationLoop
+                case .done, .set_dylib_ordinal_imm, .set_dylib_ordinal_uleb, .set_dylib_special_imm, .set_type_imm, .set_addend_sleb:
+                    break
+                }
+            }
+        }
+        return symbolNamesByFileOffset
     }
 
     // Determines whether the specified file offset within the MachO file represents a bind operation.

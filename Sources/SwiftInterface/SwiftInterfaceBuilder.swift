@@ -136,50 +136,55 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
             }
         }
 
-        await printCatchedThrowing {
-            try await BlockList {
-                for typeDefinition in indexer.rootTypeDefinitions.values {
+        // Each definition is caught individually: one definition whose
+        // printing throws (e.g. an unresolvable reference in a legacy or
+        // damaged binary) drops only itself, never the whole block. A
+        // block-level catch used to blank every type of the interface the
+        // moment a single one threw.
+        await BlockList {
+            for typeDefinition in indexer.rootTypeDefinitions.values {
+                await printCatchedThrowing {
                     try await printer.printTypeDefinition(typeDefinition)
                 }
             }
         }
 
-        await printCatchedThrowing {
-            try await BlockList {
-                // Specialized variants live on each `TypeDefinition` rather
-                // than on the indexer (the indexer is intentionally agnostic
-                // of user-driven specialization). Walk every type definition
-                // in the module and surface any specialized children it has
-                // accumulated through `specialize(with:in:)`.
-                for typeDefinition in indexer.allTypeDefinitions.values {
-                    for specialized in typeDefinition.specializedChildren {
+        await BlockList {
+            // Specialized variants live on each `TypeDefinition` rather
+            // than on the indexer (the indexer is intentionally agnostic
+            // of user-driven specialization). Walk every type definition
+            // in the module and surface any specialized children it has
+            // accumulated through `specialize(with:in:)`.
+            for typeDefinition in indexer.allTypeDefinitions.values {
+                for specialized in typeDefinition.specializedChildren {
+                    await printCatchedThrowing {
                         try await printer.printTypeDefinition(specialized)
                     }
                 }
             }
         }
 
-        await printCatchedThrowing {
-            try await BlockList {
-                for protocolDefinition in indexer.rootProtocolDefinitions.values {
+        await BlockList {
+            for protocolDefinition in indexer.rootProtocolDefinitions.values {
+                await printCatchedThrowing {
                     try await printer.printProtocolDefinition(protocolDefinition)
                 }
             }
         }
 
-        await printCatchedThrowing {
-            try await BlockList {
-                for protocolDefinition in indexer.rootProtocolDefinitions.values.filterNonNil(\.parent) {
-                    for extensionDefinition in protocolDefinition.defaultImplementationExtensions {
+        await BlockList {
+            for protocolDefinition in indexer.rootProtocolDefinitions.values.filterNonNil(\.parent) {
+                for extensionDefinition in protocolDefinition.defaultImplementationExtensions {
+                    await printCatchedThrowing {
                         try await printer.printExtensionDefinition(extensionDefinition)
                     }
                 }
             }
         }
 
-        await printCatchedThrowing {
-            try await BlockList {
-                for extensionDefinition in allExtensionDefinitions {
+        await BlockList {
+            for extensionDefinition in allExtensionDefinitions {
+                await printCatchedThrowing {
                     try await printer.printExtensionDefinition(extensionDefinition)
                 }
             }
