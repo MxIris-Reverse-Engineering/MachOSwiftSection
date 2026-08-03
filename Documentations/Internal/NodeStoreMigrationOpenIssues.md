@@ -87,6 +87,8 @@
 
 **上游 `0.5.0` 状态（2026-08-03 核对）：仍然打开。** `structuralHash` 已重写为委托给 `structuralDigest()`——显式帧栈迭代 + 按节点下标记忆化（`digestByIndex`），重复子树只哈希一次，是实打实的改进。但 `nodeContents` 依旧是 `.text(store.text(offset:length:))`，而 `seededDigestHasher` 直接 `hasher.combine(contents)`，所以**每个文本节点仍然分配一个 `String`**。
 
+**终审（2026-08-03，随 0.5.1 升级）：按上游设计关闭，不再等修复。** 上游维护者说明按设计不改（单一编码源换来的跨表示一致性，见 [ReviewAdjudications.md](ReviewAdjudications.md) A2 的两轮事故史）；重开条件只剩 profiling 证据。
+
 ### 5. `memberSymbols(of:for:node:)` 改为线性扫描 + 逐候选全树比对（量级可忽略，属可选优化）
 
 迁移前是 `memberSymbolsByKind[$0]?[name]?[node]`，一次字典查找。现在两个重载都走 `rowsByTypeNodeIndex.elements.first(where: { …structurallyEquals(node) })`——对桶里每个键做一次结构化树遍历直到命中。`TypeDefinition.index` 会为 allocator、变量、静态变量、函数、静态函数、下标各调一次。
@@ -118,6 +120,10 @@
 
 **修复位置**：上游或本仓库 `Sources/SwiftDiffing/ABIKey.swift`，取决于选哪条路。
 
+**上游 `0.5.0` 状态（2026-08-03 核对）：仍然打开。** `mangleAsString(_ node: some DemanglingNode)` 的实现依旧是 `mangleAsString(node.materializedNode)`（`RemangleInterface.swift:49`）；根治需要 `Remangler` 泛型化到 `DemanglingNode`。本仓库侧每个 key 本来只 materialize 一次，无重复可省。
+
+**终审（2026-08-03，随 0.5.1 升级）：按上游设计关闭。** 0.5.1 保持桥接并在文档注释里写明理由（Remangler 遍历中构造临时辅助节点、非只读消费者，桥接成本瞬态且不触及 store 驻留内存目标）；裁决与复审条件见 [ReviewAdjudications.md](ReviewAdjudications.md) A1。
+
 ---
 
 ## 四、代码卫生
@@ -128,17 +134,19 @@
 
 过滤和守卫二者必有其一冗余，需要挑一个删掉并修正注释。
 
-### 9. `lateDemangledNode(forName:)` 在持锁期间 demangle
+### 9. ~~`lateDemangledNode(forName:)` 在持锁期间 demangle~~ ✅ 已修（2026-08-03）
 
 `demangleAsNodeTransient` 会走 `StackSafeExecutor.execute`，在 512 KB 栈线程上无条件提交线程池并 `semaphore.wait()`。于是一次 miss 会**在持有 per-image 互斥锁的情况下**跨线程等待不定时长，该镜像上所有查询晚绑定名字的线程都排在它后面；线程池饱和时持锁时间无上界。
 
 注意这是**刻意的权衡**：代码注释写明查找与插入必须同处一个临界区，否则两个并发 miss 会各自冻结一份 mini store，把同一名字的引用分裂到不同 store 里。所以修的时候要保住这个保证。
 
-**正确修法**：在锁外 demangle，锁内用 insert-if-absent（后写者放弃、返回胜出者），单 store 保证不变而临界区里不再阻塞。
+**修复（2026-08-03，按上面的修法落地并加固）**：锁外 demangle、锁内 insert-if-absent（后写者丢弃自己的 store、返回胜出者），单 store 保证由 `concurrentLateQueriesShareOneStore` 回归测试钉住。同批一并修了两个相邻问题：(a) **拒绝结果同样缓存**（`nil` 裁决）——demangle 是名字的纯函数，失败一次即永远失败，旧行为「不缓存失败以便重试」只是每次重付一次失败的 demangle（上一轮实测失败名 43.4 ms vs 缓存命中 6.9 ms）；(b) `demangledNodeReference(for:in:)` 对**表内 demangle 失败的名字**直接以 sweep 裁决回答 `nil`，不再穿透到 late 路径在锁内重试（`NodeStoreBuilder.demangle` 就是 `demangleAsNodeTransient` + intern，拒绝集一致，核实于上游源码）。回归测试：`rejectedLateNameCachesItsFailure`（修复前红，断在裁决未被缓存上）、`tableCoveredNameNeverEntersLateCache`。
 
-### 10. `ProtocolConformanceDumper` 里一个分支还在 materialize
+### 10. ~~`ProtocolConformanceDumper` 里一个分支还在 materialize~~ ✅ 已修（2026-08-03）
 
 同一个 `switch requirement` 块里，`case .element` 和 `Self.demangledSymbol(...)` 都已改走 `MetadataReader.demangleSymbolReference` 留在 store 上，唯独 `case .symbol` 仍调 `MetadataReader.demangleSymbol` 把整棵树 materialize 出来，只为交给 `demangleResolver.resolve(for:)`——而后者现在有 `some DemanglingNode` 重载，可以直接吃引用。既多余，又会让下一个维护者误以为这个不一致是有意的。
+
+**修复（2026-08-03）**：该分支连同 dump 路径其余四处 `demangleSymbol` 调用点（`ClassDumper.validNode` / `ProtocolDumper.validNode` / `ProtocolConformanceDumper._requirementName` / `ClassDumper` override 的 `case .symbol`）一并迁到 `demangleSymbolReference`，visited 集合与 `distributedFunctionNodes` 换 `StructuralNodeReferenceKey` 键（后者顺带省掉每 thunk 一次 materialize）。`MetadataReader.demangleSymbol(for:in:)` 保留 `Node` 契约但包内已无热调用方。快照测试（SwiftDumpTests / SwiftInterfaceTests）逐字节不变。
 
 ### 11. 两处 `throws` 是迁移残留
 

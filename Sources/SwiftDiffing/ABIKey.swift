@@ -50,6 +50,14 @@ public enum ABIKey: Hashable, Sendable, Codable {
     public static func make(for node: some DemanglingNode) -> ABIKey {
         // `canMangle` is literally `(try? mangleAsString) != nil`, so a single
         // `try?` decides the branch and remangles exactly once.
+        //
+        // Adjudicated — not worth fixing (see
+        // Documentations/Internal/ReviewAdjudications.md): for store-backed
+        // nodes this `mangleAsString` overload bridges by materializing the
+        // subtree once (upstream RemangleInterface.swift documents the
+        // tradeoff; the root fix is upstream's planned Remangler
+        // genericization). One transient O(subtree) build per key, exactly
+        // once, no resident memory — do not re-flag.
         if let mangled = try? mangleAsString(node) {
             return .mangled(mangled)
         }

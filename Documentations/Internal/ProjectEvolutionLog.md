@@ -681,6 +681,23 @@
 
 ---
 
+## 24. 性能批次：失败名裁决、名字去重缓存、dump 路径引用化
+
+- **时间段**：2026-08-03。
+- **动机**：[2026-08-02 审查记录](Reviews/2026-08-02-node-store-migration-pr97-review.md)与既有台账合并后剩 19 条待处理，其中「立即可修」与「中等重构」两组获批同批落地；本批延续第 23 节的纪律——先测后修，测出不值得的就裁决留档而不是硬改。
+- **落地**：
+  - **失败名裁决**（`SymbolIndexStore`）：`demangledNodeReference` 对表内 demangle 失败的名字直接以 sweep 裁决回答 `nil`（`NodeStoreBuilder.demangle` 与 sweep 用同一个 demangler，拒绝集一致）；`lateDemangledNode` 改锁外 demangle + 锁内 insert-if-absent，拒绝结果作为 `nil` 裁决缓存。三条新回归测试钉住（其中缓存断言在修复前红）。
+  - **`InternedNodeReferenceCache`**（`MachOSymbols` 新类型）：`NodeReference(interning:)` 的结构去重层，镜像键 + 进程键双作用域，25 处名字构造点全部改走缓存；`SwiftDeclarationIndexer` 清理与内存压力驱逐接通。fixture 实测驻留 mini store 730 → 471（= 结构唯一数），字节 −32%，重复名恢复 `store ===` 快路径。原「每镜像共用 builder」修法被实测推翻（freeze 前无法发引用，调用流即用即取），故改缓存形态。
+  - **dump 路径引用化**：`ClassDumper` / `ProtocolDumper` / `ProtocolConformanceDumper` 五处 `demangleSymbol` 调用点迁 `demangleSymbolReference`，visited 集合与 `distributedFunctionNodes` 换 `StructuralNodeReferenceKey`（每 thunk 省一次 materialize）；`MetadataReader.demangleSymbol` 保留契约但包内热调用方清零。
+  - **`indexExtensions` 恢复 `await` + 依赖升 0.5.1**：当日早间的「不修」裁决被上游动作推翻——0.5.1（`f913742`）把 print 便利方法整体迁到 `DemanglingNode` 并补 async 变体（挂起 + 大栈），对 `NodeReference` 直接可用，一行恢复 main 的任务挂起语义；具体同步 `print` 同时被上游删除，async 上下文由编译器强制 `await`（dump 路径三处一并加上）。依赖要求升至 `from: "0.5.1"`。remangle 桥接与 `structuralHash` 分配两条随升级按上游设计终审关闭（[ReviewAdjudications.md](ReviewAdjudications.md) A1/A2）。
+- **关键决策**：
+  - **打印器每成员 materialize 裁决为暂不修**：临时计量显示其只占打印墙钟 1.18%（fixture 全量导出 1313 次共 32.6 ms），根治需 1700 行打印栈泛型化 + 3 处节点合成重设计，投入产出不成比例；数据与重开条件留档在审查记录。
+  - 快照套件（SwiftInterfaceTests 53 项含逐字节 interface 快照、SwiftDumpTests）全绿，输出零变化是本批的硬约束。
+- **关联文档**：[TaskReports/2026-08-03-performance-batch-fixes.md](TaskReports/2026-08-03-performance-batch-fixes.md)、台账第 9/10 条闭环与第 4/7 条上游状态核对、AGENTS.md「Symbol indexing」段同步。
+- **对应版本**：0.14.0 之后未发布区间（`feature/node-store-migration` 分支）。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
