@@ -711,6 +711,20 @@
 
 ---
 
+## 26. 旧格式 bind 支持：LC_DYLD_INFO opcode 回退 + interface 逐项降级
+
+- **时间段**：2026-08-03（第 25 节 A/B 验证的直接产出）。
+- **动机**：A/B 验证发现 iOS 15.5 模拟器框架的 interface 输出只剩全局函数（三框架、数百条 `offsetOutOfBounds`），dump 却正常。根因两层：`resolveBind(fileOffset:)` 只认 chained fixups，旧格式（部署目标 < macOS 12 / iOS 16 的 `LC_DYLD_INFO_ONLY`）二进制的外部引用全部按裸指针误读；`printRoot` 的块级 catch 把单类型打印失败放大成全部类型消失。
+- **落地**：
+  - `MachOExtensions/MachOFile+.swift`：chained fixups 缺席时按 dyld 状态机解释 `bindOperations` / `weakBindOperations` opcode 流，惰性构建「文件偏移 → 符号名」索引（arm64e threaded 旧格式不索引、lazy 流不索引）。
+  - `SwiftInterface/SwiftInterfaceBuilder.swift` + `SwiftPrinting/SwiftDeclarationPrinter.swift`：printRoot 四个块与 printThrowingProtocol 的 default-implementation extensions 块全部改为逐项 `printCatchedThrowing`——单个定义抛错只丢它自己。
+  - 新增 `LegacyDyldInfoBindTests`（fixture 用 `swiftc -target arm64-apple-macosx11.0` 在测试内即时编译强制旧格式；红 7 → 仅 fix 2 剩 4 → 双修复全绿的阶梯实测留档）。
+- **效果**：iOS 15.5 模拟器 interface：Combine 10 → 6907 行、WidgetKit 17 → 2795 行、SwiftUI 139 → 81157 行，解析错误全部归零（SwiftUI 7616 个 conformance 全数解析）；全量 1315 测试 / 250 套件绿，现代二进制快照逐字节不变。旧格式输入的 interface 输出自此与 main 合理不一致（feature 更完整），main 合并后恢复对等。
+- **关联文档**：[TaskReports/2026-08-03-legacy-dyld-info-bind-support.md](TaskReports/2026-08-03-legacy-dyld-info-bind-support.md)（含完整的无调试器调试方法学 walkthrough）、[SystemFrameworkRenderingVerification.md](SystemFrameworkRenderingVerification.md)。
+- **对应版本**：0.14.0 之后未发布区间（`feature/node-store-migration` 分支）。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

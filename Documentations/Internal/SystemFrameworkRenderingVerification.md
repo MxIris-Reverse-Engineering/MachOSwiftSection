@@ -43,7 +43,7 @@ SwiftUI、SwiftUICore、SwiftData、Combine、ActivityKit、WidgetKit——**输
 
 ## 已知的双侧一致现象（非回归）
 
-- **iOS 15.5 模拟器的 interface 输出只有几十行**：索引器对 iOS 15 时代 metadata 批量报 `Error resolving ContextDescriptorWrapper: offsetOutOfBounds / invalidContextDescriptor`，类型全部掉光只剩全局函数；dump 路径不受影响（SwiftUI 15.5 dump 有 4.6 万行）。两侧错误集合一致，属既有限制。
+- ~~**iOS 15.5 模拟器的 interface 输出只有几十行**~~——**已于 2026-08-03 在 `feature/node-store-migration` 修复**（`LC_DYLD_INFO` opcode bind 回退 + printRoot 逐项降级，见[任务报告](TaskReports/2026-08-03-legacy-dyld-info-bind-support.md)）。修复落地后，旧格式二进制（部署目标 < macOS 12 / iOS 16）的 interface 输出与**未含该修复的基线**（如当前 main）会**合理地不一致**——修复侧多出完整的类型与 conformance；对含修复的两个检出做 A/B 时该场景恢复严格逐字节对比。基线侧的历史症状（只剩全局函数、成百条 `offsetOutOfBounds`）与根因记录在任务报告里。
 
 ## 基线运行记录（2026-08-03，main ↔ feature/node-store-migration）
 
