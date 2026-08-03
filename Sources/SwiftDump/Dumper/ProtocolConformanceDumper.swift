@@ -110,7 +110,7 @@ package struct ProtocolConformanceDumper<MachO: FieldLayoutRenderable>: Conforme
 
                         switch requirement {
                         case .symbol(let symbol):
-                            try await MetadataReader.demangleSymbol(for: symbol, in: machO).asyncMap { try await demangleResolver.resolve(for: $0) }
+                            try await MetadataReader.demangleSymbolReference(for: symbol, in: machO).asyncMap { try await demangleResolver.resolve(for: $0) }
                         case .element(let element):
                             if let symbols = try await Symbols.resolve(from: element.offset, in: machO), let node = Self.demangledSymbol(for: symbols, typeName: typeNameString, visitedNodes: visitedNodes, in: machO)?.demangledNode {
                                 _ = visitedNodes.append(StructuralNodeReferenceKey(node))
@@ -173,7 +173,7 @@ package struct ProtocolConformanceDumper<MachO: FieldLayoutRenderable>: Conforme
     private func _requirementName(for requirement: ProtocolRequirement) async throws -> String? {
         guard let symbols = try await Symbols.resolve(from: requirement.offset, in: machO) else { return nil }
         for symbol in symbols {
-            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO) {
+            if let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO) {
                 return await node.print(using: typeNameOptions)
             }
         }

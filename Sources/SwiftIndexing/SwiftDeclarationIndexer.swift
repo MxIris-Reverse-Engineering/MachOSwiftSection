@@ -682,7 +682,11 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         var failedExtensions = 0
 
         for (node, memberSymbols) in memberSymbolsByName {
-            let name = node.print(using: .interfaceTypeBuilderOnly)
+            // The async overload (upstream `DemanglingNode.print(using:) async`,
+            // present since 0.5.1) suspends the task instead of blocking a
+            // cooperative worker when the walk moves to a large-stack thread —
+            // restoring the pre-migration `await node.print` semantics.
+            let name = await node.print(using: .interfaceTypeBuilderOnly)
             guard let typeInfo = symbolIndexStore.typeInfo(for: name, in: machO) else {
                 eventDispatcher.dispatch(.extensionTargetNotFound(targetName: name))
                 continue
