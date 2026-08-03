@@ -197,9 +197,11 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         ///
         /// Keyed by name, like `tableRowByName`: a demangled tree is a pure
         /// function of the symbol name, so two symbols at different offsets
-        /// sharing a name share a tree.
+        /// sharing a name share a tree. A stored `nil` records a name the
+        /// demangler rejected — rejection is exactly as deterministic as
+        /// success, so it is cached the same way and never retried.
         @Mutex
-        private var lateDemangledNodeByName: [String: NodeReference] = [:]
+        private var lateDemangledNodeByName: [String: NodeReference?] = [:]
 
         fileprivate init(
             nodeStore: NodeStore,
@@ -230,27 +232,54 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             self.thunkAttributeMembersByKindAndTypeName = rowIndexes.thunkAttributeMembersByKindAndTypeName
         }
 
-        /// Atomic get-or-demangle for a name outside the build sweep.
+        /// Get-or-demangle for a name outside the build sweep.
         ///
-        /// Lookup and insert share one critical section: as a check-then-act
-        /// pair, two threads missing concurrently would each freeze their own
-        /// mini store and hand back references into *different* stores for one
-        /// name, which then compare unequal under `NodeReference`'s
-        /// store-identity `Hashable` — turning any downstream dedup into a
-        /// run-to-run coin flip. Demangling one name inside the lock is cheap
-        /// and this path is rare by construction.
+        /// The demangle runs *outside* the critical section: it can hop to a
+        /// large-stack thread and block on a semaphore, and an
+        /// `os_unfair_lock` must not be held across a blocking wait (priority
+        /// donation is lost and every other late lookup on the image
+        /// serializes behind it). The lock arbitrates insert-if-absent
+        /// instead — two threads missing concurrently both demangle, but only
+        /// the first insertion wins and the loser returns the winner's
+        /// reference, so one name still never hands out references into
+        /// *different* stores (those would compare unequal under
+        /// `NodeReference`'s store-identity `Hashable` and turn downstream
+        /// dedup into a run-to-run coin flip). The loser's mini store is
+        /// discarded; a demangled tree is a pure function of the name, so the
+        /// copies are interchangeable.
         ///
-        /// A name the demangler rejects is not cached, so a later call retries
-        /// rather than being stuck on the failure.
+        /// Rejections are cached like successes (`nil` verdict): the
+        /// demangler is deterministic, so a retry can only re-pay the failed
+        /// demangle. Sweep-covered names never reach this path at all —
+        /// `demangledNodeReference(for:in:)` answers them from the table
+        /// verdict — so the population here is genuinely late names only.
         fileprivate func lateDemangledNode(forName name: String) -> NodeReference? {
-            _lateDemangledNodeByName.withLockUnchecked { cache in
-                if let cached = cache[name] { return cached }
-                var lateBuilder = NodeStoreBuilder()
-                guard let nodeIndex = try? lateBuilder.demangle(name) else { return nil }
-                let reference = lateBuilder.freeze().reference(at: nodeIndex)
-                cache[name] = reference
-                return reference
+            if let cachedVerdict = _lateDemangledNodeByName.withLockUnchecked({ $0[name] }) {
+                return cachedVerdict
             }
+            var lateBuilder = NodeStoreBuilder()
+            var demangled: NodeReference?
+            if let nodeIndex = try? lateBuilder.demangle(name) {
+                demangled = lateBuilder.freeze().reference(at: nodeIndex)
+            }
+            return _lateDemangledNodeByName.withLockUnchecked { cache in
+                if let winner = cache[name] { return winner }
+                // `updateValue` rather than the subscript: assigning an
+                // `Optional` value through the subscript of an
+                // optional-valued dictionary is exactly the shape where a
+                // `nil` silently means "remove the key" instead of "store
+                // the rejection verdict".
+                cache.updateValue(demangled, forKey: name)
+                return demangled
+            }
+        }
+
+        /// Test-only visibility into the late cache: `.some(.some)` is a
+        /// cached success, `.some(.none)` a cached rejection, `.none` a name
+        /// never attempted. Production code goes through
+        /// `lateDemangledNode(forName:)`.
+        func lateDemangleVerdictForTesting(forName name: String) -> NodeReference?? {
+            _lateDemangledNodeByName.withLockUnchecked { $0[name] }
         }
 
         // MARK: Row materialization
@@ -874,8 +903,15 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         //
         // Several symbols sharing one offset is normal (they differ by name)
         // and is unaffected: each name resolves to its own row.
-        if let row = cacheStorage.tableRowByName[symbol.name],
-           let rootNodeIndex = cacheStorage.rootNodeIndexByTableRow[Int(row)] {
+        if let row = cacheStorage.tableRowByName[symbol.name] {
+            // The sweep already ran every table row through the demangler
+            // once; a `nil` root records that it rejected this name. The
+            // late path runs the *same* demangler (`NodeStoreBuilder.demangle`
+            // is `demangleAsNodeTransient` + intern), so falling through
+            // could only re-pay the failed demangle — under the late-cache
+            // lock, once per query. `demangledOverrideSymbol` probes
+            // candidate symbols in a loop, which made that a hot path.
+            guard let rootNodeIndex = cacheStorage.rootNodeIndexByTableRow[Int(row)] else { return nil }
             return cacheStorage.nodeStore.reference(at: rootNodeIndex)
         }
         return cacheStorage.lateDemangledNode(forName: symbol.name)
