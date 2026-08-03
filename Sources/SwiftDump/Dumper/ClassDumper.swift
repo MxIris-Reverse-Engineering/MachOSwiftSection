@@ -74,14 +74,14 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
     /// The set of inner function nodes of `.distributedThunk` symbols whose class
     /// context matches this class. Used for both class-level (`distributed actor`)
     /// and method-level (`distributed func`) keyword emission.
-    private var distributedFunctionNodes: Set<Node> {
+    private var distributedFunctionNodes: Set<StructuralNodeReferenceKey> {
         get throws {
             guard dumped.descriptor.isActor else { return [] }
 
             let currentTypeNode = try MetadataReader.demangleContext(for: .type(.class(dumped.descriptor)), in: machO)
             let currentTypeName = currentTypeNode.print(using: .interfaceTypeBuilderOnly)
 
-            var nodes: Set<Node> = []
+            var nodes: Set<StructuralNodeReferenceKey> = []
 
             for thunkSymbol in symbolIndexStore.symbols(of: .distributedThunk, in: machO) {
                 let rootNode = thunkSymbol.demangledNode
@@ -89,7 +89,10 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                 guard let contextNode = functionNode.children.first else { continue }
                 let thunkTypeName = Node.create(kind: .type, child: contextNode.materialize()).print(using: .interfaceTypeBuilderOnly)
                 guard thunkTypeName == currentTypeName else { continue }
-                nodes.insert(functionNode.materialize())
+                // Structural key over the store-backed reference: the method
+                // loop probes with reference-form function nodes, and keying
+                // structurally spares materializing a tree per thunk.
+                nodes.insert(StructuralNodeReferenceKey(functionNode))
             }
 
             return nodes
@@ -191,7 +194,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
             let distributedFunctionNodes = (try? self.distributedFunctionNodes) ?? []
 
-            var methodVisitedNodes: OrderedSet<Node> = []
+            var methodVisitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
             let vtableBaseOffset = dumped.vTableDescriptorHeader.map { Int($0.layout.vTableOffset) }
             for (offset, descriptor) in dumped.methodDescriptors.offsetEnumerated() {
                 BreakLine()
@@ -209,7 +212,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                 // Pre-resolve the method node so we can check distributed status
                 // before deciding which keywords to emit.
-                var resolvedMethodNode: Node? = nil
+                var resolvedMethodNode: NodeReference? = nil
                 if let symbols = try? descriptor.implementationSymbols(in: machO) {
                     resolvedMethodNode = try? await validNode(for: symbols, visitedNodes: methodVisitedNodes)
                 }
@@ -218,7 +221,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                     guard descriptor.flags.kind == .method,
                           let root = resolvedMethodNode,
                           let functionNode = root.children.first(where: { $0.kind == .function }) else { return false }
-                    return distributedFunctionNodes.contains(functionNode)
+                    return distributedFunctionNodes.contains(StructuralNodeReferenceKey(functionNode))
                 }()
 
                 dumpMethodKind(for: descriptor)
@@ -233,7 +236,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
             }
 
             var parentVTableCache = ParentClassVTableCache()
-            var methodOverrideVisitedNodes: OrderedSet<Node> = []
+            var methodOverrideVisitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
             for (offset, descriptor) in dumped.methodOverrideDescriptors.offsetEnumerated() {
                 BreakLine()
 
@@ -257,7 +260,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                     Keyword(.override)
                     Space()
                     try await demangleResolver.resolve(for: node)
-                    _ = methodOverrideVisitedNodes.append(node)
+                    _ = methodOverrideVisitedNodes.append(StructuralNodeReferenceKey(node))
                 } else if !descriptor.implementation.isNull {
                     dumpMethodKind(for: methodDescriptor?.resolved)
                     Keyword(.override)
@@ -268,7 +271,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                     case .symbol(let symbol):
                         Keyword(.override)
                         Space()
-                        try await MetadataReader.demangleSymbol(for: symbol, in: machO).asyncMap { try await demangleResolver.resolve(for: $0) }
+                        try await MetadataReader.demangleSymbolReference(for: symbol, in: machO).asyncMap { try await demangleResolver.resolve(for: $0) }
                     case .element(let element):
                         dumpMethodKind(for: element)
                         Keyword(.override)
@@ -285,7 +288,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
                 }
             }
 
-            var methodDefaultOverrideVisitedNodes: OrderedSet<Node> = []
+            var methodDefaultOverrideVisitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
             for (offset, descriptor) in dumped.methodDefaultOverrideDescriptors.offsetEnumerated() {
                 BreakLine()
 
@@ -302,7 +305,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
                 if let symbols = try? descriptor.implementationSymbols(in: machO), let node = try await validNode(for: symbols, visitedNodes: methodDefaultOverrideVisitedNodes) {
                     try await demangleResolver.resolve(for: node)
-                    _ = methodDefaultOverrideVisitedNodes.append(node)
+                    _ = methodDefaultOverrideVisitedNodes.append(StructuralNodeReferenceKey(node))
                 } else if !descriptor.implementation.isNull {
                     FunctionDeclaration(machO.addressString(forOffset: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))).insertSubFunctionPrefix)
                 } else {
@@ -430,8 +433,8 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
     }
 
     @SemanticStringBuilder
-    private func dumpMethodDeclaration(for descriptor: MethodDescriptor, resolvedNode: Node? = nil, visitedNodes: inout OrderedSet<Node>) async throws -> SemanticString {
-        let node: Node?
+    private func dumpMethodDeclaration(for descriptor: MethodDescriptor, resolvedNode: NodeReference? = nil, visitedNodes: inout OrderedSet<StructuralNodeReferenceKey>) async throws -> SemanticString {
+        let node: NodeReference?
         if let resolvedNode {
             node = resolvedNode
         } else if let symbols = try? descriptor.implementationSymbols(in: machO) {
@@ -442,7 +445,7 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
 
         if let node {
             try await demangleResolver.resolve(for: node)
-            _ = visitedNodes.append(node)
+            _ = visitedNodes.append(StructuralNodeReferenceKey(node))
         } else if !descriptor.implementation.isNull {
             FunctionDeclaration(machO.addressString(forOffset: descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))).insertSubFunctionPrefix)
         } else {
@@ -450,10 +453,10 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
         }
     }
 
-    package func validNode(for symbols: Symbols, visitedNodes: borrowing OrderedSet<Node> = []) async throws -> Node? {
+    package func validNode(for symbols: Symbols, visitedNodes: borrowing OrderedSet<StructuralNodeReferenceKey> = []) async throws -> NodeReference? {
         let currentInterfaceName = try await _name(using: .options(.interfaceType)).string
         for symbol in symbols {
-            if let node = try? MetadataReader.demangleSymbol(for: symbol, in: machO), let classNode = node.first(of: .class), await classNode.print(using: .interfaceType) == currentInterfaceName, !visitedNodes.contains(node) {
+            if let node = MetadataReader.demangleSymbolReference(for: symbol, in: machO), let classNode = node.first(of: .class), await classNode.print(using: .interfaceType) == currentInterfaceName, !visitedNodes.contains(StructuralNodeReferenceKey(node)) {
                 return node
             }
         }
