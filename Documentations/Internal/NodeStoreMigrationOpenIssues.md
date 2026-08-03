@@ -4,7 +4,9 @@
 
 产生方式：2026-07-28 对该分支做了两轮代码审查 + 一轮结论复核。第一轮的复核记录见 [TaskReports/2026-07-28-review-verification-and-fixes.md](TaskReports/2026-07-28-review-verification-and-fixes.md)，其中三条已修（`printSemantic` 换用引擎预算入口、`registerRow` 去重、dyld 缓存镜像选择的 Catalyst 平局与子缓存遍历）；第二轮又指出前述修复自身的两处缺口，已于 2026-07-29 补完，见 [TaskReports/2026-07-29-catalyst-rank-and-row-dedup-followup.md](TaskReports/2026-07-29-catalyst-rank-and-row-dedup-followup.md)。
 
-第一节记录那两条已闭环的缺口（保留成因以备回溯），**第二节起才是仍然打开的**。
+此后又有两轮独立的审查事件，各自的记录见 [Reviews/2026-07-31-node-store-migration-review.md](Reviews/2026-07-31-node-store-migration-review.md) 与 [Reviews/2026-08-02-node-store-migration-pr97-review.md](Reviews/2026-08-02-node-store-migration-pr97-review.md)。两份审查记录带有本台账没有的**实测数据**与**裁决结论**；本台账与它们冲突时，以审查记录为准，并回头修订本台账（第 3、5、12 条即因此修订过）。
+
+第一节记录那两条已闭环的缺口（保留成因以备回溯）。**第二节起是仍然打开的**，其中已被裁决为"不修"的条目就地标注，不再删除，以便后续审查对照跳过。
 
 ---
 
@@ -55,17 +57,19 @@
 
 ## 二、公开 API 语义问题
 
-### 3. 两个公开查询 API 的字典键从结构相等翻成了身份相等
+### 3. ~~两个公开查询 API 的字典键从结构相等翻成了身份相等~~ —— 已裁决：不修（2026-08-03）
 
 `memberSymbols(of:excluding:in:)` 与 `allOpaqueTypeDescriptorSymbols(in:)` 原本返回 `OrderedDictionary<Node, …>`。`Node` 的 `==` 是结构相等，所以外部调用方拿任意来源的节点做下标查询都能命中。现在键是 `NodeReference`，其 `==` 为 `store === store && index == index`。调用方用自己 demangle 出来的节点查询会**恒定返回 nil，且没有任何编译错误**。
 
-仓库内部这两个 API 只被遍历、从不下标查询，所以测试全绿也发现不了。`StructuralNodeReferenceKey` 这套处理施加到了所有内部集合上，唯独漏了这两个**逃逸到外部**的面。
+**裁决：不修。** 依据是 `SymbolIndexStore` 在**类型层面**就是 SPI——`SymbolIndexStore.swift:13-14` 带 `@_spi(ForSymbolViewer)` 与 `@_spi(Internals)`。成员要被访问必须先能命名该类，而命名它必须带对应的 `@_spi(...) import`，所以 SPI 性由类继承而来（逐个方法标注是多余的）。契约既然只对包内与已知 SPI 消费方成立，保证包内正确即可。
 
-现状缓解：扫过 RuntimeViewer 的 `main` 与 `feature/node-store-adoption`，两条分支都没有调用这两个 API，所以目前没有现实触发者。
+包内正确性已核实：
 
-**正确修法**：要么改成 vend `StructuralNodeReferenceKey`（或干脆 `Node`）作键，要么不暴露裸字典、改提供一个查询方法。
+- `memberSymbols(of:excluding:in:)` 包内唯一调用点 `SwiftDeclarationIndexer.swift:663`，在 `:684` 只做 `for (node, memberSymbols) in memberSymbolsByName` 遍历，全程无下标查询；返回字典的键全部出自同一个 `storage.nodeStore`，同 store 内下标相等本就是正确的去重语义。
+- `allOpaqueTypeDescriptorSymbols(in:)` 在 `Sources/` 与 `Tests/` 中**零调用点**。
+- RuntimeViewer 的 `main` 与 `feature/node-store-adoption` 两条分支均未调用这两个 API。
 
-**修复位置**：本仓库 `Sources/MachOSymbols/SymbolIndexStore.swift`。
+若将来要重新打开：正确修法是 vend `StructuralNodeReferenceKey`（或 `Node`）作键，或不暴露裸字典而改提供查询方法；修复位置在本仓库 `Sources/MachOSymbols/SymbolIndexStore.swift`。
 
 ---
 
@@ -81,13 +85,20 @@
 
 **修复位置**：**上游 `swift-demangling`** 的 `Sources/Demangling/Store/NodeReference.swift`，不是本仓库。本仓库这一侧无法绕开。
 
-### 5. `memberSymbols(of:for:node:)` 从 O(1) 退化成线性扫描 + 逐候选全树比对
+**上游 `0.5.0` 状态（2026-08-03 核对）：仍然打开。** `structuralHash` 已重写为委托给 `structuralDigest()`——显式帧栈迭代 + 按节点下标记忆化（`digestByIndex`），重复子树只哈希一次，是实打实的改进。但 `nodeContents` 依旧是 `.text(store.text(offset:length:))`，而 `seededDigestHasher` 直接 `hasher.combine(contents)`，所以**每个文本节点仍然分配一个 `String`**。
 
-迁移前是 `memberSymbolsByKind[$0]?[name]?[node]`，一次哈希查找。现在两个重载都走 `rowsByTypeNodeIndex.elements.first(where: { …structurallyEquals(node) })`——对桶里每个键做一次结构化树遍历直到命中。
+### 5. `memberSymbols(of:for:node:)` 改为线性扫描 + 逐候选全树比对（量级可忽略，属可选优化）
 
-`TypeDefinition.index` 会为 allocator、变量、静态变量、函数、静态函数、下标各调一次，所以每个被索引的类型付 6 × 桶大小次结构遍历。
+迁移前是 `memberSymbolsByKind[$0]?[name]?[node]`，一次字典查找。现在两个重载都走 `rowsByTypeNodeIndex.elements.first(where: { …structurallyEquals(node) })`——对桶里每个键做一次结构化树遍历直到命中。`TypeDefinition.index` 会为 allocator、变量、静态变量、函数、静态函数、下标各调一次。
 
-**正确修法**：在 `Storage.init` 里一次性建一份 `[StructuralNodeReferenceKey: NodeStore.NodeIndex]` 旁路索引恢复 O(1)——这正是 `opaqueTypeDescriptorEntriesByMemberIdentifier` 已经用过的手法。
+> **不要把它当回归。** 本条早期措辞称"从 O(1) 退化"，两次审查（2026-07-31 第六节、2026-08-02 第四节）先后纠正过同一处误判，故在此就地写清：
+>
+> - 迁移前那次字典查找**并不免费**——`swift-demangling` `0.4.5` 的 `Node.hash(into:)` 是 `hasher.combine(children)` 递归，**哈希一次就要走完整棵树**。
+> - 桶里装的是"同一类型名下的不同 type node"，实测 6,720 个桶中 **99.60% 只有 1 个元素**，最大 6（`SwiftUI.Coordinator`）。
+>
+> 所以实际是"一次全树哈希"换成"一次全树结构比对"，量级相当，不存在倍数退化。
+
+**可选优化**：在 `Storage.init` 里一次性建一份 `[StructuralNodeReferenceKey: NodeStore.NodeIndex]` 旁路索引——这正是 `opaqueTypeDescriptorEntriesByMemberIdentifier` 已经用过的手法。收益上限受限于上述实测，排期时不应优先于真正的回归项。
 
 **修复位置**：本仓库 `Sources/MachOSymbols/SymbolIndexStore.swift`。
 
@@ -137,12 +148,11 @@
 
 ## 五、分支状态
 
-### 12. 落后 `main` 五个提交，`AGENTS.md` 两侧都改过
+### 12. ~~落后 `main` 五个提交，`AGENTS.md` 两侧都改过~~ —— 前提已过期，但压着两条仍然成立的事项
 
-`main` 已发布 `0.14.0`，并新增了注释模板的命令行接口（`--enum-layout-template` / `--enum-layout-case-template` / `--enum-layout-byte-template`）及其 `AGENTS.md` 章节。本分支的 `AGENTS.md` 还是 0.14.0 之前的正文，另外加了自己的 NodeStore 段落。直接合并会冲突，而**保留分支侧的粗暴解法会静默回退掉 `main` 的那份文档**。
+**过期部分**（2026-07-31 首次指出，2026-08-03 复测确认）：分支现在只落后 `main` 两个提交（`fed0acf` / `f8c6992`），且二者只改动 `.github/workflows/macOS.yml`；以合并基点为准两侧改动文件**零交集**。所述 `AGENTS.md` 冲突不存在——分支的 `AGENTS.md` 已同时包含 `main` 的 `--enum-layout-template` 章节与新的 NodeStore 段落。原"先 rebase 再谈合并"的处理顺序随之作废。
 
-同理，`ProjectEvolutionLog.md` 里本分支新增的 `## 19.` 把原「引用存储」小节顶成了 `## 20.`，与 `main` 的 `## 20.` 正面撞号；两条新小节都写"将入 0.14.0"，而 0.14.0 已经发布。另有一条指向 `TaskReports/2026-07-25-dyld-cache-image-selection-...` 的链接是死的（实际文件名无 `dyld-` 前缀）。
+**仍然成立的两条**：
 
-此外，`main` 的 `TransformerOptionGroup` 与本分支的 `DemangleResolver` / `printSemantic` / `FieldDefinition.typeNode` 改动之间的交互从未被跑过。
-
-**处理顺序**：先 rebase 到 `main`，重编演进日志小节号、修死链、对齐 `AGENTS.md`，再谈合并。演进日志的小节应在 rebase 之后补，现在写只会加深冲突。
+1. **`ProjectEvolutionLog.md` 的小节撞号与死链**（2026-08-03 复测仍在）：`## 20.` 出现两次（353 行「引用存储（weak/unowned）对 existential 的宽度修复」、384 行「注释模板的命令行入口」），其后 21/22/23 全部错位；348 行的链接写作 `TaskReports/2026-07-25-dyld-cache-image-selection-and-rv-index-lifecycle.md`，而实际文件名没有 `dyld-` 前缀。撞号是在本分支内部成型的，与 rebase 无关，**可以先修**（原文"演进日志小节应在 rebase 之后补"的理由已不成立）。
+2. **交互从未被跑过**：`main` 的 `TransformerOptionGroup` 与本分支的 `DemangleResolver` / `printSemantic` / `FieldDefinition.typeNode` 改动之间的交互没有任何测试覆盖。这条与 rebase 状态无关，合并前仍需处理。
