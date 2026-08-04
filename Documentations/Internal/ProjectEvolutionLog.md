@@ -427,6 +427,44 @@
 
 ---
 
+## 23. SwiftLayout 系统框架保真度普查 + foreign struct / ObjC 滑动两批修复
+
+- **时间段**：2026-08-04。
+- **动机**：SwiftLayout 此前的 5 框架普查只度量**解析率**（不降级），从未对真实系统框架做
+  **正确率**对拍（fixture 之外一个错而自信的偏移不会被发现）。本批对当前 dyld shared cache
+  的 SwiftUICore + SwiftUI + SwiftData 共 **6246 个非泛型 struct/class** 做静态引擎
+  （离线 MachOFile + 依赖闭包）vs 运行时真值（唯一权威）的全量对拍。
+- **普查方法要点**：struct 真值 = metadata accessor 的 field-offset vector + VWT；class
+  真值 = **realize 之后**的 ObjC runtime `ivar_getOffset`（首版直接读 metadata 向量得到
+  101 个假不一致——未 realize 的 ObjC 祖先类躺着编译期未滑动的向量、resilient 父类向量
+  读不出来，是取真值的方法错，不是引擎错）。零尺寸字段的 offset 约定差异（引擎按
+  IRGen 报 0，运行时布局报累加器位置）单独归类，无存储意义。
+- **普查结果**：完全解析率 99.95%；真实不一致归结为 4 个根因——① foreign（C-imported）
+  struct 顶层布局无 builtin 防护（本批修复）；② ObjC 祖先链的类字段起点未按 objc
+  `moveIvars` 滑动语义计算（3 个类，各错 4–8 字节，本批第二批修复）；③ 预特化泛型
+  multi-payload enum 实为编译期 spare-bits 布局，引擎按运行时 tagged 公式多算 1 字节
+  （`Dictionary` 迭代器一族 2 型——**已登记为已知偏差与后续硬骨头**，见
+  [StaticLayoutEngine.md](StaticLayoutEngine.md) 的「后续工作」）；④ 零尺寸字段约定
+  差异（10 型，无害）。
+- **落地修复（②，同日第二批）**：类字段起点改为「本类 `class_ro_t.instanceStart` + objc `moveIvars` 滑动」精确模型——`ObjCClassIndex` 新增 Swift 类自身 `instanceStart` 索引（`_TtC…` 名 demangle 建 key；classlist 成员资格即「静态发射」判据，泛型/singleton 类缺席、维持原 Swift-runtime 规则），`classFieldStartOffset` 在 resolver/calculator 两个入口接入（滑动量按本类字段最大对齐取整）。dyld cache 镜像的盘上 `instanceStart` 是预滑终值，直接命中；fixture 无漂移场景 diff=0 逐字节不变。语义对照 `Metadata.cpp` `initClassFieldOffsetVector` 与 objc4 `moveIvars` 双向核实。普查复跑偏移不一致 3→0。测试：`ObjCAncestorSlideLayoutTests`（fixture 索引守卫 + dyld cache SwiftUI 真实漂移端到端 vs realize 后 `ivar_getOffset`）。
+- **落地修复（①）**：`StaticLayoutCalculator` 顶层 struct 路径（`fieldLayout(of:)` /
+  `typeLayout(ofStruct:)`）对 `hasForeignMetadataInitialization` 描述符用 `__swift5_builtin`
+  记录交叉校验：结构化累加与 builtin 一致则保留逐字段结果（字段记录完整的 C struct 本就
+  正确），不一致（C bitfield / 无字段记录）则逐字段降级为新 reason
+  `.foreignTypeFieldOffsetsUnavailable`、整型取 builtin。此前 builtin 查表只在字段类型
+  解析路径上，顶层枚举 `__C` 描述符（全量 dump / 普查）会算出 `__C.Decimal._mantissa@0`
+  （真值 4）、`__C.PathData` size 0（真值 96）这类自信错值。修复后普查复跑：`__C` 类
+  不一致全部清零（偏移不一致 5→3，整型不一致 20→6，余项均属 ②③）。
+- **关键决策**：「交叉校验、一致才信」而非「foreign 一律降级」——`__C.RBColor` 等字段
+  记录完整的 C struct 结构化累加本就正确，保留其逐字段偏移；无 builtin 记录时无从校验，
+  维持现状（文档记为已知限制）。
+- **文档**：[StaticLayoutEngine.md](StaticLayoutEngine.md)（新增 pitfall 条目 + 测试清单）、
+  [TaskReports/2026-08-04-foreign-struct-top-level-layout.md](TaskReports/2026-08-04-foreign-struct-top-level-layout.md)
+  （含 ②③④ 的完整裁决记录与普查 harness 说明）。
+- **对应版本**：未发版（main，0.14.1 之后）。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

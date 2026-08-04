@@ -146,6 +146,8 @@ struct StaticFieldLayoutBackend {
             return "mangled type name did not demangle"
         case .precedingFieldUnresolved:
             return "preceding field unresolved"
+        case .foreignTypeFieldOffsetsUnavailable:
+            return "C-imported type; field offsets not derivable from reflection"
         }
     }
 

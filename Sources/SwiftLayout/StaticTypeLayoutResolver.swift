@@ -530,11 +530,57 @@ final class StaticTypeLayoutResolver<MachO: MachOSwiftSectionRepresentableWithCa
         )
         let start = try superclassStartLayout(of: descriptor, in: image, environment: environment)
         let fieldLayouts = try fieldLayouts(ofFieldDescriptorOwner: descriptor, in: image, environment: environment)
+        let startOffset = classFieldStartOffset(
+            of: descriptor,
+            in: image,
+            superclassInstanceSize: start.instanceSize,
+            ownFieldAlignmentMask: fieldLayouts.map(\.alignmentMask).max() ?? 0
+        )
         return BasicLayout.compute(
-            startOffset: start.instanceSize,
+            startOffset: startOffset,
             startAlignmentMask: start.alignmentMask,
             fieldLayouts: fieldLayouts
         )
+    }
+
+    /// The start offset of a class's own field block, following the runtime's
+    /// two authorities.
+    ///
+    /// A **statically-emitted non-generic** class carries its own
+    /// `class_ro_t.instanceStart` in `__objc_classlist` — the compile-time base
+    /// its ivars were laid from. When the actual superclass outgrows it (an OS
+    /// framework ancestor larger than the compiler assumed), the ObjC runtime
+    /// slides the ivars *en masse* by the difference rounded up to the class's
+    /// **maximum own-ivar alignment** (objc4 `moveIvars`), preserving the
+    /// compile-time relative layout — so the field block does *not* start at
+    /// the raw superclass size the Swift value-layout rule would use. A
+    /// dyld-cache-resident image carries the pre-slid final `instanceStart`
+    /// (the cache builder has realized the class), where the superclass never
+    /// outgrows it and the value is used as-is.
+    ///
+    /// A class **absent from the classlist** — generic (instantiated from a
+    /// pattern) or singleton-initialized (resilient superclass) — is laid out
+    /// by the Swift runtime instead (`initClassFieldOffsetVector`, which
+    /// starts at the exact superclass instance size with per-field alignment
+    /// only), so the existing rule stands.
+    func classFieldStartOffset(
+        of descriptor: ClassDescriptor,
+        in image: ImageReference<MachO>,
+        superclassInstanceSize: Int,
+        ownFieldAlignmentMask: Int
+    ) -> Int {
+        guard
+            !descriptor.layout.flags.isGeneric,
+            let contextNode = try? MetadataReader.demangleContext(
+                for: TypeContextDescriptorWrapper.class(descriptor).asContextDescriptorWrapper,
+                in: image.machO
+            ),
+            let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: contextNode),
+            let ownInstanceStart = image.swiftClassInstanceStartsByQualifiedName[qualifiedTypeName]
+        else { return superclassInstanceSize }
+        guard superclassInstanceSize > ownInstanceStart else { return ownInstanceStart }
+        let slide = (superclassInstanceSize - ownInstanceStart + ownFieldAlignmentMask) & ~ownFieldAlignmentMask
+        return ownInstanceStart + slide
     }
 
     func superclassStartLayout(

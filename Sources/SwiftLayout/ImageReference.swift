@@ -39,6 +39,13 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
     /// protocol, which emits no Swift protocol descriptor but is always
     /// class-bound and carries no Swift witness table.
     let objCProtocolQualifiedNames: Set<String>
+    /// Swift qualified name → the class's **own** `class_ro_t.instanceStart`,
+    /// for every statically-emitted Swift class in this image's
+    /// `__objc_classlist`. This is the authoritative field-block start the
+    /// ObjC runtime slides (`moveIvars`) — a cache-resident image carries the
+    /// pre-slid final value. Queried only for classes defined in this image,
+    /// so it never merges into the closure-wide index.
+    let swiftClassInstanceStartsByQualifiedName: [String: Int]
 
     public init(machO: MachO) throws {
         self.machO = machO
@@ -81,6 +88,14 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
         // it is invisible to the type index above. Read through the concrete
         // reader because the ObjC accessors are not protocol-generic.
         self.objCClassInstanceSizesByBareName = Self.objCClassInstanceSizes(in: machO)
+
+        // Index every statically-emitted Swift class's own `instanceStart`
+        // (also from `__objc_classlist`) — the authoritative field-block start
+        // the ObjC runtime slides via `moveIvars`. Classlist membership itself
+        // discriminates the initialization mode: generic and
+        // singleton-initialized classes are absent and keep the Swift-runtime
+        // rule (exact superclass size).
+        self.swiftClassInstanceStartsByQualifiedName = Self.swiftClassInstanceStarts(in: machO)
 
         // Index every Swift-declared `@objc` protocol (from `__objc_protolist`)
         // so an existential over one — which has no Swift protocol descriptor —
@@ -138,6 +153,19 @@ public final class ImageReference<MachO: MachOSwiftSectionRepresentableWithCache
         }
         if let fileImage = machO as? MachOFile {
             return ObjCClassIndex.instanceSizesByBareName(in: fileImage)
+        }
+        return [:]
+    }
+
+    /// Builds the Swift-qualified-name → own-`instanceStart` index for the
+    /// image's statically-emitted Swift classes, dispatching to the concrete
+    /// `MachOImage` / `MachOFile` ObjC reader.
+    private static func swiftClassInstanceStarts(in machO: MachO) -> [String: Int] {
+        if let inProcessImage = machO as? MachOImage {
+            return ObjCClassIndex.swiftClassInstanceStartsByQualifiedName(in: inProcessImage)
+        }
+        if let fileImage = machO as? MachOFile {
+            return ObjCClassIndex.swiftClassInstanceStartsByQualifiedName(in: fileImage)
         }
         return [:]
     }

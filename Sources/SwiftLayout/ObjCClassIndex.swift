@@ -1,5 +1,6 @@
 import MachOKit
 @_spi(Core) import MachOObjCSection
+import Demangling
 
 /// Builds a per-image index from an Objective-C class's bare name to the start
 /// layout a Swift subclass inherits from it: the class's `instanceSize` (where a
@@ -59,6 +60,68 @@ enum ObjCClassIndex {
             instanceSizesByBareName[className] = (Int(readOnlyData.layout.instanceSize), inheritedAlignmentMask)
         }
         return instanceSizesByBareName
+    }
+
+    /// Swift qualified name → own `class_ro_t.instanceStart` for every
+    /// **Swift** class in an in-process image's `__objc_classlist`. Only
+    /// statically-emitted non-generic classes appear there (generic and
+    /// singleton-initialized classes are realized from patterns at runtime), so
+    /// membership itself discriminates the initialization mode the layout
+    /// engine keys on. The runtime name is the legacy `_TtC…` (or `$s…`)
+    /// mangling; it demangles to the same class node the descriptor's context
+    /// does, so both sides share the `nominalQualifiedName` key format. For a
+    /// class dyld has realized in-process the realized `class_rw_t` form is
+    /// resolved first — its `instanceStart` is the slid (final) value.
+    static func swiftClassInstanceStartsByQualifiedName(in machO: MachOImage) -> [String: Int] {
+        guard let objCClasses = machO.objc.classes64 else { return [:] }
+        var instanceStartsByQualifiedName: [String: Int] = [:]
+        for objCClass in objCClasses {
+            guard
+                let readOnlyData = instanceReadOnlyData(of: objCClass, in: machO),
+                let className = readOnlyData.name(in: machO),
+                let qualifiedName = swiftClassQualifiedName(fromRuntimeName: className),
+                instanceStartsByQualifiedName[qualifiedName] == nil
+            else { continue }
+            instanceStartsByQualifiedName[qualifiedName] = Int(readOnlyData.layout.instanceStart)
+        }
+        return instanceStartsByQualifiedName
+    }
+
+    /// File-backed counterpart of `swiftClassInstanceStartsByQualifiedName(in:)`.
+    /// For a dyld-cache-resident image the cache builder has pre-realized the
+    /// classes, so the on-disk `instanceStart` is already the slid (final)
+    /// value; for an ordinary on-disk binary it is the compile-time value the
+    /// ObjC runtime slides against the actual superclass size (which the
+    /// engine reproduces via the `moveIvars` formula).
+    static func swiftClassInstanceStartsByQualifiedName(in machO: MachOFile) -> [String: Int] {
+        guard let objCClasses = machO.objc.classes64 else { return [:] }
+        var instanceStartsByQualifiedName: [String: Int] = [:]
+        for objCClass in objCClasses {
+            guard
+                let readOnlyData = objCClass.classROData(in: machO),
+                let className = readOnlyData.name(in: machO),
+                let qualifiedName = swiftClassQualifiedName(fromRuntimeName: className),
+                instanceStartsByQualifiedName[qualifiedName] == nil
+            else { continue }
+            instanceStartsByQualifiedName[qualifiedName] = Int(readOnlyData.layout.instanceStart)
+        }
+        return instanceStartsByQualifiedName
+    }
+
+    /// Demangles a Swift class's ObjC runtime name (`_TtC7SwiftUI3Foo`, incl.
+    /// private-discriminator forms) to the engine's qualified-name key. Plain
+    /// ObjC class names (no mangling prefix) return `nil` without invoking the
+    /// demangler.
+    private static func swiftClassQualifiedName(fromRuntimeName runtimeName: String) -> String? {
+        guard runtimeName.hasPrefix("_Tt") || runtimeName.hasPrefix("$s") else { return nil }
+        // `demangleAsNode` wraps the result in `.global`; the qualified-name
+        // builder wants the bare nominal class node (the same shape
+        // `MetadataReader.demangleContext` produces on the descriptor side).
+        guard
+            let node = try? demangleAsNode(runtimeName),
+            let classNode = node.first(of: .class)
+        else { return nil }
+        return NodeTypeNaming.nominalQualifiedName(of: classNode)
     }
 
     /// The instance `class_ro_t` of an in-process ObjC class, resolving the

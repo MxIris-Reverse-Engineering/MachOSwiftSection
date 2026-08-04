@@ -83,7 +83,13 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
     /// The resolved whole-type layout of a struct field type. Convenience for
     /// callers that want size/stride rather than per-field offsets.
     public func typeLayout(ofStruct structDescriptor: StructDescriptor) throws -> StaticTypeLayout {
-        try resolver.computeStructLayout(structDescriptor, in: imageUniverse.rootImage).asStaticTypeLayout()
+        // Foreign (C-imported) structs: the builtin whole-type record is
+        // authoritative; the structural path cannot see C bitfields/padding.
+        if structDescriptor.hasForeignMetadataInitialization,
+           let builtinLayout = foreignBuiltinLayout(of: structDescriptor, in: imageUniverse.rootImage) {
+            return builtinLayout
+        }
+        return try resolver.computeStructLayout(structDescriptor, in: imageUniverse.rootImage).asStaticTypeLayout()
     }
 
     /// The resolved whole-type layout of any field type given by its mangled
@@ -168,13 +174,72 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
             withRequirementFacts: ClassBoundGenericParameterAnalysis.layoutFacts(of: descriptor, in: image, imageUniverse: imageUniverse)
         )
         let records = try descriptor.fieldDescriptor(in: image.machO).records(in: image.machO)
-        return try accumulateFieldLayout(
+        let structural = try accumulateFieldLayout(
             records: records,
             startOffset: 0,
             startAlignmentMask: 0,
             in: image,
             environment: environment
         )
+        // A C-imported (foreign) struct's Swift field records omit C-only
+        // layout (bitfields, padding), so the structural accumulation is only
+        // trustworthy when it reproduces the compiler-embedded
+        // `__swift5_builtin` whole-type record — the same record the
+        // field-type resolution path consults before ever accumulating. On
+        // contradiction the builtin wins and every field degrades: a confident
+        // wrong offset (`__C.Decimal._mantissa` at 0, really 4; `__C.PathData`
+        // as a size-0 aggregate) is worse than an honest unknown. Without a
+        // builtin record there is nothing to check against and the structural
+        // result stands.
+        if descriptor.hasForeignMetadataInitialization,
+           let builtinLayout = foreignBuiltinLayout(of: descriptor, in: image) {
+            let structuralMatchesBuiltin = structural.size == builtinLayout.size
+                && structural.stride == builtinLayout.stride
+                && structural.alignment == builtinLayout.alignment
+            guard structuralMatchesBuiltin else {
+                let degradedFields = structural.fields.map { field in
+                    FieldLayoutEntry(
+                        fieldName: field.fieldName,
+                        offset: 0,
+                        typeMangledName: field.typeMangledName,
+                        layout: field.layout,
+                        resolution: .unknown(reason: .foreignTypeFieldOffsetsUnavailable)
+                    )
+                }
+                return AggregateFieldLayout(
+                    fields: degradedFields,
+                    size: builtinLayout.size,
+                    stride: builtinLayout.stride,
+                    alignment: builtinLayout.alignment,
+                    extraInhabitantCount: builtinLayout.extraInhabitantCount
+                )
+            }
+            // Agreement: the records are complete, keep the per-field offsets;
+            // the extra-inhabitant count still comes from the builtin record
+            // (the authoritative value for a C type).
+            return AggregateFieldLayout(
+                fields: structural.fields,
+                size: structural.size,
+                stride: structural.stride,
+                alignment: structural.alignment,
+                extraInhabitantCount: builtinLayout.extraInhabitantCount
+            )
+        }
+        return structural
+    }
+
+    /// The `__swift5_builtin` whole-type layout of a foreign (C-imported)
+    /// struct, keyed by its demangled qualified name in the image that carries
+    /// the descriptor. `nil` when the image embeds no builtin record for it.
+    private func foreignBuiltinLayout(of descriptor: StructDescriptor, in image: ImageReference<MachO>) -> StaticTypeLayout? {
+        guard
+            let node = try? MetadataReader.demangleContext(
+                for: TypeContextDescriptorWrapper.struct(descriptor).asContextDescriptorWrapper,
+                in: image.machO
+            ),
+            let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node)
+        else { return nil }
+        return image.builtinLayoutIndex.layout(forTypeName: qualifiedTypeName)
     }
 
     // MARK: - Class
@@ -193,9 +258,26 @@ public struct StaticLayoutCalculator<MachO: MachOSwiftSectionRepresentableWithCa
         let records = try descriptor.fieldDescriptor(in: image.machO).records(in: image.machO)
         do {
             let start = try resolver.superclassStartLayout(of: descriptor, in: image, environment: environment)
+            // The maximum own-field alignment drives the ObjC ivar-slide
+            // rounding (see `classFieldStartOffset`). Unresolvable fields are
+            // skipped — their offsets degrade below anyway, so an understated
+            // mask only affects an already-degraded region.
+            let ownFieldAlignmentMask = records.reduce(into: 0) { mask, record in
+                guard
+                    let mangledTypeName = try? record.mangledTypeName(in: image.machO),
+                    let fieldLayout = try? resolver.layout(forMangledTypeName: mangledTypeName, in: image, environment: environment)
+                else { return }
+                mask = max(mask, fieldLayout.alignmentMask)
+            }
+            let startOffset = resolver.classFieldStartOffset(
+                of: descriptor,
+                in: image,
+                superclassInstanceSize: start.instanceSize,
+                ownFieldAlignmentMask: ownFieldAlignmentMask
+            )
             return try accumulateFieldLayout(
                 records: records,
-                startOffset: start.instanceSize,
+                startOffset: startOffset,
                 startAlignmentMask: start.alignmentMask,
                 in: image,
                 environment: environment

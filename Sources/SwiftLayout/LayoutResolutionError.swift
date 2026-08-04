@@ -30,6 +30,12 @@ public enum LayoutUnknownReason: Sendable, Hashable {
     /// An earlier field in the same aggregate could not be resolved, so the
     /// running offset accumulator is no longer trustworthy for this field.
     case precedingFieldUnresolved
+    /// The type is C-imported (foreign) and its Swift field records do not
+    /// reproduce the compiler-embedded `__swift5_builtin` whole-type layout —
+    /// C-only details (bitfields, padding) are invisible to reflection — so no
+    /// per-field offset is derivable; only the builtin whole-type layout is
+    /// authoritative.
+    case foreignTypeFieldOffsetsUnavailable
 }
 
 /// Internal error thrown while resolving a layout; caught at the aggregate
