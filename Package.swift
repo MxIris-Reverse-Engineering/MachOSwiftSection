@@ -173,7 +173,7 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKit.git",
-            from: "0.46.100",
+            exact: "0.51.101",
         ),
     )
 }
@@ -199,7 +199,7 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOObjCSection.git",
-            from: "0.6.100",
+            exact: "0.7.103",
         ),
     )
 }
@@ -212,7 +212,14 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-demangling",
-            from: "0.5.1",
+            // The node-store migration adopts 0.5.x: that release reshaped
+            // `NodePrinterTarget` (`write(_:context:)` /
+            // `pushTypeReferenceScope(_:)` take `@autoclosure` parameters and
+            // lost their default implementations) and dropped `Node: Codable`.
+            // The upper bound stays closed for the same reason the pre-adoption
+            // pin had one — an open bound silently floats this package onto the
+            // next demangler release's source breaks.
+            "0.5.1" ..< "0.6.0",
         ),
     )
 
