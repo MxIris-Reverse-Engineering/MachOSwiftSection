@@ -11,7 +11,7 @@ enum AnonymousContextDescriptorBaseline {
     }
 
     static let firstAnonymous = Entry(
-    offset: 0x3de80,
+    offset: 0x3e490,
     layoutFlagsRawValue: 0xc2
     )
 }

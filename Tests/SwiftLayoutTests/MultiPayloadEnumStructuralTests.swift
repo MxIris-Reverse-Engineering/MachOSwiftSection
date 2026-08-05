@@ -33,7 +33,14 @@ final class MultiPayloadEnumStructuralTests: MachOSwiftSectionFixtureTests, @unc
             guard
                 let descriptor = contextDescriptor.typeContextDescriptorWrapper,
                 let enumDescriptor = descriptor.enum,
-                enumDescriptor.numberOfPayloadCases > 1
+                enumDescriptor.numberOfPayloadCases > 1,
+                // A generic enum has no argument-less accessor to materialize
+                // the runtime ground truth from (calling it without arguments
+                // crashes). An argument-independent generic multi-payload enum
+                // *does* compute structurally now — its runtime comparison
+                // lives in `GenericSpareBitsEnumLayoutTests`, through a
+                // non-generic holder.
+                !descriptor.typeContextDescriptor.layout.flags.isGeneric
             else { continue }
             guard
                 let node = try? MetadataReader.demangleContext(for: contextDescriptor, in: machO),

@@ -1872,6 +1872,37 @@ enum GenericFieldLayout {
         // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
         var trailingMarker: Swift.Int8
     }
+    struct SpareBitsNativeStorage<A, B> {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 2147483647)
+        var storage: SymbolTestsCore.GenericFieldLayout.GenericBaseClass<A>
+        // Field offset: 0x8
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var bucketIndex: Swift.Int
+        // Field offset: 0x10
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var elementCount: Swift.Int
+
+        init(storage: SymbolTestsCore.GenericFieldLayout.GenericBaseClass<A>, bucketIndex: Swift.Int, elementCount: Swift.Int)
+    }
+    enum SpareBitsVariantEnum<A, B> {
+        // Type Layout: (size: 24, stride: 24, alignment: 8, extraInhabitantCount: 2147483647)
+        case native(SymbolTestsCore.GenericFieldLayout.SpareBitsNativeStorage<A, B>)
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 2147483647)
+        case bridged(SymbolTestsCore.GenericFieldLayout.GenericBaseClass<B>)
+        case exhausted
+    }
+    struct SpareBitsVariantEnumFieldHolder {
+        // Field offset: 0x0
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var leading: Swift.Int
+        // Field offset: 0x8
+        // Type Layout: (size: 24, stride: 24, alignment: 8, extraInhabitantCount: 125)
+        var enumField: SymbolTestsCore.GenericFieldLayout.SpareBitsVariantEnum<Swift.Int64, Swift.Bool>
+        // Field offset: 0x20
+        // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 0)
+        var trailing: Swift.Int8
+    }
     class ClassBoundGenericBaseClass<A> where A: AnyObject {
         // Field offset: 0x10
         // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 2147483647)

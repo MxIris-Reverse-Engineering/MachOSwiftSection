@@ -21,8 +21,10 @@ import Demangling
 ///    field-offset vector (a concrete instantiation for the generic case).
 ///
 /// 2. **Generic enum case projection.** `enumCaseLayoutResult` projects a
-///    generic multi-payload enum whose payloads are all class-bound (tagged
-///    strategy, no arguments needed) exactly like its instantiations.
+///    generic multi-payload enum whose payloads are all class-bound (no
+///    arguments needed; class-bound archetypes contribute no spare bits, so
+///    the projection uses appended tag bytes) exactly like its
+///    instantiations.
 ///
 /// Both readers (in-process `MachOImage` and offline `MachOFile`) are checked.
 @Suite
@@ -109,7 +111,8 @@ final class MetatypeAndGenericEnumProjectionLayoutTests: MachOSwiftSectionFixtur
     }
 
     /// A generic multi-payload enum whose payloads are all class-bound projects
-    /// its per-case layout (tagged strategy) without any specialization —
+    /// its per-case layout without any specialization (class-bound archetypes
+    /// contribute no spare bits, so the tag lives in an appended byte) —
     /// `enumCaseLayoutResult` returns a non-nil projection whose payload/tag
     /// regions are consistent with the runtime value-witness size.
     @MainActor

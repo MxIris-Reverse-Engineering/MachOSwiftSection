@@ -29,17 +29,21 @@ extension StaticTypeLayoutResolver {
         // `Parent<Int>.Inner` whose arguments ride the parent chain) capture
         // the per-level arguments; payload field records reference these by
         // `dependentGenericParamType` and are substituted during payload
-        // reading. Built before the builtin check so an instantiated node
-        // (whose layout is argument-dependent) can never match the
-        // generic-argument-free builtin key.
+        // reading.
         let environment = GenericArgumentEnvironment.make(forInstantiatedTypeNode: node)
         // An enum whose layout reflection cannot derive structurally —
         // multi-payload, indirect, `@objc` raw — carries its whole-type layout
-        // in the using image's `__swift5_builtin` descriptor. Restricted to
-        // non-instantiated enums (the builtin key is generic-argument-free).
+        // in the using image's `__swift5_builtin` descriptor. The compiler
+        // emits the record exactly when the enum's layout is statically fixed;
+        // for a *generic* enum that means argument-independent (the complete
+        // value-witness table is baked into the generic metadata pattern and
+        // the runtime never recomputes it — `Swift.Dictionary.Iterator._Variant`
+        // is the canonical case), so the generic-argument-free key is valid
+        // for the unbound form and every instantiation alike, and an
+        // argument-dependent generic enum never has a record to hit.
         // Single-/no-payload enums the engine computes itself emit no builtin
         // descriptor and fall through below.
-        if node.kind == .enum, environment.isEmpty,
+        if node.kind == .enum || node.kind == .boundGenericEnum,
            let builtinLayout = originImage.builtinLayoutIndex.layout(forTypeName: qualifiedTypeName) {
             return builtinLayout
         }
@@ -49,6 +53,16 @@ extension StaticTypeLayoutResolver {
             }
             guard let enumDescriptor = resolved.descriptor.enum else {
                 throw LayoutResolutionError.unknown(.unsupportedTypeKind(nodeKindName: "non-enum:\(qualifiedTypeName)"))
+            }
+            // A cross-image enum's record lives in its *declaring* image (enum
+            // builtin records are emitted per declaring module, unlike the
+            // per-referencing-image imported-C records), so consult the
+            // defining image's index before computing structurally — this also
+            // covers a fixed enum whose spare-bit mask was too large for a
+            // `__swift5_mpenum` record (the >16k fallback), where the
+            // structural path below would wrongly append a tag byte.
+            if let definingBuiltinLayout = resolved.image.builtinLayoutIndex.layout(forTypeName: qualifiedTypeName) {
+                return definingBuiltinLayout
             }
             return try self.computeEnumLayout(enumDescriptor, node: node, in: resolved.image, environment: environment)
         }
@@ -118,12 +132,18 @@ extension StaticTypeLayoutResolver {
         let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node)
         let result: EnumLayoutCalculator.LayoutResult
         if
-            // A generic enum never uses the spare-bits strategy: the runtime's
-            // `swift_initEnumMetadataMultiPayload` always appends tag bytes (a
-            // spare-bit layout requires compile-time payload knowledge), so a
-            // generic descriptor — instantiated or not — takes the tagged
-            // branch even when a `__swift5_mpenum` descriptor is present.
-            !descriptor.isGeneric,
+            // Spare bits apply exactly when the compiler recorded a spare-bit
+            // mask: a `__swift5_mpenum` record exists only for a
+            // statically-fixed multi-payload enum — for a *generic* one that
+            // means argument-independent layout, baked into the metadata
+            // pattern with the spare-bits strategy for the unbound form and
+            // every instantiation alike. An argument-dependent generic enum
+            // gets no record and takes the runtime's tagged
+            // `swift_initEnumMetadataMultiPayload` formula below; a fixed enum
+            // whose payloads share no spare bits (`usesPayloadSpareBits`
+            // false — e.g. class-bound-archetype payloads, which may hold ObjC
+            // tagged pointers) lands on the same appended-tag-byte numbers
+            // through either branch.
             let qualifiedTypeName,
             let multiPayloadDescriptor = multiPayloadEnumDescriptor(forQualifiedTypeName: qualifiedTypeName, in: image),
             multiPayloadDescriptor.usesPayloadSpareBits
@@ -267,10 +287,13 @@ extension StaticTypeLayoutResolver {
     /// project) and throws when a payload type cannot be resolved.
     ///
     /// Works for generic enums too: class-bound parameters resolve through the
-    /// requirement-signature analysis, and any generic descriptor takes the
-    /// tagged multi-payload strategy (a generic instantiation never uses spare
-    /// bits), so an unspecialized `enum Content<Element: AnyObject>` projects
-    /// exactly like every one of its instantiations.
+    /// requirement-signature analysis, and the strategy follows the compiler's
+    /// own record — a statically-fixed (argument-independent) generic
+    /// multi-payload enum projects the spare-bits strategy its
+    /// `__swift5_mpenum` mask describes, identical for the unbound form and
+    /// every instantiation, while an argument-dependent one (no record)
+    /// projects the runtime's tagged strategy. Either way an unspecialized
+    /// projection matches every instantiation.
     func enumCaseLayoutResult(
         of descriptor: EnumDescriptor,
         in image: ImageReference<MachO>
@@ -294,7 +317,10 @@ extension StaticTypeLayoutResolver {
         } else {
             let payloadArea = try multiPayloadArea(of: descriptor, in: image, environment: environment)
             if
-                !descriptor.isGeneric,
+                // Same discriminator as `multiPayloadEnumLayout`: the
+                // `__swift5_mpenum` mask exists exactly for statically-fixed
+                // enums (argument-independent when generic), so record
+                // presence — not genericity — picks the strategy.
                 let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node),
                 let multiPayloadDescriptor = multiPayloadEnumDescriptor(forQualifiedTypeName: qualifiedTypeName, in: image),
                 multiPayloadDescriptor.usesPayloadSpareBits

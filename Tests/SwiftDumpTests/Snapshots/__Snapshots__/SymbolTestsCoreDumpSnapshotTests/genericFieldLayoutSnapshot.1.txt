@@ -860,6 +860,40 @@ struct SymbolTestsCore.GenericFieldLayout.GenericStructWithClassBoundEnumField<A
     SymbolTestsCore.GenericFieldLayout.GenericStructWithClassBoundEnumField.trailingMarker.getter : Swift.Int8
     SymbolTestsCore.GenericFieldLayout.GenericStructWithClassBoundEnumField.trailingMarker.setter : Swift.Int8
 }
+struct SymbolTestsCore.GenericFieldLayout.SpareBitsNativeStorage<A, B> {
+    var storage: SymbolTestsCore.GenericFieldLayout.GenericBaseClass<A>
+    var bucketIndex: Swift.Int
+    var elementCount: Swift.Int
+
+    /* Allocator */
+    SymbolTestsCore.GenericFieldLayout.SpareBitsNativeStorage.init(storage: SymbolTestsCore.GenericFieldLayout.GenericBaseClass<A>, bucketIndex: Swift.Int, elementCount: Swift.Int) -> SymbolTestsCore.GenericFieldLayout.SpareBitsNativeStorage<A, B>
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.SpareBitsNativeStorage.bucketIndex.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.SpareBitsNativeStorage.bucketIndex.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.SpareBitsNativeStorage.elementCount.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.SpareBitsNativeStorage.elementCount.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.SpareBitsNativeStorage.storage.getter : SymbolTestsCore.GenericFieldLayout.GenericBaseClass<A>
+    SymbolTestsCore.GenericFieldLayout.SpareBitsNativeStorage.storage.setter : SymbolTestsCore.GenericFieldLayout.GenericBaseClass<A>
+}
+enum SymbolTestsCore.GenericFieldLayout.SpareBitsVariantEnum<A, B> {
+    case native(SymbolTestsCore.GenericFieldLayout.SpareBitsNativeStorage<A, B>)
+    case bridged(SymbolTestsCore.GenericFieldLayout.GenericBaseClass<B>)
+    case exhausted
+}
+struct SymbolTestsCore.GenericFieldLayout.SpareBitsVariantEnumFieldHolder {
+    var leading: Swift.Int
+    var enumField: SymbolTestsCore.GenericFieldLayout.SpareBitsVariantEnum<Swift.Int64, Swift.Bool>
+    var trailing: Swift.Int8
+
+    /* Variable */
+    SymbolTestsCore.GenericFieldLayout.SpareBitsVariantEnumFieldHolder.enumField.getter : SymbolTestsCore.GenericFieldLayout.SpareBitsVariantEnum<Swift.Int64, Swift.Bool>
+    SymbolTestsCore.GenericFieldLayout.SpareBitsVariantEnumFieldHolder.enumField.setter : SymbolTestsCore.GenericFieldLayout.SpareBitsVariantEnum<Swift.Int64, Swift.Bool>
+    SymbolTestsCore.GenericFieldLayout.SpareBitsVariantEnumFieldHolder.leading.getter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.SpareBitsVariantEnumFieldHolder.leading.setter : Swift.Int
+    SymbolTestsCore.GenericFieldLayout.SpareBitsVariantEnumFieldHolder.trailing.getter : Swift.Int8
+    SymbolTestsCore.GenericFieldLayout.SpareBitsVariantEnumFieldHolder.trailing.setter : Swift.Int8
+}
 class SymbolTestsCore.GenericFieldLayout.ClassBoundGenericBaseClass<A> where A: AnyObject {
     var baseElement: A
 

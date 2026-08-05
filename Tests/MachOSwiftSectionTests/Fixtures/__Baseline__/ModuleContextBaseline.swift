@@ -11,7 +11,7 @@ enum ModuleContextBaseline {
     }
 
     static let symbolTestsCore = Entry(
-    descriptorOffset: 0x3d020,
+    descriptorOffset: 0x3d630,
     name: "SymbolTestsCore"
     )
 }

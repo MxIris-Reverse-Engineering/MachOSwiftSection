@@ -489,10 +489,13 @@ public enum GenericFieldLayout {
         public var trailingMarker: Int8
     }
 
-    /// A generic multi-payload enum over a class-bound parameter: the runtime
-    /// lays every generic instantiation out with appended tag bytes (never
-    /// spare bits), so the unspecialized static layout must take the tagged
-    /// branch too.
+    /// A generic multi-payload enum over a class-bound parameter: its layout is
+    /// argument-independent (every payload is fixed-size under the archetype),
+    /// so the compiler lays it out statically — but a class-bound archetype
+    /// contributes **no spare bits** (it may hold an Objective-C tagged
+    /// pointer), so the static layout degenerates to the same appended tag
+    /// byte the runtime's tagged formula produces. The unspecialized static
+    /// computation therefore lands on the same numbers via either branch.
     public enum ClassBoundContent<Element: AnyObject> {
         case first(Element)
         case second(Element, Int32)
@@ -504,6 +507,45 @@ public enum GenericFieldLayout {
     public struct GenericStructWithClassBoundEnumField<Element: AnyObject> {
         public var content: ClassBoundContent<Element>
         public var trailingMarker: Int8
+    }
+
+    /// The `Swift.Dictionary.Iterator._Variant` shape: every payload word is a
+    /// native class reference or a fixed-size integer, so the enum's layout is
+    /// argument-independent **and** the payloads share common spare bits (the
+    /// native heap-reference bits of word 0). The compiler lays such a generic
+    /// multi-payload enum out statically with the spare-bits strategy, bakes
+    /// the complete value-witness table into the generic metadata pattern, and
+    /// emits `__swift5_builtin` + `__swift5_mpenum` records for it — the
+    /// runtime's tagged `swift_initEnumMetadataMultiPayload` never runs.
+    /// Expected layout on 64-bit: size 24 / stride 24 / 7 common spare bits /
+    /// XI 125 (128 minus 2 payload tags minus 1 empty-case tag), *not* the
+    /// tagged 25 / 32 / XI 253.
+    public struct SpareBitsNativeStorage<First, Second> {
+        public var storage: GenericBaseClass<First>
+        public var bucketIndex: Int
+        public var elementCount: Int
+
+        public init(storage: GenericBaseClass<First>, bucketIndex: Int, elementCount: Int) {
+            self.storage = storage
+            self.bucketIndex = bucketIndex
+            self.elementCount = elementCount
+        }
+    }
+
+    public enum SpareBitsVariantEnum<First, Second> {
+        case native(SpareBitsNativeStorage<First, Second>)
+        case bridged(GenericBaseClass<Second>)
+        case exhausted
+    }
+
+    /// Non-generic holder of a concrete instantiation: the runtime field-offset
+    /// vector is reachable via the metadata accessor, so
+    /// `StaticLayoutVsRuntimeTests` sweeps it — `trailing` sits at 32 (8 +
+    /// spare-bits size 24), not the 33 the tagged formula would imply.
+    public struct SpareBitsVariantEnumFieldHolder {
+        public var leading: Int
+        public var enumField: SpareBitsVariantEnum<Int64, Bool>
+        public var trailing: Int8
     }
 
     /// A generic class pair: the subclass's fields start at the superclass's

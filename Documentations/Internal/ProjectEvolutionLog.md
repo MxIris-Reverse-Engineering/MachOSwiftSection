@@ -465,6 +465,46 @@
 
 ---
 
+## 28. 泛型 fixed MPE 的 spare-bits 布局：错误模型修正 + 普查整型偏差清零
+
+- **时间段**：2026-08-05。
+- **动机**：第 27 节留档的硬骨头 ③——`Dictionary` 迭代器一族（`AttributedString.Keys.SetIterator` /
+  `SpatialEventCollection.Iterator`）真值 40/40/XI 126，引擎按「泛型 MPE 恒 tagged」算
+  41/48/254。当时定性为「编译器预特化 metadata 按编译期 spare-bits 布局」。
+- **定性修正（实验推翻旧结论）**：用探针二进制里全新定义的参数类型实例化
+  `Dictionary<FreshKey, FreshValue>.Iterator`，读运行时 VWT 仍是 40/40/126，且 metadata
+  位于 runtime 的 `InitialAllocationPool`——**与预特化无关**。真实机制：**布局与实参无关**的
+  泛型 MPE 由编译器静态布局（spare-bits 策略），完整 VWT 烘焙进 generic metadata pattern，
+  运行时完成函数从不重算；`swift_initEnumMetadataMultiPayload`（纯 tagged）只对**布局依赖
+  实参**的 MPE 运行。且编译器把裁决写进了二进制：`GenReflection.cpp` 只为
+  `!needsPayloadSizeInMetadata()`（静态 fixed）的 MPE 发射 `__swift5_builtin` +
+  `__swift5_mpenum` 记录，`!AllowFixedLayoutOptimizations` 时编译器自己也清空 spare bits
+  退回与 runtime 一致的 tagged 布局（GenEnum.cpp:7192）——**「记录存在 ⇔ spare-bits/fixed」
+  在构造上精确**。5 个 OS 镜像实测：记录 typeref 全部 demangle 为无参数 nominal 名（与
+  `BuiltinTypeLayoutIndex` 现有 key 一致），零 bound-concrete 实例化记录。
+- **落地修复（SwiftLayout，约 20 行）**：放开 `EnumLayoutBridge` 两道基于错误模型的门——
+  builtin 查表的 `environment.isEmpty`（实例化/未特化泛型 enum 节点照常查剥参数 key）与
+  `multiPayloadEnumLayout` / `enumCaseLayoutResult` 的 `!descriptor.isGeneric`（只按
+  `usesPayloadSpareBits` 分流）；`compute()` 补查**定义镜像**的 builtin 索引（enum 记录按
+  声明模块发射，跨镜像 + mask>16k 边角随之闭合）；`BuiltinTypeLayoutIndex` 防御性跳过
+  bound-concrete 实例化记录。
+- **验证**：新 `GenericSpareBitsEnumLayoutTests` 修复前红（fixture `SpareBitsVariantEnum`
+  24/24/XI 125 vs 引擎 25/32/253；OS 端到端 40/40/126 vs 41/48/254）修复后绿；fixture 新增
+  `Dictionary.Iterator._Variant` 形态类型族；SwiftUI 全量 dump before/after 对拍：117 行
+  diff 全部是 enum-layout 注释、恰好 4 个受益枚举（`NSHostingView.AllowAutomationElementsState`、
+  `AnimatedValueState<A>` 一族），声明本体零变化；普查复跑整型偏差清零。顺带修
+  `MultiPayloadEnumStructuralTests` 既有缺陷：遍历未过滤泛型描述符，第一个空环境可解析的
+  泛型 MPE（新 fixture 类型）会让它对泛型 enum 无参调 accessor 而 SIGSEGV。
+- **关键决策**：判据用「编译器记录的存在性」而非结构化推导 fixedness——后者需要重放
+  resilience 语义（`layoutScope`），二进制里读不到 `@frozen`，必然出启发式误差；记录存在性
+  是编译器原话、零启发式，且索引早已收录，修复只是放行。
+- **文档**：[StaticLayoutEngine.md](StaticLayoutEngine.md)（核心算法 / pitfall / 已知偏差表 /
+  后续工作四处改写，硬骨头条目标记已解决）、AGENTS.md（`EnumLayoutBridge` 条目重写）、
+  [TaskReports/2026-08-05-generic-fixed-mpe-spare-bits.md](TaskReports/2026-08-05-generic-fixed-mpe-spare-bits.md)。
+- **对应版本**：未发版（main，`bb8ed31` 之后）。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
