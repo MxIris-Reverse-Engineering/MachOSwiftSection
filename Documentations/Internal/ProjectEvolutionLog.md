@@ -501,7 +501,7 @@
 - **文档**：[StaticLayoutEngine.md](StaticLayoutEngine.md)（核心算法 / pitfall / 已知偏差表 /
   后续工作四处改写，硬骨头条目标记已解决）、AGENTS.md（`EnumLayoutBridge` 条目重写）、
   [TaskReports/2026-08-05-generic-fixed-mpe-spare-bits.md](TaskReports/2026-08-05-generic-fixed-mpe-spare-bits.md)。
-- **对应版本**：未发版（main，`bb8ed31` 之后）。
+- **对应版本**：未发版（main，0.14.1 之后，紧接第 23 节）。
 
 ## 25. 嵌套字段偏移展开的环守卫（indirect case 不下钻 + 路径环检测）
 
@@ -541,7 +541,45 @@
   `depth < 16`，遍历的是嵌套类型**声明**树（天然无环），不属同类，不改。
 - **文档**：[NestedFieldOffsetCycleGuard.md](NestedFieldOffsetCycleGuard.md)、
   [TaskReports/2026-08-06-nested-field-offset-cycle-guard.md](TaskReports/2026-08-06-nested-field-offset-cycle-guard.md)。
-- **对应版本**：未发版（main，`4eeb3b4` 之后）。
+- **对应版本**：未发版（main，0.14.1 之后，紧接第 24 节）。
+
+---
+
+## 26. main 退回 0.14.1 基线：node-store 合并撤出，四个 SwiftLayout 修复重新接线
+
+- **时间段**：2026-08-06。
+- **动机**：维护者判断 PR #97（`feature/node-store-migration`，2026-08-04 合入）进 main
+  过早，要求 main 回到 `0.14.1` 发布点，同时**保留**合并之后落在 main 上的四个
+  SwiftLayout / rendering 修复（即本文第 23–25 节），node-store 的工作整体退回 feature
+  分支等待合适时机。
+- **落地**：main 由 `621f6fa` 重写为 `3396cfd`（tag `0.14.1`）+ 四次 cherry-pick。
+  `Package.swift` 随之退回 `swift-demangling` 的 `0.4.5 ..< 0.5.0` pin（0.5.x 重塑了
+  `NodePrinterTarget`、删除了 `Node: Codable`，是本次回退唯一的硬耦合点），
+  `MachOSymbolsTests` 与三处 target 依赖一并回退。
+- **关键决策**：
+  - **选 cherry-pick 重写而非 `git revert -m 1`**。revert 会在历史里留下「这些改动已被
+    处理过」的记录，将来把 feature 分支合回 main 时 Git 不再带回那些代码，必须先
+    revert the revert；而 node-store 明确是要回来的。重写后两个分支之间重新有完整
+    diff，重开 PR 即可。
+  - **动手前用 `git merge-tree --write-tree` 只读预演两条路径**，在不碰工作区的前提下
+    确认「代码文件全自动合并、唯一冲突是 `ProjectEvolutionLog.md`」，把最大的不确定性
+    前置消解。
+  - **四个修复与 node-store 无源码耦合**这一判断先由 diff 扫描得出（无一处引用
+    `NodeReference` / `demangleAsNodeTransient` / `NodeStore` 等新 API），再由 0.4.5
+    依赖下的全量构建 0 错误 0 警告证实。
+  - **数据安全靠三重保险**：`backup/main-before-0.14.1-rewind` 分支 + 同名带日期 tag
+    （本地与 origin 双份）+ `feature/node-store-migration` 保持在 `621f6fa` 不动。
+    重写前先备份、先推远程，再动分支。
+  - **历史叙述不改写**：各 TaskReport 正文里对旧 SHA 的引用（如「rebase 到 main
+    （`4eeb3b4`）」）保留原貌——那是对当时事实的记录；旧 SHA 一律可通过备份分支解析。
+    只有「对应版本」这类元数据字段改为不依赖 SHA 的表述。
+- **影响面**：node-store 分支带来的能力（符号索引 NodeStore 化、性能批次、旧格式
+  `LC_DYLD_INFO` bind 支持、系统框架渲染 A/B 验证流程与其「大重构必跑」规则）暂时
+  **不在 main 上**。本文第 23–25 节由原第 27–29 节顺延而来，故备份分支与新 main 的节号
+  不一致；feature 分支将来合回时本文必然再次冲突，届时需把 node-store 四节插回并重新
+  编号——这是选择重写历史的已知代价。
+- **文档**：[TaskReports/2026-08-06-main-rewind-onto-0.14.1.md](TaskReports/2026-08-06-main-rewind-onto-0.14.1.md)。
+- **对应版本**：`0.14.1`（main 与该 tag 之间此后仅有第 23–25 节的三个修复批次）。
 
 ---
 
