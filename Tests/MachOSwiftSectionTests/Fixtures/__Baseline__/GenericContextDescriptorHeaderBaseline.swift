@@ -14,7 +14,7 @@ enum GenericContextDescriptorHeaderBaseline {
     }
 
     static let firstExtensionGenericHeader = Entry(
-    offset: 0x40604,
+    offset: 0x41dc4,
     layoutNumParams: 1,
     layoutNumRequirements: 1,
     layoutNumKeyArguments: 0,

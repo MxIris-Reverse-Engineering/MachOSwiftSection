@@ -65,6 +65,7 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
         "propertyWrapperVariantsSnapshot",
         "protocolCompositionSnapshot",
         "protocolsSnapshot",
+        "recursiveIndirectFieldLayoutSnapshot",
         "resilientClassesSnapshot",
         "resultBuilderDSLSnapshot",
         "sameTypeRequirementsSnapshot",
@@ -329,6 +330,11 @@ final class SymbolTestsCoreDumpSnapshotTests: MachOFileTests, SnapshotDumpableTe
 
     @Test func protocolsSnapshot() async throws {
         let output = try await collectDump(for: machOFile, inNamespace: "Protocols")
+        assertSnapshot(of: output, as: .lines)
+    }
+
+    @Test func recursiveIndirectFieldLayoutSnapshot() async throws {
+        let output = try await collectDump(for: machOFile, inNamespace: "RecursiveIndirectFieldLayout")
         assertSnapshot(of: output, as: .lines)
     }
 

@@ -20,7 +20,7 @@ enum ProtocolConformanceBaseline {
     }
 
     static let structTestProtocolTest = Entry(
-    descriptorOffset: 0x3cdb0,
+    descriptorOffset: 0x3e570,
     flagsRawValue: 0x20000,
     hasProtocol: true,
     hasWitnessTablePattern: true,
@@ -34,7 +34,7 @@ enum ProtocolConformanceBaseline {
     )
 
     static let conditionalFirst = Entry(
-    descriptorOffset: 0x380e0,
+    descriptorOffset: 0x39780,
     flagsRawValue: 0x30100,
     hasProtocol: true,
     hasWitnessTablePattern: true,
@@ -48,7 +48,7 @@ enum ProtocolConformanceBaseline {
     )
 
     static let globalActorFirst = Entry(
-    descriptorOffset: 0x36160,
+    descriptorOffset: 0x37800,
     flagsRawValue: 0x80000,
     hasProtocol: true,
     hasWitnessTablePattern: true,
@@ -62,7 +62,7 @@ enum ProtocolConformanceBaseline {
     )
 
     static let resilientFirst = Entry(
-    descriptorOffset: 0x360d0,
+    descriptorOffset: 0x37770,
     flagsRawValue: 0x30000,
     hasProtocol: true,
     hasWitnessTablePattern: true,

@@ -2642,6 +2642,63 @@ enum Protocols {
         associatedtype Third
     }
 }
+enum RecursiveIndirectFieldLayout {
+    struct ReferenceSpec {
+        // Field offset: 0x0
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
+        var name: Swift.String
+        // Field offset: 0x10
+        // Type Layout: (size: 17, stride: 24, alignment: 8, extraInhabitantCount: 252)
+        var value: SymbolTestsCore.RecursiveIndirectFieldLayout.ValueSpec<Swift.String>?
+        // Field offset: 0x28
+        // Type Layout: (size: 17, stride: 24, alignment: 8, extraInhabitantCount: 253)
+        var direct: SymbolTestsCore.RecursiveIndirectFieldLayout.ValueSpec<Swift.String>
+        // Field offset: 0x40
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var weight: Swift.Int
+
+        init(name: Swift.String, value: SymbolTestsCore.RecursiveIndirectFieldLayout.ValueSpec<Swift.String>?, direct: SymbolTestsCore.RecursiveIndirectFieldLayout.ValueSpec<Swift.String>, weight: Swift.Int)
+    }
+    enum ValueSpec<A> {
+        case literal(A)
+        // Type Layout: (size: 72, stride: 72, alignment: 8, extraInhabitantCount: 2147483647)
+        indirect case reference(SymbolTestsCore.RecursiveIndirectFieldLayout.ReferenceSpec)
+        indirect case pair(SymbolTestsCore.RecursiveIndirectFieldLayout.ValueSpec<A>, SymbolTestsCore.RecursiveIndirectFieldLayout.ValueSpec<A>)
+    }
+    enum BoxedNode {
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        indirect case leaf(Swift.Int)
+        // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 126)
+        indirect case branch(SymbolTestsCore.RecursiveIndirectFieldLayout.BoxedNode, SymbolTestsCore.RecursiveIndirectFieldLayout.BoxedNode)
+    }
+    struct AcyclicNesting {
+        struct Inner {
+            struct Innermost {
+                // Field offset: 0x0
+                // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+                var value: Swift.Int
+                // Field offset: 0x8
+                // Type Layout: (size: 1, stride: 1, alignment: 1, extraInhabitantCount: 254)
+                var flag: Swift.Bool
+            }
+            // Field offset: 0x0
+            // Type Layout: (size: 9, stride: 16, alignment: 8, extraInhabitantCount: 254)
+            var innermost: SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.Inner.Innermost
+            // Field offset: 0x10
+            // Type Layout: (size: 16, stride: 16, alignment: 8, extraInhabitantCount: 2147483647)
+            var label: Swift.String
+        }
+        // Field offset: 0x0
+        // Type Layout: (size: 32, stride: 32, alignment: 8, extraInhabitantCount: 2147483647)
+        var inner: SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.Inner
+        // Field offset: 0x20
+        // Type Layout: (size: 8, stride: 8, alignment: 8, extraInhabitantCount: 0)
+        var count: Swift.Int
+    }
+    static func makeSample() -> SymbolTestsCore.RecursiveIndirectFieldLayout.ReferenceSpec
+    static func makeBoxedNode() -> SymbolTestsCore.RecursiveIndirectFieldLayout.BoxedNode
+    static func makeAcyclicNesting() -> SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting
+}
 enum ResilientClassFixtures {
     class ResilientChild: SymbolTestsHelper.ResilientBase {
         // Field offset: unknown (resilient field type unresolved)

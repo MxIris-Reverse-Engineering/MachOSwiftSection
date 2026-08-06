@@ -18,14 +18,14 @@ enum FieldRecordBaseline {
     }
 
     static let firstRecord = Entry(
-    offset: 0x46b4c,
+    offset: 0x48448,
     layoutFlagsRawValue: 0x2,
     fieldName: "field1",
     hasMangledTypeName: true
     )
 
     static let secondRecord = Entry(
-    offset: 0x46b58,
+    offset: 0x48454,
     layoutFlagsRawValue: 0x2,
     fieldName: "field2",
     hasMangledTypeName: true

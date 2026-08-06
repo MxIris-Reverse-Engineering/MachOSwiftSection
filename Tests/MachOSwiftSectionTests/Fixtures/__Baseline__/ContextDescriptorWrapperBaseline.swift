@@ -33,7 +33,7 @@ enum ContextDescriptorWrapperBaseline {
     }
 
     static let structTest = Entry(
-    descriptorOffset: 0x421c4,
+    descriptorOffset: 0x43a5c,
     isType: true,
     isStruct: true,
     isClass: false,

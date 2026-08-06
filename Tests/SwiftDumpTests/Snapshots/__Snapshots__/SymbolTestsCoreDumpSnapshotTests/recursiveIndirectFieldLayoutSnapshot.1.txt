@@ -1,0 +1,66 @@
+// MARK: - Types
+
+enum SymbolTestsCore.RecursiveIndirectFieldLayout {
+    /* Static Function */
+    static SymbolTestsCore.RecursiveIndirectFieldLayout.makeSample() -> SymbolTestsCore.RecursiveIndirectFieldLayout.ReferenceSpec
+    static SymbolTestsCore.RecursiveIndirectFieldLayout.makeBoxedNode() -> SymbolTestsCore.RecursiveIndirectFieldLayout.BoxedNode
+    static SymbolTestsCore.RecursiveIndirectFieldLayout.makeAcyclicNesting() -> SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting
+}
+struct SymbolTestsCore.RecursiveIndirectFieldLayout.ReferenceSpec {
+    var name: Swift.String
+    var value: SymbolTestsCore.RecursiveIndirectFieldLayout.ValueSpec<Swift.String>?
+    var direct: SymbolTestsCore.RecursiveIndirectFieldLayout.ValueSpec<Swift.String>
+    var weight: Swift.Int
+
+    /* Allocator */
+    SymbolTestsCore.RecursiveIndirectFieldLayout.ReferenceSpec.init(name: Swift.String, value: SymbolTestsCore.RecursiveIndirectFieldLayout.ValueSpec<Swift.String>?, direct: SymbolTestsCore.RecursiveIndirectFieldLayout.ValueSpec<Swift.String>, weight: Swift.Int) -> SymbolTestsCore.RecursiveIndirectFieldLayout.ReferenceSpec
+
+    /* Variable */
+    SymbolTestsCore.RecursiveIndirectFieldLayout.ReferenceSpec.value.getter : SymbolTestsCore.RecursiveIndirectFieldLayout.ValueSpec<Swift.String>?
+    SymbolTestsCore.RecursiveIndirectFieldLayout.ReferenceSpec.value.setter : SymbolTestsCore.RecursiveIndirectFieldLayout.ValueSpec<Swift.String>?
+    SymbolTestsCore.RecursiveIndirectFieldLayout.ReferenceSpec.direct.getter : SymbolTestsCore.RecursiveIndirectFieldLayout.ValueSpec<Swift.String>
+    SymbolTestsCore.RecursiveIndirectFieldLayout.ReferenceSpec.direct.setter : SymbolTestsCore.RecursiveIndirectFieldLayout.ValueSpec<Swift.String>
+    SymbolTestsCore.RecursiveIndirectFieldLayout.ReferenceSpec.name.getter : Swift.String
+    SymbolTestsCore.RecursiveIndirectFieldLayout.ReferenceSpec.name.setter : Swift.String
+    SymbolTestsCore.RecursiveIndirectFieldLayout.ReferenceSpec.weight.getter : Swift.Int
+    SymbolTestsCore.RecursiveIndirectFieldLayout.ReferenceSpec.weight.setter : Swift.Int
+}
+enum SymbolTestsCore.RecursiveIndirectFieldLayout.ValueSpec<A> {
+    case literal(A)
+    indirect case reference(SymbolTestsCore.RecursiveIndirectFieldLayout.ReferenceSpec)
+    indirect case pair(SymbolTestsCore.RecursiveIndirectFieldLayout.ValueSpec<A>, SymbolTestsCore.RecursiveIndirectFieldLayout.ValueSpec<A>)
+}
+enum SymbolTestsCore.RecursiveIndirectFieldLayout.BoxedNode {
+    indirect case leaf(Swift.Int)
+    indirect case branch(SymbolTestsCore.RecursiveIndirectFieldLayout.BoxedNode, SymbolTestsCore.RecursiveIndirectFieldLayout.BoxedNode)
+}
+struct SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting {
+    var inner: SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.Inner
+    var count: Swift.Int
+
+    /* Variable */
+    SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.inner.getter : SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.Inner
+    SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.inner.setter : SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.Inner
+    SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.count.getter : Swift.Int
+    SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.count.setter : Swift.Int
+}
+struct SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.Inner {
+    var innermost: SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.Inner.Innermost
+    var label: Swift.String
+
+    /* Variable */
+    SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.Inner.innermost.getter : SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.Inner.Innermost
+    SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.Inner.innermost.setter : SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.Inner.Innermost
+    SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.Inner.label.setter : Swift.String
+    SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.Inner.label.getter : Swift.String
+}
+struct SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.Inner.Innermost {
+    var value: Swift.Int
+    var flag: Swift.Bool
+
+    /* Variable */
+    SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.Inner.Innermost.flag.getter : Swift.Bool
+    SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.Inner.Innermost.flag.setter : Swift.Bool
+    SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.Inner.Innermost.value.getter : Swift.Int
+    SymbolTestsCore.RecursiveIndirectFieldLayout.AcyclicNesting.Inner.Innermost.value.setter : Swift.Int
+}

@@ -14,7 +14,7 @@ enum TypeContextDescriptorBaseline {
     }
 
     static let structTest = Entry(
-    offset: 0x421c4,
+    offset: 0x43a5c,
     layoutFlagsRawValue: 0x51,
     hasEnumDescriptor: false,
     hasStructDescriptor: true,

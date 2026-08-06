@@ -197,21 +197,41 @@ struct RuntimeFieldLayoutBackend {
             topMetatype = try? RuntimeFunctions.getTypeByMangledNameInContext(mangledTypeName)
         }
         if let topMetatype {
-            walkNestedExpandedFieldOffsets(of: topMetatype, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors)
+            walkNestedExpandedFieldOffsets(of: topMetatype, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, enclosingMetatypes: [])
         }
     }
 
+    /// Walks `metatype`'s nested stored fields.
+    ///
+    /// `enclosingMetatypes` is the set of types already open on the **current
+    /// path** from the outermost field down to here. It is what stops a cyclic
+    /// field graph — see `RecursiveIndirectFieldLayout` in the fixture, and
+    /// `DVTIconKit`'s icon-spec tree in the wild — from being walked as an
+    /// enumeration of every path rather than every node.
+    ///
+    /// Path-scoped is the operative property: a type reached twice through two
+    /// *different* fields must expand both times (`String` nested under two
+    /// separate properties is two real subtrees), so this deliberately is not a
+    /// global visited set. Only re-entering a type that is still open above us
+    /// is a cycle, and only that is cut.
+    ///
+    /// The depth limit stays as the backstop for the acyclic-but-deep case; it
+    /// cannot bound a cycle on its own, because a cycle makes the number of
+    /// paths — not the depth — the thing that explodes.
     @SemanticStringBuilder
-    private func walkNestedExpandedFieldOffsets(of metatype: Any.Type, baseOffset: Int, baseIndentation: Int, ancestors: [Bool], depth: Int = 0) -> SemanticString {
-        if depth >= nestedFieldOffsetExpansionDepthLimit {
+    private func walkNestedExpandedFieldOffsets(of metatype: Any.Type, baseOffset: Int, baseIndentation: Int, ancestors: [Bool], depth: Int = 0, enclosingMetatypes: Set<ObjectIdentifier>) -> SemanticString {
+        if enclosingMetatypes.contains(ObjectIdentifier(metatype)) {
+            emitNestedFieldOffsetCycleWarning(for: metatype)
+        } else if depth >= nestedFieldOffsetExpansionDepthLimit {
             emitNestedFieldOffsetDepthLimitWarning(for: metatype)
         } else if let wrapper = try? StructMetadata.createInProcess(metatype).asMetadataWrapper() {
+            let nestedEnclosingMetatypes = enclosingMetatypes.union([ObjectIdentifier(metatype)])
             switch wrapper {
             case .struct(let metadata):
-                walkNestedStructFieldOffsets(of: metadata, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, depth: depth)
+                walkNestedStructFieldOffsets(of: metadata, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, depth: depth, enclosingMetatypes: nestedEnclosingMetatypes)
             case .enum(let metadata),
                  .optional(let metadata):
-                walkNestedEnumPayloadFieldOffsets(of: metadata, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, depth: depth)
+                walkNestedEnumPayloadFieldOffsets(of: metadata, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, depth: depth, enclosingMetatypes: nestedEnclosingMetatypes)
             default:
                 SemanticString()
             }
@@ -228,8 +248,15 @@ struct RuntimeFieldLayoutBackend {
         #log(.info, "walkNestedExpandedFieldOffsets reached nested field-offset depth limit \(nestedFieldOffsetExpansionDepthLimit, privacy: .public) — truncating expansion of \(metatype, privacy: .public)")
     }
 
+    /// Companion to `emitNestedFieldOffsetDepthLimitWarning` for the cycle
+    /// guard. Kept out of the result-builder body for the same reason: `#log`
+    /// expands to a `Void`-typed closure invocation.
+    private func emitNestedFieldOffsetCycleWarning(for metatype: Any.Type) {
+        #log(.info, "walkNestedExpandedFieldOffsets found \(metatype, privacy: .public) already open on the current path — cutting the cycle")
+    }
+
     @SemanticStringBuilder
-    private func walkNestedStructFieldOffsets(of metadata: StructMetadata, baseOffset: Int, baseIndentation: Int, ancestors: [Bool], depth: Int) -> SemanticString {
+    private func walkNestedStructFieldOffsets(of metadata: StructMetadata, baseOffset: Int, baseIndentation: Int, ancestors: [Bool], depth: Int, enclosingMetatypes: Set<ObjectIdentifier>) -> SemanticString {
         if let descriptor = try? metadata.structDescriptor(),
            let nestedFieldOffsets = try? metadata.fieldOffsets(for: descriptor),
            let nestedFieldRecords = try? descriptor.fieldDescriptor().records() {
@@ -244,7 +271,7 @@ struct RuntimeFieldLayoutBackend {
 
                     if let nestedMangledTypeName,
                        let resolvedMetatype = resolveNestedMetatype(for: nestedMangledTypeName, parentMetadata: metadata) {
-                        walkNestedExpandedFieldOffsets(of: resolvedMetatype, baseOffset: absoluteOffset, baseIndentation: baseIndentation, ancestors: ancestors + [isLastField], depth: depth + 1)
+                        walkNestedExpandedFieldOffsets(of: resolvedMetatype, baseOffset: absoluteOffset, baseIndentation: baseIndentation, ancestors: ancestors + [isLastField], depth: depth + 1, enclosingMetatypes: enclosingMetatypes)
                     }
                 }
             }
@@ -252,7 +279,7 @@ struct RuntimeFieldLayoutBackend {
     }
 
     @SemanticStringBuilder
-    private func walkNestedEnumPayloadFieldOffsets(of metadata: EnumMetadata, baseOffset: Int, baseIndentation: Int, ancestors: [Bool], depth: Int) -> SemanticString {
+    private func walkNestedEnumPayloadFieldOffsets(of metadata: EnumMetadata, baseOffset: Int, baseIndentation: Int, ancestors: [Bool], depth: Int, enclosingMetatypes: Set<ObjectIdentifier>) -> SemanticString {
         if let descriptor = try? metadata.enumDescriptor(),
            descriptor.hasPayloadCases,
            let records = try? descriptor.fieldDescriptor().records() {
@@ -265,7 +292,21 @@ struct RuntimeFieldLayoutBackend {
                     let typeName = nestedTypeName(for: mangledTypeName, parentMetadata: metadata)
                     let isLastPayload = payloadIndex == payloadRecords.count - 1
                     configuration.expandedFieldOffsetComment(fieldName: fieldName, typeName: typeName, offset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors, isLast: isLastPayload)
-                    walkNestedExpandedFieldOffsets(of: resolvedMetatype, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors + [isLastPayload], depth: depth + 1)
+                    // An indirect case stores a `Builtin.NativeObject` box
+                    // reference, not the declared payload laid out inline — so
+                    // the payload's own fields are not at these offsets and
+                    // descending into them would report memory that is not
+                    // there. It is also the only way a value-type field graph
+                    // can be cyclic at all (an inline self-reference would be
+                    // infinitely sized and would not compile), which is what
+                    // made `DVTIconKit`'s icon-spec tree explode here.
+                    // `enumPayloadSize` / `enumPayloadExtraInhabitantCount`
+                    // already treat the flag this way; this walk was the
+                    // outlier. Same call as a class reference: print the case,
+                    // stop at the pointer.
+                    if !payloadRecord.flags.contains(.isIndirectCase) {
+                        walkNestedExpandedFieldOffsets(of: resolvedMetatype, baseOffset: baseOffset, baseIndentation: baseIndentation, ancestors: ancestors + [isLastPayload], depth: depth + 1, enclosingMetatypes: enclosingMetatypes)
+                    }
                 }
             }
         }

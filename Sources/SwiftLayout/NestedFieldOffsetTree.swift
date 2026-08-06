@@ -48,27 +48,50 @@ extension StaticLayoutCalculator {
         guard let node = try? MetadataReader.demangleType(for: mangledTypeName, in: imageUniverse.rootImage.machO) else {
             return []
         }
-        return nestedChildren(forTypeNode: node, in: imageUniverse.rootImage, baseOffset: baseOffset, depth: 0, depthLimit: depthLimit)
+        return nestedChildren(
+            forTypeNode: node,
+            typeDisplayName: node.print(using: .default),
+            in: imageUniverse.rootImage,
+            baseOffset: baseOffset,
+            depth: 0,
+            depthLimit: depthLimit,
+            enclosingTypeNames: []
+        )
     }
 
     /// Recurses into a (possibly `.type`-wrapped, possibly bound-generic) type
     /// node, returning its sub-fields. `image` is the image the node's mangled
     /// names are read against; recursion switches it to a nested type's defining
     /// image when that type lives in a dependency.
+    ///
+    /// `enclosingTypeNames` holds the types already open on the **current path**
+    /// down to this node, keyed by printed name so that two specializations of
+    /// one generic (`Box<Int>` vs `Box<String>`) stay distinct. Re-entering a
+    /// type that is still open above us is a cycle, and it is cut here — the
+    /// static counterpart of the runtime walk's `enclosingMetatypes` guard, and
+    /// for the same reason: the depth limit bounds how *deep* a walk goes, but a
+    /// cycle explodes the number of *paths*, which no depth limit can bound.
+    ///
+    /// Path-scoped, not global: a type legitimately reached through two
+    /// different fields must expand under both.
     private func nestedChildren(
         forTypeNode typeNode: Node,
+        typeDisplayName: String,
         in image: ImageReference<MachO>,
         baseOffset: Int,
         depth: Int,
-        depthLimit: Int
+        depthLimit: Int,
+        enclosingTypeNames: Set<String>
     ) -> [NestedFieldOffset] {
         guard depth < depthLimit else { return [] }
+        guard !typeDisplayName.isEmpty, !enclosingTypeNames.contains(typeDisplayName) else { return [] }
+        let nestedEnclosingTypeNames = enclosingTypeNames.union([typeDisplayName])
         let node = (typeNode.kind == .type ? typeNode.firstChild : typeNode) ?? typeNode
         switch NodeTypeNaming.nominalCategory(of: node) {
         case .structure:
-            return structChildren(forNode: node, baseOffset: baseOffset, depth: depth, depthLimit: depthLimit)
+            return structChildren(forNode: node, baseOffset: baseOffset, depth: depth, depthLimit: depthLimit, enclosingTypeNames: nestedEnclosingTypeNames)
         case .enum:
-            return enumPayloadChildren(forNode: node, baseOffset: baseOffset, depth: depth, depthLimit: depthLimit)
+            return enumPayloadChildren(forNode: node, baseOffset: baseOffset, depth: depth, depthLimit: depthLimit, enclosingTypeNames: nestedEnclosingTypeNames)
         case .class, .none:
             // A class field is a reference (a single pointer); a non-nominal
             // type (tuple, existential, …) has no statically-walkable nested
@@ -81,7 +104,8 @@ extension StaticLayoutCalculator {
         forNode node: Node,
         baseOffset: Int,
         depth: Int,
-        depthLimit: Int
+        depthLimit: Int,
+        enclosingTypeNames: Set<String>
     ) -> [NestedFieldOffset] {
         guard
             let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node),
@@ -105,7 +129,9 @@ extension StaticLayoutCalculator {
                 fallbackFieldName: "",
                 absoluteOffset: absoluteOffset,
                 depth: depth,
-                depthLimit: depthLimit
+                depthLimit: depthLimit,
+                enclosingTypeNames: enclosingTypeNames,
+                descendsIntoFieldType: true
             ))
         }
         return children
@@ -115,7 +141,8 @@ extension StaticLayoutCalculator {
         forNode node: Node,
         baseOffset: Int,
         depth: Int,
-        depthLimit: Int
+        depthLimit: Int,
+        enclosingTypeNames: Set<String>
     ) -> [NestedFieldOffset] {
         guard
             let qualifiedTypeName = NodeTypeNaming.nominalQualifiedName(of: node),
@@ -139,7 +166,12 @@ extension StaticLayoutCalculator {
                 fallbackFieldName: "payload",
                 absoluteOffset: baseOffset,
                 depth: depth,
-                depthLimit: depthLimit
+                depthLimit: depthLimit,
+                enclosingTypeNames: enclosingTypeNames,
+                // An indirect case stores a heap box reference, not the declared
+                // payload laid out inline, so its fields are not at these
+                // offsets. `EnumLayoutBridge` already reads the flag this way.
+                descendsIntoFieldType: !record.layout.flags.contains(.isIndirectCase)
             ))
         }
         return children
@@ -148,6 +180,11 @@ extension StaticLayoutCalculator {
     /// Builds a `NestedFieldOffset` for one field/payload record: substitutes the
     /// enclosing type's generic arguments into the record's type, prints its name,
     /// and recurses into it.
+    ///
+    /// `descendsIntoFieldType` is `false` for a field whose storage is a pointer
+    /// to the declared type rather than the type itself (an `indirect` enum
+    /// case's boxed payload) — the node is still reported, it just has no
+    /// children.
     private func makeNode(
         forFieldRecord record: FieldRecord,
         in image: ImageReference<MachO>,
@@ -155,16 +192,26 @@ extension StaticLayoutCalculator {
         fallbackFieldName: String,
         absoluteOffset: Int,
         depth: Int,
-        depthLimit: Int
+        depthLimit: Int,
+        enclosingTypeNames: Set<String>,
+        descendsIntoFieldType: Bool
     ) -> NestedFieldOffset {
         let fieldName = ((try? record.fieldName(in: image.machO)).flatMap { $0.isEmpty ? nil : $0 }) ?? fallbackFieldName
         let fieldTypeNode: Node? = (try? record.mangledTypeName(in: image.machO)).flatMap { mangledTypeName in
             (try? MetadataReader.demangleType(for: mangledTypeName, in: image.machO)).map { environment.substituting(in: $0) }
         }
         let typeName = fieldTypeNode?.print(using: .default) ?? ""
-        let children = fieldTypeNode.map {
-            nestedChildren(forTypeNode: $0, in: image, baseOffset: absoluteOffset, depth: depth + 1, depthLimit: depthLimit)
-        } ?? []
+        let children = descendsIntoFieldType ? (fieldTypeNode.map {
+            nestedChildren(
+                forTypeNode: $0,
+                typeDisplayName: typeName,
+                in: image,
+                baseOffset: absoluteOffset,
+                depth: depth + 1,
+                depthLimit: depthLimit,
+                enclosingTypeNames: enclosingTypeNames
+            )
+        } ?? []) : []
         return NestedFieldOffset(fieldName: fieldName, typeName: typeName, offset: absoluteOffset, children: children)
     }
 }
