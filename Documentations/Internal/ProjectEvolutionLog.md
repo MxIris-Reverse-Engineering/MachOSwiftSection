@@ -465,10 +465,10 @@
 
 ---
 
-## 28. 泛型 fixed MPE 的 spare-bits 布局：错误模型修正 + 普查整型偏差清零
+## 24. 泛型 fixed MPE 的 spare-bits 布局：错误模型修正 + 普查整型偏差清零
 
 - **时间段**：2026-08-05。
-- **动机**：第 27 节留档的硬骨头 ③——`Dictionary` 迭代器一族（`AttributedString.Keys.SetIterator` /
+- **动机**：第 23 节留档的硬骨头 ③——`Dictionary` 迭代器一族（`AttributedString.Keys.SetIterator` /
   `SpatialEventCollection.Iterator`）真值 40/40/XI 126，引擎按「泛型 MPE 恒 tagged」算
   41/48/254。当时定性为「编译器预特化 metadata 按编译期 spare-bits 布局」。
 - **定性修正（实验推翻旧结论）**：用探针二进制里全新定义的参数类型实例化
@@ -502,6 +502,46 @@
   后续工作四处改写，硬骨头条目标记已解决）、AGENTS.md（`EnumLayoutBridge` 条目重写）、
   [TaskReports/2026-08-05-generic-fixed-mpe-spare-bits.md](TaskReports/2026-08-05-generic-fixed-mpe-spare-bits.md)。
 - **对应版本**：未发版（main，`bb8ed31` 之后）。
+
+## 25. 嵌套字段偏移展开的环守卫（indirect case 不下钻 + 路径环检测）
+
+- **时间段**：2026-08-06。
+- **动机**：RuntimeViewer 对 Xcode 的 `DVTIconKit` 生成 Swift interface 时"死循环"，
+  日志刷 `walkNestedExpandedFieldOffsets reached … depth limit 16` 千余条仍在增长，
+  约 20 条线程堵在 demangle 上。诊断结论：不是死循环，是**有环类型图上的指数级路径
+  枚举**——深度上限约束"走多深"，而环让"有多少条路径"爆炸，两者管的不是一回事。
+- **落地**：两条独立实现各加两道守卫。①`indirect` case 的 payload 是堆 box 指针，
+  声明类型不布置在该偏移上，因此报告该 case 但不下钻（与 class 引用同等对待）——这也
+  是值类型字段图唯一可能成环的地方，是实际消除爆炸的那道；②**路径作用域**的已打开
+  类型集合（运行时按 `ObjectIdentifier(metatype)`，静态按打印类型名，以区分
+  `Box<Int>`/`Box<String>`），作为解析误判造成假环的纵深防御。深度上限保留，继续兜
+  "无环但很深"。落在 `SwiftDeclarationRendering.RuntimeFieldLayoutBackend` 与
+  `SwiftLayout.NestedFieldOffsetTree`。
+- **关键决策**：环检测按路径而非全局——同一类型经**不同字段**到达时两处都必须完整
+  展开（`String` 挂在两个属性下是两棵真实子树），全局 visited 会让输出残缺。
+- **验证**：新增 fixture `RecursiveIndirectFieldLayout`（复刻 `DVTIconKit` 形状：struct
+  ↔ 逐 case `indirect` 的泛型 enum，外加无环三层深的对照）与两个回归套件（运行时/静态
+  各 4 个测试）。修复前实测 8 个测试 6 个失败、925 个 issue、运行时路径展开 892 行，
+  失败信息直接打印出那条环；修复后 8/8 通过，全量套件（`--skip IntegrationTests`）绿。
+  fixture 变更按既定流程重生成 ABI baseline（59 文件，纯 `descriptorOffset` 漂移）。
+- **合入**：开发基线为 `3396cfd`，完成后 rebase 到 `main`（`4eeb3b4`）——源码与文档干净
+  合并，冲突仅在 59 个 baseline（重新生成而非手工调和）。此步暴露一个必要前置：`main`
+  依赖 node-store 迁移引入的 `NodeReference`，本地 swift-demangling 停在 `04c959b` 时
+  `main` 编译不过、`regen-baselines` 失败，故把本地 swift-demangling fast-forward 到
+  `main`（`985c9b7`）。副作用：RuntimeViewer 的 Debug workspace 共用该 checkout，其依赖
+  随之前移（这本就是与本仓库 `main` 自洽的组合）。
+- **历史查证**：同一类问题 2026-05-16 在 **SwiftInterface 打印路径**上修过（DAG 被当树
+  展开，394,062 次节点访问），当时报告已明确写下"Apple-style MaxDepth 单一兜底对本类
+  爆炸无效"；三周后的 PR #88（2026-06-10）动了本次这段代码，却只把硬编码 `16` 抽成常量、
+  加 `os_log`、加钉值测试——**把深度上限诊断化了，没有把五月的结论横移过来**。所以本次
+  不是回归，是教训没有跨路径传播。
+- **横向排查**：全库读 enum payload record 处逐一核对，`EnumLayoutBridge`(185/250)、
+  `enumPayloadSize`、`enumPayloadExtraInhabitantCount` 均已正确处理 `isIndirectCase`，
+  遗漏仅本次两处；`SwiftSpecialization.deriveNestedSpecializedTypeChildren` 虽同为
+  `depth < 16`，遍历的是嵌套类型**声明**树（天然无环），不属同类，不改。
+- **文档**：[NestedFieldOffsetCycleGuard.md](NestedFieldOffsetCycleGuard.md)、
+  [TaskReports/2026-08-06-nested-field-offset-cycle-guard.md](TaskReports/2026-08-06-nested-field-offset-cycle-guard.md)。
+- **对应版本**：未发版（main，`4eeb3b4` 之后）。
 
 ---
 
