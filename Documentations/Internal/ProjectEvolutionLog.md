@@ -479,191 +479,6 @@
 
 ---
 
-## 23. SwiftLayout 系统框架保真度普查 + foreign struct / ObjC 滑动两批修复
-
-- **时间段**：2026-08-04。
-- **动机**：SwiftLayout 此前的 5 框架普查只度量**解析率**（不降级），从未对真实系统框架做
-  **正确率**对拍（fixture 之外一个错而自信的偏移不会被发现）。本批对当前 dyld shared cache
-  的 SwiftUICore + SwiftUI + SwiftData 共 **6246 个非泛型 struct/class** 做静态引擎
-  （离线 MachOFile + 依赖闭包）vs 运行时真值（唯一权威）的全量对拍。
-- **普查方法要点**：struct 真值 = metadata accessor 的 field-offset vector + VWT；class
-  真值 = **realize 之后**的 ObjC runtime `ivar_getOffset`（首版直接读 metadata 向量得到
-  101 个假不一致——未 realize 的 ObjC 祖先类躺着编译期未滑动的向量、resilient 父类向量
-  读不出来，是取真值的方法错，不是引擎错）。零尺寸字段的 offset 约定差异（引擎按
-  IRGen 报 0，运行时布局报累加器位置）单独归类，无存储意义。
-- **普查结果**：完全解析率 99.95%；真实不一致归结为 4 个根因——① foreign（C-imported）
-  struct 顶层布局无 builtin 防护（本批修复）；② ObjC 祖先链的类字段起点未按 objc
-  `moveIvars` 滑动语义计算（3 个类，各错 4–8 字节，本批第二批修复）；③ 预特化泛型
-  multi-payload enum 实为编译期 spare-bits 布局，引擎按运行时 tagged 公式多算 1 字节
-  （`Dictionary` 迭代器一族 2 型——**已登记为已知偏差与后续硬骨头**，见
-  [StaticLayoutEngine.md](StaticLayoutEngine.md) 的「后续工作」）；④ 零尺寸字段约定
-  差异（10 型，无害）。
-- **落地修复（②，同日第二批）**：类字段起点改为「本类 `class_ro_t.instanceStart` + objc `moveIvars` 滑动」精确模型——`ObjCClassIndex` 新增 Swift 类自身 `instanceStart` 索引（`_TtC…` 名 demangle 建 key；classlist 成员资格即「静态发射」判据，泛型/singleton 类缺席、维持原 Swift-runtime 规则），`classFieldStartOffset` 在 resolver/calculator 两个入口接入（滑动量按本类字段最大对齐取整）。dyld cache 镜像的盘上 `instanceStart` 是预滑终值，直接命中；fixture 无漂移场景 diff=0 逐字节不变。语义对照 `Metadata.cpp` `initClassFieldOffsetVector` 与 objc4 `moveIvars` 双向核实。普查复跑偏移不一致 3→0。测试：`ObjCAncestorSlideLayoutTests`（fixture 索引守卫 + dyld cache SwiftUI 真实漂移端到端 vs realize 后 `ivar_getOffset`）。
-- **落地修复（①）**：`StaticLayoutCalculator` 顶层 struct 路径（`fieldLayout(of:)` /
-  `typeLayout(ofStruct:)`）对 `hasForeignMetadataInitialization` 描述符用 `__swift5_builtin`
-  记录交叉校验：结构化累加与 builtin 一致则保留逐字段结果（字段记录完整的 C struct 本就
-  正确），不一致（C bitfield / 无字段记录）则逐字段降级为新 reason
-  `.foreignTypeFieldOffsetsUnavailable`、整型取 builtin。此前 builtin 查表只在字段类型
-  解析路径上，顶层枚举 `__C` 描述符（全量 dump / 普查）会算出 `__C.Decimal._mantissa@0`
-  （真值 4）、`__C.PathData` size 0（真值 96）这类自信错值。修复后普查复跑：`__C` 类
-  不一致全部清零（偏移不一致 5→3，整型不一致 20→6，余项均属 ②③）。
-- **关键决策**：「交叉校验、一致才信」而非「foreign 一律降级」——`__C.RBColor` 等字段
-  记录完整的 C struct 结构化累加本就正确，保留其逐字段偏移；无 builtin 记录时无从校验，
-  维持现状（文档记为已知限制）。
-- **文档**：[StaticLayoutEngine.md](StaticLayoutEngine.md)（新增 pitfall 条目 + 测试清单）、
-  [TaskReports/2026-08-04-foreign-struct-top-level-layout.md](TaskReports/2026-08-04-foreign-struct-top-level-layout.md)
-  （含 ②③④ 的完整裁决记录与普查 harness 说明）。
-- **对应版本**：未发版（main，0.14.1 之后）。
-
----
-
-## 24. 泛型 fixed MPE 的 spare-bits 布局：错误模型修正 + 普查整型偏差清零
-
-- **时间段**：2026-08-05。
-- **动机**：第 23 节留档的硬骨头 ③——`Dictionary` 迭代器一族（`AttributedString.Keys.SetIterator` /
-  `SpatialEventCollection.Iterator`）真值 40/40/XI 126，引擎按「泛型 MPE 恒 tagged」算
-  41/48/254。当时定性为「编译器预特化 metadata 按编译期 spare-bits 布局」。
-- **定性修正（实验推翻旧结论）**：用探针二进制里全新定义的参数类型实例化
-  `Dictionary<FreshKey, FreshValue>.Iterator`，读运行时 VWT 仍是 40/40/126，且 metadata
-  位于 runtime 的 `InitialAllocationPool`——**与预特化无关**。真实机制：**布局与实参无关**的
-  泛型 MPE 由编译器静态布局（spare-bits 策略），完整 VWT 烘焙进 generic metadata pattern，
-  运行时完成函数从不重算；`swift_initEnumMetadataMultiPayload`（纯 tagged）只对**布局依赖
-  实参**的 MPE 运行。且编译器把裁决写进了二进制：`GenReflection.cpp` 只为
-  `!needsPayloadSizeInMetadata()`（静态 fixed）的 MPE 发射 `__swift5_builtin` +
-  `__swift5_mpenum` 记录，`!AllowFixedLayoutOptimizations` 时编译器自己也清空 spare bits
-  退回与 runtime 一致的 tagged 布局（GenEnum.cpp:7192）——**「记录存在 ⇔ spare-bits/fixed」
-  在构造上精确**。5 个 OS 镜像实测：记录 typeref 全部 demangle 为无参数 nominal 名（与
-  `BuiltinTypeLayoutIndex` 现有 key 一致），零 bound-concrete 实例化记录。
-- **落地修复（SwiftLayout，约 20 行）**：放开 `EnumLayoutBridge` 两道基于错误模型的门——
-  builtin 查表的 `environment.isEmpty`（实例化/未特化泛型 enum 节点照常查剥参数 key）与
-  `multiPayloadEnumLayout` / `enumCaseLayoutResult` 的 `!descriptor.isGeneric`（只按
-  `usesPayloadSpareBits` 分流）；`compute()` 补查**定义镜像**的 builtin 索引（enum 记录按
-  声明模块发射，跨镜像 + mask>16k 边角随之闭合）；`BuiltinTypeLayoutIndex` 防御性跳过
-  bound-concrete 实例化记录。
-- **验证**：新 `GenericSpareBitsEnumLayoutTests` 修复前红（fixture `SpareBitsVariantEnum`
-  24/24/XI 125 vs 引擎 25/32/253；OS 端到端 40/40/126 vs 41/48/254）修复后绿；fixture 新增
-  `Dictionary.Iterator._Variant` 形态类型族；SwiftUI 全量 dump before/after 对拍：117 行
-  diff 全部是 enum-layout 注释、恰好 4 个受益枚举（`NSHostingView.AllowAutomationElementsState`、
-  `AnimatedValueState<A>` 一族），声明本体零变化；普查复跑整型偏差清零。顺带修
-  `MultiPayloadEnumStructuralTests` 既有缺陷：遍历未过滤泛型描述符，第一个空环境可解析的
-  泛型 MPE（新 fixture 类型）会让它对泛型 enum 无参调 accessor 而 SIGSEGV。
-- **关键决策**：判据用「编译器记录的存在性」而非结构化推导 fixedness——后者需要重放
-  resilience 语义（`layoutScope`），二进制里读不到 `@frozen`，必然出启发式误差；记录存在性
-  是编译器原话、零启发式，且索引早已收录，修复只是放行。
-- **文档**：[StaticLayoutEngine.md](StaticLayoutEngine.md)（核心算法 / pitfall / 已知偏差表 /
-  后续工作四处改写，硬骨头条目标记已解决）、AGENTS.md（`EnumLayoutBridge` 条目重写）、
-  [TaskReports/2026-08-05-generic-fixed-mpe-spare-bits.md](TaskReports/2026-08-05-generic-fixed-mpe-spare-bits.md)。
-- **对应版本**：未发版（main，0.14.1 之后，紧接第 23 节）。
-
-## 25. 嵌套字段偏移展开的环守卫（indirect case 不下钻 + 路径环检测）
-
-- **时间段**：2026-08-06。
-- **动机**：RuntimeViewer 对 Xcode 的 `DVTIconKit` 生成 Swift interface 时"死循环"，
-  日志刷 `walkNestedExpandedFieldOffsets reached … depth limit 16` 千余条仍在增长，
-  约 20 条线程堵在 demangle 上。诊断结论：不是死循环，是**有环类型图上的指数级路径
-  枚举**——深度上限约束"走多深"，而环让"有多少条路径"爆炸，两者管的不是一回事。
-- **落地**：两条独立实现各加两道守卫。①`indirect` case 的 payload 是堆 box 指针，
-  声明类型不布置在该偏移上，因此报告该 case 但不下钻（与 class 引用同等对待）——这也
-  是值类型字段图唯一可能成环的地方，是实际消除爆炸的那道；②**路径作用域**的已打开
-  类型集合（运行时按 `ObjectIdentifier(metatype)`，静态按打印类型名，以区分
-  `Box<Int>`/`Box<String>`），作为解析误判造成假环的纵深防御。深度上限保留，继续兜
-  "无环但很深"。落在 `SwiftDeclarationRendering.RuntimeFieldLayoutBackend` 与
-  `SwiftLayout.NestedFieldOffsetTree`。
-- **关键决策**：环检测按路径而非全局——同一类型经**不同字段**到达时两处都必须完整
-  展开（`String` 挂在两个属性下是两棵真实子树），全局 visited 会让输出残缺。
-- **验证**：新增 fixture `RecursiveIndirectFieldLayout`（复刻 `DVTIconKit` 形状：struct
-  ↔ 逐 case `indirect` 的泛型 enum，外加无环三层深的对照）与两个回归套件（运行时/静态
-  各 4 个测试）。修复前实测 8 个测试 6 个失败、925 个 issue、运行时路径展开 892 行，
-  失败信息直接打印出那条环；修复后 8/8 通过，全量套件（`--skip IntegrationTests`）绿。
-  fixture 变更按既定流程重生成 ABI baseline（59 文件，纯 `descriptorOffset` 漂移）。
-- **合入**：开发基线为 `3396cfd`，完成后 rebase 到 `main`（`4eeb3b4`）——源码与文档干净
-  合并，冲突仅在 59 个 baseline（重新生成而非手工调和）。此步暴露一个必要前置：`main`
-  依赖 node-store 迁移引入的 `NodeReference`，本地 swift-demangling 停在 `04c959b` 时
-  `main` 编译不过、`regen-baselines` 失败，故把本地 swift-demangling fast-forward 到
-  `main`（`985c9b7`）。副作用：RuntimeViewer 的 Debug workspace 共用该 checkout，其依赖
-  随之前移（这本就是与本仓库 `main` 自洽的组合）。
-- **历史查证**：同一类问题 2026-05-16 在 **SwiftInterface 打印路径**上修过（DAG 被当树
-  展开，394,062 次节点访问），当时报告已明确写下"Apple-style MaxDepth 单一兜底对本类
-  爆炸无效"；三周后的 PR #88（2026-06-10）动了本次这段代码，却只把硬编码 `16` 抽成常量、
-  加 `os_log`、加钉值测试——**把深度上限诊断化了，没有把五月的结论横移过来**。所以本次
-  不是回归，是教训没有跨路径传播。
-- **横向排查**：全库读 enum payload record 处逐一核对，`EnumLayoutBridge`(185/250)、
-  `enumPayloadSize`、`enumPayloadExtraInhabitantCount` 均已正确处理 `isIndirectCase`，
-  遗漏仅本次两处；`SwiftSpecialization.deriveNestedSpecializedTypeChildren` 虽同为
-  `depth < 16`，遍历的是嵌套类型**声明**树（天然无环），不属同类，不改。
-- **文档**：[NestedFieldOffsetCycleGuard.md](NestedFieldOffsetCycleGuard.md)、
-  [TaskReports/2026-08-06-nested-field-offset-cycle-guard.md](TaskReports/2026-08-06-nested-field-offset-cycle-guard.md)。
-- **对应版本**：未发版（main，0.14.1 之后，紧接第 24 节）。
-
----
-
-## 26. main 退回 0.14.1 基线：node-store 合并撤出，四个 SwiftLayout 修复重新接线
-
-- **时间段**：2026-08-06。
-- **动机**：维护者判断 PR #97（`feature/node-store-migration`，2026-08-04 合入）进 main
-  过早，要求 main 回到 `0.14.1` 发布点，同时**保留**合并之后落在 main 上的四个
-  SwiftLayout / rendering 修复（即本文第 23–25 节），node-store 的工作整体退回 feature
-  分支等待合适时机。
-- **落地**：main 由 `621f6fa` 重写为 `3396cfd`（tag `0.14.1`）+ 四次 cherry-pick。
-  `Package.swift` 随之退回 `swift-demangling` 的 `0.4.5 ..< 0.5.0` pin（0.5.x 重塑了
-  `NodePrinterTarget`、删除了 `Node: Codable`，是本次回退唯一的硬耦合点），
-  `MachOSymbolsTests` 与三处 target 依赖一并回退。
-- **关键决策**：
-  - **选 cherry-pick 重写而非 `git revert -m 1`**。revert 会在历史里留下「这些改动已被
-    处理过」的记录，将来把 feature 分支合回 main 时 Git 不再带回那些代码，必须先
-    revert the revert；而 node-store 明确是要回来的。重写后两个分支之间重新有完整
-    diff，重开 PR 即可。
-  - **动手前用 `git merge-tree --write-tree` 只读预演两条路径**，在不碰工作区的前提下
-    确认「代码文件全自动合并、唯一冲突是 `ProjectEvolutionLog.md`」，把最大的不确定性
-    前置消解。
-  - **四个修复与 node-store 无源码耦合**这一判断先由 diff 扫描得出（无一处引用
-    `NodeReference` / `demangleAsNodeTransient` / `NodeStore` 等新 API），再由 0.4.5
-    依赖下的全量构建 0 错误 0 警告证实。
-  - **数据安全靠三重保险**：`backup/main-before-0.14.1-rewind` 分支 + 同名带日期 tag
-    （本地与 origin 双份）+ `feature/node-store-migration` 保持在 `621f6fa` 不动。
-    重写前先备份、先推远程，再动分支。
-  - **历史叙述不改写**：各 TaskReport 正文里对旧 SHA 的引用（如「rebase 到 main
-    （`4eeb3b4`）」）保留原貌——那是对当时事实的记录；旧 SHA 一律可通过备份分支解析。
-    只有「对应版本」这类元数据字段改为不依赖 SHA 的表述。
-- **影响面**：node-store 分支带来的能力（符号索引 NodeStore 化、性能批次、旧格式
-  `LC_DYLD_INFO` bind 支持、系统框架渲染 A/B 验证流程与其「大重构必跑」规则）暂时
-  **不在 main 上**。本文第 23–25 节由原第 27–29 节顺延而来，故备份分支与新 main 的节号
-  不一致；feature 分支将来合回时本文必然再次冲突，届时需把 node-store 四节插回并重新
-  编号——这是选择重写历史的已知代价。
-- **文档**：[TaskReports/2026-08-06-main-rewind-onto-0.14.1.md](TaskReports/2026-08-06-main-rewind-onto-0.14.1.md)。
-- **对应版本**：`0.14.1`（main 与该 tag 之间此后仅有第 23–25 节的三个修复批次）。
-
----
-
-## 27. class / static 成员关键字的还原（vtable method descriptor 判据）
-
-- **时间段**：2026-08-07。
-- **动机**：interface 输出把所有类型级成员渲染成 `static`，源码里的 `class func` /
-  `class var` 无法还原；更严重的是存在非法 Swift 语法 `override static`（`static`
-  不可 override）——iOS 18.5 SwiftUI 里 19 处，项目自己的 interface 快照基线里 2 处。
-- **关键决策**：
-  - **判据用正向的 method descriptor 存在性**，不推断 final：class 里的 `static`
-    成员被编译器隐式推成 final、不进 vtable；`class` 成员非 final、有 method
-    descriptor。ABI 里没有任何 final 位（`ClassFlags` / descriptor flags /
-    `class_ro_t` 三处查证），但这个判据不需要它。
-  - **用 `methodDescriptor` 而非 `vtableOffset`**：后者对部分 override 成员解析
-    失败（父类 vtable 查不到槽位）而前者始终在。
-  - **无法识别的四类保守输出 `static`**（`final class func`、final class 里的
-    `class func`、extension 里的 `class func`、`@objc dynamic class func`）——它们
-    在 ABI 上与 `static` 完全一致，且 `static` 与 `final class` 语义等价，不产生
-    错误代码。
-  - **dump 的 override table 行保留 demangler 的 `static` 前缀**：那是对符号的
-    忠实还原（与 `swift-demangle` 一致），不是 interface 语法，不篡改。
-- **落地模块**：`SwiftDeclaration`（`isClassMember` / `hasVTableAccessor` 计算
-  属性）、`SwiftPrinting`（三个 node printer 的 `isClassMember` 参数 +
-  `SwiftDeclarationPrinter` 接线）、`SwiftDump`（`ClassDumper` vtable 段落
-  关键字）；interface / diff / dump 三路全覆盖，无新解析。
-- **文档**：[ClassMemberKeywordRecovery.md](ClassMemberKeywordRecovery.md)、
-  [TaskReports/2026-08-07-class-member-keyword-recovery.md](TaskReports/2026-08-07-class-member-keyword-recovery.md)。
-- **对应版本**：`0.14.1` 之后、下一次 bump 之前。
-
----
-
 ## 23. 审查清单逐条复现，修掉线程跳转与符号表钉住
 
 - **时间段**：2026-08-02。
@@ -722,6 +537,204 @@
 - **效果**：iOS 15.5 模拟器 interface：Combine 10 → 6907 行、WidgetKit 17 → 2795 行、SwiftUI 139 → 81157 行，解析错误全部归零（SwiftUI 7616 个 conformance 全数解析）；全量 1315 测试 / 250 套件绿，现代二进制快照逐字节不变。旧格式输入的 interface 输出自此与 main 合理不一致（feature 更完整），main 合并后恢复对等。
 - **关联文档**：[TaskReports/2026-08-03-legacy-dyld-info-bind-support.md](TaskReports/2026-08-03-legacy-dyld-info-bind-support.md)（含完整的无调试器调试方法学 walkthrough）、[SystemFrameworkRenderingVerification.md](SystemFrameworkRenderingVerification.md)。
 - **对应版本**：0.14.0 之后未发布区间（`feature/node-store-migration` 分支）。
+
+---
+
+## 27. SwiftLayout 系统框架保真度普查 + foreign struct / ObjC 滑动两批修复
+
+- **时间段**：2026-08-04。
+- **动机**：SwiftLayout 此前的 5 框架普查只度量**解析率**（不降级），从未对真实系统框架做
+  **正确率**对拍（fixture 之外一个错而自信的偏移不会被发现）。本批对当前 dyld shared cache
+  的 SwiftUICore + SwiftUI + SwiftData 共 **6246 个非泛型 struct/class** 做静态引擎
+  （离线 MachOFile + 依赖闭包）vs 运行时真值（唯一权威）的全量对拍。
+- **普查方法要点**：struct 真值 = metadata accessor 的 field-offset vector + VWT；class
+  真值 = **realize 之后**的 ObjC runtime `ivar_getOffset`（首版直接读 metadata 向量得到
+  101 个假不一致——未 realize 的 ObjC 祖先类躺着编译期未滑动的向量、resilient 父类向量
+  读不出来，是取真值的方法错，不是引擎错）。零尺寸字段的 offset 约定差异（引擎按
+  IRGen 报 0，运行时布局报累加器位置）单独归类，无存储意义。
+- **普查结果**：完全解析率 99.95%；真实不一致归结为 4 个根因——① foreign（C-imported）
+  struct 顶层布局无 builtin 防护（本批修复）；② ObjC 祖先链的类字段起点未按 objc
+  `moveIvars` 滑动语义计算（3 个类，各错 4–8 字节，本批第二批修复）；③ 预特化泛型
+  multi-payload enum 实为编译期 spare-bits 布局，引擎按运行时 tagged 公式多算 1 字节
+  （`Dictionary` 迭代器一族 2 型——**已登记为已知偏差与后续硬骨头**，见
+  [StaticLayoutEngine.md](StaticLayoutEngine.md) 的「后续工作」）；④ 零尺寸字段约定
+  差异（10 型，无害）。
+- **落地修复（②，同日第二批）**：类字段起点改为「本类 `class_ro_t.instanceStart` + objc `moveIvars` 滑动」精确模型——`ObjCClassIndex` 新增 Swift 类自身 `instanceStart` 索引（`_TtC…` 名 demangle 建 key；classlist 成员资格即「静态发射」判据，泛型/singleton 类缺席、维持原 Swift-runtime 规则），`classFieldStartOffset` 在 resolver/calculator 两个入口接入（滑动量按本类字段最大对齐取整）。dyld cache 镜像的盘上 `instanceStart` 是预滑终值，直接命中；fixture 无漂移场景 diff=0 逐字节不变。语义对照 `Metadata.cpp` `initClassFieldOffsetVector` 与 objc4 `moveIvars` 双向核实。普查复跑偏移不一致 3→0。测试：`ObjCAncestorSlideLayoutTests`（fixture 索引守卫 + dyld cache SwiftUI 真实漂移端到端 vs realize 后 `ivar_getOffset`）。
+- **落地修复（①）**：`StaticLayoutCalculator` 顶层 struct 路径（`fieldLayout(of:)` /
+  `typeLayout(ofStruct:)`）对 `hasForeignMetadataInitialization` 描述符用 `__swift5_builtin`
+  记录交叉校验：结构化累加与 builtin 一致则保留逐字段结果（字段记录完整的 C struct 本就
+  正确），不一致（C bitfield / 无字段记录）则逐字段降级为新 reason
+  `.foreignTypeFieldOffsetsUnavailable`、整型取 builtin。此前 builtin 查表只在字段类型
+  解析路径上，顶层枚举 `__C` 描述符（全量 dump / 普查）会算出 `__C.Decimal._mantissa@0`
+  （真值 4）、`__C.PathData` size 0（真值 96）这类自信错值。修复后普查复跑：`__C` 类
+  不一致全部清零（偏移不一致 5→3，整型不一致 20→6，余项均属 ②③）。
+- **关键决策**：「交叉校验、一致才信」而非「foreign 一律降级」——`__C.RBColor` 等字段
+  记录完整的 C struct 结构化累加本就正确，保留其逐字段偏移；无 builtin 记录时无从校验，
+  维持现状（文档记为已知限制）。
+- **文档**：[StaticLayoutEngine.md](StaticLayoutEngine.md)（新增 pitfall 条目 + 测试清单）、
+  [TaskReports/2026-08-04-foreign-struct-top-level-layout.md](TaskReports/2026-08-04-foreign-struct-top-level-layout.md)
+  （含 ②③④ 的完整裁决记录与普查 harness 说明）。
+- **对应版本**：未发版（main，0.14.1 之后）。
+
+---
+
+## 28. 泛型 fixed MPE 的 spare-bits 布局：错误模型修正 + 普查整型偏差清零
+
+- **时间段**：2026-08-05。
+- **动机**：第 27 节留档的硬骨头 ③——`Dictionary` 迭代器一族（`AttributedString.Keys.SetIterator` /
+  `SpatialEventCollection.Iterator`）真值 40/40/XI 126，引擎按「泛型 MPE 恒 tagged」算
+  41/48/254。当时定性为「编译器预特化 metadata 按编译期 spare-bits 布局」。
+- **定性修正（实验推翻旧结论）**：用探针二进制里全新定义的参数类型实例化
+  `Dictionary<FreshKey, FreshValue>.Iterator`，读运行时 VWT 仍是 40/40/126，且 metadata
+  位于 runtime 的 `InitialAllocationPool`——**与预特化无关**。真实机制：**布局与实参无关**的
+  泛型 MPE 由编译器静态布局（spare-bits 策略），完整 VWT 烘焙进 generic metadata pattern，
+  运行时完成函数从不重算；`swift_initEnumMetadataMultiPayload`（纯 tagged）只对**布局依赖
+  实参**的 MPE 运行。且编译器把裁决写进了二进制：`GenReflection.cpp` 只为
+  `!needsPayloadSizeInMetadata()`（静态 fixed）的 MPE 发射 `__swift5_builtin` +
+  `__swift5_mpenum` 记录，`!AllowFixedLayoutOptimizations` 时编译器自己也清空 spare bits
+  退回与 runtime 一致的 tagged 布局（GenEnum.cpp:7192）——**「记录存在 ⇔ spare-bits/fixed」
+  在构造上精确**。5 个 OS 镜像实测：记录 typeref 全部 demangle 为无参数 nominal 名（与
+  `BuiltinTypeLayoutIndex` 现有 key 一致），零 bound-concrete 实例化记录。
+- **落地修复（SwiftLayout，约 20 行）**：放开 `EnumLayoutBridge` 两道基于错误模型的门——
+  builtin 查表的 `environment.isEmpty`（实例化/未特化泛型 enum 节点照常查剥参数 key）与
+  `multiPayloadEnumLayout` / `enumCaseLayoutResult` 的 `!descriptor.isGeneric`（只按
+  `usesPayloadSpareBits` 分流）；`compute()` 补查**定义镜像**的 builtin 索引（enum 记录按
+  声明模块发射，跨镜像 + mask>16k 边角随之闭合）；`BuiltinTypeLayoutIndex` 防御性跳过
+  bound-concrete 实例化记录。
+- **验证**：新 `GenericSpareBitsEnumLayoutTests` 修复前红（fixture `SpareBitsVariantEnum`
+  24/24/XI 125 vs 引擎 25/32/253；OS 端到端 40/40/126 vs 41/48/254）修复后绿；fixture 新增
+  `Dictionary.Iterator._Variant` 形态类型族；SwiftUI 全量 dump before/after 对拍：117 行
+  diff 全部是 enum-layout 注释、恰好 4 个受益枚举（`NSHostingView.AllowAutomationElementsState`、
+  `AnimatedValueState<A>` 一族），声明本体零变化；普查复跑整型偏差清零。顺带修
+  `MultiPayloadEnumStructuralTests` 既有缺陷：遍历未过滤泛型描述符，第一个空环境可解析的
+  泛型 MPE（新 fixture 类型）会让它对泛型 enum 无参调 accessor 而 SIGSEGV。
+- **关键决策**：判据用「编译器记录的存在性」而非结构化推导 fixedness——后者需要重放
+  resilience 语义（`layoutScope`），二进制里读不到 `@frozen`，必然出启发式误差；记录存在性
+  是编译器原话、零启发式，且索引早已收录，修复只是放行。
+- **文档**：[StaticLayoutEngine.md](StaticLayoutEngine.md)（核心算法 / pitfall / 已知偏差表 /
+  后续工作四处改写，硬骨头条目标记已解决）、AGENTS.md（`EnumLayoutBridge` 条目重写）、
+  [TaskReports/2026-08-05-generic-fixed-mpe-spare-bits.md](TaskReports/2026-08-05-generic-fixed-mpe-spare-bits.md)。
+- **对应版本**：未发版（main，0.14.1 之后，紧接第 27 节）。
+
+## 29. 嵌套字段偏移展开的环守卫（indirect case 不下钻 + 路径环检测）
+
+- **时间段**：2026-08-06。
+- **动机**：RuntimeViewer 对 Xcode 的 `DVTIconKit` 生成 Swift interface 时"死循环"，
+  日志刷 `walkNestedExpandedFieldOffsets reached … depth limit 16` 千余条仍在增长，
+  约 20 条线程堵在 demangle 上。诊断结论：不是死循环，是**有环类型图上的指数级路径
+  枚举**——深度上限约束"走多深"，而环让"有多少条路径"爆炸，两者管的不是一回事。
+- **落地**：两条独立实现各加两道守卫。①`indirect` case 的 payload 是堆 box 指针，
+  声明类型不布置在该偏移上，因此报告该 case 但不下钻（与 class 引用同等对待）——这也
+  是值类型字段图唯一可能成环的地方，是实际消除爆炸的那道；②**路径作用域**的已打开
+  类型集合（运行时按 `ObjectIdentifier(metatype)`，静态按打印类型名，以区分
+  `Box<Int>`/`Box<String>`），作为解析误判造成假环的纵深防御。深度上限保留，继续兜
+  "无环但很深"。落在 `SwiftDeclarationRendering.RuntimeFieldLayoutBackend` 与
+  `SwiftLayout.NestedFieldOffsetTree`。
+- **关键决策**：环检测按路径而非全局——同一类型经**不同字段**到达时两处都必须完整
+  展开（`String` 挂在两个属性下是两棵真实子树），全局 visited 会让输出残缺。
+- **验证**：新增 fixture `RecursiveIndirectFieldLayout`（复刻 `DVTIconKit` 形状：struct
+  ↔ 逐 case `indirect` 的泛型 enum，外加无环三层深的对照）与两个回归套件（运行时/静态
+  各 4 个测试）。修复前实测 8 个测试 6 个失败、925 个 issue、运行时路径展开 892 行，
+  失败信息直接打印出那条环；修复后 8/8 通过，全量套件（`--skip IntegrationTests`）绿。
+  fixture 变更按既定流程重生成 ABI baseline（59 文件，纯 `descriptorOffset` 漂移）。
+- **合入**：开发基线为 `3396cfd`，完成后 rebase 到 `main`（`4eeb3b4`）——源码与文档干净
+  合并，冲突仅在 59 个 baseline（重新生成而非手工调和）。此步暴露一个必要前置：`main`
+  依赖 node-store 迁移引入的 `NodeReference`，本地 swift-demangling 停在 `04c959b` 时
+  `main` 编译不过、`regen-baselines` 失败，故把本地 swift-demangling fast-forward 到
+  `main`（`985c9b7`）。副作用：RuntimeViewer 的 Debug workspace 共用该 checkout，其依赖
+  随之前移（这本就是与本仓库 `main` 自洽的组合）。
+- **历史查证**：同一类问题 2026-05-16 在 **SwiftInterface 打印路径**上修过（DAG 被当树
+  展开，394,062 次节点访问），当时报告已明确写下"Apple-style MaxDepth 单一兜底对本类
+  爆炸无效"；三周后的 PR #88（2026-06-10）动了本次这段代码，却只把硬编码 `16` 抽成常量、
+  加 `os_log`、加钉值测试——**把深度上限诊断化了，没有把五月的结论横移过来**。所以本次
+  不是回归，是教训没有跨路径传播。
+- **横向排查**：全库读 enum payload record 处逐一核对，`EnumLayoutBridge`(185/250)、
+  `enumPayloadSize`、`enumPayloadExtraInhabitantCount` 均已正确处理 `isIndirectCase`，
+  遗漏仅本次两处；`SwiftSpecialization.deriveNestedSpecializedTypeChildren` 虽同为
+  `depth < 16`，遍历的是嵌套类型**声明**树（天然无环），不属同类，不改。
+- **文档**：[NestedFieldOffsetCycleGuard.md](NestedFieldOffsetCycleGuard.md)、
+  [TaskReports/2026-08-06-nested-field-offset-cycle-guard.md](TaskReports/2026-08-06-nested-field-offset-cycle-guard.md)。
+- **对应版本**：未发版（main，0.14.1 之后，紧接第 28 节）。
+
+---
+
+## 30. main 退回 0.14.1 基线：node-store 合并撤出，四个 SwiftLayout 修复重新接线
+
+- **时间段**：2026-08-06。
+- **动机**：维护者判断 PR #97（`feature/node-store-migration`，2026-08-04 合入）进 main
+  过早，要求 main 回到 `0.14.1` 发布点，同时**保留**合并之后落在 main 上的四个
+  SwiftLayout / rendering 修复（即本文第 27–29 节），node-store 的工作整体退回 feature
+  分支等待合适时机。
+- **落地**：main 由 `621f6fa` 重写为 `3396cfd`（tag `0.14.1`）+ 四次 cherry-pick。
+  `Package.swift` 随之退回 `swift-demangling` 的 `0.4.5 ..< 0.5.0` pin（0.5.x 重塑了
+  `NodePrinterTarget`、删除了 `Node: Codable`，是本次回退唯一的硬耦合点），
+  `MachOSymbolsTests` 与三处 target 依赖一并回退。
+- **关键决策**：
+  - **选 cherry-pick 重写而非 `git revert -m 1`**。revert 会在历史里留下「这些改动已被
+    处理过」的记录，将来把 feature 分支合回 main 时 Git 不再带回那些代码，必须先
+    revert the revert；而 node-store 明确是要回来的。重写后两个分支之间重新有完整
+    diff，重开 PR 即可。
+  - **动手前用 `git merge-tree --write-tree` 只读预演两条路径**，在不碰工作区的前提下
+    确认「代码文件全自动合并、唯一冲突是 `ProjectEvolutionLog.md`」，把最大的不确定性
+    前置消解。
+  - **四个修复与 node-store 无源码耦合**这一判断先由 diff 扫描得出（无一处引用
+    `NodeReference` / `demangleAsNodeTransient` / `NodeStore` 等新 API），再由 0.4.5
+    依赖下的全量构建 0 错误 0 警告证实。
+  - **数据安全靠三重保险**：`backup/main-before-0.14.1-rewind` 分支 + 同名带日期 tag
+    （本地与 origin 双份）+ `feature/node-store-migration` 保持在 `621f6fa` 不动。
+    重写前先备份、先推远程，再动分支。
+  - **历史叙述不改写**：各 TaskReport 正文里对旧 SHA 的引用（如「rebase 到 main
+    （`4eeb3b4`）」）保留原貌——那是对当时事实的记录；旧 SHA 一律可通过备份分支解析。
+    只有「对应版本」这类元数据字段改为不依赖 SHA 的表述。
+- **影响面**：回退期间 node-store 分支带来的能力（符号索引 NodeStore 化、性能批次、
+  旧格式 `LC_DYLD_INFO` bind 支持、系统框架渲染 A/B 验证流程与其「大重构必跑」规则）
+  不在 main 上。本文的节号在回退期间也顺延过一轮（node-store 的第 23–26 节移出 main 后，
+  原第 27–29 节临时占用了 23–25）。
+- **后续（同日）**：`feature/node-store-migration` 随即以
+  `git rebase --onto main 439ecca f31711c` 落到重写后的 main 上——36 个提交线性重放，
+  天然排除四个已 cherry-pick 的修复（它们在 `f31711c` 之上），全程唯一冲突是
+  `Package.swift` 里 swift-demangling 的 pin 之争（取 node-store 侧，终态回到
+  `from: "0.5.1"`）。本文按编年顺序恢复原样：node-store 四节回到 23–26（工作时间
+  08-02~08-03），SwiftLayout 三节回到它们原本的 27–29（08-04~08-06），本节顺延为
+  第 30 节。此后重新合入 main 时，本文这 30 节不再需要重新编号。
+- **后续（2026-08-07）**：main 上又落了一个批次（class / static 成员关键字还原），
+  分支再次 rebase 到 main。这次的冲突面比上次小得多：代码只有 `SwiftDeclarationPrinter`
+  的三个成员打印入口（main 加 `isClassMember:` 参数、本分支把 `node` 换成
+  `node.materialize()`，两侧叠加即可），文档是 `Documentations/README.md` 的索引表
+  与本文——main 的新批次作为**第 31 节**接在本节之后，既有 30 节的编号一个没动，
+  上一条「不再需要重新编号」的承诺因此只对**本分支自己的节**成立：main 每落一个
+  批次，本文末尾就要接一节新的，这是编年账本的常态，不是重新编号。
+- **文档**：[TaskReports/2026-08-06-main-rewind-onto-0.14.1.md](TaskReports/2026-08-06-main-rewind-onto-0.14.1.md)。
+- **对应版本**：`0.14.1`（main 与该 tag 之间此后仅有第 27–29、31 节的四个修复批次）。
+
+---
+
+## 31. class / static 成员关键字的还原（vtable method descriptor 判据）
+
+- **时间段**：2026-08-07。
+- **动机**：interface 输出把所有类型级成员渲染成 `static`，源码里的 `class func` /
+  `class var` 无法还原；更严重的是存在非法 Swift 语法 `override static`（`static`
+  不可 override）——iOS 18.5 SwiftUI 里 19 处，项目自己的 interface 快照基线里 2 处。
+- **关键决策**：
+  - **判据用正向的 method descriptor 存在性**，不推断 final：class 里的 `static`
+    成员被编译器隐式推成 final、不进 vtable；`class` 成员非 final、有 method
+    descriptor。ABI 里没有任何 final 位（`ClassFlags` / descriptor flags /
+    `class_ro_t` 三处查证），但这个判据不需要它。
+  - **用 `methodDescriptor` 而非 `vtableOffset`**：后者对部分 override 成员解析
+    失败（父类 vtable 查不到槽位）而前者始终在。
+  - **无法识别的四类保守输出 `static`**（`final class func`、final class 里的
+    `class func`、extension 里的 `class func`、`@objc dynamic class func`）——它们
+    在 ABI 上与 `static` 完全一致，且 `static` 与 `final class` 语义等价，不产生
+    错误代码。
+  - **dump 的 override table 行保留 demangler 的 `static` 前缀**：那是对符号的
+    忠实还原（与 `swift-demangle` 一致），不是 interface 语法，不篡改。
+- **落地模块**：`SwiftDeclaration`（`isClassMember` / `hasVTableAccessor` 计算
+  属性）、`SwiftPrinting`（三个 node printer 的 `isClassMember` 参数 +
+  `SwiftDeclarationPrinter` 接线）、`SwiftDump`（`ClassDumper` vtable 段落
+  关键字）；interface / diff / dump 三路全覆盖，无新解析。
+- **文档**：[ClassMemberKeywordRecovery.md](ClassMemberKeywordRecovery.md)、
+  [TaskReports/2026-08-07-class-member-keyword-recovery.md](TaskReports/2026-08-07-class-member-keyword-recovery.md)。
+- **对应版本**：`0.14.1` 之后、下一次 bump 之前。
 
 ---
 
