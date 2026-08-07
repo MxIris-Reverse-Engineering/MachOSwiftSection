@@ -2,6 +2,14 @@
 
 Documentation is split by audience.
 
+> **Project kind: library (source distribution).** SPM library product consumed from source —
+> downstream repos (RuntimeViewer, MachOKitUI, SymbolViewer, …) recompile every time, so there is
+> no ABI constraint, but **source compatibility must be assessed** on every public API change.
+> The `swift-section` executable is a companion CLI, not the outward contract.
+> Note that `Tests/Projects/SymbolTests` does enable library evolution — that is the test project,
+> not the library itself.
+> The first proposal created via `/evolution <description>` will set up `Evolutions/` and its index.
+
 ## External — for library users / other developers
 
 Public, reference-style documentation. Bilingual (English + 中文).
