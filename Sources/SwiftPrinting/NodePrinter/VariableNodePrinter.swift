@@ -16,6 +16,8 @@ struct VariableNodePrinter: InterfaceNodePrintable {
 
     private let isOverride: Bool
 
+    private let isClassMember: Bool
+
     private let hasSetter: Bool
 
     private let indentation: Int
@@ -32,9 +34,10 @@ struct VariableNodePrinter: InterfaceNodePrintable {
 
     var printCache: [ObjectIdentifier: Target] = [:]
 
-    init(isStored: Bool, isOverride: Bool, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
+    init(isStored: Bool, isOverride: Bool, isClassMember: Bool = false, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
         self.isStored = isStored
         self.isOverride = isOverride
+        self.isClassMember = isClassMember
         self.hasSetter = hasSetter
         self.indentation = indentation
         self.delegate = delegate
@@ -63,7 +66,7 @@ struct VariableNodePrinter: InterfaceNodePrintable {
         } else if node.kind == .variable {
             try await printVariable(node)
         } else if node.kind == .static, let first = node.children.first {
-            target.write("static", context: .context(state: .printKeyword))
+            target.write(isClassMember ? "class" : "static", context: .context(state: .printKeyword))
             target.writeSpace()
             isStatic = true
             try await _printRoot(first)

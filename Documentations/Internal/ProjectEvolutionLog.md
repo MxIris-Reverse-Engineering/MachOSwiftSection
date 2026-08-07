@@ -583,6 +583,35 @@
 
 ---
 
+## 27. class / static 成员关键字的还原（vtable method descriptor 判据）
+
+- **时间段**：2026-08-07。
+- **动机**：interface 输出把所有类型级成员渲染成 `static`，源码里的 `class func` /
+  `class var` 无法还原；更严重的是存在非法 Swift 语法 `override static`（`static`
+  不可 override）——iOS 18.5 SwiftUI 里 19 处，项目自己的 interface 快照基线里 2 处。
+- **关键决策**：
+  - **判据用正向的 method descriptor 存在性**，不推断 final：class 里的 `static`
+    成员被编译器隐式推成 final、不进 vtable；`class` 成员非 final、有 method
+    descriptor。ABI 里没有任何 final 位（`ClassFlags` / descriptor flags /
+    `class_ro_t` 三处查证），但这个判据不需要它。
+  - **用 `methodDescriptor` 而非 `vtableOffset`**：后者对部分 override 成员解析
+    失败（父类 vtable 查不到槽位）而前者始终在。
+  - **无法识别的四类保守输出 `static`**（`final class func`、final class 里的
+    `class func`、extension 里的 `class func`、`@objc dynamic class func`）——它们
+    在 ABI 上与 `static` 完全一致，且 `static` 与 `final class` 语义等价，不产生
+    错误代码。
+  - **dump 的 override table 行保留 demangler 的 `static` 前缀**：那是对符号的
+    忠实还原（与 `swift-demangle` 一致），不是 interface 语法，不篡改。
+- **落地模块**：`SwiftDeclaration`（`isClassMember` / `hasVTableAccessor` 计算
+  属性）、`SwiftPrinting`（三个 node printer 的 `isClassMember` 参数 +
+  `SwiftDeclarationPrinter` 接线）、`SwiftDump`（`ClassDumper` vtable 段落
+  关键字）；interface / diff / dump 三路全覆盖，无新解析。
+- **文档**：[ClassMemberKeywordRecovery.md](ClassMemberKeywordRecovery.md)、
+  [TaskReports/2026-08-07-class-member-keyword-recovery.md](TaskReports/2026-08-07-class-member-keyword-recovery.md)。
+- **对应版本**：`0.14.1` 之后、下一次 bump 之前。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

@@ -41,6 +41,30 @@ struct NodePrinterUnitTests {
         #expect(result.hasPrefix("override "), "Should start with 'override' keyword")
     }
 
+    @Test func functionNodePrinterClassMember() async throws {
+        let node = try await demangleAsNode("$s4Main3ClsC3fooyyFZ")  // static Main.Cls.foo()
+        var printer = FunctionNodePrinter(isOverride: false, isClassMember: true)
+        let result = try await printer.printRoot(node).string
+
+        #expect(result.hasPrefix("class func "), "A vtable-backed type-level function should print as 'class func'")
+    }
+
+    @Test func functionNodePrinterStaticMember() async throws {
+        let node = try await demangleAsNode("$s4Main3ClsC3fooyyFZ")  // static Main.Cls.foo()
+        var printer = FunctionNodePrinter(isOverride: false, isClassMember: false)
+        let result = try await printer.printRoot(node).string
+
+        #expect(result.hasPrefix("static func "), "A type-level function without a vtable entry should stay 'static func'")
+    }
+
+    @Test func functionNodePrinterOverrideClassMember() async throws {
+        let node = try await demangleAsNode("$s4Main3ClsC3fooyyFZ")  // static Main.Cls.foo()
+        var printer = FunctionNodePrinter(isOverride: true, isClassMember: true)
+        let result = try await printer.printRoot(node).string
+
+        #expect(result.hasPrefix("override class func "), "An overriding class function should print as 'override class func', never the illegal 'override static'")
+    }
+
     // MARK: - VariableNodePrinter
 
     @Test func variableNodePrinterStored() async throws {
@@ -65,6 +89,22 @@ struct NodePrinterUnitTests {
         let result = try await printer.printRoot(node).string
 
         #expect(result.hasPrefix("override "), "Should start with 'override' keyword")
+    }
+
+    @Test func variableNodePrinterClassMember() async throws {
+        let node = try await demangleAsNode("$s4Main3ClsC3fooSivgZ")  // static Main.Cls.foo.getter : Swift.Int
+        var printer = VariableNodePrinter(isStored: false, isOverride: false, isClassMember: true, hasSetter: false, indentation: 0)
+        let result = try await printer.printRoot(node).string
+
+        #expect(result.hasPrefix("class var "), "A vtable-backed type-level variable should print as 'class var'")
+    }
+
+    @Test func variableNodePrinterStaticMember() async throws {
+        let node = try await demangleAsNode("$s4Main3ClsC3fooSivgZ")  // static Main.Cls.foo.getter : Swift.Int
+        var printer = VariableNodePrinter(isStored: false, isOverride: false, isClassMember: false, hasSetter: false, indentation: 0)
+        let result = try await printer.printRoot(node).string
+
+        #expect(result.hasPrefix("static var "), "A type-level variable without a vtable entry should stay 'static var'")
     }
 
     // MARK: - TypeNodePrinter
@@ -191,6 +231,22 @@ struct NodePrinterUnitTests {
         #expect(result.contains("subscript"))
         #expect(result.contains("get"))
         #expect(result.contains("set"))
+    }
+
+    @Test func subscriptNodePrinterClassMember() async throws {
+        let node = try await demangleAsNode("$s4Main3ClsCyS2icigZ")  // static Main.Cls.subscript.getter : (Swift.Int) -> Swift.Int
+        var printer = SubscriptNodePrinter(isOverride: false, isClassMember: true, hasSetter: false, indentation: 1)
+        let result = try await printer.printRoot(node).string
+
+        #expect(result.hasPrefix("class subscript"), "A vtable-backed type-level subscript should print as 'class subscript'")
+    }
+
+    @Test func subscriptNodePrinterStaticMember() async throws {
+        let node = try await demangleAsNode("$s4Main3ClsCyS2icigZ")  // static Main.Cls.subscript.getter : (Swift.Int) -> Swift.Int
+        var printer = SubscriptNodePrinter(isOverride: false, isClassMember: false, hasSetter: false, indentation: 1)
+        let result = try await printer.printRoot(node).string
+
+        #expect(result.hasPrefix("static subscript"), "A type-level subscript without a vtable entry should stay 'static subscript'")
     }
 }
 

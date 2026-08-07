@@ -16,4 +16,8 @@ public struct FunctionDefinition: Sendable {
     public var attributes: [SwiftAttribute] = []
 
     public var isOverride: Bool { methodDescriptor?.isMethodOverride ?? methodDescriptor?.isMethodDefaultOverride ?? false }
+
+    /// A type-level function with a vtable method descriptor was declared `class`:
+    /// `static` members are implicitly final and never get one (mangling cannot tell them apart).
+    public var isClassMember: Bool { kind == .function && isGlobalOrStatic && methodDescriptor != nil }
 }

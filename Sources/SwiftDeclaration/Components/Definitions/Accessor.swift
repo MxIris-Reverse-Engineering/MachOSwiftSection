@@ -11,6 +11,7 @@ extension AccessorRepresentable {
     public var isOverride: Bool { accessors.contains(where: { ($0.methodDescriptor?.isMethodOverride ?? false) || ($0.methodDescriptor?.isMethodDefaultOverride ?? false) }) }
     public var hasSetter: Bool { accessors.contains { $0.kind == .setter } }
     public var hasModifyAccessor: Bool { accessors.contains { $0.kind == .modifyAccessor } }
+    public var hasVTableAccessor: Bool { accessors.contains { $0.methodDescriptor != nil } }
 }
 
 @MemberwiseInit(.public)

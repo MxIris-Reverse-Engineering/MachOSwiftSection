@@ -20,8 +20,8 @@ struct SymbolTestsCore.StaticMembers.StaticMemberStructTest {
     static SymbolTestsCore.StaticMembers.StaticMemberStructTest.staticGenericMethod<A>(A) -> A
 }
 class SymbolTestsCore.StaticMembers.StaticMemberClassTest {
-    /* [Getter] */ static static SymbolTestsCore.StaticMembers.StaticMemberClassTest.classComputed.getter : Swift.Int
-    /* [Method] */ static func static SymbolTestsCore.StaticMembers.StaticMemberClassTest.classMethod() -> Swift.Int
+    /* [Getter] */ class static SymbolTestsCore.StaticMembers.StaticMemberClassTest.classComputed.getter : Swift.Int
+    /* [Method] */ class func static SymbolTestsCore.StaticMembers.StaticMemberClassTest.classMethod() -> Swift.Int
     /* [ Init ] */ SymbolTestsCore.StaticMembers.StaticMemberClassTest.__allocating_init() -> SymbolTestsCore.StaticMembers.StaticMemberClassTest
 
     /* Allocator */

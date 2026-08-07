@@ -293,7 +293,7 @@ class SymbolTestsCore.Classes.RequiredInitClassTest {
 }
 class SymbolTestsCore.Classes.DefaultParameterClassTest {
     /* [Method] */ func SymbolTestsCore.Classes.DefaultParameterClassTest.method(first: Swift.Int, second: Swift.String) -> Swift.Int
-    /* [Method] */ static func static SymbolTestsCore.Classes.DefaultParameterClassTest.classMethod(value: Swift.Int) -> Swift.Int
+    /* [Method] */ class func static SymbolTestsCore.Classes.DefaultParameterClassTest.classMethod(value: Swift.Int) -> Swift.Int
     /* [ Init ] */ SymbolTestsCore.Classes.DefaultParameterClassTest.__allocating_init() -> SymbolTestsCore.Classes.DefaultParameterClassTest
 
     /* Allocator */

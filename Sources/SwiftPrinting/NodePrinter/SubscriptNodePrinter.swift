@@ -14,6 +14,8 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
 
     private let isOverride: Bool
 
+    private let isClassMember: Bool
+
     private let hasSetter: Bool
 
     private let indentation: Int
@@ -30,8 +32,9 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
 
     private(set) var targetNode: Node?
 
-    init(isOverride: Bool, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
+    init(isOverride: Bool, isClassMember: Bool = false, hasSetter: Bool, indentation: Int, delegate: (any NodePrintableDelegate)? = nil) {
         self.isOverride = isOverride
+        self.isClassMember = isClassMember
         self.hasSetter = hasSetter
         self.indentation = indentation
         self.delegate = delegate
@@ -60,7 +63,7 @@ struct SubscriptNodePrinter: InterfaceNodePrintable {
         } else if node.isKind(of: .subscript) {
             await printSubscript(node)
         } else if node.kind == .static, let first = node.children.first {
-            target.write("static", context: .context(state: .printKeyword))
+            target.write(isClassMember ? "class" : "static", context: .context(state: .printKeyword))
             target.writeSpace()
             isStatic = true
             try await _printRoot(first)

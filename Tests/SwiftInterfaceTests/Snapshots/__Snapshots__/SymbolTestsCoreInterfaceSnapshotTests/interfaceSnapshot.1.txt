@@ -437,7 +437,7 @@ enum Classes {
 
         func method(first: Swift.Int, second: Swift.String) -> Swift.Int
 
-        static func classMethod(value: Swift.Int) -> Swift.Int
+        class func classMethod(value: Swift.Int) -> Swift.Int
 
         deinit
     }
@@ -2779,7 +2779,7 @@ enum StaticMembers {
     class StaticMemberClassTest {
         init()
 
-        static var classComputed: Swift.Int {
+        class var classComputed: Swift.Int {
             get
         }
         static var storedConstant: Swift.Int {
@@ -2787,7 +2787,7 @@ enum StaticMembers {
         }
         static var storedMutable: Swift.String
 
-        static func classMethod() -> Swift.Int
+        class func classMethod() -> Swift.Int
         static func staticMethod() -> Swift.Int
 
         deinit
@@ -2795,11 +2795,11 @@ enum StaticMembers {
     class StaticMemberSubclassTest: SymbolTestsCore.StaticMembers.StaticMemberClassTest {
         override init()
 
-        override static var classComputed: Swift.Int {
+        override class var classComputed: Swift.Int {
             get
         }
 
-        override static func classMethod() -> Swift.Int
+        override class func classMethod() -> Swift.Int
 
         deinit
     }

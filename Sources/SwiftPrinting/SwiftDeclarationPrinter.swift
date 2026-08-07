@@ -450,7 +450,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
             Keyword(attribute.keyword)
             Space()
         }
-        var printer = VariableNodePrinter(isStored: variable.isStored, isOverride: variable.isOverride, hasSetter: variable.hasSetter, indentation: level, delegate: self)
+        var printer = VariableNodePrinter(isStored: variable.isStored, isOverride: variable.isOverride, isClassMember: variable.isClassMember, hasSetter: variable.hasSetter, indentation: level, delegate: self)
         try await printer.printRoot(variable.node)
     }
 
@@ -460,7 +460,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
             Keyword(attribute.keyword)
             Space()
         }
-        var printer = FunctionNodePrinter(isOverride: function.isOverride, delegate: self)
+        var printer = FunctionNodePrinter(isOverride: function.isOverride, isClassMember: function.isClassMember, delegate: self)
         try await printer.printRoot(function.node)
     }
 
@@ -470,7 +470,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
             Keyword(attribute.keyword)
             Space()
         }
-        var printer = SubscriptNodePrinter(isOverride: `subscript`.isOverride, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
+        var printer = SubscriptNodePrinter(isOverride: `subscript`.isOverride, isClassMember: `subscript`.isClassMember, hasSetter: `subscript`.hasSetter, indentation: level, delegate: self)
         try await printer.printRoot(`subscript`.node)
     }
 

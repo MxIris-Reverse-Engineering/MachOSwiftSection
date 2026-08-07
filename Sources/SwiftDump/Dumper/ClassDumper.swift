@@ -409,7 +409,8 @@ package struct ClassDumper<MachO: FieldLayoutRenderable>: TypedDumper {
     @SemanticStringBuilder
     private func dumpMethodKeyword(for descriptor: MethodDescriptor, isDistributed: Bool = false) -> SemanticString {
         if !descriptor.flags.isInstance, descriptor.flags.kind != .`init` {
-            Keyword(.static)
+            // Every entry here has a vtable method descriptor, so a type-level one was declared `class`.
+            Keyword(.class)
             Space()
         }
 

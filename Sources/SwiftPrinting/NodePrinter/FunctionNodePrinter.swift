@@ -15,6 +15,8 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
 
     private let isOverride: Bool
 
+    private let isClassMember: Bool
+
     private(set) weak var delegate: (any NodePrintableDelegate)?
 
     private(set) var isProtocol: Bool = false
@@ -27,8 +29,9 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
 
     private(set) var targetNode: Node?
 
-    init(isOverride: Bool, delegate: (any NodePrintableDelegate)? = nil) {
+    init(isOverride: Bool, isClassMember: Bool = false, delegate: (any NodePrintableDelegate)? = nil) {
         self.isOverride = isOverride
+        self.isClassMember = isClassMember
         self.delegate = delegate
     }
 
@@ -55,7 +58,7 @@ struct FunctionNodePrinter: InterfaceNodePrintable {
         } else if node.isKind(of: .function, .boundGenericFunction, .allocator, .constructor) {
             await printFunction(node)
         } else if node.kind == .static, let first = node.children.first {
-            target.write("static", context: .context(state: .printKeyword))
+            target.write(isClassMember ? "class" : "static", context: .context(state: .printKeyword))
             target.writeSpace()
             isStatic = true
             try await _printRoot(first)
