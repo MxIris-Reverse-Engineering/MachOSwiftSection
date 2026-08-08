@@ -136,20 +136,23 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         /// All `NodeReference` values vended by this storage point into it.
         let nodeStore: NodeStore
 
-        /// Flat symbol table (Stage 3): one row per unique symbol name,
-        /// holding the canonical (cache-adjusted) offset. Every index below
-        /// stores 4-byte row indices into this table instead of inline
-        /// `Symbol` copies, and vended `DemangledSymbol` values share this
-        /// array's buffer.
-        let symbolTable: [Symbol]
+        /// Flat symbol table (Stage 3, offset-ized by evolution proposal
+        /// 0001): one 16-byte row per unique symbol name, holding the
+        /// canonical (cache-adjusted) offset plus a packed reference into
+        /// the table's name source — the image's mmap'd string table for
+        /// `MachOImage` rows, the table's private byte buffer otherwise.
+        /// No name `String` is retained; vend paths materialize names on
+        /// demand. Every index below stores 4-byte row indices into this
+        /// table, and vended `DemangledSymbol` values share it. Name → row
+        /// lookup is `symbolTable.row(forName:)`, a byte-level binary
+        /// search over the table's name-order permutation (the former
+        /// `tableRowByName` dictionary is build-time-only now).
+        let symbolTable: SymbolTable
 
         /// Parallel to `symbolTable`: the row's demangled root node, or
         /// `nil` for names the demangler rejected (those still occupy a row
         /// because `symbolRowsByOffset` references them).
         let rootNodeIndexByTableRow: [NodeStore.NodeIndex?]
-
-        /// Name → table row. Keys share string storage with `symbolTable`.
-        let tableRowByName: [String: UInt32]
 
         let typeInfoByName: [String: TypeInfo]
 
@@ -186,7 +189,11 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
         let symbolRowsByKind: OrderedDictionary<Node.Kind, [UInt32]>
 
-        let symbolRowsByOffset: OrderedDictionary<Int, [UInt32]>
+        /// Plain `Dictionary`: the only consumer is the keyed lookup in
+        /// `symbols(for:in:)` — nothing iterates it in order (proposal 0001
+        /// rider; the former `OrderedDictionary` paid an ordering table for
+        /// hundreds of thousands of entries nobody read).
+        let symbolRowsByOffset: [Int: [UInt32]]
 
         let thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: [ThunkAttributeMember]]]
 
@@ -201,10 +208,10 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         /// eviction.
         private let lateNameStore = SharedNodeStore()
 
-        /// Verdict cache over `lateNameStore`, keyed by name like
-        /// `tableRowByName`: a demangled tree is a pure function of the
-        /// symbol name, so two symbols at different offsets sharing a name
-        /// share a tree. A stored `nil` records a name the demangler
+        /// Verdict cache over `lateNameStore`, keyed by name like the
+        /// symbol table's own row lookup: a demangled tree is a pure
+        /// function of the symbol name, so two symbols at different offsets
+        /// sharing a name share a tree. A stored `nil` records a name the demangler
         /// rejected — rejection is exactly as deterministic as success, so
         /// it is cached the same way and never retried (`SharedNodeStore`
         /// itself throws on failure and caches nothing).
@@ -213,16 +220,14 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
         fileprivate init(
             nodeStore: NodeStore,
-            symbolTable: [Symbol],
+            symbolTable: SymbolTable,
             rootNodeIndexByTableRow: [NodeStore.NodeIndex?],
-            tableRowByName: [String: UInt32],
-            symbolRowsByOffset: OrderedDictionary<Int, [UInt32]>,
+            symbolRowsByOffset: [Int: [UInt32]],
             rowIndexes: consuming RowIndexes
         ) {
             self.nodeStore = nodeStore
             self.symbolTable = symbolTable
             self.rootNodeIndexByTableRow = rootNodeIndexByTableRow
-            self.tableRowByName = tableRowByName
             self.symbolRowsByOffset = symbolRowsByOffset
             self.typeInfoByName = rowIndexes.typeInfoByName
             self.globalSymbolRowsByKind = rowIndexes.globalSymbolRowsByKind
@@ -287,10 +292,10 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
         /// Rebuilds the `Symbol` for an offset-table row using the queried
         /// offset: raw and cache-adjusted keys share one canonical row, so
-        /// the row's stored offset is not necessarily the queried one.
+        /// the row's stored offset is not necessarily the queried one. The
+        /// name is materialized fresh from the table's name source.
         fileprivate func symbol(atRow row: UInt32, offset queriedOffset: Int) -> Symbol {
-            let canonicalSymbol = symbolTable[Int(row)]
-            return Symbol(offset: queriedOffset, name: canonicalSymbol.name, isExternal: canonicalSymbol.isExternal)
+            return Symbol(offset: queriedOffset, name: symbolTable.materializedName(atRow: row), isExternal: symbolTable.isExternal(atRow: row))
         }
 
         func demangledSymbol(atRow row: UInt32) -> DemangledSymbol? {
@@ -388,26 +393,21 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         for machO: MachO,
         progressContinuation: AsyncStream<Progress>.Continuation?
     ) -> Storage? {
-        var symbolTable: [Symbol] = []
-        var tableRowByName: [String: UInt32] = [:]
-        var symbolRowsByOffset: OrderedDictionary<Int, [UInt32]> = [:]
+        // Reader split (proposal 0001): a MachOImage's symbol names already
+        // live in the image's mmap'd string table, so its rows reference
+        // those bytes in place — zero copies, zero retained strings — and
+        // the Swift-symbol test runs on the raw bytes so non-Swift symbols
+        // never materialize a name at all. Every other reader (MachOFile,
+        // whose names are decoded per entry from the file) collects through
+        // the generic leg below, whose Swift names are appended once into
+        // the table's private byte buffer.
+        let machOImage = machO as? MachOImage
+        let mappedSymbols64 = machOImage?.symbols64
+        let mappedSymbols32 = machOImage?.symbols32
+        let mappedStringTableBase = mappedSymbols64.map { UnsafeRawPointer($0.stringBase) } ?? mappedSymbols32.map { UnsafeRawPointer($0.stringBase) }
 
-        /// The table row a symbol belongs to, plus whether this call created it.
-        ///
-        /// Raw and cache-adjusted offset keys share one canonical row; a
-        /// duplicate name updates the existing row in place (last-wins, like
-        /// the former name-keyed collection pass). `isNewRow` is what lets
-        /// `registerRow` skip its duplicate check — see there.
-        func canonicalRow(for canonicalSymbol: Symbol) -> (row: UInt32, isNewRow: Bool) {
-            if let existingRow = tableRowByName[canonicalSymbol.name] {
-                symbolTable[Int(existingRow)] = canonicalSymbol
-                return (existingRow, false)
-            }
-            let newRow = UInt32(symbolTable.count)
-            symbolTable.append(canonicalSymbol)
-            tableRowByName[canonicalSymbol.name] = newRow
-            return (newRow, true)
-        }
+        var tableBuilder = SymbolTableBuilder(mappedStringTableBase: mappedStringTableBase)
+        var symbolRowsByOffset: [Int: [UInt32]] = [:]
 
         // One offset legitimately maps to several rows — distinct symbol names
         // can share an address — so the bucket stays a list. The *same* row
@@ -450,29 +450,66 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             }
         }
 
-        for symbol in machO.symbols where symbol.name.isSwiftSymbol && !symbol.nlist.isExternal {
-            let rawOffset = symbol.offset
-            var canonicalOffset = rawOffset
-            if let cache = machO.cache, rawOffset >= 0, machO is MachOFile {
-                canonicalOffset = rawOffset - cache.mainCacheHeader.sharedRegionStart.cast()
+        /// Mapped-name collection leg: iterates the image's own symbol
+        /// sequence so each entry exposes `nameC` (a pointer into the
+        /// mapped string table). The Swift-symbol test runs byte-level on
+        /// that pointer; a `String` is materialized only for the symbols
+        /// that pass it, and only as the build-time dedup key. An image's
+        /// offsets need no cache adjustment (that path is `MachOFile`-only),
+        /// so canonical == raw here.
+        func collectMappedSymbolRows<MappedSymbols: Sequence<MachOImage.Symbol>>(_ mappedSymbols: MappedSymbols, stringBase: UnsafeRawPointer) {
+            for symbol in mappedSymbols {
+                guard nameBytesHaveSwiftManglingPrefix(symbol.nameC), !symbol.nlist.isExternal else { continue }
+                let (row, isNewRow) = tableBuilder.canonicalRow(
+                    forName: String(cString: symbol.nameC),
+                    mappedNameByteOffset: UnsafeRawPointer(symbol.nameC) - stringBase,
+                    nameByteLength: strlen(symbol.nameC),
+                    canonicalOffset: symbol.offset,
+                    isExternal: symbol.nlist.isExternal
+                )
+                registerRow(row, rawOffset: symbol.offset, canonicalOffset: symbol.offset, isNewRow: isNewRow)
             }
-            let (row, isNewRow) = canonicalRow(for: .init(offset: canonicalOffset, name: symbol.name, isExternal: symbol.nlist.isExternal))
-            registerRow(row, rawOffset: rawOffset, canonicalOffset: canonicalOffset, isNewRow: isNewRow)
+        }
+
+        if let mappedSymbols64, let mappedStringTableBase {
+            collectMappedSymbolRows(mappedSymbols64, stringBase: mappedStringTableBase)
+        } else if let mappedSymbols32, let mappedStringTableBase {
+            collectMappedSymbolRows(mappedSymbols32, stringBase: mappedStringTableBase)
+        } else {
+            for symbol in machO.symbols where symbol.name.isSwiftSymbol && !symbol.nlist.isExternal {
+                let rawOffset = symbol.offset
+                var canonicalOffset = rawOffset
+                if let cache = machO.cache, rawOffset >= 0, machO is MachOFile {
+                    canonicalOffset = rawOffset - cache.mainCacheHeader.sharedRegionStart.cast()
+                }
+                let (row, isNewRow) = tableBuilder.canonicalRow(forName: symbol.name, canonicalOffset: canonicalOffset, isExternal: symbol.nlist.isExternal)
+                registerRow(row, rawOffset: rawOffset, canonicalOffset: canonicalOffset, isNewRow: isNewRow)
+            }
         }
 
         for exportedSymbol in machO.exportedSymbols where exportedSymbol.name.isSwiftSymbol {
-            if let rawOffset = exportedSymbol.offset, tableRowByName[exportedSymbol.name] == nil {
+            if let rawOffset = exportedSymbol.offset, tableBuilder.existingRow(forName: exportedSymbol.name) == nil {
                 var canonicalOffset = rawOffset
                 if machO is MachOFile {
                     canonicalOffset += machO.startOffset
                 }
-                // The `tableRowByName` guard above means this name has no row
+                // The `existingRow` guard above means this name has no row
                 // yet, so `canonicalRow` always mints one and the duplicate
-                // check is never needed here.
-                let (row, isNewRow) = canonicalRow(for: .init(offset: canonicalOffset, name: exportedSymbol.name))
+                // check is never needed here. Export-trie names are decoded
+                // strings with no home in the mapped string table, so they
+                // take the private-buffer overload on every reader.
+                let (row, isNewRow) = tableBuilder.canonicalRow(forName: exportedSymbol.name, canonicalOffset: canonicalOffset, isExternal: false)
                 registerRow(row, rawOffset: rawOffset, canonicalOffset: canonicalOffset, isNewRow: isNewRow)
             }
         }
+
+        // Freezing here drops the build-time dedup dictionary and sorts the
+        // name-order permutation; the demangle sweep below reads names back
+        // from the frozen table (a transient `String` per row — the
+        // demangler's entry point takes a `String` until the upstream
+        // byte-span entry lands, see proposal 0001's upstream-interface
+        // section).
+        let symbolTable = tableBuilder.freeze()
 
         // Single sequential sweep: demangle each symbol cache-free onto a
         // transient tree, classify on that tree, and intern the result into
@@ -481,7 +518,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         // Stage 1). Indexes accumulate directly in their final row-index
         // form (Stage 3), so `freeze()` is followed by a plain move into
         // `Storage`, not a conversion pass.
-        let totalSymbolCount = symbolTable.count
+        let totalSymbolCount = symbolTable.rowCount
 
         var builder = NodeStoreBuilder()
         builder.reserveCapacity(expectedSymbolCount: totalSymbolCount)
@@ -493,9 +530,8 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
                 progressContinuation?.yield(Progress(currentCount: row, totalCount: totalSymbolCount))
             }
 
-            let symbol = symbolTable[row]
-            guard let rootNode = try? demangleAsNodeTransient(symbol.name) else { continue }
             let symbolTableRow = UInt32(row)
+            guard let rootNode = try? demangleAsNodeTransient(symbolTable.materializedName(atRow: symbolTableRow)) else { continue }
             rootNodeIndexByTableRow[row] = builder.intern(rootNode)
 
             guard rootNode.isKind(of: .global), let node = rootNode.children.first else { continue }
@@ -510,7 +546,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             }
 
             if rootNode.isGlobal {
-                if !symbol.isExternal {
+                if !symbolTable.isExternal(atRow: symbolTableRow) {
                     if let result = processGlobalSymbol(symbolTableRow, node: node) {
                         rowIndexes.setGlobalSymbols(for: result)
                     }
@@ -529,7 +565,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
                         rowIndexes.setMemberSymbols(for: result)
                     }
                 } else if node.kind == .opaqueTypeDescriptor, let firstChild = node.children.first, firstChild.kind == .opaqueReturnTypeOf, let memberSymbol = firstChild.children.first {
-                    if symbol.offset > 0 {
+                    if symbolTable.canonicalOffset(atRow: symbolTableRow) > 0 {
                         rowIndexes.opaqueTypeDescriptorSymbolRowByNodeIndex[builder.intern(memberSymbol)] = symbolTableRow
                     }
                 } else {
@@ -545,7 +581,6 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             nodeStore: builder.freeze(),
             symbolTable: symbolTable,
             rootNodeIndexByTableRow: rootNodeIndexByTableRow,
-            tableRowByName: tableRowByName,
             symbolRowsByOffset: symbolRowsByOffset,
             rowIndexes: rowIndexes
         )
@@ -904,8 +939,11 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         // cross-store split `StructuralNodeReferenceKey` exists to absorb.
         //
         // Several symbols sharing one offset is normal (they differ by name)
-        // and is unaffected: each name resolves to its own row.
-        if let row = cacheStorage.tableRowByName[symbol.name] {
+        // and is unaffected: each name resolves to its own row. The lookup
+        // is a byte-level binary search over the table's name-order
+        // permutation (proposal 0001) — the name-keyed dictionary it
+        // replaces retained every symbol name for the storage's lifetime.
+        if let row = cacheStorage.symbolTable.row(forName: symbol.name) {
             // The sweep already ran every table row through the demangler
             // once; a `nil` root records that it rejected this name. The
             // late path runs the *same* demangler (`NodeStoreBuilder.demangle`

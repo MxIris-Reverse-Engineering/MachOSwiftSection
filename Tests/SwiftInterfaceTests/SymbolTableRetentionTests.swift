@@ -40,7 +40,7 @@ final class SymbolTableRetentionTests: MachOFileTests, @unchecked Sendable {
         _ = try await builder.printRoot()
 
         let storage = try #require(SymbolIndexStore.shared.storage(in: machOFile))
-        let sharedTableRowCount = storage.symbolTable.count
+        let sharedTableRowCount = storage.symbolTable.rowCount
         // Otherwise the assertion below cannot distinguish a detached value
         // from a shared one.
         try #require(sharedTableRowCount > 1)

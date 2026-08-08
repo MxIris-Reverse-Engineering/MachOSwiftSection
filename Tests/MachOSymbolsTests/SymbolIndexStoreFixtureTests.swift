@@ -41,10 +41,10 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
     /// `SymbolIndexStoreBaselineTests`.)
     @Test func buildPipelineStaysOffGlobalNodeCache() throws {
         let builtStorage = try #require(SymbolIndexStore.shared.buildStorage(for: machOFile))
-        #expect(!builtStorage.symbolTable.isEmpty)
+        #expect(builtStorage.symbolTable.rowCount > 0)
 
         let sampleRow = try #require(builtStorage.rootNodeIndexByTableRow.firstIndex(where: { $0 != nil }))
-        let sampleSymbolName = builtStorage.symbolTable[sampleRow].name
+        let sampleSymbolName = builtStorage.symbolTable.materializedName(atRow: UInt32(sampleRow))
         let firstTransientTree = try demangleAsNodeTransient(sampleSymbolName)
         let secondTransientTree = try demangleAsNodeTransient(sampleSymbolName)
         let firstLeaf = try #require(firstTransientTree.first { $0.children.isEmpty })
@@ -59,14 +59,15 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
         let storage = try storage
         var checkedCount = 0
         var mismatchCount = 0
-        for (row, symbol) in storage.symbolTable.enumerated() {
+        for row in 0 ..< storage.symbolTable.rowCount {
             guard let rootNodeIndex = storage.rootNodeIndexByTableRow[row] else { continue }
+            let symbolName = storage.symbolTable.materializedName(atRow: UInt32(row))
             let reference = storage.nodeStore.reference(at: rootNodeIndex)
-            let expected = try demangleAsNode(symbol.name, internsSubtrees: false).print(using: .default)
+            let expected = try demangleAsNode(symbolName, internsSubtrees: false).print(using: .default)
             if reference.print(using: .default) != expected {
                 mismatchCount += 1
                 if mismatchCount <= 3 {
-                    Issue.record("Store print mismatch for \(symbol.name)")
+                    Issue.record("Store print mismatch for \(symbolName)")
                 }
             }
             checkedCount += 1
@@ -83,6 +84,38 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
     @Test func compactValueLayouts() {
         #expect(MemoryLayout<Symbol>.stride <= 32)
         #expect(MemoryLayout<DemangledSymbol>.stride <= 32)
+        #expect(MemoryLayout<SymbolRow>.stride == 16)
+    }
+
+    /// File-leg counterpart of `SymbolTableImageEquivalenceTests`: a
+    /// `MachOFile` table's names live in the private byte buffer, so this
+    /// pins the same binary-search and vend-materialization behavior over
+    /// that name source.
+    @Test func fileLegBinarySearchAndDetachedMaterializationAgree() throws {
+        let storage = try storage
+        let symbolTable = storage.symbolTable
+        try #require(symbolTable.rowCount > 0)
+
+        var mismatchCount = 0
+        for row in 0 ..< symbolTable.rowCount {
+            let materializedName = symbolTable.materializedName(atRow: UInt32(row))
+            if symbolTable.row(forName: materializedName) != UInt32(row) {
+                mismatchCount += 1
+                if mismatchCount <= 3 {
+                    Issue.record("binary search failed to find row \(row) (\(materializedName))")
+                }
+            }
+        }
+        #expect(mismatchCount == 0)
+
+        let sampleRow = try #require(storage.rootNodeIndexByTableRow.firstIndex(where: { $0 != nil }))
+        let vended = try #require(storage.demangledSymbol(atRow: UInt32(sampleRow)))
+        #expect(vended.retainedSymbolTableRowCount == symbolTable.rowCount)
+        let detached = vended.detachedFromSharedTable()
+        #expect(detached.retainedSymbolTableRowCount == 1)
+        #expect(detached.symbol == vended.symbol)
+        #expect(detached.demangledNode == vended.demangledNode)
+        #expect(detached.symbol.name == symbolTable.materializedName(atRow: UInt32(sampleRow)))
     }
 
     /// Raw and cache-adjusted offset keys share one canonical table row, so
@@ -98,7 +131,7 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
             #expect(queried.count == rows.count)
             #expect(queried.allSatisfy { $0.offset == offset })
             for (queriedSymbol, row) in zip(queried, rows) {
-                #expect(queriedSymbol.name == storage.symbolTable[Int(row)].name)
+                #expect(queriedSymbol.name == storage.symbolTable.materializedName(atRow: row))
             }
             checkedOffsetCount += 1
         }
@@ -150,7 +183,7 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
         for (nodeIndex, expectedRow) in storage.opaqueTypeDescriptorSymbolRowByNodeIndex {
             let keyReference = storage.nodeStore.reference(at: nodeIndex)
             let queried = try #require(SymbolIndexStore.shared.opaqueTypeDescriptorSymbol(for: keyReference.materialize(), in: machOFile))
-            #expect(queried.symbol == storage.symbolTable[Int(expectedRow)])
+            #expect(queried.symbol == storage.symbolTable.symbol(atRow: expectedRow))
         }
     }
 
@@ -159,9 +192,10 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
     @Test func demangledNodeAndReferenceAgree() throws {
         let storage = try storage
         var checkedCount = 0
-        for (row, symbol) in storage.symbolTable.enumerated() {
+        for row in 0 ..< storage.symbolTable.rowCount {
             guard checkedCount < 200 else { break }
             guard let rootNodeIndex = storage.rootNodeIndexByTableRow[row] else { continue }
+            let symbol = storage.symbolTable.symbol(atRow: UInt32(row))
             let reference = storage.nodeStore.reference(at: rootNodeIndex)
             let materialized = try #require(SymbolIndexStore.shared.demangledNode(for: symbol, in: machOFile))
             #expect(reference.structurallyEquals(materialized))
@@ -197,7 +231,7 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
     @Test func rejectedLateNameCachesItsFailure() throws {
         let storage = try storage
         let bogusSymbol = Symbol(offset: -1, name: "$s999999999999")
-        #expect(storage.tableRowByName[bogusSymbol.name] == nil)
+        #expect(storage.symbolTable.row(forName: bogusSymbol.name) == nil)
 
         #expect(SymbolIndexStore.shared.demangledNodeReference(for: bogusSymbol, in: machOFile) == nil)
         let verdict = try #require(storage.lateDemangleVerdictForTesting(forName: bogusSymbol.name))
@@ -215,12 +249,12 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
         let storage = try storage
 
         let demangledRow = try #require(storage.rootNodeIndexByTableRow.firstIndex(where: { $0 != nil }))
-        let demangledSymbol = storage.symbolTable[demangledRow]
+        let demangledSymbol = storage.symbolTable.symbol(atRow: UInt32(demangledRow))
         _ = try #require(SymbolIndexStore.shared.demangledNodeReference(for: demangledSymbol, in: machOFile))
         #expect(storage.lateDemangleVerdictForTesting(forName: demangledSymbol.name) == nil)
 
         if let rejectedRow = storage.rootNodeIndexByTableRow.firstIndex(where: { $0 == nil }) {
-            let rejectedSymbol = storage.symbolTable[rejectedRow]
+            let rejectedSymbol = storage.symbolTable.symbol(atRow: UInt32(rejectedRow))
             #expect(SymbolIndexStore.shared.demangledNodeReference(for: rejectedSymbol, in: machOFile) == nil)
             #expect(storage.lateDemangleVerdictForTesting(forName: rejectedSymbol.name) == nil)
         }

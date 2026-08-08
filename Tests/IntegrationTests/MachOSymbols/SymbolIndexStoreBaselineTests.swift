@@ -35,7 +35,7 @@ final class SymbolIndexStoreBaselineTests: MachOImageTests {
         do {
         let storage = try #require(builtStorage)
 
-        let symbolTableRowCount = storage.symbolTable.count
+        let symbolTableRowCount = storage.symbolTable.rowCount
         let demangledSymbolCount = storage.rootNodeIndexByTableRow.count(where: { $0 != nil })
         let symbolsByKindEntryCount = storage.symbolRowsByKind.values.reduce(0) { $0 + $1.count }
         let memberEntryCount = storage.memberSymbolRowsByKind.values.reduce(0) { partialResult, memberRows in
@@ -58,7 +58,7 @@ final class SymbolIndexStoreBaselineTests: MachOImageTests {
         print("NodeCache leaf delta               : \(leafCacheCountAfter - leafCacheCountBefore) (\(leafCacheCountBefore) -> \(leafCacheCountAfter))")
         print("NodeCache subtree delta            : \(subtreeCacheCountAfter - subtreeCacheCountBefore) (\(subtreeCacheCountBefore) -> \(subtreeCacheCountAfter))")
         print("nodeStore storage                  : \(nodeStoreBytes / 1_048_576) MB (\(nodeStoreNodeCount) unique nodes)")
-        print("symbolTable rows                   : \(symbolTableRowCount) (stride \(MemoryLayout<Symbol>.stride) B, demangled \(demangledSymbolCount))")
+        print("symbolTable rows                   : \(symbolTableRowCount) (stride \(MemoryLayout<SymbolRow>.stride) B, demangled \(demangledSymbolCount))")
         print("symbolsByKind entries              : \(symbolsByKindEntryCount)")
         print("memberSymbols entries              : \(memberEntryCount)")
         print("methodDescriptorMember entries     : \(methodDescriptorEntryCount)")

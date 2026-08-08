@@ -8,10 +8,7 @@ Documentation is split by audience.
 > The `swift-section` executable is a companion CLI, not the outward contract.
 > Note that `Tests/Projects/SymbolTests` does enable library evolution — that is the test project,
 > not the library itself.
-> Evolution proposals live in [`Evolutions/`](Evolutions/README.md) (status table + numbering there).
-> Proposals 0001–0003 (the memory-optimization line) live on the `feature/node-store-migration`
-> branch and are not on main yet; [0004](Evolutions/0004-arm64e-signed-vwt-pointer-hardening.md)
-> (arm64e signed VWT pointer hardening) is the first proposal landed on main.
+> Evolution proposals live in [`Evolutions/`](Evolutions/README.md) (status table + numbering there); the first one is [0001-symbol-name-offsetization.md](Evolutions/0001-symbol-name-offsetization.md).
 
 ## External — for library users / other developers
 
@@ -76,6 +73,7 @@ required by `Version.swift`'s bump contract).
 | [NodeStoreMigrationPlan.md](Internal/NodeStoreMigrationPlan.md) | `SymbolIndexStore` 迁移到 `NodeStore` arena 存储的分期计划与实施记录（Stage 0–5）：12B/节点扁平缓冲、cache-free build sweep、Symbol 表压缩、声明层换持 `NodeReference`、散点 transient demangling；含 Stage 5a 的 override/vtable 回归修复（裸 `[NodeReference: …]` 的 store-identity 陷阱 → `StructuralNodeReferenceKey`）与三源快照验收。 |
 | [SharedNodeStoreMigration.md](Internal/SharedNodeStoreMigration.md) | **Implemented（2026-08-08）**：三条小 store 流水线（`InternedNodeReferenceCache` / `TypeDefinition` 字段树批量 store / `lateDemangledNode`）汇入上游 0010 `SharedNodeStore` 的迁移设计与落地记录——改动位置、明确不动的部分、验证结果与与方案的差异。 |
 | [MetadataReaderCacheRetirement.md](Internal/MetadataReaderCacheRetirement.md) | **Implemented（2026-08-08）**：`MetadataReaderCache` 清退——三张 class `Node` 树字典（五镜像实测 ~18.4 万残留 `Node` 的持有主体）换持 `NodeReference` 汇入 `InternedNodeReferenceCache` 作用域 store，公开 API 与 103 处调用点零改动，补按镜像清理 seam；含身份稳定性排查、`MultiPayloadEnumDescriptorCache` 不必同批改键的论证与四轴验证记录（1337 tests 同数全绿 / 渲染 A/B 96 对逐字节一致 / 性能持平 / RV 实景存活 `Node` 207,489 → 44，−99.98%）。 |
+| [Evolutions/0001-symbol-name-offsetization.md](Evolutions/0001-symbol-name-offsetization.md) | **提案 0001（Implemented）**：`SymbolIndexStore` 符号名 offset 化——49.4 万个驻留符号名 `String`（68.7 MiB，RV 实测堆内头号大户的最大单项）换成字符串表引用按需物化，`tableRowByName` 字典退役换名字序字节级二分，字节级 `isSwiftSymbol` 判定消掉非 Swift 符号的全部瞬时 String；公开 API 零改动。含 Swift 6.2 Span 家族与 swift-collections 1.6.0 选型裁决（实施时因部署下限改用 `UnsafeBufferPointer` / 精确容量 Array，见决策日志）。 |
 | [DeclarationModelMemoryFootprint.md](Internal/DeclarationModelMemoryFootprint.md) | NodeStore 迁移后的声明模型内存足迹量测：`TypeDefinition` 1272 字节的逐属性构成（两份 `TypeContextWrapper` 占 74%）、`TypeContextWrapper` 按最大 case `Class` 定尺的原因、`parentContext` 是被当成永久字段的临时值、mini-store 增殖与 `MetadataReaderCache` 仍持 `Node` 树；含四项可回收估算（合计 ~8–10%）与「当前不建议实施、应先剖析其余 90%」的结论。 |
 | [NodeStoreMigrationOpenIssues.md](Internal/NodeStoreMigrationOpenIssues.md) | `feature/node-store-migration` 的**已确认问题清单**（2026-07-28 两轮审查 + 复核）。第一节是前一轮修复自身的两处缺口（Catalyst 降级只覆盖 framework 形态导致 plain dylib 仍平局、`appendRowIfAbsent` 线性扫描），已于 2026-07-29 闭环并保留成因；第二节起为仍然打开或已裁决的条目：`structuralHash` 每文本节点分配 `String` 与 `ABIKey` 每 key materialize 两条**已按上游设计终审关闭**（0.5.1 保持现状且上游说明不改，见 ReviewAdjudications A1/A2）、`memberSymbols` 改为线性 + 全树比对（**已证实量级可忽略，不是回归**）；`lateDemangledNode` 持锁 demangle 与 `ProtocolConformanceDumper` 的 materialize 分支两条**已于 2026-08-03 闭环**（连同失败名裁决缓存、dump 路径引用化）、build sweep 串行且每符号跨线程往返（上游）、`ABIKey` 每 key materialize，以及四条代码卫生项；两个公开查询 API 的字典键一条**已于 2026-08-03 裁决为不修**（类型级 SPI），rebase 前置事项一条前提已过期但压着两条仍成立的注意事项。逐条注明成因、影响面与「该在哪里修」。与 `Reviews/` 下两份审查记录冲突时以后者为准。 |
 | [SystemFrameworkRenderingVerification.md](Internal/SystemFrameworkRenderingVerification.md) | 系统框架渲染 A/B 验证流程（大重构必跑）：两个检出对同一批真实输入（归档 dyld cache → 无则当前系统 cache、模拟器 runtime → 无则现有 runtime、当前系统 MachOImage）逐字节比对 dump+interface；入口脚本 `Scripts/run-rendering-ab-verification.py`，含回退规则、踩坑清单（`-p` 消歧、fat 二进制 `-a`、同 boot 会话、scratch 隔离）与 2026-08-03 基线运行记录。 |
