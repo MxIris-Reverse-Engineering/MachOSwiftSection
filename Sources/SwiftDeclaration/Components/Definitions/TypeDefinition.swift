@@ -158,11 +158,12 @@ public final class TypeDefinition: Definition {
         let typeContextDescriptor = try required(type.contextDescriptorWrapper.typeContextDescriptor)
         let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machO)
         let records = try fieldDescriptor.records(in: machO)
-        // All field type trees of one type share a single store, so common
-        // subtrees (module references, stdlib types) deduplicate instead of
-        // paying a per-field mini store.
-        var fieldNodeStoreBuilder = NodeStoreBuilder()
-        var pendingFields: [(name: String, typeNodeIndex: NodeStore.NodeIndex, flags: FieldFlags)] = []
+        // Field type trees intern into the image's shared store
+        // (`InternedNodeReferenceCache`), so common subtrees (module
+        // references, stdlib types) deduplicate across the whole image —
+        // the per-type builder+freeze store this replaced could only
+        // deduplicate within one type.
+        var indexedFields: [FieldDefinition] = []
         for record in records {
             let typeNode = try record.demangledTypeNode(in: machO)
             let name = try record.fieldName(in: machO)
@@ -190,13 +191,9 @@ public final class TypeDefinition: Definition {
             if try !record.mangledTypeName(in: machO).isEmpty {
                 fieldFlags.insert(.hasMangledTypeName)
             }
-            pendingFields.append((name: name.stripLazyPrefix, typeNodeIndex: fieldNodeStoreBuilder.intern(typeNode), flags: fieldFlags))
+            indexedFields.append(FieldDefinition(name: name.stripLazyPrefix, typeNode: InternedNodeReferenceCache.shared.reference(interning: typeNode, in: machO), flags: fieldFlags))
         }
-        let fieldNodeStore = fieldNodeStoreBuilder.freeze()
-
-        self.fields = pendingFields.map { pendingField in
-            FieldDefinition(name: pendingField.name, typeNode: fieldNodeStore.reference(at: pendingField.typeNodeIndex), flags: pendingField.flags)
-        }
+        self.fields = indexedFields
 
         let fieldNames = Set(fields.map(\.name))
 

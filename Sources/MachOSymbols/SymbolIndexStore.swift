@@ -191,15 +191,23 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         let thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: [ThunkAttributeMember]]]
 
         /// Symbols demangled after the store was frozen (rare path: lookups
-        /// for names that were not part of the build sweep). The frozen arena
-        /// cannot grow, so each late name gets a mini store; the volume is
-        /// small and every consumer keeps receiving a uniform `NodeReference`.
-        ///
-        /// Keyed by name, like `tableRowByName`: a demangled tree is a pure
-        /// function of the symbol name, so two symbols at different offsets
-        /// sharing a name share a tree. A stored `nil` records a name the
-        /// demangler rejected — rejection is exactly as deterministic as
-        /// success, so it is cached the same way and never retried.
+        /// for names that were not part of the build sweep). The frozen main
+        /// arena cannot grow, so late names go into this appendable per-image
+        /// side store; every consumer keeps receiving a uniform
+        /// `NodeReference`. Deliberately self-held rather than shared with
+        /// `InternedNodeReferenceCache`'s image store: that cache is evicted
+        /// and rebuilt under memory pressure while this `Storage` is not, and
+        /// sharing would leave the two referencing different stores after an
+        /// eviction.
+        private let lateNameStore = SharedNodeStore()
+
+        /// Verdict cache over `lateNameStore`, keyed by name like
+        /// `tableRowByName`: a demangled tree is a pure function of the
+        /// symbol name, so two symbols at different offsets sharing a name
+        /// share a tree. A stored `nil` records a name the demangler
+        /// rejected — rejection is exactly as deterministic as success, so
+        /// it is cached the same way and never retried (`SharedNodeStore`
+        /// itself throws on failure and caches nothing).
         @Mutex
         private var lateDemangledNodeByName: [String: NodeReference?] = [:]
 
@@ -238,15 +246,12 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         /// large-stack thread and block on a semaphore, and an
         /// `os_unfair_lock` must not be held across a blocking wait (priority
         /// donation is lost and every other late lookup on the image
-        /// serializes behind it). The lock arbitrates insert-if-absent
-        /// instead — two threads missing concurrently both demangle, but only
-        /// the first insertion wins and the loser returns the winner's
-        /// reference, so one name still never hands out references into
-        /// *different* stores (those would compare unequal under
-        /// `NodeReference`'s store-identity `Hashable` and turn downstream
-        /// dedup into a run-to-run coin flip). The loser's mini store is
-        /// discarded; a demangled tree is a pure function of the name, so the
-        /// copies are interchangeable.
+        /// serializes behind it). Two threads missing concurrently both
+        /// demangle, but both intern into the one `lateNameStore`, whose
+        /// structural dedup hands them the *same* reference — the race costs
+        /// a duplicate parse, never references into different stores. The
+        /// insert-if-absent shape stays only to keep one canonical verdict
+        /// per name.
         ///
         /// Rejections are cached like successes (`nil` verdict): the
         /// demangler is deterministic, so a retry can only re-pay the failed
@@ -257,11 +262,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             if let cachedVerdict = _lateDemangledNodeByName.withLockUnchecked({ $0[name] }) {
                 return cachedVerdict
             }
-            var lateBuilder = NodeStoreBuilder()
-            var demangled: NodeReference?
-            if let nodeIndex = try? lateBuilder.demangle(name) {
-                demangled = lateBuilder.freeze().reference(at: nodeIndex)
-            }
+            let demangled = try? lateNameStore.demangle(name)
             return _lateDemangledNodeByName.withLockUnchecked { cache in
                 if let winner = cache[name] { return winner }
                 // `updateValue` rather than the subscript: assigning an
