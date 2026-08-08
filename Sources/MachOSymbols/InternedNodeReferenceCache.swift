@@ -5,85 +5,54 @@ import MachOExtensions
 @_spi(Internals) import MachOCaches
 import SwiftStdlibToolbox
 
-/// Structural deduplication for `NodeReference(interning:)`.
+/// Scope-keyed shared interning arenas for metadata-derived name trees.
 ///
-/// `NodeReference(interning:)` mints one private arena per call — upstream
-/// documents it as the wrong tool for a batch, since deduplication and
-/// compactness are both properties of a shared arena. The name-construction
-/// sites (`TypeName` / `ProtocolName` / `ExtensionName` built from
-/// `MetadataReader` trees) call it once per *occurrence*, and occurrences
-/// repeat heavily: every conformance re-interns its protocol's name, every
-/// nested type re-interns its parent's, every extension its target's.
-/// Measured on the `SymbolTestsCore` fixture, 730 retained mini stores
-/// backed only 472 structurally unique trees — and the repeat factor grows
-/// with framework size (conformance fan-out dominates).
+/// One `SharedNodeStore` per scope: every tree interned in a scope lands in
+/// that scope's single appendable arena, whose interning tables deduplicate
+/// persistently — structurally equal trees return the *same* reference
+/// (store identity included), at any two points in the scope's lifetime.
+/// The name-construction sites (`TypeName` / `ProtocolName` /
+/// `ExtensionName` built from `MetadataReader` trees, and `TypeDefinition`'s
+/// field type trees) intern once per *occurrence*, and occurrences repeat
+/// heavily: every conformance re-interns its protocol's name, every nested
+/// type re-interns its parent's, every extension its target's. Sharing one
+/// store per scope keeps name equality on `structurallyEquals`' same-store
+/// `store ===` fast path (an index compare, not a tree walk).
 ///
-/// This cache keeps one reference per structurally unique tree: repeats hand
-/// back the previously minted reference, so equal names share one store and
-/// `structurallyEquals`' same-store `store ===` fast path starts firing for
-/// them (name equality drops from a full tree walk to an index compare).
-///
-/// Two scopes, matching `SharedCache`'s two keying modes:
-/// - **Per image** (`reference(interning:in:)`): the bucket lives and dies
+/// Historically this type was a structural-hash bucket layer over
+/// `NodeReference(interning:)` — one private mini store per unique tree,
+/// because the frozen `NodeStoreBuilder` flow could not hand out references
+/// before `freeze()`. Upstream evolution 0010 (`SharedNodeStore`) removed
+/// that barrier, so the bucket layer retired; what remains here is the part
+/// `SharedNodeStore` deliberately does not know about — Mach-O scope keying
+/// and eviction:
+/// - **Per image** (`reference(interning:in:)`): the store lives and dies
 ///   with the image — evicted on memory pressure with every other shared
 ///   cache, and dropped by `SwiftDeclarationIndexer`'s per-image cleanup so
 ///   the recycling model holds.
 /// - **Per process** (`reference(interning:)`): for the in-process reading
-///   paths that have no Mach-O handle. One type-keyed bucket, memory-pressure
+///   paths that have no Mach-O handle. One type-keyed store, memory-pressure
 ///   evictable, bounded by the unique names the process actually touches.
 ///
-/// Retention trade: the cache pins every minted mini store for its scope's
-/// lifetime, including names a query produced and dropped. That is bounded
-/// by *unique* names per scope and buys the dedup above; the pre-cache
-/// behavior pinned one store per *retained occurrence* with no sharing at
-/// all.
+/// Eviction reclaims nothing while external references survive: a
+/// `NodeReference` keeps its backing storage alive after the scope drops
+/// (reads stay valid, interning stops) — the same semantics the retired
+/// mini stores had. No capacity reservation: the 0009 coefficients are
+/// calibrated on the bulk symbol corpus and name-tree workloads grow
+/// incrementally by nature; use `capacityUtilization` if calibration is
+/// ever wanted.
 @_spi(ForSymbolViewer)
 @_spi(Internals)
 public final class InternedNodeReferenceCache: SharedCache<InternedNodeReferenceCache.Storage>, @unchecked Sendable {
     public static let shared = InternedNodeReferenceCache()
 
-    public final class Storage: @unchecked Sendable {
-        /// Minted references bucketed by their tree's structural hash
-        /// (`Node`'s `Hashable` is structural); collisions resolve by
-        /// `structurallyEquals`, so a bucket almost always holds one entry.
-        @Mutex
-        private var referencesByStructuralHash: [Int: [NodeReference]] = [:]
+    public final class Storage: Sendable {
+        /// The scope's single appendable arena; `intern` serializes on the
+        /// store's own writer lock and deduplicates structurally.
+        fileprivate let store = SharedNodeStore()
 
-        /// Get-or-mint following the same discipline as
-        /// `SymbolIndexStore.Storage.lateDemangledNode(forName:)`: the
-        /// interning runs *outside* the critical section (it allocates and
-        /// walks the whole tree, which has no business inside an
-        /// `os_unfair_lock`), and the lock arbitrates insert-if-absent — a
-        /// racing loser discards its freshly minted store and returns the
-        /// winner's reference, so one structural name never hands out
-        /// references into two stores within one scope.
         fileprivate func reference(interning node: Node) -> NodeReference {
-            var hasher = Hasher()
-            hasher.combine(node)
-            let structuralHashValue = hasher.finalize()
-
-            if let existing = _referencesByStructuralHash.withLockUnchecked({ buckets in
-                buckets[structuralHashValue]?.first(where: { $0.structurallyEquals(node) })
-            }) {
-                return existing
-            }
-
-            let minted = NodeReference(interning: node)
-            return _referencesByStructuralHash.withLockUnchecked { buckets in
-                if let winner = buckets[structuralHashValue]?.first(where: { $0.structurallyEquals(node) }) {
-                    return winner
-                }
-                buckets[structuralHashValue, default: []].append(minted)
-                return minted
-            }
-        }
-
-        /// Test-only visibility: the number of structurally distinct trees
-        /// currently cached in this scope.
-        public var cachedReferenceCountForTesting: Int {
-            _referencesByStructuralHash.withLockUnchecked { buckets in
-                buckets.values.reduce(0) { $0 + $1.count }
-            }
+            store.intern(node)
         }
     }
 

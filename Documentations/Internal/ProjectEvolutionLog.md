@@ -747,6 +747,7 @@
   - 最后两处带全局缓存的 `demangleAsNode` 转 `demangleAsNodeTransient`：`SwiftLayout.ObjCClassIndex`（取限定名字符串即弃树）与 `SwiftDeclarationRendering.SpecializedMetadataNodeSubstitution`（渲染即弃）。至此 Sources 下 cached `demangleAsNode(` 清零，Stage 5c 收口补全。
 - **关键决策**：三条「每树/每类型/每晚到名字铸小 store」的流水线（`InternedNodeReferenceCache`、`TypeDefinition` 字段树批量 store、`lateDemangledNode`）**不动**——它们是对上游「builder 一次性 freeze」缺口的正确规避，等 swift-demangling 提案 0010（`SharedNodeStore`，Draft）落地后统一汇入每镜像共享 store。
 - **文档**：[NodeStoreMigrationPlan.md](NodeStoreMigrationPlan.md)「内存图驱动的驻留收口（2026-08-08）」一节；AGENTS.md Stage 5c 站点清单同步。
+- **补记（2026-08-08 同日，第三项落地）**：上游 0010（`SharedNodeStore`）当日 Implemented，本仓库迁移设计（[SharedNodeStoreMigration.md](SharedNodeStoreMigration.md)）经批准后同日实施：`InternedNodeReferenceCache` 退役哈希桶层、外壳换持每 scope 一个 `SharedNodeStore`（31 个调用点零波及）；`TypeDefinition.index` 字段树两阶段收敛为直接 intern 进镜像 store（去重范围从单类型扩到全镜像）；`lateDemangledNode` 换 `Storage` 自持的 side store、「loser 弃店」删除。全量 1337 tests 全绿且与迁移前同数，缓存与 late-path 的八条行为测试未改一行原样通过。用户裁决豁免「上游先 push」前置条件（无 sibling 环境在上游 push 前不可构建，知情接受）。RV 五镜像 memory graph 实景复测待上游会话执行。
 - **对应版本**：`0.14.1` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
 
 ---

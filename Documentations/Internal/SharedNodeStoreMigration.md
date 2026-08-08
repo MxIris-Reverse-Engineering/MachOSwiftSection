@@ -1,6 +1,6 @@
 # SharedNodeStore 迁移：三条小 store 流水线汇入每镜像共享 store
 
-> **状态：Accepted（2026-08-08 批准）**——实现等待落地前置条件（上游 `feature/node-store` 分支 push/发版）满足后开始；落地后在文末补「与方案的差异」。
+> **状态：Implemented（2026-08-08 批准并同日落地）**——落地记录与「与方案的差异」见文末。
 
 ## 一句话
 
@@ -35,6 +35,17 @@
 ## 落地前置条件
 
 - swift-demangling `feature/node-store` 分支的 0010 提交（`9997830`→`bb1f81c`）目前**只在对方本地 worktree，尚未 push**。本机经 `.claude/worktrees/` 兄弟符号链接可解析，但任何无 sibling 的环境会静默回落远端旧版（`SharedNodeStore` 不存在，编译失败还算好的；更险的是快照 A/B 失真——见 AGENTS.md 环境漂移检查第 2 条）。**上游 push（及后续版本发布）先行，本迁移再落。**
+
+## 落地记录（2026-08-08）
+
+三处均按上表实施：`InternedNodeReferenceCache.Storage` 换持一个 `SharedNodeStore`（哈希桶层与 get-or-mint 舞蹈整体删除，类文档注释改写为「作用域键控 + 驱逐」的新分工）；`TypeDefinition.index(in:)` 的字段树两阶段（builder → freeze → map）收敛为单阶段直接经缓存 intern 进镜像 store；`lateDemangledNode` 的 builder-per-name 换 `Storage` 自持的 `lateNameStore.demangle(name)`，「loser 弃店」段删除、名字 → 裁决字典保留。AGENTS.md「Symbol indexing」段的四处措辞同步（late 路径、缓存分工、字段树去重范围、跨 store 常态的论据）。
+
+**验证**：干净重建零 warning；全量 `swift test --skip IntegrationTests` **1337 tests 全绿、0 失败**（与迁移前完全同数，含 interface 快照逐字节断言）；`InternedNodeReferenceCacheTests` 五条行为断言与 `SymbolIndexStoreFixtureTests` 三条 late-path 性质测试**原样通过、未改一行**——同 store、去重、驱逐重铸、并发单赢家这些行为在 `SharedNodeStore` 背书下语义保持。RuntimeViewer 五镜像 memory graph 实景复测（验收计划第 4 条）待 swift-demangling 侧会话按共识执行。
+
+## 与方案的差异
+
+1. **验收计划第 2 条落空（良性）**：预期要更新口径的驻留计数断言实际不存在——`cachedReferenceCountForTesting` 全库无使用者，已随哈希桶层一并删除；行为断言无需任何改动。
+2. **落地前置条件被用户裁决豁免（2026-08-08）**：未等上游 `feature/node-store` 分支 push，本地经 sibling 符号链接先行落地。在上游 push 前，本分支在无 sibling 的环境不可构建（`SharedNodeStore` 解析不到），该风险用户知情接受；上游 push 后自动消除。
 
 ## 上游 API 摘要（详见 swift-demangling `Documentations/NodeStoreArena.md` 共享 store 一节）
 
