@@ -483,6 +483,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         let totalSymbolCount = symbolTable.count
 
         var builder = NodeStoreBuilder()
+        builder.reserveCapacity(expectedSymbolCount: totalSymbolCount)
         var rootNodeIndexByTableRow = [NodeStore.NodeIndex?](repeating: nil, count: totalSymbolCount)
         var rowIndexes = RowIndexes()
 

@@ -1,6 +1,6 @@
 import MachOKit
 @_spi(Core) import MachOObjCSection
-import Demangling
+@_spi(Internals) import Demangling
 
 /// Builds a per-image index from an Objective-C class's bare name to the start
 /// layout a Swift subclass inherits from it: the class's `instanceSize` (where a
@@ -114,11 +114,13 @@ enum ObjCClassIndex {
     /// demangler.
     private static func swiftClassQualifiedName(fromRuntimeName runtimeName: String) -> String? {
         guard runtimeName.hasPrefix("_Tt") || runtimeName.hasPrefix("$s") else { return nil }
-        // `demangleAsNode` wraps the result in `.global`; the qualified-name
+        // The demangler wraps the result in `.global`; the qualified-name
         // builder wants the bare nominal class node (the same shape
         // `MetadataReader.demangleContext` produces on the descriptor side).
+        // Transient demangle: only the qualified-name string survives this
+        // call, so the tree must not be interned into the global `NodeCache`.
         guard
-            let node = try? demangleAsNode(runtimeName),
+            let node = try? demangleAsNodeTransient(runtimeName),
             let classNode = node.first(of: .class)
         else { return nil }
         return NodeTypeNaming.nominalQualifiedName(of: classNode)

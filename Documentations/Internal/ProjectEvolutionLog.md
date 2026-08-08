@@ -738,6 +738,19 @@
 
 ---
 
+## 32. 内存图驱动的 NodeStore 驻留收口：容量预留 + 残余 cached demangle 清零
+
+- **时间段**：2026-08-08。
+- **动机**：RuntimeViewer 索引五个系统镜像（Foundation + libswiftCore + AppKit + SwiftUI + SwiftUICore）后的 memory graph 显示存活 `Node` 208,809 个、`NodeStore` 14,451 个；swift-demangling 侧会话定位来源后转来三项计划，本批落地其中两项，第三项显式等待上游。
+- **落地**：
+  - `SymbolIndexStore` 主 sweep 的 `NodeStoreBuilder` 构造后一行 `reserveCapacity(expectedSymbolCount: totalSymbolCount)`（上游提案 0009 API），消掉构建期缓冲增长拷贝与冷启动 footprint 尖峰（上游实测减半）；预留 growing-only 且不改变 interning 结果。
+  - 最后两处带全局缓存的 `demangleAsNode` 转 `demangleAsNodeTransient`：`SwiftLayout.ObjCClassIndex`（取限定名字符串即弃树）与 `SwiftDeclarationRendering.SpecializedMetadataNodeSubstitution`（渲染即弃）。至此 Sources 下 cached `demangleAsNode(` 清零，Stage 5c 收口补全。
+- **关键决策**：三条「每树/每类型/每晚到名字铸小 store」的流水线（`InternedNodeReferenceCache`、`TypeDefinition` 字段树批量 store、`lateDemangledNode`）**不动**——它们是对上游「builder 一次性 freeze」缺口的正确规避，等 swift-demangling 提案 0010（`SharedNodeStore`，Draft）落地后统一汇入每镜像共享 store。
+- **文档**：[NodeStoreMigrationPlan.md](NodeStoreMigrationPlan.md)「内存图驱动的驻留收口（2026-08-08）」一节；AGENTS.md Stage 5c 站点清单同步。
+- **对应版本**：`0.14.1` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
