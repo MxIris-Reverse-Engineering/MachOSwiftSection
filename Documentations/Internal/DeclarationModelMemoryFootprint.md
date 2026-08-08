@@ -164,3 +164,7 @@ print(MemoryLayout<TypeGenericContext?>.size)              // 160
 
 malloc 分桶用 `malloc_size()`（`<malloc/malloc.h>`）实测，Swift 对象用
 `malloc_size(Unmanaged.passUnretained(object).toOpaque())`。
+
+## 后记（2026-08-08）
+
+第五节第 3 条的后半项（`MetadataReaderCache` 改持 `NodeReference`）已按用户裁决落地——「当前不建议实施」的结论对该项不再成立，其余各项维持原判。设计与落地记录见 [MetadataReaderCacheRetirement.md](MetadataReaderCacheRetirement.md)；本文其余量测与账目保持原貌不改。

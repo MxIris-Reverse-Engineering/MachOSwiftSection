@@ -45,6 +45,16 @@ extension MetadataReader {
         return SymbolIndexStore.shared.demangledNodeReference(for: symbol, in: machO)
     }
 
+    /// Drops the per-image demangle memo so the next query rebuilds it.
+    ///
+    /// Wired into `SwiftDeclarationIndexer`'s per-image cleanup alongside the
+    /// symbol store and interned-name bucket removals: the memo's values are
+    /// references into that interned scope store, so leaving the memo behind
+    /// would keep the dropped store's buffers alive.
+    public static func removeCache(for machO: some MachOSwiftSectionRepresentableWithCache) {
+        MetadataReaderCache.shared.remove(for: machO)
+    }
+
     public static func demangleContext<MachO: MachOSwiftSectionRepresentableWithCache>(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
         if isCacheEnabled {
             return try MetadataReaderCache.shared.demangleContext(for: context, in: machO)
@@ -625,6 +635,15 @@ extension Node {
     }
 }
 
+/// Memoizes `MetadataReader`'s expensive demangling work (mangled-name /
+/// context-descriptor / symbol-context builds) per image and per process.
+///
+/// The dictionaries deduplicate the *work*; the trees live as `NodeReference`s
+/// in the `InternedNodeReferenceCache` scope stores, which deduplicate the
+/// *storage* against the declaration model's interned name trees. A hit
+/// materializes a fresh tree, so the cache retains no class `Node` and the
+/// returned instances are never shared across calls — key long-lived state
+/// structurally, never by `ObjectIdentifier` of a returned node.
 private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage>, @unchecked Sendable {
     fileprivate static let shared = MetadataReaderCache()
 
@@ -648,15 +667,17 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage
 
     final class Storage {
         @Mutex
-        fileprivate var nodeForMangledNameBox: [MangledNameBox: Node] = [:]
+        fileprivate var nodeReferenceForMangledNameBox: [MangledNameBox: NodeReference] = [:]
 
         /// Cache for context descriptor demangling results, keyed by descriptor offset.
         @Mutex
-        fileprivate var nodeForContextOffset: [Int: Node] = [:]
+        fileprivate var nodeReferenceForContextOffset: [Int: NodeReference] = [:]
 
         /// Cache for symbol-based context mangling results, keyed by symbol name.
+        /// A stored `nil` is a cached rejection verdict: the build already
+        /// answered "no context mangling" once and is never retried.
         @Mutex
-        fileprivate var nodeForSymbolName: [String: Node?] = [:]
+        fileprivate var nodeReferenceForSymbolName: [String: NodeReference?] = [:]
     }
 
     override func buildStorage<MachO: MachORepresentableWithCache>(for machO: MachO) -> Storage? {
@@ -668,21 +689,21 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage
     }
 
     func demangleType<MachO: MachOSwiftSectionRepresentableWithCache>(for mangledName: MangledName, in machO: MachO) throws -> Node {
-        if let node = storage(in: machO)?.nodeForMangledNameBox[MangledNameBox(mangledName)] {
-            return node
+        if let reference = storage(in: machO)?.nodeReferenceForMangledNameBox[MangledNameBox(mangledName)] {
+            return reference.materialize()
         } else {
             let node = try MetadataReader._demangleType(for: mangledName, in: machO)
-            storage(in: machO)?.nodeForMangledNameBox[MangledNameBox(mangledName)] = node
+            storage(in: machO)?.nodeReferenceForMangledNameBox[MangledNameBox(mangledName)] = InternedNodeReferenceCache.shared.reference(interning: node, in: machO)
             return node
         }
     }
 
     func demangleType(for mangledName: MangledName) throws -> Node {
-        if let node = storage()?.nodeForMangledNameBox[MangledNameBox(mangledName)] {
-            return node
+        if let reference = storage()?.nodeReferenceForMangledNameBox[MangledNameBox(mangledName)] {
+            return reference.materialize()
         } else {
             let node = try MetadataReader._demangleType(for: mangledName)
-            storage()?.nodeForMangledNameBox[MangledNameBox(mangledName)] = node
+            storage()?.nodeReferenceForMangledNameBox[MangledNameBox(mangledName)] = InternedNodeReferenceCache.shared.reference(interning: node)
             return node
         }
     }
@@ -691,22 +712,22 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage
 
     func demangleContext<MachO: MachOSwiftSectionRepresentableWithCache>(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
         let key = context.contextDescriptor.offset
-        if let node = storage(in: machO)?.nodeForContextOffset[key] {
-            return node
+        if let reference = storage(in: machO)?.nodeReferenceForContextOffset[key] {
+            return reference.materialize()
         } else {
             let node = try MetadataReader._demangleContext(for: context, in: machO)
-            storage(in: machO)?.nodeForContextOffset[key] = node
+            storage(in: machO)?.nodeReferenceForContextOffset[key] = InternedNodeReferenceCache.shared.reference(interning: node, in: machO)
             return node
         }
     }
 
     func demangleContext(for context: ContextDescriptorWrapper) throws -> Node {
         let key = context.contextDescriptor.offset
-        if let node = storage()?.nodeForContextOffset[key] {
-            return node
+        if let reference = storage()?.nodeReferenceForContextOffset[key] {
+            return reference.materialize()
         } else {
             let node = try MetadataReader._demangleContext(for: context)
-            storage()?.nodeForContextOffset[key] = node
+            storage()?.nodeReferenceForContextOffset[key] = InternedNodeReferenceCache.shared.reference(interning: node)
             return node
         }
     }
@@ -715,22 +736,24 @@ private final class MetadataReaderCache: SharedCache<MetadataReaderCache.Storage
 
     func buildContextManglingForSymbol<MachO: MachOSwiftSectionRepresentableWithCache>(_ symbol: Symbol, in machO: MachO) throws -> Node? {
         let key = symbol.name
-        if let cached = storage(in: machO)?.nodeForSymbolName[key] {
-            return cached
+        if let cachedVerdict = storage(in: machO)?.nodeReferenceForSymbolName[key] {
+            return cachedVerdict?.materialize()
         } else {
             let node = try MetadataReader._buildContextManglingForSymbol(symbol, in: machO.context)
-            storage(in: machO)?.nodeForSymbolName[key] = node
+            // updateValue: a plain subscript assignment of a nil verdict would
+            // remove the key instead of caching the rejection.
+            storage(in: machO)?.nodeReferenceForSymbolName.updateValue(node.map { InternedNodeReferenceCache.shared.reference(interning: $0, in: machO) }, forKey: key)
             return node
         }
     }
 
     func buildContextManglingForSymbol(_ symbol: Symbol) throws -> Node? {
         let key = symbol.name
-        if let cached = storage()?.nodeForSymbolName[key] {
-            return cached
+        if let cachedVerdict = storage()?.nodeReferenceForSymbolName[key] {
+            return cachedVerdict?.materialize()
         } else {
             let node = try MetadataReader._buildContextManglingForSymbol(symbol, in: InProcessContext.shared)
-            storage()?.nodeForSymbolName[key] = node
+            storage()?.nodeReferenceForSymbolName.updateValue(node.map { InternedNodeReferenceCache.shared.reference(interning: $0) }, forKey: key)
             return node
         }
     }

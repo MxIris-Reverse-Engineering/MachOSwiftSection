@@ -158,6 +158,10 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             // lifetime: names minted while this indexer owned the image are
             // dropped with it, keeping the recycling model intact.
             InternedNodeReferenceCache.shared.remove(for: machO)
+            // The demangle memo's values reference the interned scope store
+            // dropped above; leaving the memo behind would keep those buffers
+            // alive past the image's lifetime.
+            MetadataReader.removeCache(for: machO)
         }
     }
 
