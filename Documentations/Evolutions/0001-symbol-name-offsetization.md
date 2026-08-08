@@ -180,7 +180,11 @@ final class SymbolTable: @unchecked Sendable {
 2. **全量套件**：`swift test --skip IntegrationTests` **1341 tests / 256 suites 全绿**（改动前 1337 + 新增 4，同数吻合；快路径补丁后复跑同样全绿）。
 3. **渲染 A/B**（`Scripts/run-rendering-ab-verification.py`，baseline `aa91b9b`，双侧 `USING_LOCAL_DEPENDENCIES=1` 且 sibling 均验证为 `fileSystem` 解析）：**96 对全部逐字节一致、0 不一致**（当前系统 dyld cache + iOS 15.5–27.0 七个模拟器 runtime + in-process MachOImage，dump + interface；skip 项均为旧 runtime 本就不含的框架，与上一次 A/B 同构）。
 4. **性能与峰值内存**（iOS 18.5 模拟器 SwiftUI `interface`，双侧 release 三轮交错，`/usr/bin/time -l`）：wall-clock 中位 **72.5s（基线）vs 70.0s（候选）**，散布 61–79s，差异在噪声带内——持平；两侧输出再次逐字节一致。maxRSS 基线 383–390 MiB vs 候选 400–403 MiB——**文件腿构建期峰值 +~15 MiB（+4%）**：build 期去重字典retain 的 `String` 键与私有字节缓冲在 freeze 前短暂持有同一批名字字节的两份拷贝（提案「构建峰值」风险段只算了字典本身、漏了这层字节重复），freeze 丢弃字典后回落。镜像腿不付此代价（行直指 mapped 字符串表、无字节复制），而 RV 的目标指标是**稳态**驻留，最终以落地步骤 8 的 RV 复测为裁判。
-5. **RV footprint + heap 复测**（落地步骤 8）：落地后由 swift-demangling 会话协调 RuntimeViewer 重编复测，结果回填此处（预期堆存活 355 → ~255–285 MiB）。
+5. **RV footprint + heap 复测**（落地步骤 8，2026-08-08 同日闭环；RuntimeViewer 重编零源码改动，环境经对面核对——sibling 解析、swift-demangling @ `9464265`、`USING_LOCAL_DEPENDENCIES=1`、无远端回退）：**全项落在或好于预期带**。
+   - 干净跑绝对数：footprint 稳态 **445 → 322 MB（−123 MB，−28%）**，好于对面 350–375 的预期（MALLOC_SMALL 脏页 306 → 237，另有 65 MB reclaimable 在归还路上；MALLOC_LARGE 106 → 55）；堆存活 **355 → 283.3 MiB**（预期带 ~255–285 内），分配数 −33 万；索引期瞬态峰值 **893 → 808 MB**——sweep 期非 Swift 符号的 String churn 被字节级判定砍掉，在峰值上可见。
+   - heap 按类对照：StringStorage **784,254 个 / 84.2 MiB → 356,094 个 / 31.3 MiB**（49.4 万条驻留符号名如预期消失）；5 × `Dictionary<String, UInt32>` 名表 20 MiB 从堆顶消失，代之 offset 键表 12.9 MiB；`[Symbol]` 24.5 MiB → `[SymbolRow]` 10.4 MiB（≈ 68 万行 × 16 字节，与行格式吻合）。
+   - logging 跑归属复核：`SymbolIndexStore` 簇 **214.6 → 120.9 MiB**（预期 120–145 带内）；全进程 StringStorage 分配 96.8 → 36.4 MiB；无回归旁证——MetadataReader 1.4 MiB 不变、Demangling 22.6 不变、ObjC 索引 33.8 不变、NIO/Rx/声明模型持平。
+   - RV 五镜像稳态累计曲线：470–480 →（MetadataReaderCache 清退）~450 →（本案）**322 MB**。
 
 ## 决策日志
 
@@ -194,3 +198,4 @@ final class SymbolTable: @unchecked Sendable {
 | 2026-08-08 | 实施偏差：RigidArray 放弃 | 同一部署下限问题的连带裁决：`RigidArray`（noncopyable）存进 class 属性后的 borrow 人体工学要到 SE-0507（Swift 6.4）才齐。改用提案括号里本就给出的等价退路——freeze 时精确容量 `Array` 拷贝（容量已精确者跳过拷贝），且因此**无需**给 `Package.swift` 加 `BasicContainers` 依赖、无需提 swift-collections 版本。 |
 | 2026-08-08 | 实施偏差：搭车项裁剪 | `rootNodeIndexByTableRow` 的 `Optional<NodeIndex>` → `UInt32.max` 哨兵一项**放弃**：`NodeStore.NodeIndex` 的构造器是上游 internal（debug 布局还带 store tag），从原始 `UInt32` 重建索引需要新的上游 API，为 ~1.6 MB 不值得跨仓库开口子。`symbolRowsByOffset` 换普通 `Dictionary` 一项照做。另一实现细节：standalone `SymbolTable` 统一走私有字节缓冲表示（提案草绘的 `[String]` 变体不再需要——单一表示，读取路径零分支）。 |
 | 2026-08-08 | Implemented + 收尾判断 | 验证结果见「落地记录」（1341 全绿、A/B 96 对逐字节一致、性能持平；文件腿构建期峰值 +4% 如实记录，RV 稳态复测为最终裁判、结果回填）。收尾判断：**不另写实现说明**——「代码看不出来的决策」（mapped 指针生命周期约束、名字来源双腿、Span 不可用的原因）已分别落在 `SymbolTable` 类文档、AGENTS.md「Symbol indexing」段与本提案决策日志，另立一篇只会是复述；**不登记新术语表**——本项目无 `Glossary.md`（项目现状即约定），「offset 化 / 名字来源 / permutation 二分」均在首次出现处展开。 |
+| 2026-08-08 | RV 复测闭环 | 落地步骤 8 完成（对面协调，同日）：footprint 稳态 445 → 322 MB（−28%，好于预期）、堆存活 355 → 283.3 MiB（预期带内）、`SymbolIndexStore` 簇 214.6 → 120.9 MiB、StringStorage −42.8 万个/−52.9 MiB，无回归旁证。详数见「落地记录」第 5 条。本提案全部落地步骤就此闭环。 |

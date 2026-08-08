@@ -33,7 +33,7 @@
 2. 全量 `swift test --skip IntegrationTests`：**1341 tests / 256 suites 全绿**（改动前 1337 + 新增 4，同数吻合）。
 3. 渲染 A/B（`Scripts/run-rendering-ab-verification.py`，baseline `aa91b9b`，`USING_LOCAL_DEPENDENCIES=1`，双侧 sibling 均确认 `fileSystem` 解析）：**96 对全部逐字节一致、0 不一致**（当前系统 dyld cache + iOS 15.5–27.0 七个模拟器 runtime + in-process MachOImage，dump + interface；skip 项均为旧 runtime 本就不含的框架，与上次 A/B 同构）。
 4. 性能与峰值内存（iOS 18.5 模拟器 SwiftUI `interface`，双侧 release 三轮交错，`/usr/bin/time -l`）：wall-clock 中位 72.5s vs 70.0s（散布 61–79s，噪声带内）——持平，输出再次逐字节一致；maxRSS 383–390 → 400–403 MiB——**文件腿构建期峰值 +~15 MiB**，成因是 build 期去重字典的 `String` 键与私有字节缓冲在 freeze 前短暂持有同一批名字字节两份（提案风险段漏算的一层），freeze 后回落；镜像腿无此代价。
-5. RV footprint + heap 复测：落地后由 swift-demangling 会话协调，结果回填提案落地记录（预期堆存活 355 → ~255–285 MiB）。
+5. RV footprint + heap 复测（同日闭环，对面协调，RuntimeViewer 重编零源码改动）：footprint 稳态 **445 → 322 MB（−28%，好于预期）**、堆存活 **355 → 283.3 MiB**（预期带内）、`SymbolIndexStore` 簇 **214.6 → 120.9 MiB**（预期 120–145 带内）、StringStorage 784,254 个 / 84.2 MiB → 356,094 个 / 31.3 MiB、索引期瞬态峰值 893 → 808 MB（字节级判定砍掉的 sweep churn 可见）；无回归旁证（MetadataReader / Demangling / ObjC 索引 / 声明模型全持平）。详数见提案落地记录第 5 条。RV 五镜像稳态累计曲线：470–480 → ~450 → **322 MB**。
 
 ## 偏差与附带发现
 

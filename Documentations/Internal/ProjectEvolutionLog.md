@@ -771,7 +771,7 @@
 - **动机**：RV 五镜像 445 MB 稳态剖析定位 `SymbolIndexStore` ≈ 215 MiB 为堆内头号大户，最大单项是 49.4 万个驻留符号名 `String`（68.7 MiB）——原文本就在镜像 mmap 的 LINKEDIT 字符串表（clean 页），eager 拷贝把免费页复制成付费脏页。方案以提案 0001 落盘、经用户批准后实施。
 - **落地**：`SymbolTable`（16 字节 `SymbolRow` = canonical offset + packed name reference；名字来源双腿——镜像行零拷贝直指 mapped 字符串表、文件行与 export-trie 名进私有连续字节缓冲）；收集循环 reader 分腿（镜像腿字节级 `isSwiftSymbol`，非 Swift 符号零分配；文件腿沿用 `readString`）；`tableRowByName` 退役换名字序 permutation 字节级二分（build 期临时去重字典 freeze 丢弃 + 精确容量拷贝）；vend 面按需物化（`DemangledSymbol` 加 `offset`/`isExternal`/`name` 快路径）。公开 API 与全部调用点零改动。
 - **关键决策 / 实施偏差**：`Span`/`UTF8Span` 运行时可用性 macOS 26+、本包部署下限 10.15 → 字节访问层改 `UnsafeBufferPointer`（closure-scoped 形态不变）；`RigidArray` 的 class 属性 borrow 人体工学要 SE-0507 → 精确容量 `Array` 拷贝、免掉 `BasicContainers` 依赖；`Optional<NodeIndex>` 哨兵搭车项放弃（`NodeIndex` 构造器上游 internal）。均记入提案决策日志。
-- **验证**：等价性测试 4 项全绿（字节级判定 vs `String.isSwiftSymbol` 全符号表逐条一致、mapped 收集 vs String 收集全等、二分逐行自洽、detach 物化正确）；全量 1341 tests / 256 suites 全绿（前 1337 + 新增 4）；渲染 A/B 与性能见提案落地记录；RV 复测另行闭环。
+- **验证**：等价性测试 4 项全绿（字节级判定 vs `String.isSwiftSymbol` 全符号表逐条一致、mapped 收集 vs String 收集全等、二分逐行自洽、detach 物化正确）；全量 1341 tests / 256 suites 全绿（前 1337 + 新增 4）；渲染 A/B 96 对逐字节一致、性能持平（详见提案落地记录）；RV 五镜像实景复测同日闭环——footprint 稳态 **445 → 322 MB（−28%）**、堆存活 355 → 283.3 MiB、`SymbolIndexStore` 簇 214.6 → 120.9 MiB、驻留符号名 StringStorage 如预期消失（−42.8 万个），无回归旁证。
 - **文档**：[Evolutions/0001-symbol-name-offsetization.md](../Evolutions/0001-symbol-name-offsetization.md)（提案全生命周期）、[TaskReports/2026-08-08-symbol-name-offsetization.md](TaskReports/2026-08-08-symbol-name-offsetization.md)。
 - **对应版本**：`0.14.1` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
 
