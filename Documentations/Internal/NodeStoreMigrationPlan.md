@@ -273,3 +273,11 @@ RuntimeViewer 与 MachOSwiftSection 的内存主项在 `MachOSymbols/SymbolIndex
 **显式不改一条**：`ClassDumper.distributedFunctionNodes` 每个 actor 类算两遍且逐 thunk materialize。消除需要给一个 `Sendable` 值类型加可变引用缓存，而该路径只在使用 distributed actor 的二进制里执行（本项目日常面对的框架里为零）；查询侧拿的是 `Node`，集合改结构键反而要为每个方法 intern 一个 mini store。判断为不值得。
 
 **验收**：`swift package clean` 后全量 **1273 tests / 244 suites 全绿**；对冻结基线 `main-27726bc` 的三源整文件快照对比**全部逐字节一致**（File 38/38、DyldCache 18/18、Image 6/6，共 62 份）。快照 harness 一律用 `-p` 选 cache 镜像、而 `-p` 恒为最高排名，故另对 iOS 27.0 beta 3 模拟器 cache 补跑 `-n {SwiftUI, SwiftUICore, SwiftData}`，三者与对应 `-p` 输出逐字节一致（9,131,212 / 8,191,268 / 271,114 字节）——这才是第 4 项真正的覆盖。（改完 `Storage` 字段后增量构建再次出现运行期 SIGSEGV，clean 重建后消失——与 Stage 3 记录的现象相同。）
+
+### 内存图驱动的驻留收口 — 容量预留 + 残余 cached demangle 清零（2026-08-08）
+
+RuntimeViewer 索引 Foundation + libswiftCore + AppKit + SwiftUI + SwiftUICore 五镜像后的 memory graph 计数：存活 `Node` 208,809 个、`NodeStore` 14,451 个。swift-demangling 侧会话（feature/node-store 分支）在本仓库定位来源后转来三项计划，本批落地前两项：
+
+1. **主 sweep 容量预留**：`SymbolIndexStore` 的 `NodeStoreBuilder` 构造后紧跟 `builder.reserveCapacity(expectedSymbolCount: totalSymbolCount)`（上游提案 0009 的 API，按语料标定的每符号系数一次性预留三块缓冲与 intern 槽表）。上游实测：每镜像构建期 ≥1MiB 的 realloc 拷贝 12 → 4（余 4 次即预留本身），冷启动 footprint 尖峰减半。预留语义为 growing-only 且不改变 interning 结果，输出零变化。
+2. **最后两处 cached `demangleAsNode` 转 transient**：`SwiftLayout.ObjCClassIndex`（runtime name → 限定名字符串，树即弃）与 `SwiftDeclarationRendering.SpecializedMetadataNodeSubstitution`（metatype 名 → 渲染即弃）此前把整棵树永久 intern 进全局 `NodeCache`（不淘汰），是存活 `Node` 的主要来源之一。两处改 `demangleAsNodeTransient`（`@_spi(Internals)` import 跟进），Sources 下 cached `demangleAsNode(` 全库清零——Stage 5c 的收口补全。
+3. **小 store 流水线（`InternedNodeReferenceCache` / `TypeDefinition` 字段树批量 store / `lateDemangledNode` mini store）显式不动**：三处是对「builder 一次性 freeze、冻结前拿不到可读引用」这一上游真实缺口的正确规避，也是 14,451 个 store 的主要来源。上游已起草提案 0010（swift-demangling `Evolutions/0010-appendable-shared-node-store.md`，Draft）：`SharedNodeStore` 长生命周期、线程安全、intern 即发放稳定 `NodeReference`、无 freeze 屏障，落地后三条流水线汇入每镜像共享 store（预期 store 数 14,451 → 约 6，`TypeName` 相等比较获得同 store index 快路径）。0010 落地前不重构。
