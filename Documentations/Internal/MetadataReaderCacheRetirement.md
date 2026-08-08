@@ -60,6 +60,8 @@ RuntimeViewer 索引五个系统镜像（Foundation + libswiftCore + AppKit + Sw
 1. 全量 `swift test --skip IntegrationTests` **1337 tests 全绿、0 失败**，与改动前完全同数（含 interface 快照逐字节断言）。
 2. `Scripts/run-rendering-ab-verification.py`（baseline = `ed2f4d1`，candidate = 本改动）：**96 对输出全部逐字节一致、零跳过**，覆盖当前系统 dyld cache、七个模拟器 runtime（iOS 15.5–27.0）、in-process MachOImage 三条 reader 路径的 dump + interface。
 3. 性能：A/B 脚本 72 对场景总耗时 baseline 1150s vs candidate 1148s（±0.2%，持平）；iOS 18.5 模拟器 SwiftUI 的 `interface` 三轮交错受控测量中位 71.3s vs 70.9s——hit 路径物化的代价不可感知，与设计预判一致。
-4. RuntimeViewer 五镜像 memory graph 复测由对面会话协调，预期存活 class `Node` 207,489 → ≲23,000（结果出来后补记于此）。
+4. RuntimeViewer 五镜像 memory graph 复测（2026-08-08 闭环，RV 用户亲自抓取；环境逐项核对：本仓库 @ `dda9d72` + swift-demangling @ `9464265`，均经 sibling 符号链接本地编译、显式 `USING_LOCAL_DEPENDENCIES=1`、checkouts 确认无远端回退）：存活 class `Node` **207,489 → 44（−99.98%）**；`NodeStore` 15（与上轮持平，符合「汇入既有作用域 store、不新增 store 身份」的预测）。
+
+**为什么 44 远低于方案预期的 ≲23,000**：那个预期是测量学假象，不是本次超额达成——≲23k 来自「207,489（RV 复测图）− 183,994（`DeclarationModelMemoryFootprint.md` 的归属数）」，两个数字出自不同测量上下文，差值不对应真实人口。实际上 `MetadataReaderCache` 在 RV 的 eager 索引负载里持有的就是全部 20.7 万的几乎百分之百：预期中的两个残留来源在该负载下根本不运行（`GenericArgumentEnvironment` 的 `NodeCache` 叶子表喂入点在静态布局解析路径上；`MultiPayloadEnumDescriptorCache` 按渲染惰性填充，索引 sweep 不触发）。残余 44 个的量级对应 `NodeFactory` 在 `NodeCache.shared` 初始化时预注册的无参 singleton 池加快照瞬间的少量 churn，判定为终态。
 
 **附带发现**：A/B 首跑时基线全新 scratch 把 swift-demangling 解析回了远端 0.5.1（`NodeStoreBuilder has no member reserveCapacity`）——本地 sibling 依赖生效需要「兄弟目录存在 + `USING_LOCAL_DEPENDENCIES=1`」双条件，而旧 scratch 的 manifest 求值缓存会掩盖环境变量未置位。已补进 AGENTS.md 环境漂移检查第 2 条（诊断：`workspace-state.json` 的 `packageRef.kind`）。与方案本身无差异，方案按原样落地。

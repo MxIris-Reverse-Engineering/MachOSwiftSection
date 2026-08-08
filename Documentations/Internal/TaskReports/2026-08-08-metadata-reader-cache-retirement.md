@@ -24,7 +24,7 @@
 1. 全量 `swift test --skip IntegrationTests`：**1337 tests 全绿、0 失败**，与改动前完全同数。
 2. 渲染 A/B（`Scripts/run-rendering-ab-verification.py`，baseline `ed2f4d1`）：**96 对全部逐字节一致、零跳过**（当前系统 dyld cache + 七个模拟器 runtime + in-process MachOImage，dump + interface）。
 3. 性能：脚本 72 对场景总耗时 1150s vs 1148s（±0.2%）；iOS 18.5 模拟器 SwiftUI `interface` 三轮交错受控测量中位 71.3s vs 70.9s——hit 物化代价不可感知。
-4. RV 五镜像 memory graph 复测待对面协调（预期 207,489 → ≲23,000），结果补记进设计文档。
+4. RV 五镜像 memory graph 复测（同日闭环）：存活 class `Node` **207,489 → 44（−99.98%）**、`NodeStore` 持平 15。远低于 ≲23k 预期的解释（跨测量上下文相减得出的假象人口；两个预期残留源——静态布局路径的 `NodeCache` 叶子表喂入、惰性填充的 `MultiPayloadEnumDescriptorCache`——在 eager 索引负载下均不运行；残余 44 对应 `NodeFactory` 预注册 singleton 池 + 快照瞬间 churn）见设计文档落地记录。
 
 ## 偏差与附带发现
 

@@ -758,7 +758,7 @@
 - **动机**：`SharedNodeStore` 迁移后 RV 五镜像复测显示存活 class `Node` 几乎未动（207,489），归因约 89%（~18.4 万棵树）被 `MetadataReaderCache.Storage` 的三张字典永久持有——NodeStore 体系之前的旧式缓存，private 单例、只进不出、零跨树共享。用户经 swift-demangling 会话下达清退指示。
 - **落地**：三张字典载荷换 `NodeReference`（树体 intern 进 `InternedNodeReferenceCache` 的镜像/进程作用域 store，与声明模型的同批树直接去重共享），hit 路径 `materialize()` 重建独立树，公开 API 与 Sources 内 103 处调用点零改动；新增 `MetadataReader.removeCache(for:)` 接进 `SwiftDeclarationIndexer.deinit`，关掉「只进不出」。
 - **关键决策**：换后端而非彻底删除（字典 memo 的 demangle 工作有 103 处调用点反复命中，删除必致 CPU 回归且内存不多赚）；对面「`MultiPayloadEnumDescriptorCache` 必须同批改键」的判断经核实不成立（class `Node` 的 `==`/`hash` 是结构语义，实例身份只是快路径），该缓存保留原样。
-- **验证**：全量 1337 tests 同数全绿；渲染 A/B 96 对逐字节一致（三 reader 路径 × dump/interface）；性能持平（72 对场景总耗时 ±0.2%，受控交错测量中位 71.3s vs 70.9s）。
+- **验证**：全量 1337 tests 同数全绿；渲染 A/B 96 对逐字节一致（三 reader 路径 × dump/interface）；性能持平（72 对场景总耗时 ±0.2%，受控交错测量中位 71.3s vs 70.9s）；RV 五镜像 memory graph 实景复测存活 class `Node` **207,489 → 44（−99.98%）**、`NodeStore` 持平 15——远低于方案预期 ≲23k 的原因（跨测量上下文相减的假象人口、两个预期残留源在索引负载下不运行）记录于设计文档。
 - **附带发现**：本地 sibling 依赖生效需「兄弟目录存在 + `USING_LOCAL_DEPENDENCIES=1`」双条件，旧 scratch 的 manifest 求值缓存会掩盖后者——已补进 AGENTS.md 环境漂移检查第 2 条。
 - **文档**：[MetadataReaderCacheRetirement.md](MetadataReaderCacheRetirement.md)、[TaskReports/2026-08-08-metadata-reader-cache-retirement.md](TaskReports/2026-08-08-metadata-reader-cache-retirement.md)；[DeclarationModelMemoryFootprint.md](DeclarationModelMemoryFootprint.md) 后记标注该项结论失效。
 - **对应版本**：`0.14.1` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
