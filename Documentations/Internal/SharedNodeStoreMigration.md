@@ -40,7 +40,9 @@
 
 三处均按上表实施：`InternedNodeReferenceCache.Storage` 换持一个 `SharedNodeStore`（哈希桶层与 get-or-mint 舞蹈整体删除，类文档注释改写为「作用域键控 + 驱逐」的新分工）；`TypeDefinition.index(in:)` 的字段树两阶段（builder → freeze → map）收敛为单阶段直接经缓存 intern 进镜像 store；`lateDemangledNode` 的 builder-per-name 换 `Storage` 自持的 `lateNameStore.demangle(name)`，「loser 弃店」段删除、名字 → 裁决字典保留。AGENTS.md「Symbol indexing」段的四处措辞同步（late 路径、缓存分工、字段树去重范围、跨 store 常态的论据）。
 
-**验证**：干净重建零 warning；全量 `swift test --skip IntegrationTests` **1337 tests 全绿、0 失败**（与迁移前完全同数，含 interface 快照逐字节断言）；`InternedNodeReferenceCacheTests` 五条行为断言与 `SymbolIndexStoreFixtureTests` 三条 late-path 性质测试**原样通过、未改一行**——同 store、去重、驱逐重铸、并发单赢家这些行为在 `SharedNodeStore` 背书下语义保持。RuntimeViewer 五镜像 memory graph 实景复测（验收计划第 4 条）待 swift-demangling 侧会话按共识执行。
+**验证**：干净重建零 warning；全量 `swift test --skip IntegrationTests` **1337 tests 全绿、0 失败**（与迁移前完全同数，含 interface 快照逐字节断言）；`InternedNodeReferenceCacheTests` 五条行为断言与 `SymbolIndexStoreFixtureTests` 三条 late-path 性质测试**原样通过、未改一行**——同 store、去重、驱逐重铸、并发单赢家这些行为在 `SharedNodeStore` 背书下语义保持。
+
+**实景复测（验收计划第 4 条，2026-08-08 闭环）**：RuntimeViewer 重索引同一批五镜像后的 memory graph——`NodeStore` 实例 **14,451 → 15（−99.9%）**，落在「每镜像一个共享 store + 自持 late side store + per-process 外壳」的意图形状内；存活 `Node` 208,809 → 207,489（预期内小降：该计数的主体不是本迁移的标的）。数字已回填上游 0010 决策日志（swift-demangling `feature/node-store` @ 9464265）。
 
 ## 与方案的差异
 
