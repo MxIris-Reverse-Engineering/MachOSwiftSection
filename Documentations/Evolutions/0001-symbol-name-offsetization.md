@@ -185,6 +185,8 @@ final class SymbolTable: @unchecked Sendable {
    - heap 按类对照：StringStorage **784,254 个 / 84.2 MiB → 356,094 个 / 31.3 MiB**（49.4 万条驻留符号名如预期消失）；5 × `Dictionary<String, UInt32>` 名表 20 MiB 从堆顶消失，代之 offset 键表 12.9 MiB；`[Symbol]` 24.5 MiB → `[SymbolRow]` 10.4 MiB（≈ 68 万行 × 16 字节，与行格式吻合）。
    - logging 跑归属复核：`SymbolIndexStore` 簇 **214.6 → 120.9 MiB**（预期 120–145 带内）；全进程 StringStorage 分配 96.8 → 36.4 MiB；无回归旁证——MetadataReader 1.4 MiB 不变、Demangling 22.6 不变、ObjC 索引 33.8 不变、NIO/Rx/声明模型持平。
    - RV 五镜像稳态累计曲线：470–480 →（MetadataReaderCache 清退）~450 →（本案）**322 MB**。
+   - 长跑复核（2026-08-09，RV 会话一手数据，11 小时 uptime 真实浏览负载）：堆存活 **285 MiB / 158 万分配，与干净跑 283 MiB 重合——长跑无漂移**；footprint 350 MB（其中 68 MB reclaimable 闲时未归还，真实脏页 ~282 MB）。用户此前观察到的「反复飙 800+ MB 后回落」归属确认：按需索引 sweep 的瞬态峰（28 并发工人的临时缓冲，完即释放），非泄漏——sweep 限流/分批换峰值是可立项的候选，暂未拍板。
+   - 落地后堆格局（后续优化的实测输入）：`SwiftDeclaration` 声明模型 41.3 MiB 成为新头部（ExtensionDefinition 28,225 × 640 B ≈ 17.2、TypeDefinition 11,985 × 1.25 KB ≈ 14.6）；`[UInt32]` 小数组簇 38.8 MiB / 45 万个（含本案引入的 offset 键表 `Dictionary<Int, [UInt32]>` 12.2）——正是「非目标」一节点名的桶扁平化候选（下一篇提案的对象）；MSS 解析结构 33.4（ProtocolConformance 数组 20.6 打头）；MachOSymbols 残余 11.0（`[SymbolRow]` 9.9）。Demangling 33.2 与 MetadataReader 1.4 维持既定形态，无回归。
 
 ## 决策日志
 
