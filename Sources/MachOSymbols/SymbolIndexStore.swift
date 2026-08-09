@@ -496,13 +496,16 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         func collectMappedSymbolRows<MappedSymbols: Sequence<MachOImage.Symbol>>(_ mappedSymbols: MappedSymbols, stringBase: UnsafeRawPointer) {
             for symbol in mappedSymbols {
                 guard nameBytesHaveSwiftManglingPrefix(symbol.nameC), !symbol.nlist.isExternal else { continue }
-                let (row, isNewRow) = tableBuilder.canonicalRow(
+                // A `nil` row means the name's binary-supplied geometry
+                // exceeds the packed budgets (malformed/hostile string
+                // table) — skip the symbol instead of trapping (M3).
+                guard let (row, isNewRow) = tableBuilder.canonicalRow(
                     forName: String(cString: symbol.nameC),
                     mappedNameByteOffset: UnsafeRawPointer(symbol.nameC) - stringBase,
                     nameByteLength: strlen(symbol.nameC),
                     canonicalOffset: symbol.offset,
                     isExternal: symbol.nlist.isExternal
-                )
+                ) else { continue }
                 registerRow(row, rawOffset: symbol.offset, canonicalOffset: symbol.offset, isNewRow: isNewRow)
             }
         }
@@ -518,7 +521,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
                 if let cache = machO.cache, rawOffset >= 0, machO is MachOFile {
                     canonicalOffset = rawOffset - cache.mainCacheHeader.sharedRegionStart.cast()
                 }
-                let (row, isNewRow) = tableBuilder.canonicalRow(forName: symbol.name, canonicalOffset: canonicalOffset, isExternal: symbol.nlist.isExternal)
+                guard let (row, isNewRow) = tableBuilder.canonicalRow(forName: symbol.name, canonicalOffset: canonicalOffset, isExternal: symbol.nlist.isExternal) else { continue }
                 registerRow(row, rawOffset: rawOffset, canonicalOffset: canonicalOffset, isNewRow: isNewRow)
             }
         }
@@ -534,7 +537,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
                 // check is never needed here. Export-trie names are decoded
                 // strings with no home in the mapped string table, so they
                 // take the private-buffer overload on every reader.
-                let (row, isNewRow) = tableBuilder.canonicalRow(forName: exportedSymbol.name, canonicalOffset: canonicalOffset, isExternal: false)
+                guard let (row, isNewRow) = tableBuilder.canonicalRow(forName: exportedSymbol.name, canonicalOffset: canonicalOffset, isExternal: false) else { continue }
                 registerRow(row, rawOffset: rawOffset, canonicalOffset: canonicalOffset, isNewRow: isNewRow)
             }
         }

@@ -26,9 +26,23 @@ struct PackedNameReference {
     private static let privateNameBufferFlag: UInt64 = 1 << 63
     private static let isExternalFlag: UInt64 = 1 << 62
 
-    init(usesPrivateNameBuffer: Bool, isExternal: Bool, byteOffset: Int, byteLength: Int) {
-        precondition(byteOffset >= 0 && UInt64(byteOffset) <= Self.byteOffsetMask, "symbol name byte offset exceeds the 40-bit budget")
-        precondition(byteLength >= 0 && UInt64(byteLength) <= Self.byteLengthMask, "symbol name byte length exceeds the 22-bit budget")
+    /// The widest name byte length / source byte offset the packed layout
+    /// can represent. Values beyond these arrive only from malformed or
+    /// hostile input — no legitimate mangled name approaches the 4 MB
+    /// length budget — so the initializer refuses them instead of trapping:
+    /// these components are binary-supplied (strlen over a string table,
+    /// accumulated buffer offsets), and a `precondition` would let the
+    /// analyzed binary decide whether the host process lives.
+    static var maximumByteLength: Int { Int(byteLengthMask) }
+    static var maximumByteOffset: Int { Int(byteOffsetMask) }
+
+    private init(rawValue: UInt64) {
+        self.rawValue = rawValue
+    }
+
+    init?(usesPrivateNameBuffer: Bool, isExternal: Bool, byteOffset: Int, byteLength: Int) {
+        guard byteOffset >= 0, UInt64(byteOffset) <= Self.byteOffsetMask,
+              byteLength >= 0, UInt64(byteLength) <= Self.byteLengthMask else { return nil }
         var packed = UInt64(byteOffset) | (UInt64(byteLength) << Self.byteOffsetBitCount)
         if isExternal {
             packed |= Self.isExternalFlag
@@ -37,6 +51,17 @@ struct PackedNameReference {
             packed |= Self.privateNameBufferFlag
         }
         self.rawValue = packed
+    }
+
+    /// The same reference with only the external bit replaced — raw bit
+    /// surgery, no re-validation, for updating an already-packed row in
+    /// place.
+    func replacingIsExternal(_ isExternal: Bool) -> PackedNameReference {
+        var packed = rawValue & ~Self.isExternalFlag
+        if isExternal {
+            packed |= Self.isExternalFlag
+        }
+        return PackedNameReference(rawValue: packed)
     }
 
     var usesPrivateNameBuffer: Bool {
@@ -106,8 +131,16 @@ final class SymbolTable: @unchecked Sendable {
     /// and `detachedFromSharedTable()`): the name is copied into a private
     /// buffer so the detached value retains nothing image-scoped.
     convenience init(standaloneSymbol symbol: Symbol) {
-        let nameBytes = Array(symbol.name.utf8)
-        let packedNameReference = PackedNameReference(usesPrivateNameBuffer: true, isExternal: symbol.isExternal, byteOffset: 0, byteLength: nameBytes.count)
+        // Clamped, not trapped: the packed reference cannot represent a name
+        // beyond `PackedNameReference.maximumByteLength` (4 MB — far past
+        // any legitimate mangled name), and this initializer backs the
+        // public `DemangledSymbol(symbol:demangledNode:)`, so absurd caller
+        // input degrades to a truncated materialized name instead of
+        // killing the process. Rows minted by the build sweep are
+        // budget-checked there and never reach the clamp.
+        let nameBytes = Array(symbol.name.utf8.prefix(PackedNameReference.maximumByteLength))
+        // Never nil: byteOffset is 0 and the clamp above bounds the length.
+        let packedNameReference = PackedNameReference(usesPrivateNameBuffer: true, isExternal: symbol.isExternal, byteOffset: 0, byteLength: nameBytes.count)!
         self.init(
             mappedStringTableBase: nil,
             privateNameBuffer: nameBytes,
@@ -212,26 +245,41 @@ struct SymbolTableBuilder {
     /// the existing row's offset and external bit in place (last-wins, like
     /// the former name-keyed collection pass) and keeps the first
     /// occurrence's name reference — the bytes are equal by definition.
-    mutating func canonicalRow(forName name: String, mappedNameByteOffset: Int, nameByteLength: Int, canonicalOffset: Int, isExternal: Bool) -> (row: UInt32, isNewRow: Bool) {
+    mutating func canonicalRow(forName name: String, mappedNameByteOffset: Int, nameByteLength: Int, canonicalOffset: Int, isExternal: Bool) -> (row: UInt32, isNewRow: Bool)? {
         precondition(mappedStringTableBase != nil, "mapped name references require a mapped string table base")
+        // The offset and length are binary-supplied (a pointer difference
+        // into the mapped string table, and strlen over it): a name whose
+        // geometry cannot pack is malformed input, and its row is refused —
+        // the caller skips the symbol — rather than trapping the process.
+        guard let nameReference = PackedNameReference(usesPrivateNameBuffer: false, isExternal: isExternal, byteOffset: mappedNameByteOffset, byteLength: nameByteLength) else {
+            return nil
+        }
         return canonicalRow(
             forName: name,
-            nameReference: PackedNameReference(usesPrivateNameBuffer: false, isExternal: isExternal, byteOffset: mappedNameByteOffset, byteLength: nameByteLength),
+            nameReference: nameReference,
             canonicalOffset: canonicalOffset
         )
     }
 
     /// The table row for a symbol whose name has no mapped-memory home
     /// (`MachOFile` rows, export-trie names): a new row appends the name's
-    /// bytes to the private buffer.
-    mutating func canonicalRow(forName name: String, canonicalOffset: Int, isExternal: Bool) -> (row: UInt32, isNewRow: Bool) {
+    /// bytes to the private buffer. Refuses (returns `nil` for) a name
+    /// whose geometry cannot pack — same budget rule as the mapped
+    /// overload, validated BEFORE appending so a refused name leaves no
+    /// orphan bytes in the buffer.
+    mutating func canonicalRow(forName name: String, canonicalOffset: Int, isExternal: Bool) -> (row: UInt32, isNewRow: Bool)? {
         if let existingRow = tableRowByName[name] {
             updateRowInPlace(existingRow, canonicalOffset: canonicalOffset, isExternal: isExternal)
             return (existingRow, false)
         }
         let byteOffset = privateNameBuffer.count
+        guard name.utf8.count <= PackedNameReference.maximumByteLength,
+              byteOffset <= PackedNameReference.maximumByteOffset else {
+            return nil
+        }
         privateNameBuffer.append(contentsOf: name.utf8)
-        let nameReference = PackedNameReference(usesPrivateNameBuffer: true, isExternal: isExternal, byteOffset: byteOffset, byteLength: privateNameBuffer.count - byteOffset)
+        // Never nil: both components were bounds-checked above.
+        let nameReference = PackedNameReference(usesPrivateNameBuffer: true, isExternal: isExternal, byteOffset: byteOffset, byteLength: privateNameBuffer.count - byteOffset)!
         return appendRow(forName: name, nameReference: nameReference, canonicalOffset: canonicalOffset)
     }
 
@@ -244,15 +292,9 @@ struct SymbolTableBuilder {
     }
 
     private mutating func updateRowInPlace(_ row: UInt32, canonicalOffset: Int, isExternal: Bool) {
-        let existingNameReference = rows[Int(row)].packedNameReference
         rows[Int(row)] = SymbolRow(
             canonicalOffset: Int64(canonicalOffset),
-            packedNameReference: PackedNameReference(
-                usesPrivateNameBuffer: existingNameReference.usesPrivateNameBuffer,
-                isExternal: isExternal,
-                byteOffset: existingNameReference.byteOffset,
-                byteLength: existingNameReference.byteLength
-            )
+            packedNameReference: rows[Int(row)].packedNameReference.replacingIsExternal(isExternal)
         )
     }
 
