@@ -425,6 +425,7 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
+            .target(.MachOExtensions),
             .target(.MachOSwiftSection),
             .target(.MachOSwiftSectionC),
             .target(.Utilities),

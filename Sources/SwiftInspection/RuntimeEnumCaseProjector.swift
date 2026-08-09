@@ -1,4 +1,5 @@
 import Foundation
+import MachOExtensions
 import MachOSwiftSection
 import MachOSwiftSectionC
 
@@ -91,10 +92,19 @@ public enum RuntimeEnumCaseProjector {
         // area as `ValueWitnessTable.Layout` gives size / flags; the enum
         // witnesses (`getEnumTag`, `destructiveProjectEnumData`,
         // `destructiveInjectEnumTag`) follow it in that order.
-        let tablePointer = enumMetadataPointer.load(
+        //
+        // On arm64e the slot is PAC-signed (`__ptrauth_swift_value_witness_table`:
+        // asda key, address-diversified, discriminator 0x2E3F), so the loaded
+        // value must be stripped before ANY use — the stubs below blend their
+        // per-slot discriminators from real slot addresses, so a tag-carrying
+        // table pointer faults there just as it does on a direct load. Same
+        // idiom every in-process resolve path applies
+        // (`PointerProtocol.resolve()` / `InProcessContext.readElement`).
+        let signedTablePointer = enumMetadataPointer.load(
             fromByteOffset: -MemoryLayout<UnsafeRawPointer>.size,
             as: UnsafeRawPointer.self
         )
+        guard let tablePointer = try? signedTablePointer.stripPointerTags() else { return nil }
         let requiredWitnesses = tablePointer.load(as: ValueWitnessTable.Layout.self)
         guard requiredWitnesses.flags.hasEnumWitnesses else { return nil }
 

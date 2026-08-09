@@ -11,4 +11,4 @@
 | 0001 | SymbolIndexStore 符号名 offset 化：驻留字符串换字符串表引用 | Implemented（`feature/node-store-migration`，待并入） |
 | 0002 | 声明模型 descriptor 化：TypeDefinition / ExtensionDefinition / ProtocolDefinition 不再驻留急切解析的胖 wrapper | Implemented（`feature/node-store-migration`，待并入） |
 | 0003 | SymbolIndexStore `[UInt32]` 行号桶扁平化：单元素桶内联化 | Implemented（`feature/node-store-migration`，待并入） |
-| [0004](0004-arm64e-signed-vwt-pointer-hardening.md) | arm64e 签名 VWT 指针加固：进程内裸读 strip + 真 PAC 环境的回归验证形态 | Accepted |
+| [0004](0004-arm64e-signed-vwt-pointer-hardening.md) | arm64e 签名 VWT 指针加固：进程内裸读 strip + 真 PAC 环境的回归验证形态 | Implemented |

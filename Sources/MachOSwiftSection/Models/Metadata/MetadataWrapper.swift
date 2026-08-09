@@ -118,6 +118,12 @@ public enum MetadataWrapper: Resolvable {
         }
     }
     
+    // On arm64e the value-witness-table slot in a live `TargetFullMetadata`
+    // header is PAC-signed (`__ptrauth_swift_value_witness_table`). Every leg
+    // below is safe as long as it dereferences through `Pointer.resolve` —
+    // `PointerProtocol.resolve()` / `InProcessContext` strip pointer tags on
+    // every in-process read (evolution proposal 0004). Do not replace these
+    // with raw pointer arithmetic.
     public func valueWitnessTable(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> ValueWitnessTable {
         switch self {
         case .class(let classMetadataObjCInterop):

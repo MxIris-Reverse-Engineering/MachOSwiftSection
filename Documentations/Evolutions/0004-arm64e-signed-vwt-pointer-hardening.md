@@ -1,6 +1,6 @@
 # 0004 - arm64e 签名 VWT 指针加固：进程内裸读 strip + 真 PAC 环境的回归验证形态
 
-- **状态**: Accepted
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-08-09
 - **最后更新**: 2026-08-09
@@ -54,10 +54,10 @@ arm64e 进程里，metadata 前一字长的 value witness table（VWT）指针�
 
 1. **`RuntimeEnumCaseProjector`**：读出表指针后立即经 `stripPointerTags()` strip（回归既有惯用法），后续解引用与两个 stub 调用一律使用 strip 后指针。
 2. **`MetadataWrapper.valueWitnessTable()` 进程内 leg**：审阅期查实已受 `PointerProtocol.resolve()` / `InProcessContext` 的 strip 保护，无需修改；在其解引用点补一句注释指向本案，防止未来重构绕开惯用法。
-4. **回归验证（双层，均永久保留）**：
-   - **探针层**：测试先以 canary 探测宿主能否执行 arm64e 三方进程（现场编译并运行一个最小 arm64e 程序）；能则现场编译真验证探针并 spawn 为**正常 arm64e 子进程**（修复前崩 139、修复后正常输出投影结果），不能则显式 skip 并留痕（GitHub 托管 runner 即此情形）。
-   - **符号层**：断言 `SwiftInspection` 构建产物引用 `stripPointerTags` 的 mangled 符号（`028e32fb` 用过的符号级验证思路），处处可跑（含 GitHub CI），锁「接线不被后续改动删掉」。
-5. **文档修正（同批）**：修正 `642de8ee` 写入 AGENTS.md 与 [RuntimeEnumCaseProjection.md](../Internal/RuntimeEnumCaseProjection.md) 的失实验证记录，把「`swift test` 的 arm64e 测试进程 PAC 不生效」这一陷阱连同证据写进后者——这是下次有人想「用测试验证签名行为」时必须先撞见的知识。
+3. **回归验证（双层，均永久保留；实施期修正——原「符号层」断言升级为「行为层」断言，理由见决策日志）**：
+   - **行为层**（处处可跑，含 GitHub CI）：构造 VWT 槽带 tag 位（崩溃报告指针的 `0x0041_8000_0000_0000` 位型，掩码外的高位在任何架构上裸解引用必 fault）的 fake full metadata，过真实 `projectCasePatterns` 入口——修复前当场 SIGSEGV（复刻崩溃报告的 fault），修复后与干净 metadata 的投影逐字节一致。strip 接线被后续任何改动删掉，该测试当场红。
+   - **探针层**：测试先以 canary 探测宿主能否执行 arm64e 三方进程（现场编译并运行一个最小 arm64e 程序）；能则现场编译真验证探针并 spawn 为**正常 arm64e 子进程**——`raw` 模式（修复前行为）必崩 139 且先打印「槽带签名」的证据（这同时是**负控制**：raw 模式若安然退出，说明验证环境自身已变安慰剂），`strip` 模式（修复后行为）解引用 + 经 ptrauth qualified stub 的 witness round trip 全通；不能则显式 skip 并留痕（GitHub 托管 runner 即此情形）。
+4. **文档修正（同批）**：修正 `642de8ee` 写入 AGENTS.md 与 [RuntimeEnumCaseProjection.md](../Internal/RuntimeEnumCaseProjection.md) 的失实验证记录，把「`swift test` 的 arm64e 测试进程 PAC 不生效」这一陷阱连同证据写进后者——这是下次有人想「用测试验证签名行为」时必须先撞见的知识。
 
 ### 非目标
 
@@ -70,18 +70,20 @@ arm64e 进程里，metadata 前一字长的 value witness table（VWT）指针�
 ### strip 点
 
 ```swift
-// RuntimeEnumCaseProjector.projectCasePatterns —— 修改后形态（示意）
-let signedTablePointer = enumMetadataPointer.load(
-    fromByteOffset: -MemoryLayout<UnsafeRawPointer>.size,
-    as: UnsafeRawPointer.self
-)
+// RuntimeEnumCaseProjector.projectCasePatterns —— 落地形态
 // arm64e: the slot is signed (asda, address-diversified, discriminator
 // 0x2E3F); strip before ANY use — the stubs' per-slot discriminators are
 // blended from real slot addresses, so a PAC-carrying table pointer
 // faults there too. Same idiom every in-process resolve path already
 // uses (PointerProtocol.resolve() / InProcessContext.readElement).
-let tablePointer = try signedTablePointer.stripPointerTags()
+let signedTablePointer = enumMetadataPointer.load(
+    fromByteOffset: -MemoryLayout<UnsafeRawPointer>.size,
+    as: UnsafeRawPointer.self
+)
+guard let tablePointer = try? signedTablePointer.stripPointerTags() else { return nil }
 ```
+
+`projectCasePatterns` 本身非 throws、以 `nil` 表示「退回公式图样」，strip 的构造失败（掩码后为 0）并入该既有降级契约。`SwiftInspection` 为此新增对 `MachOExtensions` 的 target 依赖（`package` 可见性同包直接可用）。
 
 `MetadataWrapper` 侧无需改动：其进程内 leg 经 `valueWitnesses.resolve()`，`PointerProtocol.resolve()` 已对 `address` strip；文件 leg（`in machO:`）读的是 fixup 前的文件字节，不涉签名。
 
@@ -89,13 +91,13 @@ let tablePointer = try signedTablePointer.stripPointerTags()
 
 - canary：现场 `clang -arch arm64e` 编译最小 C 程序并运行；退出码即宿主能力判据。
 - 探针：现场编译的小 Swift 程序，对**自身进程内**的活 enum metadata 走「读槽 → strip → 解引用 → 调 witness 投影」的最小复刻，输出投影结果；测试 spawn 它并断言退出码与输出。子进程由测试进程正常 `posix_spawn`，不继承 `swift test` 环境的 PAC 豁免（实验已证：探针直接 spawn 即真 PAC 环境）。
-- 探针复刻逻辑与库代码的同步风险由**符号层**兜底：探针验证机制（strip 后不崩），符号断言锁库代码接线（`stripPointerTags` 的引用消失即红）。
+- 探针复刻逻辑与库代码的同步风险由**行为层**兜底：探针验证机制（strip 后不崩、raw 必崩的负控制），行为层测试锁库代码接线（strip 被删则 fake metadata 的投影当场 SIGSEGV）。
 - skip 语义：宿主不能执行 arm64e（如 GitHub 托管 runner，见 runner-images #9461）时显式 skip 并输出原因，不静默通过。
 
 ### 风险与接受的约束
 
 - **strip 而非 auth**：strip 放弃了伪造检测。本工具是逆向分析器，读的是自身注入进程内的 metadata，威胁模型里没有「被伪造的 VWT 指针」需要防；且这正是 `__ptrauth_strip_asda` 当初被写下的用途。
-- **探针层在 CI 恒 skip**：GitHub 托管 runner 无法执行 arm64e 三方进程，探针层只在本机（及未来可能的 self-hosted runner）生效。接受——符号层保证 CI 上接线不丢，真 PAC 行为由本机验证覆盖。
+- **探针层在 CI 恒 skip**：GitHub 托管 runner 无法执行 arm64e 三方进程，探针层只在本机（及未来可能的 self-hosted runner）生效。接受——行为层保证 CI 上接线不丢，真 PAC 行为由本机验证覆盖。
 
 ## 替代方案考量
 
@@ -131,11 +133,11 @@ let tablePointer = try signedTablePointer.stripPointerTags()
 
 ## 落地步骤
 
-1. `RuntimeEnumCaseProjector` 改经 `stripPointerTags()` strip；`MetadataWrapper` 进程内解引用点补注释（已受保护，无行为改动）。
-2. 探针层测试（canary 门 + 现场编译 + spawn 真 arm64e 子进程；**先证修复前崩 139**，再证修复后过）+ 符号层断言。
-3. 全量 `swift test --skip IntegrationTests` 同数全绿（arm64 常规环境回归）。
-4. 文档修正同批：RuntimeEnumCaseProjection.md + AGENTS.md。
-5. RV 侧真机验证（对面协调）：注入 arm64e 应用 + Print Enum Layout，确认崩溃消失。
+1. ✅ `RuntimeEnumCaseProjector` 读出表指针后经 `stripPointerTags()` strip（`try?` + guard，并入既有的「返回 nil 退回公式图样」降级契约；`SwiftInspection` 新增 `MachOExtensions` target 依赖）；`MetadataWrapper.valueWitnessTable` 解引用点补防护注释（已受保护，无行为改动）。
+2. ✅ 回归测试落为 `Tests/SwiftInspectionTests/Arm64eSignedVWTPointerTests.swift`（行为层 + 探针层）。**修复前取证**：行为层测试使测试进程死于 signal 11（SIGSEGV——复刻崩溃报告的 fault）；探针层 `raw` 模式子进程先打印 `slotCarriesTagBits=1` 再 SIGSEGV（shell 视角 exit 139），`strip` 模式解引用 + witness round trip 全通。**修复后**：三测全绿。
+3. ✅ 全量 `swift test --skip IntegrationTests` 1303/1303（250 suites）全绿。期间按 AGENTS.md 环境漂移纪律排查掉一次 158 issue 的假阳性——主 checkout 的 fixture 二进制（8 月 2 日构建）比 main 的 fixture 源码（8 月 5/6 日两个 commit）旧，重建后归零，与本修复无关。
+4. ✅ 文档修正同批：RuntimeEnumCaseProjection.md（失实验证记录改写、表指针 strip 与陷阱记录、新回归形态）+ AGENTS.md（SwiftInspection 段修正 + Test Environment 补 PAC 验证陷阱一段）。
+5. 待办：RV 侧真机验证（对面协调）：注入 arm64e 应用 + Print Enum Layout，确认崩溃消失。注意 RV 工作树当前适配的是 `feature/node-store-migration` 的 0002 API，验证需待该分支并入 main 后的合流构建（或 RV 暂以 main 构建）。
 
 ## 决策日志
 
@@ -144,3 +146,5 @@ let tablePointer = try signedTablePointer.stripPointerTags()
 | 2026-08-09 | Created as In Review | RV 侧会话转来 App Store arm64e 崩溃报告；本会话完成机制复现（探针四来源全签名、解引用 SIGSEGV）、四问裁决、`swift test` PAC 不生效的验证陷阱实验与 GitHub CI 可行性查证；用户裁定「这个 bug 很经典，写个提案」立项成文。 |
 | 2026-08-09 | 审阅修订：改用 `stripPointerTags` 惯用法，撤销「同类第二实例」判定 | 审阅期用户问「用 stripPointerTags 有用吗」；查实 `PointerProtocol.resolve()` / `InProcessContext` 的进程内解引用**本已系统性地经 `stripPointerTags` strip**（初版调研 grep 的是 `ptrauth`/`strip`/`PAC` 关键词，VA 掩码实现一个不含，漏检）。三处修订：(1) 修复改用既有惯用法 `stripPointerTags()`，`__ptrauth_strip_asda` 维持未接线预留；(2) `MetadataWrapper.valueWitnessTable()` 进程内 leg 已受保护，从修复面撤销、降为补注释；(3) 符号层断言对象随之改为 `stripPointerTags` 引用。`xpacd` vs VA 掩码的取舍记入「替代方案考量」。 |
 | 2026-08-09 | In Review → Accepted，迁至 main | 用户审核通过（「审核通过，开始实现」），并裁定实施基线改为 **main**——本 bug 是 main 上就有的基线问题、影响面大，不与 `feature/node-store-migration` 的内存优化线捆绑；提案文件随之从该分支迁到 main（分支上三个未推送的提案 commit 撤下，编号 0004 不变）。 |
+| 2026-08-09 | 实施期修正：「符号层」断言升级为「行为层」断言 | 原方案断言 `SwiftInspection` 构建产物含 `stripPointerTags` 的 mangled 符号。实施时查实其见证力不足：`stripPointerTags` 是 `package` 函数，静态链接后其**定义**符号无论有无调用方都出现在测试产物符号表里，而「projector 引用了它」这一事实在链接后与定义不可分辨——接线被删时断言照样绿。改为行为断言：fake metadata 的 VWT 槽置崩溃报告指针的 tag 位型 `0x0041_8000_0000_0000`（全部高于 VA 掩码，任何架构裸解引用必 fault），过真实 `projectCasePatterns` 入口——直接验证 strip 行为本身，严格强于符号断言且同样处处可跑（含 GitHub CI）。 |
+| 2026-08-09 | Accepted → Implemented | 按「先崩后过」实施：行为层测试在未修复代码上使测试进程死于 signal 11（SIGSEGV），探针层 `raw` 模式 arm64e 子进程证实槽带签名并 SIGSEGV（exit 139）、`strip` 模式 witness round trip 全通；应用 strip 修复后新套件 3 测全绿，全量 1303/1303（250 suites）全绿。文档修正同批。剩余：落地步骤 5 的 RV 侧真机验证（对面协调）。 |

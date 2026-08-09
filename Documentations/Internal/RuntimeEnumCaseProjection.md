@@ -77,12 +77,9 @@ package enum LineStyle {
   自身调用 witness 的方式一致，被篡改的指针会 fault 而非被执行；clang importer 不导入带
   ptrauth 限定符的成员，故 Swift 侧必须经 stub）。统一走 stub 使 host 测试套件日常覆盖
   同一调用路径（stub 参数顺序、C 结构体布局与表内存布局的一致性），测试覆盖不到的只剩
-  ptrauth auth 指令本身。初版曾用 `#if _ptrauth(_arm64e)` 整体降级返回 nil，2026-07-22
-  起改为经 stub 全平台可用；auth 行为也已运行时验证（2026-07-23）：在开启
-  `-arm64e_preview_abi` boot-arg 的宿主上，`swift test --triple arm64e-apple-macosx
-  --skip IntegrationTests` 全量 1253 个测试以 arm64e 进程跑通——投影器测试真实驱动了
-  PAC 签名 witness 的 auth 调用，per-slot discriminator 常量（auth 错会直接 fault）
-  一并得到确认。
+  ptrauth auth 指令本身。初版曾用 `#if _ptrauth(_arm64e)` 整体降级返回 nil，2026-07-22 起改为经 stub 全平台可用。
+- **指向表本身的指针**（metadata 前一字长的 VWT 槽）在 arm64e 下同样带签名（`__ptrauth_swift_value_witness_table`：asda key、address diversity、discriminator 0x2E3F），2026-07-22 接 stub 时漏掉了它：裸读后直接解引用，在真 arm64e 进程必崩（RV 注入 App Store arm64e 二进制导出 interface 的真实崩溃报告 + 本地探针双重复现）。2026-08-09（提案 0004）起读出槽值后先经 `stripPointerTags()` strip（`PointerProtocol.resolve()` / `InProcessContext` 每次进程内解引用都在走的 VA 掩码惯用法），后续解引用与两个 stub 调用一律用 strip 后指针——stub 槽位限定符是 address diversity 的，discriminator 由槽位真实地址 blend 计算，表指针带 tag 位时槽位地址本身就是错的，所以 strip 必须发生在一切使用之前。
+- **失实记录修正（2026-08-09，提案 0004）**：2026-07-23 曾记录「在开启 `-arm64e_preview_abi` boot-arg 的宿主上，`swift test --triple arm64e-apple-macosx --skip IntegrationTests` 全量 1253 个测试以 arm64e 进程跑通，auth 行为得到运行时验证」。该验证**真实运行过但无效**：`swift test` 的测试进程虽为 arm64e 产物（runner 是 `Mach-O 64-bit bundle arm64e`，Swift Testing 报 `Target Platform: arm64e-apple-macos14.0`），但其内 auth fixup 以 strip 形式应用、PAC 不生效——VWT 槽读出来是裸指针，签名类 bug 在其中恒过。上一条那个必崩的表指针裸读正是在这份「全绿」下存活的。任何「测试以 arm64e 跑过」形式的签名类验证都是安慰剂；要验证签名行为必须 spawn 正常 arm64e 子进程（见下方「验证」节）。
 
 ### 2. `EnumLayoutCalculator` 模型与渲染重构
 
@@ -161,6 +158,9 @@ tag 值/位数 + tag/occupied-bit 区域 + 「留给外层 enum 的剩余 XI」�
   `Enums.SinglePayloadOverStructTest`（LineStyle 同构）与 `SinglePayloadEnumTest`（String payload）
   走完整渲染链路，断言精确图样、全零图样显式呈现、case 名附加、注释文本。
 - 全量 `swift test --skip IntegrationTests`：1166 通过。
+- **arm64e 签名槽回归**（2026-08-09，提案 0004；`SwiftInspectionTests/Arm64eSignedVWTPointerTests`，两层、永久保留）：
+  - **行为层**（处处可跑，含 GitHub CI）：构造 VWT 槽带 tag 位（崩溃报告指针的 `0x0041_8000_0000_0000` 位型，掩码外的高位在任何架构上解引用必 fault）的 fake full metadata，过真实 `projectCasePatterns` 入口。修复前该测试当场 SIGSEGV（signal 11，即崩溃报告的 fault 复刻）；修复后经 strip 恢复真表，投影与干净 metadata 的结果逐字节一致。这是「strip 接线不被后续改动删掉」的行为锁。
+  - **探针层**（canary 门控：现场编译并运行最小 arm64e 程序判定宿主能力，不能执行 arm64e 三方进程的宿主——如 GitHub 托管 runner——显式 skip 并留因）：现场编译 arm64e 探针 spawn 为**正常子进程**。`raw` 模式（修复前行为）裸解引用必崩（SIGSEGV，shell 视角 exit 139）且探针先打印 `slotCarriesTagBits=1` 证明槽真带签名——这同时是「验证环境仍在真 PAC 下」的负控制，raw 模式若安然退出说明环境已变安慰剂；`strip` 模式（修复后行为）掩码后解引用 + 经 ptrauth qualified stub 的 witness round trip（注入空 case、`getEnumTag` 读回）全通。
 
 ## 兼容性
 
