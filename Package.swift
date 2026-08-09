@@ -944,6 +944,7 @@ extension Target {
             .target(.SwiftIndexing),
             .target(.SwiftPrinting),
             .target(.SwiftAttributeInference),
+            .target(.SwiftInspection),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
         ],

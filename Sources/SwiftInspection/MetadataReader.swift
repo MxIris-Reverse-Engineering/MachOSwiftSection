@@ -55,6 +55,13 @@ extension MetadataReader {
         MetadataReaderCache.shared.remove(for: machO)
     }
 
+    /// Non-creating membership probe for the per-image demangle memo —
+    /// test-support surface for the indexer's cache-eviction contract
+    /// (`PerImageCacheEvictionTests`).
+    package static func cacheExists(for machO: some MachOSwiftSectionRepresentableWithCache) -> Bool {
+        MetadataReaderCache.shared.contains(in: machO)
+    }
+
     public static func demangleContext<MachO: MachOSwiftSectionRepresentableWithCache>(for context: ContextDescriptorWrapper, in machO: MachO) throws -> Node {
         if isCacheEnabled {
             return try MetadataReaderCache.shared.demangleContext(for: context, in: machO)
