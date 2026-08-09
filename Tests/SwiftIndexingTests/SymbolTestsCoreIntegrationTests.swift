@@ -554,6 +554,44 @@ extension STCoreTests {
     }
 }
 
+// MARK: - Nested Child Print Degradation
+
+extension STCoreTests {
+    /// A nested child whose descriptor cannot be read must drop ONLY itself:
+    /// the same per-definition catch `printRoot` applies at the top level,
+    /// pushed down into the nested-children loops. Before the fix the
+    /// child's throw escaped `printTypeDefinition` and the top-level catch
+    /// discarded the whole enclosing type.
+    @Test func corruptNestedChildDropsOnlyItself() async throws {
+        let indexer = try await preparedIndexer()
+        let parentDefinition = try #require(findTypeDefinition(named: "StructTest", in: indexer))
+        let donorDefinition = try #require(findTypeDefinition(named: "FinalClassTest", in: indexer))
+
+        // A real struct descriptor's layout re-wrapped at an offset far past
+        // the fixture's end of file: every read the child's indexing
+        // performs is out of bounds and throws deterministically.
+        let realStructDefinition = try #require(findTypeDefinition(named: "GenericStructNonRequirement", in: indexer))
+        guard case .struct(let realStructDescriptor) = realStructDefinition.typeContextDescriptorWrapper else {
+            Issue.record("GenericStructNonRequirement is expected to be a struct")
+            return
+        }
+        let unreadableDescriptor = StructDescriptor(layout: realStructDescriptor.layout, offset: 0x0FFF_FFF0)
+        let corruptChildDefinition = TypeDefinition(
+            typeContextDescriptorWrapper: .struct(unreadableDescriptor),
+            typeName: donorDefinition.typeName,
+            isSpecialized: false
+        )
+        parentDefinition.typeChildren.append(corruptChildDefinition)
+
+        nonisolated(unsafe) let unsafeParentDefinition = parentDefinition
+        nonisolated(unsafe) let unsafePrinter = SwiftDeclarationPrinter(in: machOFile)
+        let renderedParent = try await unsafePrinter.printTypeDefinition(unsafeParentDefinition).string
+
+        #expect(renderedParent.contains("StructTest"), "the enclosing type must keep printing")
+        #expect(!renderedParent.contains("FinalClassTest"), "the corrupt child must be dropped, not rendered")
+    }
+}
+
 // MARK: - Opaque Return Types (Integration)
 
 extension STCoreTests {

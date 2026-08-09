@@ -134,15 +134,28 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         try await DeclarationBlock(level: level) {
             try await renderTypeDeclarationHeader(for: materializedTypeContext, displayParentName: displayParentName, level: level, specializedMetadata: specializedMetadata)
         } body: {
+            // Per-CHILD catch: one nested child whose printing throws drops
+            // only itself — the same per-definition contract `printRoot`
+            // applies at the top level, pushed into the nested loops. A
+            // child's throw once escaped here and the top-level catch
+            // discarded the whole enclosing type.
             for child in typeDefinition.typeChildren {
-                try await NestedDeclaration {
-                    try await printTypeDefinition(child, level: level + 1)
+                if let renderedChild = await printCatchedThrowing({
+                    try await NestedDeclaration {
+                        try await printTypeDefinition(child, level: level + 1)
+                    }
+                }) {
+                    renderedChild
                 }
             }
 
             for child in typeDefinition.protocolChildren {
-                try await NestedDeclaration {
-                    try await printProtocolDefinition(child, level: level + 1)
+                if let renderedChild = await printCatchedThrowing({
+                    try await NestedDeclaration {
+                        try await printProtocolDefinition(child, level: level + 1)
+                    }
+                }) {
+                    renderedChild
                 }
             }
 
@@ -212,15 +225,26 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         try await DeclarationBlock(level: level) {
             try await printExtensionHeader(extensionDefinition, level: level)
         } body: {
+            // Per-CHILD catch, same contract as `printTypeDefinition`'s
+            // nested loops: a nested definition whose printing throws
+            // drops only itself, never the whole extension.
             for typeDefinition in extensionDefinition.types {
-                try await NestedDeclaration {
-                    try await printTypeDefinition(typeDefinition, level: level + 1)
+                if let renderedChild = await printCatchedThrowing({
+                    try await NestedDeclaration {
+                        try await printTypeDefinition(typeDefinition, level: level + 1)
+                    }
+                }) {
+                    renderedChild
                 }
             }
 
             for protocolDefinition in extensionDefinition.protocols {
-                try await NestedDeclaration {
-                    try await printProtocolDefinition(protocolDefinition, level: level + 1)
+                if let renderedChild = await printCatchedThrowing({
+                    try await NestedDeclaration {
+                        try await printProtocolDefinition(protocolDefinition, level: level + 1)
+                    }
+                }) {
+                    renderedChild
                 }
             }
 

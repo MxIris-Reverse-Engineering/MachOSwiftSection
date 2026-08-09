@@ -146,6 +146,17 @@ public final class TypeDefinition: Definition {
         self.isSpecialized = isSpecialized
     }
 
+    /// Test/tooling surface: constructs a definition around a RAW descriptor
+    /// reference, no parsed wrapper required — error-contract tests use it to
+    /// build a definition whose indexing/materialization deterministically
+    /// fails (a real descriptor layout re-wrapped at an out-of-bounds
+    /// offset).
+    package init(typeContextDescriptorWrapper: TypeContextDescriptorWrapper, typeName: TypeName, isSpecialized: Bool) {
+        self.typeContextDescriptorWrapper = typeContextDescriptorWrapper
+        self.typeName = typeName
+        self.isSpecialized = isSpecialized
+    }
+
     public convenience init<MachO: MachOSwiftSectionRepresentableWithCache>(type: TypeContextWrapper, in machO: MachO) async throws {
         let typeName = try type.typeName(in: machO)
         self.init(type: type, typeName: typeName, isSpecialized: false)
