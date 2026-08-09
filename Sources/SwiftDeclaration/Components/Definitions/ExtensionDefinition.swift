@@ -91,6 +91,19 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
         self.resolvedAssociatedTypeWitnesses = resolvedAssociatedTypeWitnesses
     }
 
+    /// Test/tooling surface: constructs a definition around a RAW descriptor
+    /// reference, no parsed wrapper required — error-contract tests use it to
+    /// build a definition whose materialization deterministically fails
+    /// (a real descriptor layout re-wrapped at an out-of-bounds offset).
+    package init(extensionName: ExtensionName, genericSignature: NodeReference?, protocolConformanceDescriptor: ProtocolConformanceDescriptor?) {
+        self.extensionName = extensionName
+        self.genericSignature = genericSignature
+        self.protocolConformanceDescriptor = protocolConformanceDescriptor
+        self.conformingProtocolName = nil
+        self.associatedTypes = []
+        self.resolvedAssociatedTypeWitnesses = []
+    }
+
     /// Rebuilds the full `ProtocolConformance` (trailing objects included)
     /// from the retained descriptor; `nil` for member / typealias-only
     /// extensions. Materialization discipline (evolution proposal 0002):

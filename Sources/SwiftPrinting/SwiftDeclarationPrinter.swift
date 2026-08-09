@@ -245,9 +245,16 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         extensionDefinition.extensionName.print()
 
         // This print operation's single conformance materialization
-        // (proposal 0002). A materialization failure is treated like the
-        // thrown-resolution case below — the whole clause is dropped.
-        let materializedProtocolConformance = try? extensionDefinition.materializedProtocolConformance(in: machO)
+        // (proposal 0002). Propagates on failure: a public entry must not
+        // hold a weaker error contract than the `index(in:)` that precedes
+        // it on every in-repo path — both run this same materialization, so
+        // in-repo the throw is unreachable, but an external caller invoking
+        // this entry directly on an un-indexed definition would otherwise
+        // get a confidently wrong `extension Foo` header with the
+        // conformance clause, `@retroactive`, and global-actor markers
+        // silently missing (a `try?` here once conflated that failure with
+        // "no conformance at all").
+        let materializedProtocolConformance = try extensionDefinition.materializedProtocolConformance(in: machO)
 
         // Pre-leaf-migration `dumpProtocolName` semantics: a `nil` protocol
         // node collapses to an *empty* name but still emits the clause (the

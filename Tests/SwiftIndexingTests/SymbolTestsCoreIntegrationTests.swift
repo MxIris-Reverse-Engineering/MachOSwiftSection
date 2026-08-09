@@ -518,6 +518,42 @@ extension STCoreTests {
     }
 }
 
+// MARK: - Extension Header Error Contract
+
+extension STCoreTests {
+    /// The public `printExtensionHeader` must PROPAGATE a thrown conformance
+    /// materialization, matching the error contract of the `index(in:)` that
+    /// precedes it on every in-repo path (both run the same
+    /// materialization, so in-repo the throw is unreachable — but an
+    /// external caller invoking the public entry directly on an un-indexed
+    /// definition would otherwise get a confidently wrong `extension Foo`
+    /// header with the conformance clause, `@retroactive`, and global-actor
+    /// markers silently missing).
+    @Test func printExtensionHeaderPropagatesMaterializationFailure() async throws {
+        let indexer = try await preparedIndexer()
+        let donorExtensionDefinition = try #require(
+            indexer.conformanceExtensionDefinitions.values.flatMap { $0 }
+                .first { $0.protocolConformanceDescriptor != nil }
+        )
+        let realDescriptor = try #require(donorExtensionDefinition.protocolConformanceDescriptor)
+        // A real descriptor layout re-wrapped at an offset far past the
+        // fixture's end of file: every relative resolve inside the
+        // materialization computes an out-of-bounds read and throws.
+        let unreadableDescriptor = ProtocolConformanceDescriptor(layout: realDescriptor.layout, offset: 0x0FFF_FFF0)
+        let unreadableExtensionDefinition = ExtensionDefinition(
+            extensionName: donorExtensionDefinition.extensionName,
+            genericSignature: nil,
+            protocolConformanceDescriptor: unreadableDescriptor
+        )
+
+        nonisolated(unsafe) let unsafeExtensionDefinition = unreadableExtensionDefinition
+        nonisolated(unsafe) let unsafePrinter = SwiftDeclarationPrinter(in: machOFile)
+        await #expect(throws: (any Error).self) {
+            _ = try await unsafePrinter.printExtensionHeader(unsafeExtensionDefinition, level: 1)
+        }
+    }
+}
+
 // MARK: - Opaque Return Types (Integration)
 
 extension STCoreTests {
