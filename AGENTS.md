@@ -7,6 +7,8 @@ All project documentation lives in the `Documentations/` directory, split by aud
 
 - **`Documentations/` (top level) — external / public docs**, for library users and other developers. Reference-style, English or bilingual (an `*_zh.md` companion). Currently just `SwiftEnumLayout.md` (+ `SwiftEnumLayout_zh.md`).
 - **`Documentations/Internal/` — maintainer-facing notes** (design notes, migration guides, refactor write-ups; `Internal/TaskReports/` holds dated per-task reports). This is the default home for working docs.
+- **`Documentations/Evolutions/` — evolution proposals** (Chinese, `NNNN-kebab-case-slug.md`): every non-trivial change is proposed, approved, and tracked in one per-change file with a status machine (`Draft` → … → `Implemented`); `Evolutions/README.md` is the status table. Implementation must not start before the proposal is `Accepted`, and status updates land in the same commit as the code.
+- **`Documentations/Glossary.md` — project glossary** (Chinese): project-coined terms and project-specific usages (sweep, reader-split leg, name source, detach, materialize, …). Register new terms in the same batch that introduces them; cross-project generic terms live in the user's global glossary, not here.
 
 Name doc files in **PascalCase** with the `.md` extension (e.g. `Internal/SwiftModularizationMigration.md`, `Internal/ReadingContextAbstraction.md`). When asked to "write a doc", default to `Documentations/Internal/` with a PascalCase name — only put it at the top level if it is genuinely a public, externally-facing reference (and then keep it English/bilingual). Do not scatter docs next to source files. When adding or moving a doc, update `Documentations/README.md`.
 

@@ -7,7 +7,7 @@
 - **所属愿景**: 无
 - **关联提案**: 无（本仓库首篇）。跨仓库关联：swift-demangling 0008（字节扫描器）/ 0010（`SharedNodeStore`）为既有地基；其「demangle 入口收 `Span<UInt8>`」新提案与本案解耦对接（见「前期调研 · 上游接口」）
 - **实现分支 / PR**: `feature/node-store-migration`
-- **配套文档**: 无独立专题文章（收尾判断见决策日志）；维护者事实同步于 AGENTS.md「Symbol indexing」段，过程复盘见 [TaskReports/2026-08-08-symbol-name-offsetization.md](../Internal/TaskReports/2026-08-08-symbol-name-offsetization.md)
+- **配套文档**: 专题汇总 [SymbolIndexStoreMemoryOptimization.md](../Internal/SymbolIndexStoreMemoryOptimization.md)（2026-08-09 应用户要求补写，覆盖含本案在内的三波优化；推翻当日「不另写」的收尾判断，见决策日志）；维护者事实同步于 AGENTS.md「Symbol indexing」段，过程复盘见 [TaskReports/2026-08-08-symbol-name-offsetization.md](../Internal/TaskReports/2026-08-08-symbol-name-offsetization.md)
 
 ## 摘要
 
@@ -201,3 +201,4 @@ final class SymbolTable: @unchecked Sendable {
 | 2026-08-08 | 实施偏差：搭车项裁剪 | `rootNodeIndexByTableRow` 的 `Optional<NodeIndex>` → `UInt32.max` 哨兵一项**放弃**：`NodeStore.NodeIndex` 的构造器是上游 internal（debug 布局还带 store tag），从原始 `UInt32` 重建索引需要新的上游 API，为 ~1.6 MB 不值得跨仓库开口子。`symbolRowsByOffset` 换普通 `Dictionary` 一项照做。另一实现细节：standalone `SymbolTable` 统一走私有字节缓冲表示（提案草绘的 `[String]` 变体不再需要——单一表示，读取路径零分支）。 |
 | 2026-08-08 | Implemented + 收尾判断 | 验证结果见「落地记录」（1341 全绿、A/B 96 对逐字节一致、性能持平；文件腿构建期峰值 +4% 如实记录，RV 稳态复测为最终裁判、结果回填）。收尾判断：**不另写实现说明**——「代码看不出来的决策」（mapped 指针生命周期约束、名字来源双腿、Span 不可用的原因）已分别落在 `SymbolTable` 类文档、AGENTS.md「Symbol indexing」段与本提案决策日志，另立一篇只会是复述；**不登记新术语表**——本项目无 `Glossary.md`（项目现状即约定），「offset 化 / 名字来源 / permutation 二分」均在首次出现处展开。 |
 | 2026-08-08 | RV 复测闭环 | 落地步骤 8 完成（对面协调，同日）：footprint 稳态 445 → 322 MB（−28%，好于预期）、堆存活 355 → 283.3 MiB（预期带内）、`SymbolIndexStore` 簇 214.6 → 120.9 MiB、StringStorage −42.8 万个/−52.9 MiB，无回归旁证。详数见「落地记录」第 5 条。本提案全部落地步骤就此闭环。 |
+| 2026-08-09 | 收尾判断修订：补写专题 + 建术语表 | 应用户要求推翻前日收尾判断的两项「不做」：补写专题汇总 [SymbolIndexStoreMemoryOptimization.md](../Internal/SymbolIndexStoreMemoryOptimization.md)（行文参照上游 swift-demangling 的 `SubtreeInterning.md`，覆盖 NodeStore 迁移 → 缓存清退 → 本案三波）；新建项目术语表 `Documentations/Glossary.md` 并登记本案引入的术语（sweep、腿、名字来源、permutation 二分、detach、物化等）——「项目无术语表」的现状前提由用户指示改变。 |
