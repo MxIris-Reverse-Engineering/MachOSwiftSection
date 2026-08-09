@@ -174,9 +174,14 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
     @Test func offsetQueriesRebuildSymbolsWithQueriedOffset() throws {
         let storage = try storage
         #expect(!storage.symbolRowsByOffset.isEmpty)
+        // Complete and deterministic: `symbolRowsByOffset` is deliberately
+        // unordered (nothing production iterates it), and Swift dictionary
+        // iteration order is seeded per process — a capped raw iteration
+        // once sampled a DIFFERENT 500 offsets every run, giving this pin
+        // unstable coverage. Sorting and checking every offset makes a
+        // regression on cache-adjusted keys reproducible.
         var checkedOffsetCount = 0
-        for (offset, rows) in storage.symbolRowsByOffset {
-            guard checkedOffsetCount < 500 else { break }
+        for (offset, rows) in storage.symbolRowsByOffset.sorted(by: { $0.key < $1.key }) {
             let queried = try #require(SymbolIndexStore.shared.symbols(for: offset, in: machOFile))
             #expect(queried.count == rows.count)
             #expect(queried.allSatisfy { $0.offset == offset })
