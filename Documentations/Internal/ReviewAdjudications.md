@@ -81,3 +81,16 @@
 - **既往修复**：`a7caf944` 设计单层 detach（当时只有符号表层）；`6b0dad20` 加 arena 层未回访 doc——回访结论是设计成立、文档失准。
 - **代码锚点**：`DemangledSymbol.detachedFromSharedTable()` doc comment；`SymbolTableRetentionTests.storedDeclarationSymbolsShareTheDefinitionsNodeStore`。
 - **复审条件**：出现「declaration model 已释放、仅存储的 `DemangledSymbol` 长期存活」的真实消费形态（届时 node 层拷贝才有回收对象），或 profiling 显示 per-image node store 是驻留头部且 model 生命周期无法缩短。
+
+---
+
+## A6 — `machOFile(by:)` 对 plain-dylib 名字全量扫描、无 rank-0 以外的早退（PR #103 review L3）
+
+- **裁决**：优化不做（2026-08-09，机制分析 + 测量双重裁决）；强制配套的 plain-`.dylib` 端到端用例已落地。
+- **发现**：rank 公式下只有原生 canonical framework 能到 `bestMatchRank`（0），plain dylib 名（`libswiftCore` → rank 2）永远触发全部 cache 文件的完整扫描；review 建议「track the best rank still achievable and stop when the current match ties it」。
+- **复现 / 是否误报**：扫描行为属实；但**建议的早退机制不成立**：持有 rank 2（dylib 命中）时，尚未扫描的 subcache 里仍可能存在 rank 0 的 framework 本体——「当前 rank 已是可达最优」这个判断在扫描中途无法安全做出，提前停恰是 `17ad4358` 要修的 SwiftUI→axbundle 顺序依赖误解析的复发形状（同名镜像跨 subcache 分布正是当年的触发条件）。rank 0 是唯一可靠的早退点，现状已实现。
+- **与 main 基线对比**：main 是 first-match-wins（快但错）；ranking 线是记录在案的 correctness-for-speed 取舍。
+- **为什么优化不做**：代价测出来是噪声级——当前系统 dyld cache（macOS 26，含全部 subcache）上 `machOFile(by: .name("libswiftCore"))` 全量扫描 **43 ms**（review 估计的「thousands of MachOFile constructions」实际单次构造微秒级），每次 CLI 调用至多一次。备选的「路径先行、只构造赢家」方案需在 MachOExtensions 里复刻 MachOKit `_machOFiles` 的枚举细节（main-cache imageInfos 回退、fileOffset 过滤），漂移风险大于 43 ms 的收益。
+- **既往修复**：`17ad4358`（引入 ranking）→ `6647359e`（跨 cache 文件生效）→ 本轮第三次审视。三轮都没落的 plain-`.dylib` 用例这次落了：`DyldCacheEndToEndLookupTests`（当前系统 cache 上 `libswiftCore` 解析到 `/usr/lib/swift/libswiftCore.dylib`、`SwiftUI` 解析到原生 framework 本体且非 iOSSupport）。
+- **代码锚点**：`DyldCacheEndToEndLookupTests` 的套件注释。
+- **复审条件**：① 出现高频调用 `machOFile(by:)` 的新消费形态（当前每 CLI 调用一次）；② MachOKit 上游暴露 `(imagePath, fileOffset)` 级枚举后，「只构造赢家」无需复刻内部细节——届时可顺手做。
