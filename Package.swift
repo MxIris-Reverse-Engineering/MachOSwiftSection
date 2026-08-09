@@ -798,7 +798,7 @@ extension Target {
         name: "MachOCachesTests",
         dependencies: [
             .target(.MachOCaches),
-            .target(.MachOExtensions),
+            .product(.MachOKitExtensions),
         ],
         swiftSettings: testSettings,
     )
@@ -868,6 +868,7 @@ extension Target {
             .target(.SwiftPrinting),
             .target(.SwiftSpecialization),
             .target(.SwiftInterface),
+            .product(.MachOKitExtensions),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
             .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),

@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import MachOKit
+import MachOExtensions
 @testable import MachOSwiftSection
 @_spi(Support) @testable import SwiftInterface
 
@@ -104,6 +105,43 @@ struct LegacyDyldInfoBindTests {
         let machOFile = try loadFixtureMachOFile()
         #expect(machOFile.dyldChainedFixups == nil)
         #expect(machOFile.bindOperations != nil)
+    }
+
+    /// Walks the fixture's `LC_DYLD_INFO` opcode stream (via MachOKit's
+    /// public decoding) just far enough to compute the first bound slot's
+    /// file offset — the same segment-base + segment-offset arithmetic the
+    /// production index applies.
+    private func firstLegacyBindSlotFileOffset(in machOFile: MachOFile) -> Int? {
+        guard let bindOperations = machOFile.bindOperations else { return nil }
+        let segmentFileOffsets = machOFile.segments.map { UInt64($0.fileOffset) }
+        var segmentIndex = 0
+        var segmentOffset: UInt = 0
+        for operation in bindOperations {
+            switch operation {
+            case .set_segment_and_offset_uleb(let segment, let offset):
+                segmentIndex = Int(segment)
+                segmentOffset = offset
+            case .add_addr_uleb(let offset):
+                segmentOffset &+= offset
+            case .do_bind, .do_bind_add_addr_uleb, .do_bind_add_addr_imm_scaled, .do_bind_uleb_times_skipping_uleb:
+                guard segmentFileOffsets.indices.contains(segmentIndex) else { return nil }
+                return Int(segmentFileOffsets[segmentIndex] &+ UInt64(segmentOffset))
+            default:
+                continue
+            }
+        }
+        return nil
+    }
+
+    /// `isBind(fileOffset:)` and `resolveBind(fileOffset:)` must give the
+    /// same answer for the same slot: a consumer that gates a bind read on
+    /// `isBind` would otherwise get nothing on exactly the legacy binaries
+    /// the opcode-stream fallback was added for.
+    @Test func isBindAgreesWithResolveBindOnLegacyBinaries() throws {
+        let machOFile = try loadFixtureMachOFile()
+        let bindSlotFileOffset = try #require(firstLegacyBindSlotFileOffset(in: machOFile))
+        #expect(machOFile.resolveBind(fileOffset: bindSlotFileOffset) != nil)
+        #expect(machOFile.isBind(fileOffset: bindSlotFileOffset))
     }
 
     /// Pins the opcode-bind fallback: conformances to protocols living in
