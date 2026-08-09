@@ -22,11 +22,28 @@ import MachOExtensions
 /// format as the iOS 15.5 simulator frameworks that surfaced the bug.
 @Suite(.serialized)
 struct LegacyDyldInfoBindTests {
+    /// The fixture's working directory must outlive every test in the
+    /// (serialized) suite, so it is removed at process exit rather than per
+    /// test. A crashed run still leaks one directory; the unique name keeps
+    /// that harmless and non-colliding across parallel test processes.
+    private enum FixtureWorkingDirectoryCleanup {
+        nonisolated(unsafe) static var directories: [URL] = []
+        static let registration: Void = {
+            atexit {
+                for directory in FixtureWorkingDirectoryCleanup.directories {
+                    try? FileManager.default.removeItem(at: directory)
+                }
+            }
+        }()
+    }
+
     private static let fixtureCompilationResult: Result<URL, Error> = {
         Result {
             let workingDirectory = FileManager.default.temporaryDirectory
                 .appendingPathComponent("LegacyDyldInfoBindFixture-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: workingDirectory, withIntermediateDirectories: true)
+            _ = FixtureWorkingDirectoryCleanup.registration
+            FixtureWorkingDirectoryCleanup.directories.append(workingDirectory)
 
             let sourceURL = workingDirectory.appendingPathComponent("LegacyFixture.swift")
             let libraryURL = workingDirectory.appendingPathComponent("libLegacyFixture.dylib")
@@ -43,9 +60,15 @@ struct LegacyDyldInfoBindTests {
             let standardErrorPipe = Pipe()
             process.standardError = standardErrorPipe
             try process.run()
+            // Drain BEFORE waitUntilExit: diagnostics beyond the ~64 KB pipe
+            // buffer would otherwise deadlock compiler and parent (the child
+            // blocked writing, the parent parked waiting) — and because this
+            // is a static let under a serialized suite, that deadlock would
+            // hang the whole test run instead of reporting a failure.
+            let diagnosticsData = standardErrorPipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
             guard process.terminationStatus == 0 else {
-                let diagnostics = String(decoding: standardErrorPipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+                let diagnostics = String(decoding: diagnosticsData, as: UTF8.self)
                 throw LegacyFixtureCompilationError(diagnostics: diagnostics)
             }
             return libraryURL
