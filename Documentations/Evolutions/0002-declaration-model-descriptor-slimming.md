@@ -89,6 +89,8 @@ extension ProtocolDefinition {
 
 三者都是薄封装（转调现成的 `forTypeContextDescriptorWrapper` / `ProtocolConformance(descriptor:in:)` / `Protocol(descriptor:in:)`），throws 语义与今天模型构建期相同。
 
+**物化结果不缓存**——每次用时重新物化，这是有意的：缓存存回定义对象会把省掉的内存按浏览顺序逐个攒回来，与本案目的直接冲突；物化本身是映射内存的一遍顺序解析 + 几次小数组分配（微秒级），比消费它的 demangle + 打印便宜几个数量级；且触发频度天然有界——`index()` 有 `isIndexed` 挡板一生一次，打印每次查看一次，specialize 是低频交互，没有热循环反复物化同一定义的路径（首次查看一个类型 = index + 打印共 2 次，之后每次重看 1 次）。若落地后 profiling 显示物化是热点，退路是镜像作用域、内存压力可驱逐的小缓存——结构兼容、不动 API，后补而非前置。
+
 ### 构造路径
 
 - 索引器 sweep 今天就持有完整 wrapper（要用它派生 `typeName`）：`TypeDefinition` 的 init 继续收 wrapper，**内部只存其 `typeContextDescriptorWrapper`**——sweep 的解析工作量不变，变化只是解析产物在 init 返回后即可释放。
@@ -170,3 +172,4 @@ extension ProtocolDefinition {
 | 日期 | 变更 | 说明 |
 |------|------|------|
 | 2026-08-09 | Created as In Review | 0001 落地后 RV 复测把声明模型 41.3 MiB + MachOSwiftSection 解析结构 33.4 MiB 定位为堆内新头部；优化面普查（`index()` 惰性 × wrapper 急切驻留的错配）成文本案；用户批准立项（「可以，写提案」）。 |
+| 2026-08-09 | 审阅补充：物化结果不缓存 | 审阅期用户问「物化后会缓存吗」；裁决为不缓存、每次用时重新物化（缓存会按浏览顺序把内存攒回来；物化微秒级、频度有界），可驱逐小缓存仅作 profiling 证明热点后的退路。已写入「详细设计 · 物化接口」。 |
