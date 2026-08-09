@@ -114,9 +114,20 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
 
         // Cheap pre-check on the retained descriptor keeps the typealias-only
         // majority from materializing at all; the one materialization below
-        // is this operation's single allowed one (proposal 0002).
-        guard protocolConformanceDescriptor != nil else { return }
-        guard let protocolConformance = try materializedProtocolConformance(in: machO), !protocolConformance.resilientWitnesses.isEmpty else { return }
+        // is this operation's single allowed one (proposal 0002). Both early
+        // returns are COMPLETED indexings ("nothing to index"), so they must
+        // set `isIndexed` — otherwise every later consumer (the printer's
+        // three probes plus the diffable builder) re-enters the whole
+        // materialization per print. A thrown materialization deliberately
+        // leaves the flag unset so a failed read can be retried.
+        guard protocolConformanceDescriptor != nil else {
+            isIndexed = true
+            return
+        }
+        guard let protocolConformance = try materializedProtocolConformance(in: machO), !protocolConformance.resilientWitnesses.isEmpty else {
+            isIndexed = true
+            return
+        }
 
         // Structurally keyed: `demangleSymbolReference` returns references from
         // different stores, and store-identity equality would let the same

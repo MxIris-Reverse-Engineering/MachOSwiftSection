@@ -440,6 +440,61 @@ extension STCoreTests {
     }
 }
 
+// MARK: - Extension Indexing Completion
+
+extension STCoreTests {
+    /// A descriptor-less (typealias-only) extension takes `index(in:)`'s
+    /// early return; that return must still mark the definition as indexed,
+    /// or every later consumer (`printExtensionDefinition`,
+    /// `printDefinition`, the diffable builder) re-enters the whole
+    /// materialization path.
+    @Test func descriptorLessExtensionIndexingMarksCompletion() async throws {
+        let indexer = try await preparedIndexer()
+        let donorExtensionDefinition = try #require(
+            [
+                indexer.typeExtensionDefinitions,
+                indexer.protocolExtensionDefinitions,
+                indexer.typeAliasExtensionDefinitions,
+                indexer.conformanceExtensionDefinitions,
+            ]
+            .flatMap { $0.values.flatMap { $0 } }
+            .first
+        )
+        let descriptorLessExtensionDefinition = ExtensionDefinition(
+            extensionName: donorExtensionDefinition.extensionName,
+            genericSignature: nil
+        )
+        nonisolated(unsafe) let unsafeExtensionDefinition = descriptorLessExtensionDefinition
+        let unsafeMachOFile = machOFile
+        try await unsafeExtensionDefinition.index(in: unsafeMachOFile)
+        #expect(unsafeExtensionDefinition.isIndexed)
+    }
+
+    /// Sweep shape: after one `index(in:)` pass over every extension bucket
+    /// (the diffable builder's exact loop), every definition must be marked
+    /// indexed — covering both early-return shapes present in the fixture
+    /// (no conformance descriptor / conformance without resilient witnesses).
+    @Test func everyIndexedExtensionIsMarkedIndexed() async throws {
+        let indexer = try await preparedIndexer()
+        let unsafeMachOFile = machOFile
+        for bucket in [
+            indexer.typeExtensionDefinitions,
+            indexer.protocolExtensionDefinitions,
+            indexer.typeAliasExtensionDefinitions,
+            indexer.conformanceExtensionDefinitions,
+        ] {
+            for extensionDefinition in bucket.values.flatMap({ $0 }) {
+                nonisolated(unsafe) let unsafeExtensionDefinition = extensionDefinition
+                try await unsafeExtensionDefinition.index(in: unsafeMachOFile)
+                #expect(
+                    unsafeExtensionDefinition.isIndexed,
+                    "\(extensionDefinition.extensionName.name) completed index(in:) without being marked indexed"
+                )
+            }
+        }
+    }
+}
+
 // MARK: - Opaque Return Types (Integration)
 
 extension STCoreTests {
