@@ -440,6 +440,29 @@ extension STCoreTests {
     }
 }
 
+// MARK: - Post-Preparation Statistics
+
+extension STCoreTests {
+    /// The six public statistics accessors must keep answering after
+    /// `prepare()` releases the section-wrapper populations (evolution
+    /// proposal 0002): the only useful time to read them is post-preparation,
+    /// and a silent 0 is indistinguishable from an empty binary.
+    @Test func statisticsRemainAvailableAfterPreparation() async throws {
+        let indexer = try await preparedIndexer()
+
+        #expect(indexer.numberOfTypes > 0)
+        #expect(indexer.numberOfEnums > 0)
+        #expect(indexer.numberOfStructs > 0)
+        #expect(indexer.numberOfClasses > 0)
+        #expect(indexer.numberOfProtocols > 0)
+        #expect(indexer.numberOfProtocolConformances > 0)
+
+        // `TypeContextWrapper` is exactly {enum, struct, class}, so the
+        // partition must sum back to the total.
+        #expect(indexer.numberOfTypes == indexer.numberOfEnums + indexer.numberOfStructs + indexer.numberOfClasses)
+    }
+}
+
 // MARK: - Extension Indexing Completion
 
 extension STCoreTests {

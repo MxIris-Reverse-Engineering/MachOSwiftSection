@@ -51,8 +51,27 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         case symbol(Symbol)
     }
 
+    /// Snapshot of the six public statistics accessors' answers, frozen at
+    /// the end of `prepare()` immediately before the section-wrapper
+    /// populations are released (evolution proposal 0002). The accessors
+    /// read this snapshot, so they keep answering after the arrays they
+    /// were once computed from are gone; before preparation every count
+    /// is 0, matching the empty arrays they mirror.
+    @usableFromInline
+    struct PreparationStatistics: Sendable {
+        @usableFromInline var numberOfTypes: Int = 0
+        @usableFromInline var numberOfEnums: Int = 0
+        @usableFromInline var numberOfStructs: Int = 0
+        @usableFromInline var numberOfClasses: Int = 0
+        @usableFromInline var numberOfProtocols: Int = 0
+        @usableFromInline var numberOfProtocolConformances: Int = 0
+    }
+
     @usableFromInline
     final class Storage: Sendable {
+        @usableFromInline @Mutex
+        var preparationStatistics: PreparationStatistics = .init()
+
         @usableFromInline @Mutex
         var types: [TypeContextWrapper] = []
 
@@ -296,6 +315,20 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
             eventDispatcher.dispatch(.phaseTransition(phase: .indexing, state: .failed(error)))
             throw error
         }
+
+        // Freeze the public statistics BEFORE the wrapper populations are
+        // released below — post-preparation is the accessors' only useful
+        // reading time, and without this snapshot they would silently
+        // answer 0 (indistinguishable from an empty binary).
+        let indexedTypes = currentStorage.types
+        currentStorage.preparationStatistics = PreparationStatistics(
+            numberOfTypes: indexedTypes.count,
+            numberOfEnums: indexedTypes.count(where: \.isEnum),
+            numberOfStructs: indexedTypes.count(where: \.isStruct),
+            numberOfClasses: indexedTypes.count(where: \.isClass),
+            numberOfProtocols: currentStorage.protocols.count,
+            numberOfProtocolConformances: currentStorage.protocolConformances.count
+        )
 
         // The section-wrapper populations are inputs to the index passes and
         // nothing else (evolution proposal 0002): every fact a post-indexing
@@ -1040,22 +1073,26 @@ extension SwiftDeclarationIndexer {
 
 // MARK: - Statistics
 
+// Answered from the `PreparationStatistics` snapshot frozen at the end of
+// `prepare()` — the backing arrays are indexing transients released there
+// (evolution proposal 0002), so reading them directly would return 0 for
+// the accessors' whole useful lifetime.
 extension SwiftDeclarationIndexer {
     @inlinable
-    public var numberOfTypes: Int { currentStorage.types.count }
+    public var numberOfTypes: Int { currentStorage.preparationStatistics.numberOfTypes }
 
     @inlinable
-    public var numberOfEnums: Int { currentStorage.types.filter { $0.isEnum }.count }
+    public var numberOfEnums: Int { currentStorage.preparationStatistics.numberOfEnums }
 
     @inlinable
-    public var numberOfStructs: Int { currentStorage.types.filter { $0.isStruct }.count }
+    public var numberOfStructs: Int { currentStorage.preparationStatistics.numberOfStructs }
 
     @inlinable
-    public var numberOfClasses: Int { currentStorage.types.filter { $0.isClass }.count }
+    public var numberOfClasses: Int { currentStorage.preparationStatistics.numberOfClasses }
 
     @inlinable
-    public var numberOfProtocols: Int { currentStorage.protocols.count }
+    public var numberOfProtocols: Int { currentStorage.preparationStatistics.numberOfProtocols }
 
     @inlinable
-    public var numberOfProtocolConformances: Int { currentStorage.protocolConformances.count }
+    public var numberOfProtocolConformances: Int { currentStorage.preparationStatistics.numberOfProtocolConformances }
 }

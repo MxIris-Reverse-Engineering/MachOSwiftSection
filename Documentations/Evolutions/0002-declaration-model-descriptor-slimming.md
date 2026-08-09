@@ -134,6 +134,8 @@ extension ProtocolDefinition {
 
 迁移是机械的：读 descriptor 事实改属性名；读 trailing 内容加一次 materialize 调用。库内约 30 处同批迁移。
 
+**落地后补记（2026-08-09，PR #103 review 发现 H1）**：上表之外还有一处**行为级**源码兼容性影响本节初稿漏记——「indexer Storage 侧同批清退」（见决策日志的实施期修正行）使六个统计属性 `numberOfTypes` / `numberOfEnums` / `numberOfStructs` / `numberOfClasses` / `numberOfProtocols` / `numberOfProtocolConformances` 在 `prepare()` 完成后静默归零：签名未变、编译不破，下游读到的却是 0。已修复：清退前把六个计数冻结进 `PreparationStatistics` 快照，accessor 改读快照；回归测试 `statisticsRemainAvailableAfterPreparation` 钉住。
+
 ### ABI 兼容性（条件项）
 
 不适用——本库以 SPM 源码分发，使用方每次重新编译（项目类型声明见 `Documentations/README.md`）。
@@ -180,3 +182,4 @@ extension ProtocolDefinition {
 | 2026-08-09 | wall-clock 验收：release 持平（一对反而更快） | debug 构建初测候选慢 5–10%（SwiftUICore interface 反转执行序复测仍 ~9%），但最大任务 dyld cache SwiftUI interface 仅 +0.2%，疑为 debug 常数因子；改以 release 构建 ABBA 序 ×2 轮定论：SwiftUI interface 基线均值 76.3s vs 候选 72.2s（候选**快 5.3%**），SwiftUICore 37.3s vs 37.4s（+0.5%，噪声带内）。验收线达成，以 release 为准；release 输出与 debug 同样逐字节一致。 |
 | 2026-08-09 | Accepted → Implemented | 落地步骤 1–5、8、9 完成（步骤 6 见上一行）：三定义 descriptor 化 + `parentContext` / `ParentContext` 移除 + 三个物化入口 + indexer Storage 清退 + 库内与测试侧全量迁移；全量 1343 绿；A/B 七对（debug 与 release 双构建）逐字节一致；实例尺寸 1272 → 384 / 640 → 224 / 440 → 384 B（前两者优于预估 ~400），回归守卫 `DeclarationModelInstanceSizeTests` 落位。步骤 7（RV 堆复测）待下游拿到本分支后进行；RV 侧 8 处机械迁移句式已在步骤 1 备好。 |
 | 2026-08-09 | 下游验收回报：全部达标、三项超预期 | RV 会话完成 8 处适配（与步骤 1 清单一致，零物化调用）并复测：稳态 322 → 262 MB、堆存活 283 → 209.6 MiB（超预期）、MSS 解析簇 33.4 → 3.3 MiB（超预期）、索引瞬态峰值 808 → 613 MB（超预期收获——提案未承诺瞬态收益）。数字已回填落地步骤 7。五镜像稳态全程曲线：842（起点）→ 470–480 → ~450 → 322（0001）→ **262 MB**（0002+0003）。 |
+| 2026-08-09 | 落地后修正：统计属性静默归零（PR #103 review H1） | 实施期修正的人口数组清退漏审了读它们的六个公开统计属性——清退后全部静默返回 0，且「源码兼容性」一节只列了三个属性换形态、未列这一行为级影响，下游无从得知。修正：`prepare()` 在清退前把六个计数冻结进 `Storage.PreparationStatistics` 快照，accessor 改读快照（签名与 `@inlinable` 均不变）；「源码兼容性」一节补记；回归测试 `statisticsRemainAvailableAfterPreparation` 永久钉住。教训同 0002 总则：编译器驱动的机械迁移看不见「语义还在、数值变错」的调用面，descriptor 化清退任何驻留数据前需人工普查其全部读者。 |
