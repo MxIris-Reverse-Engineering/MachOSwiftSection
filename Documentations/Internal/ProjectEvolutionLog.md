@@ -345,7 +345,7 @@
 - **文档**：[NodeStoreMigrationPlan.md](NodeStoreMigrationPlan.md)、
   [DeclarationModelMemoryFootprint.md](DeclarationModelMemoryFootprint.md)、TaskReports
   [2026-07-25-node-store-override-regression-and-baselines.md](TaskReports/2026-07-25-node-store-override-regression-and-baselines.md)、
-  [2026-07-25-dyld-cache-image-selection-and-rv-index-lifecycle.md](TaskReports/2026-07-25-dyld-cache-image-selection-and-rv-index-lifecycle.md)、
+  [2026-07-25-cache-image-selection-and-rv-index-lifecycle.md](TaskReports/2026-07-25-cache-image-selection-and-rv-index-lifecycle.md)、
   [2026-07-26-node-store-review-fixes.md](TaskReports/2026-07-26-node-store-review-fixes.md)。
 
 ---
@@ -773,6 +773,42 @@
 - **关键决策 / 实施偏差**：`Span`/`UTF8Span` 运行时可用性 macOS 26+、本包部署下限 10.15 → 字节访问层改 `UnsafeBufferPointer`（closure-scoped 形态不变）；`RigidArray` 的 class 属性 borrow 人体工学要 SE-0507 → 精确容量 `Array` 拷贝、免掉 `BasicContainers` 依赖；`Optional<NodeIndex>` 哨兵搭车项放弃（`NodeIndex` 构造器上游 internal）。均记入提案决策日志。
 - **验证**：等价性测试 4 项全绿（字节级判定 vs `String.isSwiftSymbol` 全符号表逐条一致、mapped 收集 vs String 收集全等、二分逐行自洽、detach 物化正确）；全量 1341 tests / 256 suites 全绿（前 1337 + 新增 4）；渲染 A/B 96 对逐字节一致、性能持平（详见提案落地记录）；RV 五镜像实景复测同日闭环——footprint 稳态 **445 → 322 MB（−28%）**、堆存活 355 → 283.3 MiB、`SymbolIndexStore` 簇 214.6 → 120.9 MiB、驻留符号名 StringStorage 如预期消失（−42.8 万个），无回归旁证。
 - **文档**：[Evolutions/0001-symbol-name-offsetization.md](../Evolutions/0001-symbol-name-offsetization.md)（提案全生命周期）、[TaskReports/2026-08-08-symbol-name-offsetization.md](TaskReports/2026-08-08-symbol-name-offsetization.md)。
+- **对应版本**：`0.14.1` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
+
+---
+
+## 35. SymbolIndexStore `[UInt32]` 行号桶扁平化（evolution 提案 0003）
+
+- **时间段**：2026-08-09（0001 落地次日；0001「非目标」一节点名的候选正式立项）。
+- **动机**：RV 五镜像复测显示 offset / member 索引里的 `[UInt32]` 碎数组簇 38.8 MiB / 约 45 万个——绝大多数桶只有一个元素，却各自付一次堆分配与数组头。
+- **落地**：`SymbolRowBucket`（`RandomAccessCollection`）替换四处 `[UInt32]` 桶：单元素 case 内联在字典槽里，收到第二个元素才落堆数组；迭代序保持插入序，查询输出与旧桶逐字节一致。fixture 上单元素桶占比 87.6%。
+- **验证**：全量 1343 tests 全绿；渲染 A/B 七对（含 dyld cache 两对）逐字节一致。下游 RV 复测超预期：`[UInt32]` 簇 38.8 → **7.2 MiB**（预期 15–20），碎数组人口坍缩为 5 个桶字典。
+- **文档**：[Evolutions/0003-symbol-row-bucket-flattening.md](../Evolutions/0003-symbol-row-bucket-flattening.md)（提案全生命周期）。
+- **对应版本**：`0.14.1` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
+
+---
+
+## 36. 声明模型 descriptor 化：不再驻留急切解析的胖 wrapper（evolution 提案 0002）
+
+- **时间段**：2026-08-09（与 0003 同批立项、独立实施）。
+- **动机**：0001 落地后 RV 复测把堆内新头部定位为声明模型 41.3 MiB + MachOSwiftSection 解析簇 33.4 MiB——`index()` 惰性与 wrapper 急切驻留错配：每个 `TypeDefinition` / `ExtensionDefinition` / `ProtocolDefinition` 终身抱着全量解析的 `TypeContextWrapper` / `ProtocolConformance` / `Protocol`（trailing objects 含 `[ResilientWitness]` 全在内），但索引完成后几乎无人再读。
+- **落地**：三定义改为驻留 **descriptor 引用**，全量 wrapper 用时经 `materializedTypeContext(in:)` / `materializedProtocolConformance(in:)` / `materializedProtocol(in:)` 按需重建（每操作至多一次、线程化为局部变量、绝不缓存回定义）；`parentContext` 及其 `ParentContext` 类型整体移除；实施期修正扩展到 indexer `Storage` 侧——四个人口数组在 `prepare()` 后清退、按名 keyed 重映射降级为索引期局部变量，新增名字级轻映射 `conformingProtocolNamesByTypeName` 等承接全部索引后消费者。
+- **关键决策**：物化结果不缓存（缓存会按浏览顺序把清退的内存攒回来）；wall-clock 以 release ABBA 定论——SwiftUI interface 候选反而快 5.3%，SwiftUICore 噪声带内。
+- **验证**：全量 1343 全绿；渲染 A/B 七对逐字节一致（debug 与 release 双构建）；实例尺寸 `TypeDefinition` 1272 → **384 B**、`ExtensionDefinition` 640 → **224 B**、`ProtocolDefinition` 440 → **384 B**，回归守卫 `DeclarationModelInstanceSizeTests` 钉住上限。下游 RV 五镜像复测全部达标、三项超预期：稳态 322 → **262 MB**、堆存活 283 → 209.6 MiB、解析簇 33.4 → 3.3 MiB、索引瞬态峰值 808 → 613 MB。五镜像稳态全程曲线：842 → 470–480 → ~450 → 322（0001）→ **262 MB**（0002+0003）。
+- **后记**：机械迁移漏审了读人口数组的六个公开统计属性（清退后静默归零）——由 PR #103 review 发现（H1）并在第 37 节的批次里修复；教训已记入 0002 决策日志（编译器驱动的迁移看不见「语义在、数值错」的调用面）。
+- **文档**：[Evolutions/0002-declaration-model-descriptor-slimming.md](../Evolutions/0002-declaration-model-descriptor-slimming.md)（提案全生命周期）、[DeclarationModelMemoryFootprint.md](DeclarationModelMemoryFootprint.md)（后记复量）。
+- **对应版本**：`0.14.1` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
+
+---
+
+## 37. PR #103 review 修复批次：14 条发现的实现与裁决
+
+- **时间段**：2026-08-09（PR #103 的 max 级 review 移交清单；B1（swift-demangling 远端 pin 缺上游 tag）由用户自行处理，不在本批次内）。
+- **动机**：`feature/node-store-migration` → `main` 的 PR review 产出 15 条经四问验证的发现；除 B1 外全部批准实施。四条共因串起十一条发现：0002 机械迁移的语义盲区（H1/H2/M1/L1）、0001 引入的裸指针与位预算（M2/M3/M5）、新二进制解码信任输入（H3/M4）、验收工具无自检（H4/L2/L4）。
+- **落地（代码修复 9 条 + 测试/工具 3 条）**：H2 扩展索引早退补 `isIndexed`；H1 统计快照在清退前冻结（`PreparationStatistics`）；M4 `isBind` 补 LC_DYLD_INFO 回退与 `resolveBind` 对齐；H3 bind 解码器按段界 bound（repeat count 挂死与 wrap 错归因关死）；M3 `PackedNameReference` 改 failable（build sweep 跳过超预算名、standalone 公开路径 clamp，release 下不再由二进制决定进程生死）；H4 A/B 验收脚本零对比即失败 + 硬失败传播；L2 fixture 编译先排空管道再等退出 + 临时目录进程退出清理；L4 offset 重建测试去 500 采样上限、排序全量；M6 per-image 缓存驱逐移交「镜像最后一个存活 indexer」（进程级登记表，修掉 A 死抽走 B 的三缓存）；M1 公开 `printExtensionHeader` 的物化失败改传播（与 `index(in:)` 契约对齐）；L1 嵌套子定义下压 per-child catch（坏子类型只丢自己）。
+- **裁决（3 条，记入 [ReviewAdjudications.md](ReviewAdjudications.md) A4–A6）**：M2 卸载后悬垂指针——实验证明 Darwin 把含 Swift 内容的镜像全部 pin 死（连无类 dylib 都不 unmap）、唯一能卸载的纯 C 镜像不产生 mapped 行，触发面结构性不存在；M5 建议的 detach 时拷贝 node store——定义自身 `node` 字段同店引用，拷贝零回收，改为文档写准 + 共享契约测试钉住；L3 建议的 achievable-rank 早退——机制不可靠（会复发跨 subcache 误解析）且全扫描实测仅 43 ms，强制配套的 plain-`.dylib` 端到端用例落地。
+- **实施期修订（留痕于清单文档）**：H3 的 `Int(segment)` trap 被推翻（segment 是 4-bit opcode immediate）；M1 的渲染路径失败被 review 会话自行推翻（库内不可达）并降级为 Low；L3 的开销估计被测量推翻。每条修复先写修复前失败的回归测试（M3 的 precondition trap、M6 的三缓存被抽、L1 的整型丢弃等均有失败实录），验证全程走本地兄弟依赖环境（B1 未决期间 CI 不可用）。
+- **文档**：[Roadmaps/2026-08-09-pr103-review-findings.md](../../Roadmaps/2026-08-09-pr103-review-findings.md)（原始清单 + 修订注记）、[ReviewAdjudications.md](ReviewAdjudications.md)（A4–A6）、[TaskReports/2026-08-09-pr103-review-fix-implementation.md](TaskReports/2026-08-09-pr103-review-fix-implementation.md)。
 - **对应版本**：`0.14.1` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
 
 ---

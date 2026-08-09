@@ -4,7 +4,7 @@ Review date: 2026-08-09
 PR: `feature/node-store-migration` → `main` (103 files, +6880/−874, merge base `a8968fa5`)
 Review depth: automated multi-agent review at `max` effort, followed by a manual pass that answered the four mandatory questions (reproduce / baseline / worth fixing / fixed before) for every surviving finding against the branch, `main`, CI logs, and `git log`.
 
-Status: **Recorded and verified, not yet fixed.**
+Status: **Implemented (2026-08-09)** — every finding except B1 is either fixed with a pre-fix-failing regression test or adjudicated with recorded reasoning (`Documentations/Internal/ReviewAdjudications.md` A4–A6); B1 is deliberately left to the user (upstream release). Per-finding revision notes below record where implementation refuted or reshaped the original write-up (H3, M1, M2, M5, L3). Execution retrospective: `Documentations/Internal/TaskReports/2026-08-09-pr103-review-fix-implementation.md`.
 
 All file/line references are against `feature/node-store-migration` at `8faff275`. "Baseline" means `main` at `a8968fa5`. "Upstream" means the `swift-demangling` package.
 
