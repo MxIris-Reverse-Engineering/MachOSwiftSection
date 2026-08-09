@@ -130,7 +130,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
     }
 
     public final class Storage: @unchecked Sendable {
-        typealias MemberSymbolRows = OrderedDictionary<String, OrderedDictionary<NodeStore.NodeIndex, [UInt32]>>
+        typealias MemberSymbolRows = OrderedDictionary<String, OrderedDictionary<NodeStore.NodeIndex, SymbolRowBucket>>
 
         /// The frozen arena holding every demangled node of this image.
         /// All `NodeReference` values vended by this storage point into it.
@@ -192,8 +192,11 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         /// Plain `Dictionary`: the only consumer is the keyed lookup in
         /// `symbols(for:in:)` — nothing iterates it in order (proposal 0001
         /// rider; the former `OrderedDictionary` paid an ordering table for
-        /// hundreds of thousands of entries nobody read).
-        let symbolRowsByOffset: [Int: [UInt32]]
+        /// hundreds of thousands of entries nobody read). Values are
+        /// `SymbolRowBucket` (proposal 0003): the dominant single-row case
+        /// stays inline in the dictionary slot instead of paying a per-key
+        /// array allocation.
+        let symbolRowsByOffset: [Int: SymbolRowBucket]
 
         let thunkAttributeMembersByKindAndTypeName: [Node.Kind: [String: [ThunkAttributeMember]]]
 
@@ -222,7 +225,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             nodeStore: NodeStore,
             symbolTable: SymbolTable,
             rootNodeIndexByTableRow: [NodeStore.NodeIndex?],
-            symbolRowsByOffset: [Int: [UInt32]],
+            symbolRowsByOffset: [Int: SymbolRowBucket],
             rowIndexes: consuming RowIndexes
         ) {
             self.nodeStore = nodeStore
@@ -303,8 +306,39 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             return DemangledSymbol(symbolTable: symbolTable, symbolTableRow: row, demangledNode: nodeStore.reference(at: rootNodeIndex))
         }
 
-        func demangledSymbols(atRows rows: [UInt32]) -> [DemangledSymbol] {
+        func demangledSymbols(atRows rows: some Sequence<UInt32>) -> [DemangledSymbol] {
             rows.compactMap { demangledSymbol(atRow: $0) }
+        }
+
+        /// One-shot acceptance statistic for proposal 0003: how many buckets
+        /// stay in the inline single-row form, across the offset index and
+        /// the three member-index families' leaf buckets. The proposal's
+        /// memory estimate assumes single-row dominance, so this is the
+        /// number the acceptance evidence pins.
+        func bucketFormStatisticsForTesting() -> (singleRowBucketCount: Int, multipleRowBucketCount: Int) {
+            var singleRowBucketCount = 0
+            var multipleRowBucketCount = 0
+            func tally(_ bucket: SymbolRowBucket) {
+                switch bucket {
+                case .single:
+                    singleRowBucketCount += 1
+                case .multiple:
+                    multipleRowBucketCount += 1
+                }
+            }
+            for bucket in symbolRowsByOffset.values {
+                tally(bucket)
+            }
+            for memberRowsByKind in [memberSymbolRowsByKind, methodDescriptorMemberSymbolRowsByKind, protocolWitnessMemberSymbolRowsByKind] {
+                for memberRows in memberRowsByKind.values {
+                    for rowsByTypeNodeIndex in memberRows.values {
+                        for bucket in rowsByTypeNodeIndex.values {
+                            tally(bucket)
+                        }
+                    }
+                }
+            }
+            return (singleRowBucketCount, multipleRowBucketCount)
         }
     }
 
@@ -327,17 +361,17 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         }
 
         mutating func setMemberSymbols(for result: ProcessMemberSymbolResult) {
-            memberSymbolRowsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNodeIndex, default: []].append(result.symbolTableRow)
+            memberSymbolRowsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNodeIndex, default: .empty].append(result.symbolTableRow)
             typeInfoByName[result.typeName] = result.typeInfo
         }
 
         mutating func setMethodDescriptorMemberSymbols(for result: ProcessMemberSymbolResult) {
-            methodDescriptorMemberSymbolRowsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNodeIndex, default: []].append(result.symbolTableRow)
+            methodDescriptorMemberSymbolRowsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNodeIndex, default: .empty].append(result.symbolTableRow)
             typeInfoByName[result.typeName] = result.typeInfo
         }
 
         mutating func setProtocolWitnessMemberSymbols(for result: ProcessMemberSymbolResult) {
-            protocolWitnessMemberSymbolRowsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNodeIndex, default: []].append(result.symbolTableRow)
+            protocolWitnessMemberSymbolRowsByKind[result.memberKind, default: [:]][result.typeName, default: [:]][result.typeNodeIndex, default: .empty].append(result.symbolTableRow)
             typeInfoByName[result.typeName] = result.typeInfo
         }
 
@@ -407,12 +441,14 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         let mappedStringTableBase = mappedSymbols64.map { UnsafeRawPointer($0.stringBase) } ?? mappedSymbols32.map { UnsafeRawPointer($0.stringBase) }
 
         var tableBuilder = SymbolTableBuilder(mappedStringTableBase: mappedStringTableBase)
-        var symbolRowsByOffset: [Int: [UInt32]] = [:]
+        var symbolRowsByOffset: [Int: SymbolRowBucket] = [:]
 
         // One offset legitimately maps to several rows — distinct symbol names
-        // can share an address — so the bucket stays a list. The *same* row
-        // must not be listed twice though, or every `for symbol in symbols`
-        // loop visits it twice.
+        // can share an address — so the bucket keeps list semantics (inline
+        // for the dominant single-row case, spilling to an array only when a
+        // second row actually lands; proposal 0003). The *same* row must not
+        // be listed twice though, or every `for symbol in symbols` loop
+        // visits it twice.
         //
         // A row repeats for two independent reasons, and each is headed off
         // without scanning the bucket:
@@ -440,7 +476,7 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             if mayAlreadyBeListed, symbolRowsByOffset[offset]?.contains(row) == true {
                 return
             }
-            symbolRowsByOffset[offset, default: []].append(row)
+            symbolRowsByOffset[offset, default: .empty].append(row)
         }
 
         func registerRow(_ row: UInt32, rawOffset: Int, canonicalOffset: Int, isNewRow: Bool) {

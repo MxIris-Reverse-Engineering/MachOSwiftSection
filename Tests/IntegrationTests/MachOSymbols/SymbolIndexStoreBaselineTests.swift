@@ -65,6 +65,10 @@ final class SymbolIndexStoreBaselineTests: MachOImageTests {
         print("protocolWitnessMember entries      : \(protocolWitnessEntryCount)")
         print("globalSymbols entries              : \(globalEntryCount)")
         print("symbolsByOffset entries            : \(storage.symbolRowsByOffset.count)")
+        let bucketStatistics = storage.bucketFormStatisticsForTesting()
+        let totalBucketCount = bucketStatistics.singleRowBucketCount + bucketStatistics.multipleRowBucketCount
+        let singleRowBucketRatio = totalBucketCount > 0 ? Double(bucketStatistics.singleRowBucketCount) / Double(totalBucketCount) : 0
+        print("row buckets single/multiple        : \(bucketStatistics.singleRowBucketCount)/\(bucketStatistics.multipleRowBucketCount) (single ratio \(String(format: "%.1f", singleRowBucketRatio * 100))%)")
         print("opaqueTypeDescriptor entries       : \(storage.opaqueTypeDescriptorSymbolRowByNodeIndex.count)")
         print("typeInfoByName entries             : \(storage.typeInfoByName.count)")
         print("=====================================================================")

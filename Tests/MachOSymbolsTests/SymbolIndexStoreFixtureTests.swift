@@ -85,6 +85,56 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
         #expect(MemoryLayout<Symbol>.stride <= 32)
         #expect(MemoryLayout<DemangledSymbol>.stride <= 32)
         #expect(MemoryLayout<SymbolRow>.stride == 16)
+        // Proposal 0003: the row bucket must stay a compact inline value —
+        // widening it erodes the single-row savings across every dictionary
+        // slot that holds one.
+        #expect(MemoryLayout<SymbolRowBucket>.stride <= 16)
+    }
+
+    // MARK: - Row buckets (proposal 0003)
+
+    /// The bucket's whole contract: first append stays inline, the second
+    /// spills to an array, iteration preserves insertion order (the
+    /// byte-identical-output guarantee), and `contains` answers both forms.
+    @Test func symbolRowBucketAppendMigrationAndIterationOrder() {
+        var bucket = SymbolRowBucket.empty
+        #expect(bucket.isEmpty)
+        #expect(bucket.count == 0)
+        #expect(!bucket.contains(7))
+
+        bucket.append(7)
+        #expect(bucket == .single(7))
+        #expect(bucket.count == 1)
+        #expect(Array(bucket) == [7])
+        #expect(bucket.contains(7))
+        #expect(!bucket.contains(9))
+
+        bucket.append(9)
+        #expect(bucket == .multiple([7, 9]))
+
+        bucket.append(5)
+        #expect(bucket == .multiple([7, 9, 5]))
+        #expect(Array(bucket) == [7, 9, 5])
+        #expect(bucket.count == 3)
+        #expect(bucket.contains(5))
+        #expect(!bucket.contains(6))
+    }
+
+    /// Single-row dominance is what proposal 0003's memory estimate rests
+    /// on; assert the direction on the fixture and surface the exact ratio
+    /// as acceptance evidence (the framework-scale ratio is re-measured by
+    /// the RuntimeViewer heap step).
+    @Test func rowBucketsAreDominatedBySingleRowForm() throws {
+        let storage = try storage
+        let statistics = storage.bucketFormStatisticsForTesting()
+        let totalBucketCount = statistics.singleRowBucketCount + statistics.multipleRowBucketCount
+        try #require(totalBucketCount > 0)
+        let singleRowRatio = Double(statistics.singleRowBucketCount) / Double(totalBucketCount)
+        print("SymbolRowBucket forms — single: \(statistics.singleRowBucketCount), multiple: \(statistics.multipleRowBucketCount), single ratio: \(singleRowRatio)")
+        #expect(
+            statistics.singleRowBucketCount > statistics.multipleRowBucketCount,
+            "single: \(statistics.singleRowBucketCount), multiple: \(statistics.multipleRowBucketCount), ratio: \(singleRowRatio)"
+        )
     }
 
     /// File-leg counterpart of `SymbolTableImageEquivalenceTests`: a

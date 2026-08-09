@@ -1,6 +1,6 @@
 # 0003 - SymbolIndexStore `[UInt32]` 行号桶扁平化：单元素桶内联化
 
-- **状态**: Accepted
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-08-09
 - **最后更新**: 2026-08-09
@@ -96,10 +96,10 @@ enum SymbolRowBucket {
 
 ## 落地步骤
 
-1. `SymbolRowBucket` 实现 + 布局断言（`compactValueLayouts`）+ 单测（append 迁移、迭代序、`contains`）。
-2. `symbolRowsByOffset` 与三族 `MemberSymbolRows` 叶子桶替换；freeze 处一次性单元素占比统计（验收用，随后移除或留在 IntegrationTests）。
-3. 全量 `swift test --skip IntegrationTests` 同数全绿；渲染 A/B 三 reader 逐字节一致（迭代序不变的验收）。
-4. RV heap 复测：`[UInt32]` 簇 38.8 → 预期 ~15–20 MiB。
+1. ✅ `SymbolRowBucket` 实现 + 布局断言（`compactValueLayouts` 钉 `stride ≤ 16`）+ 单测（append 迁移、迭代序、`contains`——`symbolRowBucketAppendMigrationAndIterationOrder`）。
+2. ✅ `symbolRowsByOffset` 与三族 `MemberSymbolRows` 叶子桶替换（`demangledSymbols(atRows:)` 泛化为 `some Sequence<UInt32>`，查询出口形态不变）；单元素占比统计落为 `Storage.bucketFormStatisticsForTesting()`——常驻单测 `rowBucketsAreDominatedBySingleRowForm` 断言并打印，另在 IntegrationTests 的 baseline 指标里加了一行。fixture（SymbolTestsCore，MachOFile leg）实测 **87.6% 单元素**（6687 单 / 948 多），达到 ≥85% 预期带。
+3. ✅ 全量 `swift test --skip IntegrationTests` 1343 全绿（含新增 2 项桶单测，无删减）；渲染 A/B（iOS 18.5 模拟器 SwiftUI / SwiftData / SwiftUICore 的 dump + interface，另加宿主机 dyld shared cache 的 SwiftUI dump + interface——canonical/raw 双键注册正是本案改动面）全部逐字节一致（interface 输出剥离日志行首时间戳后比对）。
+4. RV heap 复测：`[UInt32]` 簇 38.8 → 预期 ~15–20 MiB。**待下游拿到本分支后进行。**
 
 ## 决策日志
 
@@ -107,3 +107,4 @@ enum SymbolRowBucket {
 |------|------|------|
 | 2026-08-09 | Created as In Review | 0001「非目标」点名的候选正式立项；RV 实测簇 38.8 MiB / 45 万个为输入；用户批准立项（「可以，写提案」）。 |
 | 2026-08-09 | In Review → Accepted | 用户审核通过（「审核通过，开始实现」），与 0002 同批开工，两案独立实施。 |
+| 2026-08-09 | Accepted → Implemented | 落地步骤 1–3 完成：`SymbolRowBucket`（`RandomAccessCollection`，单元素内联、次元素起落堆、插入序迭代）替换四处桶；fixture 单元素占比 87.6%；全量 1343 绿；A/B 七对（含 dyld cache 两对）逐字节一致。步骤 4（RV heap 复测）待下游拿到分支后进行。 |

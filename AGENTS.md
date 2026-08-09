@@ -187,7 +187,7 @@ Printing and indexing are peers — neither depends on the other.
 - **MachOFoundation** - Combines reading, symbols, pointers
 - **MachOReading** - File reading abstractions
 - **MachOResolving** - Address/offset resolution
-- **MachOSymbols** - Symbol table parsing and demangling
+- **MachOSymbols** - Symbol table parsing and demangling. `SymbolIndexStore`'s offset and member indexes hold their row lists in `SymbolRowBucket` (evolution proposal 0003): the dominant single-row case stays inline in the dictionary slot, only a bucket that collects a second row allocates an array; iteration order is insertion order, so query output is byte-identical to the former `[UInt32]` buckets
 - **MachOPointers** - Pointer types (relative, indirect, etc.)
 - **MachOCaches** - dyld shared cache support
 - **MachOExtensions** - Extensions to MachOKit types. `resolveBind(fileOffset:)` resolves bind slots from chained fixups AND, when those are absent, from the legacy `LC_DYLD_INFO(_ONLY)` bind opcode streams (pre-macOS 12 / iOS 16 deployment targets, e.g. iOS 15.5 simulator frameworks) via a lazily built file-offset → symbol-name index; the arm64e threaded legacy format is deliberately not indexed. Pinned by `LegacyDyldInfoBindTests`, whose fixture is compiled on the fly with `-target arm64-apple-macosx11.0` to force the legacy format.

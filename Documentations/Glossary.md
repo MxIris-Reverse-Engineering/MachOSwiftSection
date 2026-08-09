@@ -32,9 +32,10 @@
 
 ### bucket（桶）
 
-分类索引里「一个键对应的一组符号表行号」，值形态是 `[UInt32]` 小数组（如 `symbolRowsByOffset` 的值、`MemberSymbolRows` 的叶子）。绝大多数桶只有一个元素，却各付一次堆分配——这是提案 0003 的对象。
+分类索引里「一个键对应的一组符号表行号」（如 `symbolRowsByOffset` 的值、`MemberSymbolRows` 的叶子）。旧形态是 `[UInt32]` 小数组——绝大多数桶只有一个元素，却各付一次堆分配；提案 0003 落地后值形态为 `SymbolRowBucket`（单元素内联于字典槽，第二个元素起才落堆数组），迭代序保持插入序。
 
-- **主要出现在**：`Sources/MachOSymbols/SymbolIndexStore.swift`
+- **主要出现在**：`Sources/MachOSymbols/SymbolIndexStore.swift`、`Sources/MachOSymbols/SymbolRowBucket.swift`
+- **延伸阅读**：[提案 0003](Evolutions/0003-symbol-row-bucket-flattening.md)
 - **延伸阅读**：[提案 0003](Evolutions/0003-symbol-row-bucket-flattening.md)
 
 ### detach（脱表，`detachedFromSharedTable()`）
