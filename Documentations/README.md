@@ -8,7 +8,10 @@ Documentation is split by audience.
 > The `swift-section` executable is a companion CLI, not the outward contract.
 > Note that `Tests/Projects/SymbolTests` does enable library evolution — that is the test project,
 > not the library itself.
-> The first proposal created via `/evolution <description>` will set up `Evolutions/` and its index.
+> Evolution proposals live in [`Evolutions/`](Evolutions/README.md) (status table + numbering there).
+> Proposals 0001–0003 (the memory-optimization line) live on the `feature/node-store-migration`
+> branch and are not on main yet; [0004](Evolutions/0004-arm64e-signed-vwt-pointer-hardening.md)
+> (arm64e signed VWT pointer hardening) is the first proposal landed on main.
 
 ## External — for library users / other developers
 
