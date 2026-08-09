@@ -92,4 +92,38 @@ final class SymbolTableRetentionTests: MachOFileTests, @unchecked Sendable {
             """
         )
     }
+
+    /// The detach contract's SECOND layer (PR #103 review, finding M5,
+    /// adjudicated): `detachedFromSharedTable()` deliberately does NOT copy
+    /// `demangledNode` out of the per-image node store — the owning
+    /// definition's `node` field is the same reference into the same store
+    /// (the intended per-image recycling model), so a copy would reclaim
+    /// nothing while the model lives and would only add an allocation per
+    /// stored symbol. This test pins the sharing; changing it to a copy
+    /// must be a deliberate, measured decision.
+    @Test func storedDeclarationSymbolsShareTheDefinitionsNodeStore() async throws {
+        let builder = try SwiftInterfaceBuilder(
+            configuration: .init(indexConfiguration: .init(showCImportedTypes: false)),
+            eventHandlers: [],
+            in: machOFile
+        )
+        try await builder.prepare()
+        _ = try await builder.printRoot()
+
+        var inspectedFunctionCount = 0
+        for (_, typeDefinition) in builder.indexer.allTypeDefinitions {
+            let functions = typeDefinition.functions
+                + typeDefinition.staticFunctions
+                + typeDefinition.allocators
+                + typeDefinition.constructors
+            for function in functions {
+                inspectedFunctionCount += 1
+                #expect(
+                    function.symbol.demangledNode.store === function.node.store,
+                    "\(function.name): the detached symbol's node was copied out of the definition's own store — zero reclamation, pure allocation overhead"
+                )
+            }
+        }
+        #expect(inspectedFunctionCount > 0)
+    }
 }

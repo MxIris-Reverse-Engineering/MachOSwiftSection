@@ -96,7 +96,13 @@ struct PackedNameReference {
 /// points into the loaded image and dangles if the image is ever unloaded.
 /// Name materialization therefore requires the image to stay loaded — the
 /// same requirement every other in-process read path already has, but now
-/// extending to vended values' `symbol` accessor.
+/// extending to vended values' `symbol` accessor. Empirically the unload
+/// cannot happen on Darwin (probed 2026-08-09, macOS 26): dyld pins every
+/// image carrying Swift/ObjC content as never-unload — `dlclose` leaves
+/// even a class-less Swift dylib mapped — and the only images that DO
+/// unmap (pure C, no ObjC/Swift) contain no Swift-mangling-prefixed names,
+/// so they never mint mapped rows in the first place. See
+/// `Documentations/Internal/ReviewAdjudications.md` (A4).
 ///
 /// The byte access layer uses `UnsafeBufferPointer` rather than
 /// `Span`/`UTF8Span`: the Span family is only available at runtime on

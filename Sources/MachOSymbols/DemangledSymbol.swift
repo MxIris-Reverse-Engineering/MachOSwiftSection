@@ -77,6 +77,16 @@ public struct DemangledSymbol: Sendable {
     /// distinct rows — 5.1% of a 185,988-row table — so detaching them trades
     /// roughly 0.6 MB of small allocations for the whole table's retention.
     ///
+    /// What detaches is the SYMBOL-TABLE layer only (rows + name bytes and,
+    /// for an image table, its tie to the loaded image's mapped string
+    /// table). `demangledNode` deliberately keeps referencing the per-image
+    /// node store: the owning definition's `node` field is the same
+    /// reference into the same store (the intended per-image recycling
+    /// model — a live definition keeps its store alive), so copying the
+    /// tree out here would reclaim nothing while the model lives and would
+    /// only add an allocation per stored symbol.
+    /// `SymbolTableRetentionTests` pins both layers of this contract.
+    ///
     /// Call this when storing a value into a long-lived declaration, not on
     /// the query path.
     public func detachedFromSharedTable() -> DemangledSymbol {

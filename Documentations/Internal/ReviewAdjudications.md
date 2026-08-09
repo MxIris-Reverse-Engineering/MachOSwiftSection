@@ -53,3 +53,31 @@
 - **既往修复**：无既往修复；`TypedDumper`（dump 路径）保留独立实现是记录在案的设计（AGENTS.md）。
 - **代码锚点**：不加代码注释（7 处太散），以本条目为准。
 - **复审条件**：① 大镜像（SwiftUI 级）剖析显示 materialize 占比显著高于 fixture 的 1.18%；② 上游 Remangler / 打印基础设施泛型化（A1 复审条件 ①）落地后，节点合成问题若有上游方案可顺路重开。
+
+---
+
+## A4 — `MachOImage` 符号名裸指针在镜像卸载后悬垂（PR #103 review M2）
+
+- **裁决**：不修（2026-08-09，实验裁决——触发面在 Darwin 上结构性不可达）。
+- **发现**：`SymbolTable.withNameBytes(atRow:)` 对 mapped 行直接读 `mappedStringTableBase`（镜像 LINKEDIT 字符串表的裸指针），而 `SharedCache` 以镜像基址为键——推理链是 `dlopen → prepare → dlclose → 同址再 dlopen 另一 dylib` 后旧 `Storage` 被继续命中，材料化读到重映射内存（乱名或 SIGSEGV）。review 自记「mechanism confirmed by reading; end-to-end trigger not reproduced」。
+- **复现 / 是否误报**：机制读码属实，但**端到端触发被实验推翻**（2026-08-09，macOS 26 / Darwin 25.6.0 实测）：
+  1. 含 Swift 内容的镜像（无论有没有 class，连仅含 `public func` + `struct` 的 dylib 都算）被 dyld 标记 never-unload——`dlclose` 后镜像仍在 `_dyld_image_count` 枚举中，永不 unmap。被本库索引的镜像必有 Swift 元数据（否则无从索引），全部落在这一类。
+  2. 唯一实测能真正 unmap 的形状是纯 C dylib（无 ObjC/Swift 内容）——但 mapped 行只为通过 `nameBytesHaveSwiftManglingPrefix` 的名字铸造，纯 C 镜像一个都不会有；export-trie 名走私有缓冲（拷贝）。能悬垂的没有行，有行的不会悬垂。
+- **与 main 基线对比**：main 每行驻留拷贝的 `String`，无此暴露面；裸指针层随 evolution 0001 引入。
+- **为什么不修**：两半暴露面都被结构性关死（上）。残余是内存安全的陈旧性问题：纯 C 镜像卸载后同址加载别的库，旧 `Storage`（仅有私有缓冲行，读安全）可能对新镜像被错误命中——答案错但不崩，且要求调用方索引纯 C dylib 再卸载再同址加载，窄到不值得为它上 `_dyld_register_func_for_remove_image` 驱逐钩子（对被 pin 的镜像该回调永不触发，等于常驻死代码）。review 建议的另一半「公开查询面改 vend 拷贝」同样拒绝：查询路径每次 vend 数十万个值，拷贝直接推翻 32 字节值 + 共享表的性能设计，为一个不可达场景付常驻代价。
+- **既往修复**：无；生命周期约束在 proposal 0001 落地时已记录为接受项（「镜像需保持加载」——现在知道这在 Darwin 上是 dyld 免费保证的）。
+- **代码锚点**：`SymbolTable` 类型注释（生命周期约束段，指回本条目）。
+- **复审条件**：① Apple 改变 never-unload 语义（dyld 开始真正卸载含 Swift/ObjC 内容的镜像）；② 本库新增对非 Darwin 平台的 `MachOImage` 支持；③ 出现「索引纯 C 镜像」的真实消费者——届时优先考虑 remove-image 驱逐钩子而非 vend 拷贝。
+
+---
+
+## A5 — `detachedFromSharedTable()` 不随符号表一并拷出 node store（PR #103 review M5 的建议修法）
+
+- **裁决**：拒绝按建议修（2026-08-09）；实际落地为文档收紧 + 回归测试钉住共享契约。
+- **发现**：`detachedFromSharedTable()` 只重建符号表层，`demangledNode` 原样传递、仍引用 per-image node store（全镜像符号的 nodes + edges + 文本 arena）——review 判「回收是部分的，而 doc comment 读起来像完全 detach」，建议把 node 层也拷出并扩展 `SymbolTableRetentionTests`。
+- **复现 / 是否误报**：现象属实（node store 确实不随 detach 释放），但**修法被读码推翻**：存储该 symbol 的定义自身的 `node` 字段就是**同一个** `NodeReference`（`DefinitionBuilder.makeFunctionDefinition` 等：`node = demangledSymbol.demangledNode`，不 detach，是 AGENTS.md 记录在案的「intended per-image recycling model」——活着的 definition 本来就该把它的 store 留活，打印名字要用）。只要 model 活着，兄弟字段就 pin 着同一个 store；在 detach 里拷贝 node 树回收为零，只多付每存储符号一次的分配。
+- **与 main 基线对比**：main 无 `NodeReference` 层（0001 之前），无此问题域。
+- **为什么这样裁决**：detach 的真实目的是让存储值不 pin 那张（definition 不需要的）符号表；node store 的生命周期被设计绑定在 model 上，二者分层清晰。缺陷只在 doc comment 的表述——已补上「detach 的是符号表层、node 层有意共享」的明文（`DemangledSymbol.detachedFromSharedTable()` doc），并新增 `storedDeclarationSymbolsShareTheDefinitionsNodeStore` 钉住共享（谁要改成拷贝必须先推翻这条测试、拿出测量）。
+- **既往修复**：`a7caf944` 设计单层 detach（当时只有符号表层）；`6b0dad20` 加 arena 层未回访 doc——回访结论是设计成立、文档失准。
+- **代码锚点**：`DemangledSymbol.detachedFromSharedTable()` doc comment；`SymbolTableRetentionTests.storedDeclarationSymbolsShareTheDefinitionsNodeStore`。
+- **复审条件**：出现「declaration model 已释放、仅存储的 `DemangledSymbol` 长期存活」的真实消费形态（届时 node 层拷贝才有回收对象），或 profiling 显示 per-image node store 是驻留头部且 model 生命周期无法缩短。
