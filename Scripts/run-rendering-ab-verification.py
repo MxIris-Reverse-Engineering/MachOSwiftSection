@@ -82,6 +82,10 @@ class VerificationRun:
         self.arguments = arguments
         self.output_root: Path = arguments.output_root
         self.command_line_interfaces: dict[str, Path] = {}
+        # Invocation failures that must fail the whole run regardless of the
+        # diff outcome (a swallowed non-zero swift-test exit once let a green
+        # verdict stand over an incomplete matrix — PR #103 review, H4).
+        self.hard_failure_messages: list[str] = []
 
     # --- Building -----------------------------------------------------------
 
@@ -223,16 +227,33 @@ class VerificationRun:
                     "--filter", "RenderingVerificationTests",
                 ], env=environment, stdout=log_handle, stderr=subprocess.STDOUT)
             print(f"[{side}] machoimage-current exit={completed.returncode}")
+            if completed.returncode != 0:
+                # Unlike the CLI scenarios (which degrade to paired .skip
+                # markers), a failed test invocation silently thins the
+                # comparison matrix — propagate it as a run-level failure.
+                self.hard_failure_messages.append(
+                    f"machoimage-current[{side}]: swift test exited {completed.returncode} (log: {log_file})")
 
     # --- Diff phase ---------------------------------------------------------
 
-    def compare_all_pairs(self) -> int:
+    def compare_all_pairs(self) -> tuple[int, int]:
+        """Returns (difference_count, examined_pair_count).
+
+        The examined count exists so the verdict can refuse to pass on an
+        empty comparison: with no cache archive, no installed runtime, or a
+        mistyped --frameworks, every scenario degrades to paired .skip
+        markers, the glob yields nothing, and a difference count of 0 would
+        otherwise read as success (PR #103 review, H4 — a harness that
+        cannot fail is worse than no harness).
+        """
         print("\n=== A/B comparison ===")
         difference_count = 0
+        examined_pair_count = 0
         baseline_files = sorted(self.output_root.glob("**/baseline/*.txt"))
         for baseline_file in baseline_files:
             candidate_file = Path(str(baseline_file).replace("/baseline/", "/candidate/"))
             relative_name = baseline_file.relative_to(self.output_root)
+            examined_pair_count += 1
             if not candidate_file.is_file():
                 print(f"MISSING-ON-CANDIDATE  {relative_name}")
                 difference_count += 1
@@ -245,12 +266,13 @@ class VerificationRun:
             baseline_file = Path(str(candidate_file).replace("/candidate/", "/baseline/"))
             if not baseline_file.is_file():
                 print(f"MISSING-ON-BASELINE  {candidate_file.relative_to(self.output_root)}")
+                examined_pair_count += 1
                 difference_count += 1
         for skip_file in sorted(self.output_root.glob("**/baseline/*.skip")):
             candidate_skip = Path(str(skip_file).replace("/baseline/", "/candidate/"))
             if candidate_skip.is_file() and skip_file.read_text() == candidate_skip.read_text():
                 print(f"SKIPPED (both sides, {skip_file.read_text().strip()})  {skip_file.relative_to(self.output_root)}")
-        return difference_count
+        return difference_count, examined_pair_count
 
 
 def main() -> None:
@@ -265,11 +287,23 @@ def main() -> None:
     if not arguments.skip_image_part:
         run.run_macho_image_part()
 
-    difference_count = run.compare_all_pairs()
+    difference_count, examined_pair_count = run.compare_all_pairs()
+    if run.hard_failure_messages:
+        for hard_failure_message in run.hard_failure_messages:
+            print(f"HARD-FAILURE  {hard_failure_message}")
+        print("\nRESULT: FAILED — a test invocation exited non-zero, so the comparison matrix is incomplete "
+              "and no verdict over it is trustworthy.")
+        sys.exit(1)
+    if examined_pair_count == 0:
+        print("\nRESULT: FAILED — zero pairs were compared. Every scenario fell back to a skip marker "
+              "(no cache archive, no installed simulator runtime, or a mistyped --frameworks?); "
+              "a green verdict over nothing is meaningless.")
+        sys.exit(1)
     if difference_count == 0:
-        print("\nRESULT: all pairs byte-identical.")
+        print(f"\nRESULT: all {examined_pair_count} pairs byte-identical.")
     else:
-        print(f"\nRESULT: {difference_count} differing pair(s). Re-run the differing scenario twice on one side "
+        print(f"\nRESULT: {difference_count} differing pair(s) out of {examined_pair_count}. "
+              f"Re-run the differing scenario twice on one side "
               f"first to rule out nondeterminism before attributing.")
         sys.exit(1)
 
