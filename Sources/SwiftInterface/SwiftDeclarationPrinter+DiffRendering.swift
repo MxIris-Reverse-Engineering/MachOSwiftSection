@@ -43,8 +43,10 @@ package extension SwiftDeclarationPrinter {
         // renders the bound header (`Box<Int>`, no generic-signature clause).
         // Latent today — the diff builder never walks `specializedChildren` —
         // but the two header entry points must not diverge.
+        // This header-print operation's single wrapper materialization
+        // (proposal 0002).
         try await renderTypeDeclarationHeader(
-            for: typeDefinition.type,
+            for: typeDefinition.materializedTypeContext(in: machO),
             displayParentName: displayParentName,
             level: level,
             leafNameNode: leafNameNode(of: typeDefinition.typeName.node.materialize()),
@@ -61,8 +63,10 @@ package extension SwiftDeclarationPrinter {
             try await protocolDefinition.index(in: machO)
         }
 
+        // This header-print operation's single wrapper materialization
+        // (proposal 0002).
         try await renderProtocolDeclarationHeader(
-            for: protocolDefinition.protocol,
+            for: protocolDefinition.materializedProtocol(in: machO),
             displayParentName: displayParentName,
             leafNameNode: leafNameNode(of: protocolDefinition.protocolName.node.materialize())
         )

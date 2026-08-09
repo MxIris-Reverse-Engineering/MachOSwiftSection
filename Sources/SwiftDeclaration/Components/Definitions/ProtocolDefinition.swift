@@ -71,7 +71,12 @@ extension StrippedSymbolicRequirement {
 }
 
 public final class ProtocolDefinition: Definition, MutableDefinition {
-    public let `protocol`: MachOSwiftSection.`Protocol`
+    /// The protocol's descriptor reference (evolution proposal 0002). The
+    /// full `MachOSwiftSection.Protocol` — requirement arrays included — is
+    /// rebuilt on demand via `materializedProtocol(in:)` instead of living
+    /// on every definition for its lifetime; the name is frozen separately
+    /// in `protocolName`.
+    public let protocolDescriptor: ProtocolDescriptor
 
     public let protocolName: ProtocolName
 
@@ -121,14 +126,27 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
             !subscripts.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !staticSubscripts.isEmpty || !allocators.isEmpty || !constructors.isEmpty || !strippedSymbolicRequirements.isEmpty
     }
 
+    /// The initializer still receives the full wrapper — the indexer holds
+    /// one from the section sweep anyway — but only its descriptor reference
+    /// is retained.
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(`protocol`: MachOSwiftSection.`Protocol`, in machO: MachO) throws {
-        self.protocol = `protocol`
+        self.protocolDescriptor = `protocol`.descriptor
         let node = try MetadataReader.demangleContext(for: .protocol(`protocol`.descriptor), in: machO)
         self.protocolName = ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: node, in: machO))
     }
 
+    /// Rebuilds the full `MachOSwiftSection.Protocol` (requirement arrays
+    /// included) from the retained descriptor. Materialization discipline
+    /// (evolution proposal 0002): call at most once per operation and thread
+    /// the result through as a local variable — the result is deliberately
+    /// not cached.
+    public func materializedProtocol<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> MachOSwiftSection.`Protocol` {
+        try MachOSwiftSection.`Protocol`(descriptor: protocolDescriptor, in: machO)
+    }
+
     package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
         guard !isIndexed else { return }
+        let dumpedProtocol = try materializedProtocol(in: machO)
         let name = protocolName.name
         // Structurally keyed: `demangleSymbolReference` returns references from
         // different stores, and store-identity equality would let the same
@@ -141,7 +159,7 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
             }
             return nil
         }
-        associatedTypes = try `protocol`.descriptor.associatedTypes(in: machO)
+        associatedTypes = try protocolDescriptor.associatedTypes(in: machO)
 
         var requirementMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbolWithOffset]> = [:]
         var defaultImplementationMemberSymbolsByKind: OrderedDictionary<SymbolIndexStore.MemberKind, [DemangledSymbolWithOffset]> = [:]
@@ -151,7 +169,7 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
 
         var offsetOfPWT = 0
 
-        for requirement in `protocol`.requirements {
+        for requirement in dumpedProtocol.requirements {
             offsetOfPWT.offset(of: StoredPointer.self)
             if requirement.layout.defaultImplementation.isValid {
                 defaultedRequirementPWTOffsets.insert(offsetOfPWT)

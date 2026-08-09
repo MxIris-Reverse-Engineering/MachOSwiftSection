@@ -112,10 +112,10 @@ extension STCoreTests {
 extension STCoreTests {
     @Test func structTestConformances() async throws {
         let indexer = try await preparedIndexer()
-        let conformancesByType = indexer.protocolConformancesByTypeName
+        let conformingProtocolNamesByType = indexer.conformingProtocolNamesByTypeName
 
-        let structTestConformances = conformancesByType.first { $0.key.name.hasSuffix(".StructTest") }
-        let protocolNames = try #require(structTestConformances?.value.keys.map(\.name))
+        let structTestConformances = conformingProtocolNamesByType.first { $0.key.name.hasSuffix(".StructTest") }
+        let protocolNames = try #require(structTestConformances?.value.map(\.name))
 
         #expect(protocolNames.contains(where: { $0.hasSuffix(".ProtocolTest") }))
         #expect(protocolNames.contains(where: { $0.hasSuffix(".ProtocolWitnessTableTest") }))
@@ -123,10 +123,10 @@ extension STCoreTests {
 
     @Test func genericReqConformance() async throws {
         let indexer = try await preparedIndexer()
-        let conformancesByType = indexer.protocolConformancesByTypeName
+        let conformingProtocolNamesByType = indexer.conformingProtocolNamesByTypeName
 
-        let genericConformances = conformancesByType.first { $0.key.name.hasSuffix(".GenericRequirementTest") }
-        let protocolNames = try #require(genericConformances?.value.keys.map(\.name))
+        let genericConformances = conformingProtocolNamesByType.first { $0.key.name.hasSuffix(".GenericRequirementTest") }
+        let protocolNames = try #require(genericConformances?.value.map(\.name))
 
         #expect(protocolNames.contains(where: { $0.hasSuffix(".ProtocolTest") }))
     }

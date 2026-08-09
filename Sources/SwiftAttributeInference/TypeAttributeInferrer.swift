@@ -149,7 +149,7 @@ public struct TypeAttributeInferrer: Sendable {
         // We can only detect this from the ClassDescriptor if we check the
         // metadataPositiveSizeInWordsOrExtraClassFlags field when the class has a resilient superclass.
         // For now, we check via the descriptor's extra class flags if available.
-        guard case .class(let classDescriptor) = typeDefinition.type.typeContextDescriptorWrapper else { return }
+        guard case .class(let classDescriptor) = typeDefinition.typeContextDescriptorWrapper else { return }
 
         // The hasCustomObjCName flag is in the runtime ClassFlags (swiftClassFlags),
         // which are only available when the binary is loaded as a MachOImage.

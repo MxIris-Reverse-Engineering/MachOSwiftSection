@@ -301,8 +301,11 @@ extension SwiftDeclarationPrinter {
     /// whole type's rendering throw — it does not degrade into a silently
     /// empty line. The diff renderer keeps its own per-member catch via
     /// `printField` / `printEnumCase`.
+    /// `typeContext` is the caller's materialized wrapper for this print
+    /// operation (proposal 0002) — `printTypeDefinition` materializes once
+    /// and threads it into both the header renderer and this function.
     @SemanticStringBuilder
-    func renderModelFields(_ typeDefinition: TypeDefinition, level: Int) async throws -> SemanticString {
+    func renderModelFields(_ typeDefinition: TypeDefinition, typeContext: TypeContextWrapper, level: Int) async throws -> SemanticString {
         let isEnum = typeDefinition.typeName.kind == .enum
 
         // Shared metadata-comment renderer (single source of truth with
@@ -324,8 +327,8 @@ extension SwiftDeclarationPrinter {
             staticFieldLayoutProvider: staticFieldLayoutProvider(),
             staticLayoutDependencyResolution: configuration.staticLayoutDependencyResolution
         )
-        let fieldLayoutRenderer = FieldLayoutRenderer(type: typeDefinition.type, metadata: typeDefinition.metadata, machO: machO, configuration: renderConfiguration)
-        let fieldRecords = try typeDefinition.type.contextDescriptorWrapper.typeContextDescriptor?.fieldDescriptor(in: machO).records(in: machO) ?? []
+        let fieldLayoutRenderer = FieldLayoutRenderer(type: typeContext, metadata: typeDefinition.metadata, machO: machO, configuration: renderConfiguration)
+        let fieldRecords = try typeDefinition.typeContextDescriptorWrapper.typeContextDescriptor.fieldDescriptor(in: machO).records(in: machO)
         let fieldOffsets = isEnum ? nil : fieldLayoutRenderer.fieldOffsets
 
         // Specialized definitions substitute each field's generic-parameter

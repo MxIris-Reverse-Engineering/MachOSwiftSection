@@ -128,11 +128,11 @@ extension IndexerConformanceProvider: ConformanceProvider {
     }
 
     public func doesType(_ typeName: TypeName, conformTo protocolName: ProtocolName) -> Bool {
-        indexer.allProtocolConformancesByTypeName[typeName]?[protocolName] != nil
+        indexer.allConformingProtocolNamesByTypeName[typeName]?.contains(protocolName) == true
     }
 
     public func conformances(of typeName: TypeName) -> [ProtocolName] {
-        Array(indexer.allProtocolConformancesByTypeName[typeName]?.keys ?? [])
+        Array(indexer.allConformingProtocolNamesByTypeName[typeName] ?? [])
     }
 
     public var allTypeNames: [TypeName] {
@@ -185,10 +185,15 @@ extension IndexerConformanceProvider: ConformanceProvider {
         var map: [String: [TypeName]] = [:]
         for (childTypeName, entry) in indexer.allAllTypeDefinitions {
             guard childTypeName.kind == .class else { continue }
-            guard case .class(let classWrapper) = entry.value.type else { continue }
+            guard case .class(let classDescriptor) = entry.value.typeContextDescriptorWrapper else { continue }
 
+            // The superclass reference can live in the wrapper's trailing
+            // objects (resilient superclass), so this map build materializes
+            // the class wrapper — once per class, cached with the map
+            // (materialization discipline, proposal 0002).
             var superNode: Node?
             do {
+                let classWrapper = try Class(descriptor: classDescriptor, in: entry.machO)
                 superNode = try classWrapper.superclassNode(in: entry.machO)
             } catch {
                 continue

@@ -13,7 +13,13 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
 
     public let genericSignature: NodeReference?
 
-    public let protocolConformance: ProtocolConformance?
+    /// The conformance's descriptor reference (evolution proposal 0002), or
+    /// `nil` for member / typealias-only extensions. The full
+    /// `ProtocolConformance` — resilient witnesses and the rest of its
+    /// trailing objects — is rebuilt on demand via
+    /// `materializedProtocolConformance(in:)` instead of living on every
+    /// conformance extension for its lifetime.
+    public let protocolConformanceDescriptor: ProtocolConformanceDescriptor?
 
     /// The conformed protocol, resolved to a Mach-O-free name at index time.
     /// Non-nil only for conformance extensions; the target's typealias-only
@@ -60,24 +66,38 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
         !variables.isEmpty || !functions.isEmpty || !staticVariables.isEmpty || !staticFunctions.isEmpty || !allocators.isEmpty || !constructors.isEmpty || !staticSubscripts.isEmpty || !subscripts.isEmpty
     }
 
+    /// The initializer still receives the full `ProtocolConformance` — the
+    /// indexer materializes the whole conformance section anyway to derive
+    /// attribution — but only its descriptor reference is retained, so the
+    /// parsed wrapper (and its `[ResilientWitness]`) is released once the
+    /// indexer's grouping pass ends.
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(extensionName: ExtensionName, genericSignature: NodeReference?, protocolConformance: ProtocolConformance?, conformingProtocolName: ProtocolName? = nil, associatedTypes: [AssociatedType] = [], resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = [], in machO: MachO) throws {
         self.extensionName = extensionName
         self.genericSignature = genericSignature
-        self.protocolConformance = protocolConformance
+        self.protocolConformanceDescriptor = protocolConformance?.descriptor
         self.conformingProtocolName = conformingProtocolName
         self.associatedTypes = associatedTypes
         self.resolvedAssociatedTypeWitnesses = resolvedAssociatedTypeWitnesses
     }
 
     /// Mach-O-free initializer for pure-value construction (tests, tooling).
-    /// Carries no `ProtocolConformance` — only the frozen attribution fields.
+    /// Carries no conformance descriptor — only the frozen attribution fields.
     package init(extensionName: ExtensionName, genericSignature: NodeReference?, conformingProtocolName: ProtocolName? = nil, resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = []) {
         self.extensionName = extensionName
         self.genericSignature = genericSignature
-        self.protocolConformance = nil
+        self.protocolConformanceDescriptor = nil
         self.conformingProtocolName = conformingProtocolName
         self.associatedTypes = []
         self.resolvedAssociatedTypeWitnesses = resolvedAssociatedTypeWitnesses
+    }
+
+    /// Rebuilds the full `ProtocolConformance` (trailing objects included)
+    /// from the retained descriptor; `nil` for member / typealias-only
+    /// extensions. Materialization discipline (evolution proposal 0002):
+    /// call at most once per operation and thread the result through as a
+    /// local variable — the result is deliberately not cached.
+    public func materializedProtocolConformance<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> ProtocolConformance? {
+        try protocolConformanceDescriptor.map { try ProtocolConformance(descriptor: $0, in: machO) }
     }
 
     /// Folds another definition's associated types (and their frozen witness
@@ -92,7 +112,11 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
     package func index<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) async throws {
         guard !isIndexed else { return }
 
-        guard let protocolConformance, !protocolConformance.resilientWitnesses.isEmpty else { return }
+        // Cheap pre-check on the retained descriptor keeps the typealias-only
+        // majority from materializing at all; the one materialization below
+        // is this operation's single allowed one (proposal 0002).
+        guard protocolConformanceDescriptor != nil else { return }
+        guard let protocolConformance = try materializedProtocolConformance(in: machO), !protocolConformance.resilientWitnesses.isEmpty else { return }
 
         // Structurally keyed: `demangleSymbolReference` returns references from
         // different stores, and store-identity equality would let the same

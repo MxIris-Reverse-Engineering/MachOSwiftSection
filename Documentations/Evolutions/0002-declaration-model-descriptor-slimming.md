@@ -1,6 +1,6 @@
 # 0002 - 声明模型 descriptor 化：TypeDefinition / ExtensionDefinition / ProtocolDefinition 不再驻留急切解析的胖 wrapper
 
-- **状态**: Accepted
+- **状态**: Implemented
 - **作者**: JH
 - **创建日期**: 2026-08-09
 - **最后更新**: 2026-08-09
@@ -157,15 +157,15 @@ extension ProtocolDefinition {
 
 ## 落地步骤
 
-1. 下游普查：RV / MachOKitUI / SymbolViewer 对 `.type` / `.protocolConformance` / `.protocol` 的直接消费点清单（RV 侧请对面会话代查）。
-2. `TypeDefinition` descriptor 化：存储换形态 + `parentContext` 移除（或退路形态）+ `materializedTypeContext(in:)` + `index()` 与打印路径的物化点。
-3. `ExtensionDefinition` / `ProtocolDefinition` 同模式。
-4. 库内消费点全量迁移（~30 处，两类句式）。
-5. 测试：全量 `swift test --skip IntegrationTests` 同数全绿；**渲染 A/B 三 reader 路径逐字节一致**（硬线——本案不许改变任何输出字节）。
-6. 性能：iOS 18.5 模拟器 SwiftUI `interface` wall-clock 持平（物化 CPU 的验收）。
-7. RV 复测（对面协调）：预期堆存活 283 → **~240–255 MiB**；`SwiftDeclaration` 簇 41.3 → ~15–20 MiB；MachOSwiftSection 簇 33.4 → ~10–15 MiB。
-8. 以账本同款探针（`class_getInstanceSize` + `MemoryLayout`）复量三类定义的落地后实例尺寸，给 [DeclarationModelMemoryFootprint.md](../Internal/DeclarationModelMemoryFootprint.md) 补后记。
-9. 收尾判断（写进决策日志）：是否写实现说明（「物化纪律」是代码看不出来的契约，倾向写短篇或并入 AGENTS.md）；新术语是否登记。
+1. ✅ 下游普查：本地磁盘全量 grep 完成，结论「零物化需求」，详见决策日志。RV 的 8 处 `.type` 机械改名清单已备（6 处 `typeContextDescriptorWrapper` 改名 + 2 处 pattern-match 改到 descriptor 案）。
+2. ✅ `TypeDefinition` descriptor 化：`typeContextDescriptorWrapper` 驻留 + `parentContext` 整体移除（`ParentContext` 枚举一并删除，降级为 `SwiftDeclarationIndexer.indexTypes` 的局部 `UnlinkedParentContext` 字典）+ `materializedTypeContext(in:)`；`index()` 仅 class 分支物化（struct/enum 的字段索引走 descriptor 级 `fieldDescriptor(in:)`，零物化）。
+3. ✅ `ExtensionDefinition` / `ProtocolDefinition` 同模式（`index()` 各自单点物化；typealias-only 扩展先查 descriptor 为 nil，零物化即返回）。**追加**：indexer `Storage` 侧人口清退 + 名字级轻映射（实施期修正，见决策日志）。
+4. ✅ 库内消费点全量迁移：打印器（`printTypeDefinition` / `printProtocolDefinition` 各一次物化贯穿 header + 字段/关联类型渲染；`printExtensionHeader` 一次）、`GenericSpecializer` / `TypeDefinition+Specialization` / `ConformanceProvider`（后者的子类图构建按类物化一次、随图缓存）、`SwiftAttributeInference` / `SwiftInterface` diff 渲染 / `SwiftDiffing` 的 kind 判断（descriptor 级改名）、测试侧 13 处。
+5. ✅ 全量 `swift test --skip IntegrationTests` 1343 全绿；渲染 A/B 七对（iOS 18.5 模拟器 SwiftUI / SwiftData / SwiftUICore 的 dump + interface，宿主机 dyld shared cache 的 SwiftUI dump + interface）全部逐字节一致（interface 剥离日志行首时间戳后比对）。
+6. 性能：iOS 18.5 模拟器 SwiftUI `interface` wall-clock 持平（物化 CPU 的验收）——见决策日志的 release 复测记录。
+7. RV 复测（对面协调）：预期堆存活 283 → **~240–255 MiB**；`SwiftDeclaration` 簇 41.3 → ~15–20 MiB；MachOSwiftSection 簇 33.4 → ~10–15 MiB。**待下游拿到本分支后进行。**
+8. ✅ 以账本同款探针复量：`TypeDefinition` 1272 → **384 B**、`ExtensionDefinition` 640 → **224 B**、`ProtocolDefinition` 440 → **384 B**；[DeclarationModelMemoryFootprint.md](../Internal/DeclarationModelMemoryFootprint.md) 已补后记，且探针固化为常驻回归守卫 `DeclarationModelInstanceSizeTests`（上限 448 / 320 / 416 B）。
+9. ✅ 收尾判断：不另写实现说明——「物化纪律」已写进 AGENTS.md 的 SwiftDeclaration 段与三个 `materialized…(in:)` 的 doc comment，实例尺寸契约由回归测试钉住，一篇独立文章只会复述这两处；术语表无新词（materialize / wrapper vs descriptor 两条已覆盖本案语汇，bucket 条随 0003 更新）。
 
 ## 决策日志
 
@@ -175,3 +175,7 @@ extension ProtocolDefinition {
 | 2026-08-09 | 审阅补充：物化结果不缓存 | 审阅期用户问「物化后会缓存吗」；裁决为不缓存、每次用时重新物化（缓存会按浏览顺序把内存攒回来；物化微秒级、频度有界），可驱逐小缓存仅作 profiling 证明热点后的退路。已写入「详细设计 · 物化接口」。 |
 | 2026-08-09 | 审阅补充：与 RV 全局搜索不冲突 | 审阅期用户问「后面 RV 想做全局搜索咋办」；裁决为不冲突且同向——搜索匹配的是名字（类型名 / 成员名 / 符号名，均为冻结轻数据），本案清退的 vtable / witnesses 解析产物不是搜索目标，命中后看详情恰是「用时物化」场景；descriptor 化让「全量建骨架不索引成员」的搜索支撑形态更可行（~400 B vs 1272 B + 堆数组/类型）。真正的功课在「按需 per-image 索引 vs 全量覆盖」这层（本案之前就存在），届时另立搜索索引提案（候选形态：惰性全量 sweep + 限流 / 名字层前置倒排 + 库侧行收集模式 / 持久化索引），不构成本案的阻塞或修改项。 |
 | 2026-08-09 | In Review → Accepted | 用户审核通过（「审核通过，开始实现」），按落地步骤开工，第一步为下游消费点普查。 |
+| 2026-08-09 | 下游普查结论：零物化需求 | 本地磁盘全量 grep（RuntimeViewer / MachOKitUI / MachOViewer 等；SymbolViewer 无独立仓库）：`parentContext` 与 `.protocolConformance` / `.protocol` 零下游消费者——`parentContext` 移除首选路线成立；`.type` 仅 RV 8 处且全部为 descriptor 级事实（6 处读 `typeContextDescriptorWrapper` / flags，2 处 pattern-match 后只取 `.descriptor`），机械改名即可、无一处需要物化。 |
+| 2026-08-09 | 实施期修正：indexer Storage 侧同批清退 | 动手时发现提案调研的一处失实：「indexer 的全量 protocolConformances 数组在分组后本就出栈」不成立——`SwiftDeclarationIndexer.Storage` 以 `types` / `protocols` / `protocolConformances` / `associatedTypes` 四个人口数组加 `protocolConformancesByTypeName` / `associatedTypesByTypeName` 两个按名 keyed 映射**终身驻留全部 wrapper**（CoW 共享底层堆数组），不清退则 definition 侧换 descriptor 后 trailing 簇分文不释放。消费面普查：六者的公开投影在库内外（含 RV）**零调用方**，唯二例外是 `ConformanceProvider` 读 `allProtocolConformancesByTypeName` 的存在性 + keys（纯名字级事实）与两个测试读 keys。修正：四个人口数组在 `prepare()` 索引完成后置空；两个重映射降级为索引期局部变量，新增名字级轻映射 `conformingProtocolNamesByTypeName`（+ 合并投影 `allConformingProtocolNamesByTypeName`）承接 ConformanceProvider 与测试；重投影与 `allTypes` / `allProtocols` / `allProtocolConformances` / `allAssociatedTypes` 聚合一并移除（额外 API 破坏，均为零调用方）。 |
+| 2026-08-09 | wall-clock 验收：release 持平（一对反而更快） | debug 构建初测候选慢 5–10%（SwiftUICore interface 反转执行序复测仍 ~9%），但最大任务 dyld cache SwiftUI interface 仅 +0.2%，疑为 debug 常数因子；改以 release 构建 ABBA 序 ×2 轮定论：SwiftUI interface 基线均值 76.3s vs 候选 72.2s（候选**快 5.3%**），SwiftUICore 37.3s vs 37.4s（+0.5%，噪声带内）。验收线达成，以 release 为准；release 输出与 debug 同样逐字节一致。 |
+| 2026-08-09 | Accepted → Implemented | 落地步骤 1–5、8、9 完成（步骤 6 见上一行）：三定义 descriptor 化 + `parentContext` / `ParentContext` 移除 + 三个物化入口 + indexer Storage 清退 + 库内与测试侧全量迁移；全量 1343 绿；A/B 七对（debug 与 release 双构建）逐字节一致；实例尺寸 1272 → 384 / 640 → 224 / 440 → 384 B（前两者优于预估 ~400），回归守卫 `DeclarationModelInstanceSizeTests` 落位。步骤 7（RV 堆复测）待下游拿到本分支后进行；RV 侧 8 处机械迁移句式已在步骤 1 备好。 |

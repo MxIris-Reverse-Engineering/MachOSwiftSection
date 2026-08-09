@@ -57,7 +57,7 @@ extension TypeDefinition {
     /// ```swift
     /// let manual    = nestedDef.specializedChildren
     /// let viaOuter  = outerDef.specializedChildren.flatMap { outerInstance in
-    ///     outerInstance.typeChildren.filter { $0.type === nestedDef.type }
+    ///     outerInstance.typeChildren.filter { $0.typeContextDescriptorWrapper.typeContextDescriptor.offset == nestedDef.typeContextDescriptorWrapper.typeContextDescriptor.offset }
     /// }
     /// ```
     ///
@@ -200,6 +200,11 @@ extension TypeDefinition {
 
         try validateSpecialization(metadata: metadata, in: machO)
 
+        // This specialize operation's single wrapper materialization
+        // (proposal 0002): feeds the typeName derivation and the designated
+        // init below, released when this function returns.
+        let materializedTypeContext = try materializedTypeContext(in: machO)
+
         // Compute the final typeName up-front so it can flow through the
         // designated init: either the unbound form (`Box<A>`) when no type
         // arguments are supplied, or the bound form (`Box<Int>`) produced by
@@ -207,7 +212,7 @@ extension TypeDefinition {
         // definition print as `Box<Int>` rather than the placeholder
         // `Box<A>`, and gives it a unique mangled name per specialization
         // (via `mangleAsString(typeName.node)`).
-        let unboundTypeName = try type.typeName(in: machO)
+        let unboundTypeName = try materializedTypeContext.typeName(in: machO)
         let finalTypeName: TypeName
         if let typeArgumentNodes, !typeArgumentNodes.isEmpty {
             finalTypeName = Self.boundGenericTypeName(
@@ -218,7 +223,7 @@ extension TypeDefinition {
             finalTypeName = unboundTypeName
         }
 
-        let specialized = TypeDefinition(type: type, typeName: finalTypeName, isSpecialized: true)
+        let specialized = TypeDefinition(type: materializedTypeContext, typeName: finalTypeName, isSpecialized: true)
         specialized.metadata = metadata
         return specialized
     }
@@ -238,7 +243,7 @@ extension TypeDefinition {
 
         var derivedChildren: [TypeDefinition] = []
         for child in typeChildren {
-            guard child.type.typeContextDescriptorWrapper.typeContextDescriptor.layout.flags.isGeneric else {
+            guard child.typeContextDescriptorWrapper.typeContextDescriptor.layout.flags.isGeneric else {
                 continue
             }
 
@@ -249,7 +254,7 @@ extension TypeDefinition {
             // still returned with whatever siblings *did* succeed, so a
             // partial sidebar tree beats a missing one.
             do {
-                let request = try specializer.makeRequest(for: child.type.typeContextDescriptorWrapper)
+                let request = try specializer.makeRequest(for: child.typeContextDescriptorWrapper)
                 var childArguments: [String: SpecializationSelection.Argument] = [:]
                 var childArgumentNodes: [Node] = []
                 var childNodesByParameter: [String: Node] = [:]
@@ -354,7 +359,7 @@ extension TypeDefinition {
         // 1. Receiver must be generic. A non-generic descriptor has a
         //    fixed metadata; specializing it is meaningless and would
         //    indicate the caller wired the wrong type.
-        guard type.typeContextDescriptorWrapper.typeContextDescriptor.layout.flags.isGeneric else {
+        guard typeContextDescriptorWrapper.typeContextDescriptor.layout.flags.isGeneric else {
             throw SpecializationError.notGenericType(typeName: typeName.name)
         }
 
@@ -363,7 +368,7 @@ extension TypeDefinition {
         //    distinguishes these by metadata kind only, and either can be
         //    the legitimate output of specializing an enum.
         let isCompatibleKind: Bool
-        switch type {
+        switch typeContextDescriptorWrapper {
         case .struct: isCompatibleKind = metadata.isStruct
         case .enum: isCompatibleKind = metadata.isEnum || metadata.isOptional
         case .class: isCompatibleKind = metadata.isClass
@@ -371,7 +376,7 @@ extension TypeDefinition {
         guard isCompatibleKind else {
             throw SpecializationError.metadataKindMismatch(
                 typeName: typeName.name,
-                expected: type,
+                expected: typeContextDescriptorWrapper,
                 actual: metadata
             )
         }
@@ -381,7 +386,7 @@ extension TypeDefinition {
         //    so that the offsets being compared are both process-memory
         //    addresses. A mismatch means the result was specialized for
         //    a structurally similar but distinct type.
-        let inProcessType = type.typeContextDescriptorWrapper.asPointerWrapper(in: machO)
+        let inProcessType = typeContextDescriptorWrapper.asPointerWrapper(in: machO)
         let expectedDescriptorOffset = inProcessType.typeContextDescriptor.offset
         let actualDescriptorOffset = try descriptorOffset(of: metadata)
         guard expectedDescriptorOffset == actualDescriptorOffset else {
@@ -415,7 +420,7 @@ extension TypeDefinition {
     /// supplied `SpecializationResult` cannot be reconciled with the receiver.
     public enum SpecializationError: LocalizedError {
         case notGenericType(typeName: String)
-        case metadataKindMismatch(typeName: String, expected: TypeContextWrapper, actual: MetadataWrapper)
+        case metadataKindMismatch(typeName: String, expected: TypeContextDescriptorWrapper, actual: MetadataWrapper)
         case descriptorMismatch(typeName: String, expectedOffset: Int, actualOffset: Int)
         case unsupportedMetadataKind(metadata: MetadataWrapper)
 

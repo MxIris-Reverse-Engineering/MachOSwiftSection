@@ -168,3 +168,17 @@ malloc 分桶用 `malloc_size()`（`<malloc/malloc.h>`）实测，Swift 对象�
 ## 后记（2026-08-08）
 
 第五节第 3 条的后半项（`MetadataReaderCache` 改持 `NodeReference`）已按用户裁决落地——「当前不建议实施」的结论对该项不再成立，其余各项维持原判。设计与落地记录见 [MetadataReaderCacheRetirement.md](MetadataReaderCacheRetirement.md)；本文其余量测与账目保持原貌不改。
+
+## 后记（2026-08-09）
+
+第五节第 1 条（`parentContext`）与第 2 条（wrapper 装箱）由[提案 0002](../Evolutions/0002-declaration-model-descriptor-slimming.md) 以更优形态收编落地：第 1 条按本文的读写点追踪结论**整体移除**（降级为 `SwiftDeclarationIndexer.indexTypes` 的函数局部字典）；第 2 条没有走当年估算的 `indirect` 装箱，而是把三个定义的驻留从解析后的 wrapper 换成 descriptor 引用（`TypeContextWrapper` → `TypeContextDescriptorWrapper` 等），重内容改为用时物化——装箱只省内联不省堆，descriptor 化把 trailing 堆数组一并释放。「当前不建议实施」的两个前提（该线仅占 8–10%、其余 90% 未剖析）已被 0001 与两次专项清退消解，见提案的动机一节。
+
+以本文同款探针（`class_getInstanceSize`）复量的落地后实例尺寸：
+
+| 类型 | 落地前 | 落地后 |
+|---|---|---|
+| `TypeDefinition` | 1272 B | **384 B** |
+| `ExtensionDefinition` | 640 B | **224 B** |
+| `ProtocolDefinition` | 440 B | **384 B** |
+
+`Tests/SwiftIndexingTests/DeclarationModelInstanceSizeTests.swift` 以同一探针作为常驻回归守卫（上限 448 / 320 / 416 B）。第三节的逐属性账目与其余量测保持原貌不改；RV 侧的堆存活复测待下游拿到该分支后进行（提案落地步骤 7）。

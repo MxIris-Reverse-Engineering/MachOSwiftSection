@@ -13,13 +13,12 @@ import Dependencies
 @_spi(Internals) import SwiftInspection
 
 public final class TypeDefinition: Definition {
-    public enum ParentContext {
-        case `extension`(ExtensionContext)
-        case type(TypeContextWrapper)
-        case symbol(Symbol)
-    }
-
-    public let type: TypeContextWrapper
+    /// The type's context descriptor reference (evolution proposal 0002).
+    /// This is the only Mach-O parse product the definition retains: the
+    /// full `TypeContextWrapper` (trailing objects included) is rebuilt on
+    /// demand via `materializedTypeContext(in:)` by the few operations that
+    /// need it, instead of living on every definition for its lifetime.
+    public let typeContextDescriptorWrapper: TypeContextDescriptorWrapper
 
     /// Injected at construction time. Ordinary indexing-derived definitions
     /// receive the unbound form computed from `type.typeName(in:)`;
@@ -61,8 +60,6 @@ public final class TypeDefinition: Definition {
     public package(set) var typeChildren: [TypeDefinition] = []
 
     public package(set) var protocolChildren: [ProtocolDefinition] = []
-
-    public package(set) var parentContext: ParentContext? = nil
 
     public package(set) var extensions: [ExtensionDefinition] = []
 
@@ -138,8 +135,13 @@ public final class TypeDefinition: Definition {
     /// bypassed from outside the package; the `specialize(with:in:)` family
     /// (the `SwiftSpecialization` extension) is the only in-package caller
     /// that injects a different `typeName`/`isSpecialized` pair.
+    ///
+    /// The initializer still receives the full wrapper — every construction
+    /// path holds one anyway (indexing needs it for `typeName(in:)`) — but
+    /// only its descriptor reference is retained, so the caller's parsed
+    /// wrapper is released as soon as construction returns.
     package init(type: TypeContextWrapper, typeName: TypeName, isSpecialized: Bool) {
-        self.type = type
+        self.typeContextDescriptorWrapper = type.typeContextDescriptorWrapper
         self.typeName = typeName
         self.isSpecialized = isSpecialized
     }
@@ -155,7 +157,7 @@ public final class TypeDefinition: Definition {
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
-        let typeContextDescriptor = try required(type.contextDescriptorWrapper.typeContextDescriptor)
+        let typeContextDescriptor = typeContextDescriptorWrapper.typeContextDescriptor
         let fieldDescriptor = try typeContextDescriptor.fieldDescriptor(in: machO)
         let records = try fieldDescriptor.records(in: machO)
         // Field type trees intern into the image's shared store
@@ -202,7 +204,12 @@ public final class TypeDefinition: Definition {
         // Fallback lookups keyed by implementation file offset (for methods where node-based matching fails)
         var implOffsetDescriptorLookup: [Int: MethodDescriptorWrapper] = [:]
         var implOffsetVTableSlotLookup: [Int: Int] = [:]
-        if case .class(let cls) = type {
+        // The vtable / override tables live in the class wrapper's trailing
+        // objects, so the class branch is the one place indexing has to
+        // materialize the full wrapper — once, as a local, released when this
+        // function returns (materialization discipline, proposal 0002).
+        if case .class(let classDescriptor) = typeContextDescriptorWrapper {
+            let cls = try Class(descriptor: classDescriptor, in: machO)
             var visitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
             let typeNode = try MetadataReader.demangleContext(for: .type(.class(cls.descriptor)), in: machO)
             let vtableBaseOffset = cls.vTableDescriptorHeader.map { Int($0.layout.vTableOffset) }
@@ -363,13 +370,26 @@ public final class TypeDefinition: Definition {
 
         // Build ordered members list
         let allMembers = OrderedMember.allMembers(from: self)
-        if case .class = type {
+        if case .class = typeContextDescriptorWrapper {
             orderedMembers = OrderedMember.classOrdered(allMembers)
         } else {
             orderedMembers = OrderedMember.offsetOrdered(allMembers)
         }
 
         isIndexed = true
+    }
+
+    /// Rebuilds the full `TypeContextWrapper` — trailing objects included —
+    /// from the retained descriptor, exactly the parse the model-build sweep
+    /// performed once already.
+    ///
+    /// Materialization discipline (evolution proposal 0002): call at most
+    /// once per operation (index it / print it / specialize it) and thread
+    /// the result through as a local variable. The result is deliberately
+    /// not cached — retaining it on the definition would re-accumulate, in
+    /// browse order, the memory the descriptor slimming reclaimed.
+    public func materializedTypeContext<MachO: MachOSwiftSectionRepresentableWithCache>(in machO: MachO) throws -> TypeContextWrapper {
+        try TypeContextWrapper.forTypeContextDescriptorWrapper(typeContextDescriptorWrapper, in: machO)
     }
 
     /// Cross-references `@objc` / `@nonobjc` thunk attribute members (pre-extracted

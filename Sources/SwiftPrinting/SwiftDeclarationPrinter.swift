@@ -127,8 +127,12 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         // dump path performs via `TypedDumper.boundDumpedTypeNode()`.
         let specializedMetadata: MetadataWrapper? = typeDefinition.isSpecialized ? typeDefinition.metadata : nil
 
+        // This print operation's single wrapper materialization (proposal
+        // 0002), threaded into the header and field renderers below.
+        let materializedTypeContext = try typeDefinition.materializedTypeContext(in: machO)
+
         try await DeclarationBlock(level: level) {
-            try await renderTypeDeclarationHeader(for: typeDefinition.type, displayParentName: displayParentName, level: level, specializedMetadata: specializedMetadata)
+            try await renderTypeDeclarationHeader(for: materializedTypeContext, displayParentName: displayParentName, level: level, specializedMetadata: specializedMetadata)
         } body: {
             for child in typeDefinition.typeChildren {
                 try await NestedDeclaration {
@@ -142,7 +146,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
                 }
             }
 
-            try await renderModelFields(typeDefinition, level: level)
+            try await renderModelFields(typeDefinition, typeContext: materializedTypeContext, level: level)
 
             try await printDefinition(typeDefinition, level: level)
         }
@@ -152,7 +156,12 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
 
     @SemanticStringBuilder
     public func printProtocolDefinition(_ protocolDefinition: ProtocolDefinition, level: Int = 1, displayParentName: Bool = false) async throws -> SemanticString {
-        let printingContext = SwiftIndexEvents.PrintingContext(name: protocolDefinition.protocol.name, kind: .protocol)
+        // This print operation's single wrapper materialization (proposal
+        // 0002), threaded into the event context, header, and
+        // associated-type renderers below.
+        let dumpedProtocol = try protocolDefinition.materializedProtocol(in: machO)
+
+        let printingContext = SwiftIndexEvents.PrintingContext(name: dumpedProtocol.name, kind: .protocol)
         eventDispatcher.dispatch(.definitionPrintStarted(context: printingContext))
 
         if !protocolDefinition.isIndexed {
@@ -160,9 +169,9 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         }
 
         try await DeclarationBlock(level: level) {
-            try await renderProtocolDeclarationHeader(for: protocolDefinition.protocol, displayParentName: displayParentName)
+            try await renderProtocolDeclarationHeader(for: dumpedProtocol, displayParentName: displayParentName)
         } body: {
-            try await renderProtocolAssociatedTypes(for: protocolDefinition.protocol, level: level)
+            try await renderProtocolAssociatedTypes(for: dumpedProtocol, level: level)
 
             try await printDefinition(protocolDefinition, level: level)
 
@@ -235,6 +244,11 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         Space()
         extensionDefinition.extensionName.print()
 
+        // This print operation's single conformance materialization
+        // (proposal 0002). A materialization failure is treated like the
+        // thrown-resolution case below — the whole clause is dropped.
+        let materializedProtocolConformance = try? extensionDefinition.materializedProtocolConformance(in: machO)
+
         // Pre-leaf-migration `dumpProtocolName` semantics: a `nil` protocol
         // node collapses to an *empty* name but still emits the clause (the
         // dangling `extension Foo: @retroactive ` form), while a *thrown*
@@ -243,7 +257,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         // including its `@retroactive` / global-actor markers — whenever the
         // reference was unresolvable.
         let conformanceProtocolName: SemanticString? = {
-            guard let protocolConformance = extensionDefinition.protocolConformance else { return nil }
+            guard let protocolConformance = materializedProtocolConformance else { return nil }
             do {
                 let protocolNode = try protocolConformance.protocolNode(in: machO)
                 return protocolNode?.printSemantic(using: .interfaceTypeBuilderOnly) ?? SemanticString()
@@ -251,7 +265,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
                 return nil
             }
         }()
-        if let protocolConformance = extensionDefinition.protocolConformance,
+        if let protocolConformance = materializedProtocolConformance,
            let protocolName = conformanceProtocolName {
             Standard(":")
             Space()

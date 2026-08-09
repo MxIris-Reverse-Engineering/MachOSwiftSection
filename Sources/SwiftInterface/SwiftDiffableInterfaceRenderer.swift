@@ -337,7 +337,7 @@ public final class SwiftDiffableInterfaceRenderer<
 
     private func fieldMembers<MachO>(_ definition: TypeDefinition?, level: Int, printer: SwiftDeclarationPrinter<MachO>) -> [RenderableMember] {
         guard let definition else { return [] }
-        if case .enum = definition.type {
+        if case .enum = definition.typeContextDescriptorWrapper {
             return definition.fields.enumerated().map { index, field in
                 let record = MemberRecord.makeCase(field, tag: index)
                 return RenderableMember(identityKey: record.identityKey, payloadKey: record.payloadKey) { await printer.printEnumCase(field, level: level) }

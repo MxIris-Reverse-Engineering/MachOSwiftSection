@@ -111,10 +111,12 @@ The interface generation is split into layered peer modules over a shared `Swift
 
 **SwiftDeclaration** - Shared declaration model (base layer for the Swift* modules)
 - `TypeDefinition`, `ProtocolDefinition`, `ExtensionDefinition`, `FunctionDefinition`, names, kinds, `DefinitionBuilder`
+- The model retains **descriptor references, not parsed wrappers** (evolution proposal 0002): `TypeDefinition.typeContextDescriptorWrapper`, `ExtensionDefinition.protocolConformanceDescriptor`, `ProtocolDefinition.protocolDescriptor`. The full wrappers (`TypeContextWrapper` / `ProtocolConformance` / `Protocol`, trailing objects included) are rebuilt on demand via `materializedTypeContext(in:)` / `materializedProtocolConformance(in:)` / `materializedProtocol(in:)`. **Materialization discipline**: at most one materialization per operation (index it / print it / specialize it), threaded through as a local variable; never a per-access computed property, and the result is never cached on the definition — caching would re-accumulate, in browse order, the memory the slimming reclaimed. `DeclarationModelInstanceSizeTests` pins the instance-size ceilings.
 - `SwiftIndexEvents` - event namespace (Payload/Dispatcher/Handler) emitted by both indexer and printer
 
 **SwiftIndexing** - Builds the `SwiftDeclaration` model from a Mach-O image
 - `SwiftDeclarationIndexer` - Indexes types, extensions, conformances
+- The section-wrapper populations the index passes consume (`types` / `protocols` / `protocolConformances` / `associatedTypes` and the parsed-value keyed conformance maps) are **indexing transients** since proposal 0002 — released when `prepare()` finishes, with no public projection. The retained conformance facts are the name-level maps `conformingProtocolNamesByTypeName` / `conformingTypesByProtocolName` (+ their merged `all*` variants), which is all any post-indexing consumer (including `SwiftSpecialization`'s `ConformanceProvider`) reads.
 - `SwiftIndexEventReporter`, `OSLogEventHandler`, `ConsoleEventHandler` - event handlers
 - `SwiftDeclarationIndexConfiguration`
 

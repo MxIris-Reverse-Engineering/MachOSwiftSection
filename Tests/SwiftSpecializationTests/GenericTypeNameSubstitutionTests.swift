@@ -236,7 +236,7 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
     func substitutesStructTypeName() async throws {
         let baseDefinition = try await resolveTypeDefinition(named: "TestUnconstrainedStruct")
         let specializer = GenericSpecializer(indexer: try await indexer)
-        let request = try specializer.makeRequest(for: baseDefinition.type.typeContextDescriptorWrapper)
+        let request = try specializer.makeRequest(for: baseDefinition.typeContextDescriptorWrapper)
         let result = try specializer.specialize(request, with: ["A": .metatype(Int.self)])
 
         let intTypeNode = makeSwiftStdLibTypeNode(name: "Int")
@@ -261,7 +261,7 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
     func mangleDemangleRoundTrip() async throws {
         let baseDefinition = try await resolveTypeDefinition(named: "TestDualAssociatedStruct")
         let specializer = GenericSpecializer(indexer: try await indexer)
-        let request = try specializer.makeRequest(for: baseDefinition.type.typeContextDescriptorWrapper)
+        let request = try specializer.makeRequest(for: baseDefinition.typeContextDescriptorWrapper)
         let result = try specializer.specialize(request, with: [
             "A": .metatype([Int].self),
             "B": .metatype([String].self),
@@ -305,7 +305,7 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
     func printsBoundHeaderAndSubstitutedFieldTypes() async throws {
         let baseDefinition = try await resolveTypeDefinition(named: "TestUnconstrainedStruct")
         let specializer = GenericSpecializer(indexer: try await indexer)
-        let request = try specializer.makeRequest(for: baseDefinition.type.typeContextDescriptorWrapper)
+        let request = try specializer.makeRequest(for: baseDefinition.typeContextDescriptorWrapper)
         let result = try specializer.specialize(request, with: ["A": .metatype(Int.self)])
 
         let specialized = try await baseDefinition.specialize(
@@ -333,7 +333,7 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
     func nilSubstitutionPreservesUnboundTypeName() async throws {
         let baseDefinition = try await resolveTypeDefinition(named: "TestUnconstrainedStruct")
         let specializer = GenericSpecializer(indexer: try await indexer)
-        let request = try specializer.makeRequest(for: baseDefinition.type.typeContextDescriptorWrapper)
+        let request = try specializer.makeRequest(for: baseDefinition.typeContextDescriptorWrapper)
         let result = try specializer.specialize(request, with: ["A": .metatype(Int.self)])
 
         // Default parameter: typeArgumentNodes is nil — preserves backward
@@ -352,7 +352,7 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
     func uniqueMangledNamesPerSpecialization() async throws {
         let baseDefinition = try await resolveTypeDefinition(named: "TestUnconstrainedStruct")
         let specializer = GenericSpecializer(indexer: try await indexer)
-        let request = try specializer.makeRequest(for: baseDefinition.type.typeContextDescriptorWrapper)
+        let request = try specializer.makeRequest(for: baseDefinition.typeContextDescriptorWrapper)
 
         let intResult = try specializer.specialize(request, with: ["A": .metatype(Int.self)])
         let stringResult = try specializer.specialize(request, with: ["A": .metatype(String.self)])
@@ -401,7 +401,7 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
         )
         let specializer = GenericSpecializer(indexer: try await indexer)
 
-        let valueRequest = try specializer.makeRequest(for: valueChild.type.typeContextDescriptorWrapper)
+        let valueRequest = try specializer.makeRequest(for: valueChild.typeContextDescriptorWrapper)
         let valueStringResult = try specializer.specialize(valueRequest, with: ["A": .metatype(String.self)])
         let stringNode = makeSwiftStdLibTypeNode(name: "String")
         let manuallySpecializedValue = try await valueChild.specialize(
@@ -411,7 +411,7 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
         )
         #expect(valueChild.specializedChildren.contains { $0 === manuallySpecializedValue })
 
-        let outerRequest = try specializer.makeRequest(for: baseDefinition.type.typeContextDescriptorWrapper)
+        let outerRequest = try specializer.makeRequest(for: baseDefinition.typeContextDescriptorWrapper)
         let outerSelection = SpecializationSelection(arguments: ["A": .metatype(Int.self)])
         let outerResult = try specializer.specialize(outerRequest, with: outerSelection)
         let intNode = makeSwiftStdLibTypeNode(name: "Int")
@@ -496,13 +496,13 @@ struct GenericTypeNameSubstitutionEndToEndTests: GenericSpecializationTestingEnv
             baseDefinition.typeChildren.first { $0.typeName.name.contains("LayoutConstrainedInner") },
             "expected LayoutConstrainedInner among outer's typeChildren"
         )
-        let layoutRequest = try specializer.makeRequest(for: layoutConstrainedChild.type.typeContextDescriptorWrapper)
+        let layoutRequest = try specializer.makeRequest(for: layoutConstrainedChild.typeContextDescriptorWrapper)
         #expect(throws: (any Error).self,
                 "LayoutConstrainedInner must reject A = Int so the outer catch actually fires") {
             _ = try specializer.specialize(layoutRequest, with: ["A": .metatype(Int.self)])
         }
 
-        let outerRequest = try specializer.makeRequest(for: baseDefinition.type.typeContextDescriptorWrapper)
+        let outerRequest = try specializer.makeRequest(for: baseDefinition.typeContextDescriptorWrapper)
         let outerSelection = SpecializationSelection(arguments: ["A": .metatype(Int.self)])
         let outerResult = try specializer.specialize(outerRequest, with: outerSelection)
         let intNode = makeSwiftStdLibTypeNode(name: "Int")
