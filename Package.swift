@@ -174,7 +174,7 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKit.git",
-            exact: "0.51.101",
+            exact: "0.52.100",
         ),
     )
 }
@@ -200,7 +200,7 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOObjCSection.git",
-            exact: "0.7.103",
+            exact: "0.8.102",
         ),
     )
 }
