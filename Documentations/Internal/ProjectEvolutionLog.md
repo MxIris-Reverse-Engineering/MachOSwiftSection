@@ -813,6 +813,19 @@
 
 ---
 
+## 38. rebase 到 0.15.0：跟随 `MachOExtensions` 抽包，把分支成果移植上游
+
+- **时间段**：2026-08-10。
+- **动机**：`main` 走到 `0.15.0`，其中 `6550d22d` 把整个 `Sources/MachOExtensions/` 模块抽到上游独立包 `MachOKitExtensions`（抽出去是为了让 `MachOObjCSection` 也能依赖它——本包依赖 `MachOObjCSection`，ObjC 侧无法反向依赖包内 target，否则构成包级循环），同时 `OutputTransformer` 改名 `SwiftOutputTransformer`。`feature/node-store-migration` 的 70 个 commit 需要 rebase 到新 `main`，但两边的文件重叠里有两个是**被 main 删掉、被分支修改**的：`MachOExtensions/MachOFile+.swift` 与 `DyldCache+.swift`。逐字节比对上游包后确认它停在抽取时的状态，也就是说直接按「接受 main 的删除」解冲突，会静默丢掉分支上五个 commit 的成果。
+- **落地**：**先移植上游、再 rebase**。移植四块改动到 `MachOKitExtensions`——dyld cache 跨 subcache 的 `matchRank` 排序与 Catalyst 支持根降级（`17ad4358` + `6647359e`）、legacy `LC_DYLD_INFO(_ONLY)` bind 索引（`5c74ad67`）、bind 解码器按段界 bound（`c36a3a2e`，PR #103 的 H3）、`isBind` 补同源回退（`b3bffa0d`，M4）。移植按**分支 tip 的文件状态**做，不逐 commit 搬，因此 rebase 时中间 commit 的 hunk 可以安全丢弃。适配上游的两处差异：访问级 `package` → `public`；上游不依赖 `FoundationToolbox`，路径取叶名改用 Foundation 的 `URL` 惯用法。随后 rebase 71 个 commit，7 处 modify/delete 冲突一律按删除解，另有三处 `import MachOExtensions` 改名、两个测试 target 依赖从 `.target(.MachOExtensions)` 换成 `.product(.MachOKitExtensions)`。
+- **关键决策**：`DyldCacheImageSearchTests` 的 `@testable import` 降级为普通 `import`——`matchRank` / `bestMatchRank` 在上游是 `public`，而外部包依赖本就不以 testability 构建，`@testable` 在这个位置既不必要也不可行。
+- **验证**：上游包单独 `swift build` 通过；本仓库全量 **1408 tests / 264 suites、退出码 0**（`--skip IntegrationTests`）。验证过程中踩到两个已知环境陷阱并记录：`.claude/worktrees/` 下缺 `MachOKitExtensions` 软链（静默回落远端 `0.1.0`）、`swift-semantic-string` 软链指向的兄弟 worktree 还没有 `OutputTransformer` product；另外 SwiftPM 的 manifest 求值缓存会让改过软链后的解析结果不刷新，需要 `--manifest-cache none` 才能真正切到本地包。
+- **遗留**：上游 `MachOKitExtensions` 的移植尚未提交发版，远端仍是 `0.1.0`；`swift-demangling` 的 `0.5.1` tag 不含 `SharedNodeStore` 与 `NodeStoreBuilder.reserveCapacity(expectedSymbolCount:)`，PR #103 的 B1 仍未解。两者都决定了 CI 依旧不可用，本地验证只能走 `USING_LOCAL_DEPENDENCIES=1` + 兄弟目录。
+- **文档**：[TaskReports/2026-08-10-rebase-onto-0.15.0-and-upstream-port.md](TaskReports/2026-08-10-rebase-onto-0.15.0-and-upstream-port.md)。
+- **对应版本**：`0.15.0` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

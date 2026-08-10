@@ -69,8 +69,8 @@ swift-section (CLI)
                                                     └── MachOFoundation
                                                             └── MachOSymbols, MachOPointers
                                                                     └── MachOReading, MachOResolving
-                                                                            └── MachOExtensions, MachOCaches
-                                                                                    └── MachOKit (external)
+                                                                            └── MachOCaches
+                                                                                    └── MachOKitExtensions (external), MachOKit (external)
 ```
 
 `SwiftLayout` (static field-offset engine) is a peer that depends on
@@ -192,7 +192,9 @@ Printing and indexing are peers — neither depends on the other.
 - **MachOSymbols** - Symbol table parsing and demangling. `SymbolIndexStore`'s offset and member indexes hold their row lists in `SymbolRowBucket` (evolution proposal 0003): the dominant single-row case stays inline in the dictionary slot, only a bucket that collects a second row allocates an array; iteration order is insertion order, so query output is byte-identical to the former `[UInt32]` buckets
 - **MachOPointers** - Pointer types (relative, indirect, etc.)
 - **MachOCaches** - dyld shared cache support
-- **MachOExtensions** - Extensions to MachOKit types. `resolveBind(fileOffset:)` resolves bind slots from chained fixups AND, when those are absent, from the legacy `LC_DYLD_INFO(_ONLY)` bind opcode streams (pre-macOS 12 / iOS 16 deployment targets, e.g. iOS 15.5 simulator frameworks) via a lazily built file-offset → symbol-name index; `isBind(_:)` splits on the same discriminator so the two public APIs always agree on a slot. The opcode stream is treated as hostile input: every slot is bounds-checked against its segment's file size before recording and a repeat run terminates at the segment end (a raw uleb count can no longer spin the loop; a wrapped offset can no longer claim a foreign file offset). The arm64e threaded legacy format is deliberately not indexed. Pinned by `LegacyDyldInfoBindTests`, whose fixture is compiled on the fly with `-target arm64-apple-macosx11.0` to force the legacy format.
+- **MachOKitExtensions** (external package, `../MachOKitExtensions`) - Extensions to MachOKit types. This used to be an in-repo `MachOExtensions` target; it was extracted so `MachOObjCSection` can depend on it too (MachOSwiftSection depends on MachOObjCSection, so the ObjC side could never depend back on an in-package target without a package-level cycle). Two behaviors this repo's tests still pin live there:
+    - `resolveBind(fileOffset:)` resolves bind slots from chained fixups AND, when those are absent, from the legacy `LC_DYLD_INFO(_ONLY)` bind opcode streams (pre-macOS 12 / iOS 16 deployment targets, e.g. iOS 15.5 simulator frameworks) via a lazily built file-offset → symbol-name index; `isBind(_:)` splits on the same discriminator so the two public APIs always agree on a slot. The opcode stream is treated as hostile input: every slot is bounds-checked against its segment's file size before recording and a repeat run terminates at the segment end (a raw uleb count can no longer spin the loop; a wrapped offset can no longer claim a foreign file offset). The arm64e threaded legacy format is deliberately not indexed. Pinned by `LegacyDyldInfoBindTests`, whose fixture is compiled on the fly with `-target arm64-apple-macosx11.0` to force the legacy format.
+    - `DyldCacheImageSearchMode.matchRank(forImagePath:)` ranks name lookups instead of taking the first hit — leaf names are not unique inside a shared cache (`SwiftUI.framework/SwiftUI` vs `SwiftUI.axbundle/SwiftUI`, and a macOS cache's Mac Catalyst builds under `/System/iOSSupport` share the native build's leaf name). Ranks accumulate across every cache file (main plus subcaches, each scanned once) so a low-ranked hit in the first file cannot shadow the framework binary in a subcache; only a native canonical framework reaches `bestMatchRank`, which is what makes the early exit sound. Pinned by `DyldCacheImageSearchTests`.
 
 ### Key Patterns
 

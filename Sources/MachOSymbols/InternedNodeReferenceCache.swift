@@ -1,7 +1,7 @@
 import Foundation
 @_spi(Internals) import Demangling
 import MachOKit
-import MachOExtensions
+import MachOKitExtensions
 @_spi(Internals) import MachOCaches
 import SwiftStdlibToolbox
 

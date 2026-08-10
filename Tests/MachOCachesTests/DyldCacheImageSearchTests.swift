@@ -1,4 +1,4 @@
-@testable import MachOExtensions
+import MachOKitExtensions
 import Testing
 import Foundation
 import MachOKit
