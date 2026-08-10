@@ -1,5 +1,4 @@
 import MachOKit
-import MachOKitExtensions
 import MachOReading
 
 public protocol MachOSwiftSectionRepresentableWithCache: MachORepresentableWithCache, Readable {

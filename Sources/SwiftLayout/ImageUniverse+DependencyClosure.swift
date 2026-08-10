@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-import MachOKitExtensions
 import MachOSwiftSection
 
 /// Where the `MachOFile` dependency-closure factory may locate a dependency

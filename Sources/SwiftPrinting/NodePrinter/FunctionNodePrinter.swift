@@ -1,7 +1,6 @@
 import SwiftDeclaration
 import Foundation
 import Demangling
-import MachOKitExtensions
 import Semantic
 
 struct FunctionNodePrinter: InterfaceNodePrintable {

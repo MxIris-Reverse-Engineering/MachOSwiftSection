@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-import MachOKitExtensions
 import MachOReading
 
 @Layout

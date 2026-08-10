@@ -1,5 +1,6 @@
 import MachOKitExtensions
 
+
 @propertyWrapper
 struct IgnoreCoding<Value> {
     var wrappedValue: Value

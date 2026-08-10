@@ -449,7 +449,6 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
-            .product(.MachOKitExtensions),
             .target(.MachOSwiftSection),
             .target(.MachOSwiftSectionC),
             .target(.Utilities),
@@ -469,7 +468,6 @@ extension Target {
             .product(.MachOKit),
             .product(.MachOObjCSection),
             .product(.Demangling),
-            .product(.MachOKitExtensions),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.Utilities),
@@ -725,7 +723,6 @@ extension Target {
         name: "MachOFixtureSupport",
         dependencies: [
             .product(.MachOKit),
-            .product(.MachOKitExtensions),
             .target(.MachOFoundation),
             .target(.MachOReading),
             .target(.MachOResolving),

@@ -1,5 +1,4 @@
 import Foundation
-import MachOKitExtensions
 import MachOSwiftSection
 import MachOSwiftSectionC
 
