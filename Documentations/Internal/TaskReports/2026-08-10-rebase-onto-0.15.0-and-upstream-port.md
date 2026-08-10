@@ -53,7 +53,7 @@
 
 ## 遗留
 
-- 上游 `MachOKitExtensions` 的移植**尚未提交发版**：本会话的 git 操作被 worktree 隔离限制在本仓库内，无法在该仓库执行 commit / tag / push。远端仍是 `0.1.0`。
+- ~~上游 `MachOKitExtensions` 的移植尚未提交发版~~ **已于同日由用户推送并打出 `0.1.1`**（本会话的 git 操作被 worktree 隔离限制在本仓库内，无法在该仓库执行 commit / tag / push，改为交付脚本由用户执行）。事后核验：tag `0.1.1` 上的两个文件与本地通过 1408 测试的副本**逐字节一致**；摘掉本地软链、强制从远端解析后，`DyldCacheImageSearchTests` / `DyldCacheEndToEndLookupTests` / `LegacyDyldInfoBindTests` 共 17 个测试全过，随后全量 1408 测试在「远端 `0.1.1`」配置下同样退出码 0。本仓库的 pin 相应从 `from: "0.1.0"` 收紧到 `from: "0.1.1"`——这是真实下限而非偏好，上述两个测试套在 `0.1.0` 上根本无法编译。`.claude/worktrees/` 下的临时软链已撤除，本地解析与 CI 一致。
 - B1 未解（`swift-demangling` 的 `0.5.1` 缺 `SharedNodeStore` 与 `reserveCapacity`）。
 - 上述两条都决定了 CI 依旧不可用，本地验证只能走 `USING_LOCAL_DEPENDENCIES=1` + 兄弟目录 + `--manifest-cache none`。
 - 分支已被改写历史，`origin/feature/node-store-migration` 仍指向 rebase 前的 `aa0a4128`；更新 PR #103 需要 force-push，按规程必须先走 fetch → `git cherry HEAD @{u}` → 实质 commit 检查，并由用户知情确认。

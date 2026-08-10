@@ -246,7 +246,12 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions",
-            from: "0.1.0",
+            // 0.1.1 is the real floor for this branch, not a preference: the
+            // dyld-cache image ranking and the legacy LC_DYLD_INFO(_ONLY) bind
+            // index were developed here against the in-repo `MachOExtensions`
+            // target and ported upstream in that release. `DyldCacheImageSearchTests`
+            // and `LegacyDyldInfoBindTests` do not compile against 0.1.0.
+            from: "0.1.1",
         ),
     )
 }
