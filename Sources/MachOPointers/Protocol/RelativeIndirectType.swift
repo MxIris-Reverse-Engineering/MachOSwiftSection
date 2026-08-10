@@ -1,7 +1,7 @@
 import MachOKit
 import MachOReading
 import MachOResolving
-import MachOExtensions
+import MachOKitExtensions
 
 public protocol RelativeIndirectType<Resolved>: Resolvable {
     associatedtype Resolved: Resolvable

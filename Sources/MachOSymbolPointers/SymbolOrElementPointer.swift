@@ -3,7 +3,7 @@ import MachOReading
 import MachOPointers
 import MachOSymbols
 import MachOResolving
-import MachOExtensions
+import MachOKitExtensions
 
 public typealias RelativeSymbolOrElementPointer<Element: Resolvable> = RelativeIndirectablePointer<SymbolOrElement<Element>, SymbolOrElementPointer<Element>>
 

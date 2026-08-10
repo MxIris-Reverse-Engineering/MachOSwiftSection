@@ -1,7 +1,7 @@
 import Foundation
 import FoundationToolbox
 import MachOKit
-import MachOExtensions
+import MachOKitExtensions
 import Demangling
 import OrderedCollections
 import Utilities

@@ -120,6 +120,7 @@ if isSilentTest {
 var dependencies: [Package.Dependency] = [
     .MachOKit,
     .MachOObjCSection,
+    .MachOKitExtensions,
     .Demangling,
     .Semantic,
 
@@ -232,6 +233,21 @@ extension Package.Dependency {
             from: "0.1.5",
         ),
     )
+
+    /// Extracted out of this package so that MachOObjCSection can use it too.
+    /// MachOSwiftSection depends on MachOObjCSection, so the ObjC side could
+    /// never depend back on an in-package `MachOKitExtensions` target without
+    /// forming a package-level cycle.
+    static let MachOKitExtensions = Package.Dependency.package(
+        local: .package(
+            path: "../MachOKitExtensions",
+            isRelative: true,
+        ),
+        remote: .package(
+            url: "https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions",
+            from: "0.1.0",
+        ),
+    )
 }
 
 extension Target.Dependency {
@@ -242,6 +258,10 @@ extension Target.Dependency {
     static let MachOObjCSection = Target.Dependency.product(
         name: "MachOObjCSection",
         package: "MachOObjCSection",
+    )
+    static let MachOKitExtensions = Target.Dependency.product(
+        name: "MachOKitExtensions",
+        package: "MachOKitExtensions",
     )
     static let MachOKitMain = Target.Dependency.product(
         name: "MachOKit",
@@ -257,6 +277,10 @@ extension Target.Dependency {
     )
     static let Semantic = Target.Dependency.product(
         name: "Semantic",
+        package: "swift-semantic-string",
+    )
+    static let OutputTransformer = Target.Dependency.product(
+        name: "OutputTransformer",
         package: "swift-semantic-string",
     )
     static let SwiftSyntax = Target.Dependency.product(
@@ -308,19 +332,11 @@ extension Target {
         ],
     )
 
-    static let MachOExtensions = Target.target(
-        name: "MachOExtensions",
-        dependencies: [
-            .product(.MachOKit),
-            .target(.Utilities),
-        ],
-    )
-
     static let MachOCaches = Target.target(
         name: "MachOCaches",
         dependencies: [
             .product(.MachOKit),
-            .target(.MachOExtensions),
+            .product(.MachOKitExtensions),
             .target(.Utilities),
         ],
     )
@@ -329,7 +345,7 @@ extension Target {
         name: "MachOReading",
         dependencies: [
             .product(.MachOKit),
-            .target(.MachOExtensions),
+            .product(.MachOKitExtensions),
             .target(.Utilities),
             .product(name: "FileIO", package: "swift-fileio"),
         ],
@@ -339,7 +355,7 @@ extension Target {
         name: "MachOResolving",
         dependencies: [
             .product(.MachOKit),
-            .target(.MachOExtensions),
+            .product(.MachOKitExtensions),
             .target(.MachOReading),
         ],
     )
@@ -383,7 +399,7 @@ extension Target {
         dependencies: [
             .product(.MachOKit),
             .target(.MachOReading),
-            .target(.MachOExtensions),
+            .product(.MachOKitExtensions),
             .target(.MachOPointers),
             .target(.MachOSymbols),
             .target(.MachOResolving),
@@ -414,8 +430,16 @@ extension Target {
     /// definition; RuntimeViewer keeps only the UI (plus, for now, the
     /// ObjC-side modules — `CType`, `ObjCIvarOffset` — declared there as
     /// extensions of this namespace).
-    static let OutputTransformer = Target.target(
-        name: "OutputTransformer",
+    /// The Swift-specific transformer modules. They extend the shared
+    /// `Transformer` namespace from swift-semantic-string, but their token
+    /// vocabulary (`bitsNeededForTag`, `payloadRegionBytesHex`, …) is Swift
+    /// runtime metadata, so they belong here rather than in a general-purpose
+    /// string package.
+    static let SwiftOutputTransformer = Target.target(
+        name: "SwiftOutputTransformer",
+        dependencies: [
+            .product(.OutputTransformer),
+        ],
     )
 
     static let SwiftInspection = Target.target(
@@ -425,11 +449,10 @@ extension Target {
             .product(.MachOObjCSection),
             .product(.Semantic),
             .product(.Demangling),
-            .target(.MachOExtensions),
             .target(.MachOSwiftSection),
             .target(.MachOSwiftSectionC),
             .target(.Utilities),
-            .target(.OutputTransformer),
+            .target(.SwiftOutputTransformer),
         ],
     )
 
@@ -445,7 +468,6 @@ extension Target {
             .product(.MachOKit),
             .product(.MachOObjCSection),
             .product(.Demangling),
-            .target(.MachOExtensions),
             .target(.MachOSwiftSection),
             .target(.SwiftInspection),
             .target(.Utilities),
@@ -469,7 +491,7 @@ extension Target {
             .target(.MachOCaches),
             .target(.MachOSwiftSection),
             .target(.Utilities),
-            .target(.OutputTransformer),
+            .target(.SwiftOutputTransformer),
             .target(.SwiftInspection),
             .target(.SwiftLayout),
         ],
@@ -566,7 +588,7 @@ extension Target {
             .product(.Semantic),
             .product(.Demangling),
             .target(.MachOSwiftSection),
-            .target(.OutputTransformer),
+            .target(.SwiftOutputTransformer),
             .target(.SwiftInspection),
             .target(.SwiftDeclarationRendering),
             .target(.Utilities),
@@ -637,7 +659,7 @@ extension Target {
         name: "swift-section",
         dependencies: [
             .target(.SwiftDump),
-            .target(.OutputTransformer),
+            .target(.SwiftOutputTransformer),
             .target(.SwiftDeclaration),
             .target(.SwiftIndexing),
             .target(.SwiftPrinting),
@@ -701,7 +723,6 @@ extension Target {
         name: "MachOFixtureSupport",
         dependencies: [
             .product(.MachOKit),
-            .target(.MachOExtensions),
             .target(.MachOFoundation),
             .target(.MachOReading),
             .target(.MachOResolving),
@@ -778,13 +799,21 @@ extension Target {
         swiftSettings: testSettings,
     )
 
+    static let SwiftOutputTransformerTests = Target.testTarget(
+        name: "SwiftOutputTransformerTests",
+        dependencies: [
+            .target(.SwiftOutputTransformer),
+        ],
+        swiftSettings: testSettings,
+    )
+
     static let SwiftInspectionTests = Target.testTarget(
         name: "SwiftInspectionTests",
         dependencies: [
             .target(.MachOSwiftSection),
             .target(.MachOTestingSupport),
             .target(.MachOFixtureSupport),
-            .target(.OutputTransformer),
+            .target(.SwiftOutputTransformer),
             .target(.SwiftInspection),
         ],
         swiftSettings: testSettings,
@@ -895,7 +924,7 @@ extension Target {
         name: "SwiftSectionCommandTests",
         dependencies: [
             .target(.swift_section),
-            .target(.OutputTransformer),
+            .target(.SwiftOutputTransformer),
             .target(.SwiftDeclarationRendering),
             .target(.SwiftPrinting),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
@@ -945,7 +974,7 @@ extension Target {
     static let IntegrationTests = Target.testTarget(
         name: "IntegrationTests",
         dependencies: [
-            .target(.MachOExtensions),
+            .product(.MachOKitExtensions),
             .target(.MachOCaches),
             .target(.MachOReading),
             .target(.MachOResolving),
@@ -979,7 +1008,7 @@ let package = Package(
     platforms: [.macOS(.v10_15), .iOS(.v13), .tvOS(.v13), .watchOS(.v6), .visionOS(.v1)],
     products: [
         .library(.MachOSwiftSection),
-        .library(.OutputTransformer),
+        .library(.SwiftOutputTransformer),
         .library(.SwiftInspection),
         .library(.SwiftLayout),
         .library(.SwiftDeclarationRendering),
@@ -998,7 +1027,7 @@ let package = Package(
     targets: [
         // Library
         .Utilities,
-        .MachOExtensions,
+        .SwiftOutputTransformer,
         .MachOCaches,
         .MachOReading,
         .MachOResolving,
@@ -1008,7 +1037,6 @@ let package = Package(
         .MachOFoundation,
         .MachOSwiftSectionC,
         .MachOSwiftSection,
-        .OutputTransformer,
         .SwiftInspection,
         .SwiftLayout,
         .SwiftDeclarationRendering,
@@ -1038,6 +1066,7 @@ let package = Package(
         .MachOSwiftSectionTests,
         .MachOCachesTests,
         .SwiftInspectionTests,
+        .SwiftOutputTransformerTests,
         .SwiftLayoutTests,
         .SwiftDumpTests,
 //        .TypeIndexingTests,

@@ -1,7 +1,6 @@
 import Foundation
 import SwiftSyntax
 import SwiftSyntaxBuilder
-import MachOExtensions
 import MachOFoundation
 @testable import MachOSwiftSection
 

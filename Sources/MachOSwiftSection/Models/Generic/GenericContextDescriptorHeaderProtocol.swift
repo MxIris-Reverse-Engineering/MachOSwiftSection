@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-import MachOExtensions
 
 public protocol GenericContextDescriptorHeaderProtocol: ResolvableLocatableLayoutWrapper where Layout: GenericContextDescriptorHeaderLayout {}
 

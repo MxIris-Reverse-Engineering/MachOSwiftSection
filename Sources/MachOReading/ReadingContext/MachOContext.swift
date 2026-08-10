@@ -1,5 +1,5 @@
 import MachOKit
-import MachOExtensions
+import MachOKitExtensions
 
 /// A reading context for MachO files and images.
 ///

@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import OutputTransformer
+import SwiftOutputTransformer
 
 /// Unit tests for the Swift transformer modules that moved library-side from
 /// RuntimeViewerCore: rendering behavior, the Swift configuration aggregate,

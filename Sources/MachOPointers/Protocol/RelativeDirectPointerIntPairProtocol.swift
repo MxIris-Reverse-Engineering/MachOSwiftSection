@@ -1,6 +1,6 @@
 import MachOKit
 import MachOReading
-import MachOExtensions
+import MachOKitExtensions
 
 public protocol RelativeDirectPointerIntPairProtocol<Pointee>: RelativeDirectPointerProtocol {
     typealias Integer = Value.RawValue

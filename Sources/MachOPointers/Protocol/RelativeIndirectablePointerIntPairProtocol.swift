@@ -1,6 +1,6 @@
 import MachOKit
 import MachOReading
-import MachOExtensions
+import MachOKitExtensions
 
 public protocol RelativeIndirectablePointerIntPairProtocol<Pointee>: RelativeIndirectablePointerProtocol {
     typealias Integer = Value.RawValue

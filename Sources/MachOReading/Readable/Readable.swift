@@ -1,5 +1,5 @@
 import MachOKit
-import MachOExtensions
+import MachOKitExtensions
 
 /// A protocol for types that can read binary data from a backing store.
 ///

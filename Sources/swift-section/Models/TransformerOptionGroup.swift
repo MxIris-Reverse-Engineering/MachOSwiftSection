@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import OutputTransformer
+import SwiftOutputTransformer
 import SwiftDeclarationRendering
 import SwiftPrinting
 

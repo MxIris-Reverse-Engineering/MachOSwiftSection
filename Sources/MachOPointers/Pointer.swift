@@ -1,7 +1,7 @@
 import MachOKit
 import MachOReading
 import MachOResolving
-import MachOExtensions
+import MachOKitExtensions
 
 public struct Pointer<Pointee: Resolvable>: RelativeIndirectType, PointerProtocol {
     public typealias Resolved = Pointee

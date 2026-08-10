@@ -5,6 +5,7 @@ import MachOFoundation
 import MachOSwiftSection
 import SwiftDump
 import OutputTransformer
+import SwiftOutputTransformer
 import SwiftDeclarationRendering
 import Semantic
 

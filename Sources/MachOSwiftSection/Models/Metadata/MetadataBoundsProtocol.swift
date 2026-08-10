@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-import MachOExtensions
 import MachOReading
 
 public protocol MetadataBoundsProtocol: LocatableLayoutWrapper where Layout: MetadataBoundsLayout {}

@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-import MachOExtensions
 import MachOFixtureSupport
 @testable import MachOSwiftSection
 

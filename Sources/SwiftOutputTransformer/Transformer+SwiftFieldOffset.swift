@@ -1,4 +1,5 @@
 import Foundation
+public import OutputTransformer
 
 // MARK: - Swift Field Offset Transformer Module
 

@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-import MachOExtensions
 import UniformTypeIdentifiers
 
 package func loadFromFile(named: MachOFileName) throws -> File {

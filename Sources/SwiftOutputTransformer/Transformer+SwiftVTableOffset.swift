@@ -1,4 +1,5 @@
 import Foundation
+public import OutputTransformer
 
 // MARK: - Swift VTable Offset Transformer Module
 

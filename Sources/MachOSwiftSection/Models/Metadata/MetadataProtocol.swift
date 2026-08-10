@@ -1,6 +1,5 @@
 import Foundation
 import MachOKit
-import MachOExtensions
 import MachOReading
 
 public protocol MetadataProtocol<HeaderType>: ResolvableLocatableLayoutWrapper where Layout: MetadataLayout {
