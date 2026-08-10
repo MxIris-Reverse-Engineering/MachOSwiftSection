@@ -1,4 +1,4 @@
-import MachOExtensions
+import MachOKitExtensions
 
 /// Errors that can occur when reading data from MachO files or memory.
 public enum ReadingError: Error {

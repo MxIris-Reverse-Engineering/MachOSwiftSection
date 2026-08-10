@@ -1,5 +1,5 @@
 import MachOKit
-import MachOExtensions
+import MachOKitExtensions
 
 /// Extends `MachOImage` to conform to `Readable`, enabling memory-based reading.
 ///

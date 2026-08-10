@@ -1,6 +1,6 @@
 import MachOKit
 import MachOReading
-import MachOExtensions
+import MachOKitExtensions
 import MachOResolving
 
 public protocol RelativeDirectPointerProtocol<Pointee>: RelativePointerProtocol {}

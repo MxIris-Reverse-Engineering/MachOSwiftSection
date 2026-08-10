@@ -1,7 +1,7 @@
 import Foundation
 import FileIO
 import MachOKit
-import MachOExtensions
+import MachOKitExtensions
 
 extension MemoryMappedFile: MachONamespacing {}
 

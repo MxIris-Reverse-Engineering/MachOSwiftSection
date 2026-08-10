@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import OutputTransformer
+import SwiftOutputTransformer
 @testable @_spi(Internals) import SwiftInspection
 
 /// Unit tests for the enum-layout comment token templates

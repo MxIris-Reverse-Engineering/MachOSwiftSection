@@ -1,4 +1,4 @@
-@_exported import MachOExtensions
+@_exported import MachOKitExtensions
 @_exported import MachOReading
 @_exported import MachOPointers
 @_exported import MachOSymbols

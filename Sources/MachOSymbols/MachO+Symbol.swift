@@ -1,5 +1,5 @@
 import MachOKit
-import MachOExtensions
+import MachOKitExtensions
 
 extension MachORepresentableWithCache {
     public func symbols(offset: Int) -> MachOSymbols.Symbols? {

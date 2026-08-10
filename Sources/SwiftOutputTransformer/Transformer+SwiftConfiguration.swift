@@ -1,54 +1,10 @@
 import Foundation
-
-// MARK: - Transformer Namespace
-
-/// Namespace for output-transformer modules: token templates for the Swift
-/// rendered-comment kinds (field offset, vtable offset, member address, type
-/// layout, enum layout).
-///
-/// This is the library-side home of the mechanism RuntimeViewer's settings UI
-/// edits — the templates, tokens, and presets all live here so every consumer
-/// (the `swift-section` CLI, RuntimeViewer, direct library users) shares one
-/// definition; RuntimeViewer keeps only the UI. The ObjC-side modules
-/// (`CType`, `ObjCIvarOffset`) and the aggregate persistence `Configuration`
-/// currently remain in RuntimeViewerCore (declared as extensions of this
-/// namespace), pending a library-side home for the ObjC rendering pipeline.
-public enum Transformer {}
-
-// MARK: - Module Protocol
-
-extension Transformer {
-    /// A transformer module that converts input to output.
-    ///
-    /// Each module defines:
-    /// - `Parameter`: Predefined parameters displayed in a settings UI for user configuration.
-    /// - `Input`: Input passed by the caller at runtime.
-    /// - `Output`: Output returned to the caller.
-    public protocol Module: Codable, Sendable, Hashable {
-        /// Predefined parameters, displayed in a settings UI for user configuration.
-        associatedtype Parameter: CaseIterable & Hashable & Sendable
-
-        /// Input passed by the caller at runtime.
-        associatedtype Input
-
-        /// Output returned to the caller.
-        associatedtype Output
-
-        /// Display name for a settings UI.
-        static var displayName: String { get }
-
-        /// Whether this module is enabled.
-        var isEnabled: Bool { get set }
-
-        /// Applies this module's transformation.
-        func transform(_ input: Input) -> Output
-    }
-}
+public import OutputTransformer
 
 // MARK: - Swift Configuration
 
 extension Transformer {
-    /// Configuration for Swift-specific transformer modules.
+    /// Configuration for the Swift-specific transformer modules.
     public struct SwiftConfiguration: Sendable, Equatable, Hashable, Codable {
         public var swiftFieldOffset: Transformer.SwiftFieldOffset
         public var swiftVTableOffset: Transformer.SwiftVTableOffset

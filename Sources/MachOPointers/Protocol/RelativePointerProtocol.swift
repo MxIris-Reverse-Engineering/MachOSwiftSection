@@ -1,7 +1,7 @@
 import MachOKit
 import MachOReading
 import MachOResolving
-import MachOExtensions
+import MachOKitExtensions
 
 public protocol RelativePointerProtocol<Pointee>: Sendable, Equatable {
     associatedtype Pointee: Resolvable

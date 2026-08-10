@@ -1,3 +1,3 @@
-import MachOExtensions
+import MachOKitExtensions
 
 extension RelativeDirectPointer: LayoutProtocol {}

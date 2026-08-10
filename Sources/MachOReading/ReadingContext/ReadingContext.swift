@@ -1,5 +1,5 @@
 import MachOKit
-import MachOExtensions
+import MachOKitExtensions
 
 /// A protocol for address types that support arithmetic operations.
 ///

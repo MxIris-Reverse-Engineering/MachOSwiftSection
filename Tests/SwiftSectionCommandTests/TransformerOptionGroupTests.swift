@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import ArgumentParser
 import OutputTransformer
+import SwiftOutputTransformer
 import SwiftDeclarationRendering
 import SwiftPrinting
 @testable import swift_section

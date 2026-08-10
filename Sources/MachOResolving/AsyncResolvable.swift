@@ -1,6 +1,6 @@
 import MachOKit
 import MachOReading
-import MachOExtensions
+import MachOKitExtensions
 
 public protocol AsyncResolvable: Resolvable {
     static func resolve<MachO: MachORepresentableWithCache & Readable>(from offset: Int, in machO: MachO) async throws -> Self

@@ -1,4 +1,5 @@
 import Foundation
+public import OutputTransformer
 
 // MARK: - Swift Enum Layout Transformer Module
 

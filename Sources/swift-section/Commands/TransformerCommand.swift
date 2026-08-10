@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import OutputTransformer
+import SwiftOutputTransformer
 
 // MARK: - Module Selector
 

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 import SwiftDeclarationRendering
 import MachOKit
-import MachOExtensions
+import MachOKitExtensions
 import MachOFixtureSupport
 import MachOTestingSupport
 @testable import MachOSwiftSection

@@ -1,6 +1,6 @@
 import Foundation
 import MachOKit
-import MachOExtensions
+import MachOKitExtensions
 import Utilities
 import SwiftStdlibToolbox
 

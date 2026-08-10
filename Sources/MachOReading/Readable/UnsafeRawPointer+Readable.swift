@@ -1,5 +1,9 @@
 import MachOKit
-import MachOExtensions
+import MachOKitExtensions
+// `box` used to arrive implicitly through the in-package MachOKitExtensions target.
+// MachOKitExtensions is now a separate package that deliberately avoids the
+// Apple-only FrameworkToolbox, so this import has to be spelled out here.
+import FoundationToolbox
 
 /// Extends `UnsafeRawPointer` to conform to `Readable`, enabling direct memory reading.
 ///
@@ -37,7 +41,7 @@ extension UnsafeRawPointer: Readable {
         try advanced(by: offset).readElement()
     }
 
-    public func readWrapperElement<Element>(offset: Int) throws -> Element where Element: MachOExtensions.LocatableLayoutWrapper {
+    public func readWrapperElement<Element>(offset: Int) throws -> Element where Element: MachOKitExtensions.LocatableLayoutWrapper {
         try advanced(by: offset).readWrapperElement()
     }
 
@@ -45,7 +49,7 @@ extension UnsafeRawPointer: Readable {
         try advanced(by: offset).readElements(numberOfElements: numberOfElements)
     }
 
-    public func readWrapperElements<Element>(offset: Int, numberOfElements: Int) throws -> [Element] where Element: MachOExtensions.LocatableLayoutWrapper {
+    public func readWrapperElements<Element>(offset: Int, numberOfElements: Int) throws -> [Element] where Element: MachOKitExtensions.LocatableLayoutWrapper {
         try advanced(by: offset).readWrapperElements(numberOfElements: numberOfElements)
     }
 

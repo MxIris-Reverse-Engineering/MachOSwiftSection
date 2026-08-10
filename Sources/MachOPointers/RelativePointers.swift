@@ -1,6 +1,6 @@
 import MachOReading
 import MachOResolving
-import MachOExtensions
+import MachOKitExtensions
 
 public typealias RelativeOffset = Int32
 

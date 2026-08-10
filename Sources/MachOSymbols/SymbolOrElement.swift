@@ -1,7 +1,7 @@
 import MachOKit
 import MachOReading
 import MachOResolving
-import MachOExtensions
+import MachOKitExtensions
 
 public enum SymbolOrElement<Element: Resolvable>: Resolvable {
     case symbol(Symbol)

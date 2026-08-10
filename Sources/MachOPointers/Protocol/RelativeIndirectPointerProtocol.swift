@@ -1,7 +1,7 @@
 import MachOKit
 import MachOReading
 import MachOResolving
-import MachOExtensions
+import MachOKitExtensions
 
 public protocol RelativeIndirectPointerProtocol<Pointee>: RelativePointerProtocol {
     associatedtype IndirectType: RelativeIndirectType where IndirectType.Resolved == Pointee
