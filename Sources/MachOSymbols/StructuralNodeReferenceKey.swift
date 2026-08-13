@@ -27,17 +27,75 @@ import Demangling
 /// Lives in `MachOSymbols`, next to the mini stores it exists to reconcile, so
 /// both the symbol index itself and the declaration layer above it can use it.
 package struct StructuralNodeReferenceKey: Hashable {
-    package let reference: NodeReference
+    /// A stored key holds a `NodeReference`; a lookup-only key may instead hold
+    /// a bare `Node` the caller just demangled.
+    ///
+    /// Both forms hash through the structural hash `Node` and `NodeReference`
+    /// agree on (`NodeReference.structuralHash(into:)` is documented to stay in
+    /// step with `Node.hash(into:)`), so a `Node` query finds a `NodeReference`
+    /// key without materializing the stored tree or interning the query one.
+    /// That is what lets a structurally-keyed dictionary answer a print-time
+    /// lookup in one probe instead of a linear scan over structural
+    /// comparisons.
+    package enum Storage {
+        case reference(NodeReference)
+        case queryNode(Node)
+    }
+
+    package let storage: Storage
+
+    /// The stored reference.
+    ///
+    /// Traps on a lookup-only key. That cannot happen for a key read back out
+    /// of a collection: `init(querying:)` values exist only as the argument to
+    /// a subscript and are never stored (a bare `Node` carries no store, so a
+    /// stored query key would fail to keep alive the arena its structural peers
+    /// live in). The trap is therefore a programming-error guard on this
+    /// module's own API — not an input-driven one, unlike the binary-supplied
+    /// geometry checks in `PackedNameReference`, which deliberately degrade
+    /// instead of trapping because a malformed binary must never decide whether
+    /// the host process lives.
+    package var reference: NodeReference {
+        switch storage {
+        case .reference(let reference):
+            return reference
+        case .queryNode:
+            preconditionFailure("StructuralNodeReferenceKey(querying:) is lookup-only and carries no stored reference")
+        }
+    }
 
     package init(_ reference: NodeReference) {
-        self.reference = reference
+        self.storage = .reference(reference)
+    }
+
+    /// A lookup-only key over a freshly demangled tree.
+    ///
+    /// Never store one of these as a dictionary key: a bare `Node` carries no
+    /// store, so a key built this way would not keep the arena its structural
+    /// peers live in alive.
+    package init(querying node: Node) {
+        self.storage = .queryNode(node)
     }
 
     package static func == (lhs: StructuralNodeReferenceKey, rhs: StructuralNodeReferenceKey) -> Bool {
-        lhs.reference.structurallyEquals(rhs.reference)
+        switch (lhs.storage, rhs.storage) {
+        case (.reference(let lhsReference), .reference(let rhsReference)):
+            return lhsReference.structurallyEquals(rhsReference)
+        case (.reference(let lhsReference), .queryNode(let rhsNode)):
+            return lhsReference.structurallyEquals(rhsNode)
+        case (.queryNode(let lhsNode), .reference(let rhsReference)):
+            return rhsReference.structurallyEquals(lhsNode)
+        case (.queryNode(let lhsNode), .queryNode(let rhsNode)):
+            return lhsNode == rhsNode
+        }
     }
 
     package func hash(into hasher: inout Hasher) {
-        reference.structuralHash(into: &hasher)
+        switch storage {
+        case .reference(let reference):
+            reference.structuralHash(into: &hasher)
+        case .queryNode(let node):
+            node.structuralHash(into: &hasher)
+        }
     }
 }

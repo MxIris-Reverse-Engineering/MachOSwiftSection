@@ -220,10 +220,10 @@ public final class TypeDefinition: Definition {
         // materialize the full wrapper — once, as a local, released when this
         // function returns (materialization discipline, proposal 0002).
         if case .class(let classDescriptor) = typeContextDescriptorWrapper {
-            let cls = try Class(descriptor: classDescriptor, in: machO)
+            let classWrapper = try Class(descriptor: classDescriptor, in: machO)
             var visitedNodes: OrderedSet<StructuralNodeReferenceKey> = []
-            let typeNode = try MetadataReader.demangleContext(for: .type(.class(cls.descriptor)), in: machO)
-            let vtableBaseOffset = cls.vTableDescriptorHeader.map { Int($0.layout.vTableOffset) }
+            let typeNode = try MetadataReader.demangleContext(for: .type(.class(classWrapper.descriptor)), in: machO)
+            let vtableBaseOffset = classWrapper.vTableDescriptorHeader.map { Int($0.layout.vTableOffset) }
 
             // Build offset-based fallback lookups. Uniqueness must be checked against
             // ALL descriptor kinds (method + override + defaultOverride), because
@@ -232,19 +232,19 @@ public final class TypeDefinition: Definition {
             // we cannot use offset-based fallback — we would not know which descriptor
             // to associate the symbol with.
             var implOffsetCounts: [Int: Int] = [:]
-            for descriptor in cls.methodDescriptors where !descriptor.implementation.isNull {
+            for descriptor in classWrapper.methodDescriptors where !descriptor.implementation.isNull {
                 let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
                 implOffsetCounts[implOffset, default: 0] += 1
             }
-            for descriptor in cls.methodOverrideDescriptors where !descriptor.implementation.isNull {
+            for descriptor in classWrapper.methodOverrideDescriptors where !descriptor.implementation.isNull {
                 let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
                 implOffsetCounts[implOffset, default: 0] += 1
             }
-            for descriptor in cls.methodDefaultOverrideDescriptors where !descriptor.implementation.isNull {
+            for descriptor in classWrapper.methodDefaultOverrideDescriptors where !descriptor.implementation.isNull {
                 let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
                 implOffsetCounts[implOffset, default: 0] += 1
             }
-            for (index, descriptor) in cls.methodDescriptors.enumerated() where !descriptor.implementation.isNull {
+            for (index, descriptor) in classWrapper.methodDescriptors.enumerated() where !descriptor.implementation.isNull {
                 let implOffset = descriptor.implementation.resolveDirectOffset(from: descriptor.offset(of: \.implementation))
                 // Only use offset-based fallback for globally unique implementation addresses
                 if implOffsetCounts[implOffset] == 1 {
@@ -255,7 +255,7 @@ public final class TypeDefinition: Definition {
                 }
             }
 
-            for (index, descriptor) in cls.methodDescriptors.enumerated() {
+            for (index, descriptor) in classWrapper.methodDescriptors.enumerated() {
                 guard let symbols = try descriptor.implementationSymbols(in: machO) else { continue }
                 guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode
@@ -267,7 +267,7 @@ public final class TypeDefinition: Definition {
             }
             var parentVTableCache = ParentClassVTableCache()
 
-            for descriptor in cls.methodOverrideDescriptors {
+            for descriptor in classWrapper.methodOverrideDescriptors {
                 guard let symbols = try descriptor.implementationSymbols(in: machO) else { continue }
                 guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode
@@ -278,7 +278,7 @@ public final class TypeDefinition: Definition {
                     vtableOffsetLookup[StructuralNodeReferenceKey(node)] = vtableSlot
                 }
             }
-            for descriptor in cls.methodDefaultOverrideDescriptors {
+            for descriptor in classWrapper.methodDefaultOverrideDescriptors {
                 guard let symbols = try descriptor.implementationSymbols(in: machO) else { continue }
                 guard let overrideSymbol = demangledOverrideSymbol(for: symbols, typeNode: typeNode, visitedNodes: visitedNodes, in: machO) else { continue }
                 let node = overrideSymbol.demangledNode

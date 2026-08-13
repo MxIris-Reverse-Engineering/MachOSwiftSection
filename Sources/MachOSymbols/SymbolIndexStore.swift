@@ -160,26 +160,26 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
         let opaqueTypeDescriptorSymbolRowByNodeIndex: OrderedDictionary<NodeStore.NodeIndex, UInt32>
 
-        /// One opaque-type-descriptor entry: the member node's index in the
-        /// frozen arena plus the symbol table row it was recorded for.
-        struct OpaqueTypeDescriptorEntry {
-            let memberNodeIndex: NodeStore.NodeIndex
-            let symbolTableRow: UInt32
-        }
-
         /// The same entries as `opaqueTypeDescriptorSymbolRowByNodeIndex`,
-        /// bucketed by the member's declaration identifier.
+        /// keyed **structurally** so a print-time query is one hash probe.
         ///
-        /// `opaqueTypeDescriptorSymbol(for:)` is queried with a node the
-        /// caller demangled while printing — a different store — so node-index
-        /// equality cannot answer it and the ordered dictionary would have to
-        /// be walked in full, once per printed `some`-returning declaration
-        /// (O(descriptors × prints), and both counts run into the thousands in
-        /// a framework like SwiftUI). `DemanglingNode.identifier` is a pure
-        /// function of the subtree, so structurally equal nodes always land in
-        /// the same bucket and the structural comparison is narrowed to
-        /// same-named candidates — normally exactly one.
-        let opaqueTypeDescriptorEntriesByMemberIdentifier: [String: [OpaqueTypeDescriptorEntry]]
+        /// `opaqueTypeDescriptorSymbol(for:)` is queried with a node the caller
+        /// demangled while printing — a different store — so node-index
+        /// equality cannot answer it. Bucketing by `DemanglingNode.identifier`
+        /// and scanning the bucket was the first attempt at narrowing that, on
+        /// the assumption that a member identifier picks out "normally exactly
+        /// one" descriptor. It does not: in SwiftUI the `body` bucket alone
+        /// holds hundreds of entries (every `some View` implementation shares
+        /// the identifier), and the caller queries once per printed
+        /// `some`-returning declaration with no memoization, so the scan was
+        /// quadratic in a count that runs into the thousands — and each
+        /// `structurallyEquals` allocates a fresh visited-pair set before its
+        /// first kind check.
+        ///
+        /// `StructuralNodeReferenceKey` hashes a stored `NodeReference` and a
+        /// queried `Node` alike, which is what makes the direct dictionary
+        /// possible.
+        let opaqueTypeDescriptorSymbolRowByMemberNode: [StructuralNodeReferenceKey: UInt32]
 
         let memberSymbolRowsByKind: OrderedDictionary<MemberKind, MemberSymbolRows>
 
@@ -235,12 +235,19 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
             self.typeInfoByName = rowIndexes.typeInfoByName
             self.globalSymbolRowsByKind = rowIndexes.globalSymbolRowsByKind
             self.opaqueTypeDescriptorSymbolRowByNodeIndex = rowIndexes.opaqueTypeDescriptorSymbolRowByNodeIndex
-            var opaqueTypeDescriptorEntriesByMemberIdentifier: [String: [OpaqueTypeDescriptorEntry]] = [:]
+            var opaqueTypeDescriptorSymbolRowByMemberNode: [StructuralNodeReferenceKey: UInt32] = [:]
+            opaqueTypeDescriptorSymbolRowByMemberNode.reserveCapacity(rowIndexes.opaqueTypeDescriptorSymbolRowByNodeIndex.count)
             for (memberNodeIndex, symbolTableRow) in rowIndexes.opaqueTypeDescriptorSymbolRowByNodeIndex {
-                let memberIdentifier = nodeStore.reference(at: memberNodeIndex).identifier ?? ""
-                opaqueTypeDescriptorEntriesByMemberIdentifier[memberIdentifier, default: []].append(.init(memberNodeIndex: memberNodeIndex, symbolTableRow: symbolTableRow))
+                // First wins, matching the ordered dictionary this replaced:
+                // its per-node-index keys were already unique, so a collision
+                // here means two arena nodes that are structurally equal, and
+                // either answers the query identically.
+                let memberNodeKey = StructuralNodeReferenceKey(nodeStore.reference(at: memberNodeIndex))
+                if opaqueTypeDescriptorSymbolRowByMemberNode[memberNodeKey] == nil {
+                    opaqueTypeDescriptorSymbolRowByMemberNode[memberNodeKey] = symbolTableRow
+                }
             }
-            self.opaqueTypeDescriptorEntriesByMemberIdentifier = opaqueTypeDescriptorEntriesByMemberIdentifier
+            self.opaqueTypeDescriptorSymbolRowByMemberNode = opaqueTypeDescriptorSymbolRowByMemberNode
             self.memberSymbolRowsByKind = rowIndexes.memberSymbolRowsByKind
             self.methodDescriptorMemberSymbolRowsByKind = rowIndexes.methodDescriptorMemberSymbolRowsByKind
             self.protocolWitnessMemberSymbolRowsByKind = rowIndexes.protocolWitnessMemberSymbolRowsByKind
@@ -945,14 +952,14 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
 
     public func opaqueTypeDescriptorSymbol<MachO: MachORepresentableWithCache>(for node: Node, in machO: MachO) -> DemangledSymbol? {
         // The caller's `node` was demangled during printing; keys live in the
-        // frozen store, so the match has to be structural. Bucketing on the
-        // member identifier keeps that to a handful of candidates instead of
-        // every opaque-type descriptor in the image (see
-        // `opaqueTypeDescriptorEntriesByMemberIdentifier`).
+        // frozen store, so the match has to be structural — but structural does
+        // not have to mean linear. `StructuralNodeReferenceKey` hashes a queried
+        // `Node` the same way it hashes a stored `NodeReference`, so this is one
+        // probe (see `opaqueTypeDescriptorSymbolRowByMemberNode` for why the
+        // identifier-bucketed scan this replaced was quadratic in practice).
         guard let storage = storage(in: machO) else { return nil }
-        guard let candidates = storage.opaqueTypeDescriptorEntriesByMemberIdentifier[node.identifier ?? ""] else { return nil }
-        guard let matched = candidates.first(where: { storage.nodeStore.reference(at: $0.memberNodeIndex).structurallyEquals(node) }) else { return nil }
-        return storage.demangledSymbol(atRow: matched.symbolTableRow)
+        guard let symbolTableRow = storage.opaqueTypeDescriptorSymbolRowByMemberNode[.init(querying: node)] else { return nil }
+        return storage.demangledSymbol(atRow: symbolTableRow)
     }
 
     package func symbols<MachO: MachORepresentableWithCache>(for offset: Int, in machO: MachO) -> Symbols? {

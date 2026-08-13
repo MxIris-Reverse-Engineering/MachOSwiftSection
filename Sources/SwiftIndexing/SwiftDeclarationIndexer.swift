@@ -163,37 +163,38 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
     @Mutex
     private var isPrepared: Bool = false
 
-    /// `true` once this indexer has registered itself with
-    /// ``PerImageCacheEvictionRegistry`` (on its first ``prepare()``).
-    /// ``deinit`` deregisters and performs the per-image cache cleanup only
-    /// when the registry answers that this was the image's last live
-    /// indexer AND an indexer's `prepare()` built the entry — the previous
-    /// per-indexer ownership flag let an earlier-deinitializing owner wipe
-    /// the caches out from under a still-live second indexer of the same
-    /// image (PR #103 review, finding M6).
-    @Mutex
-    private var hasRegisteredWithEvictionRegistry: Bool = false
-
     public init(configuration: SwiftDeclarationIndexConfiguration = .init(), eventHandlers: [SwiftIndexEvents.Handler] = [], in machO: MachO) {
         self.machO = machO
         self.configuration = configuration
         eventDispatcher.addHandlers(eventHandlers)
     }
 
+    /// Evicts the per-image caches this indexer's `prepare()` was the one to
+    /// build, and only when it is the image's LAST live indexer — an
+    /// earlier-deinitializing sibling must never wipe caches out from under a
+    /// still-live one (the survivor's already-built names would keep an
+    /// orphaned store alive while new names land in a fresh one, splitting the
+    /// `store ===` fast paths for the rest of its lifetime). PR #103 review,
+    /// finding M6; the per-cache split is the follow-up round.
     deinit {
-        if hasRegisteredWithEvictionRegistry,
-           PerImageCacheEvictionRegistry.deregisterLiveIndexer(forImageIdentifier: machO.identifier) {
+        let claims = PerImageCacheEvictionRegistry.deregisterLiveIndexer(
+            ObjectIdentifier(self),
+            forImageIdentifier: machO.identifier
+        )
+        if claims.symbolStore {
             @Dependency(\.symbolIndexStore)
             var symbolIndexStore
             symbolIndexStore.remove(for: machO)
-            // The interned-name bucket shares the symbol store's per-image
-            // lifetime: names minted while indexers used the image are
-            // dropped with the last of them, keeping the recycling model
-            // intact.
+        }
+        // Claimed separately from the symbol store: both of these are also
+        // populated by SwiftLayout, the renderers and SwiftSpecialization, so
+        // "this indexer built the symbol store" says nothing about who built
+        // these. The demangle memo's values reference the interned scope store,
+        // so it is never left behind when that store goes.
+        if claims.internedNames {
             InternedNodeReferenceCache.shared.remove(for: machO)
-            // The demangle memo's values reference the interned scope store
-            // dropped above; leaving the memo behind would keep those buffers
-            // alive past the image's lifetime.
+        }
+        if claims.demangleMemo {
             MetadataReader.removeCache(for: machO)
         }
     }
@@ -292,25 +293,29 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         @Dependency(\.symbolIndexStore)
         var symbolIndexStore
 
-        // Sample membership **before** kicking off the build, and register
-        // this indexer as a live user of the image's caches. If nobody else
-        // had populated the entry by the time we check, the upcoming
-        // `prepareWithProgress` call is the one that will install it, so
-        // eviction is CLAIMED for the image — the claim means "an indexer
-        // built this entry", never which one, and the eviction itself runs
-        // in the deinit of the image's LAST live indexer, so a shared entry
-        // never disappears under a live sibling. False-positive claims (an
-        // entry someone else then rebuilds) are fine: the worst case is a
-        // redundant rebuild after every indexer is gone, which is exactly
-        // the pre-cache status quo. Entries built by non-indexer callers
-        // are never claimed and never evicted here.
-        if !hasRegisteredWithEvictionRegistry {
-            hasRegisteredWithEvictionRegistry = true
-            PerImageCacheEvictionRegistry.registerLiveIndexer(
-                forImageIdentifier: machO.identifier,
-                claimingEviction: !symbolIndexStore.contains(in: machO)
+        // Sample membership **before** kicking off the build, and register this
+        // indexer as a live user of the image's caches. Each cache is sampled
+        // on its own: whichever ones are absent now are the ones this
+        // `prepare()` is about to install, so those — and only those — are
+        // claimed. A claim means "an indexer built this entry", never which
+        // one; the eviction itself runs in the deinit of the image's LAST live
+        // indexer, so a shared entry never disappears under a live sibling.
+        // False-positive claims (an entry someone else then rebuilds) are fine:
+        // the worst case is a redundant rebuild after every indexer is gone,
+        // which is exactly the pre-cache status quo. Entries built by
+        // non-indexer callers are never claimed and never evicted here — and
+        // since SwiftLayout / the renderers / SwiftSpecialization populate the
+        // interned-name store and the demangle memo without any symbol store,
+        // that guarantee only holds if the three are sampled separately.
+        PerImageCacheEvictionRegistry.registerLiveIndexer(
+            ObjectIdentifier(self),
+            forImageIdentifier: machO.identifier,
+            claims: .init(
+                symbolStore: !symbolIndexStore.contains(in: machO),
+                internedNames: !InternedNodeReferenceCache.shared.contains(in: machO),
+                demangleMemo: !MetadataReader.cacheExists(for: machO)
             )
-        }
+        )
 
         eventDispatcher.dispatch(.extractionStarted(section: .symbolIndex))
         var symbolIndexTotalCount = 0
@@ -1125,39 +1130,81 @@ extension SwiftDeclarationIndexer {
 /// the pre-existing contract, now enforced per image instead of per
 /// indexer.
 private enum PerImageCacheEvictionRegistry {
+    /// Which of the three per-image caches this image's indexers are entitled
+    /// to evict.
+    ///
+    /// Claimed PER CACHE rather than once for all three: the symbol store is
+    /// the only one an indexer's `prepare()` necessarily builds. The
+    /// interned-name store and the `MetadataReader` demangle memo are also
+    /// populated by SwiftLayout, `SwiftDeclarationRendering` and
+    /// `SwiftSpecialization` — a "dump the image, then build its interface"
+    /// sequence fills both without ever touching the symbol store. Under a
+    /// single combined claim that sequence either evicts caches from under
+    /// live non-indexer work (claim taken) or leaks all three (claim refused);
+    /// per-cache claims give the right answer in both directions.
+    struct Claims {
+        var symbolStore: Bool = false
+        var internedNames: Bool = false
+        var demangleMemo: Bool = false
+
+        static let none = Claims()
+
+        mutating func formUnion(_ other: Claims) {
+            symbolStore = symbolStore || other.symbolStore
+            internedNames = internedNames || other.internedNames
+            demangleMemo = demangleMemo || other.demangleMemo
+        }
+    }
+
     private struct ImageEntry {
-        var liveIndexerCount: Int = 0
-        var isEvictionClaimed: Bool = false
+        /// Identity-keyed rather than counted: registration is idempotent per
+        /// indexer, so a double `prepare()` cannot inflate the population and
+        /// strand the entry above zero forever (which would leak all three
+        /// caches for the process lifetime). `prepare()`'s `isPrepared` guard
+        /// is a plain check-then-set on an async entry point, so a concurrent
+        /// second call genuinely reaches the registration.
+        var liveIndexers: Set<ObjectIdentifier> = []
+        var claims: Claims = .none
     }
 
     private static let registryLock = NSLock()
 
     private nonisolated(unsafe) static var entriesByImageIdentifier: [AnyHashable: ImageEntry] = [:]
 
-    static func registerLiveIndexer(forImageIdentifier imageIdentifier: AnyHashable, claimingEviction: Bool) {
+    static func registerLiveIndexer(
+        _ indexerIdentity: ObjectIdentifier,
+        forImageIdentifier imageIdentifier: AnyHashable,
+        claims: Claims
+    ) {
         registryLock.lock()
         defer { registryLock.unlock() }
         var imageEntry = entriesByImageIdentifier[imageIdentifier, default: ImageEntry()]
-        imageEntry.liveIndexerCount += 1
-        if claimingEviction {
-            imageEntry.isEvictionClaimed = true
+        let isFirstRegistration = imageEntry.liveIndexers.insert(indexerIdentity).inserted
+        // Only a first registration contributes claims: a re-entrant
+        // `prepare()` samples the caches its own earlier pass just built and
+        // would otherwise answer "nobody had this, so I claim it" backwards.
+        if isFirstRegistration {
+            imageEntry.claims.formUnion(claims)
         }
         entriesByImageIdentifier[imageIdentifier] = imageEntry
     }
 
-    /// `true` when the deregistering indexer was the image's last live one
-    /// AND eviction was claimed — the caller must then evict the per-image
-    /// caches.
-    static func deregisterLiveIndexer(forImageIdentifier imageIdentifier: AnyHashable) -> Bool {
+    /// The caches the deregistering indexer must evict — all-false unless it
+    /// was the image's LAST live indexer, so a shared entry never disappears
+    /// under a live sibling.
+    static func deregisterLiveIndexer(
+        _ indexerIdentity: ObjectIdentifier,
+        forImageIdentifier imageIdentifier: AnyHashable
+    ) -> Claims {
         registryLock.lock()
         defer { registryLock.unlock() }
-        guard var imageEntry = entriesByImageIdentifier[imageIdentifier] else { return false }
-        imageEntry.liveIndexerCount -= 1
-        guard imageEntry.liveIndexerCount <= 0 else {
+        guard var imageEntry = entriesByImageIdentifier[imageIdentifier] else { return .none }
+        imageEntry.liveIndexers.remove(indexerIdentity)
+        guard imageEntry.liveIndexers.isEmpty else {
             entriesByImageIdentifier[imageIdentifier] = imageEntry
-            return false
+            return .none
         }
         entriesByImageIdentifier.removeValue(forKey: imageIdentifier)
-        return imageEntry.isEvictionClaimed
+        return imageEntry.claims
     }
 }
