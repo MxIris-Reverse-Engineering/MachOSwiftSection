@@ -270,8 +270,26 @@ class VerificationRun:
                 difference_count += 1
         for skip_file in sorted(self.output_root.glob("**/baseline/*.skip")):
             candidate_skip = Path(str(skip_file).replace("/baseline/", "/candidate/"))
-            if candidate_skip.is_file() and skip_file.read_text() == candidate_skip.read_text():
-                print(f"SKIPPED (both sides, {skip_file.read_text().strip()})  {skip_file.relative_to(self.output_root)}")
+            relative_name = skip_file.relative_to(self.output_root)
+            if not candidate_skip.is_file():
+                # Baseline refused while the candidate produced output: the
+                # candidate .txt already counted as MISSING-ON-BASELINE above.
+                continue
+            baseline_marker = skip_file.read_text().strip()
+            candidate_marker = candidate_skip.read_text().strip()
+            if baseline_marker == candidate_marker:
+                print(f"SKIPPED (both sides, {baseline_marker})  {relative_name}")
+            else:
+                # Both sides failed, but DIFFERENTLY — e.g. the baseline exits 1
+                # on a pre-existing unsupported case while the candidate traps
+                # (134). Neither side leaves a .txt, so this pair is invisible to
+                # both globs above; counting it here is what stops a
+                # candidate-introduced crash from being reported as a pass. Same
+                # class as the zero-pairs hole (PR #103 review, H4).
+                print(f"EXIT-CODE-DIFFERS  {relative_name}  "
+                      f"baseline={baseline_marker} candidate={candidate_marker}")
+                examined_pair_count += 1
+                difference_count += 1
         return difference_count, examined_pair_count
 
 
