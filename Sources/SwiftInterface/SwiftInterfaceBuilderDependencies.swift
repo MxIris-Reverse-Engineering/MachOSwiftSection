@@ -1,3 +1,4 @@
+import Foundation
 import SwiftDeclaration
 import SwiftIndexing
 import SwiftPrinting
@@ -28,7 +29,9 @@ extension SwiftInterfaceBuilderDependencies<MachOFile> {
                         dependencies.append(machOFile)
                     } else {}
                 } catch {
-                    print(error)
+                    // stderr, never stdout — stdout carries the generated
+                    // interface (issue #102).
+                    FileHandle.standardError.write(Data("dependency load failed for \(path): \(error)\n".utf8))
                 }
             case .dyldSharedCache(let path):
                 do {
@@ -39,7 +42,9 @@ extension SwiftInterfaceBuilderDependencies<MachOFile> {
                         foundCount += 1
                     }
                 } catch {
-                    print(error)
+                    // stderr, never stdout — stdout carries the generated
+                    // interface (issue #102).
+                    FileHandle.standardError.write(Data("dyld shared cache load failed for \(path): \(error)\n".utf8))
                 }
             case .usesSystemDyldSharedCache:
                 if let hostDyldCache = FullDyldCache.host {

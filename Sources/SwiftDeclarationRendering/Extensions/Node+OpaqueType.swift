@@ -82,7 +82,12 @@ extension Node {
                     }
                 }
             } catch {
-                Swift.print(error)
+                // stderr, never stdout: stdout carries the generated Swift, so
+                // a diagnostic printed here corrupts any piped or redirected
+                // interface (issue #102). The un-rewritten node is returned so
+                // an unresolvable opaque type degrades to its own printing
+                // rather than failing the declaration.
+                FileHandle.standardError.write(Data("opaque type rewrite failed: \(error)\n".utf8))
             }
             return node
         }

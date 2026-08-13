@@ -45,7 +45,12 @@ final class MultiPayloadEnumDescriptorCache: SharedCache<MultiPayloadEnumDescrip
                 multiPayloadEnumDescriptorByNode[node] = multiPayloadEnumDescriptor
             }
         } catch {
-            print(error)
+            // stderr, never stdout: `swift-section interface` / `dump` stream
+            // the generated Swift to stdout, so a diagnostic printed there
+            // lands inside the generated output (issue #102). The partial map
+            // built so far is kept deliberately — one bad descriptor degrades
+            // only its own enum.
+            FileHandle.standardError.write(Data("MultiPayloadEnumDescriptorCache: \(error)\n".utf8))
         }
 
         let storage = Storage()

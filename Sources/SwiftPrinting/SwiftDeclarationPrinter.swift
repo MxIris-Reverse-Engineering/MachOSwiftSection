@@ -140,21 +140,29 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
             // child's throw once escaped here and the top-level catch
             // discarded the whole enclosing type.
             for child in typeDefinition.typeChildren {
-                if let renderedChild = await printCatchedThrowing({
-                    try await NestedDeclaration {
-                        try await printTypeDefinition(child, level: level + 1)
+                if let renderedChild = await printCatchedThrowing(
+                    dispatchingTo: eventDispatcher,
+                    context: .init(name: child.typeName.name, kind: .type),
+                    {
+                        try await NestedDeclaration {
+                            try await printTypeDefinition(child, level: level + 1)
+                        }
                     }
-                }) {
+                ) {
                     renderedChild
                 }
             }
 
             for child in typeDefinition.protocolChildren {
-                if let renderedChild = await printCatchedThrowing({
-                    try await NestedDeclaration {
-                        try await printProtocolDefinition(child, level: level + 1)
+                if let renderedChild = await printCatchedThrowing(
+                    dispatchingTo: eventDispatcher,
+                    context: .init(name: child.protocolName.name, kind: .protocol),
+                    {
+                        try await NestedDeclaration {
+                            try await printProtocolDefinition(child, level: level + 1)
+                        }
                     }
-                }) {
+                ) {
                     renderedChild
                 }
             }
@@ -203,7 +211,10 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
             // printing throws drops only itself, not the protocol it trails.
             await BlockList {
                 for extensionDefinition in protocolDefinition.defaultImplementationExtensions {
-                    await printCatchedThrowing {
+                    await printCatchedThrowing(
+                        dispatchingTo: eventDispatcher,
+                        context: .init(name: extensionDefinition.extensionName.name, kind: .extension)
+                    ) {
                         try await printExtensionDefinition(extensionDefinition)
                     }
                 }
@@ -229,21 +240,29 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
             // nested loops: a nested definition whose printing throws
             // drops only itself, never the whole extension.
             for typeDefinition in extensionDefinition.types {
-                if let renderedChild = await printCatchedThrowing({
-                    try await NestedDeclaration {
-                        try await printTypeDefinition(typeDefinition, level: level + 1)
+                if let renderedChild = await printCatchedThrowing(
+                    dispatchingTo: eventDispatcher,
+                    context: .init(name: typeDefinition.typeName.name, kind: .type),
+                    {
+                        try await NestedDeclaration {
+                            try await printTypeDefinition(typeDefinition, level: level + 1)
+                        }
                     }
-                }) {
+                ) {
                     renderedChild
                 }
             }
 
             for protocolDefinition in extensionDefinition.protocols {
-                if let renderedChild = await printCatchedThrowing({
-                    try await NestedDeclaration {
-                        try await printProtocolDefinition(protocolDefinition, level: level + 1)
+                if let renderedChild = await printCatchedThrowing(
+                    dispatchingTo: eventDispatcher,
+                    context: .init(name: protocolDefinition.protocolName.name, kind: .protocol),
+                    {
+                        try await NestedDeclaration {
+                            try await printProtocolDefinition(protocolDefinition, level: level + 1)
+                        }
                     }
-                }) {
+                ) {
                     renderedChild
                 }
             }
@@ -540,11 +559,29 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
     }
 }
 
-package func printCatchedThrowing(@SemanticStringBuilder _ body: () async throws -> SemanticString) async -> SemanticString? {
+/// Renders `body`, dropping only what it was rendering if it throws.
+///
+/// The failure is reported as a ``SwiftIndexEvents/Event/definitionPrintFailed``
+/// event when the caller can supply a dispatcher and a context — it must NOT be
+/// printed. `swift-section interface` / `dump` stream the generated Swift to
+/// stdout (`InterfaceCommand.swift:106`, `DumpCommand.swift:294`), so anything a
+/// library writes there lands inside the generated output and corrupts any piped
+/// or redirected interface. Issue #102 reported both halves of this from the
+/// field: a run that lost 8,375 definitions emitted **zero**
+/// `definitionPrintFailed` events, and its only signal was a bare
+/// `unexpected(at: 8)` on stdout, fully buffered and therefore surfacing far
+/// from its cause.
+package func printCatchedThrowing(
+    dispatchingTo eventDispatcher: SwiftIndexEvents.Dispatcher? = nil,
+    context: SwiftIndexEvents.PrintingContext? = nil,
+    @SemanticStringBuilder _ body: () async throws -> SemanticString
+) async -> SemanticString? {
     do {
         return try await body()
     } catch {
-        print(error)
+        if let eventDispatcher, let context {
+            eventDispatcher.dispatch(.definitionPrintFailed(context: context, error: error))
+        }
         return nil
     }
 }

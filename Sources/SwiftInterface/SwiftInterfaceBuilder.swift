@@ -1,3 +1,4 @@
+import Foundation
 import SwiftDeclaration
 @_spi(Support) import SwiftIndexing
 @_spi(Support) import SwiftPrinting
@@ -95,7 +96,10 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
             do {
                 try await extraDataProvider.setup()
             } catch {
-                print(error)
+                // stderr, never stdout — `printRoot()`'s result is streamed to
+                // stdout by the CLI, so a diagnostic printed here lands inside
+                // the generated interface (issue #102).
+                FileHandle.standardError.write(Data("extra data provider setup failed: \(error)\n".utf8))
             }
         }
 
@@ -120,6 +124,11 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
     public func printRoot() async throws -> SemanticString {
         ImportsBlock(OrderedSet(Self.internalModules + importedModules).sorted())
 
+        // The two globals blocks carry no printing context because they cannot
+        // fail as a block: `printVariable` / `printFunction` are non-throwing —
+        // each already catches per member and dispatches its own
+        // `definitionPrintFailed`. These wrappers are belt-and-braces, so there
+        // is no definition identity to attribute a block-level failure to.
         await printCatchedThrowing {
             await BlockList {
                 for variable in indexer.globalVariableDefinitions {
@@ -143,7 +152,10 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
         // moment a single one threw.
         await BlockList {
             for typeDefinition in indexer.rootTypeDefinitions.values {
-                await printCatchedThrowing {
+                await printCatchedThrowing(
+                    dispatchingTo: eventDispatcher,
+                    context: .init(name: typeDefinition.typeName.name, kind: .type)
+                ) {
                     try await printer.printTypeDefinition(typeDefinition)
                 }
             }
@@ -157,7 +169,10 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
             // accumulated through `specialize(with:in:)`.
             for typeDefinition in indexer.allTypeDefinitions.values {
                 for specialized in typeDefinition.specializedChildren {
-                    await printCatchedThrowing {
+                    await printCatchedThrowing(
+                        dispatchingTo: eventDispatcher,
+                        context: .init(name: specialized.typeName.name, kind: .type)
+                    ) {
                         try await printer.printTypeDefinition(specialized)
                     }
                 }
@@ -166,7 +181,10 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
 
         await BlockList {
             for protocolDefinition in indexer.rootProtocolDefinitions.values {
-                await printCatchedThrowing {
+                await printCatchedThrowing(
+                    dispatchingTo: eventDispatcher,
+                    context: .init(name: protocolDefinition.protocolName.name, kind: .protocol)
+                ) {
                     try await printer.printProtocolDefinition(protocolDefinition)
                 }
             }
@@ -175,7 +193,10 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
         await BlockList {
             for protocolDefinition in indexer.rootProtocolDefinitions.values.filterNonNil(\.parent) {
                 for extensionDefinition in protocolDefinition.defaultImplementationExtensions {
-                    await printCatchedThrowing {
+                    await printCatchedThrowing(
+                        dispatchingTo: eventDispatcher,
+                        context: .init(name: extensionDefinition.extensionName.name, kind: .extension)
+                    ) {
                         try await printer.printExtensionDefinition(extensionDefinition)
                     }
                 }
@@ -184,7 +205,10 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
 
         await BlockList {
             for extensionDefinition in allExtensionDefinitions {
-                await printCatchedThrowing {
+                await printCatchedThrowing(
+                    dispatchingTo: eventDispatcher,
+                    context: .init(name: extensionDefinition.extensionName.name, kind: .extension)
+                ) {
                     try await printer.printExtensionDefinition(extensionDefinition)
                 }
             }

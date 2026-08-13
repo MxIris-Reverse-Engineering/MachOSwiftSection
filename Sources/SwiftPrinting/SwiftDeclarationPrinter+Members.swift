@@ -28,7 +28,12 @@ extension SwiftDeclarationPrinter {
     /// `var value: A`).
     @SemanticStringBuilder
     public func printField(_ field: FieldDefinition, level: Int, substitutedTypeNode: Node? = nil) async -> SemanticString {
-        await printCatchedThrowing {
+        // A stored field is reported as `.variable` — the event vocabulary has
+        // no separate field kind, and a stored property is what it renders as.
+        await printCatchedThrowing(
+            dispatchingTo: eventDispatcher,
+            context: .init(name: field.name, kind: .variable)
+        ) {
             try await printThrowingField(field, level: level, substitutedTypeNode: substitutedTypeNode)
         }
     }
