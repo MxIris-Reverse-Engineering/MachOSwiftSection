@@ -139,8 +139,12 @@ public final class SwiftDiffableInterfaceRenderer<
         guard old != nil || new != nil else { return [] }
         let marker: DiffMarker = old == nil ? .added : (new == nil ? .removed : .unchanged)
 
-        let oldHeader = await header(old) { try await oldPrinter.printTypeHeader($0, level: level) }
-        let newHeader = await header(new) { try await newPrinter.printTypeHeader($0, level: level) }
+        // A header that could not be rendered drops the whole type: emitting
+        // `bodyUnits` under a blank header line would produce members and
+        // braces with no declaration above them.
+        guard let oldHeader = await header(old, { try await oldPrinter.printTypeHeader($0, level: level) }),
+              let newHeader = await header(new, { try await newPrinter.printTypeHeader($0, level: level) })
+        else { return [] }
 
         let bodyUnits = await typeBodyUnits(old: old, new: new, level: level)
         return DiffContainerAssembler.assemble(oldHeader: oldHeader, newHeader: newHeader, marker: marker, bodyUnits: bodyUnits, level: level)
@@ -187,8 +191,11 @@ public final class SwiftDiffableInterfaceRenderer<
         guard old != nil || new != nil else { return [] }
         let marker: DiffMarker = old == nil ? .added : (new == nil ? .removed : .unchanged)
 
-        let oldHeader = await header(old) { try await oldPrinter.printProtocolHeader($0, level: level) }
-        let newHeader = await header(new) { try await newPrinter.printProtocolHeader($0, level: level) }
+        // Same contract as `renderType`: an unrenderable header drops the
+        // whole protocol rather than emitting its requirements bare.
+        guard let oldHeader = await header(old, { try await oldPrinter.printProtocolHeader($0, level: level) }),
+              let newHeader = await header(new, { try await newPrinter.printProtocolHeader($0, level: level) })
+        else { return [] }
 
         var units: [[DiffLine]] = []
         units += await diffMembers(old: associatedTypeMembers(old, printer: oldPrinter), new: associatedTypeMembers(new, printer: newPrinter), level: level)
@@ -429,9 +436,26 @@ public final class SwiftDiffableInterfaceRenderer<
 
     // MARK: - Generic helpers
 
-    private func header<EnclosingDefinition>(_ definition: EnclosingDefinition?, _ render: (EnclosingDefinition) async throws -> SemanticString) async -> SemanticString {
+    /// `nil` means the definition EXISTS but its header could not be rendered —
+    /// the caller must then drop the whole declaration, because members and
+    /// braces under an empty header line are not valid Swift. An absent
+    /// definition (a `nil` input) is NOT a failure: it is the "this side does
+    /// not have it" case that `.added` / `.removed` markers are built on, and
+    /// it renders as empty.
+    ///
+    /// Header rendering can genuinely throw — it reads the declaration's name,
+    /// generic signature and superclass, and demangles each (issue #102 is the
+    /// field evidence that print-time `DemanglingError`s happen on real
+    /// binaries) — plus, since evolution 0002, it re-materializes the wrapper
+    /// from its descriptor. Swallowing that into an empty string emitted the
+    /// type's members with no `struct Foo` line above them, silently.
+    private func header<EnclosingDefinition>(_ definition: EnclosingDefinition?, _ render: (EnclosingDefinition) async throws -> SemanticString) async -> SemanticString? {
         guard let definition else { return SemanticString() }
-        return (try? await render(definition)) ?? SemanticString()
+        do {
+            return try await render(definition)
+        } catch {
+            return nil
+        }
     }
 
     /// Matches two element lists by an `ABIKey`, returning pairs in render order:
