@@ -128,7 +128,15 @@ final class SymbolTable: @unchecked Sendable {
 
 ### 源码兼容性（source compatibility）
 
-**纯新增 / 无破坏。** 公开与 package 级 API 的签名、语义、返回值形态全部不变：`Symbol`、`Symbols`、`DemangledSymbol.symbol`、`Symbol.resolve`、`SymbolIndexStore` 的全部查询方法照旧。变化仅在 `MachOSymbols` 模块内部的驻留表示与 `Storage` 私有结构。`compactValueLayouts` 与 `SymbolTableRetentionTests` 钉住布局与 detach 契约不回归。
+**一处破坏性收窄，其余无破坏。**
+
+破坏项：`Symbol` 的 `nlist: (any NlistProtocol)?` 被 `isExternal: Bool` 取代。这是落地过程中的修订，原方案（本节初稿写的「纯新增 / 无破坏」）低估了保留 `nlist` 的代价——保留它意味着每个符号一个 40 字节 existential 拷贝，而全仓库唯一的消费点就是 external-undefined 这一个位（`buildStorageSweep` 的 `!symbol.nlist.isExternal`），与本案「消除每符号驻留开销」的目的直接冲突。破坏面：
+
+- `Symbol(offset:name:)` **仍然编译** —— 新旧初始化器的第三参都有默认值（`nlist: nil` → `isExternal: false`）；
+- 破坏的是显式传 `nlist:` 的构造调用，以及读 `.nlist` 属性的代码；
+- 不可恢复的信息：section index、`n_desc`、weak / no-dead-strip 等标志位。需要它们的调用方要自行经 MachOKit 的符号接口读取。
+
+其余公开与 package 级 API 的签名、语义、返回值形态不变：`Symbols`、`DemangledSymbol.symbol`、`Symbol.resolve`、`SymbolIndexStore` 的全部查询方法照旧。其余变化仅在 `MachOSymbols` 模块内部的驻留表示与 `Storage` 私有结构。`compactValueLayouts` 与 `SymbolTableRetentionTests` 钉住布局与 detach 契约不回归。
 
 ### ABI 兼容性（条件项）
 
@@ -147,8 +155,9 @@ final class SymbolTable: @unchecked Sendable {
 
 ## API 演进与废弃策略
 
-- 无被替代的公开 API，无废弃标注需求。
-- 无 semver major 跃迁：源码兼容的内部表示变更，随下一次常规版本发布（`Version.swift` bump 时在 changelog 记录内存收益）。
+- `Symbol.nlist` → `Symbol.isExternal`：直接移除而非 `@available(*, deprecated)` 标注。废弃标注在这里达不到目的——保留旧属性就等于保留它要消除的每符号 existential 存储，而本案的全部收益正来自不再持有它。
+- 下游需确认：RuntimeViewer（本案验收方）。仓库内已确认零消费者（`Symbol.nlist` 的读取点仅 `buildStorageSweep` 一处，已随本案改写）。
+- 随下一次常规版本发布，`Version.swift` bump 时在 changelog 记录内存收益**与这处破坏性变更**。
 
 ## 落地步骤
 

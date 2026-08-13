@@ -827,6 +827,21 @@
 
 ---
 
+## 39. PR #103 第二轮 review：15 条发现的四问、复核与实现
+
+- **时间段**：2026-08-13（`feature/node-store-migration` 的第二轮 max 级 review；第一轮见第 37 节）。
+- **动机**：第一轮修复落地后再审一遍，产出 15 条发现。四问（复现 / 基线对比 / 值不值得修 / 既往修复）不是走过场——它推翻了初版结论中的三条，全部靠查证而非推理：F1「本 PR 引入」实为基线既有（main 的 `printTypeHeader` 本身就含两处会抛的 `try`，初版只盯着换掉的那个参数）、F7 的破坏面被默认参数缩小（`Symbol(offset:name:)` 两边都编译）、F15 的 `cls` 是 main 上沿用而非新发明。另有 F2 因结构上触发不到而降为防御性、F13 因无法复现且 main 相同而记入已裁决清单。
+- **交叉复核**：15 条结论交同项目另一会话独立复核，四点实质修正全部采纳。其中两条是原查证不足：F10 曾因「未核实上游」撤掉的论点，经复核在上游 `DemangleInterface.swift:56-67` 找到文档契约而**恢复**（无参数 kind 即使走 transient 也解析到进程级 `NodeFactory` 单例，故修法不能简单加强 `!==` 否则假失败）；F5 的「修法现成」被指出说过头（`StructuralNodeReferenceKey` 只包 `NodeReference`，查询侧是裸 `Node`，无零成本包装），且该处并不违反 AGENTS.md 那条硬规则。
+- **落地（代码 6 条 + 横向 4 处 + 文档/测试）**：A1 A/B 验收脚本双边失败但退出码不同时计入差异（第一轮 H4 同根因的第二个实例）；A2 `printCatchedThrowing` 停止 `print(error)` 改派发 `.definitionPrintFailed`，13 个调用点补 context——这正是 Issue #102 明确提出而本 PR 原先只做了三分之一的另外两条；A3 diff 头行渲染失败丢弃整条声明（空 header 下渲染成员是非法 Swift）；B1 opaque 查询从「按 identifier 分桶后线性 `structurallyEquals`」改为结构化哈希一次探测（`StructuralNodeReferenceKey` 增加 `init(querying:)` 的裸 `Node` 形态，两侧哈希由上游保证一致）；B2 缓存回收资格拆成三位分别 claim（只有 symbol store 必然是 indexer 建的，另两份 SwiftLayout / 渲染器 / SwiftSpecialization 也在填），注册改 identity-keyed 顺带吸收 B3 的 check-then-set 竞态；F15 `cls` → `classWrapper`。横向排查另找到 4 处 `print(error)` 全部改写 stderr，`Sources/` 下现已归零。
+- **裁决（2 条，记入 [ReviewAdjudications.md](ReviewAdjudications.md) A7–A8）**：索引器与 dump 路径 witness 匹配的 print options 分歧（无法构造触发场景，main 相同，无 fixture）；`updateConfiguration` 的 re-prepare 因 `isPrepared` 早退而是 no-op（零调用点，RuntimeViewer 硬编码使其不可达）。
+- **踩坑留痕**：B1 改了 `SymbolIndexStore.Storage` 字段结构却未按 AGENTS.md 立即 `swift package clean`，导致增量构建链接 stale object——`swift build` 连续报成功、全量测试跑到 484 例后 SIGSEGV 且零断言失败；clean 后才暴露真实编译错误（把一个 `NodeReference` 属性改成了 optional，破坏三个既有调用点）。另：sibling `swift-demangling` 是共享可变状态，构建中途撞上另一会话的半改状态，改为 pin 到 detached 只读 worktree 解决。
+- **上游合流**：`swift-demangling` 同期修掉畸形符号的 SIGTRAP / 整数溢出 / 死循环（模糊语料 trap 与 hang 归零）。这与 A2 是同一条线的两端——在此之前 `printCatchedThrowing` 就算 catch 了也拦不住进程级信号，两边合上后 per-definition catch 才真正成立。
+- **验证**：全量 1413 测试 / 266 suite / `swift test` 退出码 0；A/B 脚本新增 5 条标准库自测；依赖 pin 分两轮（先 `6eb3fc7` 确认自身改动，再 `5d2b476` 复跑）以分离变量。
+- **文档**：[TaskReports/2026-08-13-pr103-review-round-two-fixes.md](TaskReports/2026-08-13-pr103-review-round-two-fixes.md)、[ReviewAdjudications.md](ReviewAdjudications.md)（A7–A8）、提案 0001 兼容性一节更正、AGENTS.md 的 opaque 索引与缓存回收两段同步。
+- **对应版本**：`0.15.1` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节

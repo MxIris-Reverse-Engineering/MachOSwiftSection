@@ -94,3 +94,27 @@
 - **既往修复**：`17ad4358`（引入 ranking）→ `6647359e`（跨 cache 文件生效）→ 本轮第三次审视。三轮都没落的 plain-`.dylib` 用例这次落了：`DyldCacheEndToEndLookupTests`（当前系统 cache 上 `libswiftCore` 解析到 `/usr/lib/swift/libswiftCore.dylib`、`SwiftUI` 解析到原生 framework 本体且非 iOSSupport）。
 - **代码锚点**：`DyldCacheEndToEndLookupTests` 的套件注释。
 - **复审条件**：① 出现高频调用 `machOFile(by:)` 的新消费形态（当前每 CLI 调用一次）；② MachOKit 上游暴露 `(imagePath, fileOffset)` 级枚举后，「只构造赢家」无需复刻内部细节——届时可顺手做。
+
+---
+
+## A7 — 索引器与 dump 路径的 conformance witness 匹配用不同 print options（PR #103 第二轮 review）
+
+- **裁决**：本轮不修，记录待查（2026-08-13）。
+- **发现**：`ExtensionDefinition.index(in:)` 的 witness 匹配（`ExtensionDefinition.swift:150`）用 `.interfaceTypeBuilderOnly` 打印符号侧类型名，而 dump 路径的同款循环（`ProtocolConformanceDumper.swift:185`）用 `.interfaceType`。两者只差一个 `.displayObjCModule` 标志，所以一个 ObjC 导入类型在前者打印成 `__C.NSObject`、在后者是 `NSObject`。两条路径的 fallback 子句都查 `PrimitiveTypeMappingCache.shared.storage(in:)?.primitiveType(for: typeName)`，而 `PrimitiveTypeMapping` 的键是**裸** descriptor 名（`PrimitiveTypeMapping.swift:26`，`descriptor.name(in: machO)`，从不带模块限定）。推论是：对某个只能经 primitive mapping 匹配上的 conformance，`swift-section dump` 绑定到具体 witness 符号，而 `swift-section interface` 落到 requirement 分支。
+- **复现 / 是否误报**：**未能构造出触发场景，因此不作为已确认缺陷**。print options 的分歧与 mapping 键的裸名形态都已逐行核对属实，但触发还需要一个"带 ObjC 导入 typedef 原始类型、且携带 resilient witness"的真实框架；仓库内无 fixture 覆盖（`grep -rn 'extension __C\.' Tests/` 为空）。另需注意：`typeName` 参数是外部传入的 `extensionName.name`，不是用同一 option 现算的，所以 `symbolTypeName == typeName` 那一半是否受影响也取决于 `ExtensionName` 的构造选项——初版分析曾误断为"不可观测"，实际未定。
+- **与 main 基线对比**：**main 上完全相同**（aa38ff5 的两处有一模一样的 option 分歧与裸名键）。非本 PR 引入；本 PR 只是重写了这几行所在的区域。
+- **为什么本轮不修**：无法复现的旧问题，改任一侧的 print option 都会影响 witness 绑定这一敏感路径，而没有测试能证明改动方向正确。盲改的风险大于收益。
+- **既往修复**：无。两处自各自模块拆分以来就是这样。
+- **复审条件**：① 出现 `extension __C.<Type>` 的真实用户报告或 fixture；② 为 ObjC 导入类型的 resilient conformance 补 fixture 后重测两条路径的输出差异。届时正确修法是让两条路径共享同一个匹配 helper（含同一套 print options），而不是各自调 option。
+
+---
+
+## A8 — `updateConfiguration` 的 re-prepare 因 `isPrepared` 早退而是 no-op（PR #103 第二轮 review）
+
+- **裁决**：不修（2026-08-13）。
+- **发现**：`SwiftDeclarationIndexer.updateConfiguration(_:)` 在 `showCImportedTypes` 变化时调 `try await prepare()` 重建索引，但 `prepare()` 第一行是 `if isPrepared { return }`，而 `isPrepared` 在首次 prepare 结束时就置 true——所以配置变了索引并不会重建，这个分支实际是空操作。
+- **复现 / 是否误报**：机制属实。但**当前无消费者能触发**：仓库内 `updateConfiguration` 零调用点；已知的下游消费者 RuntimeViewer 把 `showCImportedTypes` 硬编码为 false，那个分支永不进入。
+- **与 main 基线对比**：main 字节相同。非本 PR 引入。
+- **为什么不修**：正确修法（重置 `isPrepared` 与全部 storage 后重建）等于给一个无人调用的路径加一次全量重索引，且需要想清楚重建期间已 vend 出去的 definition 引用怎么办（它们持有 per-image store）。在没有真实消费者定义期望语义之前，改动只会引入未经验证的行为。
+- **既往修复**：无。
+- **复审条件**：任一消费者真正开始在运行时切换 `showCImportedTypes`——届时先定义"重建期间旧 definition 引用的语义"，再动实现。

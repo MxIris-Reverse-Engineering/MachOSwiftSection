@@ -83,6 +83,29 @@ extension DemanglingNode {
     /// is where the repo does that, because it owns a loop; the printer's own
     /// loop lives in `SwiftDeclarationPrinter` and is `async`, which a
     /// synchronous wrapper cannot enclose.
+    ///
+    /// **Do not "modernize" this onto `runPrintWalk(using:)`.** Upstream added
+    /// that protocol requirement as the dispatch hook behind
+    /// `print(using:) -> String`, for the single purpose of letting a
+    /// `NodeReference`'s arena walk be selected in generic and existential
+    /// contexts. It returns `String` because that is what it dispatches for —
+    /// a custom `Target` is out of its remit by design, not by oversight, so it
+    /// is not "the newer way to print" and there is nothing here to migrate to
+    /// it. For a non-`String` target the engine's static
+    /// `DemanglingPrinter<Target, SomeNode>.print(_:options:)` is the only
+    /// entry point, and will remain so. It is byte-for-byte unchanged across
+    /// the `runPrintWalk` introduction — including the
+    /// `StackSafeExecutor.executeWithUncheckedSendability` wrapper this comment
+    /// exists to explain (verified upstream on a deliberately 512KB-stacked
+    /// thread against 600 levels of nested generics, which survives only
+    /// because of that hop).
+    ///
+    /// Worth noting *why* the shadowing hazard above is a recurring shape
+    /// rather than a one-off: upstream hit the mirror image of it in the same
+    /// period — a concrete method silently shadowing a protocol-extension
+    /// member, where this one was a concrete overload silently shadowing the
+    /// stack-guarded generic. Swift's "more specific wins" static dispatch
+    /// swaps the implementation in both directions with no diagnostic.
     public func printSemantic(using options: DemangleOptions = .default) -> SemanticString {
         DemanglingPrinter<SemanticString, Self>.print(self, options: options)
     }
