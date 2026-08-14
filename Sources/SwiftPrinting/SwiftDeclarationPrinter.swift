@@ -1,3 +1,4 @@
+import Foundation
 import SwiftDeclaration
 import SwiftAttributeInference
 import MachOSwiftSection
@@ -177,13 +178,23 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
 
     @SemanticStringBuilder
     public func printProtocolDefinition(_ protocolDefinition: ProtocolDefinition, level: Int = 1, displayParentName: Bool = false) async throws -> SemanticString {
-        // This print operation's single wrapper materialization (proposal
-        // 0002), threaded into the event context, header, and
-        // associated-type renderers below.
-        let dumpedProtocol = try protocolDefinition.materializedProtocol(in: machO)
-
-        let printingContext = SwiftIndexEvents.PrintingContext(name: dumpedProtocol.name, kind: .protocol)
+        // Context and start event FIRST, exactly like `printTypeDefinition`.
+        // The materialization below throws (proposal 0002 rebuilt the wrapper
+        // from its descriptor), and a failure that precedes the start event
+        // makes the caller's catch dispatch a `definitionPrintFailed` with no
+        // matching start — an event consumer cannot pair those.
+        //
+        // The name is the QUALIFIED one: `printTypeDefinition`'s context and
+        // every caller-side failure context in `SwiftInterfaceBuilder` use
+        // `DefinitionName.name`, while `Protocol.name` is the descriptor's BARE
+        // name ("View" against "SwiftUI.View"), so the two events named the same
+        // protocol two different ways and could not be correlated at all.
+        let printingContext = SwiftIndexEvents.PrintingContext(name: protocolDefinition.protocolName.name, kind: .protocol)
         eventDispatcher.dispatch(.definitionPrintStarted(context: printingContext))
+
+        // This print operation's single wrapper materialization (proposal
+        // 0002), threaded into the header and associated-type renderers below.
+        let dumpedProtocol = try protocolDefinition.materializedProtocol(in: machO)
 
         if !protocolDefinition.isIndexed {
             try await protocolDefinition.index(in: machO)
@@ -572,6 +583,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
 /// `unexpected(at: 8)` on stdout, fully buffered and therefore surfacing far
 /// from its cause.
 package func printCatchedThrowing(
+    isolation: isolated (any Actor)? = #isolation,
     dispatchingTo eventDispatcher: SwiftIndexEvents.Dispatcher? = nil,
     context: SwiftIndexEvents.PrintingContext? = nil,
     @SemanticStringBuilder _ body: () async throws -> SemanticString
@@ -581,6 +593,17 @@ package func printCatchedThrowing(
     } catch {
         if let eventDispatcher, let context {
             eventDispatcher.dispatch(.definitionPrintFailed(context: context, error: error))
+        } else {
+            // No sink to attribute the failure to: the two block-level wrappers
+            // in `SwiftInterfaceBuilder` (whose members already report
+            // individually, so a block-level failure has no definition identity),
+            // and every call from the diff renderer, whose printers are built
+            // with `.init(in:)` and carry no event handlers at all. Reporting
+            // nowhere is how a diff-path enum payload failure turned
+            // `case foo(Payload)` into `case foo` in silence.
+            //
+            // stderr, never stdout: stdout carries the generated Swift (issue #102).
+            FileHandle.standardError.write(Data("SwiftDeclarationPrinter: dropped a rendering: \(error)\n".utf8))
         }
         return nil
     }

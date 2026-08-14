@@ -27,18 +27,21 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
 
     // MARK: - Build invariants
 
-    /// The migration's core invariant: the build pipeline stays off the
-    /// global `NodeCache` (the old pipeline leaked every leaf and interned
-    /// subtree into it, pinning them for the process lifetime).
+    /// Pins the property the build sweep RELIES on: `demangleAsNodeTransient`
+    /// is genuinely non-interning, so two demangles of one name yield equal but
+    /// distinct trees.
     ///
-    /// Asserted via leaf identity rather than global counters: every test
-    /// target shares one process, so concurrent suites legitimately grow
-    /// `NodeCache` and make counter deltas racy. The transient demangle the
-    /// build sweep uses mints fresh leaf instances on every call, whereas
-    /// any accidental cache participation would hand back the same canonical
-    /// instance — so `!==` across two runs is deterministic evidence.
-    /// (The process-global zero-growth measurement lives in the manually run
-    /// `SymbolIndexStoreBaselineTests`.)
+    /// Scope, stated honestly: the assertions below are about **this test's own**
+    /// two `demangleAsNodeTransient` calls, so this does **not** verify that the
+    /// build sweep uses that entry point. It cannot: `Storage` holds
+    /// `NodeReference`s into a frozen arena, so materializing the sweep's trees
+    /// twice yields distinct instances regardless of which demangle built them,
+    /// and process-global `NodeCache` counters are racy because every test target
+    /// shares one process. The migration invariant itself ("Sources carries zero
+    /// cached `demangleAsNode(` call sites") is enforced by source scan in
+    /// `NodeStoreMigrationInvariantTests`, which is the check that actually fails
+    /// when it is broken. (The process-global zero-growth measurement lives in
+    /// the manually run `SymbolIndexStoreBaselineTests`.)
     @Test func buildPipelineStaysOffGlobalNodeCache() throws {
         let builtStorage = try #require(SymbolIndexStore.shared.buildStorage(for: machOFile))
         #expect(builtStorage.symbolTable.rowCount > 0)

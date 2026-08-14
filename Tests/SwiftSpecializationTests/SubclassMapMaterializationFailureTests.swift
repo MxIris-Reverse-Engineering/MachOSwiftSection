@@ -42,7 +42,6 @@ final class SubclassMapMaterializationFailureTests: MachOFileTests, @unchecked S
     /// A class whose wrapper cannot be materialized is reported on stderr, and
     /// the classes around it keep their subclass relationships — the failure is
     /// scoped to the one entry, not to the map.
-    @MainActor
     @Test func unreadableClassWrapperIsReportedAndScopedToItsOwnEntry() async throws {
         let indexer = try await preparedIndexer()
 
@@ -74,7 +73,7 @@ final class SubclassMapMaterializationFailureTests: MachOFileTests, @unchecked S
         // A fresh provider: the subclass map is memoized per provider instance.
         nonisolated(unsafe) let unsafeIndexer = indexer
         nonisolated(unsafe) var subclassesAfterInjection: [TypeName] = []
-        let capturedStandardError = try await captureStandardError {
+        let capturedStandardError = try await StandardStreamCapture.standardError {
             subclassesAfterInjection = IndexerConformanceProvider(indexer: unsafeIndexer).subclasses(of: baseClassName)
         }
 
@@ -86,42 +85,5 @@ final class SubclassMapMaterializationFailureTests: MachOFileTests, @unchecked S
             subclassesAfterInjection.contains(subclassName),
             "one unreadable class must not cost an unrelated class its subclass link"
         )
-    }
-
-    /// Redirects `STDERR_FILENO` to a pipe for the duration of `body`, then
-    /// restores it and returns whatever was written. Mirrors
-    /// `PrintFailureEventTests.captureStandardOutput`.
-    private func captureStandardError(_ body: () async throws -> Void) async throws -> String {
-        let savedStandardError = dup(STDERR_FILENO)
-        defer { close(savedStandardError) }
-
-        let pipe = Pipe()
-        dup2(pipe.fileHandleForWriting.fileDescriptor, STDERR_FILENO)
-
-        // Drain concurrently: a blocked pipe would otherwise deadlock the writer
-        // once the buffer fills.
-        let drainTask = Task.detached { () -> Data in
-            var accumulated = Data()
-            while let chunk = try? pipe.fileHandleForReading.read(upToCount: 4096), !chunk.isEmpty {
-                accumulated.append(chunk)
-            }
-            return accumulated
-        }
-
-        do {
-            try await body()
-        } catch {
-            fflush(stderr)
-            dup2(savedStandardError, STDERR_FILENO)
-            try? pipe.fileHandleForWriting.close()
-            _ = await drainTask.value
-            throw error
-        }
-
-        fflush(stderr)
-        dup2(savedStandardError, STDERR_FILENO)
-        try? pipe.fileHandleForWriting.close()
-
-        return String(decoding: await drainTask.value, as: UTF8.self)
     }
 }

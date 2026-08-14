@@ -1,3 +1,4 @@
+import Foundation
 import SwiftDeclaration
 @_spi(Support) import SwiftIndexing
 @_spi(Support) import SwiftPrinting
@@ -454,6 +455,16 @@ public final class SwiftDiffableInterfaceRenderer<
         do {
             return try await render(definition)
         } catch {
+            // stderr, not an event: this renderer builds its printers with
+            // `.init(in:)` and its public initializer takes no event handlers, so
+            // a dispatched `definitionPrintFailed` would have no sink. Without
+            // this line a declaration present on BOTH sides simply vanishes from
+            // the annotated interface, indistinguishable from "compared and found
+            // equal". (The change-list, `--json` and `--fail-on-breaking` paths
+            // are unaffected — they run through `ABIDiffer`, not this renderer.)
+            //
+            // stderr, never stdout: stdout carries the annotated interface.
+            FileHandle.standardError.write(Data("SwiftDiffableInterfaceRenderer: dropped a declaration, its header could not be rendered: \(error)\n".utf8))
             return nil
         }
     }

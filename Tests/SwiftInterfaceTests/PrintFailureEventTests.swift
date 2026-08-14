@@ -50,6 +50,13 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
                 return context.name
             }
         }
+
+        var printStartedNames: [String] {
+            events.compactMap { event in
+                guard case .definitionPrintStarted(let context) = event else { return nil }
+                return context.name
+            }
+        }
     }
 
     private func preparedIndexer() async throws -> SwiftDeclarationIndexer<MachOFile> {
@@ -83,6 +90,41 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
 
     private enum PrintFailureEventTestError: Error {
         case fixtureTypeIsNotAStruct
+    }
+
+    // NOTE — the ordering half of this contract (a failure must never precede
+    // its own `definitionPrintStarted`) has no test here, deliberately.
+    // Reaching it needs a protocol whose wrapper materialization THROWS, and the
+    // technique the sibling tests use — a real descriptor layout re-wrapped far
+    // past the fixture's end of file — does not throw for a `ProtocolDescriptor`:
+    // it SEGFAULTS the test process, where the same construction over a
+    // `StructDescriptor` throws cleanly. That reader-robustness gap is a finding
+    // of its own (a damaged or hostile binary can take the process down rather
+    // than surface an error) and is tracked separately; a test that crashes the
+    // runner is worse than no test. After the fix the ordering holds structurally
+    // anyway: the dispatch precedes the only throwing call in the function.
+
+    /// The started event and the caller-side failure event must name the SAME
+    /// declaration, or a consumer cannot correlate them. `Protocol.name` is the
+    /// descriptor's BARE name ("View") while every caller-side context — and
+    /// `printTypeDefinition`'s own — uses the QUALIFIED name ("SwiftUI.View").
+    @Test func protocolStartEventUsesTheQualifiedNameLikeEveryOtherContext() async throws {
+        let indexer = try await preparedIndexer()
+        let protocolDefinition = try #require(indexer.allProtocolDefinitions.values.first)
+
+        let collector = EventCollector()
+        nonisolated(unsafe) let unsafeDefinition = protocolDefinition
+        nonisolated(unsafe) let unsafePrinter = SwiftDeclarationPrinter(
+            eventHandlers: [collector],
+            in: machOFile
+        )
+
+        _ = try await unsafePrinter.printProtocolDefinition(unsafeDefinition).string
+
+        #expect(
+            collector.printStartedNames.contains(protocolDefinition.protocolName.name),
+            "the start event must carry the qualified name `\(protocolDefinition.protocolName.name)`; got \(collector.printStartedNames)"
+        )
     }
 
     @Test func droppedNestedChildDispatchesAPrintFailureEvent() async throws {
@@ -167,5 +209,33 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
         readData = await drainTask.value
 
         return String(decoding: readData, as: UTF8.self)
+    }
+
+    /// `printCatchedThrowing` reports through an event only when BOTH a
+    /// dispatcher and a context are supplied. Three call sites supply neither —
+    /// the two block-level wrappers in `SwiftInterfaceBuilder` (deliberately: the
+    /// members inside already report individually, so a block-level failure has
+    /// no definition identity to attribute) and `printType`, which the diff
+    /// renderer's `printEnumCase` runs every payload through. With the historical
+    /// `print(error)` removed, that configuration swallowed failures completely:
+    /// no event, nothing on stderr, and — on the diff path — a `case foo(Payload)`
+    /// quietly rendered as `case foo`.
+    ///
+    /// stderr, never stdout: stdout carries the generated Swift (issue #102).
+    @Test func catchWithNoEventSinkStillReportsOnStandardError() async throws {
+        struct UnrenderableNodeError: Error {}
+
+        // Neither closure captures anything: a capturing one would have to be
+        // `sending` across `printCatchedThrowing`'s nonisolated boundary.
+        let capturedStandardError = try await StandardStreamCapture.standardError {
+            _ = await printCatchedThrowing {
+                throw UnrenderableNodeError()
+            }
+        }
+
+        #expect(
+            !capturedStandardError.isEmpty,
+            "with no dispatcher and no context there is nowhere else to report; the failure must not vanish"
+        )
     }
 }

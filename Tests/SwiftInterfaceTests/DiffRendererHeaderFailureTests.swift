@@ -121,4 +121,46 @@ final class DiffRendererHeaderFailureTests: MachOFileTests, @unchecked Sendable 
 
         #expect(output.contains("Classes"), "the enclosing type must keep rendering")
     }
+
+    /// Dropping the declaration is right; dropping it **silently** is not.
+    ///
+    /// This renderer builds its printers with `.init(in:)` and its public
+    /// initializer takes no event handlers, so a dispatched
+    /// `definitionPrintFailed` would have no sink — the diagnostic has to be a
+    /// stderr write. Without it, a declaration present on both sides simply
+    /// disappears from the annotated interface with nothing to indicate that a
+    /// comparison was skipped rather than found equal.
+    ///
+    /// stderr specifically, never stdout: stdout is the stream the CLI writes
+    /// the annotated interface to (issue #102).
+    @Test func unrenderableHeaderIsReportedOnStandardError() async throws {
+        let oldBuilder = try await preparedBuilder()
+        let newBuilder = try await preparedBuilder()
+
+        let realStructDefinition = try #require(findTypeDefinition(named: "GenericStructNonRequirement", in: newBuilder))
+        guard case .struct(let realStructDescriptor) = realStructDefinition.typeContextDescriptorWrapper else {
+            Issue.record("GenericStructNonRequirement is expected to be a struct")
+            return
+        }
+        let unreadableDescriptor = StructDescriptor(layout: realStructDescriptor.layout, offset: 0x0FFF_FFF0)
+
+        let donorDefinition = try #require(findTypeDefinition(named: "FinalClassTest", in: newBuilder))
+        let corruptDefinition = TypeDefinition(
+            typeContextDescriptorWrapper: .struct(unreadableDescriptor),
+            typeName: donorDefinition.typeName,
+            isSpecialized: false
+        )
+        let hostDefinition = try #require(findTypeDefinition(named: "Classes", in: newBuilder))
+        hostDefinition.typeChildren.append(corruptDefinition)
+
+        nonisolated(unsafe) let renderer = SwiftDiffableInterfaceRenderer(old: oldBuilder, new: newBuilder)
+        let capturedStandardError = try await StandardStreamCapture.standardError {
+            _ = await renderer.printAnnotatedInterface().string
+        }
+
+        #expect(
+            !capturedStandardError.isEmpty,
+            "an unrenderable header must leave a trace; the annotated interface has no event sink to report through"
+        )
+    }
 }

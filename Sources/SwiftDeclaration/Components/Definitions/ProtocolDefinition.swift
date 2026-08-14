@@ -135,6 +135,16 @@ public final class ProtocolDefinition: Definition, MutableDefinition {
         self.protocolName = ProtocolName(node: InternedNodeReferenceCache.shared.reference(interning: node, in: machO))
     }
 
+    /// Test/tooling surface: constructs a definition around a RAW descriptor
+    /// reference, no parsed wrapper required — error-contract tests use it to
+    /// build a definition whose materialization deterministically fails
+    /// (a real descriptor layout re-wrapped at an out-of-bounds offset).
+    /// Mirrors `ExtensionDefinition`'s descriptor-only initializer.
+    package init(protocolDescriptor: ProtocolDescriptor, protocolName: ProtocolName) {
+        self.protocolDescriptor = protocolDescriptor
+        self.protocolName = protocolName
+    }
+
     /// Rebuilds the full `MachOSwiftSection.Protocol` (requirement arrays
     /// included) from the retained descriptor. Materialization discipline
     /// (evolution proposal 0002): call at most once per operation and thread

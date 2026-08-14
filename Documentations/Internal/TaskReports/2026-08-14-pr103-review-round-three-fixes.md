@@ -52,7 +52,7 @@
 
 ## 实际执行
 
-### 批次 1（本节）
+### 批次 1（静默产生错误结果）
 
 先做**不改行为的可测试性重构**，再写会失败的复现测试，最后上修复——顺序是刻意的，用来证明测试真的抓住了问题。
 
@@ -81,6 +81,29 @@
   整份 8011 行的 dump **只差这一行**，爆炸半径确认为零。
 - A/B 脚本子串 bug 的复现是端到端做实的：15.5 归档 cache 的 map 里 ActivityKit 只有 iOSSupport 一条（`grep -cx` 验证 exact-canonical=0），CLI 走规范路径 `exit=1 Error: The specified image was not found in the dyld shared cache`、走 iOSSupport 路径 `exit=0` 且输出 6587 行。两边同样失败 → 一对相等的 `.skip` → 报 `SKIPPED (both sides)` 且不计入 `examined_pair_count`，整轮仍宣称完全一致。
 - **全量回归**：`swift test --skip IntegrationTests` 跑出 **1418 tests / 268 suites**（基线 1413 / 266，差值正是本批新增的 5 个测试与 2 个套件），退出码 1，**2 个 issue 全部来自已知的墙钟 flaky** —— `SharedCacheTests` 的 `differentKeysParallelViaTaskGroup`（elapsed 1.209s vs budget 0.8s）与 `differentKeysParallelViaAsyncLet`（1.540s vs 1.200s）。这两条用墙钟断言并行度，全量并发下必然假失败；单独跑 `--filter differentKeysParallel` **2/2 通过、退出码 0**。除此之外零失败。
+
+### 批次 2（可观测性与测试）
+
+1. **复现测试（修复前失败，已验证）**
+   - `PrintFailureEventTests.protocolStartEventUsesTheQualifiedNameLikeEveryOtherContext`（新增）：断言协议的 `definitionPrintStarted` 用限定名。修复前实测拿到裸名 `GlobalActorIsolatedProtocolTest`，而调用方的失败上下文是 `SymbolTestsCore.Actors.GlobalActorIsolatedProtocolTest`——两个事件确实无法配对。
+   - `PrintFailureEventTests.catchWithNoEventSinkStillReportsOnStandardError`（新增）：直接驱动 `printCatchedThrowing` 的无 dispatcher / 无 context 形态，断言 stderr 非空。修复前捕获到空串。
+   - `DiffRendererHeaderFailureTests.unrenderableHeaderIsReportedOnStandardError`（新增）：断言 diff 渲染器丢掉声明时留痕。修复前捕获到空串。
+   - `NodeStoreMigrationInvariantTests`（新增套件，2 例）：源码扫描断言 `Sources/` 里没有缓存式 `demangleAsNode(` 调用点，外加一个「扫描器自身能不能发现调用点」的自检——一个断不住的守卫比没有守卫更糟。
+
+2. **修复**
+   - **协议事件**：`PrintingContext` + `definitionPrintStarted` 挪到 materialize 之前，名字改用 `protocolDefinition.protocolName.name`（限定名），一步同时消掉顺序与命名两个不一致。
+   - **无 sink 的 catch**：`printCatchedThrowing` 在没有 dispatcher/context 时改写 stderr。一处改动覆盖全部三个无 context 调用点（`SwiftInterfaceBuilder` 的两个块级包装 + `printType`），其中 `printType` 正是 diff 路径上让 `case foo(Payload)` 静默退化成 `case foo` 的那条。
+   - **diff 渲染器**：`header()` 的 catch 写 stderr。这里不能用事件——渲染器的 printer 由 `.init(in:)` 构造、公开 init 不接收 handler，派发出去没有 sink（交叉复核指出的，修法前提因此改过）。
+   - **测试辅助**：新增 `MachOTestingSupport.StandardStreamCapture`（fd 级重定向，`dup2`），三处 stderr 断言共用。
+
+3. **附带的生产改动**：`printCatchedThrowing` 与 `StandardStreamCapture` 都加了 SE-0420 的 `isolation: isolated (any Actor)? = #isolation` 参数继承调用方隔离——否则测试里捕获局部状态的闭包跨隔离域传递，编译期就是 `sending` 违规。调用点因为是默认参数不受影响。
+
+4. **验证**：四个套件 **10 tests / 4 suites 全通过，退出码 0**。全量回归 **1423 tests / 269 suites，退出码 0，零 issue**（批次 1 的 1418 / 268 加上本批净增的 5 个测试与 1 个套件；批次 1 那次唯二失败的墙钟 flaky 这次也过了，进一步印证它们是负载噪声而非回归）。
+
+### 批次 2 踩到的两件事
+
+- **`ProtocolDescriptor` 越界读会 SIGSEGV，而不是抛错。** 原计划有第四个测试，用既有手法（真实 layout 重新包在 `0x0FFF_FFF0`）构造一个 materialize 必失败的协议定义，来钉住「失败绝不先于自己的 started 事件」。`StructDescriptor` 用同样手法一直是干净抛错的，`ProtocolDescriptor` 却直接把测试进程带走。**这是一个独立的健壮性缺口**（损坏或恶意二进制能让进程崩掉而不是浮出错误），记入 `Roadmaps/2026-08-14-pr103-review-round-three-findings.md`。那条测试已撤，原处留注释说明为什么没有测试，以及修复后顺序为何在结构上成立（派发先于函数里唯一会抛的调用）。
+- **一次误判留痕**：首次 SIGSEGV 时我按 AGENTS.md 那条「改签名后增量构建会链接 stale object」的记录，判定是构建陷阱并做了 `swift package clean`。重建后照样崩，判断被推翻——真因是上面那条。记在这里是因为这个误判很容易重犯：两种情形的表征（零断言失败的 SIGSEGV）一模一样，唯一能分辨的动作就是 clean 之后再看一次。
 
 ## 与方案的差异
 
