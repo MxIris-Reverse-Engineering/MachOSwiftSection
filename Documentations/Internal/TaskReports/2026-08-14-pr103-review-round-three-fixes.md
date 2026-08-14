@@ -105,7 +105,25 @@
 - **`ProtocolDescriptor` 越界读会 SIGSEGV，而不是抛错。** 原计划有第四个测试，用既有手法（真实 layout 重新包在 `0x0FFF_FFF0`）构造一个 materialize 必失败的协议定义，来钉住「失败绝不先于自己的 started 事件」。`StructDescriptor` 用同样手法一直是干净抛错的，`ProtocolDescriptor` 却直接把测试进程带走。**这是一个独立的健壮性缺口**（损坏或恶意二进制能让进程崩掉而不是浮出错误），记入 `Roadmaps/2026-08-14-pr103-review-round-three-findings.md`。那条测试已撤，原处留注释说明为什么没有测试，以及修复后顺序为何在结构上成立（派发先于函数里唯一会抛的调用）。
 - **一次误判留痕**：首次 SIGSEGV 时我按 AGENTS.md 那条「改签名后增量构建会链接 stale object」的记录，判定是构建陷阱并做了 `swift package clean`。重建后照样崩，判断被推翻——真因是上面那条。记在这里是因为这个误判很容易重犯：两种情形的表征（零断言失败的 SIGSEGV）一模一样，唯一能分辨的动作就是 clean 之后再看一次。
 
+### 批次 3（清理与台账）
+
+1. **公开字典键类型（推翻 2026-08-03 的「不修」）**
+   - `allOpaqueTypeDescriptorSymbols(in:)` 与 `memberSymbols(of:excluding:in:)` 的键由 `NodeReference`（store 身份相等）改为 `StructuralNodeReferenceKey`（结构相等）。后者本轮 review 没点到，是复核方指出的同形态第二处——按「确认为真的问题必须横向排查同类」的规矩一起改。
+   - 连带把 `StructuralNodeReferenceKey` 从 `package` 提升为 `@_spi(Internals) public`（含 `init(_:)` / `init(querying:)`）。**这一步不是可选的**：只暴露字典而不暴露键类型，SPI 消费方拿得到结果却构造不出查询键，等于把陷阱换了个形状。代价是所有引用方的 `import MachOSymbols` 必须带 `@_spi(Internals)`——包内 `DefinitionBuilder.swift` 与测试 `StructuralNodeReferenceKeyTests.swift` 各补一处。
+   - 复现测试 `bulkOpaqueQueryIsProbableWithACallerDemangledTree`：用 `materialize()` 出的「不属于任何 store 的树」逐条探测批量结果，正是外部调用方的处境。**修复前这个测试写不出来**——旧 API 无法表达按调用方自己的树查询，这本身就是缺陷的形状。
+2. **四处 offset 两跳读法**：`deallocatorSymbol.symbol.offset` / `destructorSymbol?.symbol.offset` → `.offset`。这四处是 A10 排他普查里唯一真的走 `DemangledSymbol.symbol` 计算属性（构造完整 `Symbol` + 物化 mangled name String）的，且 `AddressComment.addressString` 在 `emit` 判断前求值，所以默认 `interface`（`printMemberAddress == false`）也在付。
+3. **`missingSymbolWitnesses` 的注释修正**（按维护者决定不删数组）：三处注释改准——descriptor 注释加「一个有据可查的例外」、数组本身补上「它是 proposal 0002 之后唯一幸存的 `[ResilientWitness]`、当前零消费者、`index(in:)` 只 append 不重置所以重入会重复记录（因无人读而无害，任何开始读它的代码必须先清空）」、init 注释改成「parsed wrapper 释放，除了 `index(in:)` 拷到 `missingSymbolWitnesses` 的不可解析子集」。
+4. **台账**
+   - `ReviewAdjudications.md` 新增 **A9–A12**：A9 键类型（推翻旧裁决，已修）、A10 `OrderedMember` 误报（附 SE-0195 依据与 13 处 `.symbol.` 的穷尽普查）、A11 `SwiftDiffableInterfaceBuilder` 暂不修（写入「本 PR 让失败面变宽」的 caveat）、A12 重复 materialize 暂不修（照 A3 先例先测量，并写明测量范围必须含 diff 路径与 specialize 路径）。
+   - `NodeStoreMigrationOpenIssues.md` 第 3 条标记为裁决被推翻、已修，并指明 A9 是权威记录、该条不再单独维护——避免两份平行裁决并存。
+   - 新增 `Roadmaps/2026-08-14-pr103-review-round-three-findings.md`：记录唯一仍 OPEN 的发现（`ProtocolDescriptor` 越界读 SIGSEGV），以及本轮四问对自己写法的三处更正。
+
+5. **验证**：键类型改动的两个套件 **21 tests / 2 suites 通过，退出码 0**。全量回归 **1424 tests / 269 suites，退出码 0，零 issue**。
+
 ## 与方案的差异
 
 - 批次 1 原计划只有 3 项；交叉复核补进了子类映射一项，共 4 项。
 - 子类映射一项的定性在执行中被收窄：初版描述暗示映射会被截断，实际 `catch { continue }` 只跳过当前条目。真实缺陷是**新增的静默丢失面**（proposal 0002 之前该 class 不会掉），修复因此以诊断为主、行为不变。
+- 批次 2 计划里的协议事件**顺序**测试没有落地，因为构造它的唯一手法会让测试进程崩溃（见上）。命名那一半有测试且已通过；顺序那一半在修复后是结构性成立的（派发先于函数里唯一会抛的调用），并在代码里留了注释说明为什么没有测试。
+- 批次 3 的键类型修复比计划多改了一处：本轮 review 只点到 `allOpaqueTypeDescriptorSymbols`，复核方指出 `memberSymbols(of:excluding:in:)` 是同形态的第二处，按横向排查规矩一起改。同时被迫连带做了 `StructuralNodeReferenceKey` 的访问级提升——计划里没预料到，但不做就等于把陷阱换个形状。
+- `missingSymbolWitnesses` 按维护者决定**不删**，改为把三处不准确的注释改对（原方案是删数组）。

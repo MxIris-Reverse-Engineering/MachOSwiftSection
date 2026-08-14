@@ -766,7 +766,8 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
         var typeAliasExtensionCount = 0
         var failedExtensions = 0
 
-        for (node, memberSymbols) in memberSymbolsByName {
+        for (typeNodeKey, memberSymbols) in memberSymbolsByName {
+            let node = typeNodeKey.reference
             // The async overload (upstream `DemanglingNode.print(using:) async`,
             // present since 0.5.1) suspends the task instead of blocking a
             // cooperative worker when the walk moves to a large-stack thread —

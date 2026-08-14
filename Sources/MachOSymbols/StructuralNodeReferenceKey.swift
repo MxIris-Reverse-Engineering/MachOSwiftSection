@@ -26,7 +26,16 @@ import Demangling
 ///
 /// Lives in `MachOSymbols`, next to the mini stores it exists to reconcile, so
 /// both the symbol index itself and the declaration layer above it can use it.
-package struct StructuralNodeReferenceKey: Hashable {
+///
+/// SPI-public, at the same level as `SymbolIndexStore` itself, because the
+/// store's bulk query APIs return dictionaries keyed on it: an SPI consumer
+/// probing one of those with a tree it demangled itself needs to be able to
+/// name the key type and build a lookup key. Keying those on a bare
+/// `NodeReference` instead made every such probe miss silently — the keys live
+/// in the frozen image arena and store-identity equality can never match a
+/// caller's own store.
+@_spi(Internals)
+public struct StructuralNodeReferenceKey: Hashable {
     /// A stored key holds a `NodeReference`; a lookup-only key may instead hold
     /// a bare `Node` the caller just demangled.
     ///
@@ -64,7 +73,8 @@ package struct StructuralNodeReferenceKey: Hashable {
         }
     }
 
-    package init(_ reference: NodeReference) {
+    @_spi(Internals)
+    public init(_ reference: NodeReference) {
         self.storage = .reference(reference)
     }
 
@@ -73,11 +83,13 @@ package struct StructuralNodeReferenceKey: Hashable {
     /// Never store one of these as a dictionary key: a bare `Node` carries no
     /// store, so a key built this way would not keep the arena its structural
     /// peers live in alive.
-    package init(querying node: Node) {
+    @_spi(Internals)
+    public init(querying node: Node) {
         self.storage = .queryNode(node)
     }
 
-    package static func == (lhs: StructuralNodeReferenceKey, rhs: StructuralNodeReferenceKey) -> Bool {
+    @_spi(Internals)
+    public static func == (lhs: StructuralNodeReferenceKey, rhs: StructuralNodeReferenceKey) -> Bool {
         switch (lhs.storage, rhs.storage) {
         case (.reference(let lhsReference), .reference(let rhsReference)):
             return lhsReference.structurallyEquals(rhsReference)
@@ -90,7 +102,8 @@ package struct StructuralNodeReferenceKey: Hashable {
         }
     }
 
-    package func hash(into hasher: inout Hasher) {
+    @_spi(Internals)
+    public func hash(into hasher: inout Hasher) {
         switch storage {
         case .reference(let reference):
             reference.structuralHash(into: &hasher)

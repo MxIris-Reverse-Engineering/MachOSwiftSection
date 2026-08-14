@@ -1,4 +1,4 @@
-import MachOSymbols
+@_spi(Internals) @testable import MachOSymbols
 import Demangling
 import Testing
 

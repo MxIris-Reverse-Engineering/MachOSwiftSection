@@ -19,6 +19,10 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
     /// trailing objects — is rebuilt on demand via
     /// `materializedProtocolConformance(in:)` instead of living on every
     /// conformance extension for its lifetime.
+    ///
+    /// One documented exception: `missingSymbolWitnesses` below copies the
+    /// witnesses this extension could not resolve to a symbol, so an extension
+    /// that has any does retain that subset for its lifetime.
     public let protocolConformanceDescriptor: ProtocolConformanceDescriptor?
 
     /// The conformed protocol, resolved to a Mach-O-free name at index time.
@@ -56,6 +60,16 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
 
     public package(set) var isRetroactive: Bool = false
 
+    /// Resilient witnesses `index(in:)` could not resolve to an implementation
+    /// symbol.
+    ///
+    /// The one `[ResilientWitness]` that survives proposal 0002's descriptor
+    /// slimming (see `protocolConformanceDescriptor`) — retained deliberately as
+    /// an SPI-consumer surface for inspecting stripped conformances, with no
+    /// in-package consumer today. Note `index(in:)` appends without resetting,
+    /// so a re-entry after a mid-loop throw would record an entry twice; that is
+    /// inert only because nothing reads the array. Anything that starts reading
+    /// it must clear it at the top of `index(in:)` first.
     public package(set) var missingSymbolWitnesses: [ResilientWitness] = []
 
     public package(set) var orderedMembers: [OrderedMember] = []
@@ -69,8 +83,9 @@ public final class ExtensionDefinition: Definition, MutableDefinition {
     /// The initializer still receives the full `ProtocolConformance` — the
     /// indexer materializes the whole conformance section anyway to derive
     /// attribution — but only its descriptor reference is retained, so the
-    /// parsed wrapper (and its `[ResilientWitness]`) is released once the
-    /// indexer's grouping pass ends.
+    /// parsed wrapper is released once the indexer's grouping pass ends. Its
+    /// `[ResilientWitness]` goes with it, except for the unresolvable subset
+    /// `index(in:)` copies onto `missingSymbolWitnesses`.
     public init<MachO: MachOSwiftSectionRepresentableWithCache>(extensionName: ExtensionName, genericSignature: NodeReference?, protocolConformance: ProtocolConformance?, conformingProtocolName: ProtocolName? = nil, associatedTypes: [AssociatedType] = [], resolvedAssociatedTypeWitnesses: [AssociatedTypeWitnessProjection] = [], in machO: MachO) throws {
         self.extensionName = extensionName
         self.genericSignature = genericSignature

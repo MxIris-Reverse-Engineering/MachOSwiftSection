@@ -885,14 +885,21 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         }.reduce(into: []) { $0 += $1 }
     }
 
-    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., excluding names: borrowing Set<String>, in machO: MachO) -> OrderedDictionary<NodeReference, OrderedDictionary<MemberKind, [DemangledSymbol]>> {
+    /// Keyed on `StructuralNodeReferenceKey`, not a bare `NodeReference`: the
+    /// keys are references into this image's frozen arena, so a caller probing
+    /// the result with a tree it demangled itself would miss every entry under
+    /// store-identity equality — silently, and with no compile error. The
+    /// in-package consumer only iterates, but the vended contract has to hold
+    /// for lookups too (`NodeStoreMigrationOpenIssues.md` item 3, reopened in the
+    /// PR #103 round-three review and recorded in `ReviewAdjudications.md` A9).
+    public func memberSymbols<MachO: MachORepresentableWithCache>(of kinds: MemberKind..., excluding names: borrowing Set<String>, in machO: MachO) -> OrderedDictionary<StructuralNodeReferenceKey, OrderedDictionary<MemberKind, [DemangledSymbol]>> {
         guard let storage = storage(in: machO) else { return [:] }
-        var result: OrderedDictionary<NodeReference, OrderedDictionary<MemberKind, [DemangledSymbol]>> = [:]
+        var result: OrderedDictionary<StructuralNodeReferenceKey, OrderedDictionary<MemberKind, [DemangledSymbol]>> = [:]
         for kind in kinds {
             guard let memberRows = storage.memberSymbolRowsByKind[kind] else { continue }
             for (typeName, rowsByTypeNodeIndex) in memberRows where !names.contains(typeName) {
                 for (typeNodeIndex, rows) in rowsByTypeNodeIndex {
-                    result[storage.nodeStore.reference(at: typeNodeIndex), default: [:]][kind, default: []].append(contentsOf: storage.demangledSymbols(atRows: rows))
+                    result[StructuralNodeReferenceKey(storage.nodeStore.reference(at: typeNodeIndex)), default: [:]][kind, default: []].append(contentsOf: storage.demangledSymbols(atRows: rows))
                 }
             }
         }
@@ -940,12 +947,18 @@ public final class SymbolIndexStore: SharedCache<SymbolIndexStore.Storage>, @unc
         return kinds.map { storage.demangledSymbols(atRows: storage.globalSymbolRowsByKind[$0] ?? []) }.reduce(into: []) { $0 += $1 }
     }
 
-    public func allOpaqueTypeDescriptorSymbols<MachO: MachORepresentableWithCache>(in machO: MachO) -> OrderedDictionary<NodeReference, DemangledSymbol>? {
+    /// Structurally keyed for the same reason as `memberSymbols(of:excluding:in:)`
+    /// above — and with the same precedent behind it: the single-item sibling
+    /// `opaqueTypeDescriptorSymbol(for:)` was converted to a structural key after
+    /// store-identity keys silently dropped the `override` keyword and the
+    /// vtable-offset comments (the Stage 5a regression). This bulk form was left
+    /// behind by that fix.
+    public func allOpaqueTypeDescriptorSymbols<MachO: MachORepresentableWithCache>(in machO: MachO) -> OrderedDictionary<StructuralNodeReferenceKey, DemangledSymbol>? {
         guard let storage = storage(in: machO) else { return nil }
-        var result: OrderedDictionary<NodeReference, DemangledSymbol> = [:]
+        var result: OrderedDictionary<StructuralNodeReferenceKey, DemangledSymbol> = [:]
         for (nodeIndex, row) in storage.opaqueTypeDescriptorSymbolRowByNodeIndex {
             guard let demangledSymbol = storage.demangledSymbol(atRow: row) else { continue }
-            result[storage.nodeStore.reference(at: nodeIndex)] = demangledSymbol
+            result[StructuralNodeReferenceKey(storage.nodeStore.reference(at: nodeIndex))] = demangledSymbol
         }
         return result
     }

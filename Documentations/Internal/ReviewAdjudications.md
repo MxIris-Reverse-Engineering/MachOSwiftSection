@@ -118,3 +118,46 @@
 - **为什么不修**：正确修法（重置 `isPrepared` 与全部 storage 后重建）等于给一个无人调用的路径加一次全量重索引，且需要想清楚重建期间已 vend 出去的 definition 引用怎么办（它们持有 per-image store）。在没有真实消费者定义期望语义之前，改动只会引入未经验证的行为。
 - **既往修复**：无。
 - **复审条件**：任一消费者真正开始在运行时切换 `showCImportedTypes`——届时先定义"重建期间旧 definition 引用的语义"，再动实现。
+
+---
+
+## A9 — 两个公开批量查询的字典键从结构相等翻成身份相等（**推翻 2026-08-03 的「不修」**）
+
+- **裁决**：**已修**（2026-08-14）。本条推翻 [`NodeStoreMigrationOpenIssues.md`](NodeStoreMigrationOpenIssues.md) 第 3 条 2026-08-03 的「不修」结论，该条目已标记为被本条取代。
+- **发现**：`allOpaqueTypeDescriptorSymbols(in:)` 与 `memberSymbols(of:excluding:in:)` 原本返回 `OrderedDictionary<Node, …>`（`Node` 的 `==` 是结构相等），迁移后键成了 `NodeReference`（`==` 是 `store === store && index == index`）。调用方拿自己 demangle 的树下标查询会**恒定返回 nil，且没有编译错误**。
+- **当初为什么裁「不修」**：`SymbolIndexStore` 在类型层面就是 SPI（`@_spi(ForSymbolViewer)` / `@_spi(Internals)`），包内唯一调用点只遍历不下标，RuntimeViewer 两条分支零调用——契约只对包内与已知 SPI 消费方成立，保证包内正确即可。这些事实至今仍然属实（2026-08-14 复核：仓库内与 RuntimeViewer 源码依旧零调用点）。
+- **为什么推翻**：① **同一类错误已经真实咬过一次**——Stage 5a 的回归里，身份相等的键让 `override` 关键字与 vtable offset 注释成批消失，单条版 `opaqueTypeDescriptorSymbol(for:)` 正是为此改成结构化键的；这两个批量版是那次修复漏下的，属于同一类而非同一处。② **修复成本是每处一行**（键类型换成 `StructuralNodeReferenceKey`），而 08-03 条目自己就写好了修法。③ **本 PR 本就在 break 这块 API**，同批改动的迁移成本最低。④ 「目前没有外部调用方」是会变的，而这个失败模式无声无息、无编译错误。
+- **落地**：两处键类型改为 `StructuralNodeReferenceKey`；该类型从 `package` 提升为 `@_spi(Internals) public`（连同 `init(_:)` / `init(querying:)`），否则 SPI 消费方能拿到字典却没法构造查询键——那等于把陷阱换了个形状。包内 `DefinitionBuilder.swift` 的 `import MachOSymbols` 相应补上 `@_spi(Internals)`。测试 `bulkOpaqueQueryIsProbableWithACallerDemangledTree` 用 `materialize()` 出的「无 store 的树」逐条探测，正是外部调用方的处境。
+- **既往修复**：Stage 5a 的单条版修复（见上）。本条是同一 bug 类的第二处实例。
+
+---
+
+## A10 — `OrderedMember.minSymbolOffset` 「每次比较分配一个 String」（**误报**）
+
+- **裁决**：误报，不修（2026-08-14，PR #103 第三轮 review）。
+- **发现（原报告）**：`DemangledSymbol.symbol` 由存储属性变成了会构造完整 `Symbol`（含 `String(decoding:)` 物化 mangled name）的计算属性，而 `minSymbolOffset` 仍读 `.symbol.offset`，且它被 `sorted { }` 的比较器调用，所以成员排序变成每次比较一次 String 堆分配。
+- **为什么是误报**：`f.symbol` 的静态类型就是 `DemangledSymbol`（`FunctionDefinition.symbol` / `Accessor.symbol` 都是存储属性），`.offset` 命中的是 `DemangledSymbol` 自己声明的**具体属性**（`canonicalOffset(atRow:)`，纯数组读），不是经 `@dynamicMemberLookup` 转到 `Symbol.offset`——SE-0195 规定 dynamic member subscript 只在常规成员查找失败时参与。main 上同一表达式经 dynamic member 转发到存储的 `Symbol`，同样是字段读，**无回归**。原报告据以区分对错的两处（`SwiftDeclarationPrinter.swift:456/463/471` 与 `OrderedMember.swift:25/27/29`）是**完全相同的表达式形状**，那个区分不成立。
+- **排他性普查（交叉复核补充）**：全 `Sources/` 的 `.symbol.` 共 13 处——打印器 4 处 deallocator/destructor（真的两跳，已在本批修为 `.offset`）、打印器 3 处 + `OrderedMember` 3 处（快路径）、`DefinitionBuilder` 2 处读 `\.symbol.demangledNode`（`DemangledSymbol` 的存储属性，快）。且 `Symbol` 只有 `offset` / `name` / `isExternal` 三个存储成员，`DemangledSymbol` 对三者都有具体快路径，`demangledNode` 又被自身存储属性遮蔽——不存在 grep 看不见的隐式慢读。「慢的只有那 4 处」是穷尽结论，不是抽样。
+- **复审条件**：`DemangledSymbol` 若移除任一具体快路径属性（`offset` / `name` / `isExternal`），本条结论作废，需重新普查。
+
+---
+
+## A11 — `SwiftDiffableInterfaceBuilder.prepare()` 无 per-definition catch
+
+- **裁决**：本轮不修（2026-08-14，PR #103 第三轮 review）。
+- **发现**：`prepare()` 用裸 `try await` 循环驱动每个 type / protocol / extension 的 `index(in:)`，一个坏 descriptor 会中止整个 `swift-section snapshot` / `diff` / `evolution` 构建，而 interface 路径对同样的抛错是 per-definition catch + 事件。
+- **与 main 基线对比**：**文件与 merge-base 字面零 diff**，且 `index(in:)` 在 main 上本来就会抛、`prepare()` 本来就整体中止。非本 PR 回归。
+- **本 PR 带来的变化（caveat，必须记住）**：三个 `index(in:)` 内新增了 materialize 抛错点（`TypeDefinition.swift:223` / `ProtocolDefinition.swift:149` / `ExtensionDefinition.swift:140`；main 读存储属性不可能抛），所以**失败面变宽了**——同样的结构，触发概率上升。
+- **为什么本轮不修**：它不是本 PR 的回归，改法（per-definition catch + 诊断）与批次 2 的可观测性工作同源但属于独立范围；混进来会让本已很大的 PR 更难审。
+- **复审条件**：① 出现真实的 snapshot/diff 构建被单个坏 descriptor 中止的报告；② 或下一次触碰 `SwiftDiffableInterfaceBuilder` 时顺带补上——修法很便宜（照 `SwiftInterfaceBuilder.printRoot` 的 per-definition catch 抄）。
+
+---
+
+## A12 — 每次操作重复 materialize 一次包装器（协议 / 扩展 / 类各 2 次）
+
+- **裁决**：本轮不修，先测量（2026-08-14，PR #103 第三轮 review）。照 [A3](#a3--接口打印器每成员-materialize-一棵树swiftdeclarationprinter-7-处) 的先例——同类成本用实测数据裁决，不靠推理。
+- **发现**：proposal 0002 的「每次操作至多一次 materialize」规则实际是 2 次。协议：`printProtocolDefinition` 一次 + `ProtocolDefinition.index:149` 一次；扩展：`index(in:)` 一次 + `printExtensionHeader` 一次（代码注释自己写着 both run this same materialization）；类：`TypeDefinition.index:223` 建 `Class` + `printTypeDefinition:132` 建 `TypeContextWrapper`（对类同样落到 `Class`）。main 读存储属性是 0 次。
+- **与 main 基线对比**：本 PR 引入，是 proposal 0002 用 CPU 换内存的既定代价——只是超出了它自己写下的规则。
+- **为什么先不修**：规则只写在 doc comment 里，`DeclarationModelInstanceSizeTests` 钉的是保留字节数而非 materialize 次数，所以没有任何测试会因此变红；而 A3 的先例表明这类成本的直觉常常错（那次实测占比 1.18%，远低于估算）。**测量范围必须包含 diff 路径**（builder 的 `prepare()` + DiffRendering 的 header 对 class/protocol 同样是 2×，extension 是 1×）**与 specialize 路径**（`TypeDefinition+Specialization.swift:206` 与 `ConformanceProvider` 各一次）。
+- **修法（测出来值得再动）**：把那一次 materialize 提到 `index(in:)` 之前传进去——`printTypeDefinition` 已经是这个写法（它把 `materializedTypeContext` 线程给 `renderTypeDeclarationHeader`）。
+- **复审条件**：SwiftUI 级镜像的剖析显示 materialize 占打印墙钟的比例显著高于 A3 实测的 1.18%。

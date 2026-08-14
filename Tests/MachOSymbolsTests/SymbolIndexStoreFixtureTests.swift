@@ -245,6 +245,34 @@ final class SymbolIndexStoreFixtureTests: MachOFileTests, @unchecked Sendable {
         }
     }
 
+    /// The BULK opaque query must be probable the same way the single-item one
+    /// is: with a tree the caller demangled itself.
+    ///
+    /// Its keys are references into this image's frozen arena, so under a bare
+    /// `NodeReference` key — store-identity `==` and `hash` — every such probe
+    /// missed, silently and with no compile error. That is the same failure that
+    /// dropped `override` keywords and vtable-offset comments in the Stage 5a
+    /// regression, which is why the single-item `opaqueTypeDescriptorSymbol(for:)`
+    /// next door was converted to a structural key; this form was left behind.
+    /// (Before the fix this test could not even be written: the API had no way
+    /// to express a lookup by a caller-side tree.)
+    @Test func bulkOpaqueQueryIsProbableWithACallerDemangledTree() throws {
+        let storage = try storage
+        let bulkSymbols = try #require(SymbolIndexStore.shared.allOpaqueTypeDescriptorSymbols(in: machOFile))
+        try #require(!bulkSymbols.isEmpty, "fixture must carry opaque type descriptors for this test to be meaningful")
+
+        for (nodeIndex, expectedRow) in storage.opaqueTypeDescriptorSymbolRowByNodeIndex {
+            // `materialize()` mints a fresh tree that belongs to no store — the
+            // same position any external caller is in.
+            let callerSideTree = storage.nodeStore.reference(at: nodeIndex).materialize()
+            let probed = try #require(
+                bulkSymbols[StructuralNodeReferenceKey(querying: callerSideTree)],
+                "a caller-demangled tree must find its entry in the bulk result"
+            )
+            #expect(probed.symbol == storage.symbolTable.symbol(atRow: expectedRow))
+        }
+    }
+
     // MARK: - demangledNode / demangledNodeReference
 
     @Test func demangledNodeAndReferenceAgree() throws {

@@ -403,8 +403,8 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
             // body on classes. The destructor variant collapses to nothing
             // when the type is an actor or value type.
             if let typeDefinition = definition as? TypeDefinition, let deallocatorSymbol = typeDefinition.deallocatorSymbol {
-                AddressComment(addressString: memberAddressString(forOffset: deallocatorSymbol.symbol.offset), emit: printMemberAddress)
-                AddressComment(addressString: memberAddressString(forOffset: typeDefinition.destructorSymbol?.symbol.offset), label: "destructor", emit: printMemberAddress)
+                AddressComment(addressString: memberAddressString(forOffset: deallocatorSymbol.offset), emit: printMemberAddress)
+                AddressComment(addressString: memberAddressString(forOffset: typeDefinition.destructorSymbol?.offset), label: "destructor", emit: printMemberAddress)
                 Keyword(.deinit)
             }
         }
@@ -431,8 +431,8 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         // and the rationale behind the two address comments.
         if let typeDefinition = definition as? TypeDefinition, let deallocatorSymbol = typeDefinition.deallocatorSymbol {
             MemberList(level: level) {
-                AddressComment(addressString: memberAddressString(forOffset: deallocatorSymbol.symbol.offset), emit: printMemberAddress)
-                AddressComment(addressString: memberAddressString(forOffset: typeDefinition.destructorSymbol?.symbol.offset), label: "destructor", emit: printMemberAddress)
+                AddressComment(addressString: memberAddressString(forOffset: deallocatorSymbol.offset), emit: printMemberAddress)
+                AddressComment(addressString: memberAddressString(forOffset: typeDefinition.destructorSymbol?.offset), label: "destructor", emit: printMemberAddress)
                 Keyword(.deinit)
             }
         }

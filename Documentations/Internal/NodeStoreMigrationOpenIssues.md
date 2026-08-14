@@ -57,7 +57,7 @@
 
 ## 二、公开 API 语义问题
 
-### 3. ~~两个公开查询 API 的字典键从结构相等翻成了身份相等~~ —— 已裁决：不修（2026-08-03）
+### 3. ~~两个公开查询 API 的字典键从结构相等翻成了身份相等~~ —— 裁决已被推翻，**已修**（2026-08-14）
 
 `memberSymbols(of:excluding:in:)` 与 `allOpaqueTypeDescriptorSymbols(in:)` 原本返回 `OrderedDictionary<Node, …>`。`Node` 的 `==` 是结构相等，所以外部调用方拿任意来源的节点做下标查询都能命中。现在键是 `NodeReference`，其 `==` 为 `store === store && index == index`。调用方用自己 demangle 出来的节点查询会**恒定返回 nil，且没有任何编译错误**。
 
@@ -70,6 +70,8 @@
 - RuntimeViewer 的 `main` 与 `feature/node-store-adoption` 两条分支均未调用这两个 API。
 
 若将来要重新打开：正确修法是 vend `StructuralNodeReferenceKey`（或 `Node`）作键，或不暴露裸字典而改提供查询方法；修复位置在本仓库 `Sources/MachOSymbols/SymbolIndexStore.swift`。
+
+> **2026-08-14 更新 —— 本条的「不修」裁决已被推翻，两处均已按上述修法改为 `StructuralNodeReferenceKey` 键。** 上面记录的事实（类型级 SPI、包内调用点只遍历、RuntimeViewer 零调用）复核后仍然成立；推翻的理由是同一 bug 类已经真实造成过一次回归（Stage 5a 掉 `override` 关键字与 vtable offset 注释，单条版正是为此改成结构化键，这两个批量版是那次修复漏下的），且修复成本是每处一行。完整裁决见 [`ReviewAdjudications.md` A9](ReviewAdjudications.md)——**该条目是这一裁决的权威记录，本条不再单独维护**。
 
 ---
 

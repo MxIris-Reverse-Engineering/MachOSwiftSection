@@ -1,5 +1,5 @@
 import Demangling
-import MachOSymbols
+@_spi(Internals) import MachOSymbols
 import MachOSwiftSection
 import OrderedCollections
 
