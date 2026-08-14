@@ -128,5 +128,66 @@ class CompareAllPairsTests(unittest.TestCase):
         self.assertEqual(examined_pair_count, 1)
 
 
+class ImagePathInsideCacheTests(unittest.TestCase):
+    """`image_path_inside_cache` reads only the cache directory's `.map` file,
+    so a namespace stub with a temporary directory is a complete stand-in.
+
+    The regression: the canonical path is a literal SUBSTRING of the iOSSupport
+    one, so a plain `in map_contents` containment test can never reach the
+    documented Mac Catalyst fallback. A framework that ships ONLY under
+    /System/iOSSupport (ActivityKit on macOS 15) therefore resolved to a path
+    that is not in the cache at all — `swift-section` failed on both sides, the
+    harness wrote a pair of equal `.skip` markers, and `compare_all_pairs`
+    reported `SKIPPED (both sides)` without counting the pair. The run still
+    claimed byte-for-byte parity over a framework it never compared.
+    """
+
+    CANONICAL_ACTIVITY_KIT_PATH = "/System/Library/Frameworks/ActivityKit.framework/Versions/A/ActivityKit"
+
+    def setUp(self) -> None:
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.cache_directory = Path(self.temporary_directory.name)
+
+    def tearDown(self) -> None:
+        self.temporary_directory.cleanup()
+
+    def writeMap(self, image_paths: list[str]) -> None:
+        (self.cache_directory / "dyld_shared_cache_arm64e.map").write_text("\n".join(image_paths) + "\n")
+
+    def resolve(self, framework_name: str) -> str | None:
+        stub = SimpleNamespace()
+        return HARNESS.VerificationRun.image_path_inside_cache(stub, self.cache_directory, framework_name)
+
+    def testIOSSupportOnlyImageResolvesToItsIOSSupportPath(self) -> None:
+        """Reproduced from a real archived cache: on macOS 15.5 ActivityKit has
+        no canonical entry, only the iOSSupport one."""
+        self.writeMap([
+            "/System/Library/Frameworks/SwiftUI.framework/Versions/A/SwiftUI",
+            "/System/iOSSupport" + self.CANONICAL_ACTIVITY_KIT_PATH,
+        ])
+
+        self.assertEqual(self.resolve("ActivityKit"), "/System/iOSSupport" + self.CANONICAL_ACTIVITY_KIT_PATH)
+
+    def testCanonicalPathWinsWhenBothCopiesShip(self) -> None:
+        self.writeMap([
+            self.CANONICAL_ACTIVITY_KIT_PATH,
+            "/System/iOSSupport" + self.CANONICAL_ACTIVITY_KIT_PATH,
+        ])
+
+        self.assertEqual(self.resolve("ActivityKit"), self.CANONICAL_ACTIVITY_KIT_PATH)
+
+    def testAbsentImageResolvesToNothing(self) -> None:
+        self.writeMap(["/System/Library/Frameworks/SwiftUI.framework/Versions/A/SwiftUI"])
+
+        self.assertIsNone(self.resolve("ActivityKit"))
+
+    def testASubstringMatchIsNotAHit(self) -> None:
+        """A longer path that merely CONTAINS the canonical one must not count —
+        the same containment bug in its general form."""
+        self.writeMap(["/Some/Other/Root" + self.CANONICAL_ACTIVITY_KIT_PATH + "Extra"])
+
+        self.assertIsNone(self.resolve("ActivityKit"))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

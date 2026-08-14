@@ -145,10 +145,19 @@ class VerificationRun:
         map_file = cache_directory / "dyld_shared_cache_arm64e.map"
         if not map_file.is_file():
             return None
-        map_contents = map_file.read_text(errors="replace")
+        # Line-anchored: every .map line IS one full image path. A plain
+        # containment test can never reach the iOSSupport fallback below, because
+        # the canonical path is a literal SUBSTRING of the iOSSupport one — so an
+        # image that ships ONLY under /System/iOSSupport (ActivityKit on macOS 15)
+        # resolved to a path that is not in the cache, both sides failed, the pair
+        # was written as two equal `.skip` markers, and `compare_all_pairs`
+        # reported `SKIPPED (both sides)` without counting it. The run then
+        # claimed byte-for-byte parity over a framework it never compared — the
+        # same "harness that cannot fail" class as the H4 zero-pairs hole.
+        map_image_paths = set(map_file.read_text(errors="replace").splitlines())
         canonical_path = f"/System/Library/Frameworks/{framework_name}.framework/Versions/A/{framework_name}"
         for candidate_path in (canonical_path, "/System/iOSSupport" + canonical_path):
-            if candidate_path in map_contents:
+            if candidate_path in map_image_paths:
                 return candidate_path
         return None
 

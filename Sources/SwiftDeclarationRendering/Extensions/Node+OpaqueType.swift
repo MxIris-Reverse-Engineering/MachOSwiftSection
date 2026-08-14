@@ -6,7 +6,13 @@ import OrderedCollections
 @_spi(Internals) import SwiftInspection
 
 extension Node {
-    private final class OpaqueTypeGenericParameterRewriter<MachO: MachOSwiftSectionRepresentableWithCache>: Node.Rewriter {
+    /// Substitutes an opaque type's generic parameters with the concrete
+    /// arguments carried by the `opaqueType` node's type list.
+    ///
+    /// Internal rather than private so the substitution contract can be unit
+    /// tested directly: driving it through `resolveOpaqueType(in:)` needs a
+    /// binary that happens to contain the right opaque-type shape.
+    final class OpaqueTypeGenericParameterRewriter<MachO: MachOSwiftSectionRepresentableWithCache>: Node.Rewriter {
         let machO: MachO
 
         let typeList: OrderedDictionary<Int, [Node]>
@@ -17,8 +23,14 @@ extension Node {
         }
 
         override func visit(_ node: Node) -> Node {
-            if node.isKind(of: .dependentGenericParamType), let depth: Int = node[safeChild: 0]?.index?.cast(), let index: Int = node[safeChild: 1]?.index?.cast(), let type = typeList[depth, default: []][safe: index], type.isKind(of: .type), let firstChild = node.firstChild {
-                return firstChild.copy()
+            if node.isKind(of: .dependentGenericParamType), let depth: Int = node[safeChild: 0]?.index?.cast(), let index: Int = node[safeChild: 1]?.index?.cast(), let type = typeList[depth, default: []][safe: index], type.isKind(of: .type), let substitutedType = type.firstChild {
+                // The substituted type's content, NOT `node.firstChild`: a
+                // `dependentGenericParamType`'s children are its depth and index
+                // literals, so returning the first one hands back the DEPTH and
+                // renders as a bare number in generic-argument position
+                // (`SwiftUI.StaticIf<A1, 1, C1>`). The `isKind(of: .type)` guard
+                // above is what licenses unwrapping `type`'s envelope here.
+                return substitutedType.copy()
             } else {
                 return node
             }

@@ -191,9 +191,27 @@ extension IndexerConformanceProvider: ConformanceProvider {
             // objects (resilient superclass), so this map build materializes
             // the class wrapper — once per class, cached with the map
             // (materialization discipline, proposal 0002).
+            //
+            // Caught separately from the `superclassNode` read below. Before
+            // proposal 0002 the wrapper came from a stored property and could
+            // not fail here, so the single `catch` that follows was written for
+            // one cause only; folding the new one into it drops the class from
+            // the subclass map with no trace, and `subclasses(of:)` then narrows
+            // a specialization search by a candidate that silently went missing.
+            let classWrapper: Class
+            do {
+                classWrapper = try Class(descriptor: classDescriptor, in: entry.machO)
+            } catch {
+                // stderr, never stdout: stdout carries the generated Swift
+                // (issue #102).
+                FileHandle.standardError.write(Data("IndexerConformanceProvider: subclass map skipped \(childTypeName.name), its class wrapper could not be materialized: \(error)\n".utf8))
+                continue
+            }
+
+            // A missing / unreadable superclass link is the ordinary "this class
+            // has no usable parent" case and stays silent.
             var superNode: Node?
             do {
-                let classWrapper = try Class(descriptor: classDescriptor, in: entry.machO)
                 superNode = try classWrapper.superclassNode(in: entry.machO)
             } catch {
                 continue

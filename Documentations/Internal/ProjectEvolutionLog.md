@@ -842,6 +842,19 @@
 
 ---
 
+## 40. PR #103 第三轮 review：四问推翻三条结论，分批修静默错误
+
+- **时间段**：2026-08-14 起（`feature/node-store-migration`；第二轮见第 39 节，审的就是第二轮修复落地后的状态）。
+- **动机**：第三轮 max 级 review 产出 15 条发现。四问这次的产出主要是**减法**——推翻了初版的三条实质结论：`OrderedMember.minSymbolOffset` 的「每次比较分配一个 String」是误报（`.offset` 命中的是 `DemangledSymbol` 自己的具体属性，SE-0195 下具体成员优先于 `@dynamicMemberLookup`，且初版据以区分对错的两处是完全相同的表达式形状）；diff 头行丢声明不影响 change list / `--json` / `--fail-on-breaking`（那三条都走 `ABIDiffer`）；主 interface 路径的枚举 case 会抛错而非静默降级（`printThrowingEnumCase`，静默的那个只服务 diff 渲染器）。
+- **交叉复核**：15 条结论交同项目另一会话独立复核。它补了一条我漏掉的发现（`ConformanceProvider` 子类映射的新静默丢失面）、推翻了 diff 渲染器「补事件诊断」的修法前提（该渲染器的 printer 由 `.init(in:)` 建、公开 init 不接 handler，事件没有 sink，只能走 stderr），并给误报判定补了排他性普查（全 `Sources/` 的 `.symbol.` 共 13 处，慢的只有 4 处，是穷尽结论）。
+- **落地（批次 1，静默产生错误结果的 4 处）**：**opaque 类型改写**返回 `type.firstChild` 而非 `node.firstChild`——原代码把泛型参数替换成了它自己的 depth 字面量，真实框架里印出 `SwiftUI.StaticIf<A1, 1, C1>` 这种非法 Swift（SwiftUI 21 处、WidgetKit 1 处），缺陷代码自 `5e7373f`（2025-12-16）引入即如此、与 main 相同；**mpenum 缓存**的 catch 移进循环，循环级 catch 会在第一条坏记录处退出，其后每个多 payload 枚举都静默落到 `calculateTaggedMultiPayload`（错的布局，不是缺的布局）并被 `SharedCache` 记住一整轮；**子类映射**把 wrapper materialize 与 `superclassNode` 的 catch 分开并补 stderr——proposal 0002 把 wrapper 从存储属性改成按需 materialize，新的抛错落进了只为一个原因而写的 catch 里；**A/B 验收脚本**的 cache 成员判断改为按行锚定，规范路径是 iOSSupport 路径的字面子串，包含式判断永远到不了那个回退分支。
+- **关键决策**：先做零行为变化的可测试性重构（rewriter 由 `private` 改 `internal`、索引循环抽成 `indexDescriptors(_:in:)`），再写会失败的复现测试，最后上修复——顺序刻意，用来证明测试真的抓住了问题。三条测试修复前全部失败（opaque 打印出 `"0"`/`"1"` 的 depth 字面量、mpenum 坏记录后的 12 条全丢）。
+- **验证**：新增 5 个测试 / 2 个套件，`swift test` 退出码 0；A/B 脚本自测 9/9。真实二进制端到端：WidgetKit 离线 dump 在两份 cache 上裸整数实参归零，8011 行 dump **只差修好的那一行**。全量 1418 tests / 268 suites，唯二失败是已知的墙钟 flaky（`SharedCacheTests` 的两条并行度断言），单独跑必过。
+- **文档**：[TaskReports/2026-08-14-pr103-review-round-three-fixes.md](TaskReports/2026-08-14-pr103-review-round-three-fixes.md)。批次 2（可观测性与测试）、批次 3（清理与裁决台账，含推翻 `NodeStoreMigrationOpenIssues.md` 2026-08-03 对公开字典键类型的「不修」裁决）随后补记本节。
+- **对应版本**：`0.15.1` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
