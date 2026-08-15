@@ -861,6 +861,22 @@
 
 ---
 
+## 41. PR #103 第四轮 review：降级上报统一走事件，库不再自选落点
+
+- **时间段**：2026-08-16（`fix/event-based-diagnostics` → `feature/node-store-migration`）。
+- **动机**：第四轮 max 级 review 的 15 条发现，经同项目另一会话独立复核后收敛为 9 真 / 1 误报 / 2 属实但不值得修。其中一条把第三轮的修法本身推翻了：批次 2 用 `FileHandle.standardError.write(_:)` 落 stderr，而那个重载是 ObjC 桥接、写失败时抛 `NSFileHandleOperationException`，Swift 接不住 → **进程 abort**。库 9 处 + CLI 5 处共 14 处中招。
+- **复核的减法同样重要**：`Codable` 从三个 `Name` 类型移除被判**误报**——复核方查到 7/31 的 commit 完整记录了决策（mangled symbol 本身就是树的序列化）、同批更新了 AGENTS.md，并对本地 RuntimeViewer 全仓 grep 确认零 `Codable` 消费者；符号表按名查找（机制全真但 late path 与 main 逐位等价，且第一轮已作为 below-the-cut 记录过）与 mpenum 全有或全无（唯一真缺陷窗下 main 行为逐字等价）判为基线旧问题。
+- **关键决策**：不是「把 stderr 换成安全写法」，而是**库代码一律不写进程流**。落点由宿主装的 `Handler` 决定（GUI → os_log，CLI → stderr），因为这个分歧在库里选不对：os_log 对 CLI 不可见（终端 / `2>` / CI 日志全空，直接违背 issue #102 的报告场景），stderr 对 GUI 宿主无意义。配套三件事缺一不可——`Dispatcher.dispatch` 零 handler 时落 os_log 地板（否则是把 crash 换成静默）、diff 渲染器的 printer 改为共享 indexer 的 dispatcher（此前 `.init(in:)` 构造、零 handler，事件发进空数组）、`ConsoleEventHandler` 从 **stdout** 改到 stderr（它是 CLI 的默认 sink 却在写产品输出流，issue #102 的第三条诉求原地破功）。
+- **一次改动解掉 5 条发现**：raising 写（crash）、`printCatchedThrowing` 兜底死代码、孪生 helper 无兜底、diff 单侧 header 失败删两侧、测试挂死；并让「测试隔离前提为假」那条失去存在意义——验证不再需要 fd 重定向。
+- **单侧 header 的语义修正**：`guard let old = ..., let new = ...` 从左到右短路，旧侧失败时新侧根本没渲染，返回 `[]` 又把声明连同成员和嵌套子节点从**两侧**一起删。改为两侧各自渲染后经 `resolveHeaders` 决议，且用**三态** `HeaderOutcome`（`absent` / `rendered` / `failed`）——`SemanticString?` 会把「这侧不存在」和「渲染失败」混同，实测正是这个混同让 `.added` 路径用空 header 顶替了失败侧。
+- **测试改造**：`StandardStreamCapture` 退役，代之以 `MachOTestingSupport.SwiftIndexEventCollector`（附加断言更锐利：事件带失败者的名字，旧的 stderr 行不指名任何声明）。「不写 stdout」改为**源码扫描**，因为 fd 重定向路线安全不了——`swift test` 单进程 + `.serialized` 只管 suite 内，两个 suite 交错能让一方的 pipe 写端被另一方的备份持有、EOF 永不到来、**整轮挂死**。扫描器必须能识别裸调用（`node.print(using:)` 是本库渲染 API）且自带正反例自检。扫描暴露的基线既有违规记入显式的**只减不增**清单，不在本次范围内修。
+- **踩到的三个硬约束**（详见实现说明）：`@Loggable` 在 `SwiftDeclaration` 用不了（远端 `FrameworkToolbox 0.4.x` 不暴露 `OSToolbox` product，本地开发版有 → 只看本地会判断错），且它展开成 static stored property，**泛型类型用不了**；`os.Logger` 要 macOS 11 而本包下限 10.15，故用 `os_log`；`SwiftIndexEvents.Handler` 非 `Sendable`，存不进 `Sendable` 的 builder，改为注入 `Dispatcher`（结果更好：indexer 与 printer 共用一个，宿主装一次覆盖两边）。
+- **验证**：14 处危险写法清零（`grep` 剩余命中全是注释）；三个受影响套件 11 tests 全绿；全量套件退出码 0。
+- **文档**：[Evolutions/0005](../Evolutions/0005-event-based-degradation-reporting.md)（含「实施中偏离提案的地方」四条）、[EventBasedDegradationReporting.md](EventBasedDegradationReporting.md)（分层契约 + 四条走不通的近路）、[TaskReports/2026-08-16-pr103-review-round-four-event-reporting.md](TaskReports/2026-08-16-pr103-review-round-four-event-reporting.md)。
+- **对应版本**：`0.15.1` 之后、下一次 bump 之前（`feature/node-store-migration` 分支）。
+
+---
+
 ## 维护约定
 
 1. **每个非平凡批次结束时必须在本文追加/更新一节**（新工作弧新增一节；延续既有弧则在该节
