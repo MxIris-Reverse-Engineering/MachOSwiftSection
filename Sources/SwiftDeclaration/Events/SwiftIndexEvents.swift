@@ -1,5 +1,6 @@
 import MemberwiseInit
 import Foundation
+import os
 import SwiftStdlibToolbox
 
 /// A namespace for all event-related types used by `SwiftInterfaceBuilder`.
@@ -62,6 +63,15 @@ public enum SwiftIndexEvents {
         case definitionPrintStarted(context: PrintingContext)
         case definitionPrintCompleted(context: PrintingContext)
         case definitionPrintFailed(context: PrintingContext, error: any Error)
+
+        /// Something below the definition level degraded: the surrounding work
+        /// kept its partial result and carried on, but a piece of it is missing.
+        ///
+        /// One case rather than one per site because every consumer treats them
+        /// identically — record it and move on. ``DegradationSource`` carries
+        /// which seam gave way; a site that later needs structured fields can
+        /// graduate to its own case then.
+        case renderingDegraded(context: DegradationContext, error: any Error)
     }
 
     /// A protocol for types that can handle events dispatched from `SwiftInterfaceBuilder`.
@@ -71,6 +81,19 @@ public enum SwiftIndexEvents {
 
     /// Dispatches `SwiftInterfaceBuilder` events to registered handlers.
     public final class Dispatcher: Sendable {
+        /// Destination for ``reportUnhandled(_:)``.
+        ///
+        /// `OSLog` + `os_log` rather than `Logger` / `@Loggable`: `Logger` needs
+        /// macOS 11 / iOS 14 and this package deploys back to macOS 10.15 /
+        /// iOS 13, while `OSToolbox`'s `@Loggable` (which would paper over that
+        /// with an `#available` fallback) is not among the products the pinned
+        /// `FrameworkToolbox` exposes. `os_log` has been available since
+        /// macOS 10.12, so it needs neither.
+        private static let unhandledEventLog = OSLog(
+            subsystem: "com.machoswiftsection.swift-declaration",
+            category: "SwiftIndexEvents.unhandled"
+        )
+
         @Mutex
         private var handlers: [Handler] = []
 
@@ -89,9 +112,44 @@ public enum SwiftIndexEvents {
         }
 
         public func dispatch(_ event: Payload) {
-            for handler in handlers {
-                handler.handle(event: event)
+            // Read the handler list once. `@Mutex` takes the lock per access, so
+            // testing emptiness and then iterating would be two separate critical
+            // sections — the list can empty out in between, and the event would
+            // reach neither the handlers nor the fallback.
+            let currentHandlers = handlers
+            guard currentHandlers.isEmpty else {
+                for handler in currentHandlers {
+                    handler.handle(event: event)
+                }
+                return
             }
+            reportUnhandled(event)
+        }
+
+        /// Last-resort reporting for a failure dispatched with no handler attached.
+        ///
+        /// A library must not pick where diagnostics go — os_log is right for a
+        /// GUI host (RuntimeViewer filters on subsystem/category) and wrong for a
+        /// CLI, where the operator expects stderr and a piped/CI log. That is why
+        /// the choice belongs to the host's `Handler`, and why this is only a
+        /// floor: it guarantees that forgetting to attach one degrades to
+        /// "somewhere findable" rather than to silence.
+        ///
+        /// Silence is the failure mode this exists to prevent: a dropped
+        /// declaration that reports nowhere is indistinguishable from one that
+        /// was compared and found equal, which is how a diff-path payload failure
+        /// once turned `case foo(Payload)` into `case foo` unnoticed.
+        ///
+        /// Progress events are dropped here on purpose — losing a tick costs
+        /// nothing, and logging every one of them would bury the failures.
+        private func reportUnhandled(_ event: Payload) {
+            guard let description = event.unhandledFailureDescription else { return }
+            os_log(
+                .error,
+                log: Self.unhandledEventLog,
+                "no event handler attached; %{public}@",
+                description
+            )
         }
     }
 
@@ -233,6 +291,57 @@ public enum SwiftIndexEvents {
         public let kind: PrintingDefinitionKind
     }
 
+    /// Identifies what degraded, for ``Payload/renderingDegraded(context:error:)``.
+    public struct DegradationContext: Sendable {
+        public let source: DegradationSource
+
+        /// What was being rendered when the seam gave way, when the site knows
+        /// it — a type name, a dependency path. `nil` where the failure has no
+        /// single subject (an index that failed as a whole).
+        public let subject: String?
+
+        public init(source: DegradationSource, subject: String? = nil) {
+            self.source = source
+            self.subject = subject
+        }
+    }
+
+    /// The seam that gave way in a ``Payload/renderingDegraded(context:error:)``.
+    public enum DegradationSource: Sendable, CustomStringConvertible {
+        /// An opaque type's underlying type could not be substituted in, so the
+        /// opaque type prints as itself.
+        case opaqueTypeRewrite
+        /// The image's `__swift5_mpenum` index could not be built, so every
+        /// multi-payload enum in it falls back to the tagged projection.
+        case multiPayloadEnumIndex
+        /// A dependency image (or the dyld shared cache) failed to load, so
+        /// cross-module resolution against it is unavailable.
+        case dependencyLoad
+        /// A subclass could not be materialized into the class hierarchy map.
+        case subclassMap
+        /// An extra-data provider failed to set up; its enrichment is absent.
+        case extraDataProvider
+        /// A type node could not be rendered. Reported without a definition
+        /// identity because the node is a fragment — an enum case's payload, a
+        /// property's type — and the enclosing definition keeps rendering.
+        case typeNodeRendering
+        /// One of `printRoot()`'s top-level blocks failed as a whole. Its
+        /// members already report individually, so this has no single subject.
+        case definitionBlock
+
+        public var description: String {
+            switch self {
+            case .opaqueTypeRewrite: "opaque type rewrite"
+            case .multiPayloadEnumIndex: "multi-payload enum index"
+            case .dependencyLoad: "dependency load"
+            case .subclassMap: "subclass map"
+            case .extraDataProvider: "extra data provider"
+            case .typeNodeRendering: "type node rendering"
+            case .definitionBlock: "definition block"
+            }
+        }
+    }
+
     public enum PrintingDefinitionKind: Sendable, CustomStringConvertible {
         case type
         case `protocol`
@@ -263,5 +372,58 @@ public enum SwiftIndexEvents {
     public struct TypeNestingContext: Sendable {
         public let childTypeName: String
         public let parentTypeName: String?
+    }
+}
+
+extension SwiftIndexEvents.Payload {
+    /// A one-line description when this event reports a loss, `nil` when it only
+    /// reports progress.
+    ///
+    /// This is the partition `Dispatcher`'s zero-handler fallback runs on, and
+    /// the reason it is a whitelist rather than `default: nil` inverted: a new
+    /// failure case added without a branch here would silently opt out of the
+    /// floor, which is exactly the class of regression the floor exists to stop.
+    package var unhandledFailureDescription: String? {
+        switch self {
+        case let .phaseTransition(phase, state):
+            guard case let .failed(error) = state else { return nil }
+            return "\(phase) phase failed: \(error)"
+        case let .extractionFailed(section, error):
+            return "extraction failed for \(section): \(error)"
+        case let .typeProcessingFailed(typeName, error):
+            return "type processing failed for \(typeName ?? "<unnamed>"): \(error)"
+        case let .phaseOperationFailed(phase, operation, error):
+            return "\(operation) failed in the \(phase) phase: \(error)"
+        case let .conformanceProcessingFailed(context, error):
+            return "conformance processing failed for \(context): \(error)"
+        case let .associatedTypeProcessingFailed(context, error):
+            return "associated type processing failed for \(context): \(error)"
+        case let .conformanceExtensionCreationFailed(context, error):
+            return "conformance extension creation failed for \(context): \(error)"
+        case let .extensionCreationFailed(targetName, error):
+            return "extension creation failed for \(targetName): \(error)"
+        case let .protocolProcessingFailed(protocolName, error):
+            return "protocol processing failed for \(protocolName): \(error)"
+        case let .definitionPrintFailed(context, error):
+            return "dropped \(context.kind) '\(context.name)': \(error)"
+        case let .renderingDegraded(context, error):
+            let subject = context.subject.map { " for \($0)" } ?? ""
+            return "\(context.source) degraded\(subject): \(error)"
+        case .phaseOperationStarted, .phaseOperationCompleted,
+             .extractionStarted, .extractionCompleted,
+             .typeIndexingStarted, .typeIndexingCompleted, .typeProcessed,
+             .typeProcessingSkippedCImported, .typeNestingResolved,
+             .protocolIndexingStarted, .protocolIndexingCompleted,
+             .conformanceIndexingStarted, .conformanceIndexingCompleted,
+             .extensionIndexingStarted, .extensionIndexingCompleted,
+             .moduleCollectionStarted, .moduleCollectionCompleted,
+             .conformanceFound, .associatedTypeFound, .conformanceExtensionCreated,
+             .extensionTargetNotFound, .extensionCreated,
+             .protocolProcessed, .moduleFound,
+             .symbolScanStarted, .symbolIndexProgress,
+             .nameExtractionWarning,
+             .definitionPrintStarted, .definitionPrintCompleted:
+            return nil
+        }
     }
 }

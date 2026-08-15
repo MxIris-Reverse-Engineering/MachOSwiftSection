@@ -205,6 +205,10 @@ public final class SwiftIndexEventReporter: SwiftIndexEvents.Handler, Sendable {
         case .definitionPrintFailed(let context, let error):
             yield(.error, .printing, "Failed to print \(context.kind.description): \(context.name)", detail: String(describing: error))
 
+        case .renderingDegraded(let context, let error):
+            let subject = context.subject.map { " for \($0)" } ?? ""
+            yield(.error, .printing, "Degraded \(context.source)\(subject)", detail: String(describing: error))
+
         case .symbolIndexProgress(let currentCount, let totalCount):
             yield(.trace, .indexing, "Symbol index progress: \(currentCount)/\(totalCount)")
         }
