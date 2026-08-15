@@ -3,7 +3,7 @@ import FileIO
 import MachOKit
 import MachOKitExtensions
 
-extension MemoryMappedFile: MachONamespacing {}
+extension MemoryMappedFile: @retroactive MachONamespacing {}
 
 extension MachONamespace where Base: _FileIOProtocol {
     func readDataSequence<Element>(
