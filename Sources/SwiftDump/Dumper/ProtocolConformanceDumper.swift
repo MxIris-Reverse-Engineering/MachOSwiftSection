@@ -5,6 +5,7 @@ import Semantic
 import Demangling
 import Utilities
 import OrderedCollections
+@_spi(Internals) import MachOSymbols
 @_spi(Internals) import SwiftInspection
 import SwiftDeclarationRendering
 
