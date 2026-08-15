@@ -1,6 +1,7 @@
 import Foundation
 import Demangling
 import MachOKit
+import MachOKitExtensions
 import MachOFoundation
 import MachOSwiftSection
 @_spi(Core) import MachOObjCSection
@@ -59,7 +60,7 @@ extension ObjCClass64: @retroactive Equatable {
     }
 }
 
-extension ObjCClass64: LocatableLayoutWrapper, Resolvable, @unchecked @retroactive Sendable {}
+extension ObjCClass64: @retroactive LocatableLayoutWrapper, Resolvable, @unchecked @retroactive Sendable {}
 
 extension ObjCClass64.Layout: @retroactive Equatable {
     public static func == (lhs: ObjCClass64.Layout, rhs: ObjCClass64.Layout) -> Bool {
@@ -71,7 +72,7 @@ extension ObjCClass64.Layout: @retroactive Equatable {
     }
 }
 
-extension ObjCClass64.Layout: LayoutProtocol, @unchecked @retroactive Sendable {}
+extension ObjCClass64.Layout: @retroactive LayoutProtocol, @unchecked @retroactive Sendable {}
 
 extension String {
     fileprivate var demangledString: String {
