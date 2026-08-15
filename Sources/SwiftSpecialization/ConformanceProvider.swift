@@ -202,9 +202,12 @@ extension IndexerConformanceProvider: ConformanceProvider {
             do {
                 classWrapper = try Class(descriptor: classDescriptor, in: entry.machO)
             } catch {
-                // stderr, never stdout: stdout carries the generated Swift
-                // (issue #102).
-                FileHandle.standardError.write(Data("IndexerConformanceProvider: subclass map skipped \(childTypeName.name), its class wrapper could not be materialized: \(error)\n".utf8))
+                indexer.eventDispatcher.dispatch(
+                    .renderingDegraded(
+                        context: .init(source: .subclassMap, subject: childTypeName.name),
+                        error: error
+                    )
+                )
                 continue
             }
 

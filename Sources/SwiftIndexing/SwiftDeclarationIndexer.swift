@@ -158,7 +158,9 @@ public final class SwiftDeclarationIndexer<MachO: MachOSwiftSectionRepresentable
     @usableFromInline
     var allStorageCache: AllStorageCache = .init()
 
-    let eventDispatcher: SwiftIndexEvents.Dispatcher = .init()
+    /// `package` so a renderer driving this indexer can hand the same dispatcher
+    /// to its printers, keeping one sink set for the whole run.
+    package let eventDispatcher: SwiftIndexEvents.Dispatcher = .init()
 
     @Mutex
     private var isPrepared: Bool = false

@@ -249,7 +249,10 @@ extension SwiftDeclarationPrinter {
             Space()
             Standard("=")
             Space()
-            try await resolver.resolve(for: MetadataReader.demangleType(for: record.mangledTypeName, in: machO).resolveOpaqueType(in: machO))
+            try await resolver.resolve(
+                for: MetadataReader.demangleType(for: record.mangledTypeName, in: machO)
+                    .resolveOpaqueType(in: machO, reportingDegradationTo: opaqueTypeDegradationReporter(subject: record.name))
+            )
             if offset.isEnd {
                 BreakLine()
             }

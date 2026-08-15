@@ -17,9 +17,15 @@ public struct SwiftInterfaceBuilderDependencies<MachO: MachOSwiftSectionRepresen
 }
 
 extension SwiftInterfaceBuilderDependencies<MachOFile> {
-    public init(machO: MachO, paths: [DependencyPath]) {
+    /// - Parameter eventHandlers: Sinks for the dependencies that fail to load.
+    ///   Defaulted, so existing call sites are unaffected — and passing none is
+    ///   safe rather than silent: `SwiftIndexEvents.Dispatcher` reports an
+    ///   unhandled failure to os_log rather than dropping it.
+    public init(machO: MachO, paths: [DependencyPath], eventHandlers: [SwiftIndexEvents.Handler] = []) {
         var dependencies: [MachOFile] = []
         let dependencyPaths = Set(machO.dependencies.map(\.dylib.name))
+        let eventDispatcher = SwiftIndexEvents.Dispatcher()
+        eventDispatcher.addHandlers(eventHandlers)
 
         for searchPath in paths {
             switch searchPath {
@@ -29,9 +35,12 @@ extension SwiftInterfaceBuilderDependencies<MachOFile> {
                         dependencies.append(machOFile)
                     } else {}
                 } catch {
-                    // stderr, never stdout — stdout carries the generated
-                    // interface (issue #102).
-                    FileHandle.standardError.write(Data("dependency load failed for \(path): \(error)\n".utf8))
+                    eventDispatcher.dispatch(
+                        .renderingDegraded(
+                            context: .init(source: .dependencyLoad, subject: path),
+                            error: error
+                        )
+                    )
                 }
             case .dyldSharedCache(let path):
                 do {
@@ -42,9 +51,12 @@ extension SwiftInterfaceBuilderDependencies<MachOFile> {
                         foundCount += 1
                     }
                 } catch {
-                    // stderr, never stdout — stdout carries the generated
-                    // interface (issue #102).
-                    FileHandle.standardError.write(Data("dyld shared cache load failed for \(path): \(error)\n".utf8))
+                    eventDispatcher.dispatch(
+                        .renderingDegraded(
+                            context: .init(source: .dependencyLoad, subject: path),
+                            error: error
+                        )
+                    )
                 }
             case .usesSystemDyldSharedCache:
                 if let hostDyldCache = FullDyldCache.host {

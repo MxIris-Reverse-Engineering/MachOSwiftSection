@@ -1,9 +1,29 @@
 import Foundation
+import os
 import MachOKit
 import MachOSwiftSection
 import Demangling
 import OrderedCollections
 @_spi(Internals) import SwiftInspection
+
+/// Floor for a rewrite failure the caller did not take over.
+///
+/// A file-scope `OSLog` rather than `@Loggable` on the rewriter: the rewriter is
+/// generic over its `MachO` reader, and the macro expands to a static stored
+/// property, which a generic type cannot have.
+private let opaqueTypeRewriteLog = OSLog(
+    subsystem: "com.machoswiftsection.swift-declaration-rendering",
+    category: "OpaqueTypeRewriter"
+)
+
+/// Receives an opaque-type rewrite failure so the caller can route it.
+///
+/// A closure rather than a `SwiftIndexEvents.Dispatcher`: the events live in
+/// `SwiftDeclaration`, which *depends on* this module, so naming the type here
+/// would close a dependency cycle. The interface path passes a closure that
+/// dispatches the event; the dump path (`SwiftDump` has no event machinery at
+/// all) passes nothing and takes the os_log floor below.
+package typealias OpaqueTypeDegradationReporter = @Sendable (any Error) -> Void
 
 extension Node {
     /// Substitutes an opaque type's generic parameters with the concrete
@@ -40,8 +60,11 @@ extension Node {
     private final class OpaqueTypeRewriter<MachO: MachOSwiftSectionRepresentableWithCache>: Node.Rewriter {
         let machO: MachO
 
-        init(machO: MachO) {
+        let reportDegradation: OpaqueTypeDegradationReporter?
+
+        init(machO: MachO, reportDegradation: OpaqueTypeDegradationReporter?) {
             self.machO = machO
+            self.reportDegradation = reportDegradation
         }
 
         override func visit(_ node: Node) -> Node {
@@ -94,18 +117,34 @@ extension Node {
                     }
                 }
             } catch {
-                // stderr, never stdout: stdout carries the generated Swift, so
-                // a diagnostic printed here corrupts any piped or redirected
-                // interface (issue #102). The un-rewritten node is returned so
-                // an unresolvable opaque type degrades to its own printing
-                // rather than failing the declaration.
-                FileHandle.standardError.write(Data("opaque type rewrite failed: \(error)\n".utf8))
+                // Never stdout: it carries the generated Swift, so a diagnostic
+                // written there corrupts any piped or redirected interface
+                // (issue #102). Never a raising `FileHandle` write either — this
+                // runs per node inside a rewrite loop, and that overload aborts
+                // the host process on a closed or broken stream.
+                //
+                // The un-rewritten node is returned regardless, so an
+                // unresolvable opaque type degrades to its own printing rather
+                // than failing the declaration.
+                if let reportDegradation {
+                    reportDegradation(error)
+                } else {
+                    os_log(
+                        .error,
+                        log: opaqueTypeRewriteLog,
+                        "opaque type rewrite failed: %{public}@",
+                        String(describing: error)
+                    )
+                }
             }
             return node
         }
     }
 
-    package func resolveOpaqueType(in machO: some MachOSwiftSectionRepresentableWithCache) throws -> Node {
-        OpaqueTypeRewriter(machO: machO).rewrite(self)
+    package func resolveOpaqueType(
+        in machO: some MachOSwiftSectionRepresentableWithCache,
+        reportingDegradationTo reportDegradation: OpaqueTypeDegradationReporter? = nil
+    ) throws -> Node {
+        OpaqueTypeRewriter(machO: machO, reportDegradation: reportDegradation).rewrite(self)
     }
 }

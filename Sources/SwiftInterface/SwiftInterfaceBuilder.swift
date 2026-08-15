@@ -96,10 +96,9 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
             do {
                 try await extraDataProvider.setup()
             } catch {
-                // stderr, never stdout — `printRoot()`'s result is streamed to
-                // stdout by the CLI, so a diagnostic printed here lands inside
-                // the generated interface (issue #102).
-                FileHandle.standardError.write(Data("extra data provider setup failed: \(error)\n".utf8))
+                eventDispatcher.dispatch(
+                    .renderingDegraded(context: .init(source: .extraDataProvider), error: error)
+                )
             }
         }
 
@@ -128,8 +127,9 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
         // fail as a block: `printVariable` / `printFunction` are non-throwing —
         // each already catches per member and dispatches its own
         // `definitionPrintFailed`. These wrappers are belt-and-braces, so there
-        // is no definition identity to attribute a block-level failure to.
-        await printCatchedThrowing {
+        // is no definition identity to attribute a block-level failure to, and
+        // they report as `.definitionBlock` degradations instead.
+        await printCatchedThrowing(dispatchingTo: eventDispatcher, degradationSource: .definitionBlock) {
             await BlockList {
                 for variable in indexer.globalVariableDefinitions {
                     await printer.printVariable(variable, level: 0)
@@ -137,7 +137,7 @@ public final class SwiftInterfaceBuilder<MachO: FieldLayoutRenderable>: Sendable
             }
         }
 
-        await printCatchedThrowing {
+        await printCatchedThrowing(dispatchingTo: eventDispatcher, degradationSource: .definitionBlock) {
             await BlockList {
                 for function in indexer.globalFunctionDefinitions {
                     await printer.printFunction(function, level: 0)

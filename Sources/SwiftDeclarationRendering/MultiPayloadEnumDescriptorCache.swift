@@ -1,10 +1,23 @@
 import Foundation
+import os
 import MachOKit
 import MachOSwiftSection
 import Demangling
 import FoundationToolbox
 @_spi(Internals) import MachOCaches
 @_spi(Internals) import SwiftInspection
+
+/// Where this cache reports what it had to skip.
+///
+/// os_log, never a stream: stdout carries the generated Swift (issue #102), and
+/// a raising `FileHandle` write aborts the host on a closed or broken stderr.
+/// This cache is also below the event layer — `SwiftIndexEvents` lives in
+/// `SwiftDeclaration`, which depends on this module — so it has no dispatcher to
+/// reach for.
+private let multiPayloadEnumIndexLog = OSLog(
+    subsystem: "com.machoswiftsection.swift-declaration-rendering",
+    category: "MultiPayloadEnumDescriptorCache"
+)
 
 /// Per-image index of `__swift5_mpenum` descriptors keyed by their demangled
 /// type node.
@@ -40,10 +53,13 @@ final class MultiPayloadEnumDescriptorCache: SharedCache<MultiPayloadEnumDescrip
             multiPayloadEnumDescriptorByNode = Self.indexDescriptors(try machO.swift.multiPayloadEnumDescriptors, in: machO)
         } catch {
             // The section read itself failed, so there is no descriptor list to
-            // index at all. stderr, never stdout: `swift-section interface` /
-            // `dump` stream the generated Swift to stdout, so a diagnostic
-            // printed there lands inside the generated output (issue #102).
-            FileHandle.standardError.write(Data("MultiPayloadEnumDescriptorCache: \(error)\n".utf8))
+            // index at all.
+            os_log(
+                .error,
+                log: multiPayloadEnumIndexLog,
+                "%{public}@",
+                String(describing: error)
+            )
         }
 
         let storage = Storage()
@@ -75,8 +91,12 @@ final class MultiPayloadEnumDescriptorCache: SharedCache<MultiPayloadEnumDescrip
 
                 multiPayloadEnumDescriptorByNode[node] = multiPayloadEnumDescriptor
             } catch {
-                // stderr, never stdout (issue #102).
-                FileHandle.standardError.write(Data("MultiPayloadEnumDescriptorCache: skipped one descriptor: \(error)\n".utf8))
+                os_log(
+                    .error,
+                    log: multiPayloadEnumIndexLog,
+                    "skipped one descriptor: %{public}@",
+                    String(describing: error)
+                )
                 continue
             }
         }

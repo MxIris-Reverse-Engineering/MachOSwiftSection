@@ -25,7 +25,14 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
     @Mutex
     public private(set) var typeNameResolvers: [any TypeNameResolvable] = []
 
-    let eventDispatcher: SwiftIndexEvents.Dispatcher = .init()
+    /// `package` so in-package renderers that drive this printer — notably
+    /// ``SwiftDiffableInterfaceRenderer`` — report their own degradations into
+    /// the same sinks rather than inventing a second reporting channel.
+    ///
+    /// Injectable for the same reason: a renderer that already owns an indexer's
+    /// dispatcher passes it straight in, so one set of handlers covers indexing
+    /// and printing alike.
+    package let eventDispatcher: SwiftIndexEvents.Dispatcher
 
     @Mutex
     var typeDemangleResolver: DemangleResolver = .using(options: .default)
@@ -76,8 +83,31 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
 
     public init(configuration: SwiftDeclarationPrintConfiguration = .init(), eventHandlers: [SwiftIndexEvents.Handler] = [], in machO: MachO) {
         self.machO = machO
+        // Before `configuration`: that property is `@Mutex`-wrapped with a
+        // default, so assigning it counts as using `self`, which is only legal
+        // once every stored property is initialized.
+        self.eventDispatcher = .init()
         self.configuration = configuration
         eventDispatcher.addHandlers(eventHandlers)
+        self.typeDemangleResolver = .using { [weak self] node in
+            if let self {
+                var printer = TypeNodePrinter(delegate: self)
+                try await printer.printRoot(node)
+            }
+        }
+    }
+
+    /// Builds a printer that reports into an existing dispatcher.
+    ///
+    /// For a caller that already owns one — ``SwiftDiffableInterfaceRenderer``
+    /// shares its indexer's — so indexing and printing land in one set of sinks
+    /// and the host attaches handlers once. `Handler` is not `Sendable`, so
+    /// passing the dispatcher is also the only way to carry sinks across a
+    /// `Sendable` boundary.
+    package init(configuration: SwiftDeclarationPrintConfiguration = .init(), eventDispatcher: SwiftIndexEvents.Dispatcher, in machO: MachO) {
+        self.machO = machO
+        self.eventDispatcher = eventDispatcher
+        self.configuration = configuration
         self.typeDemangleResolver = .using { [weak self] node in
             if let self {
                 var printer = TypeNodePrinter(delegate: self)
@@ -509,7 +539,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
 
     @SemanticStringBuilder
     public func printType(_ typeNode: Node, isProtocol: Bool, level: Int) async -> SemanticString {
-        await printCatchedThrowing {
+        await printCatchedThrowing(dispatchingTo: eventDispatcher, degradationSource: .typeNodeRendering) {
             try await printThrowingType(typeNode, isProtocol: isProtocol, level: level)
         }
     }
@@ -559,6 +589,23 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
         try await printer.printRoot(typeNode)
     }
 
+    /// Routes an opaque-type rewrite failure into this printer's event stream.
+    ///
+    /// `Node+OpaqueType` lives in `SwiftDeclarationRendering`, which
+    /// `SwiftDeclaration` depends on, so it cannot name the event types itself
+    /// and takes a closure instead. This is where the closure is bound.
+    func opaqueTypeDegradationReporter(subject: String?) -> OpaqueTypeDegradationReporter {
+        let eventDispatcher = eventDispatcher
+        return { error in
+            eventDispatcher.dispatch(
+                .renderingDegraded(
+                    context: .init(source: .opaqueTypeRewrite, subject: subject),
+                    error: error
+                )
+            )
+        }
+    }
+
     private func memberAddressString(forOffset offset: Int?) -> String? {
         guard let offset else { return nil }
         return machO.addressString(forOffset: offset)
@@ -572,8 +619,7 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
 
 /// Renders `body`, dropping only what it was rendering if it throws.
 ///
-/// The failure is reported as a ``SwiftIndexEvents/Event/definitionPrintFailed``
-/// event when the caller can supply a dispatcher and a context — it must NOT be
+/// The failure is always reported, and always as an event — it must NOT be
 /// printed. `swift-section interface` / `dump` stream the generated Swift to
 /// stdout (`InterfaceCommand.swift:106`, `DumpCommand.swift:294`), so anything a
 /// library writes there lands inside the generated output and corrupts any piped
@@ -582,28 +628,30 @@ public final class SwiftDeclarationPrinter<MachO: FieldLayoutRenderable>: Sendab
 /// `definitionPrintFailed` events, and its only signal was a bare
 /// `unexpected(at: 8)` on stdout, fully buffered and therefore surfacing far
 /// from its cause.
+///
+/// The dispatcher is required rather than optional. When it was optional, the
+/// callers that passed nothing fell to a stderr `else` branch — which is how a
+/// library ended up choosing where diagnostics go, and how the branch could
+/// raise on a closed stderr and abort the host. Where the failure has no
+/// definition identity (`context == nil`) it is reported as
+/// ``SwiftIndexEvents/DegradationSource`` instead; a dispatcher with no handlers
+/// still has `Dispatcher`'s own floor beneath it, so nothing lands nowhere.
 package func printCatchedThrowing(
     isolation: isolated (any Actor)? = #isolation,
-    dispatchingTo eventDispatcher: SwiftIndexEvents.Dispatcher? = nil,
+    dispatchingTo eventDispatcher: SwiftIndexEvents.Dispatcher,
     context: SwiftIndexEvents.PrintingContext? = nil,
+    degradationSource: SwiftIndexEvents.DegradationSource = .typeNodeRendering,
     @SemanticStringBuilder _ body: () async throws -> SemanticString
 ) async -> SemanticString? {
     do {
         return try await body()
     } catch {
-        if let eventDispatcher, let context {
+        if let context {
             eventDispatcher.dispatch(.definitionPrintFailed(context: context, error: error))
         } else {
-            // No sink to attribute the failure to: the two block-level wrappers
-            // in `SwiftInterfaceBuilder` (whose members already report
-            // individually, so a block-level failure has no definition identity),
-            // and every call from the diff renderer, whose printers are built
-            // with `.init(in:)` and carry no event handlers at all. Reporting
-            // nowhere is how a diff-path enum payload failure turned
-            // `case foo(Payload)` into `case foo` in silence.
-            //
-            // stderr, never stdout: stdout carries the generated Swift (issue #102).
-            FileHandle.standardError.write(Data("SwiftDeclarationPrinter: dropped a rendering: \(error)\n".utf8))
+            eventDispatcher.dispatch(
+                .renderingDegraded(context: .init(source: degradationSource), error: error)
+            )
         }
         return nil
     }
