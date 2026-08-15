@@ -28,9 +28,11 @@ import MachOFixtureSupport
 final class SubclassMapMaterializationFailureTests: MachOFileTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .SymbolTestsCore }
 
-    private func preparedIndexer() async throws -> SwiftDeclarationIndexer<MachOFile> {
+    private func preparedIndexer(
+        eventHandlers: [SwiftIndexEvents.Handler] = []
+    ) async throws -> SwiftDeclarationIndexer<MachOFile> {
         let unsafeMachOFile = machOFile
-        let indexer = SwiftDeclarationIndexer(in: unsafeMachOFile)
+        let indexer = SwiftDeclarationIndexer(eventHandlers: eventHandlers, in: unsafeMachOFile)
         try await indexer.prepare()
         return indexer
     }
@@ -39,11 +41,12 @@ final class SubclassMapMaterializationFailureTests: MachOFileTests, @unchecked S
         try #require(indexer.allTypeDefinitions.keys.first { $0.currentName == leafName })
     }
 
-    /// A class whose wrapper cannot be materialized is reported on stderr, and
+    /// A class whose wrapper cannot be materialized is reported as an event, and
     /// the classes around it keep their subclass relationships — the failure is
     /// scoped to the one entry, not to the map.
     @Test func unreadableClassWrapperIsReportedAndScopedToItsOwnEntry() async throws {
-        let indexer = try await preparedIndexer()
+        let collector = SwiftIndexEventCollector()
+        let indexer = try await preparedIndexer(eventHandlers: [collector])
 
         let baseClassName = try typeName(named: "ClassTest", in: indexer)
         let subclassName = try typeName(named: "SubclassTest", in: indexer)
@@ -71,15 +74,15 @@ final class SubclassMapMaterializationFailureTests: MachOFileTests, @unchecked S
         indexer.allStorageCache = .init()
 
         // A fresh provider: the subclass map is memoized per provider instance.
-        nonisolated(unsafe) let unsafeIndexer = indexer
-        nonisolated(unsafe) var subclassesAfterInjection: [TypeName] = []
-        let capturedStandardError = try await StandardStreamCapture.standardError {
-            subclassesAfterInjection = IndexerConformanceProvider(indexer: unsafeIndexer).subclasses(of: baseClassName)
-        }
+        let subclassesAfterInjection = IndexerConformanceProvider(indexer: indexer).subclasses(of: baseClassName)
 
         #expect(
-            capturedStandardError.contains("subclass map skipped"),
-            "an unreadable class wrapper must be reported, not dropped silently; captured: \"\(capturedStandardError)\""
+            collector.degradationSources.contains(.subclassMap),
+            "an unreadable class wrapper must be reported, not dropped silently; got \(collector.degradationSources)"
+        )
+        #expect(
+            collector.degradationSubjects.contains(donorTypeName.name),
+            "the report must name the class that went missing; got \(collector.degradationSubjects)"
         )
         #expect(
             subclassesAfterInjection.contains(subclassName),

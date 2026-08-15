@@ -31,9 +31,11 @@ import MachOFixtureSupport
 final class DiffRendererHeaderFailureTests: MachOFileTests, @unchecked Sendable {
     override class var fileName: MachOFileName { .SymbolTestsCore }
 
-    private func preparedBuilder() async throws -> SwiftDiffableInterfaceBuilder<MachOFile> {
+    private func preparedBuilder(
+        eventHandlers: [SwiftIndexEvents.Handler] = []
+    ) async throws -> SwiftDiffableInterfaceBuilder<MachOFile> {
         let unsafeMachOFile = machOFile
-        let builder = SwiftDiffableInterfaceBuilder(in: unsafeMachOFile)
+        let builder = SwiftDiffableInterfaceBuilder(eventHandlers: eventHandlers, in: unsafeMachOFile)
         try await builder.prepare()
         return builder
     }
@@ -61,27 +63,13 @@ final class DiffRendererHeaderFailureTests: MachOFileTests, @unchecked Sendable 
         let renderer = SwiftDiffableInterfaceRenderer(old: oldBuilder, new: newBuilder)
         let outputBeforeInjection = await renderer.printAnnotatedInterface().string
 
-        // A real struct descriptor's layout re-wrapped at an offset far past
-        // the fixture's end of file: every relative resolve the header
-        // materialization performs is out of bounds and throws deterministically.
-        let realStructDefinition = try #require(findTypeDefinition(named: "GenericStructNonRequirement", in: newBuilder))
-        guard case .struct(let realStructDescriptor) = realStructDefinition.typeContextDescriptorWrapper else {
-            Issue.record("GenericStructNonRequirement is expected to be a struct")
-            return
-        }
-        let unreadableDescriptor = StructDescriptor(layout: realStructDescriptor.layout, offset: 0x0FFF_FFF0)
-
-        let donorDefinition = try #require(findTypeDefinition(named: "FinalClassTest", in: newBuilder))
-        let corruptDefinition = TypeDefinition(
-            typeContextDescriptorWrapper: .struct(unreadableDescriptor),
-            typeName: donorDefinition.typeName,
-            isSpecialized: false
-        )
+        let corruptDefinition = try makeUnrenderableDefinition(borrowingNameFrom: Self.addedOnlyDonorName, in: newBuilder)
         // A renderable grandchild, so the corrupt definition's body is not empty.
         let grandchildDonor = try #require(findTypeDefinition(named: "StructTest", in: newBuilder))
         corruptDefinition.typeChildren.append(grandchildDonor)
 
         let hostDefinition = try #require(findTypeDefinition(named: "Classes", in: newBuilder))
+        try requireAbsentFromHost(Self.addedOnlyDonorName, host: hostDefinition)
         hostDefinition.typeChildren.append(corruptDefinition)
 
         let outputAfterInjection = await renderer.printAnnotatedInterface().string
@@ -99,21 +87,9 @@ final class DiffRendererHeaderFailureTests: MachOFileTests, @unchecked Sendable 
         let oldBuilder = try await preparedBuilder()
         let newBuilder = try await preparedBuilder()
 
-        let realStructDefinition = try #require(findTypeDefinition(named: "GenericStructNonRequirement", in: newBuilder))
-        guard case .struct(let realStructDescriptor) = realStructDefinition.typeContextDescriptorWrapper else {
-            Issue.record("GenericStructNonRequirement is expected to be a struct")
-            return
-        }
-        let unreadableDescriptor = StructDescriptor(layout: realStructDescriptor.layout, offset: 0x0FFF_FFF0)
-
-        let donorDefinition = try #require(findTypeDefinition(named: "FinalClassTest", in: newBuilder))
-        let corruptDefinition = TypeDefinition(
-            typeContextDescriptorWrapper: .struct(unreadableDescriptor),
-            typeName: donorDefinition.typeName,
-            isSpecialized: false
-        )
-
+        let corruptDefinition = try makeUnrenderableDefinition(borrowingNameFrom: Self.addedOnlyDonorName, in: newBuilder)
         let hostDefinition = try #require(findTypeDefinition(named: "Classes", in: newBuilder))
+        try requireAbsentFromHost(Self.addedOnlyDonorName, host: hostDefinition)
         hostDefinition.typeChildren.append(corruptDefinition)
 
         let renderer = SwiftDiffableInterfaceRenderer(old: oldBuilder, new: newBuilder)
@@ -124,43 +100,119 @@ final class DiffRendererHeaderFailureTests: MachOFileTests, @unchecked Sendable 
 
     /// Dropping the declaration is right; dropping it **silently** is not.
     ///
-    /// This renderer builds its printers with `.init(in:)` and its public
-    /// initializer takes no event handlers, so a dispatched
-    /// `definitionPrintFailed` would have no sink — the diagnostic has to be a
-    /// stderr write. Without it, a declaration present on both sides simply
-    /// disappears from the annotated interface with nothing to indicate that a
-    /// comparison was skipped rather than found equal.
+    /// The renderer now builds each printer with its indexer's dispatcher, so the
+    /// handlers the host passed to the builder cover printing too. Previously the
+    /// printers were built with `.init(in:)` and had no sink at all, which is why
+    /// this was once asserted by capturing stderr.
     ///
-    /// stderr specifically, never stdout: stdout is the stream the CLI writes
-    /// the annotated interface to (issue #102).
-    @Test func unrenderableHeaderIsReportedOnStandardError() async throws {
+    /// The event carries the declaration's NAME. The old stderr line named
+    /// nothing, so an operator could tell that something had vanished but not
+    /// what — which is most of what makes such a report actionable.
+    @Test func unrenderableHeaderIsReportedAsAnEvent() async throws {
+        let collector = SwiftIndexEventCollector()
         let oldBuilder = try await preparedBuilder()
+        let newBuilder = try await preparedBuilder(eventHandlers: [collector])
+
+        let corruptDefinition = try makeUnrenderableDefinition(borrowingNameFrom: "FinalClassTest", in: newBuilder)
+        let hostDefinition = try #require(findTypeDefinition(named: "Classes", in: newBuilder))
+        hostDefinition.typeChildren.append(corruptDefinition)
+
+        let renderer = SwiftDiffableInterfaceRenderer(old: oldBuilder, new: newBuilder)
+        _ = await renderer.printAnnotatedInterface().string
+
+        #expect(
+            collector.printFailureNames.contains { $0.hasSuffix("FinalClassTest") },
+            "an unrenderable header must be reported through the event stream, naming the declaration that was dropped; got \(collector.printFailureNames)"
+        )
+    }
+
+    /// The two-sided case, which is the routine one when diffing two versions of
+    /// a binary and the one the drop-whole contract must NOT swallow.
+    ///
+    /// `renderType` used to read
+    /// `guard let old = await header(...), let new = await header(...)`. Guard
+    /// clauses short-circuit, so a failure on the OLD side never even attempted
+    /// the new side, and returning `[]` deleted the declaration, its members and
+    /// every nested child from BOTH sides — while the old binary's copy really
+    /// was unrenderable, the new binary's copy was perfectly fine.
+    ///
+    /// One renderable side is enough to print a valid declaration line, so the
+    /// surviving side stands in and the member diff below it lives. Injecting on
+    /// the OLD side only is what distinguishes this from the `.added` cases
+    /// above, where dropping IS correct.
+    @Test func unrenderableHeaderOnOneSideKeepsTheOtherSide() async throws {
+        let collector = SwiftIndexEventCollector()
+        let oldBuilder = try await preparedBuilder(eventHandlers: [collector])
         let newBuilder = try await preparedBuilder()
 
-        let realStructDefinition = try #require(findTypeDefinition(named: "GenericStructNonRequirement", in: newBuilder))
+        // REPLACE the old side's copy rather than appending a second one:
+        // `matchByKey` is first-wins, so an appended duplicate never gets
+        // matched and the corrupt definition would simply be ignored. Replacing
+        // keeps one entry per side under the same key, which is what puts the
+        // renderer on its two-sided `.unchanged` path. The new side keeps its
+        // intact copy untouched.
+        let oldHost = try #require(findTypeDefinition(named: "Classes", in: oldBuilder))
+        let replacedIndex = try #require(
+            oldHost.typeChildren.firstIndex { $0.typeName.currentName == "FinalClassTest" },
+            "fixture must nest FinalClassTest inside Classes for this test to exercise the two-sided path"
+        )
+        oldHost.typeChildren[replacedIndex] = try makeUnrenderableDefinition(borrowingNameFrom: "FinalClassTest", in: oldBuilder)
+
+        let renderer = SwiftDiffableInterfaceRenderer(old: oldBuilder, new: newBuilder)
+        let output = await renderer.printAnnotatedInterface().string
+
+        #expect(
+            output.contains("FinalClassTest"),
+            "a header that fails on ONE side must not delete the declaration from the other side too"
+        )
+        #expect(
+            collector.printFailureNames.contains { $0.hasSuffix("FinalClassTest") },
+            "the side that could not be rendered must still be reported; got \(collector.printFailureNames)"
+        )
+    }
+
+    /// A real struct descriptor's layout re-wrapped at an offset far past the
+    /// fixture's end of file: every relative resolve the header materialization
+    /// performs is out of bounds and throws deterministically.
+    ///
+    /// The borrowed name decides which diff path the injection exercises, so
+    /// callers pass it explicitly. A name already nested under the host matches
+    /// the other side's real copy and takes the two-sided path; a name from
+    /// elsewhere has no counterpart and takes `.added`.
+    private func makeUnrenderableDefinition(
+        borrowingNameFrom donorName: String,
+        in builder: SwiftDiffableInterfaceBuilder<MachOFile>
+    ) throws -> TypeDefinition {
+        let realStructDefinition = try #require(findTypeDefinition(named: "GenericStructNonRequirement", in: builder))
         guard case .struct(let realStructDescriptor) = realStructDefinition.typeContextDescriptorWrapper else {
-            Issue.record("GenericStructNonRequirement is expected to be a struct")
-            return
+            throw UnrenderableDefinitionError.donorIsNotAStruct
         }
         let unreadableDescriptor = StructDescriptor(layout: realStructDescriptor.layout, offset: 0x0FFF_FFF0)
-
-        let donorDefinition = try #require(findTypeDefinition(named: "FinalClassTest", in: newBuilder))
-        let corruptDefinition = TypeDefinition(
+        let donorDefinition = try #require(findTypeDefinition(named: donorName, in: builder))
+        return TypeDefinition(
             typeContextDescriptorWrapper: .struct(unreadableDescriptor),
             typeName: donorDefinition.typeName,
             isSpecialized: false
         )
-        let hostDefinition = try #require(findTypeDefinition(named: "Classes", in: newBuilder))
-        hostDefinition.typeChildren.append(corruptDefinition)
+    }
 
-        nonisolated(unsafe) let renderer = SwiftDiffableInterfaceRenderer(old: oldBuilder, new: newBuilder)
-        let capturedStandardError = try await StandardStreamCapture.standardError {
-            _ = await renderer.printAnnotatedInterface().string
-        }
+    /// A type that is NOT nested under `Classes`, so injecting a definition
+    /// under its name puts the renderer on the `.added` path — the only side
+    /// where dropping the whole declaration is the correct outcome.
+    private static let addedOnlyDonorName = "GenericStructNonRequirement"
 
-        #expect(
-            !capturedStandardError.isEmpty,
-            "an unrenderable header must leave a trace; the annotated interface has no event sink to report through"
+    /// Injecting a name the host already carries would silently change which
+    /// path the test exercises: `matchByKey` would pair the injected definition
+    /// with the other side's real copy and take the two-sided route instead.
+    /// Assert the premise rather than trust the fixture to hold still.
+    private func requireAbsentFromHost(_ name: String, host: TypeDefinition) throws {
+        try #require(
+            !host.typeChildren.contains { $0.typeName.currentName == name },
+            "\(name) must not already be nested under the host, or this test silently stops covering the `.added` path"
         )
+    }
+
+    private enum UnrenderableDefinitionError: Error {
+        case donorIsNotAStruct
     }
 }

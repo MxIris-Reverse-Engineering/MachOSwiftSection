@@ -149,93 +149,174 @@ final class PrintFailureEventTests: MachOFileTests, @unchecked Sendable {
         )
     }
 
-    /// The dropped child must not reach **stdout**. Printing is driven with the
-    /// process's real `STDOUT_FILENO` redirected to a pipe, because that is the
-    /// exact channel the CLI streams the generated interface through — a
-    /// `print(error)` anywhere under this call lands in the interface itself.
-    @Test func droppedNestedChildWritesNothingToStandardOutput() async throws {
-        let indexer = try await preparedIndexer()
-        let hostDefinition = try #require(findTypeDefinition(named: "Classes", in: indexer))
-        let donorDefinition = try #require(findTypeDefinition(named: "FinalClassTest", in: indexer))
-        let unprintableDefinition = try makeUnprintableDefinition(borrowingNameFrom: donorDefinition, in: indexer)
-        hostDefinition.typeChildren.append(unprintableDefinition)
+    /// No library module may write to a process stream at all — that is what
+    /// keeps diagnostics out of the generated interface (issue #102) and, since
+    /// the raising `FileHandle` overload aborts the host on a closed or broken
+    /// stream, what keeps a degradation from becoming a crash.
+    ///
+    /// Asserted as a **source scan** rather than by redirecting `STDOUT_FILENO`.
+    /// The redirect version could not be made safe: `swift test` links every test
+    /// target into one process and swift-testing's `.serialized` only serializes
+    /// within a suite, so a parallel suite's output landed in this pipe (a false
+    /// failure) and nested `dup`/`dup2` between suites could leave a pipe's write
+    /// end held open, hanging the whole run. A scan also covers every module at
+    /// once instead of the one path a test happens to drive — the same trade this
+    /// PR already made for the NodeStore invariant.
+    @Test func libraryModulesWriteToNoProcessStream() throws {
+        let sourcesDirectory = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // SwiftInterfaceTests
+            .deletingLastPathComponent()  // Tests
+            .deletingLastPathComponent()  // package root
+            .appendingPathComponent("Sources")
 
-        nonisolated(unsafe) let unsafeHostDefinition = hostDefinition
-        nonisolated(unsafe) let unsafePrinter = SwiftDeclarationPrinter(in: machOFile)
+        // The CLI is the host, not a library: stderr is its diagnostic channel
+        // and stdout its product output, so both are legitimate there. Testing
+        // support is likewise not shipped in a library.
+        let hostModules: Set<String> = ["swift-section", "MachOTestingSupport"]
 
-        let capturedStandardOutput = try await captureStandardOutput {
-            _ = try await unsafePrinter.printTypeDefinition(unsafeHostDefinition).string
+        // A `Handler` IS the sink — writing to a stream is the whole job of the
+        // one a CLI host attaches. This is the layer where the choice is
+        // legitimate, which is the point of routing everything through it.
+        let sinkImplementations: Set<String> = ["SwiftIndexEventsHandlers.swift"]
+
+        // Stream writes that predate this rule, in paths evolution 0005 did not
+        // touch. Listed rather than ignored: the set may shrink, never grow —
+        // a new offender in any other file fails this test. Paying these down is
+        // its own change (they are debug tracing and error prints in the
+        // descriptor-wrapper and layout-analysis layers, not the degradation
+        // reporting this proposal restructured).
+        let knownBaselineDebt: Set<String> = [
+            "ContextDescriptorWrapper.swift",
+            "TypeContextDescriptorWrapper.swift",
+            "SubstitutionMap.swift",
+            "SpareBitAnalyzer.swift",
+            "PrimitiveTypeMapping.swift",
+            "DumpableTests.swift",
+        ]
+
+        var offendingLines: [String] = []
+        let enumerator = try #require(FileManager.default.enumerator(at: sourcesDirectory, includingPropertiesForKeys: nil))
+        for case let fileURL as URL in enumerator where fileURL.pathExtension == "swift" {
+            let moduleName = fileURL.pathComponents
+                .drop(while: { $0 != "Sources" })
+                .dropFirst()
+                .first
+            if let moduleName, hostModules.contains(moduleName) { continue }
+            if sinkImplementations.contains(fileURL.lastPathComponent) { continue }
+            if knownBaselineDebt.contains(fileURL.lastPathComponent) { continue }
+
+            let contents = try String(contentsOf: fileURL, encoding: .utf8)
+            for (lineNumber, line) in contents.components(separatedBy: .newlines).enumerated() {
+                let code = line.trimmingCharacters(in: .whitespaces)
+                guard !code.hasPrefix("//"), !code.hasPrefix("///") else { continue }
+                // `func print()` DECLARES this library's own rendering API
+                // (`TypeName.print()`, `Node.print(using:)`); it does not call
+                // the stdlib's.
+                guard !code.contains("func print(") else { continue }
+                guard code.contains("FileHandle.standardError")
+                    || code.contains("FileHandle.standardOutput")
+                    || Self.containsBareCall(to: "fputs", in: code)
+                    // Bare `print(` only. `node.print(using:)` and
+                    // `printer.printRoot(...)` are this library's own rendering
+                    // API, not the stdlib's stdout write.
+                    || Self.containsBareCall(to: "print", in: code)
+                else { continue }
+                offendingLines.append("\(fileURL.lastPathComponent):\(lineNumber + 1): \(code)")
+            }
         }
 
         #expect(
-            capturedStandardOutput.isEmpty,
-            "printing must write nothing to stdout — the CLI streams the generated interface there; captured: \(capturedStandardOutput)"
+            offendingLines.isEmpty,
+            """
+            library code must report through `SwiftIndexEvents` (or os_log where no dispatcher is reachable), \
+            never a process stream:
+            \(offendingLines.joined(separator: "\n"))
+            """
         )
     }
 
-    /// Redirects `STDOUT_FILENO` to a pipe for the duration of `body`, then
-    /// restores it and returns whatever was written.
-    private func captureStandardOutput(_ body: () async throws -> Void) async throws -> String {
-        let savedStandardOutput = dup(STDOUT_FILENO)
-        defer { close(savedStandardOutput) }
-
-        let pipe = Pipe()
-        dup2(pipe.fileHandleForWriting.fileDescriptor, STDOUT_FILENO)
-
-        var readData = Data()
-        // Drain concurrently: a blocked pipe would otherwise deadlock the
-        // writer once the buffer fills.
-        let drainTask = Task.detached { () -> Data in
-            var accumulated = Data()
-            while let chunk = try? pipe.fileHandleForReading.read(upToCount: 4096), !chunk.isEmpty {
-                accumulated.append(chunk)
+    /// Is `name(` called as a function here, rather than as a member of
+    /// something? `node.print(using:)` is this library's rendering API and must
+    /// not be mistaken for the stdlib's `print`.
+    private static func containsBareCall(to name: String, in code: String) -> Bool {
+        var searchRange = code.startIndex..<code.endIndex
+        while let found = code.range(of: name + "(", range: searchRange) {
+            if found.lowerBound == code.startIndex { return true }
+            let preceding = code[code.index(before: found.lowerBound)]
+            if !preceding.isLetter, !preceding.isNumber, preceding != ".", preceding != "_" {
+                return true
             }
-            return accumulated
+            searchRange = found.upperBound..<code.endIndex
         }
-
-        do {
-            try await body()
-        } catch {
-            fflush(stdout)
-            dup2(savedStandardOutput, STDOUT_FILENO)
-            try? pipe.fileHandleForWriting.close()
-            _ = await drainTask.value
-            throw error
-        }
-
-        fflush(stdout)
-        dup2(savedStandardOutput, STDOUT_FILENO)
-        try? pipe.fileHandleForWriting.close()
-        readData = await drainTask.value
-
-        return String(decoding: readData, as: UTF8.self)
+        return false
     }
 
-    /// `printCatchedThrowing` reports through an event only when BOTH a
-    /// dispatcher and a context are supplied. Three call sites supply neither —
-    /// the two block-level wrappers in `SwiftInterfaceBuilder` (deliberately: the
-    /// members inside already report individually, so a block-level failure has
-    /// no definition identity to attribute) and `printType`, which the diff
-    /// renderer's `printEnumCase` runs every payload through. With the historical
-    /// `print(error)` removed, that configuration swallowed failures completely:
-    /// no event, nothing on stderr, and — on the diff path — a `case foo(Payload)`
-    /// quietly rendered as `case foo`.
+    /// The scanner must be able to see a violation, and must not invent one —
+    /// its silence proves nothing otherwise.
+    @Test func theStreamWriteScannerDiscriminates() throws {
+        #expect(Self.containsBareCall(to: "print", in: "print(error)"))
+        #expect(Self.containsBareCall(to: "print", in: "if failed { print(error) }"))
+        #expect(Self.containsBareCall(to: "fputs", in: "fputs(message, stderr)"))
+
+        // This library's own rendering API, not a stream write.
+        #expect(!Self.containsBareCall(to: "print", in: "let text = node.print(using: .default)"))
+        #expect(!Self.containsBareCall(to: "print", in: "try await printer.printRoot(node)"))
+        #expect(!Self.containsBareCall(to: "print", in: "debugPrint(value)"))
+        // A declaration of that API reads like a bare call and is filtered
+        // separately — `public func print() -> SemanticString` is not a write.
+        #expect("public func print() -> SemanticString {".contains("func print("))
+    }
+
+    /// A failure with no *definition identity* must still be reported.
     ///
-    /// stderr, never stdout: stdout carries the generated Swift (issue #102).
-    @Test func catchWithNoEventSinkStillReportsOnStandardError() async throws {
+    /// `printCatchedThrowing` takes a required dispatcher but an optional
+    /// context: the two block-level wrappers in `SwiftInterfaceBuilder` have no
+    /// single definition to blame (their members already report individually),
+    /// and `printType` renders a fragment — an enum case's payload, a property's
+    /// type. Those report as `renderingDegraded` instead. When the dispatcher was
+    /// optional and these callers passed nothing, the failure fell to a stderr
+    /// write; on the diff path, where no sink existed at all, `case foo(Payload)`
+    /// became `case foo` in silence.
+    @Test func catchWithoutDefinitionIdentityReportsDegradation() async throws {
         struct UnrenderableNodeError: Error {}
 
-        // Neither closure captures anything: a capturing one would have to be
+        let collector = SwiftIndexEventCollector()
+        let eventDispatcher = SwiftIndexEvents.Dispatcher()
+        eventDispatcher.addHandler(collector)
+
+        // The closure captures nothing: a capturing one would have to be
         // `sending` across `printCatchedThrowing`'s nonisolated boundary.
-        let capturedStandardError = try await StandardStreamCapture.standardError {
-            _ = await printCatchedThrowing {
-                throw UnrenderableNodeError()
-            }
+        _ = await printCatchedThrowing(dispatchingTo: eventDispatcher) {
+            throw UnrenderableNodeError()
         }
 
         #expect(
-            !capturedStandardError.isEmpty,
-            "with no dispatcher and no context there is nowhere else to report; the failure must not vanish"
+            collector.degradationSources.contains(.typeNodeRendering),
+            "a fragment that failed to render must report as a degradation; got \(collector.degradationSources)"
         )
+    }
+
+    /// The zero-handler floor's own contract.
+    ///
+    /// `Dispatcher.dispatch` reports to os_log when nothing is attached, and it
+    /// decides *what* to report from `unhandledFailureDescription`. That
+    /// partition is a whitelist rather than an inverted `default`, so a newly
+    /// added failure case silently opts out of the floor unless a branch is added
+    /// with it — which is the regression class the floor exists to prevent.
+    /// Assert the partition directly; the os_log write itself is not observable
+    /// in-process.
+    @Test func everyFailureEventIsRecognizedByTheFloor() async throws {
+        struct SomeError: Error {}
+        let context = SwiftIndexEvents.PrintingContext(name: "Foo", kind: .type)
+
+        #expect(SwiftIndexEvents.Payload.definitionPrintFailed(context: context, error: SomeError()).unhandledFailureDescription != nil)
+        #expect(SwiftIndexEvents.Payload.renderingDegraded(context: .init(source: .subclassMap, subject: "Bar"), error: SomeError()).unhandledFailureDescription != nil)
+        #expect(SwiftIndexEvents.Payload.phaseTransition(phase: .indexing, state: .failed(SomeError())).unhandledFailureDescription != nil)
+        #expect(SwiftIndexEvents.Payload.typeProcessingFailed(typeName: "Baz", error: SomeError()).unhandledFailureDescription != nil)
+
+        // Progress events stay off the floor: logging every tick would bury the
+        // failures it exists to surface.
+        #expect(SwiftIndexEvents.Payload.definitionPrintStarted(context: context).unhandledFailureDescription == nil)
+        #expect(SwiftIndexEvents.Payload.phaseTransition(phase: .indexing, state: .completed).unhandledFailureDescription == nil)
     }
 }
