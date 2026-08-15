@@ -5,33 +5,8 @@
 import CompilerPluginSupport
 import Foundation
 
-let localEnvironment: [String: String] = {
-    let localEnvironmentFilePath = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent()
-        .appendingPathComponent(".package.env")
-        .path
-    guard FileManager.default.fileExists(atPath: localEnvironmentFilePath),
-          let contents = try? String(contentsOfFile: localEnvironmentFilePath, encoding: .utf8)
-    else {
-        return [:]
-    }
-    var environment: [String: String] = [:]
-    for line in contents.components(separatedBy: .newlines) {
-        let trimmedLine = line.trimmingCharacters(in: .whitespaces)
-        if trimmedLine.isEmpty || trimmedLine.hasPrefix("#") {
-            continue
-        }
-        let parts = trimmedLine.split(separator: "=", maxSplits: 1)
-        guard parts.count == 2 else { continue }
-        let key = parts[0].trimmingCharacters(in: .whitespaces)
-        let value = parts[1].trimmingCharacters(in: .whitespaces)
-        environment[key] = value
-    }
-    return environment
-}()
-
 func envEnable(_ key: String, default defaultValue: Bool = false) -> Bool {
-    let value = localEnvironment[key] ?? Context.environment[key]
+    let value = Context.environment[key]
     guard let value else {
         return defaultValue
     }
@@ -174,7 +149,15 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKit.git",
-            exact: "0.52.100",
+            // A range rather than `exact:`, for the same reason as
+            // MachOObjCSection below. RuntimeViewer depends on this package and
+            // on MachOKit directly, so an exact requirement here deadlocks
+            // resolution the moment the app moves to a newer patch — which is
+            // exactly what `0.52.101` did. The lower bound is `0.52.101`
+            // because it fixes ObjC header info lookup in dyld subcaches; the
+            // upper bound stops at the next minor, where this line is free to
+            // break again.
+            "0.52.101" ..< "0.53.0",
         ),
     )
 }
@@ -238,7 +221,7 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/swift-semantic-string",
-            from: "0.1.5",
+            from: "0.3.0",
         ),
     )
 
@@ -253,7 +236,7 @@ extension Package.Dependency {
         ),
         remote: .package(
             url: "https://github.com/MxIris-Reverse-Engineering/MachOKitExtensions",
-            from: "0.1.0",
+            from: "0.1.1",
         ),
     )
 }
