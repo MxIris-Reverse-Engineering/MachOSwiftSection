@@ -48,8 +48,14 @@ public final class SwiftDiffableInterfaceRenderer<
     public init(old: SwiftDiffableInterfaceBuilder<OldMachO>, new: SwiftDiffableInterfaceBuilder<NewMachO>) {
         self.oldIndexer = old.indexer
         self.newIndexer = new.indexer
-        self.oldPrinter = .init(in: old.machO)
-        self.newPrinter = .init(in: new.machO)
+        // Each printer shares its indexer's dispatcher, so the handlers the host
+        // passed to the builder cover printing too. Constructing them with
+        // `.init(in:)` left the whole diff path with no sink at all, so
+        // `printCatchedThrowing` and `dispatchingCatchedThrowing` dropped members
+        // into an empty handler array — the very silence this renderer's
+        // header-failure reporting was meant to end.
+        self.oldPrinter = .init(eventDispatcher: old.indexer.eventDispatcher, in: old.machO)
+        self.newPrinter = .init(eventDispatcher: new.indexer.eventDispatcher, in: new.machO)
     }
 
     // MARK: - Top level
@@ -140,15 +146,23 @@ public final class SwiftDiffableInterfaceRenderer<
         guard old != nil || new != nil else { return [] }
         let marker: DiffMarker = old == nil ? .added : (new == nil ? .removed : .unchanged)
 
-        // A header that could not be rendered drops the whole type: emitting
-        // `bodyUnits` under a blank header line would produce members and
-        // braces with no declaration above them.
-        guard let oldHeader = await header(old, { try await oldPrinter.printTypeHeader($0, level: level) }),
-              let newHeader = await header(new, { try await newPrinter.printTypeHeader($0, level: level) })
-        else { return [] }
+        // Both attempted, then resolved — never `guard let a, let b`, which would
+        // skip the second side the moment the first failed. See `resolveHeaders`.
+        let oldHeader = await header(
+            old,
+            subject: old?.typeName.name,
+            dispatchingTo: oldPrinter.eventDispatcher
+        ) { try await oldPrinter.printTypeHeader($0, level: level) }
+        let newHeader = await header(
+            new,
+            subject: new?.typeName.name,
+            dispatchingTo: newPrinter.eventDispatcher
+        ) { try await newPrinter.printTypeHeader($0, level: level) }
+
+        guard let headers = resolveHeaders(old: oldHeader, new: newHeader) else { return [] }
 
         let bodyUnits = await typeBodyUnits(old: old, new: new, level: level)
-        return DiffContainerAssembler.assemble(oldHeader: oldHeader, newHeader: newHeader, marker: marker, bodyUnits: bodyUnits, level: level)
+        return DiffContainerAssembler.assemble(oldHeader: headers.old, newHeader: headers.new, marker: marker, bodyUnits: bodyUnits, level: level)
     }
 
     /// The body of a type, mirroring `printTypeDefinition`'s composition order:
@@ -192,11 +206,19 @@ public final class SwiftDiffableInterfaceRenderer<
         guard old != nil || new != nil else { return [] }
         let marker: DiffMarker = old == nil ? .added : (new == nil ? .removed : .unchanged)
 
-        // Same contract as `renderType`: an unrenderable header drops the
-        // whole protocol rather than emitting its requirements bare.
-        guard let oldHeader = await header(old, { try await oldPrinter.printProtocolHeader($0, level: level) }),
-              let newHeader = await header(new, { try await newPrinter.printProtocolHeader($0, level: level) })
-        else { return [] }
+        // Same contract as `renderType`, short-circuit included.
+        let oldHeader = await header(
+            old,
+            subject: old?.protocolName.name,
+            dispatchingTo: oldPrinter.eventDispatcher
+        ) { try await oldPrinter.printProtocolHeader($0, level: level) }
+        let newHeader = await header(
+            new,
+            subject: new?.protocolName.name,
+            dispatchingTo: newPrinter.eventDispatcher
+        ) { try await newPrinter.printProtocolHeader($0, level: level) }
+
+        guard let headers = resolveHeaders(old: oldHeader, new: newHeader) else { return [] }
 
         var units: [[DiffLine]] = []
         units += await diffMembers(old: associatedTypeMembers(old, printer: oldPrinter), new: associatedTypeMembers(new, printer: newPrinter), level: level)
@@ -206,7 +228,7 @@ public final class SwiftDiffableInterfaceRenderer<
             new: { renderableMembers(new, in: $0, printer: newPrinter, level: level) }
         )
 
-        return DiffContainerAssembler.assemble(oldHeader: oldHeader, newHeader: newHeader, marker: marker, bodyUnits: units, level: level)
+        return DiffContainerAssembler.assemble(oldHeader: headers.old, newHeader: headers.new, marker: marker, bodyUnits: units, level: level)
     }
 
     // MARK: - Extensions
@@ -450,22 +472,75 @@ public final class SwiftDiffableInterfaceRenderer<
     /// binaries) — plus, since evolution 0002, it re-materializes the wrapper
     /// from its descriptor. Swallowing that into an empty string emitted the
     /// type's members with no `struct Foo` line above them, silently.
-    private func header<EnclosingDefinition>(_ definition: EnclosingDefinition?, _ render: (EnclosingDefinition) async throws -> SemanticString) async -> SemanticString? {
-        guard let definition else { return SemanticString() }
+    /// What came of one side's header. Three states, not `SemanticString?`:
+    /// "this side has no such declaration" and "this side has one but it would
+    /// not render" both used to arrive as the same value, and conflating them
+    /// substitutes an empty header for a real one — emitting members under a
+    /// blank line, the exact defect the drop-whole rule exists to prevent.
+    private enum HeaderOutcome {
+        /// The declaration does not exist on this side (a pure add or remove).
+        case absent
+        case rendered(SemanticString)
+        case failed
+    }
+
+    private func header<EnclosingDefinition>(
+        _ definition: EnclosingDefinition?,
+        subject: String?,
+        dispatchingTo eventDispatcher: SwiftIndexEvents.Dispatcher,
+        _ render: (EnclosingDefinition) async throws -> SemanticString
+    ) async -> HeaderOutcome {
+        guard let definition else { return .absent }
         do {
-            return try await render(definition)
+            return .rendered(try await render(definition))
         } catch {
-            // stderr, not an event: this renderer builds its printers with
-            // `.init(in:)` and its public initializer takes no event handlers, so
-            // a dispatched `definitionPrintFailed` would have no sink. Without
-            // this line a declaration present on BOTH sides simply vanishes from
-            // the annotated interface, indistinguishable from "compared and found
-            // equal". (The change-list, `--json` and `--fail-on-breaking` paths
-            // are unaffected — they run through `ABIDiffer`, not this renderer.)
-            //
-            // stderr, never stdout: stdout carries the annotated interface.
-            FileHandle.standardError.write(Data("SwiftDiffableInterfaceRenderer: dropped a declaration, its header could not be rendered: \(error)\n".utf8))
-            return nil
+            // Reported as an event now that both printers are built with their
+            // builder's handlers. `subject` is what makes it actionable — the
+            // message used to name no declaration, so an operator could see that
+            // something vanished but not what.
+            eventDispatcher.dispatch(
+                .definitionPrintFailed(
+                    context: .init(name: subject ?? "<unnamed>", kind: .type),
+                    error: error
+                )
+            )
+            return .failed
+        }
+    }
+
+    /// Decides what to render from two independently-attempted headers.
+    ///
+    /// Both sides are always attempted before this runs. The previous
+    /// `guard let old = await header(...), let new = await header(...)`
+    /// short-circuited on the first nil, so a failure on the OLD side — the
+    /// routine cross-version case — never even asked the new side, and returning
+    /// `[]` then deleted the declaration, its members and all nested children
+    /// from BOTH sides of the diff, even though the new side was fine.
+    ///
+    /// A side that merely does not exist contributes an empty header, which is
+    /// how a pure add or remove has always rendered. A side that FAILED is
+    /// different: if the other side rendered, it stands in (a valid declaration
+    /// line, with the member diff below it intact); if the other side is absent
+    /// or failed too, there is no line to print and the declaration is dropped —
+    /// the original drop-whole rule, now scoped to the case that needs it.
+    /// Either way `header` has already dispatched the failure.
+    private func resolveHeaders(
+        old: HeaderOutcome,
+        new: HeaderOutcome
+    ) -> (old: SemanticString, new: SemanticString)? {
+        switch (old, new) {
+        case let (.rendered(oldHeader), .rendered(newHeader)):
+            (old: oldHeader, new: newHeader)
+        case let (.absent, .rendered(newHeader)):
+            (old: SemanticString(), new: newHeader)
+        case let (.rendered(oldHeader), .absent):
+            (old: oldHeader, new: SemanticString())
+        case let (.failed, .rendered(newHeader)):
+            (old: newHeader, new: newHeader)
+        case let (.rendered(oldHeader), .failed):
+            (old: oldHeader, new: oldHeader)
+        case (.failed, .absent), (.absent, .failed), (.failed, .failed), (.absent, .absent):
+            nil
         }
     }
 
